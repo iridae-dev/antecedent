@@ -10,14 +10,13 @@ import tomllib
 from collections import Counter
 from pathlib import Path
 
-GROUPS = (
-    "python", "facade-0", "facade-1", "estimate", "identify", "other"
-)
+GROUPS = ("python", "facade-0", "facade-1", "estimate", "identify", "other")
 
 
 def group_rows(rows: list[dict]) -> dict[str, list[dict]]:
     facade = Counter(
-        row["evidence_test"] for row in rows
+        row["evidence_test"]
+        for row in rows
         if row["evidence_test"].startswith("crates/antecedent/")
     )
     facade_files: dict[str, str] = {}
@@ -48,6 +47,7 @@ def group_rows(rows: list[dict]) -> dict[str, list[dict]]:
 
 def toml_string(value: str) -> str:
     import json
+
     return json.dumps(value)
 
 
@@ -63,12 +63,19 @@ def main() -> None:
         output.write_text("", encoding="utf-8", newline="\n")
         print(f"promotion evidence {name}: 0/{len(rows)} rows")
         return
-    output.write_text("".join(
-        "[[fixture_evidence]]\n"
-        + "".join(f"{key} = {toml_string(str(row[key]))}\n"
-                  for key in ("id", "evidence_test", "evidence_assertion"))
-        + "\n" for row in selected
-    ), encoding="utf-8", newline="\n")
+    output.write_text(
+        "".join(
+            "[[fixture_evidence]]\n"
+            + "".join(
+                f"{key} = {toml_string(str(row[key]))}\n"
+                for key in ("id", "evidence_test", "evidence_assertion")
+            )
+            + "\n"
+            for row in selected
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
     print(f"promotion evidence {name}: {len(selected)}/{len(rows)} rows")
 
 

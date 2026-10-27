@@ -85,7 +85,8 @@ in the independently retained causal contract before conversion.
 
 ## Mapped Gaussian posterior transfer
 
-`antecedent::inference::mapped_posterior_transfer` consumes an aligned
+`antecedent::inference::mapped_posterior_transfer_with` (Python:
+`antecedent.priors.mapped_posterior_transfer`) consumes an aligned
 parameter-posterior artifact under a separately supplied expected source
 identity. The caller gives a complete mapping from stable source variable IDs
 to stable target variable IDs, plus target snapshot and causal-contract IDs;

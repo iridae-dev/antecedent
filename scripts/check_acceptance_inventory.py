@@ -34,13 +34,23 @@ ensure_scripts_on_path()
 import generate_acceptance_inventory as gen  # noqa: E402
 
 SOURCE_BOUND = (
-    ("status", "status"), ("closure_kind", "closure"), ("scope_status", "scope_status"),
-    ("gap", "gap"), ("route", "route"), ("inference", "inference"),
+    ("status", "status"),
+    ("closure_kind", "closure"),
+    ("scope_status", "scope_status"),
+    ("gap", "gap"),
+    ("route", "route"),
+    ("inference", "inference"),
 )
 
 
 def classify(message: str) -> str:
-    return "unsupported" if "unsupported licensing evidence" in message or "explicit " in message or "coverage record" in message else "conflict"
+    return (
+        "unsupported"
+        if "unsupported licensing evidence" in message
+        or "explicit " in message
+        or "coverage record" in message
+        else "conflict"
+    )
 
 
 def check(rows: list[dict], sources: dict) -> list[str]:
@@ -94,13 +104,21 @@ def check(rows: list[dict], sources: dict) -> list[str]:
         differing = [n for n in gen.FIELDS if row.get(n) != want[n]]
         for name in differing:
             if name in dict(SOURCE_BOUND):
-                problems.append(f"conflict: {rid}: {name} {row.get(name)!r} conflicts with the records ({want[name]!r})")
+                problems.append(
+                    f"conflict: {rid}: {name} {row.get(name)!r} conflicts with the records ({want[name]!r})"
+                )
         stale = [n for n in differing if n not in dict(SOURCE_BOUND)]
         if stale:
             problems.append(f"stale: {rid} differs from the records in {', '.join(stale)}")
-        if row.get("acceptance") == "complete" and (row.get("incomplete_reasons") or row.get("conflicts")):
+        if row.get("acceptance") == "complete" and (
+            row.get("incomplete_reasons") or row.get("conflicts")
+        ):
             problems.append(f"conflict: {rid}: marked complete with open reasons")
-        if row.get("acceptance") == "incomplete" and not row.get("incomplete_reasons") and not row.get("conflicts"):
+        if (
+            row.get("acceptance") == "incomplete"
+            and not row.get("incomplete_reasons")
+            and not row.get("conflicts")
+        ):
             problems.append(f"conflict: {rid}: marked incomplete with no reason")
     return problems
 
@@ -108,7 +126,9 @@ def check(rows: list[dict], sources: dict) -> list[str]:
 def run(root: Path = ROOT) -> list[str]:
     path = root / gen.OUTPUT
     if not path.is_file():
-        return [f"missing: {gen.OUTPUT} does not exist; run scripts/generate_acceptance_inventory.py"]
+        return [
+            f"missing: {gen.OUTPUT} does not exist; run scripts/generate_acceptance_inventory.py"
+        ]
     rows = tomllib.loads(path.read_text(encoding="utf-8")).get("row", [])
     sources = gen.load_sources(root)
     problems = check(rows, sources)

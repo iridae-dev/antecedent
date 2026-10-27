@@ -65,7 +65,11 @@ else:
                 )
 
 generated = subprocess.run(
-    [sys.executable, str(Path(__file__).resolve().parent / "generate_claim_inventory.py"), "--check"],
+    [
+        sys.executable,
+        str(Path(__file__).resolve().parent / "generate_claim_inventory.py"),
+        "--check",
+    ],
     cwd=root,
     capture_output=True,
     text=True,

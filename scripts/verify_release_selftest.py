@@ -1,4 +1,5 @@
 """Exercise release wheel acceptance and its fail-closed cases without publishing."""
+
 import os
 import subprocess
 import tempfile
@@ -26,13 +27,21 @@ with tempfile.TemporaryDirectory() as temp:
         for tag in tags:
             (wheels / f"antecedent-{VERSION}-cp3{minor}-cp3{minor}-{tag}.whl").touch()
 
-    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
-           "GITHUB_RUN_ID": "tag-run", "MOCK_RUN_SHA": sha}
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "GITHUB_RUN_ID": "tag-run",
+        "MOCK_RUN_SHA": sha,
+    }
 
     def check(version: str = VERSION, run_sha: str = sha) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(["bash", str(verifier), "wheels", str(wheels), version, "main-run"],
-                              cwd=root, env={**env, "MOCK_RUN_SHA": run_sha},
-                              text=True, capture_output=True)
+        return subprocess.run(
+            ["bash", str(verifier), "wheels", str(wheels), version, "main-run"],
+            cwd=root,
+            env={**env, "MOCK_RUN_SHA": run_sha},
+            text=True,
+            capture_output=True,
+        )
 
     good = check()
     assert good.returncode == 0, good.stdout + good.stderr

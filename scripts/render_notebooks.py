@@ -69,8 +69,9 @@ def main():
                         "RAYON_NUM_THREADS": "1",
                     },
                 }
-            )
-        , encoding="utf-8")
+            ),
+            encoding="utf-8",
+        )
         for path in sorted((ROOT / "examples/notebooks").glob("*.ipynb")):
             start = time.monotonic()
             notebook = nbformat.read(path, as_version=4)
@@ -114,7 +115,9 @@ def main():
                 }
             )
             print(f"Executed {path.name}: {elapsed:.1f}s, {outputs} outputs", flush=True)
-    args.output.joinpath("execution.json").write_text(json.dumps(measurements, indent=2), encoding="utf-8")
+    args.output.joinpath("execution.json").write_text(
+        json.dumps(measurements, indent=2), encoding="utf-8"
+    )
 
 
 if __name__ == "__main__":

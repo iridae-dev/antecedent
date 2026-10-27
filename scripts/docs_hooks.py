@@ -12,7 +12,9 @@ BOUND = re.compile(r"\{\{bound:([\w.]+)\}\}")
 
 
 def publication_exclusions():
-    return tomllib.loads((ROOT / "scripts/docs_publication.toml").read_text(encoding="utf-8"))["excluded"]
+    return tomllib.loads((ROOT / "scripts/docs_publication.toml").read_text(encoding="utf-8"))[
+        "excluded"
+    ]
 
 
 @lru_cache(maxsize=1)
@@ -42,9 +44,9 @@ def render_bounds(markdown):
 
 def on_config(config):
     bound_values.cache_clear()
-    config.extra["documentation_version"] = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))[
-        "workspace"
-    ]["package"]["version"]
+    config.extra["documentation_version"] = tomllib.loads(
+        (ROOT / "Cargo.toml").read_text(encoding="utf-8")
+    )["workspace"]["package"]["version"]
     from pathspec import GitIgnoreSpec
 
     config.exclude_docs = GitIgnoreSpec.from_lines(f"/{path}" for path in publication_exclusions())
@@ -113,8 +115,12 @@ def on_files(files, config):
         raise ValueError(
             "Notebook execution record missing: run python scripts/render_notebooks.py first"
         )
-    records = {record["notebook"]: record for record in json.loads(record_path.read_text(encoding="utf-8"))}
-    release = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
+    records = {
+        record["notebook"]: record for record in json.loads(record_path.read_text(encoding="utf-8"))
+    }
+    release = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"][
+        "package"
+    ]["version"]
     for notebook in notebooks:
         record = records.get(notebook.name, {})
         if (

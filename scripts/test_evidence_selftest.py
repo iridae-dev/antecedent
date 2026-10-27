@@ -265,10 +265,12 @@ def build(tmp: Path) -> None:
     (crate / "tests" / "sub").mkdir(parents=True)
     (crate / "Cargo.toml").write_text(
         '[package]\nname = "selftest"\nversion = "0.0.0"\nedition = "2021"\npublish = false\n'
-        '[features]\ntarget-evidence = []\nunrelated-evidence = []\n'
+        "[features]\ntarget-evidence = []\nunrelated-evidence = []\n"
         '[[test]]\nname = "required_feature"\nrequired-features = ["target-evidence"]\n'
-        '[dev-dependencies]\nantecedent-test-support = { path = "../antecedent-test-support" }\n'
-    , encoding="utf-8", newline="\n")
+        '[dev-dependencies]\nantecedent-test-support = { path = "../antecedent-test-support" }\n',
+        encoding="utf-8",
+        newline="\n",
+    )
     (crate / "src" / "lib.rs").write_text("pub fn noop() {}\n", encoding="utf-8", newline="\n")
     (crate / "tests" / "it.rs").write_text(IT_RS, encoding="utf-8", newline="\n")
     (crate / "tests" / "required_feature.rs").write_text(
@@ -336,7 +338,7 @@ def build(tmp: Path) -> None:
     )
     for target, declaration in (
         ("commented_path.rs", '// #[path = "sub/commented.rs"] mod orphan;\n'),
-        ("string_path.rs", 'const DECOY: &str = "#[path = \\\"sub/string.rs\\\"] mod orphan;";\n'),
+        ("string_path.rs", 'const DECOY: &str = "#[path = \\"sub/string.rs\\"] mod orphan;";\n'),
         ("disabled_path.rs", '#[cfg(any())]\n#[path = "sub/disabled.rs"] mod orphan;\n'),
     ):
         (crate / "tests" / target).write_text(
@@ -353,8 +355,8 @@ def build(tmp: Path) -> None:
     (crate / "tests" / "nested_scope.rs").write_text(
         "#[allow(non_camel_case_types)] struct checks;\n"
         "impl checks { fn close_abs_1e9(_: f64, _: f64, _: &str) {} }\n"
-        "mod unrelated { #[path = \"nested_checks.rs\"] mod checks; }\n"
-        "fn close() { checks::close_abs_1e9(1.0, 1.0, \"\"); }\n"
+        'mod unrelated { #[path = "nested_checks.rs"] mod checks; }\n'
+        'fn close() { checks::close_abs_1e9(1.0, 1.0, ""); }\n'
         "#[test]\nfn a_nested_module_cannot_attest_the_same_qualified_name() { close(); }\n",
         encoding="utf-8",
         newline="\n",
@@ -445,7 +447,7 @@ def check_required_feature_execution(tmp: Path) -> bool:
 
     rows = tmp / "required_feature_rows.toml"
     rows.write_text(
-        '[[capabilities]]\n'
+        "[[capabilities]]\n"
         'id = "required_feature_target"\n'
         'evidence_test = "crates/selftest/tests/required_feature.rs"\n'
         'evidence_assertion = "required_feature_target_control"\n',
@@ -468,7 +470,10 @@ def check_required_feature_execution(tmp: Path) -> bool:
         text=True,
     )
     output = runner.stdout + runner.stderr
-    if runner.returncode != 0 or "ok: required_feature_target (cited Rust test executed)" not in output:
+    if (
+        runner.returncode != 0
+        or "ok: required_feature_target (cited Rust test executed)" not in output
+    ):
         print(f"SELF-TEST FAIL: required-feature target did not resolve and execute:\n{output}")
         return False
     print("self-test ok: target required feature is listed and exactly executed")
@@ -487,7 +492,11 @@ def main() -> int:
         }
 
         def checked_entry(estimator: str, assertion: str) -> dict:
-            return {"estimator": estimator, "test": "crates/selftest/tests/it.rs", "assertion": assertion}
+            return {
+                "estimator": estimator,
+                "test": "crates/selftest/tests/it.rs",
+                "assertion": assertion,
+            }
 
         def checked(assertions: list[str]) -> dict:
             estimators = [f"e{i}" for i in range(len(assertions))]
@@ -588,7 +597,11 @@ def main() -> int:
                 py("test_skipped_multiline_decorator"),
                 "carries a skip/xfail marker",
             ),
-            ("python_skipped_in_body", py("test_skipped_in_body"), "calls pytest.skip() unconditionally"),
+            (
+                "python_skipped_in_body",
+                py("test_skipped_in_body"),
+                "calls pytest.skip() unconditionally",
+            ),
             (
                 "python_empty_parametrisation",
                 py("test_empty_parametrisation"),

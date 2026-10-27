@@ -42,9 +42,7 @@ def procedures() -> list[dict]:
 
 
 def command(row: dict) -> list[str]:
-    target = (
-        ["--lib"] if row["cargo_target"] == "lib" else ["--test", row["cargo_target"]]
-    )
+    target = ["--lib"] if row["cargo_target"] == "lib" else ["--test", row["cargo_target"]]
     return [
         "cargo",
         "test",
@@ -87,14 +85,10 @@ def main() -> int:
             )
         )
         return 0
-    sha = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
-    ).strip()
+    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     if sha != args.run_stable_candidate:
         parser.error("requested stable candidate does not equal HEAD")
-    dirty = subprocess.check_output(
-        ["git", "status", "--porcelain"], cwd=ROOT, text=True
-    )
+    dirty = subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True)
     if dirty.strip():
         parser.error(
             "final measurement requires a clean stable candidate, including untracked sources"

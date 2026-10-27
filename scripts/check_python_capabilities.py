@@ -323,6 +323,21 @@ def execution_problems(root: Path, manifest: dict, execution: dict) -> list[str]
     return problems
 
 
+def type_members(items: dict[str, dict[str, str]], type_name: str) -> set[str]:
+    """The inventory entries of one declared type: itself, its duplicates and its inherent methods."""
+    members = set()
+    for key, value in items.items():
+        if key.startswith("export:"):
+            continue
+        if key == type_name or key.startswith(type_name + "#"):
+            members.add(key)
+        elif value["kind"] == "method" and (
+            key.startswith(f"<{type_name}>::") or key.startswith(f"<{type_name}<")
+        ):
+            members.add(key)
+    return members
+
+
 def check(
     root: Path,
     manifest: dict,
@@ -360,12 +375,19 @@ def check(
         if not cap.get("owner") or not cap.get("behavior"):
             problems.append(f"{label}: missing concrete owner/behavior")
         rust = cap.get("rust", [])
-        if not rust:
+        if not rust and not cap.get("rust_types"):
             problems.append(f"{label}: no exact Rust entry")
         for symbol in rust:
             if symbol not in actual:
                 problems.append(f"{label}: unknown Rust symbol {symbol}")
             mapped.add(symbol)
+        # A row may claim a whole type: the type item and every inherent method of it belong to
+        # this journey, whose evidence must exercise the type. Claims are exact type names.
+        for claimed in cap.get("rust_types", []):
+            members = type_members(actual, claimed)
+            if not members:
+                problems.append(f"{label}: unknown Rust type {claimed}")
+            mapped.update(members)
         required = set(cap.get("required_dimensions", []))
         if not required or required - DIMENSIONS:
             problems.append(f"{label}: invalid required dimensions")

@@ -41,8 +41,18 @@ def problems(graph: dict[str, set[str]]) -> list[str]:
         "antecedent-core": set(graph) - {"antecedent-core"},
         "antecedent-contract": {"antecedent-estimate", "antecedent-model", "antecedent"},
         "antecedent-expr": {"antecedent-estimate", "antecedent-model", "antecedent"},
-        "antecedent-design": {"antecedent-estimate", "antecedent-validate", "antecedent-io", "antecedent"},
-        "antecedent-io-core": {"antecedent-estimate", "antecedent-validate", "antecedent-io", "antecedent"},
+        "antecedent-design": {
+            "antecedent-estimate",
+            "antecedent-validate",
+            "antecedent-io",
+            "antecedent",
+        },
+        "antecedent-io-core": {
+            "antecedent-estimate",
+            "antecedent-validate",
+            "antecedent-io",
+            "antecedent",
+        },
         # Learners supply predictions; causal estimators and their facade consume them.
         "antecedent-learn": {"antecedent-estimate", "antecedent-validate", "antecedent"},
         "antecedent-learn-burn": {"antecedent-estimate", "antecedent-validate", "antecedent"},

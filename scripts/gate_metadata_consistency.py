@@ -51,7 +51,9 @@ fail.extend(set_version.release_snippet_problems(root, version))
 # their shared facts drift — re-breaks a release consumer.
 zenodo_path = Path(".zenodo.json")
 if not zenodo_path.is_file():
-    fail.append(".zenodo.json missing: Zenodo would fall back to parsing CITATION.cff, whose license list it rejects")
+    fail.append(
+        ".zenodo.json missing: Zenodo would fall back to parsing CITATION.cff, whose license list it rejects"
+    )
 else:
     try:
         zenodo = json.loads(zenodo_path.read_text(encoding="utf-8"))
@@ -115,14 +117,15 @@ else:
     # "migrates from 0.1"/"format 0.1 artifact" are historical references and fine;
     # only the frozen/stable assertion is checked.
     pattern = re.compile(r"[Ff]ormat (\d+\.\d+) (?:frozen|stable)")
-    for path in list(root.glob("parity/*.toml")) + list(root.glob("docs/*.md")) + list(
-        root.glob("adr/*.md")
+    for path in (
+        list(root.glob("parity/*.toml"))
+        + list(root.glob("docs/*.md"))
+        + list(root.glob("adr/*.md"))
     ):
         for found in pattern.findall(path.read_text(encoding="utf-8")):
             if found != fmt:
                 fail.append(
-                    f"{path} claims artifact format {found} frozen/stable; "
-                    f"STABLE_FORMAT is {fmt}"
+                    f"{path} claims artifact format {found} frozen/stable; STABLE_FORMAT is {fmt}"
                 )
     # Present-tense format claims in the live README / artifacts page.
     # Historical "migrates from 0.1" / ADR 0019 / old changelog entries are not
@@ -202,9 +205,21 @@ for path in sorted(root.glob("provenance/*.toml")):
 # package the fixture does not record — that turns clean-room known-truth
 # evidence into apparent external-oracle agreement.
 UPSTREAM = [
-    "pcalg", "ananke", "dagitty", "scikit-learn", "sklearn", "causaleffect",
-    "statsmodels", "pymc", "causal-learn", "lingam", "tigramite", "dowhy",
-    "sensemakr", "arviz", "bpbounds",
+    "pcalg",
+    "ananke",
+    "dagitty",
+    "scikit-learn",
+    "sklearn",
+    "causaleffect",
+    "statsmodels",
+    "pymc",
+    "causal-learn",
+    "lingam",
+    "tigramite",
+    "dowhy",
+    "sensemakr",
+    "arviz",
+    "bpbounds",
 ]
 with open("parity/oracle_closure.toml", "rb") as handle:
     ledger = tomllib.load(handle)

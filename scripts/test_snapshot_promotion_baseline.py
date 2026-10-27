@@ -106,7 +106,11 @@ class SnapshotTest(unittest.TestCase):
         git(self.repo, "tag", "v1.9.0")
         self.tag_commit = git(self.repo, "rev-parse", "HEAD")
         # Drift after the tag: working tree and a later commit both differ.
-        put(self.repo, "parity/promotion.toml", 'version = 1\n[[record]]\nid = "new"\nstatus = "frozen"\nroutes = []\n')
+        put(
+            self.repo,
+            "parity/promotion.toml",
+            'version = 1\n[[record]]\nid = "new"\nstatus = "frozen"\nroutes = []\n',
+        )
         put(self.repo, "docs/x-producer-consumer-matrix.md", "matrix after tag\n")
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "refactor")
@@ -138,7 +142,8 @@ class SnapshotTest(unittest.TestCase):
         self.assertTrue(all(r["disposition"] == "unclassified" for r in doc["route"]))
         files = {f["role"]: f for f in doc["file"]}
         self.assertNotEqual(
-            files["producer_consumer_matrix"]["tag_sha256"], files["producer_consumer_matrix"]["base_sha256"]
+            files["producer_consumer_matrix"]["tag_sha256"],
+            files["producer_consumer_matrix"]["base_sha256"],
         )
         self.assertEqual(files["producer_consumer_registry"]["tag_sha256"], snap.ABSENT)
         self.assertEqual(doc["counts"]["inherited_closed_routes"], 3)
@@ -166,7 +171,7 @@ class SnapshotTest(unittest.TestCase):
         target = 'route = "pkg.refused_route"'
         head, tail = text.split(target, 1)
         tail = tail.replace('disposition = "unclassified"', 'disposition = "deliberate_refusal"', 1)
-        tail = tail.replace('touched_by = []', 'touched_by = ["composition"]', 1)
+        tail = tail.replace("touched_by = []", 'touched_by = ["composition"]', 1)
         tail = tail.replace('rationale = ""', 'rationale = "kept refusing"', 1)
         toml_path.write_text(head + target + tail, encoding="utf-8")
         code, err = run(self.repo, "--write")

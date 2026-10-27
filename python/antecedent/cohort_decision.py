@@ -60,12 +60,14 @@ from ._columns import coerce_fields
 from ._freeze import thaw
 from ._measured_inference import MeasuredInference
 from ._native import build_cohort_decision_source as _build
+from ._native import cohort_decision_evaluate as _evaluate
 from ._native import cohort_decision_forward_claim as _forward_claim
 from ._native import cohort_decision_interval as _interval
 from ._native import cohort_decision_law_refusal as _law_refusal
 from ._native import consume_cohort_decision_source as _consume
 from ._native import fit_native_cohort_effect as _fit_native
 from ._native import normalize_cohort_weights as _normalize
+from ._native import transport_cohort_composition_node as _transport_node
 from ._native import transport_cohort_effect as _transport
 from ._native import transport_cohort_effect_verify as _transport_verify
 from ._native import transported_cohort_refusal as _transported_refusal
@@ -78,7 +80,9 @@ from .joint_distribution import ScientificQuantity
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
     from .compact_export import CompactExport
-    from .decision import MeanSource
+    from .composition import SupportedDecision, SupportPolicy
+    from .composition_verification import Node
+    from .decision import Contract, MeanSource
     from .inverse_query import MeanClaim
 
 __all__ = [
@@ -489,6 +493,46 @@ class CohortDecisionSource(ScientificResult):
 
     def _cohort_mean_source(self) -> MeanSource:
         return self.mean_source
+
+    def decide(self, contract: Contract, policy: SupportPolicy | None = None) -> SupportedDecision:
+        """Decide ``contract`` on this cohort mean under a support policy.
+
+        The artifact is replayed from its retained identity (every number recomputed), then
+        handed to the evaluator as one mean-source input, so an action whose cohort support is
+        weaker than ``policy.weakest_support`` is reported unsupported and left out under
+        ``compare_supported`` or refused under ``require_all``. Like
+        :meth:`~antecedent.decision.Contract.evaluate`, only an affine utility of the cohort
+        coordinate is answered and a source under a declared covariate shift must first be
+        acknowledged with :meth:`accept_extrapolative`.
+
+        Raises:
+            CohortDecisionRefusal: the artifact does not replay, or the source is extrapolative
+                and not accepted.
+            SupportRefusal: an unsupported or unevaluated action (a nonlinear utility, a
+                probability or quantile criterion) under ``require_all``.
+            CompositionRefusal: any other refusal of the evaluator (a hard constraint).
+        """
+        from .composition import SupportPolicy, _refusal_type, _supported_from_wire
+        from .decision import Contract
+
+        if not isinstance(contract, Contract):
+            raise CausalTypeError("contract must be a decision.Contract")
+        policy = SupportPolicy() if policy is None else policy
+        self.mean_source  # noqa: B018 - raises the extrapolative-not-accepted refusal
+        result, refusal = _evaluate(
+            json.dumps(contract._wire()),
+            self._artifact_bytes,
+            self._expectation(),
+            policy.unsupported,
+            policy.weakest_support,
+        )
+        if refusal is not None:
+            wire = json.loads(refusal)
+            if wire.get("stage") == "consume":
+                raise CohortDecisionRefusal(wire)
+            raise _refusal_type(wire)(wire)
+        assert result is not None
+        return _supported_from_wire(json.loads(result))
 
     def forward_claim(self) -> MeanClaim:
         """The cohort mean as a forward claim of :mod:`antecedent.inverse_query`.
@@ -945,6 +989,38 @@ class TransportedCohortEffect(ScientificResult):
         assert text is not None
         wire = json.loads(text)
         return replace(self, identity=str(wire["identity"]))
+
+    def composition_node(self, key: str) -> Node:
+        """The composition-graph node of this value under ``key``.
+
+        The node is a ``transported_result`` whose identity is bound to the transport route and the
+        transported value's own identity, so a changed model, cohort, weight, declaration or
+        population recomputes it. It states the standing of a point the library carried to another
+        population: supported at the strongest label a carried value states, no provider trust and
+        no calibration record, so a calibration record declared on it later is checked at this
+        target coordinate and an interval, band or posterior is never read off it. Verify a graph
+        containing it with :func:`antecedent.composition_verification.verify_composition`.
+
+        Raises:
+            CohortDecisionRefusal: the retained transport no longer derives (see :meth:`verify`).
+        """
+        from . import composition_verification as cv
+
+        if not isinstance(key, str) or not key.strip():
+            raise CausalTypeError("key must be a non-empty string")
+        model_bytes, claim, source_population, cohort, shift = self._retained
+        text, refusal = _transport_node(
+            model_bytes,
+            claim,
+            source_population,
+            json.dumps(cohort._wire(), allow_nan=False),
+            None if shift is None else json.dumps(shift._wire()),
+            key,
+        )
+        if refusal is not None:
+            raise CohortDecisionRefusal(json.loads(refusal))
+        assert text is not None
+        return cv._node_of(json.loads(text))
 
 
 def transport_cohort_effect(

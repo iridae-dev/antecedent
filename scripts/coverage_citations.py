@@ -108,7 +108,9 @@ def wide_figures(text: str, lo: int, hi: int) -> list[tuple[re.Match, float, flo
 
 
 def load_records() -> dict[str, dict]:
-    return {r["id"]: r for r in tomllib.loads(RECORDS.read_text(encoding="utf-8")).get("record", [])}
+    return {
+        r["id"]: r for r in tomllib.loads(RECORDS.read_text(encoding="utf-8")).get("record", [])
+    }
 
 
 def attribution_after(text: str, pos: int, hi: int):
@@ -242,8 +244,10 @@ def write_backlog() -> int:
         "# The list only shrinks (scripts/gate_coverage_citations.sh fails on a new or a\n"
         "# stale line). Regenerate with `python3 scripts/coverage_citations.py backlog`\n"
         "# after attributing figures; it must never be used to admit a new one.\n"
-        + "".join(f"{item}\n" for item in sorted(items))
-    , encoding="utf-8", newline="\n")
+        + "".join(f"{item}\n" for item in sorted(items)),
+        encoding="utf-8",
+        newline="\n",
+    )
     return len(items)
 
 
@@ -309,8 +313,10 @@ def _legacy_figure_problems(text: str, label: str, records: dict[str, dict]) -> 
                         f"{label}: coverage figure {fig.group(0)} does not match its cited "
                         f"record(s) ({observed})"
                     )
-                if known and any(r.get("boundary") for r in known) and not _discloses_boundary(
-                    text[lo:hi]
+                if (
+                    known
+                    and any(r.get("boundary") for r in known)
+                    and not _discloses_boundary(text[lo:hi])
                 ):
                     problems.append(
                         f"{label}: coverage figure {fig.group(0)} cites a boundary record "
@@ -374,8 +380,10 @@ def _structured_problems(cell: dict, records: dict[str, dict]) -> list[str]:
                 and any(rec.get("boundary") for rec in known)
                 and not _discloses_boundary(text[lo:hi])
             ):
-                shown = prose[-1].group(0) if prose else _format_observed(
-                    float(known[0]["observed"]), "0.000"
+                shown = (
+                    prose[-1].group(0)
+                    if prose
+                    else _format_observed(float(known[0]["observed"]), "0.000")
                 )
                 problems.append(
                     f"{label}: coverage figure {shown} cites a boundary record "

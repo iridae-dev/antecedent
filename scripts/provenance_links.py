@@ -60,14 +60,22 @@ NOT_AN_ALGORITHM = {
 # Modules whose method an existing record documents without naming the file.
 MODULE_RECORDS = {
     "crates/antecedent-design/src/temporal_policy_transport.rs": ("transport.period_shift_policy",),
-    "crates/antecedent-estimate/src/smoothed_dose_posterior.rs": ("transport.smoothed_dose_response.bayesian",),
-    "crates/antecedent-estimate/src/dose_grid_posterior.rs": ("estimate.dose_grid_functional.bayesian",),
-    "crates/antecedent-estimate/src/categorical_treatment_posterior.rs": ("estimate.categorical_treatment.bayesian",),
+    "crates/antecedent-estimate/src/smoothed_dose_posterior.rs": (
+        "transport.smoothed_dose_response.bayesian",
+    ),
+    "crates/antecedent-estimate/src/dose_grid_posterior.rs": (
+        "estimate.dose_grid_functional.bayesian",
+    ),
+    "crates/antecedent-estimate/src/categorical_treatment_posterior.rs": (
+        "estimate.categorical_treatment.bayesian",
+    ),
     "crates/antecedent-stats/src/adaptive_inference/participant_posterior.rs": (
         "adaptive_inference.participant_family",
         "adaptive_inference.bayesian_posterior",
     ),
-    "crates/antecedent-estimate/src/temporal_design/misclassification.rs": ("measurement.binary_misclassification",),
+    "crates/antecedent-estimate/src/temporal_design/misclassification.rs": (
+        "measurement.binary_misclassification",
+    ),
 }
 
 
@@ -102,7 +110,13 @@ def public_items(module: str, root: Path = REPO_ROOT) -> set[str]:
         if file.suffix != ".rs":
             continue
         text = file.read_text(encoding="utf-8", errors="replace")
-        names |= set(re.findall(r"^\s*pub\s+(?:const\s+)?(?:struct|enum|fn|trait|type)\s+([A-Za-z_][A-Za-z0-9_]*)", text, re.M))
+        names |= set(
+            re.findall(
+                r"^\s*pub\s+(?:const\s+)?(?:struct|enum|fn|trait|type)\s+([A-Za-z_][A-Za-z0-9_]*)",
+                text,
+                re.M,
+            )
+        )
     return names
 
 
@@ -121,7 +135,11 @@ def api_review(module: str, root: Path = REPO_ROOT) -> str:
     if not snap_path.is_file():
         return "unreviewed: no API snapshot for the crate"
     text = snap_path.read_text(encoding="utf-8", errors="replace")
-    reviewed = sorted(n for n in names if re.search(r"(?<![A-Za-z0-9_])" + re.escape(n) + r"(?![A-Za-z0-9_])", text))
+    reviewed = sorted(
+        n
+        for n in names
+        if re.search(r"(?<![A-Za-z0-9_])" + re.escape(n) + r"(?![A-Za-z0-9_])", text)
+    )
     if not reviewed:
         return "internal: no public item of the module reaches the crate's public surface"
     return f"{snapshot}: {len(reviewed)} of {len(names)} public items reviewed"

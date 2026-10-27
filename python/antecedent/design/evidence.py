@@ -73,6 +73,8 @@ from ._declarations import (
     SignalSpec,
     StatePrior,
 )
+from .plans import StructurePrior
+from .ranking import ConstraintViolation, _bound_native, _target_digest
 
 #: What a plan can say about closing the gap; never an impossibility claim.
 PlanOutcome = Literal["closing", "none_certified", "budget_exhausted"]
@@ -676,6 +678,182 @@ def consume_plan(
     return EvidencePlan(stage)
 
 
+@dataclass(frozen=True, slots=True)
+class RankedStudy:
+    """One verified study ranked by the gain in the probability the query is identified."""
+
+    label: str
+    #: Position of the study in the sequence supplied.
+    index: int
+    #: Zero-based rank, best first.
+    rank: int
+    #: Gain in the identified mass of the structure prior; not a calibrated probability.
+    score: float
+    stderr: float
+    rank_uncertain: bool
+    evaluation: str
+
+
+@dataclass(frozen=True, slots=True)
+class UnverifiedStudy:
+    """A declared study the repair search did not verify sufficient on its own.
+
+    It is never scored: a study that merely names a variable, or only adds rows, is not credited
+    with an unlock.
+    """
+
+    index: int
+    label: str
+    semantic_id: str
+    #: The checker's classification, e.g. ``insufficient`` or ``not_certified``.
+    classification: str
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class StudyRanking:
+    """Declared studies ranked through a prepared study's contract.
+
+    ``ranked`` holds only the studies the repair search verified sufficient, best first;
+    ``unverified`` every other declared study with the checker's reasons, and ``unlock`` the
+    variables the verified studies measure (outside the base law) or set, which the ranking used
+    as the unlock list. ``violations`` are the studies the ranking refused to score.
+    """
+
+    ranked: tuple[RankedStudy, ...]
+    verified: tuple[int, ...]
+    unverified: tuple[UnverifiedStudy, ...]
+    unlock: tuple[str, ...]
+    violations: tuple[ConstraintViolation, ...]
+    mc_samples: int
+    early_stopped: bool
+    calibration: Literal["unmeasured"] = "unmeasured"
+
+    @property
+    def best(self) -> RankedStudy | None:
+        """The highest-ranked verified study, or ``None`` when no study was verified."""
+        return self.ranked[0] if self.ranked else None
+
+
+def rank_studies(
+    study: Any,
+    contract: FailureContract,
+    candidates: Sequence[StudyCandidate],
+    prior: StructurePrior,
+    *,
+    route: str | None = None,
+    query_id: int = 0,
+    objective: Literal["minimize_cost", "minimize_sample_budget"] = "minimize_cost",
+    limits: RepairLimits | None = None,
+    max_cost: float | None = None,
+    max_sample_budget: int | None = None,
+    monte_carlo: MonteCarlo | None = None,
+    rng_seed: int = 0,
+    threads: int | None = None,
+    decision_target: str | None = None,
+    cancel: CancelToken | None = None,
+) -> StudyRanking:
+    """Rank declared studies by identification gain through a prepared study's contract.
+
+    The repair search of ``contract`` decides which studies are sufficient on their own; only
+    those are scored, with their measured variables outside the observed base law and their
+    set variables as the unlock list for ``query_id``. Every other study is reported in
+    ``unverified`` and as an ``unlicensed_candidate`` violation. ``study`` is the immutable
+    prepared study the ranking is bound to: an unlicensed support cell or one without an
+    identification product raises :class:`~antecedent.errors.CausalUnsupportedError`. ``route``
+    names the failure route that decides sufficiency (``backdoor``, ``frontdoor``,
+    ``instrument``, ``hedge``) and may be omitted when the failure has exactly one.
+    ``prior`` is the :class:`~antecedent.design.StructurePrior` ranked against; ordering is
+    ``point_only`` and its calibration ``unmeasured``.
+    """
+    if not isinstance(contract, FailureContract):
+        raise CausalTypeError("rank_studies requires a repair.FailureContract")
+    if not isinstance(prior, StructurePrior):
+        raise CausalTypeError("prior must be a design.StructurePrior")
+    candidates = tuple(candidates)
+    if not candidates:
+        raise CausalValueError("rank_studies needs at least one candidate")
+    if any(not isinstance(c, StudyCandidate) for c in candidates):
+        raise CausalTypeError("candidates must be StudyCandidate values")
+    if objective not in _OBJECTIVES:
+        raise CausalValueError(f"objective must be one of {', '.join(_OBJECTIVES)}")
+    limits = RepairLimits() if limits is None else limits
+    if monte_carlo is not None and not isinstance(monte_carlo, MonteCarlo):
+        raise CausalTypeError("monte_carlo must be design.MonteCarlo")
+    options: dict[str, Any] = {}
+    if monte_carlo is not None:
+        options.update(
+            min_batches=monte_carlo.min_batches,
+            max_batches=monte_carlo.max_batches,
+            batch_size=monte_carlo.batch_size,
+            rank_uncertainty_threshold=monte_carlo.rank_uncertainty_threshold,
+        )
+    native_ranking, record = _call(
+        _native.rank_studies_bound,
+        contract._stage,
+        _bound_native(study),
+        json.dumps([c._wire() for c in candidates]),
+        objective,
+        _count(limits.max_operations, "max_operations"),
+        _count(limits.max_depth, "max_depth"),
+        list(prior.weights),
+        [int(v) for v in prior.identified],
+        list(prior.keys),
+        route=route,
+        query_id=_count(query_id, "query_id"),
+        identified_under_intervention=(
+            [int(v) for v in prior.identified_under_intervention]
+            if prior.identified_under_intervention is not None
+            else None
+        ),
+        graph_features=list(prior.features) if prior.features is not None else None,
+        max_cost=max_cost,
+        max_sample_budget=max_sample_budget,
+        seed=_count(rng_seed, "rng_seed"),
+        threads=threads,
+        memory_bytes=limits.memory_bytes,
+        decision_target=_target_digest(decision_target),
+        cancel=cancel,
+        **options,
+    )
+    facts = json.loads(record)
+    labels = [c.label for c in candidates]
+    return StudyRanking(
+        ranked=tuple(
+            RankedStudy(
+                label=labels[r.candidate_index],
+                index=int(r.candidate_index),
+                rank=int(r.rank),
+                score=float(r.score),
+                stderr=float(r.stderr),
+                rank_uncertain=bool(r.rank_uncertain),
+                evaluation=r.evaluation,
+            )
+            for r in sorted(native_ranking.ranked, key=lambda row: int(row.rank))
+        ),
+        verified=tuple(int(i) for i in facts["verified"]),
+        unverified=tuple(
+            UnverifiedStudy(
+                index=int(u["index"]),
+                label=labels[u["index"]],
+                semantic_id=u["semantic_id"],
+                classification=u["classification"],
+                reasons=tuple(u["reasons"]),
+            )
+            for u in sorted(facts["unverified"], key=lambda row: int(row["index"]))
+        ),
+        unlock=tuple(facts["unlock"]),
+        violations=tuple(
+            ConstraintViolation(
+                labels[v.candidate_index], int(v.candidate_index), v.constraint, v.detail
+            )
+            for v in native_ranking.violations
+        ),
+        mc_samples=int(native_ranking.mc_samples),
+        early_stopped=bool(native_ranking.early_stopped),
+    )
+
+
 __all__ = [
     "ConfounderDecision",
     "ConfounderPrior",
@@ -687,9 +865,13 @@ __all__ = [
     "PlanOutcome",
     "PlanRoute",
     "PlanUnlocks",
+    "RankedStudy",
+    "StudyRanking",
     "StudyValue",
     "UnverifiedRoute",
+    "UnverifiedStudy",
     "confounder_decision",
     "consume_plan",
     "evidence_plan",
+    "rank_studies",
 ]

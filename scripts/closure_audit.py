@@ -69,13 +69,24 @@ def audit(
         side = f"{row['design']}.{row['inference']}"
         if row["status"] == "closed_with_next_attempt":
             missing_attempt.append(
-                {"id": row["id"], "method": row["method"], "side": side, "route": row["route"],
-                 "next_attempt": row["next_attempt"] or "unnamed"}
+                {
+                    "id": row["id"],
+                    "method": row["method"],
+                    "side": side,
+                    "route": row["route"],
+                    "next_attempt": row["next_attempt"] or "unnamed",
+                }
             )
         if row["closure"] == "narrowed_promise":
             adjusted.append(
-                {"id": row["id"], "method": row["method"], "side": side, "status": row["status"],
-                 "reason": row["reason"], "next_attempt": row["next_attempt"]}
+                {
+                    "id": row["id"],
+                    "method": row["method"],
+                    "side": side,
+                    "status": row["status"],
+                    "reason": row["reason"],
+                    "next_attempt": row["next_attempt"],
+                }
             )
     parents = {child["id"]: child.get("parent", family(child["id"])) for child in children}
     missing_consumer = [
@@ -96,7 +107,8 @@ def audit(
     by_family: dict[str, dict] = {}
     for child in children:
         entry = by_family.setdefault(
-            child.get("parent", family(child["id"])), {"children": 0, "gaps": Counter(), "unresolved_evidence": 0}
+            child.get("parent", family(child["id"])),
+            {"children": 0, "gaps": Counter(), "unresolved_evidence": 0},
         )
         entry["children"] += 1
         entry["gaps"][child["gap"]] += 1
@@ -124,43 +136,71 @@ def render(report: dict) -> str:
     for name, entry in sorted(report["families"].items()):
         gaps = ", ".join(f"{gap} = {count}" for gap, count in sorted(entry["gaps"].items()))
         out += [
-            "[[family]]", f"id = {quote(name)}", f"children = {entry['children']}",
-            f"unresolved_evidence = {entry['unresolved_evidence']}", f"gaps = {quote(gaps)}", "",
+            "[[family]]",
+            f"id = {quote(name)}",
+            f"children = {entry['children']}",
+            f"unresolved_evidence = {entry['unresolved_evidence']}",
+            f"gaps = {quote(gaps)}",
+            "",
         ]
     for row in report["missing_attempt"]:
         out += [
-            "[[missing_attempt]]", f"id = {quote(row['id'])}", f"method = {quote(row['method'])}",
-            f"side = {quote(row['side'])}", f"route = {quote(row['route'])}",
-            f"next_attempt = {quote(row['next_attempt'])}", "",
+            "[[missing_attempt]]",
+            f"id = {quote(row['id'])}",
+            f"method = {quote(row['method'])}",
+            f"side = {quote(row['side'])}",
+            f"route = {quote(row['route'])}",
+            f"next_attempt = {quote(row['next_attempt'])}",
+            "",
         ]
     for row in report["missing_consumer"]:
         out += [
-            "[[missing_consumer]]", f"id = {quote(row['id'])}", f"family = {quote(row['family'])}",
-            f"reasons = {quote(row['reasons'])}", "",
+            "[[missing_consumer]]",
+            f"id = {quote(row['id'])}",
+            f"family = {quote(row['family'])}",
+            f"reasons = {quote(row['reasons'])}",
+            "",
         ]
     for row in report["adjusted_claim"]:
         out += [
-            "[[adjusted_claim]]", f"id = {quote(row['id'])}", f"method = {quote(row['method'])}",
-            f"side = {quote(row['side'])}", f"status = {quote(row['status'])}",
-            f"reason = {quote(row['reason'])}", f"next_attempt = {quote(row['next_attempt'])}", "",
+            "[[adjusted_claim]]",
+            f"id = {quote(row['id'])}",
+            f"method = {quote(row['method'])}",
+            f"side = {quote(row['side'])}",
+            f"status = {quote(row['status'])}",
+            f"reason = {quote(row['reason'])}",
+            f"next_attempt = {quote(row['next_attempt'])}",
+            "",
         ]
     for row in report["unresolved_mandatory"]:
         out += [
-            "[[unresolved_mandatory]]", f"id = {quote(row['id'])}", f"list = {quote(row['list'])}",
-            f"missing = {quote(row['missing'])}", "",
+            "[[unresolved_mandatory]]",
+            f"id = {quote(row['id'])}",
+            f"list = {quote(row['list'])}",
+            f"missing = {quote(row['missing'])}",
+            "",
         ]
     for row in report["audited_attempt"]:
         out += [
-            "[[audited_attempt]]", f"id = {quote(row['id'])}", f"status = {quote(row['status'])}",
-            f"list = {quote(row['list'])}", "",
+            "[[audited_attempt]]",
+            f"id = {quote(row['id'])}",
+            f"status = {quote(row['status'])}",
+            f"list = {quote(row['list'])}",
+            "",
         ]
     return "\n".join(out)
 
 
 def release_findings(report: dict) -> list[str]:
     """What stops a release: the audit's own unresolved rows."""
-    out = [f"missing consumer: {r['id']}: {'; '.join(r['reasons'])}" for r in report["missing_consumer"]]
-    out += [f"unresolved mandatory row: {r['id']}: {'; '.join(r['missing'])}" for r in report["unresolved_mandatory"]]
+    out = [
+        f"missing consumer: {r['id']}: {'; '.join(r['reasons'])}"
+        for r in report["missing_consumer"]
+    ]
+    out += [
+        f"unresolved mandatory row: {r['id']}: {'; '.join(r['missing'])}"
+        for r in report["unresolved_mandatory"]
+    ]
     out += [
         f"missing attempt: {r['id']} ({r['side']}) next attempt: {r['next_attempt']}"
         for r in report["missing_attempt"]
@@ -179,7 +219,9 @@ def audited_ids(scope: list[dict]) -> set[str]:
     return {
         e["id"]
         for e in scope
-        if e["source"] in ATTEMPT_SOURCES or e["id"].split(".")[0] in families or e.get("obligation") == "flagship"
+        if e["source"] in ATTEMPT_SOURCES
+        or e["id"].split(".")[0] in families
+        or e.get("obligation") == "flagship"
     }
 
 
@@ -197,18 +239,52 @@ def gather(root: Path = ROOT) -> dict:
 def self_test() -> int:
     child = {"id": "FAM.method.static.bayesian", "gap": "none"}
     rows = [
-        {"id": "r1", "method": "M", "design": "static", "inference": "bayesian", "route": "a",
-         "status": "closed_with_next_attempt", "closure": "narrowed_promise", "reason": "no dependence law",
-         "next_attempt": "derive the likelihood"},
-        {"id": "r2", "method": "M", "design": "temporal", "inference": "bayesian", "route": "b",
-         "status": "licensed", "closure": "delivered", "reason": "", "next_attempt": ""},
+        {
+            "id": "r1",
+            "method": "M",
+            "design": "static",
+            "inference": "bayesian",
+            "route": "a",
+            "status": "closed_with_next_attempt",
+            "closure": "narrowed_promise",
+            "reason": "no dependence law",
+            "next_attempt": "derive the likelihood",
+        },
+        {
+            "id": "r2",
+            "method": "M",
+            "design": "temporal",
+            "inference": "bayesian",
+            "route": "b",
+            "status": "licensed",
+            "closure": "delivered",
+            "reason": "",
+            "next_attempt": "",
+        },
     ]
     records = [
-        {"id": "ATT.static.bayesian", "list": "mandatory", "mandatory": True, "status": "reconciled", "missing": []},
-        {"id": "OTHER.static.bayesian", "list": "mandatory", "mandatory": True, "status": "open",
-         "missing": ["no consumer is named"]},
+        {
+            "id": "ATT.static.bayesian",
+            "list": "mandatory",
+            "mandatory": True,
+            "status": "reconciled",
+            "missing": [],
+        },
+        {
+            "id": "OTHER.static.bayesian",
+            "list": "mandatory",
+            "mandatory": True,
+            "status": "open",
+            "missing": ["no consumer is named"],
+        },
     ]
-    report = audit([child], {child["id"]: ["consumer 'FAMILY' is not a path"]}, rows, records, {"ATT.static.bayesian"})
+    report = audit(
+        [child],
+        {child["id"]: ["consumer 'FAMILY' is not a path"]},
+        rows,
+        records,
+        {"ATT.static.bayesian"},
+    )
     assert [r["id"] for r in report["missing_attempt"]] == ["r1"]
     assert report["adjusted_claim"][0]["next_attempt"] == "derive the likelihood"
     assert report["missing_consumer"][0]["id"] == child["id"]

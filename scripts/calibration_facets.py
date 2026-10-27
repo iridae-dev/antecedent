@@ -566,8 +566,10 @@ def visible_from(user: str, member: str, level: int) -> bool:
         return True
     if level == CRATE:
         crate = _crate(member)
-        return crate is not None and user.startswith(f"crates/{crate}/src/") and (
-            member.startswith(f"crates/{crate}/src/")
+        return (
+            crate is not None
+            and user.startswith(f"crates/{crate}/src/")
+            and (member.startswith(f"crates/{crate}/src/"))
         )
     return user.startswith(module_scope(member))
 
@@ -1091,7 +1093,9 @@ def references(surface: Surface) -> References:
                 if declared:
                     scope = module_scope(rel)
                     attributes = user_code[rel][: declared.start()].rstrip()
-                    relocated = re.search(r"#\[\s*path\b[^\]]*\]\s*(?:pub(?:\([^)]*\))?\s*)?$", attributes)
+                    relocated = re.search(
+                        r"#\[\s*path\b[^\]]*\]\s*(?:pub(?:\([^)]*\))?\s*)?$", attributes
+                    )
                     if declared.group(1) == ";" and (
                         relocated or member in (f"{scope}{stem}.rs", f"{scope}{stem}/mod.rs")
                     ):
@@ -2594,11 +2598,15 @@ def load_replay_capture(out_dir: Path, source_sha: str, records: list[str]) -> d
     if capture.get("version") == 3:
         from _temporal_capture_transfer import load_composite
 
-        return load_composite(out_dir, capture, source_sha, records, ROOT, replay_payloads, _bit_equal)
+        return load_composite(
+            out_dir, capture, source_sha, records, ROOT, replay_payloads, _bit_equal
+        )
     if capture.get("version") == 2:
         from _temporal_capture_transfer import load_transfer
 
-        return load_transfer(out_dir, capture, source_sha, records, ROOT, replay_payloads, _bit_equal)
+        return load_transfer(
+            out_dir, capture, source_sha, records, ROOT, replay_payloads, _bit_equal
+        )
     if capture.get("version") != 1 or capture.get("source_sha") != source_sha:
         raise ValueError("capture does not bind this exact source commit")
     if capture.get("records") != records:
@@ -3883,7 +3891,14 @@ def self_test() -> int:
             "fn helper() {}\npub(crate) struct Inner;\npub fn api() {}\n"
             "pub use antecedent_stats::{quantile, nested::{self, Deep as Alias}};\n"
         )
-        == {"helper": PRIVATE, "Inner": CRATE, "api": PUBLIC, "quantile": PUBLIC, "nested": PUBLIC, "Alias": PUBLIC},
+        == {
+            "helper": PRIVATE,
+            "Inner": CRATE,
+            "api": PUBLIC,
+            "quantile": PUBLIC,
+            "nested": PUBLIC,
+            "Alias": PUBLIC,
+        },
         "visibility is recorded and a re-export binds its leaves, not its crate path",
     )
     member = "crates/antecedent/src/analysis/repair.rs"
@@ -3909,10 +3924,16 @@ def self_test() -> int:
         "definitions, field/method positions, Type:: members and crate-qualified names are not bare references",
     )
     expect(
-        anchored_leaves("use antecedent_model::compile::{Plan, x::{self, Y as Z}};", "antecedent_model")
+        anchored_leaves(
+            "use antecedent_model::compile::{Plan, x::{self, Y as Z}};", "antecedent_model"
+        )
         == {"Plan", "x", "Y"}
         and top_level_imports("use antecedent_validate::staleness::{Multiplicity, a as b};\n")
-        == {"Multiplicity": {"antecedent_validate"}, "a": {"antecedent_validate"}, "b": {"antecedent_validate"}}
+        == {
+            "Multiplicity": {"antecedent_validate"},
+            "a": {"antecedent_validate"},
+            "b": {"antecedent_validate"},
+        }
         and top_level_definitions("pub const CAP: u32 = 1;\nfn f() {\n    fn nested() {}\n}\n")
         == {"CAP", "f"},
         "path leaves, module-level import roots and module-level items are read exactly",
@@ -3920,7 +3941,9 @@ def self_test() -> int:
     expect(
         resolve_module("crates/antecedent/src/analysis/recalc_cell.rs", ["super", "recalc_receipt"])
         == "crates/antecedent/src/analysis/recalc_receipt.rs"
-        and resolve_module("crates/antecedent/src/planner/lowered/decision.rs", ["super", "planning"])
+        and resolve_module(
+            "crates/antecedent/src/planner/lowered/decision.rs", ["super", "planning"]
+        )
         == "crates/antecedent/src/planner/lowered/planning.rs",
         "crate/self/super module paths resolve to the file they name",
     )
@@ -3934,14 +3957,18 @@ def self_test() -> int:
         "a qualified path to a design facade function fails even though the bare name is common",
     )
     problems = with_code(
-        design_user, "\nfn probe() { let _ = antecedent_model::history_operators::Horizon::new; }\n", base
+        design_user,
+        "\nfn probe() { let _ = antecedent_model::history_operators::Horizon::new; }\n",
+        base,
     )
     expect(
         not any(p.startswith(f"{design_user} names mechanism items") for p in problems),
         "a path into a model-crate file the list assigns to core is not a mechanism reference",
     )
     problems = with_code(
-        design_user, "\nfn probe() { let _ = antecedent_model::compile::CompiledCausalModel::compile; }\n", base
+        design_user,
+        "\nfn probe() { let _ = antecedent_model::compile::CompiledCausalModel::compile; }\n",
+        base,
     )
     expect(
         any(p.startswith(f"{design_user} names mechanism items") for p in problems),

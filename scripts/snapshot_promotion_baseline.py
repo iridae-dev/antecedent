@@ -552,7 +552,9 @@ def render_markdown(doc: dict[str, Any]) -> str:
             "| --- | --- | --- | --- |",
         ]
         for r in unclassified:
-            out.append(f"| `{r['route']}` | {r['stage']} | `{r['reason_code']}` | {_code(r['record'])} |")
+            out.append(
+                f"| `{r['route']}` | {r['stage']} | `{r['reason_code']}` | {_code(r['record'])} |"
+            )
     else:
         out.append("Every inherited closed route is classified.")
 
@@ -625,7 +627,9 @@ def validate(doc: dict[str, Any], repo: Path, strict: bool) -> tuple[list[str], 
         if not item["rationale"].strip():
             errors.append(f"{name}: {disposition} requires a rationale")
         if not item["touched_by"]:
-            errors.append(f"{name}: {disposition} requires touched_by naming the work that touches it")
+            errors.append(
+                f"{name}: {disposition} requires touched_by naming the work that touches it"
+            )
         if disposition == "reopened_under_new_record":
             if not item["new_record"]:
                 errors.append(f"{name}: reopened_under_new_record requires new_record")
@@ -666,14 +670,24 @@ def _load_previous(path: Path) -> dict[str, Any] | None:
 
 
 def run(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--repo", type=Path, default=REPO_ROOT, help="repository root (default: this checkout)")
-    parser.add_argument("--tag", help="release tag to snapshot (default: the recorded tag, else the latest vX.Y.Z)")
-    parser.add_argument("--base", help="refactored base commit (default: the recorded base, else HEAD)")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        "--repo", type=Path, default=REPO_ROOT, help="repository root (default: this checkout)"
+    )
+    parser.add_argument(
+        "--tag", help="release tag to snapshot (default: the recorded tag, else the latest vX.Y.Z)"
+    )
+    parser.add_argument(
+        "--base", help="refactored base commit (default: the recorded base, else HEAD)"
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--write", action="store_true", help="regenerate the snapshot files")
     mode.add_argument("--check", action="store_true", help="verify the checked-in files (default)")
-    parser.add_argument("--strict", action="store_true", help="--check: unallocated new_record is an error")
+    parser.add_argument(
+        "--strict", action="store_true", help="--check: unallocated new_record is an error"
+    )
     parser.add_argument("--out-toml", default=SNAPSHOT_TOML)
     parser.add_argument("--out-md", default=SNAPSHOT_MD)
     args = parser.parse_args(argv)
@@ -688,7 +702,10 @@ def run(argv: list[str]) -> int:
         tag = args.tag or recorded.get("tag") or latest_tag(repo)
         base = args.base or recorded.get("base_commit") or "HEAD"
         if not args.write and previous is None:
-            print(f"snapshot_promotion_baseline: {args.out_toml} is missing; run --write", file=sys.stderr)
+            print(
+                f"snapshot_promotion_baseline: {args.out_toml} is missing; run --write",
+                file=sys.stderr,
+            )
             return 1
         doc, dropped = build_document(repo, tag, base, previous)
         tag_commit = doc["snapshot"]["tag_commit"]
@@ -716,7 +733,9 @@ def run(argv: list[str]) -> int:
         write_text(toml_path, toml_text)
         write_text(md_path, md_text)
         for name in dropped:
-            print(f"warning: dropped classification of route absent at {tag}: {name}", file=sys.stderr)
+            print(
+                f"warning: dropped classification of route absent at {tag}: {name}", file=sys.stderr
+            )
         for message in warnings:
             print(f"warning: {message}", file=sys.stderr)
         print(f"wrote {args.out_toml} and {args.out_md} ({len(doc['route'])} routes, tag {tag})")
@@ -728,7 +747,9 @@ def run(argv: list[str]) -> int:
     if not md_path.is_file() or read_text(md_path) != md_text:
         stale.append(args.out_md)
     for name in stale:
-        errors.append(f"{name} does not match git for {tag} at base {base_commit[:12]}; run --write")
+        errors.append(
+            f"{name} does not match git for {tag} at base {base_commit[:12]}; run --write"
+        )
     for name in dropped:
         errors.append(f"classified route absent at {tag}: {name}")
     for message in warnings:
@@ -737,7 +758,9 @@ def run(argv: list[str]) -> int:
         for message in errors:
             print(f"error: {message}", file=sys.stderr)
         return 1
-    print(f"snapshot_promotion_baseline: ok ({len(doc['route'])} inherited closed routes, tag {tag})")
+    print(
+        f"snapshot_promotion_baseline: ok ({len(doc['route'])} inherited closed routes, tag {tag})"
+    )
     return 0
 
 

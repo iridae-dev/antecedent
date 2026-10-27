@@ -25,9 +25,7 @@ for manifest in [
 ]:
     for c in pr.rows(manifest):
         if c.get("status") == "intentional_deviation":
-            missing.append(
-                f"{manifest}: {c.get('id')} still intentional_deviation (retired)"
-            )
+            missing.append(f"{manifest}: {c.get('id')} still intentional_deviation (retired)")
         if c.get("status") in ("planned", "blocked"):
             missing.append(f"{manifest}: {c.get('id')} still {c.get('status')}")
 

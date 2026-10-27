@@ -108,8 +108,11 @@ class SharedCargoSourceContextTest(unittest.TestCase):
     def test_extending_a_context_adds_only_native_inputs_and_ignores_python_outputs(self) -> None:
         root = self.checkout("native", "answer=1")
         native = self.native_inputs(root)
-        before_native = {name: digest for name, digest in source_inputs(root).items()
-                         if not name.startswith("python/")}
+        before_native = {
+            name: digest
+            for name, digest in source_inputs(root).items()
+            if not name.startswith("python/")
+        }
         with (
             patch("_calibration_build_cache.source_inputs", return_value=before_native),
             guarded_release_cache(root, self.target),
@@ -124,8 +127,10 @@ class SharedCargoSourceContextTest(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b"not a native Rust build input")
         with guarded_release_cache(root, self.target) as receipt:
-            self.assertEqual(set(receipt["invalidated_inputs"]),
-                             {path.relative_to(root).as_posix() for path in native})
+            self.assertEqual(
+                set(receipt["invalidated_inputs"]),
+                {path.relative_to(root).as_posix() for path in native},
+            )
         self.assertEqual(source.stat().st_mtime_ns, crate_mtime)
         with guarded_release_cache(root, self.target) as receipt:
             self.assertEqual(receipt["invalidated_inputs"], [])

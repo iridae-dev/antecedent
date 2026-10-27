@@ -1,4 +1,5 @@
 """Validate the transport stage registry independently of the analyze axes."""
+
 import sys
 import tomllib
 from pathlib import Path
@@ -13,9 +14,7 @@ from test_evidence import (
 from transport_replay_contract import shared_evidence_problems, source_replay_problems
 
 # An explicit registry path exists for gate self-tests; evidence still resolves in this tree.
-registry_path = (
-    Path(sys.argv[1]) if len(sys.argv) > 1 else root / "parity/transport_stages.toml"
-)
+registry_path = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "parity/transport_stages.toml"
 registry = tomllib.loads(registry_path.read_text(encoding="utf-8"))
 errors = []
 if registry.get("version") != 1 or registry.get("default") != "closed":
@@ -76,10 +75,7 @@ for route in registry.get("routes", []):
                         closure(evidence_path, assertion), assertion
                     )
                 )
-        if (
-            route.get("stage") == "identify"
-            and route.get("guarantee") != "sound_incomplete"
-        ):
+        if route.get("stage") == "identify" and route.get("guarantee") != "sound_incomplete":
             pinned = {
                 "antecedent.transport.advanced.identify_classical": (
                     "complete_in_classical_evidence_scope",
@@ -97,17 +93,13 @@ for route in registry.get("routes", []):
                 route.get("evidence"),
                 route.get("reference"),
             ):
-                errors.append(
-                    f"{name}: completeness requires its pinned classical evidence scope"
-                )
+                errors.append(f"{name}: completeness requires its pinned classical evidence scope")
             path, assertion = (
                 route.get("conformance_test"),
                 route.get("conformance_assertion"),
             )
             if not path or not assertion:
-                errors.append(
-                    f"{name}: completeness requires consuming Rust branch conformance"
-                )
+                errors.append(f"{name}: completeness requires consuming Rust branch conformance")
             else:
                 _, problems = resolve_rust_test(root / path, assertion)
                 errors.extend(problems)
@@ -163,9 +155,7 @@ for family in sorted(FAMILIES):
     if set(pair) != {"positive", "counterexample"}:
         errors.append(f"{family}: requires a positive and a counterexample row")
     elif pair["positive"] == pair["counterexample"]:
-        errors.append(
-            f"{family}: one assertion cannot be both positive and counterexample"
-        )
+        errors.append(f"{family}: one assertion cannot be both positive and counterexample")
 # Every licensed route owns its evidence: one assertion cited by several routes
 # proves at most one of them, so a shared citation is an error, not a warning.
 errors.extend(shared_evidence_problems(registry.get("routes", [])))
@@ -177,9 +167,9 @@ if not required.issubset(seen):
     errors.append("missing current public transport stage")
 coverage_ids = {
     row.get("id")
-    for row in tomllib.loads((root / "parity/coverage_records.toml").read_text(encoding="utf-8")).get(
-        "record", []
-    )
+    for row in tomllib.loads(
+        (root / "parity/coverage_records.toml").read_text(encoding="utf-8")
+    ).get("record", [])
 }
 for route in registry.get("routes", []):
     for cid in route.get("coverage") or []:

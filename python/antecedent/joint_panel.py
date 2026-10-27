@@ -36,13 +36,28 @@ from ._joint_panel_designs import (
     replay_native_joint_design,
     replay_population_reference,
     replay_reference_decomposition,
+    target_contrast,
 )
-from ._joint_panel_experiment import PanelExperiment, PanelFutureRegime, PanelFutureStudy
+from ._joint_panel_experiment import (
+    HistoricalPanelExperiment,
+    PanelExperiment,
+    PanelFutureRegime,
+    PanelFutureStudy,
+    replay_design_experiment,
+    replay_native_experiment,
+)
 from ._joint_panel_experiment import acceptance_matrix as experiment_acceptance_matrix
-from .errors import CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .intervention_programs import Expr
+from .outcomes import outcome_operation, require_success
 
 __all__ = [
+    "JointResponseLaw",
+    "PreparedJointResponse",
+    "compile_joint_response",
+    "HistoricalPanelExperiment",
+    "replay_design_experiment",
+    "replay_native_experiment",
     "PanelProgramCertificate",
     "PanelExperiment",
     "PanelFutureRegime",
@@ -55,6 +70,7 @@ __all__ = [
     "prepare_joint_design",
     "prepare_joint_design_for_panel",
     "prepare_native_joint_design",
+    "target_contrast",
     "replay_joint_design",
     "replay_native_joint_design",
     "replay_population_reference",
@@ -482,6 +498,111 @@ class PanelResult:
         }
         return json.loads(self._handle.search_program(_json(declaration), **execution))
 
+    def attempt_explanation(
+        self,
+        *,
+        explanation: str,
+        world: int,
+        reference_world: int,
+        before: tuple[int, int],
+        after: tuple[int, int],
+        **execution: Any,
+    ) -> dict[str, Any]:
+        """Execute the coarser total response contrast a finer explanation falls back to.
+
+        ``explanation`` is the finer change being asked about (``"exposure"``,
+        ``"saturation"``, ``"composition"`` or ``"mechanism"``). The executed contrast is the
+        change of ``world``'s mean response from the inclusive ``before`` periods to the
+        inclusive ``after`` periods, minus the same change for the flagged ``reference_world``,
+        on the already fitted law. Unique attribution of the finer explanation stays refused
+        (``unique_attribution_refusal``) and ``grants_unique_causal_attribution`` is false.
+        """
+        declaration = {
+            "explanation": explanation,
+            "world": world,
+            "reference_world": reference_world,
+            "before": list(before),
+            "after": list(after),
+        }
+        return json.loads(self._handle.attempt_explanation(_json(declaration), **execution))
+
+    def attempt_identified_reference(
+        self,
+        declaration: Mapping[str, Any],
+        *,
+        fallback: Mapping[str, Any],
+        **execution: Any,
+    ) -> dict[str, Any]:
+        """The identified reference decomposition, or the supplied coarser contrast.
+
+        ``declaration`` is as for :meth:`decompose_reference` (``require_identified_reference``
+        is not applied: an unidentified decomposition is executed as its ``fallback``, a mapping
+        with the :meth:`attempt_explanation` arguments). ``route`` is ``"supported"`` when every
+        hybrid is identified and ``"coarser"`` otherwise, with the conditional ``requested``
+        numbers and the per-hybrid missing premises retained next to the ``executed`` contrast.
+        """
+        payload = {"reference": dict(declaration), "fallback": dict(fallback)}
+        return json.loads(self._handle.attempt_identified_reference(_json(payload), **execution))
+
+    def attempt_design_adaptive_reference(
+        self,
+        declaration: Mapping[str, Any],
+        *,
+        fallback: Mapping[str, Any] | None = None,
+        **execution: Any,
+    ) -> dict[str, Any]:
+        """The finest decomposition this design identifies, and the designs that earn the rest.
+
+        Every component step whose two hybrids are both identified is executed on the aligned
+        law; components with none are listed as ``unidentified_components`` and each missing
+        premise is paired with the design that would earn it in ``next_designs``. When the
+        full decomposition is not identified and ``fallback`` is supplied, the coarser total
+        contrast is executed too (``coarser``).
+        """
+        payload = {
+            "reference": dict(declaration),
+            "fallback": None if fallback is None else dict(fallback),
+        }
+        return json.loads(
+            self._handle.attempt_design_adaptive_reference(_json(payload), **execution)
+        )
+
+    def search_declared_programs(
+        self,
+        *,
+        controls: Sequence[Mapping[str, Any]],
+        budget: float | None = None,
+        restrictions: Sequence[Mapping[str, Any]] = (),
+        functional: Mapping[str, Any] | str = "terminal_mean",
+        utility_offset: float = 0.0,
+        utility_scale: float = 1.0,
+        uncertainty: str = "point_means",
+        max_candidates: int = 1024,
+        **execution: Any,
+    ) -> dict[str, Any]:
+        """Exhaustively rank this panel's compiled worlds as candidate programs.
+
+        Every control (``channel``, ``offset``, ``lower``, ``upper``, ``unit_cost``) binds one
+        scheduled channel level; the declared bounds, linear ``budget`` and hard
+        ``restrictions`` (``id``, ``coefficients``, ``bound``) exclude a world with a concrete
+        reason (``rows[i]["feasibility"]``) before any value is attempted. The objective is the
+        expected utility ``utility_offset + utility_scale * response`` of the fitted
+        ``functional``. Exhaustion is over the finite set of compiled worlds and is not a
+        continuous optimum: ``continuous_gap`` is absent and ``global_certificate`` is false.
+        The standing is model-conditional and ``selected_value_reliability`` is unmeasured.
+        """
+        declaration = {
+            "controls": list(controls),
+            "budget": budget,
+            "restrictions": list(restrictions),
+            "functional": functional,
+            "utility_offset": utility_offset,
+            "utility_scale": utility_scale,
+            "uncertainty": uncertainty,
+            "max_candidates": max_candidates,
+        }
+        return json.loads(self._handle.search_declared_programs(_json(declaration), **execution))
+
 
 @dataclass(frozen=True, slots=True)
 class PreparedPanel:
@@ -593,3 +714,162 @@ def consume(artifact: bytes, **execution: Any) -> dict[str, Any]:
     """Replay the frozen Rust program in an independent historical consumer."""
     artifact = container_bytes(artifact)
     return json.loads(_native.consume_joint_panel(artifact, **execution))
+
+
+@dataclass(frozen=True, slots=True)
+class JointResponseLaw:
+    """Joint means of every compiled world on one shared fit, with their full covariance.
+
+    ``covariance`` (``uncertainty == "sampling_covariance"``) or the aligned posterior draws
+    (``"aligned_posterior"``) carry the cross-world dependence; marginal intervals are never
+    subtracted. ``identified_claim`` is false when conditional joint-world support is not
+    established, and ``calibration`` is ``"unmeasured"``: a numerical result grants neither
+    causal nor calibration license.
+    """
+
+    world_ids: tuple[int, ...]
+    means: tuple[float, ...]
+    covariance: tuple[tuple[float, ...], ...]
+    contrast: tuple[float, float] | None
+    uncertainty: str
+    draw_count: int
+    failed_draws: int
+    identified_claim: bool
+    identification: str
+    target: str
+    source_digest: str
+    calibration: str
+    _handle: Any
+
+    @classmethod
+    def _from_handle(cls, handle: Any) -> JointResponseLaw:
+        raw = json.loads(handle.report())
+        contrast = raw["contrast"]
+        return cls(
+            world_ids=tuple(raw["world_ids"]),
+            means=tuple(raw["means"]),
+            covariance=tuple(tuple(row) for row in raw["covariance"]),
+            contrast=None if contrast is None else (contrast["value"], contrast["se"]),
+            uncertainty=raw["uncertainty"],
+            draw_count=raw["draw_count"],
+            failed_draws=raw["failed_draws"],
+            identified_claim=raw["identified_claim"],
+            identification=raw["identification"],
+            target=raw["target"],
+            source_digest=raw["source_digest"],
+            calibration=raw["calibration"],
+            _handle=handle,
+        )
+
+    @artifact_export
+    def export(self, **execution: Any) -> ExportedArtifact:
+        """Exact compiled inputs and the joint output, for independent replay."""
+        return artifact_from_receipt(self, bytes(self._handle.export(**execution)))
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedJointResponse:
+    """Immutable worlds lowered from a prepared, identified static response.
+
+    All worlds share one design and one fit. :meth:`retarget` recompiles only the world
+    projections; a changed data, prior or kernel dependency needs a new compilation.
+    """
+
+    _handle: Any
+
+    def inspect(self) -> dict[str, Any]:
+        """Worlds, contrast coefficients and identification, without fitting anything."""
+        return dict(json.loads(self._handle.inspect()))
+
+    @outcome_operation
+    def execute(self, **execution: Any) -> JointResponseLaw:
+        """Fit once if necessary and jointly evaluate every world."""
+        return JointResponseLaw._from_handle(self._handle.execute(**execution))
+
+    @outcome_operation
+    def retarget(
+        self,
+        *,
+        outcome: str,
+        worlds: Sequence[Mapping[str, Any]],
+        contrast: Mapping[str, Any] | None = None,
+        units: str = "unspecified",
+        **execution: Any,
+    ) -> PreparedJointResponse:
+        """New world projections over the same source, prior and fit."""
+        declaration = _response_declaration(outcome, worlds, contrast, units)
+        return PreparedJointResponse(self._handle.retarget(_json(declaration), **execution))
+
+    @outcome_operation
+    def consume_current(self, artifact: bytes, **execution: Any) -> JointResponseLaw:
+        """Replay an exported result and bind it to this live compiled program."""
+        return JointResponseLaw._from_handle(
+            self._handle.consume_current(container_bytes(artifact), **execution)
+        )
+
+
+def _response_declaration(
+    outcome: str,
+    worlds: Sequence[Mapping[str, Any]],
+    contrast: Mapping[str, Any] | None,
+    units: str,
+) -> dict[str, Any]:
+    if isinstance(worlds, str | bytes) or not all(isinstance(w, Mapping) for w in worlds):
+        raise CausalTypeError("worlds must be mappings with id, levels and reference")
+    return {
+        "outcome": outcome,
+        "units": units,
+        "worlds": [
+            {
+                "id": w["id"],
+                "reference": bool(w.get("reference", False)),
+                "levels": dict(w["levels"]),
+            }
+            for w in worlds
+        ],
+        "contrast": None if contrast is None else dict(contrast),
+    }
+
+
+@outcome_operation
+def compile_joint_response(
+    study: Any,
+    *,
+    outcome: str,
+    worlds: Sequence[Mapping[str, Any]],
+    contrast: Mapping[str, Any] | None = None,
+    units: str = "unspecified",
+) -> PreparedJointResponse:
+    """Lower worlds of an identified, prepared static response onto one shared Gaussian fit.
+
+    ``study`` is a frequentist or Bayesian prepared static intervention-response study whose
+    adjustment proof is retained. Each world is ``{"id": n, "levels": {name: level},
+    "reference": bool}`` assigning exactly the study's intervention coordinates inside their
+    observed range; ``contrast`` is ``{"kind": "difference", "plus": a, "minus": b,
+    "reference": b}`` or ``{"kind": "linear", "terms": [[world, coefficient], ...],
+    "reference": r}``. ``units`` must equal the outcome's schema units (``"unspecified"``
+    when absent). Compilation fits nothing; execution fits once. The target keeps the
+    Gaussian-linear, fixed-empirical-covariate premise, and worlds whose conditional joint
+    support is not established stay model-conditional (``identified_claim`` false).
+    """
+    from .prepared import PreparedAnalysis
+
+    if not isinstance(study, PreparedAnalysis):
+        raise CausalTypeError("compile_joint_response requires a prepared study")
+    if study._refused is not None:
+        require_success(study._refused)
+    native = getattr(study._engine, "_native", None)
+    if not isinstance(native, _native.PreparedAnalysis):
+        raise CausalUnsupportedError(
+            "joint response compilation needs a prepared static response with a retained proof",
+            reason_code="route_not_supported",
+        )
+    declaration = _response_declaration(outcome, worlds, contrast, units)
+    handle = study.execution._call(
+        _native.compile_joint_response,
+        native,
+        _json(declaration),
+        seed=study.execution.seed,
+        threads=study.execution.threads,
+    )
+    return PreparedJointResponse(handle)

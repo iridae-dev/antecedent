@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from ._artifact_protocol import container_bytes
 from ._native import (
@@ -32,11 +33,17 @@ from ._native import (
     gamma_from_moments as _gamma_from_moments,
 )
 from ._native import (
+    mapped_posterior_transfer as _mapped_posterior_transfer,
+)
+from ._native import (
     prior_catalog_filter as _filter,
 )
 from ._native import (
     prior_catalog_rank as _rank,
 )
+
+if TYPE_CHECKING:
+    from .joint_distribution import DistributionIdentity, ScientificQuantity
 
 #: Caller convention for population / environment tags on ``PriorSourceMeta.tags``.
 POPULATION_TAG_KEY = "population"
@@ -485,6 +492,86 @@ def populations_from_prior_sources(
 ) -> list[str | None]:
     """Read ``tags["population"]`` from each catalog source (``None`` if unset)."""
     return [s.meta.tags.get(POPULATION_TAG_KEY) for s in sources]
+
+
+@dataclass(frozen=True)
+class MappedPosteriorPrior:
+    """A known-variance Gaussian prior transferred from an aligned parameter posterior.
+
+    Coordinates follow the target's design-column order (``target_ids``). ``scale_variance`` is
+    the conjugate scale ``V0`` per coefficient and ``correlation`` its dense correlation, so the
+    absolute coefficient covariance is ``known_residual_variance * V0`` (see :attr:`covariance`).
+    ``assumptions`` records the transfer (source and target snapshot and contract, the complete
+    stable-id map and the variance) as ``(id, description)`` pairs.
+    """
+
+    target_ids: tuple[str, ...]
+    mean: tuple[float, ...]
+    scale_variance: tuple[float, ...]
+    correlation: tuple[tuple[float, ...], ...] | None
+    known_residual_variance: float
+    assumptions: tuple[tuple[str, str], ...]
+
+    @property
+    def covariance(self) -> tuple[tuple[float, ...], ...]:
+        """Absolute coefficient covariance ``sigma^2 V0`` of the transferred posterior."""
+        n = len(self.mean)
+        sd = [(self.known_residual_variance * v) ** 0.5 for v in self.scale_variance]
+        return tuple(
+            tuple(
+                sd[i] * sd[j] * (self.correlation[i][j] if self.correlation else float(i == j))
+                for j in range(n)
+            )
+            for i in range(n)
+        )
+
+
+def mapped_posterior_transfer(
+    source: bytes,
+    *,
+    expected_source: DistributionIdentity,
+    source_to_target: Mapping[str, str],
+    target_quantities: Sequence[ScientificQuantity],
+    target_snapshot_id: str,
+    target_contract_id: str,
+    known_residual_variance: float,
+    baseline_variance: float = 1.0,
+) -> MappedPosteriorPrior:
+    """Transfer an aligned parameter posterior into a known-variance Gaussian prior.
+
+    ``source`` is the exported joint-distribution artifact of the source study and
+    ``expected_source`` the identity the consumer retained independently of those bytes.
+    ``source_to_target`` maps each source coefficient's stable variable id to the target
+    coefficient's; the map must be a complete bijection onto ``target_quantities`` (the target's
+    coefficients in design-column order) with identical units, population, regime, horizon,
+    conditioning, transform and role. The source must carry complete, unweighted, joint
+    parameter-posterior draws whose single residual-variance coordinate is constant and equal to
+    ``known_residual_variance``. The source's full covariance is kept under the permutation.
+
+    Raises:
+        CausalValueError: an invalid argument.
+        CausalError: a refused identity, meaning, map, residual variance or alignment.
+    """
+    wires = [quantity._wire() for quantity in target_quantities]
+    out = _mapped_posterior_transfer(
+        container_bytes(source),
+        json.dumps(expected_source._wire()),
+        [(str(left), str(right)) for left, right in source_to_target.items()],
+        json.dumps(wires),
+        target_snapshot_id,
+        target_contract_id,
+        float(baseline_variance),
+        float(known_residual_variance),
+    )
+    correlation = out["correlation"]
+    return MappedPosteriorPrior(
+        target_ids=tuple(w["variable_id"] for w in wires),
+        mean=tuple(out["mean"]),
+        scale_variance=tuple(out["scale_variance"]),
+        correlation=None if correlation is None else tuple(tuple(row) for row in correlation),
+        known_residual_variance=float(out["known_residual_variance"]),
+        assumptions=tuple((item["id"], item["description"]) for item in out["restrictions"]),
+    )
 
 
 def compose_external_priors(
@@ -955,6 +1042,7 @@ __all__ = [
     "ExternalPriorSourceSpec",
     "ExternalPriorWeight",
     "GammaHyperparameters",
+    "MappedPosteriorPrior",
     "POPULATION_TAG_KEY",
     "PriorCatalog",
     "PriorMapping",
@@ -966,5 +1054,6 @@ __all__ = [
     "compose_external_priors",
     "gamma_from_mean_and_ess",
     "gamma_from_moments",
+    "mapped_posterior_transfer",
     "populations_from_prior_sources",
 ]

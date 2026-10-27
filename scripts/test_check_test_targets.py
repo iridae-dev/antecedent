@@ -1,4 +1,5 @@
 """Test-target checker: unit tests."""
+
 from __future__ import annotations
 
 import tempfile
@@ -41,7 +42,11 @@ class TestTargetChecks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             crate = crate_with(
                 Path(tmp),
-                {"suite_01.rs": '#[path = "outer.rs"]\nmod outer;\n', "outer.rs": "", "lonely.rs": ""},
+                {
+                    "suite_01.rs": '#[path = "outer.rs"]\nmod outer;\n',
+                    "outer.rs": "",
+                    "lonely.rs": "",
+                },
                 MANIFEST,
             )
             self.assertEqual(check.orphans_of(crate), ["demo/tests/lonely.rs"])
@@ -50,7 +55,10 @@ class TestTargetChecks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             crate = crate_with(
                 Path(tmp),
-                {"suite_01.rs": '#[path = "outer.rs"]\nmod outer;\n', "outer.rs": '#[path = "../shared/fixture.rs"]\nmod f;\n'},
+                {
+                    "suite_01.rs": '#[path = "outer.rs"]\nmod outer;\n',
+                    "outer.rs": '#[path = "../shared/fixture.rs"]\nmod f;\n',
+                },
                 MANIFEST,
             )
             (crate / "shared").mkdir()

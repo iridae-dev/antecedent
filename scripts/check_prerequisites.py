@@ -18,7 +18,9 @@ def problems(records: list[dict]) -> list[str]:
     for record in records:
         rid = record["id"]
         dependencies = record.get("prerequisite_records", [])
-        if not isinstance(dependencies, list) or any(not isinstance(item, str) for item in dependencies):
+        if not isinstance(dependencies, list) or any(
+            not isinstance(item, str) for item in dependencies
+        ):
             errors.append(f"{rid}: prerequisite_records must be a list of record IDs")
             continue
         if len(dependencies) != len(set(dependencies)):
@@ -99,34 +101,47 @@ def self_test() -> None:
     base = {"id": "transport.base", "prerequisite_records": []}
     child = {"id": "distribution.child", "prerequisite_records": ["transport.base"]}
     assert not problems([base, child])
-    assert any("unknown prerequisite" in item for item in problems(
-        [{**child, "prerequisite_records": ["missing"]}]
-    ))
-    assert any("self prerequisite" in item for item in problems(
-        [{**child, "prerequisite_records": ["distribution.child"]}]
-    ))
-    assert any("cyclic" in item for item in problems([
-        {**base, "prerequisite_records": ["distribution.child"]},
-        child,
-    ]))
-    features = [{
-        "id": "distribution.child",
-        "purpose": "child",
-        "depends_on": ["transport.base"],
-        "record": "distribution.child",
-        "record_state": "frozen",
-    }, {
-        "id": "transport.base",
-        "purpose": "base",
-        "depends_on": [],
-        "record": "transport.base",
-        "record_state": "frozen",
-    }]
+    assert any(
+        "unknown prerequisite" in item
+        for item in problems([{**child, "prerequisite_records": ["missing"]}])
+    )
+    assert any(
+        "self prerequisite" in item
+        for item in problems([{**child, "prerequisite_records": ["distribution.child"]}])
+    )
+    assert any(
+        "cyclic" in item
+        for item in problems(
+            [
+                {**base, "prerequisite_records": ["distribution.child"]},
+                child,
+            ]
+        )
+    )
+    features = [
+        {
+            "id": "distribution.child",
+            "purpose": "child",
+            "depends_on": ["transport.base"],
+            "record": "distribution.child",
+            "record_state": "frozen",
+        },
+        {
+            "id": "transport.base",
+            "purpose": "base",
+            "depends_on": [],
+            "record": "transport.base",
+            "record_state": "frozen",
+        },
+    ]
     assert not feature_problems(features, [base, child])
-    assert any("cyclic" in item for item in feature_problems(
-        [{**features[0], "depends_on": ["distribution.child"]}, features[1]],
-        [base, child],
-    ))
+    assert any(
+        "cyclic" in item
+        for item in feature_problems(
+            [{**features[0], "depends_on": ["distribution.child"]}, features[1]],
+            [base, child],
+        )
+    )
     committed_records = tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"]
     committed_features = tomllib.loads(FEATURES.read_text(encoding="utf-8"))["feature"]
     assert not problems(committed_records)

@@ -53,7 +53,8 @@ def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
                 except subprocess.TimeoutExpired:
                     print(
                         f"{gate}: still running {' '.join(cmd[:8])} "
-                        f"({time.monotonic() - since:.0f}s)", flush=True
+                        f"({time.monotonic() - since:.0f}s)",
+                        flush=True,
                     )
         except BaseException:
             proc.kill()
@@ -132,15 +133,23 @@ def resolve_rust(crate: str, target: list[str], assertion: str, test_rel: str, m
         def in_file(name: str) -> bool:
             if not name.startswith(module):
                 return False
-            first = name[len(module):].split("::", 1)[0]
-            return not ((children / f"{first}.rs").is_file() or (children / first / "mod.rs").is_file())
+            first = name[len(module) :].split("::", 1)[0]
+            return not (
+                (children / f"{first}.rs").is_file() or (children / first / "mod.rs").is_file()
+            )
 
         hits = [n for n in hits if in_file(n)]
     if len(hits) != 1:
-        return None, f"assertion {assertion!r} resolves to {hits or 'no test'} in {crate} {' '.join(target)}"
+        return (
+            None,
+            f"assertion {assertion!r} resolves to {hits or 'no test'} in {crate} {' '.join(target)}",
+        )
     ignored_code, ignored_log = rust_listing(crate, tuple(target), True)
     if ignored_code != 0:
-        return None, f"ignored-test listing failed in {crate} {' '.join(target)}: {ignored_log[-2000:]}"
+        return (
+            None,
+            f"ignored-test listing failed in {crate} {' '.join(target)}: {ignored_log[-2000:]}",
+        )
     if f"{hits[0]}: test" in ignored_log.splitlines():
         return None, f"assertion {assertion!r} is ignored in {crate} {' '.join(target)}"
     return hits[0], None
@@ -158,7 +167,9 @@ if not rows:
     print(f"FAIL: {ledger} has no [[{table}]] rows")
     sys.exit(1)
 
-rust_batches: dict[tuple[str, tuple[str, ...]], dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+rust_batches: dict[tuple[str, tuple[str, ...]], dict[str, list[str]]] = defaultdict(
+    lambda: defaultdict(list)
+)
 python_nodes: dict[str, list[str]] = defaultdict(list)
 filter_batches: dict[tuple[str, tuple[str, ...], str], list[str]] = defaultdict(list)
 started = time.monotonic()
@@ -218,10 +229,27 @@ print(
 for (crate, target), members in rust_batches.items():
     has_nextest = shutil.which("cargo-nextest") is not None
     expression = " | ".join(f"test(={name})" for name in members)
-    command = (["cargo", "nextest", "run", "--no-tests", "fail", "--ignore-default-filter",
-                "-p", crate, *target, "-E", expression]
-               if has_nextest else [])
-    print(f"{gate}: running Rust target {crate} {' '.join(target)} ({len(members)} cited tests)", flush=True)
+    command = (
+        [
+            "cargo",
+            "nextest",
+            "run",
+            "--no-tests",
+            "fail",
+            "--ignore-default-filter",
+            "-p",
+            crate,
+            *target,
+            "-E",
+            expression,
+        ]
+        if has_nextest
+        else []
+    )
+    print(
+        f"{gate}: running Rust target {crate} {' '.join(target)} ({len(members)} cited tests)",
+        flush=True,
+    )
     if has_nextest:
         code, log = run(command, root)
         # CI requests colored Cargo output. Nextest colors the summary's
@@ -234,7 +262,9 @@ for (crate, target), members in rust_batches.items():
         # runs each target's cited tests in one process-isolated invocation.
         code, log, passed, failed = 0, "", 0, 0
         for name in members:
-            exact_code, exact_log = run(["cargo", "test", "-p", crate, *target, "--", "--exact", name], root)
+            exact_code, exact_log = run(
+                ["cargo", "test", "-p", crate, *target, "--", "--exact", name], root
+            )
             exact_passed, exact_failed = cargo_counts(exact_log)
             passed += exact_passed
             failed += exact_failed or (exact_code != 0 or exact_passed != 1)
@@ -242,12 +272,19 @@ for (crate, target), members in rust_batches.items():
                 code = exact_code
                 log += exact_log[-1000:]
     if code != 0 or failed or passed != len(members):
-        print(f"FAIL: Rust target {crate} {' '.join(target)}: exit={code}, passed={passed}, failed={failed}\n{log[-3000:]}")
+        print(
+            f"FAIL: Rust target {crate} {' '.join(target)}: exit={code}, passed={passed}, failed={failed}\n{log[-3000:]}"
+        )
         # Attribute a failed target to its exact cited tests as well.
         before = len(failures)
         for name, labels in members.items():
-            check(labels, ["cargo", "test", "-p", crate, *target,
-                                      "--", "--exact", name], root, cargo_counts, exact=True)
+            check(
+                labels,
+                ["cargo", "test", "-p", crate, *target, "--", "--exact", name],
+                root,
+                cargo_counts,
+                exact=True,
+            )
         if len(failures) == before:
             failures.append(f"{crate} {' '.join(target)} batch")
     else:
@@ -256,8 +293,19 @@ for (crate, target), members in rust_batches.items():
                 print(f"ok: {label} (cited Rust test executed)")
 
 if python_nodes:
-    command = ["uv", "run", "--no-sync", "--project", str(repo / "python"),
-               "pytest", "-q", "-rA", "-p", "no:cacheprovider", *python_nodes]
+    command = [
+        "uv",
+        "run",
+        "--no-sync",
+        "--project",
+        str(repo / "python"),
+        "pytest",
+        "-q",
+        "-rA",
+        "-p",
+        "no:cacheprovider",
+        *python_nodes,
+    ]
     print(f"{gate}: running {len(python_nodes)} distinct Python nodes", flush=True)
     code, log = run(command, root / "python")
     passed_nodes = {m.group(1) for m in re.finditer(r"^PASSED\s+(\S+)", log, re.M)}
@@ -265,15 +313,29 @@ if python_nodes:
         print(f"{gate}: Python batch failed; isolating cited nodes", flush=True)
     isolated_failures = 0
     for node, labels in python_nodes.items():
-        node_passed = code == 0 and any(found == node or found.startswith(node + "[") for found in passed_nodes)
+        node_passed = code == 0 and any(
+            found == node or found.startswith(node + "[") for found in passed_nodes
+        )
         detail = log[-3000:]
         if code != 0:
-            exact = ["uv", "run", "--no-sync", "--project", str(repo / "python"),
-                     "pytest", "-q", "-rA", "-p", "no:cacheprovider", node]
+            exact = [
+                "uv",
+                "run",
+                "--no-sync",
+                "--project",
+                str(repo / "python"),
+                "pytest",
+                "-q",
+                "-rA",
+                "-p",
+                "no:cacheprovider",
+                node,
+            ]
             exact_code, detail = run(exact, root / "python")
             exact_passes = {m.group(1) for m in re.finditer(r"^PASSED\s+(\S+)", detail, re.M)}
             node_passed = exact_code == 0 and any(
-                found == node or found.startswith(node + "[") for found in exact_passes)
+                found == node or found.startswith(node + "[") for found in exact_passes
+            )
         if node_passed:
             for label in labels:
                 print(f"ok: {label} (cited Python test executed)")
@@ -286,7 +348,9 @@ if python_nodes:
         print(f"FAIL: Python batch failed although cited nodes passed alone:\n{log[-3000:]}")
 
 for (crate, target, part), labels in filter_batches.items():
-    check(labels, ["cargo", "test", "-p", crate, *target, "--", part], root, cargo_counts, exact=False)
+    check(
+        labels, ["cargo", "test", "-p", crate, *target, "--", part], root, cargo_counts, exact=False
+    )
 
 if failures:
     print(f"{gate}: {len(failures)} failing row(s): {', '.join(failures)}")

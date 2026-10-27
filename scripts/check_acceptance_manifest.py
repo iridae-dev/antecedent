@@ -189,7 +189,9 @@ def case_problems(case: dict[str, Any]) -> list[str]:
     if isinstance(config, dict) and "calibration_grid_point" in config:
         point = config["calibration_grid_point"]
         if type(point) is not int or point not in (0, 1, 2) or kind not in CALIBRATED_KINDS:
-            errors.append(f"{prefix}: calibration_grid_point must bind a calibrated case to integer 0, 1 or 2")
+            errors.append(
+                f"{prefix}: calibration_grid_point must bind a calibrated case to integer 0, 1 or 2"
+            )
     if kind not in KINDS:
         errors.append(f"{prefix}: expected.kind must be one of {sorted(KINDS)}")
     else:
@@ -248,18 +250,33 @@ def case_problems(case: dict[str, Any]) -> list[str]:
                 errors.append(
                     f"{prefix}: calibrated cases need targets.min_reporting_rate >= {MIN_REPORTING_RATE}"
                 )
-            if kind == "calibrated_interval" and not any(key.startswith("max_median") for key in targets):
+            if kind == "calibrated_interval" and not any(
+                key.startswith("max_median") for key in targets
+            ):
                 errors.append(f"{prefix}: calibrated cases need a precision target (max_median_*)")
             if kind == "calibrated_statistical_test":
-                if (case["configuration"].get("calibration_target") != "conditional_null_rejection_rate"
-                        or not isinstance(targets.get("type_i_alpha"), (int, float))
-                        or not math.isclose(targets["type_i_alpha"], 1 - targets.get("nominal_coverage", 0), abs_tol=1e-12)):
-                    errors.append(f"{prefix}: statistical-test calibration needs its explicit conditional Type-I target")
-                if (targets.get("precision_target") != "not_applicable"
-                        or not isinstance(targets.get("precision_reason"), str)
-                        or not targets["precision_reason"].strip()
-                        or any(key.startswith("max_median") for key in targets)):
-                    errors.append(f"{prefix}: statistical-test width must be explicitly inapplicable, never an interval precision claim")
+                if (
+                    case["configuration"].get("calibration_target")
+                    != "conditional_null_rejection_rate"
+                    or not isinstance(targets.get("type_i_alpha"), (int, float))
+                    or not math.isclose(
+                        targets["type_i_alpha"],
+                        1 - targets.get("nominal_coverage", 0),
+                        abs_tol=1e-12,
+                    )
+                ):
+                    errors.append(
+                        f"{prefix}: statistical-test calibration needs its explicit conditional Type-I target"
+                    )
+                if (
+                    targets.get("precision_target") != "not_applicable"
+                    or not isinstance(targets.get("precision_reason"), str)
+                    or not targets["precision_reason"].strip()
+                    or any(key.startswith("max_median") for key in targets)
+                ):
+                    errors.append(
+                        f"{prefix}: statistical-test width must be explicitly inapplicable, never an interval precision claim"
+                    )
 
     dataset = case["dataset"]
     if not isinstance(dataset, dict):
@@ -475,8 +492,11 @@ def closure_problems(
         errors.append(f"{prefix}: {where} is not a test function")
     if suffix == ".py" and not checker and not name.startswith("test"):
         errors.append(f"{prefix}: {where} is not a test function")
-    if ("#[ignore" in decoration and kind not in CALIBRATED_KINDS
-            and (SCALE_TARGET.match(path) is None or not scale_gate_wired(root))):
+    if (
+        "#[ignore" in decoration
+        and kind not in CALIBRATED_KINDS
+        and (SCALE_TARGET.match(path) is None or not scale_gate_wired(root))
+    ):
         errors.append(
             f"{prefix}: {where} is #[ignore]d and {SCALE_GATE} does not run it in the "
             "release-candidate gate; only a calibrated construction case or a release-only "

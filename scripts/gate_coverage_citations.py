@@ -60,13 +60,17 @@ for cell in lic.get("cell", []):
             fns_cache[module] = test_fns(module)
         fns = fns_cache[module]
         if fns is None:
-            fail.append(f"{row}: cites {module}::{names[0]} but crates/antecedent/tests/{module}.rs does not exist")
+            fail.append(
+                f"{row}: cites {module}::{names[0]} but crates/antecedent/tests/{module}.rs does not exist"
+            )
             continue
         for name in names:
             checked += 1
             pats = expand(name.rstrip(".,;"))
             if not any(fnmatch.fnmatchcase(fn, pat) for pat in pats for fn in fns):
-                fail.append(f"{row}: cites {module}::{name} but no such test fn in crates/antecedent/tests/{module}.rs")
+                fail.append(
+                    f"{row}: cites {module}::{name} but no such test fn in crates/antecedent/tests/{module}.rs"
+                )
 
 if fail:
     print("Coverage citation gate FAILED:")
@@ -74,4 +78,6 @@ if fail:
         print(" -", f)
     sys.exit(1)
 
-print(f"Coverage citations OK ({checked} citations across {len(fns_cache)} test modules resolve to existing test fns)")
+print(
+    f"Coverage citations OK ({checked} citations across {len(fns_cache)} test modules resolve to existing test fns)"
+)

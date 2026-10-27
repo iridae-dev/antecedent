@@ -35,10 +35,26 @@ STATUSES = ("DIRECT", "ADAPTER", "REFUSED")
 IDENTITY_BEGIN = "<!-- generated:identity-dictionary:begin -->"
 IDENTITY_END = "<!-- generated:identity-dictionary:end -->"
 MATRIX_BLOCKS = (
-    ("producers", "<!-- generated:producer-consumer:producers:begin -->", "<!-- generated:producer-consumer:producers:end -->"),
-    ("consumers", "<!-- generated:producer-consumer:consumers:begin -->", "<!-- generated:producer-consumer:consumers:end -->"),
-    ("matrix", "<!-- generated:producer-consumer:matrix:begin -->", "<!-- generated:producer-consumer:matrix:end -->"),
-    ("refusals", "<!-- generated:producer-consumer:refusals:begin -->", "<!-- generated:producer-consumer:refusals:end -->"),
+    (
+        "producers",
+        "<!-- generated:producer-consumer:producers:begin -->",
+        "<!-- generated:producer-consumer:producers:end -->",
+    ),
+    (
+        "consumers",
+        "<!-- generated:producer-consumer:consumers:begin -->",
+        "<!-- generated:producer-consumer:consumers:end -->",
+    ),
+    (
+        "matrix",
+        "<!-- generated:producer-consumer:matrix:begin -->",
+        "<!-- generated:producer-consumer:matrix:end -->",
+    ),
+    (
+        "refusals",
+        "<!-- generated:producer-consumer:refusals:begin -->",
+        "<!-- generated:producer-consumer:refusals:end -->",
+    ),
 )
 
 
@@ -94,7 +110,10 @@ def load_matrix() -> dict:
         _cell(row.get("rust"), f"consumer {row.get('key')} rust")
     seen: set[tuple[str, str]] = set()
     for row in cells:
-        pair = (_cell(row.get("producer"), "cell producer"), _cell(row.get("consumer"), "cell consumer"))
+        pair = (
+            _cell(row.get("producer"), "cell producer"),
+            _cell(row.get("consumer"), "cell consumer"),
+        )
         if pair in seen:
             raise ValueError(f"duplicate cell {pair}")
         seen.add(pair)
@@ -121,9 +140,7 @@ def render_identity(rows: list[dict]) -> str:
         "| --- | --- | --- |",
     ]
     for row in rows:
-        lines.append(
-            f"| {row['naming_row']} | {row['doc_rust']} | {row['doc_python']} |"
-        )
+        lines.append(f"| {row['naming_row']} | {row['doc_rust']} | {row['doc_python']} |")
     return "\n".join(lines)
 
 

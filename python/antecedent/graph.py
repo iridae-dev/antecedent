@@ -8,10 +8,12 @@ representation — no separate integer-index free-function codecs.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
+from . import _native
 from ._native import (
     Admg,
     Cpdag,
@@ -121,6 +123,47 @@ def cpdag_oriented_edges(cpdag: Cpdag, *, require_oriented: bool = True) -> list
     return directed
 
 
+@dataclass(frozen=True, slots=True)
+class PagCompletions:
+    """The circle-free completions of a PAG and the audit of the walk that found them.
+
+    ``graphs`` are ancestral, maximal graphs (no circle endpoints) that keep the PAG's
+    unshielded colliders. ``audit`` counts what the walk examined and rejected.
+    ``capped`` is true when more completions exist than ``graphs`` holds (or a search bound
+    stopped the walk), and ``class_unproved`` when the completions are not certified to be the
+    whole Markov equivalence class (the global audit was skipped or a bound stopped the walk):
+    no class-wide conclusion may be drawn from them then.
+    """
+
+    graphs: tuple[Pag, ...]
+    audit: Mapping[str, object]
+
+    @property
+    def capped(self) -> bool:
+        return bool(self.audit["hit_cap"])
+
+    @property
+    def class_unproved(self) -> bool:
+        return bool(self.audit["class_audit_incomplete"])
+
+
+def pag_completions(pag: Pag, max_completions: int = 64) -> PagCompletions:
+    """Up to ``max_completions`` circle-free completions of ``pag``.
+
+    Raises:
+        CausalTypeError: ``pag`` is not a :class:`Pag`.
+        CausalValueError: ``max_completions`` is not a positive integer.
+    """
+    if not isinstance(pag, Pag):
+        raise CausalTypeError("pag must be a Pag")
+    if isinstance(max_completions, bool) or not isinstance(max_completions, int):
+        raise CausalTypeError("max_completions must be an integer")
+    if max_completions < 1:
+        raise CausalValueError("max_completions must be at least 1")
+    graphs, audit = _native.pag_completions(pag, max_completions)
+    return PagCompletions(graphs=tuple(graphs), audit=json.loads(audit))
+
+
 __all__ = [
     "Admg",
     "Cpdag",
@@ -128,10 +171,12 @@ __all__ = [
     "Dag",
     "discovery_to_dag",
     "Pag",
+    "PagCompletions",
     "TemporalAdmg",
     "TemporalCpdag",
     "TemporalDag",
     "TemporalPag",
     "TieredBackground",
     "WithinTier",
+    "pag_completions",
 ]

@@ -68,7 +68,9 @@ def problems(
     if rules is not None and scanned is not None:
         for rule in rules:
             if not any(ledger.rule_matches(rule, row) for row in scanned):
-                errors.append(f"unused_rule: {rule.get('name', '?')}: matches no scanned limitation")
+                errors.append(
+                    f"unused_rule: {rule.get('name', '?')}: matches no scanned limitation"
+                )
     return errors
 
 

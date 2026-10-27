@@ -74,9 +74,7 @@ def as_str_names(rel: str, impl_name: str) -> list[str]:
 def reason_codes() -> tuple[list[str], list[str]]:
     rows = load_toml(ROOT / "parity" / "reason_codes.toml")["code"]
     every = sorted({row["id"] for row in rows})
-    runtime = sorted(
-        {row["id"] for row in rows if "runtime_refusal" in row.get("applies_to", [])}
-    )
+    runtime = sorted({row["id"] for row in rows if "runtime_refusal" in row.get("applies_to", [])})
     return every, runtime
 
 
@@ -104,9 +102,7 @@ def family_code(class_name: str) -> str:
 def error_families() -> list[dict[str, object]]:
     """Native families from their declarations, then the Python-only narrowings."""
     declarations = read_text(ROOT / "python" / "src" / "errors.rs")
-    native = re.findall(
-        r"create_exception!\(antecedent\._native,\s*(\w+),\s*(\w+)\)", declarations
-    )
+    native = re.findall(r"create_exception!\(antecedent\._native,\s*(\w+),\s*(\w+)\)", declarations)
     if not native:
         raise SystemExit("python/src/errors.rs: no native exception declarations")
     families: list[dict[str, object]] = []
@@ -401,9 +397,7 @@ def build() -> dict[str, object]:
             "properties": {
                 "operation": {"$ref": "#/$defs/operation_kind"},
                 "applicability": {"$ref": "#/$defs/semantic_applicability"},
-                "readiness": {
-                    "oneOf": [{"$ref": "#/$defs/operation_readiness"}, {"type": "null"}]
-                },
+                "readiness": {"oneOf": [{"$ref": "#/$defs/operation_readiness"}, {"type": "null"}]},
                 "coordinate": {"type": ["string", "null"]},
                 "blockers": {"type": "array", "items": {"$ref": "#/$defs/blocker"}},
                 "next_actions": {"type": "array", "items": {"$ref": "#/$defs/next_action"}},

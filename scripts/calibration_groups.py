@@ -112,6 +112,7 @@ LONG_PATTERNS = (
 # the gate's `grid_group`, printed as `grid <index>` lines by its dry run.
 GRID_POINTS = (0, 1, 2)
 
+
 def threads_per_job(jobs: int) -> int:
     """Worker threads each job's `map_replicates` gets (ANTECEDENT_CALIBRATION_THREADS),
     so `jobs` concurrent jobs share the cores instead of each taking all of them."""
@@ -123,7 +124,9 @@ class Group:
     index: int  # 1-based position in the gate
     label: str
     long: bool
-    grid: bool  # measured over the sample-size grid (the gate's `grid_group`, read from its dry run)
+    grid: (
+        bool  # measured over the sample-size grid (the gate's `grid_group`, read from its dry run)
+    )
 
     @property
     def head(self) -> str:
@@ -185,20 +188,31 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
     """Normal measurements target published defaults; replay still maps old protocols."""
     if not measures(group.head, group.test_filter, record):
         return False
-    if group.head == "evidence_synthesis_calibration" and group.test_filter.startswith("pooled_random_effects_"):
-        return (record.get("interval_method") == "independent_gaussian_study_t"
-                and record.get("role") == "conservative_point")
+    if group.head == "evidence_synthesis_calibration" and group.test_filter.startswith(
+        "pooled_random_effects_"
+    ):
+        return (
+            record.get("interval_method") == "independent_gaussian_study_t"
+            and record.get("role") == "conservative_point"
+        )
     if group.head == "sample_split_weighted_effect_calibration":
         marker = "discovery_fraction_0_75.conflict_resolution_treatment_invariant.variance_hc3"
-        return (str(record.get("functional", "")) == "weighted_population_total_effect." + marker
-                and record.get("se_kind") == "hc3_sampling_weighted"
-                and record.get("interval_method") == "student_t_sandwich_effective_n"
-                and str(record.get("id", "")).endswith("." + marker.replace(".", "_")))
-    if group.head == "discovered_transport_calibration" and group.test_filter == "discovered_pag_transport_contrast_complete_procedure_coverage":
+        return (
+            str(record.get("functional", "")) == "weighted_population_total_effect." + marker
+            and record.get("se_kind") == "hc3_sampling_weighted"
+            and record.get("interval_method") == "student_t_sandwich_effective_n"
+            and str(record.get("id", "")).endswith("." + marker.replace(".", "_"))
+        )
+    if (
+        group.head == "discovered_transport_calibration"
+        and group.test_filter == "discovered_pag_transport_contrast_complete_procedure_coverage"
+    ):
         marker = "declared_selection_joint_pretreatment_standardization"
-        return (str(record.get("functional", "")).endswith("." + marker)
-                and str(record.get("id", "")).endswith("_" + marker)
-                and record.get("interval_method") == "percentile_bootstrap")
+        return (
+            str(record.get("functional", "")).endswith("." + marker)
+            and str(record.get("id", "")).endswith("_" + marker)
+            and record.get("interval_method") == "percentile_bootstrap"
+        )
     if group.head == "sample_split_parent_set_effect_calibration":
         return ".discovery_fraction_0_75" in str(record.get("functional", ""))
     protocol = current_group_protocol(group)
@@ -208,19 +222,25 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
         if protocol == "reference=cluster_df":
             return record.get("interval_method") == "student_analytic"
         if protocol == "interval_variance=heteroskedastic_arm_linear_training_hc3":
-            return (record.get("interval_method") == "population_linear_atc_hc3"
-                    and record.get("se_kind") == "population_linear_heteroskedastic_hc3"
-                    and str(record.get("functional", "")).startswith("untreated.mean+"))
+            return (
+                record.get("interval_method") == "population_linear_atc_hc3"
+                and record.get("se_kind") == "population_linear_heteroskedastic_hc3"
+                and str(record.get("functional", "")).startswith("untreated.mean+")
+            )
         if protocol == "interval_variance=homoskedastic_gaussian_arm_linear_population":
-            return (record.get("interval_method") == "population_linear_aipw_score"
-                    and record.get("se_kind") == "population_linear_homoskedastic"
-                    and "point_correction=arm_linear_projection" in str(record.get("functional", "")))
+            return (
+                record.get("interval_method") == "population_linear_aipw_score"
+                and record.get("se_kind") == "population_linear_homoskedastic"
+                and "point_correction=arm_linear_projection" in str(record.get("functional", ""))
+            )
         if protocol == "weighting=balanced_linear_hc3":
             if group.test_filter == "weighted_ipw_hajek_interval":
-                return (record.get("interval_method") == "balanced_population_linear_score"
-                        and record.get("se_kind") == "population_linear_homoskedastic"
-                        and "interval_variance=homoskedastic_gaussian_arm_linear_population"
-                        in str(record.get("functional", "")))
+                return (
+                    record.get("interval_method") == "balanced_population_linear_score"
+                    and record.get("se_kind") == "population_linear_homoskedastic"
+                    and "interval_variance=homoskedastic_gaussian_arm_linear_population"
+                    in str(record.get("functional", ""))
+                )
             return record.get("interval_method") == "balanced_population_score"
         if protocol in {"matching=population_linear", "stratification=regression_linear_hc3"}:
             return str(record.get("id", "")).endswith("." + protocol.partition("=")[2])
@@ -244,7 +264,10 @@ def current_group_protocol(group: Group) -> str | None:
             "weighted_ipw_hajek_interval": "weighting=balanced_linear_hc3",
             "weighted_ipw_hajek_cluster_interval": "weighting=balanced_linear_hc3",
         }.get(group.test_filter)
-    if group.head == "knn_matching_calibration" and group.test_filter == "knn_matching_interval_ci_coverage":
+    if (
+        group.head == "knn_matching_calibration"
+        and group.test_filter == "knn_matching_interval_ci_coverage"
+    ):
         return "population_linear"
     return None
 
@@ -269,12 +292,12 @@ def _suite_owner(root: Path, head: str) -> str | None:
     for package, member in _workspace_packages(root):
         manifest = tomllib.loads((member / "Cargo.toml").read_text(encoding="utf-8"))
         explicit = any(
-            test.get("name") == head
-            and (member / test.get("path", f"tests/{head}.rs")).is_file()
+            test.get("name") == head and (member / test.get("path", f"tests/{head}.rs")).is_file()
             for test in manifest.get("test", [])
         )
         automatic = manifest["package"].get("autotests", True) and any(
-            path.is_file() for path in (member / "tests" / f"{head}.rs", member / "tests" / head / "main.rs")
+            path.is_file()
+            for path in (member / "tests" / f"{head}.rs", member / "tests" / head / "main.rs")
         )
         if explicit or automatic:
             owners.append(package)
@@ -320,8 +343,16 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
 
     records = facets.load_records()
     if missing_only:
-        ledger = tomllib.loads(GATE_REGISTRY.read_text(encoding="utf-8")) if GATE_REGISTRY.is_file() else {}
-        passed = {str(row["group"]): row for row in ledger.get("gate", []) if int(row.get("passed", 0)) > 0}
+        ledger = (
+            tomllib.loads(GATE_REGISTRY.read_text(encoding="utf-8"))
+            if GATE_REGISTRY.is_file()
+            else {}
+        )
+        passed = {
+            str(row["group"]): row
+            for row in ledger.get("gate", [])
+            if int(row.get("passed", 0)) > 0
+        }
         chosen = []
         reasons = {}
         for group in groups:
@@ -332,12 +363,14 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
             # and weighted record emitters must carry their current identity;
             # recordless KNN must have emitted its explicit protocol marker.
             protocol = current_group_protocol(group)
-            record_required = group.head in {"sample_split_parent_set_effect_calibration", "sample_split_weighted_effect_calibration"} or (
-                group.head == "weighted_interval_calibration" and protocol is not None
-            )
+            record_required = group.head in {
+                "sample_split_parent_set_effect_calibration",
+                "sample_split_weighted_effect_calibration",
+            } or (group.head == "weighted_interval_calibration" and protocol is not None)
             record_required = record_required or (
-                group.head == "discovered_transport_calibration" and
-                group.test_filter == "discovered_pag_transport_contrast_complete_procedure_coverage"
+                group.head == "discovered_transport_calibration"
+                and group.test_filter
+                == "discovered_pag_transport_contrast_complete_procedure_coverage"
             )
             if not record_required and all(
                 name in passed and (protocol is None or passed[name].get("protocol") == protocol)
@@ -380,10 +413,14 @@ def filter_selection(selection: Selection, patterns: list[str]) -> Selection:
     for pattern in patterns:
         if not any(fnmatch.fnmatchcase(group.label, pattern) for group in selection.groups):
             raise SystemExit(f"--group {pattern!r} matches no selected group")
-    chosen = [group for group in selection.groups
-              if any(fnmatch.fnmatchcase(group.label, pattern) for pattern in patterns)]
-    return Selection(chosen, selection.owed_records,
-                     {g.index: selection.reasons[g.index] for g in chosen})
+    chosen = [
+        group
+        for group in selection.groups
+        if any(fnmatch.fnmatchcase(group.label, pattern) for pattern in patterns)
+    ]
+    return Selection(
+        chosen, selection.owed_records, {g.index: selection.reasons[g.index] for g in chosen}
+    )
 
 
 # --------------------------------------------------------------------------
@@ -408,11 +445,19 @@ def pilot_timings() -> dict[str, float]:
             continue
         try:
             elapsed, threads, replicates, test_seconds = (
-                float(parts[1]), int(parts[4]), int(parts[5]), float(parts[6])
+                float(parts[1]),
+                int(parts[4]),
+                int(parts[5]),
+                float(parts[6]),
             )
         except ValueError:
             continue
-        if elapsed > 0 and 0 <= test_seconds <= elapsed and threads > 0 and replicates == PILOT_NSIM:
+        if (
+            elapsed > 0
+            and 0 <= test_seconds <= elapsed
+            and threads > 0
+            and replicates == PILOT_NSIM
+        ):
             # Scale the test's replicate work, but pay Cargo/gate startup only
             # once. The old projection multiplied the startup of ~1,100 jobs
             # by 50 and substantially overstated their full-pass cost.
@@ -587,16 +632,26 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
     finished = 0
     started = time.monotonic()
     base_env = {
-        k: v for k, v in os.environ.items()
-        if not k.startswith("ANTECEDENT_CALIBRATION_") and k not in {"ANTECEDENT_PARENT_PROTOCOL_VERSION", "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION", "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL", "ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL"}
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith("ANTECEDENT_CALIBRATION_")
+        and k
+        not in {
+            "ANTECEDENT_PARENT_PROTOCOL_VERSION",
+            "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION",
+            "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL",
+            "ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL",
+        }
     }
-    base_env.update({
-        "ANTECEDENT_CALIBRATION_SMOKE": "1",
-        "ANTECEDENT_CALIBRATION_NSIM": str(PILOT_NSIM),
-        "ANTECEDENT_CALIBRATION_RECHECK_NSIM": str(PILOT_NSIM + 1),
-        "ANTECEDENT_CALIBRATION_THREADS": "1",
-        "ANTECEDENT_CALIBRATION_LOG_DIR": str(PILOT_LOG_DIR),
-    })
+    base_env.update(
+        {
+            "ANTECEDENT_CALIBRATION_SMOKE": "1",
+            "ANTECEDENT_CALIBRATION_NSIM": str(PILOT_NSIM),
+            "ANTECEDENT_CALIBRATION_RECHECK_NSIM": str(PILOT_NSIM + 1),
+            "ANTECEDENT_CALIBRATION_THREADS": "1",
+            "ANTECEDENT_CALIBRATION_LOG_DIR": str(PILOT_LOG_DIR),
+        }
+    )
 
     def one(task: tuple[Group, int | None]) -> None:
         nonlocal finished
@@ -610,13 +665,17 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
         begin = time.monotonic()
         with console.open("w", encoding="utf-8", newline="\n") as out:
             status = subprocess.run(
-                ["bash", str(GATE)], cwd=ROOT, env=task_env,
-                stdout=out, stderr=subprocess.STDOUT,
+                ["bash", str(GATE)],
+                cwd=ROOT,
+                env=task_env,
+                stdout=out,
+                stderr=subprocess.STDOUT,
             ).returncode
         elapsed = time.monotonic() - begin
         log = PILOT_LOG_DIR / f"{group.safe}{suffix}.log"
         test_seconds = sum(
-            float(value) for value in re.findall(
+            float(value)
+            for value in re.findall(
                 r"^test result: ok\..*?finished in ([0-9.]+)s",
                 log.read_text(encoding="utf-8") if log.is_file() else "",
                 re.M,
@@ -641,13 +700,18 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
             )
 
     PILOT_TIMINGS.write_text("", encoding="utf-8", newline="\n")
-    print(f"piloting {len(tasks)} grid job(s) with {PILOT_NSIM} smoke replicates; no coverage records")
+    print(
+        f"piloting {len(tasks)} grid job(s) with {PILOT_NSIM} smoke replicates; no coverage records"
+    )
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         list(pool.map(one, tasks))
     current = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    if current != sha or subprocess.check_output(
-        ["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT, text=True
-    ).strip():
+    if (
+        current != sha
+        or subprocess.check_output(
+            ["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT, text=True
+        ).strip()
+    ):
         PILOT_TIMINGS.unlink(missing_ok=True)
         print("FAIL: HEAD or the working tree changed during the pilot")
         return 1
@@ -707,9 +771,7 @@ def longest_first(tasks: list[tuple[Group, int | None]]) -> list[tuple[Group, in
 MAX_TAIL_THREADS = 4
 
 
-def tail_threads(
-    tasks: list[tuple[Group, int | None]], jobs: int, threads: int
-) -> dict[str, int]:
+def tail_threads(tasks: list[tuple[Group, int | None]], jobs: int, threads: int) -> dict[str, int]:
     """Extra worker threads for the tasks that would otherwise set the wall time.
 
     With `jobs` tasks running at once the run cannot finish before the total recorded work over
@@ -743,10 +805,19 @@ def archive_logs() -> None:
     stamps = set()
     if LOG_DIR.is_dir():
         for log in LOG_DIR.glob("*.log"):
-            stamps.update(re.findall(r"^calibration-measured-at ([0-9a-f]{40})$",
-                                     log.read_text(encoding="utf-8"), re.M))
+            stamps.update(
+                re.findall(
+                    r"^calibration-measured-at ([0-9a-f]{40})$",
+                    log.read_text(encoding="utf-8"),
+                    re.M,
+                )
+            )
     sha = next(iter(stamps)) if len(stamps) == 1 else ("mixed" if stamps else "unstamped")
-    destination = ARCHIVE_DIR / sha / f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{uuid.uuid4().hex[:8]}"
+    destination = (
+        ARCHIVE_DIR
+        / sha
+        / f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{uuid.uuid4().hex[:8]}"
+    )
     destination.mkdir(parents=True)
     for source in sources:
         shutil.move(str(source), str(destination / source.name))
@@ -763,9 +834,13 @@ def formal_decision_environment(groups: list[Group] | None = None) -> dict[str, 
     import calibration_family as family
 
     if os.environ.get("ANTECEDENT_CALIBRATION_CONFIRMATION"):
-        raise SystemExit("fresh-seed confirmation has no allocated risk in suite coverage protocol v1")
+        raise SystemExit(
+            "fresh-seed confirmation has no allocated risk in suite coverage protocol v1"
+        )
     if FIRST_NSIM not in {look["planned_replicates"] for look in decision.LOOKS}:
-        raise SystemExit("suite coverage protocol requires a registered 400, 2000 or 20000 attempt look")
+        raise SystemExit(
+            "suite coverage protocol requires a registered 400, 2000 or 20000 attempt look"
+        )
     config = family.current_config(ROOT)
     if groups is not None:
         family.validate_measurement_selection(config, [group.label for group in groups])
@@ -777,7 +852,9 @@ def measurement_source_sha() -> str:
     if subprocess.check_output(
         ["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT, text=True
     ).strip():
-        raise SystemExit("formal measurement requires a clean committed source checkout; raw logs are retained")
+        raise SystemExit(
+            "formal measurement requires a clean committed source checkout; raw logs are retained"
+        )
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
 
 
@@ -867,7 +944,9 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             if status != 0:
                 failed.append(label)
             with TIMINGS.open("a", encoding="utf-8", newline="\n") as timings:
-                timings.write(f"{label}\t{elapsed:.1f}\t{status}\t{sha}\t{task_threads}\t{FIRST_NSIM}\n")
+                timings.write(
+                    f"{label}\t{elapsed:.1f}\t{status}\t{sha}\t{task_threads}\t{FIRST_NSIM}\n"
+                )
             verdict = "ok" if status == 0 else f"FAILED (see {console.relative_to(ROOT)})"
             print(
                 f"[{_clock(time.monotonic() - started)}] {len(done)}/{len(tasks)} "
@@ -880,7 +959,9 @@ def run(selection: Selection, total: int, jobs: int) -> int:
     # last_durations includes measured wall times and falls back to old pilots.
     # Keep its longest-first schedule even when no pilot exists at this HEAD.
     ordered = tasks
-    print(f"running {len(tasks)} grid job(s), {jobs} at a time with {threads} thread(s) each; first-pass replicates={FIRST_NSIM}")
+    print(
+        f"running {len(tasks)} grid job(s), {jobs} at a time with {threads} thread(s) each; first-pass replicates={FIRST_NSIM}"
+    )
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         list(pool.map(one, ordered))
     print(
@@ -903,16 +984,33 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     sub = parser.add_subparsers(dest="command", required=True)
-    for name, text in (("plan", "list the groups that would run"), ("pilot", "time smoke runs"), ("run", "run them")):
+    for name, text in (
+        ("plan", "list the groups that would run"),
+        ("pilot", "time smoke runs"),
+        ("run", "run them"),
+    ):
         p = sub.add_parser(name, help=text)
         mode = p.add_mutually_exclusive_group()
         mode.add_argument("--all", action="store_true", help="every group, not only the owed ones")
-        mode.add_argument("--missing-only", action="store_true",
-                          help="only groups without coverage records or complete passed gate evidence; ignore drift")
-        p.add_argument("--group", action="append", default=[], metavar="GLOB",
-                       help="restrict selected groups by full label glob (repeatable; quote wildcards)")
-        p.add_argument("--replicates", type=int, default=FIRST_NSIM, metavar="N",
-                       help="first-pass simulation count for selected groups (minimum 400; default 400)")
+        mode.add_argument(
+            "--missing-only",
+            action="store_true",
+            help="only groups without coverage records or complete passed gate evidence; ignore drift",
+        )
+        p.add_argument(
+            "--group",
+            action="append",
+            default=[],
+            metavar="GLOB",
+            help="restrict selected groups by full label glob (repeatable; quote wildcards)",
+        )
+        p.add_argument(
+            "--replicates",
+            type=int,
+            default=FIRST_NSIM,
+            metavar="N",
+            help="first-pass simulation count for selected groups (minimum 400; default 400)",
+        )
         # One job per core, each on one worker thread: list-scheduling the
         # many heterogeneous tasks packs the machine better than nesting each
         # task's own parallelism. `--jobs N` gives each job ceil(cores / N)

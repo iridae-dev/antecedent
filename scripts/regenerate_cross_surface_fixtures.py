@@ -33,6 +33,8 @@ def python_steps() -> tuple[list[str], ...]:
         [executable, "python/tests/generate_cross_surface_fixtures.py"],
         [executable, "python/tests/generate_cross_surface_bundle_fixtures.py"],
     )
+
+
 RUST_STEPS = (
     [
         "cargo",

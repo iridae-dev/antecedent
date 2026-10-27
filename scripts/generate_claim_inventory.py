@@ -62,9 +62,7 @@ def load_claims() -> list[dict]:
             raise SystemExit(f"parity/claims.toml: claim id {row['id']} is not snake_case")
         licensed = ROOT / row["licensed_by"]
         if not licensed.is_file():
-            raise SystemExit(
-                f"claims.toml {row['id']}: licensed_by {row['licensed_by']} missing"
-            )
+            raise SystemExit(f"claims.toml {row['id']}: licensed_by {row['licensed_by']} missing")
     return rows
 
 
@@ -143,7 +141,9 @@ def cover(triples: list[tuple[str, str, str]], axes: dict) -> list[tuple[str, st
         if have_sub == full_sub:
             rows.append((structure, ", ".join(inf), ", ".join(val), len(have_sub)))
             continue
-        for inference, validation in sorted(have_sub, key=lambda pair: (inf.index(pair[0]), val.index(pair[1]))):
+        for inference, validation in sorted(
+            have_sub, key=lambda pair: (inf.index(pair[0]), val.index(pair[1]))
+        ):
             rows.append((structure, inference, validation, 1))
     return rows
 
@@ -190,7 +190,9 @@ def render_inventory() -> str:
             raise SystemExit(f"{query}: duplicate licensed coordinate")
         coordinate_set = set(coordinates)
         n_licensed = n_na = n_refused = 0
-        for graph, structure, inference, validation in product(graphs, structures, inferences, validations):
+        for graph, structure, inference, validation in product(
+            graphs, structures, inferences, validations
+        ):
             cell = {
                 "query": query,
                 "graph_class": graph,
@@ -218,7 +220,9 @@ def render_inventory() -> str:
         for graph in graphs:
             if graph not in by_graph:
                 continue
-            for structures_cell, inferences_cell, validations_cell, count in cover(by_graph[graph], axes):
+            for structures_cell, inferences_cell, validations_cell, count in cover(
+                by_graph[graph], axes
+            ):
                 detail.append(
                     f"| {query} | {graph} | {structures_cell} | {inferences_cell} | "
                     f"{validations_cell} | {count} |"
@@ -275,9 +279,7 @@ def sync_claims(text: str, claims: list[dict], *, write: bool) -> str:
     for match in CLAIM_MARK.finditer(text):
         claim_id, body = match.group(1), match.group(2)
         if body != by_id[claim_id]:
-            raise SystemExit(
-                f"generated claim {claim_id} does not match parity/claims.toml"
-            )
+            raise SystemExit(f"generated claim {claim_id} does not match parity/claims.toml")
     return text
 
 
@@ -334,9 +336,7 @@ def main() -> int:
 
     missing = [row["id"] for row in claims if row["id"] not in rendered]
     if missing:
-        raise SystemExit(
-            "parity/claims.toml claims are not rendered: " + ", ".join(missing)
-        )
+        raise SystemExit("parity/claims.toml claims are not rendered: " + ", ".join(missing))
     if args.check:
         print("claim inventory OK")
     return 0

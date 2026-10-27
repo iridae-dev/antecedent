@@ -81,9 +81,7 @@ def source_identity() -> str:
         "conformance/response/joint_panel",
     ]:
         paths.extend(
-            p
-            for p in (ROOT / directory).rglob("*")
-            if p.is_file() and p.suffix in {".rs", ".py"}
+            p for p in (ROOT / directory).rglob("*") if p.is_file() and p.suffix in {".rs", ".py"}
         )
     paths.extend(
         ROOT / p
@@ -126,9 +124,7 @@ def collect(directory: Path, identity: str, commands: list[dict]) -> dict:
     rows = []
     for obligation in protocol["rows"]:
         evidence = records.pop(obligation["id"], [])
-        missing = sorted(
-            set(cases[obligation["design"]]) - {e["case"] for e in evidence}
-        )
+        missing = sorted(set(cases[obligation["design"]]) - {e["case"] for e in evidence})
         rows.append(
             {
                 **obligation,
@@ -168,9 +164,7 @@ def main() -> int:
         help="collect an existing source-bound evidence directory",
     )
     args = parser.parse_args()
-    directory = args.evidence_dir or Path(
-        tempfile.mkdtemp(prefix="antecedent-x05-acceptance-")
-    )
+    directory = args.evidence_dir or Path(tempfile.mkdtemp(prefix="antecedent-x05-acceptance-"))
     directory.mkdir(parents=True, exist_ok=True)
     identity = source_identity()
     env = {
@@ -186,14 +180,10 @@ def main() -> int:
             code = subprocess.run(command, cwd=ROOT, env=env, check=False).returncode
             executions.append({"argv": command, "exit_code": code})
             if code:
-                print(
-                    f"Procedure failed; retained raw evidence: {directory}", flush=True
-                )
+                print(f"Procedure failed; retained raw evidence: {directory}", flush=True)
                 return code
     if source_identity() != identity:
-        raise RuntimeError(
-            "procedure source changed during execution; rerun on a stable candidate"
-        )
+        raise RuntimeError("procedure source changed during execution; rerun on a stable candidate")
     report = collect(directory, identity, executions)
     REPORT.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report["counts"], sort_keys=True), flush=True)

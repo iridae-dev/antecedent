@@ -40,9 +40,7 @@ for path in records:
         continue
 
     if record.get("feature_id") != path.stem:
-        problems.append(
-            f"{rel}: feature_id must equal filename stem {path.stem!r}"
-        )
+        problems.append(f"{rel}: feature_id must equal filename stem {path.stem!r}")
 
     crate = record.get("implementation_crate")
     crate_exists = isinstance(crate, str) and (
@@ -68,14 +66,13 @@ for path in records:
             if not isinstance(paper.get("title"), str) or not paper["title"].strip():
                 problems.append(f"{prefix}.title must be non-empty")
             sections = paper.get("sections")
-            if not isinstance(sections, list) or not sections or any(
-                not isinstance(section, str) or not section.strip()
-                for section in sections
+            if (
+                not isinstance(sections, list)
+                or not sections
+                or any(not isinstance(section, str) or not section.strip() for section in sections)
             ):
                 problems.append(f"{prefix}.sections must name exact locations")
-            if "doi" in paper and (
-                not isinstance(paper["doi"], str) or not paper["doi"].strip()
-            ):
+            if "doi" in paper and (not isinstance(paper["doi"], str) or not paper["doi"].strip()):
                 problems.append(f"{prefix}.doi must be omitted rather than empty")
 
     upstream = record.get("upstream_implementations_observed")
@@ -87,16 +84,19 @@ for path in records:
             if not isinstance(implementation, dict):
                 problems.append(f"{prefix} must be a table, not a bare string")
                 continue
-            if not isinstance(implementation.get("project"), str) or not implementation[
-                "project"
-            ].strip():
+            if (
+                not isinstance(implementation.get("project"), str)
+                or not implementation["project"].strip()
+            ):
                 problems.append(f"{prefix}.project must be non-empty")
             if implementation.get("exposure") not in allowed_exposure:
                 problems.append(f"{prefix}.exposure is not an allowed disclosure")
 
     test_sources = record.get("test_sources")
-    if not isinstance(test_sources, list) or not test_sources or any(
-        not isinstance(source, str) or not source.strip() for source in test_sources
+    if (
+        not isinstance(test_sources, list)
+        or not test_sources
+        or any(not isinstance(source, str) or not source.strip() for source in test_sources)
     ):
         problems.append(f"{rel}: test_sources must be a non-empty string array")
         continue
@@ -111,11 +111,7 @@ for path in records:
 # CI factory id, must resolve to a record. Family names that are not
 # filenames are explicit aliases — a new closed-set id cannot ship without
 # either a matching file or an alias to one.
-stems = {
-    p.stem
-    for p in (root / "provenance").glob("*.toml")
-    if p.name != "_template.toml"
-}
+stems = {p.stem for p in (root / "provenance").glob("*.toml") if p.name != "_template.toml"}
 ids_rs = (root / "crates/antecedent/src/strategy_table/ids.rs").read_text(encoding="utf-8")
 pointers = re.findall(r'provenance:\s*(?:\n\s*)?\(\s*"([^"]+)"', ids_rs)
 for feat in pointers:
@@ -127,9 +123,7 @@ for feat in pointers:
         )
     for member in FAMILY.get(feat, ()):
         if member not in stems:
-            problems.append(
-                f"strategy-table family {feat!r} is missing member record {member!r}"
-            )
+            problems.append(f"strategy-table family {feat!r} is missing member record {member!r}")
 
 CI_CLAIM = {
     "parcorr": "ci.partial_correlation",
@@ -170,9 +164,7 @@ for name in sorted(factory_names):
     if claim is None:
         problems.append(f"CI factory name {name!r} has no provenance mapping")
     elif claim not in stems:
-        problems.append(
-            f"CI factory name {name!r} maps to missing provenance record {claim!r}"
-        )
+        problems.append(f"CI factory name {name!r} maps to missing provenance record {claim!r}")
 
 # Method review: every record that names the modules it covers names files that exist, and every
 # admitted method of the specifications links clean-room provenance and a reviewed public surface
@@ -184,13 +176,19 @@ for path in records:
     record = tomllib.loads(path.read_text(encoding="utf-8"))
     for module in record.get("modules", []):
         if not (root / module).exists():
-            problems.append(f"{path.relative_to(root)}: modules names {module}, which does not exist")
+            problems.append(
+                f"{path.relative_to(root)}: modules names {module}, which does not exist"
+            )
 children = {
     c["id"]: c
-    for c in tomllib.loads((root / "parity/method_children/children.toml").read_text(encoding="utf-8"))["child"]
+    for c in tomllib.loads(
+        (root / "parity/method_children/children.toml").read_text(encoding="utf-8")
+    )["child"]
 }
 review_checked = 0
-for spec in tomllib.loads((root / "parity/method_specs/specs.toml").read_text(encoding="utf-8"))["spec"]:
+for spec in tomllib.loads((root / "parity/method_specs/specs.toml").read_text(encoding="utf-8"))[
+    "spec"
+]:
     if spec.get("admission") not in ("licensed", "executing_unlicensed"):
         continue
     review_checked += 1
@@ -198,15 +196,21 @@ for spec in tomllib.loads((root / "parity/method_specs/specs.toml").read_text(en
     module = children[sid]["module"].split(";")[0].strip().split(" ")[0]
     links = spec.get("provenance", [])
     if not links:
-        problems.append(f"spec {sid}: admitted method links no provenance record and records no reason")
+        problems.append(
+            f"spec {sid}: admitted method links no provenance record and records no reason"
+        )
     for link in links:
         if link.startswith("not_applicable:"):
             if module not in NOT_AN_ALGORITHM:
-                problems.append(f"spec {sid}: provenance not_applicable for {module}, which is not a listed non-algorithm")
+                problems.append(
+                    f"spec {sid}: provenance not_applicable for {module}, which is not a listed non-algorithm"
+                )
         elif link not in stems:
             problems.append(f"spec {sid}: provenance record {link!r} does not exist")
         else:
-            linked = tomllib.loads((root / "provenance" / f"{link}.toml").read_text(encoding="utf-8"))
+            linked = tomllib.loads(
+                (root / "provenance" / f"{link}.toml").read_text(encoding="utf-8")
+            )
             if any(linked.get(flag) is not False for flag in required_booleans):
                 problems.append(f"spec {sid}: provenance record {link!r} is not clean-room")
     if str(spec.get("api_review", "")).startswith("unreviewed") or not spec.get("api_review"):
@@ -229,4 +233,6 @@ if problems:
         print(f" - {problem}")
     sys.exit(1)
 
-print(f"provenance schema/path audit: ok ({checked} records, {path_refs} path references, {review_checked} admitted methods reviewed)")
+print(
+    f"provenance schema/path audit: ok ({checked} records, {path_refs} path references, {review_checked} admitted methods reviewed)"
+)

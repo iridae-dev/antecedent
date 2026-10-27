@@ -27,6 +27,7 @@ import test_evidence  # noqa: E402  (the one reader of test source for the gates
 def referenced(fixture: str) -> bool:
     return bool(test_evidence.fixture_consumers(fixture))
 
+
 # ------------------------------------------------ declared unexercised list
 declared = {}
 unex_path = root / "conformance/UNEXERCISED.toml"
@@ -139,9 +140,7 @@ for p in sorted(root.glob("provenance/*.toml")):
             fail.append(f"{p}: implementation_deviations must be a list of non-empty strings")
 
 for stale in backlog - record_ids:
-    fail.append(
-        f"provenance/_deviations_backlog.txt lists {stale!r} but no such record exists"
-    )
+    fail.append(f"provenance/_deviations_backlog.txt lists {stale!r} but no such record exists")
 
 # ------------------------------------------------ 5. observation ride consumes its fixture
 # A licensed cell that names observation_primitives as evidence is a lie unless a
@@ -249,7 +248,9 @@ _kt_cited: dict[str, str] = {}
 for _toml in sorted((root / "parity").glob("*.toml")) + sorted(
     (root / "provenance").glob("*.toml")
 ):
-    for _m in re.finditer(r'known_truth_fixture\s*=\s*"([^"]+)"', _toml.read_text(encoding="utf-8")):
+    for _m in re.finditer(
+        r'known_truth_fixture\s*=\s*"([^"]+)"', _toml.read_text(encoding="utf-8")
+    ):
         _kt_cited.setdefault(_m.group(1), str(_toml))
 for _fixture, _cited_by in sorted(_kt_cited.items()):
     if _fixture.endswith(".json"):
@@ -300,9 +301,7 @@ for p in sorted(root.glob("crates/**/*.rs")):
     for i, line in enumerate(lines):
         if not CLAIM.search(line):
             continue
-        fn = next(
-            (m.group(1) for m in (FN.match(x) for x in lines[i + 1 : i + 6]) if m), None
-        )
+        fn = next((m.group(1) for m in (FN.match(x) for x in lines[i + 1 : i + 6]) if m), None)
         if fn is None:
             continue  # macro-generated test name: covered by its macro's group
         n_claimed += 1

@@ -28,17 +28,11 @@ class ExperimentReference(unittest.TestCase):
         )
 
     def test_two_state_analytic_update_and_constrained_optimum(self):
-        weights = reference.posterior(
-            [0.5, 0.5], [-1.0, 1.0], [0.0, 0.0], [1.0, 1.0], 0.5, 1.0, 1
-        )
+        weights = reference.posterior([0.5, 0.5], [-1.0, 1.0], [0.0, 0.0], [1.0, 1.0], 0.5, 1.0, 1)
         self.assertAlmostEqual(weights[1], math.e / (1 + math.e), places=14)
-        result = reference.decision(
-            weights, [[0, 0], [-1, 1], [100, 100]], [True, True, False]
-        )
+        result = reference.decision(weights, [[0, 0], [-1, 1], [100, 100]], [True, True, False])
         self.assertEqual(result["chosen"], [1])
-        self.assertAlmostEqual(
-            result["expected_utility"], 2 * weights[1] - 1, places=14
-        )
+        self.assertAlmostEqual(result["expected_utility"], 2 * weights[1] - 1, places=14)
         self.assertAlmostEqual(result["evpi"], weights[0], places=14)
 
     def test_quadrature_error_contains_analytic_two_state_evsi(self):
@@ -50,14 +44,10 @@ class ExperimentReference(unittest.TestCase):
             result = reference.future_value(
                 [0.5, 0.5], [-1, 1], utilities, [True, True], 1, 1, cells
             )
-            self.assertLessEqual(
-                abs(result["gross_evsi"] - exact), result["absolute_error_bound"]
-            )
+            self.assertLessEqual(abs(result["gross_evsi"] - exact), result["absolute_error_bound"])
 
     def test_uninformative_study_has_zero_value(self):
-        result = reference.future_value(
-            [0.3, 0.7], [0, 0], [[0, 0], [-1, 1]], [True, True], 1, 2
-        )
+        result = reference.future_value([0.3, 0.7], [0, 0], [[0, 0], [-1, 1]], [True, True], 1, 2)
         self.assertLessEqual(abs(result["gross_evsi"]), result["absolute_error_bound"])
 
     def test_population_dose_duration_translations_change_actual_estimands(self):
@@ -68,9 +58,7 @@ class ExperimentReference(unittest.TestCase):
             subset = [r for r in rows if r["duration"] == duration]
             self.assertEqual(len({r["mean"] for r in subset}), 4)
             for mix in ([1.0] * 4, [0.1, 0.2, 0.3, 0.4]):
-                dose1, dose4 = [
-                    r["mean"] for r in subset if r["population_weights"] == mix
-                ]
+                dose1, dose4 = [r["mean"] for r in subset if r["population_weights"] == mix]
                 self.assertGreater(dose4, dose1)
 
     def test_invalid_translation_and_no_feasible_action_refuse(self):

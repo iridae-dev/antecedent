@@ -8,7 +8,11 @@ import test_evidence as te
 
 def citations() -> list[tuple[Path, str]]:
     cited = sorted(
-        {row[field] for row in graphless.load_rows() for field in ("known_truth_test", "retained_route_test")}
+        {
+            row[field]
+            for row in graphless.load_rows()
+            for field in ("known_truth_test", "retained_route_test")
+        }
     )
     if not cited:
         sys.exit("graphless support evidence list is empty")
@@ -36,7 +40,9 @@ if sys.argv[1:] == ["--self-test"]:
     targets: dict[tuple[str, tuple[str, ...]], set[str]] = {}
     for path, function in cited:
         root_file, crate, target = te.target_root(path)
-        targets.setdefault((crate, tuple(target)), set()).add(te.libtest_name(path, function, root_file))
+        targets.setdefault((crate, tuple(target)), set()).add(
+            te.libtest_name(path, function, root_file)
+        )
     path0, function0 = cited[0]
     root0, crate0, target0 = te.target_root(path0)
     key0 = (crate0, tuple(target0))
@@ -48,7 +54,9 @@ if sys.argv[1:] == ["--self-test"]:
             te._CARGO_LIST_CACHE[key] = (set(names), ignored if key == key0 else set(), None)
         got = problems(cited)
         if bool(got) != want_fail:
-            sys.exit(f"graphless self-test {name}: expected {'failure' if want_fail else 'pass'}, got {got}")
+            sys.exit(
+                f"graphless self-test {name}: expected {'failure' if want_fail else 'pass'}, got {got}"
+            )
         print(f"ok  {name}")
 
     run("exact listing passes", targets, set(), False)
@@ -59,7 +67,9 @@ if sys.argv[1:] == ["--self-test"]:
     print("graphless support self-test: ok")
     sys.exit(0)
 
-print(f"== resolving {len(cited)} graphless evidence citation(s) via cargo test -- --list", flush=True)
+print(
+    f"== resolving {len(cited)} graphless evidence citation(s) via cargo test -- --list", flush=True
+)
 found = problems(cited)
 if found:
     print("graphless support evidence is not an executing test:", file=sys.stderr)

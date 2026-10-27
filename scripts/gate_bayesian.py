@@ -6,7 +6,6 @@ EVIDENCE = {
     "estimate.bayesian_conditional": "crates/antecedent/tests/prepared_analysis.rs",
     "estimate.bayesian_temporal_mediation": "python/tests/test_posterior_moments.py",
     "validate.dbn_posterior": "crates/antecedent/tests/manufacturing_temporal.rs",
-
     "bayes.prob.columnar_posteriors": "crates/antecedent-prob/src/posterior.rs",
     "bayes.prob.priors": "crates/antecedent-prob/src/prior.rs",
     "bayes.backend.conjugate_gaussian": "crates/antecedent/tests/bayesian.rs",

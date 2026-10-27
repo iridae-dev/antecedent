@@ -279,7 +279,7 @@ def _rust_path_attribute(attrs: list[str]) -> str | None:
         if not match:
             continue
         literal = match.group(1)
-        if literal.startswith('r'):
+        if literal.startswith("r"):
             raw = re.fullmatch(r'r(#{0,})"(.*?)"\1', literal, re.S)
             if raw:
                 return raw.group(2)
@@ -429,9 +429,15 @@ def cargo_listed(
             and os.environ.get("RUSTC_WRAPPER", "").endswith("sccache")
             and "sccache: error: Timed out waiting for server startup" in proc.stderr
         ):
-            print(f"cargo listing: sccache server unavailable; retrying {crate} without wrapper", flush=True)
+            print(
+                f"cargo listing: sccache server unavailable; retrying {crate} without wrapper",
+                flush=True,
+            )
             proc = subprocess.run(
-                command, cwd=cwd, capture_output=True, text=True,
+                command,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
                 env={**os.environ, "RUSTC_WRAPPER": ""},
             )
         if proc.returncode != 0:
@@ -616,8 +622,9 @@ def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
     rel = path.resolve().relative_to((cwd / "python").resolve())
     code, listing = _python_collection(path, cwd)
     nodes = (line.split()[0] for line in listing.splitlines() if line.startswith(str(rel) + "::"))
-    if code != 0 or not any(node.endswith("::" + name) or
-                            node.split("[")[0].endswith("::" + name) for node in nodes):
+    if code != 0 or not any(
+        node.endswith("::" + name) or node.split("[")[0].endswith("::" + name) for node in nodes
+    ):
         return [f"pytest does not collect {rel}::{name}: {listing[-500:]}"]
     return []
 
@@ -666,9 +673,7 @@ def _rust_index(root_file: Path) -> dict[str, list[tuple[Path, RustItem]]]:
                     it.name: it
                     for it in items
                     if it.kind == "fn"
-                    and re.search(
-                        r"\bpub\s+(?:\#\[[^\]]+\]\s*)?$", masked.skeleton[: it.start]
-                    )
+                    and re.search(r"\bpub\s+(?:\#\[[^\]]+\]\s*)?$", masked.skeleton[: it.start])
                 }
                 for f in target_files(root_file):
                     for imported in re.findall(
@@ -787,15 +792,12 @@ def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
             todo.extend(
                 (module_file, child)
                 for child in module_items
-                if child.kind == "fn" and child.name == function_name
+                if child.kind == "fn"
+                and child.name == function_name
                 and not _disabling_cfg(child.attrs)
+                and not any(block.body[0] < child.start < block.body[1] for block in module_blocks)
                 and not any(
-                    block.body[0] < child.start < block.body[1]
-                    for block in module_blocks
-                )
-                and not any(
-                    block.body[0] < child.start < block.body[1]
-                    and _disabling_cfg(block.attrs)
+                    block.body[0] < child.start < block.body[1] and _disabling_cfg(block.attrs)
                     for block in module_blocks
                 )
             )
@@ -1109,7 +1111,9 @@ _BUILDER_DISCARDS = (
     re.compile(rf"\bdel\s+{_BUILDER}\b", re.I),
     re.compile(rf"\b{_BUILDER}\s*=\s*None\b", re.I),
 )
-_EXECUTES = re.compile(r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|interval|refresh_series|run|evaluate_exact)\s*\(")
+_EXECUTES = re.compile(
+    r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|interval|refresh_series|run|evaluate_exact)\s*\("
+)
 _INSPECTS_PLAN = re.compile(
     r"\b(?:program|plan|lowering)\b"
     r"|\.retained_operation\s*\("
@@ -1128,7 +1132,9 @@ def checked_execution_body_problems(body: str, assertion: str) -> list[str]:
     `estimate…`, `interval`, `refresh_series`, `run`, `evaluate_exact`), and inspects the
     retained program or plan."""
     if not any(pattern.search(body) for pattern in _BUILDER_DISCARDS):
-        return [f"evidence assertion {assertion!r} does not explicitly discard its builder before execution"]
+        return [
+            f"evidence assertion {assertion!r} does not explicitly discard its builder before execution"
+        ]
     if not _EXECUTES.search(body):
         return [f"evidence assertion {assertion!r} does not execute the prepared plan"]
     if not _INSPECTS_PLAN.search(body):
@@ -1183,7 +1189,11 @@ def checked_execution_problems(row: dict) -> list[str]:
         if not isinstance(entry, dict):
             problems.append(f"checked_execution entry #{i} must be an inline table")
             continue
-        estimator, test_rel, assertion = entry.get("estimator"), entry.get("test"), entry.get("assertion")
+        estimator, test_rel, assertion = (
+            entry.get("estimator"),
+            entry.get("test"),
+            entry.get("assertion"),
+        )
         if not all(isinstance(v, str) and v.strip() for v in (estimator, test_rel, assertion)):
             problems.append(f"checked_execution entry #{i} needs estimator, test and assertion")
             continue
@@ -1204,7 +1214,9 @@ def checked_execution_problems(row: dict) -> list[str]:
 def main(argv: list[str]) -> int:
     if argv[:1] == ["rows"] and len(argv) == 2:
         failed = 0
-        for i, row in enumerate(tomllib.loads(Path(argv[1]).read_text(encoding="utf-8")).get("cell", []), 1):
+        for i, row in enumerate(
+            tomllib.loads(Path(argv[1]).read_text(encoding="utf-8")).get("cell", []), 1
+        ):
             problems = row_evidence_problems(row)
             if "checked_execution" in row:
                 problems += checked_execution_problems(row)

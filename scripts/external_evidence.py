@@ -64,7 +64,10 @@ def component_rows() -> dict[str, list[dict]]:
 def routes() -> dict[str, dict]:
     if not ROUTES.is_file():
         return {}
-    return {r["coordinate"]: r for r in tomllib.loads(ROUTES.read_text(encoding="utf-8")).get("route", [])}
+    return {
+        r["coordinate"]: r
+        for r in tomllib.loads(ROUTES.read_text(encoding="utf-8")).get("route", [])
+    }
 
 
 def cell_links(cell: dict, route: dict | None, components: dict[str, list[dict]]) -> dict:

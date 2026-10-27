@@ -1,4 +1,5 @@
 """The CI-run acceptance rule behind the release candidate's CI attestation."""
+
 from __future__ import annotations
 
 import tempfile
@@ -38,19 +39,32 @@ class CiAttestationTest(unittest.TestCase):
     def problems(self, payload: dict, head: str | None = HEAD) -> list[str]:
         return ci.check_run_payload(payload, head, self.required, self.workflow)
 
-    def test_a_run_is_accepted_only_when_it_built_this_commit_with_every_required_job_green(self) -> None:
+    def test_a_run_is_accepted_only_when_it_built_this_commit_with_every_required_job_green(
+        self,
+    ) -> None:
         self.assertEqual(self.problems(self.green()), [])
         wrong_sha = {**self.green(), "headSha": "0" * 40}
         self.assertTrue(any("headSha" in p for p in self.problems(wrong_sha)))
         missing_leg = self.green()
         missing_leg["jobs"] = [j for j in missing_leg["jobs"] if j["name"] != "Rust macos-14"]
-        self.assertTrue(any("Rust macos-14" in p and "missing" in p for p in self.problems(missing_leg)))
+        self.assertTrue(
+            any("Rust macos-14" in p and "missing" in p for p in self.problems(missing_leg))
+        )
         failed = self.green()
         failed["jobs"][2]["conclusion"] = "failure"
         self.assertTrue(any("Domain gates" in p and "failure" in p for p in self.problems(failed)))
-        by_id = {"headSha": HEAD, "jobs": [{"name": n, "conclusion": "success"} for n in self.required]}
-        self.assertTrue(self.problems(by_id), "workflow ids are not the display names a run reports")
-        self.assertEqual(self.problems(wrong_sha, head=None), [], "a payload without a pinned SHA checks jobs only")
+        by_id = {
+            "headSha": HEAD,
+            "jobs": [{"name": n, "conclusion": "success"} for n in self.required],
+        }
+        self.assertTrue(
+            self.problems(by_id), "workflow ids are not the display names a run reports"
+        )
+        self.assertEqual(
+            self.problems(wrong_sha, head=None),
+            [],
+            "a payload without a pinned SHA checks jobs only",
+        )
 
 
 if __name__ == "__main__":

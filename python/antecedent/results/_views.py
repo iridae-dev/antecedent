@@ -511,6 +511,13 @@ class PredictiveCheckReport(ResultModel):
     predictive_sd: float
     p_value: float
     n_sims: int
+    #: Two-sided Monte Carlo p-value of the observed outcome spread (cross-row SD) under the
+    #: simulated spread distribution; ``p_value`` is the location (outcome mean) axis only.
+    dispersion_p_value: float | None = None
+    #: How replicates carry observation noise: ``"likelihood"`` (draws from the full
+    #: observation model) or ``"mean_only_improper_scale"`` (a prior predictive under a
+    #: residual-variance prior with no finite mean: replicates are the fitted means only).
+    noise: str | None = None
 
     def __repr__(self) -> str:
         return (

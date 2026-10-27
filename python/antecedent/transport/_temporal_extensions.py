@@ -356,7 +356,10 @@ class TemporalInitialStateResult(ScientificResult):
     ``label`` is always ``marginalized_initial_state``; ``fixed`` is the separate
     fixed-state estimand (label ``fixed_initial_state``) when one was requested, and
     neither converts into the other. ``interval`` is always ``None``: this route is point
-    only. A result produced by a refresh carries its ``receipt`` and ``previous_value``.
+    only. A result produced by a refresh carries its ``receipt`` and ``previous_value``, and
+    ``invalidated_products`` names the prepared products (``identification``, ``design``,
+    ``model``, ``evidence``, ``prior_refresh``) that read a window factor the refresh changed;
+    the others are reused.
     """
 
     label: str
@@ -372,6 +375,7 @@ class TemporalInitialStateResult(ScientificResult):
     receipt: RefreshReceipt | None
     previous_value: float | None
     interval_invalidated: bool
+    invalidated_products: tuple[str, ...]
     _native: Any
 
     interval: None = None
@@ -395,6 +399,13 @@ class TemporalInitialStateResult(ScientificResult):
             receipt=None if refresh is None else RefreshReceipt._from(refresh["receipt"]),
             previous_value=None if refresh is None else refresh["previous_value"],
             interval_invalidated=False if refresh is None else refresh["interval_invalidated"],
+            invalidated_products=()
+            if refresh is None
+            else tuple(
+                entry["target"].removeprefix("temporal_product:")
+                for entry in refresh["invalidations"]
+                if entry["target"].startswith("temporal_product:")
+            ),
             _native=native,
         )
 

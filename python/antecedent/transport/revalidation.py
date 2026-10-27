@@ -60,7 +60,10 @@ from .._columns import coerce_fields
 from .._refusal import raise_refusal
 from .._scientific import ScientificResult
 from .._validate import choice, text
+from ..composition_verification import Calibration as CompositionCalibration
+from ..composition_verification import Node as CompositionNode
 from ..errors import CausalTypeError
+from ..state import CausalState
 from ..transported_response import TransportedResponse, TransportedResponseRefusal
 
 __all__ = [
@@ -73,7 +76,12 @@ __all__ = [
     "TransportRevalidation",
     "TransportScene",
     "TransportSceneBuilder",
+    "TransportedClaimStanding",
     "claim_node_key",
+    "invalidation_effects",
+    "response_claim_node",
+    "response_claim_standing",
+    "response_coordinate",
     "revalidate",
     "source_node_key",
 ]
@@ -84,6 +92,14 @@ TARGET_NODE_KEY = "target_population"
 DIAGRAM_NODE_KEY = "selection_diagram"
 
 TrustStanding = Literal["not_applicable", "held", "withdrawn", "undeclared"]
+ProviderTrustLevel = Literal[
+    "native_licensed", "externally_attested", "verified_extension", "unverified"
+]
+_PROVIDER_TRUST = ("native_licensed", "externally_attested", "verified_extension", "unverified")
+
+
+def _provider_trust(level: str | None) -> str | None:
+    return None if level is None else choice(level, "provider_trust", _PROVIDER_TRUST)
 
 
 def claim_node_key(key: str) -> str:
@@ -242,6 +258,36 @@ class TransportSceneBuilder:
             "response": len(self.responses),
             "calibration": stated._wire(),
             "trust": trust,
+        }
+        return replace(self, claims=(*self.claims, claim), responses=(*self.responses, response))
+
+    def transported_claim(
+        self,
+        key: str,
+        response: TransportedResponse,
+        calibration: Calibration | None = None,
+        provider_trust: ProviderTrustLevel | None = None,
+    ) -> TransportSceneBuilder:
+        """Add a transported claim whose trust standing is read from its provenance.
+
+        A claim of a library route is ``not_applicable``; a ``declared`` route is another party's
+        claim, so its trust is that of the provider that supplied it (``provider_trust``), and a
+        declared claim with no stated level is ``undeclared``, which withdraws it for provider
+        trust until the level is stated.
+
+        Raises:
+            TransportedResponseRefusal: at :meth:`build`, a provider level given to a library
+                route (``transport_revalidation.provider_trust_not_applicable``).
+        """
+        if not isinstance(response, TransportedResponse):
+            raise CausalTypeError("response must be a TransportedResponse")
+        stated = calibration or Calibration.point_only()
+        claim: dict[str, Any] = {
+            "kind": "transported_claim",
+            "key": text(key, "key", non_empty=True),
+            "response": len(self.responses),
+            "calibration": stated._wire(),
+            "provider_trust": _provider_trust(provider_trust),
         }
         return replace(self, claims=(*self.claims, claim), responses=(*self.responses, response))
 
@@ -426,6 +472,30 @@ def _effects(effects: Sequence[ObservedEffect] | None) -> str | None:
     return json.dumps([e._wire() for e in effects])
 
 
+def invalidation_effects(
+    state: CausalState,
+    since: int,
+    bindings: Sequence[tuple[str, str, int | str | None]],
+) -> tuple[ObservedEffect, ...]:
+    """The effects of a state's invalidation log after version ``since`` on bound claims.
+
+    ``bindings`` holds ``(claim_key, target_kind, target_id)``: the state target a claim rests
+    on, ``query`` (a registered query id), ``model``, ``suff_stat`` (a key), ``all_results``,
+    ``lag_indexes``, ``graph_scores``, ``particle_filters`` or ``mechanism_diagnostics``. An
+    event that changed a stage input after ``since`` makes the claim ``recomputed``; one that
+    removed a premise makes it ``withdrawn``; a claim nothing touched has no effect. Pass the
+    result to :func:`revalidate` or :meth:`TransportClaimState.observe`.
+    """
+    if not isinstance(state, CausalState):
+        raise CausalTypeError("state must be a CausalState")
+    wire = [
+        (str(key), str(kind), None if ident is None else str(ident))
+        for key, kind, ident in bindings
+    ]
+    parsed = json.loads(state.claim_invalidation_effects(int(since), wire))
+    return tuple(ObservedEffect(item["key"], item["kind"], item["text"]) for item in parsed)
+
+
 def revalidate(
     previous: TransportScene | None,
     current: TransportScene,
@@ -472,3 +542,119 @@ class TransportClaimState:
     def __repr__(self) -> str:
         recorded = self.scene
         return f"<TransportClaimState recorded={recorded is not None}>"
+
+
+# --------------------------------------------------------------------------- standalone response
+
+
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class TransportedClaimStanding(ScientificResult):
+    """The standing of one transported response as a claim.
+
+    ``support`` is ``supported`` or ``unsupported`` (with the ``unsupported`` coordinates, from
+    the receipt's support label); ``trust`` follows the response's provenance; ``calibration`` is
+    the declaration the caller stated.
+    """
+
+    support: str
+    unsupported: tuple[str, ...]
+    trust: TrustStanding
+    calibration: CompositionCalibration
+
+    @classmethod
+    def _from_wire(cls, wire: Mapping[str, Any]) -> TransportedClaimStanding:
+        c = wire["calibration"]
+        calibration = CompositionCalibration(
+            c["kind"], c.get("record"), c.get("coordinate"), c.get("from")
+        )
+        return cls(
+            support=str(wire["support"]["kind"]),
+            unsupported=tuple(str(x) for x in wire["support"]["coordinates"]),
+            trust=wire["trust"],
+            calibration=calibration,
+        )
+
+
+def _response_calibration(calibration: CompositionCalibration | None) -> str:
+    stated = calibration or CompositionCalibration.point_only()
+    if not isinstance(stated, CompositionCalibration):
+        raise CausalTypeError("calibration must be a composition_verification.Calibration")
+    return json.dumps(stated.to_wire())
+
+
+def response_coordinate(response: TransportedResponse) -> str:
+    """The evaluation coordinate of a standalone transported response (64 hex characters).
+
+    It names the response's target population and the quantity it answers; a calibration record
+    established for exactly this response at this target is declared with
+    ``composition_verification.Calibration.held(record, response_coordinate(response))``.
+    """
+    if not isinstance(response, TransportedResponse):
+        raise CausalTypeError("response must be a TransportedResponse")
+    return str(_unwrap(_native.transported_response_coordinate(response._handle)))
+
+
+def response_claim_standing(
+    response: TransportedResponse,
+    calibration: CompositionCalibration | None = None,
+    *,
+    provider_trust: ProviderTrustLevel | None = None,
+) -> TransportedClaimStanding:
+    """Support, provenance trust and declared calibration of one transported response.
+
+    Raises:
+        TransportedResponseRefusal: a provider level given to a response of a library route
+            (``transport_revalidation.provider_trust_not_applicable``).
+    """
+    if not isinstance(response, TransportedResponse):
+        raise CausalTypeError("response must be a TransportedResponse")
+    text_ = _unwrap(
+        _native.transported_response_standing(
+            response._handle, _response_calibration(calibration), _provider_trust(provider_trust)
+        )
+    )
+    return TransportedClaimStanding._from_wire(json.loads(text_))
+
+
+def response_claim_node(
+    key: str,
+    response: TransportedResponse,
+    calibration: CompositionCalibration | None = None,
+    *,
+    provider_trust: ProviderTrustLevel | None = None,
+) -> CompositionNode:
+    """The composition-verification node of one transported response, carrying its standing.
+
+    The node is a ``transported_result`` whose identity binds the receipt and the value, whose
+    structure is the receipt's selection-diagram identities and whose coordinate is
+    :func:`response_coordinate`; add it to a ``composition_verification.CompositionGraph``.
+    """
+    if not isinstance(response, TransportedResponse):
+        raise CausalTypeError("response must be a TransportedResponse")
+    wire = json.loads(
+        _unwrap(
+            _native.transported_response_node(
+                text(key, "key", non_empty=True),
+                response._handle,
+                _response_calibration(calibration),
+                _provider_trust(provider_trust),
+            )
+        )
+    )
+    c = wire["calibration"]
+    return CompositionNode(
+        key=wire["key"],
+        kind=wire["kind"],
+        identity=wire["identity"],
+        structure=wire.get("structure"),
+        representation=wire.get("representation"),
+        coordinate=wire["coordinate"],
+        unsupported=tuple(wire.get("unsupported", ())),
+        trust=wire["trust"],
+        calibration=CompositionCalibration(
+            c["kind"], c.get("record"), c.get("coordinate"), c.get("from")
+        ),
+        assumptions=tuple(wire["assumptions"]),
+        transformation=wire.get("transformation"),
+        evidence=tuple(wire["evidence"]),
+    )

@@ -43,14 +43,35 @@ HEADER = (
     "# Checked by scripts/check_route_obligations.py.\n"
 )
 LICENSED_FIELDS = (
-    "id", "kind", *AXES, "estimators", "route_estimator", "matrix_digest", "license_basis",
-    "compiler_execution", "identification_license", "calibration_license", "uncertainty",
+    "id",
+    "kind",
+    *AXES,
+    "estimators",
+    "route_estimator",
+    "matrix_digest",
+    "license_basis",
+    "compiler_execution",
+    "identification_license",
+    "calibration_license",
+    "uncertainty",
     "evidence_reachability",
 )
 CLOSED_FIELDS = (
-    "id", "kind", "queries", "graph_classes", "structures", "inferences", "validations",
-    "coordinates", "reason_digest", "license_basis", "compiler_execution",
-    "identification_license", "calibration_license", "uncertainty", "evidence_reachability",
+    "id",
+    "kind",
+    "queries",
+    "graph_classes",
+    "structures",
+    "inferences",
+    "validations",
+    "coordinates",
+    "reason_digest",
+    "license_basis",
+    "compiler_execution",
+    "identification_license",
+    "calibration_license",
+    "uncertainty",
+    "evidence_reachability",
 )
 
 
@@ -101,10 +122,16 @@ def licensed_row(cell: dict, matrix_cell: dict | None) -> dict:
         "license_basis": "explicit_license",
         "compiler_execution": citations,
         "identification_license": "|".join(
-            [cell.get("evidence_kind") or "", cell.get("evidence_test") or "",
-             cell.get("evidence_assertion") or "", fixture]
+            [
+                cell.get("evidence_kind") or "",
+                cell.get("evidence_test") or "",
+                cell.get("evidence_assertion") or "",
+                fixture,
+            ]
         ),
-        "calibration_license": ("records:" + ",".join(records)) if records else (f"reason:{reason}" if reason else ""),
+        "calibration_license": ("records:" + ",".join(records))
+        if records
+        else (f"reason:{reason}" if reason else ""),
         "uncertainty": reason or ("coverage_records" if records else ""),
         "evidence_reachability": sorted(set(reach)) + ([fixture] if fixture else []),
     }

@@ -77,7 +77,11 @@ def plan_crate(crate: Path):
         for target in included:
             if target.is_file():
                 text += "\n" + target.read_text(encoding="utf-8", errors="ignore")
-        if rel in declared or path.stem in NAMED or any(re.search(p, text, re.M) for p in KEEP_PATTERNS):
+        if (
+            rel in declared
+            or path.stem in NAMED
+            or any(re.search(p, text, re.M) for p in KEEP_PATTERNS)
+        ):
             keep.append((path, declared.get(rel, {})))
         else:
             fold.append(path)
@@ -92,7 +96,7 @@ def render_suite(files: list[Path]) -> str:
     lines = [
         "//! Consolidated integration tests: one binary for this group of files, each",
         "//! included in place so its path, helpers and registry citations are unchanged.",
-        "#![allow(clippy::all, reason = \"each included file carries its own lint scope\")]",
+        '#![allow(clippy::all, reason = "each included file carries its own lint scope")]',
         SUITE_MARK,
         "",
     ]
@@ -104,7 +108,12 @@ def render_suite(files: list[Path]) -> str:
 
 def rewrite_manifest(manifest: str, keep, suites: list[str]) -> str:
     if "autotests" not in manifest:
-        manifest = re.sub(r"(\[package\][^\[]*)", lambda m: m.group(1).rstrip("\n") + "\nautotests = false\n\n", manifest, count=1)
+        manifest = re.sub(
+            r"(\[package\][^\[]*)",
+            lambda m: m.group(1).rstrip("\n") + "\nautotests = false\n\n",
+            manifest,
+            count=1,
+        )
     existing = declared_targets(manifest)
     additions = []
     for path, _meta in keep:
@@ -138,7 +147,9 @@ def main() -> int:
         after = len(keep) + len(groups)
         total_before += before
         total_after += after
-        print(f"{crate.name:28} {before:4} files -> {after:3} binaries (keep {len(keep)}, fold {len(fold)})")
+        print(
+            f"{crate.name:28} {before:4} files -> {after:3} binaries (keep {len(keep)}, fold {len(fold)})"
+        )
         if not write:
             continue
         for name, group in zip(names, groups, strict=True):
@@ -146,7 +157,10 @@ def main() -> int:
         (crate / "Cargo.toml").write_text(rewrite_manifest(manifest, keep, names), encoding="utf-8")
         mapping = crate / "tests" / "suite_map.txt"
         mapping.write_text(
-            "".join(f"{name}: {', '.join(p.stem for p in group)}\n" for name, group in zip(names, groups, strict=True)),
+            "".join(
+                f"{name}: {', '.join(p.stem for p in group)}\n"
+                for name, group in zip(names, groups, strict=True)
+            ),
             encoding="utf-8",
         )
     print(f"total {total_before} -> {total_after}")

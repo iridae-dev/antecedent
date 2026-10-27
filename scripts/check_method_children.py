@@ -28,7 +28,15 @@ from method_evidence import UNLISTED, Evidence
 
 CHILDREN = "parity/method_children/children.toml"
 MANIFEST = "parity/capabilities/route_manifest.toml"
-GAPS = {"none", "target", "implementation", "statistical", "validation", "temporal-identification", "theory"}
+GAPS = {
+    "none",
+    "target",
+    "implementation",
+    "statistical",
+    "validation",
+    "temporal-identification",
+    "theory",
+}
 
 
 def manifest_ids(ev: Evidence) -> set[str]:
@@ -100,9 +108,16 @@ def self_test() -> int:
         write(root, "parity/v3_test_registry.toml", "schema = 1\n")
         write(root, MANIFEST, '[[route]]\nid = "r.one"\n')
         ev = Evidence(root)
-        base = {"id": "P.x", "gap": "none", "route": "r.one", "target": "Widget", "module": "none",
-                "inference": "x", "fixtures": "crates/c/tests/t.rs::works",
-                "consumer": "crates/c/src/reader.rs::read_artifact"}
+        base = {
+            "id": "P.x",
+            "gap": "none",
+            "route": "r.one",
+            "target": "Widget",
+            "module": "none",
+            "inference": "x",
+            "fixtures": "crates/c/tests/t.rs::works",
+            "consumer": "crates/c/src/reader.rs::read_artifact",
+        }
         routes = {"r.one"}
         assert child_findings(ev, base, routes) == [], child_findings(ev, base, routes)
         for field, value, needle in (

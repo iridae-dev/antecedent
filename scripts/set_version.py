@@ -242,10 +242,10 @@ def main(argv: list[str]) -> None:
     edits[pyproject] = py_new
 
     # Path-dep version pins must match for crates.io packaging.
-    path_pat = re.compile(
-        r'(antecedent(?:-[a-z0-9-]+)?\s*=\s*\{\s*version\s*=\s*")[^"]+(")'
-    )
-    for path in [cargo] + sorted(root.glob("crates/*/Cargo.toml")) + [root / "python" / "Cargo.toml"]:
+    path_pat = re.compile(r'(antecedent(?:-[a-z0-9-]+)?\s*=\s*\{\s*version\s*=\s*")[^"]+(")')
+    for path in (
+        [cargo] + sorted(root.glob("crates/*/Cargo.toml")) + [root / "python" / "Cargo.toml"]
+    ):
         if not path.is_file():
             continue
         current = edits.get(path, path.read_text(encoding="utf-8"))
@@ -259,9 +259,7 @@ def main(argv: list[str]) -> None:
     # extension or installed metadata; "unknown" is the sentinel when neither is
     # available, not a version pin.
     literal = re.search(r'__version__\s*=\s*"([^"]+)"', init_text)
-    if literal and re.fullmatch(
-        r"[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?", literal.group(1)
-    ):
+    if literal and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?", literal.group(1)):
         init_new, n = re.subn(
             r'(__version__\s*=\s*")[^"]+(")',
             rf"\g<1>{version}\2",
@@ -307,7 +305,8 @@ def main(argv: list[str]) -> None:
     if check:
         lock = root / "Cargo.lock"
         lock_ok = lock.is_file() and re.search(
-            rf'name = "antecedent"\nversion = "{re.escape(version)}"', lock.read_text(encoding="utf-8")
+            rf'name = "antecedent"\nversion = "{re.escape(version)}"',
+            lock.read_text(encoding="utf-8"),
         )
         stale = [str(path) for path in changed] + ([] if lock_ok else ["Cargo.lock"])
         if stale:

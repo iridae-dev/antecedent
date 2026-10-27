@@ -42,9 +42,7 @@ def render_markdown(rec: dict) -> str:
     for line in narrative.splitlines():
         if ESTABLISHED_LINE.match(line):
             note = rec.get("established_note") or ""
-            lines.append(
-                f"Established: {rec['established']}" + (f" {note}" if note else "")
-            )
+            lines.append(f"Established: {rec['established']}" + (f" {note}" if note else ""))
         elif MACHINE_LINE.match(line):
             lines.append(f"Machine class: {rec['machine_class']}")
         elif COMMIT_LINE.match(line):
@@ -124,9 +122,7 @@ def registry_problems(data: dict | None = None) -> list[str]:
         if waiver not in ("", "none published"):
             problems.append(f"{bid}: waiver must be empty or 'none published'")
         if not timings and not gates and waiver != "none published":
-            problems.append(
-                f"{bid}: no timings and no 'none published' waiver"
-            )
+            problems.append(f"{bid}: no timings and no 'none published' waiver")
         if not isinstance(timings, list) or not isinstance(gates, list):
             problems.append(f"{bid}: timings and gates must be arrays")
             continue
@@ -178,7 +174,9 @@ def markdown_problems(data: dict) -> list[str]:
         path = ROOT / BASELINE_DIR / f"{bid}.md"
         expected = render_markdown(rec)
         if not path.is_file():
-            problems.append(f"generated baseline missing: {BASELINE_DIR / bid}.md (run with --write)")
+            problems.append(
+                f"generated baseline missing: {BASELINE_DIR / bid}.md (run with --write)"
+            )
             continue
         actual = path.read_text(encoding="utf-8")
         if actual != expected:
@@ -293,10 +291,7 @@ def main(argv: list[str]) -> int:
             print(" -", item)
         return 1
     n = len(data.get("baseline", []))
-    print(
-        f"Hot-path baseline metadata OK ({n} baseline records, "
-        f"{len(gates)} numeric gates)"
-    )
+    print(f"Hot-path baseline metadata OK ({n} baseline records, {len(gates)} numeric gates)")
     return 0
 
 

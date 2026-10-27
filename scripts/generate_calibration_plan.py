@@ -84,15 +84,9 @@ def ledger_scope() -> tuple[list[dict], list[dict]]:
 def registered_inference() -> list[str]:
     records, cells = ledger_scope()
     by_route = {(cell["id"], cell["route"]): cell for cell in cells}
-    expected = {
-        (record["id"], route["name"])
-        for record in records
-        for route in record["routes"]
-    }
+    expected = {(record["id"], route["name"]) for record in records for route in record["routes"]}
     if expected != set(by_route) or len(by_route) != len(cells):
-        raise ValueError(
-            "inference inventory requires an exact route-to-evidence ledger"
-        )
+        raise ValueError("inference inventory requires an exact route-to-evidence ledger")
     lines = [
         "## Current registered inference contracts",
         "",
@@ -126,9 +120,7 @@ def registered_inference() -> list[str]:
         for route in record["routes"]:
             cell = by_route[(record["id"], route["name"])]
             claim = route.get("claim", record["inference_claim"])
-            calibration = (
-                ", ".join(record.get("coverage_records", [])) or cell["calibration"]
-            )
+            calibration = ", ".join(record.get("coverage_records", [])) or cell["calibration"]
             lines.append(
                 "| "
                 + " | ".join(
@@ -160,15 +152,17 @@ def disposition(row: dict) -> tuple[str, str]:
     if quantity in {"ResponseCurve", "InterventionResponse"}:
         oracle = "a finite dose/horizon grid with per-atom truth and a declared pointwise or simultaneous target"
     elif quantity == "ConditionalEffect":
-        oracle = "a finite conditional-stratum SCM with support and per-atom conditional-effect truth"
+        oracle = (
+            "a finite conditional-stratum SCM with support and per-atom conditional-effect truth"
+        )
     else:
         oracle = "an enumerated graph/SCM family with per-atom ATE and unidentified-mass truth"
     if row["inference"] == "Bayesian":
-        calibration = (
-            "posterior predictive/decision calibration for the actual mixed-atom claim"
-        )
+        calibration = "posterior predictive/decision calibration for the actual mixed-atom claim"
     else:
-        calibration = "whole-method repeated sampling, including the graph-weight and data dependence rule"
+        calibration = (
+            "whole-method repeated sampling, including the graph-weight and data dependence rule"
+        )
     return (
         "graph_mixture_no_whole_method_calibration",
         f"Freeze {oracle}; then measure {calibration}. Current atom values and supplied graph weights do not license an aggregate interval or posterior probability guarantee.",
@@ -231,60 +225,49 @@ def per_output_inference(records: list[dict]) -> list[str]:
         if historical & allocated:
             raise ValueError(f"{record['id']}: historical allocations overlap selected IDs")
         for entry in record.get("historical_coverage_records", []):
-            matching = [output for output in outputs
-                        if entry["id"] in output["allocated_coverage_records"]]
+            matching = [
+                output for output in outputs if entry["id"] in output["allocated_coverage_records"]
+            ]
             if entry.get("status") != "failed":
-                raise ValueError(f"{record['id']}: historical allocation must retain failed output standing")
+                raise ValueError(
+                    f"{record['id']}: historical allocation must retain failed output standing"
+                )
             if entry.get("disposition") == "retired_superseded":
                 if matching or entry.get("replacement_coverage_id") not in allocated:
-                    raise ValueError(f"{record['id']}: retired history needs selected replacement and no active output")
+                    raise ValueError(
+                        f"{record['id']}: retired history needs selected replacement and no active output"
+                    )
             elif not matching or any(
                 output.get("allocation_status") != "historical_measurement_failed_route_closed"
                 for output in matching
             ):
-                raise ValueError(f"{record['id']}: historical allocation must retain failed output standing")
+                raise ValueError(
+                    f"{record['id']}: historical allocation must retain failed output standing"
+                )
         allocated |= historical
         for output in outputs:
             missing = REQUIRED_INFERENCE_OUTPUT_FIELDS - set(output)
             if missing or output.get("id") in seen:
-                raise ValueError(
-                    f"{record['id']}: invalid output declaration {sorted(missing)}"
-                )
+                raise ValueError(f"{record['id']}: invalid output declaration {sorted(missing)}")
             seen.add(output["id"])
             if output["implementation_status"] not in INFERENCE_IMPLEMENTATIONS:
-                raise ValueError(
-                    f"{record['id']}: unknown output implementation status"
-                )
+                raise ValueError(f"{record['id']}: unknown output implementation status")
             if output["owner"] not in record["owners"]:
                 raise ValueError(f"{record['id']}: output has an unregistered owner")
             if not set(output["allocated_coverage_records"]) <= allocated:
-                raise ValueError(
-                    f"{record['id']}: output allocates an unowned emitter ID"
-                )
+                raise ValueError(f"{record['id']}: output allocates an unowned emitter ID")
             suite = output["measurement_suite"]
-            if (
-                suite != "unallocated"
-                and not (ROOT / suite.split("::", 1)[0]).is_file()
-            ):
-                raise ValueError(
-                    f"{record['id']}: nonexistent measurement suite {suite}"
-                )
-            if (
-                output["implementation_status"] == "unimplemented_closed"
-                and suite != "unallocated"
-            ):
-                raise ValueError(
-                    f"{record['id']}: missing method cannot have an executing suite"
-                )
+            if suite != "unallocated" and not (ROOT / suite.split("::", 1)[0]).is_file():
+                raise ValueError(f"{record['id']}: nonexistent measurement suite {suite}")
+            if output["implementation_status"] == "unimplemented_closed" and suite != "unallocated":
+                raise ValueError(f"{record['id']}: missing method cannot have an executing suite")
             families.append((record, output))
     required = sum(
-        output["allocation_status"]
-        == "method_specific_harness_required_before_final_measurement"
+        output["allocation_status"] == "method_specific_harness_required_before_final_measurement"
         for _, output in families
     )
     prerequisites = sum(
-        output["allocation_status"]
-        == "method_prerequisite_missing_calibration_cannot_close"
+        output["allocation_status"] == "method_prerequisite_missing_calibration_cannot_close"
         for _, output in families
     )
     frozen = sum(

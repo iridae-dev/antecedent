@@ -60,16 +60,25 @@ LICENSED_ROUTES = ROOT / "parity" / "licensed_routes.toml"
 LICENSED_ROUTE_COUNT = 723
 FACADE = ROOT / "crates" / "antecedent" / "src"
 REGISTRY = FACADE / "analysis" / "lowering" / "registry.rs"
-LOWERING_SOURCES = (FACADE / "analysis" / "lowering", FACADE / "planner" / "lowered.rs",
-                    FACADE / "planner" / "lowered")
-REENTRY_SOURCES = (FACADE / "analysis" / "execute", FACADE / "analysis" / "prepared",
-                   FACADE / "analysis" / "lowering", FACADE / "planner")
+LOWERING_SOURCES = (
+    FACADE / "analysis" / "lowering",
+    FACADE / "planner" / "lowered.rs",
+    FACADE / "planner" / "lowered",
+)
+REENTRY_SOURCES = (
+    FACADE / "analysis" / "execute",
+    FACADE / "analysis" / "prepared",
+    FACADE / "analysis" / "lowering",
+    FACADE / "planner",
+)
 _PARTIAL_LOWERING = re.compile(
     r"\bLoweringDepth::Generic\b|\bWidthSource::SchemaBound\b|\bfn\s+generic\b"
     r"|\bSchemaBound\b|^\s*Generic\s*[,(]",
     re.M,
 )
-_BUILDER_BUILD = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*builder[A-Za-z0-9_]*\s*\.\s*build\s*\(\s*\)", re.I)
+_BUILDER_BUILD = re.compile(
+    r"\b[A-Za-z_][A-Za-z0-9_]*builder[A-Za-z0-9_]*\s*\.\s*build\s*\(\s*\)", re.I
+)
 _CONTEXT_LITERAL = re.compile(r"\bExecutionContext\s*\{")
 _CONTEXT_DECLARATION = re.compile(
     r"(?:->|\bfor|\bimpl(?:\s*<[^>]*>)?|\bstruct|\benum|\btrait)\s*"
@@ -142,9 +151,11 @@ def execution_reentry_problems(body: str, assertion: str) -> list[str]:
 def route_cell_names() -> set[str]:
     """Every registered route cell: the registry rows and the graph-posterior cells."""
     text = REGISTRY.read_text(encoding="utf-8")
-    table = text[text.index("route_lowerings! {"):]
+    table = text[text.index("route_lowerings! {") :]
     table = table[: table.index("}")]
-    names = set(re.findall(r"^\s*([A-Z][A-Za-z0-9]*)\s*=>\s*[a-z_]+\s+as\s+[A-Za-z]+\s*,", table, re.M))
+    names = set(
+        re.findall(r"^\s*([A-Z][A-Za-z0-9]*)\s*=>\s*[a-z_]+\s+as\s+[A-Za-z]+\s*,", table, re.M)
+    )
     names |= set(re.findall(r'=>\s*"(GraphPosterior[A-Za-z]+)"', text))
     return names
 
@@ -272,13 +283,19 @@ def context_literal_problems() -> list[str]:
 # Re-exporting one from the facade, or making it public again, reopens the bypass.
 BYPASS_CRATE_INTERNAL = {
     "crates/antecedent/src/strategy_table/dispatch.rs": (
-        "estimate_static_effect", "identify_static", "identify_pag", "identify_admg",
+        "estimate_static_effect",
+        "identify_static",
+        "identify_pag",
+        "identify_admg",
     ),
     "crates/antecedent/src/design.rs": ("rank_designs",),
     # Structure identification is reached through `StudyBuilder::identify_structure`, which
     # assembles a compiled study over a table with no rows; the raw entries stay crate-internal.
     "crates/antecedent/src/identify_api.rs": (
-        "identify_study", "identify", "identify_with", "identify_dag",
+        "identify_study",
+        "identify",
+        "identify_with",
+        "identify_dag",
     ),
 }
 # Public only as hidden path items: absent from the crate root, the prelude and the docs.
@@ -291,13 +308,22 @@ BYPASS_FACADE_SURFACES = (
     "crates/antecedent/src/analysis/surface",
 )
 BYPASS_REEXPORTS = (
-    "estimate_static_effect", "identify_static", "identify_pag", "identify_admg",
-    "estimate_interference", "trial_to_target_effect", "evaluate_exact_transport",
-    "identify", "identify_with", "identify_dag", "rank_designs",
+    "estimate_static_effect",
+    "identify_static",
+    "identify_pag",
+    "identify_admg",
+    "estimate_interference",
+    "trial_to_target_effect",
+    "evaluate_exact_transport",
+    "identify",
+    "identify_with",
+    "identify_dag",
+    "rank_designs",
 )
 # Python natives with no compiled twin. Only the staged wrapper that owns each may import it.
 BYPASS_PYTHON_NATIVES = (
-    "_identify_ate_admg", "_identify_ate",
+    "_identify_ate_admg",
+    "_identify_ate",
 )
 # Natives that had no compiled twin and were retired when the compiled study replaced them. No
 # Python module may name one again, the staged wrapper included: the wrapper goes through
@@ -318,7 +344,13 @@ def compiler_bypass_problems(root: Path = ROOT) -> list[str]:
     problems: list[str] = []
     for surface in BYPASS_FACADE_SURFACES:
         target = root / surface
-        files = [target] if target.is_file() else sorted(target.rglob("*.rs")) if target.is_dir() else []
+        files = (
+            [target]
+            if target.is_file()
+            else sorted(target.rglob("*.rs"))
+            if target.is_dir()
+            else []
+        )
         for path in files:
             masked = rust_mask(path.read_text(encoding="utf-8"))
             for statement in _PUB_USE.finditer(masked):
@@ -359,12 +391,20 @@ def compiler_bypass_problems(root: Path = ROOT) -> list[str]:
     registry = root / "parity" / "python_facade_surface.toml"
     if registry.is_file():
         raw_rows = {
-            "antecedent::" + path for path in (
-                "design::rank_designs", "estimate::estimate_static_effect",
-                "estimate::identify_admg", "estimate::identify_pag", "estimate::identify_static",
-                "estimate::estimate_interference", "estimate::trial_to_target_effect",
-                "estimate::evaluate_exact_transport", "identify", "identify_api::identify",
-                "identify_api::identify_with", "identify_api::identify_dag",
+            "antecedent::" + path
+            for path in (
+                "design::rank_designs",
+                "estimate::estimate_static_effect",
+                "estimate::identify_admg",
+                "estimate::identify_pag",
+                "estimate::identify_static",
+                "estimate::estimate_interference",
+                "estimate::trial_to_target_effect",
+                "estimate::evaluate_exact_transport",
+                "identify",
+                "identify_api::identify",
+                "identify_api::identify_with",
+                "identify_api::identify_dag",
             )
         }
         for row in tomllib.loads(registry.read_text(encoding="utf-8")).get("entry", []):
@@ -433,7 +473,9 @@ def cell_problems(cell: dict, cache: dict) -> list[str]:
     estimators = cell.get("estimators")
     entries = cell.get("checked_execution")
     if not isinstance(estimators, list) or not estimators:
-        return [f"{label}: licensed cell has no estimators, so it is not a checked-execution license"]
+        return [
+            f"{label}: licensed cell has no estimators, so it is not a checked-execution license"
+        ]
     if not isinstance(entries, list) or not entries:
         return [
             f"{label}: no retained-execution citation; an unlanded route is not a silent pass "
@@ -450,8 +492,12 @@ def cell_problems(cell: dict, cache: dict) -> list[str]:
             entry.get("test"),
             entry.get("assertion"),
         )
-        if not all(isinstance(value, str) and value.strip() for value in (estimator, test_rel, assertion)):
-            problems.append(f"{label}: checked_execution entry #{index} needs estimator, test and assertion")
+        if not all(
+            isinstance(value, str) and value.strip() for value in (estimator, test_rel, assertion)
+        ):
+            problems.append(
+                f"{label}: checked_execution entry #{index} needs estimator, test and assertion"
+            )
             continue
         named.append(estimator)
         for problem in citation_problems(test_rel, assertion, cache):
@@ -522,63 +568,139 @@ def main() -> None:
         raise SystemExit("FAIL: support_licensed.toml has no checked-execution citations")
     # Public behavioral assertions replace function-name checks of a parallel demonstration.
     gaussian_tests = "crates/antecedent/src/analysis/execute/prepared_gaussian_tests.rs"
-    rows.extend([
-        ("gaussian_compiled_execution", gaussian_tests,
-         "prepared_gaussian_retains_the_compiled_program_after_builder_drop"),
-        ("gaussian_compiled_resource_refusal", gaussian_tests,
-         "prepared_gaussian_refuses_cancelled_and_insufficient_resource_execution"),
-        ("gaussian_compiled_retention", gaussian_tests,
-         "prepared_gaussian_reservations_follow_builder_cache_and_result_lifetimes"),
-        ("gaussian_compiled_design_width", gaussian_tests,
-         "prepared_gaussian_quotes_selected_columns_and_resampling_work"),
-        ("gaussian_compiled_materialization", gaussian_tests,
-         "prepared_gaussian_materializes_the_actual_categorical_design"),
-        ("gaussian_compiled_refresh", gaussian_tests,
-         "prepared_gaussian_refresh_replans_changed_rows_without_reidentifying"),
-        ("dose_grid_compiled_reuse", "crates/antecedent/src/analysis/bayesian_posterior_row.rs",
-         "public_preparation_inspects_without_fitting_and_retargets_the_frozen_posterior"),
-        ("dose_grid_compiled_invalidation", "crates/antecedent/src/analysis/bayesian_posterior_row.rs",
-         "changed_inputs_refit_and_execution_policy_refuses_before_fitting"),
-        ("cyclic_compiled_reuse_replay", "crates/antecedent/src/analysis/cyclic.rs",
-         "common_prepared_handle_retains_fit_retargets_and_independently_replays"),
-        ("gaussian_compiled_compile_cancellation", gaussian_tests,
-         "compile_observes_cancellation_and_a_refused_compile_holds_no_lease"),
-    ])
+    rows.extend(
+        [
+            (
+                "gaussian_compiled_execution",
+                gaussian_tests,
+                "prepared_gaussian_retains_the_compiled_program_after_builder_drop",
+            ),
+            (
+                "gaussian_compiled_resource_refusal",
+                gaussian_tests,
+                "prepared_gaussian_refuses_cancelled_and_insufficient_resource_execution",
+            ),
+            (
+                "gaussian_compiled_retention",
+                gaussian_tests,
+                "prepared_gaussian_reservations_follow_builder_cache_and_result_lifetimes",
+            ),
+            (
+                "gaussian_compiled_design_width",
+                gaussian_tests,
+                "prepared_gaussian_quotes_selected_columns_and_resampling_work",
+            ),
+            (
+                "gaussian_compiled_materialization",
+                gaussian_tests,
+                "prepared_gaussian_materializes_the_actual_categorical_design",
+            ),
+            (
+                "gaussian_compiled_refresh",
+                gaussian_tests,
+                "prepared_gaussian_refresh_replans_changed_rows_without_reidentifying",
+            ),
+            (
+                "dose_grid_compiled_reuse",
+                "crates/antecedent/src/analysis/bayesian_posterior_row.rs",
+                "public_preparation_inspects_without_fitting_and_retargets_the_frozen_posterior",
+            ),
+            (
+                "dose_grid_compiled_invalidation",
+                "crates/antecedent/src/analysis/bayesian_posterior_row.rs",
+                "changed_inputs_refit_and_execution_policy_refuses_before_fitting",
+            ),
+            (
+                "cyclic_compiled_reuse_replay",
+                "crates/antecedent/src/analysis/cyclic.rs",
+                "common_prepared_handle_retains_fit_retargets_and_independently_replays",
+            ),
+            (
+                "gaussian_compiled_compile_cancellation",
+                gaussian_tests,
+                "compile_observes_cancellation_and_a_refused_compile_holds_no_lease",
+            ),
+        ]
+    )
     # The finite-discrete cells plan a supplied table under the pool, observe cancellation
     # between plans and survive an independent consumer of the exported joint.
     discrete = "crates/antecedent/src/analysis/finite_discrete.rs"
-    rows.extend([
-        ("discrete_supplied_table", discrete,
-         "a_supplied_table_and_its_posterior_draws_plan_to_the_hand_expectation"),
-        ("discrete_independent_consumer", discrete,
-         "the_supplied_table_survives_an_independent_consumer"),
-        ("discrete_cancellation", discrete,
-         "cancellation_stops_planning_before_and_between_plans"),
-        ("discrete_resource_refusal", discrete,
-         "a_table_the_pool_cannot_hold_is_refused_before_it_is_built"),
-    ])
+    rows.extend(
+        [
+            (
+                "discrete_supplied_table",
+                discrete,
+                "a_supplied_table_and_its_posterior_draws_plan_to_the_hand_expectation",
+            ),
+            (
+                "discrete_independent_consumer",
+                discrete,
+                "the_supplied_table_survives_an_independent_consumer",
+            ),
+            (
+                "discrete_cancellation",
+                discrete,
+                "cancellation_stops_planning_before_and_between_plans",
+            ),
+            (
+                "discrete_resource_refusal",
+                discrete,
+                "a_table_the_pool_cannot_hold_is_refused_before_it_is_built",
+            ),
+        ]
+    )
     # Layer five declares a projection and a cancellable scan for every route that reads a table.
-    rows.append(("lowered_scan_operators", "crates/antecedent/src/analysis/lowering/scan.rs",
-                 "the_scan_declares_a_projection_and_a_cancellable_scan"))
+    rows.append(
+        (
+            "lowered_scan_operators",
+            "crates/antecedent/src/analysis/lowering/scan.rs",
+            "the_scan_declares_a_projection_and_a_cancellable_scan",
+        )
+    )
     # An association counterpart retains its own operation, not the program-only wrapper.
-    rows.append(("association_retained_operations", "crates/antecedent/tests/association_route.rs",
-                 "every_association_counterpart_retains_its_own_operation_and_executes_its_program"))
+    rows.append(
+        (
+            "association_retained_operations",
+            "crates/antecedent/tests/association_route.rs",
+            "every_association_counterpart_retains_its_own_operation_and_executes_its_program",
+        )
+    )
     # Every licensed route dispatches the lowered program compile attached.
     lowered_dispatch = "crates/antecedent/tests/lowered_dispatch.rs"
-    rows.extend([
-        ("compiler_path_licensed_routes", "crates/antecedent/tests/licensed_compiler.rs",
-         "every_licensed_cell_completes_the_compiler_path"),
-        ("lowered_dispatch_refuses_unlowered_plan", lowered_dispatch,
-         "dispatch_refuses_a_plan_without_a_lowered_program"),
-        ("lowered_dispatch_refuses_reentry", lowered_dispatch,
-         "lowered_dispatch_refuses_public_builder_reentry"),
-        ("lowered_dispatch_identifies_once", lowered_dispatch,
-         "one_shot_run_identifies_once_per_family"),
-        ("lowered_dispatch_retained_identification", lowered_dispatch,
-         "compiled_execution_takes_the_identification_the_program_retained"),
-        ("lowering_registry_coverage", "crates/antecedent/src/analysis/lowering/tests.rs",
-         "every_registered_cell_lowers_completely_and_the_licensed_routes_name_registered_cells"),
-    ])
+    rows.extend(
+        [
+            (
+                "compiler_path_licensed_routes",
+                "crates/antecedent/tests/licensed_compiler.rs",
+                "every_licensed_cell_completes_the_compiler_path",
+            ),
+            (
+                "lowered_dispatch_refuses_unlowered_plan",
+                lowered_dispatch,
+                "dispatch_refuses_a_plan_without_a_lowered_program",
+            ),
+            (
+                "lowered_dispatch_refuses_reentry",
+                lowered_dispatch,
+                "lowered_dispatch_refuses_public_builder_reentry",
+            ),
+            (
+                "lowered_dispatch_identifies_once",
+                lowered_dispatch,
+                "one_shot_run_identifies_once_per_family",
+            ),
+            (
+                "lowered_dispatch_retained_identification",
+                lowered_dispatch,
+                "compiled_execution_takes_the_identification_the_program_retained",
+            ),
+            (
+                "lowering_registry_coverage",
+                "crates/antecedent/src/analysis/lowering/tests.rs",
+                "every_registered_cell_lowers_completely_and_the_licensed_routes_name_registered_cells",
+            ),
+        ]
+    )
     shard = sys.argv[2]
     if shard != "all":
         # Keep all citations for one test target together, so one assertion is
@@ -606,7 +728,10 @@ def main() -> None:
             out.write(f"id = {json.dumps(label)}\n")
             out.write(f"evidence_test = {json.dumps(path)}\n")
             out.write(f"evidence_assertion = {json.dumps(assertion)}\n\n")
-    print(f"checked execution: {len(cells)} licensed cells, {len(rows)} estimator citations", flush=True)
+    print(
+        f"checked execution: {len(cells)} licensed cells, {len(rows)} estimator citations",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

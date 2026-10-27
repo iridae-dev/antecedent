@@ -20,6 +20,8 @@ from _repo import REPO_ROOT as ROOT
 
 def _slug(value: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
+
+
 SUPPORT = ROOT / "parity/support_licensed.toml"
 OUTPUT = ROOT / "parity/calibration_readiness.md"
 
@@ -66,7 +68,9 @@ def candidate_routes(key: tuple[str, str, str, str], groups: list[tuple[str, str
     needles = (_slug(query), graph_alias, inference.lower())
     labels = [f"{head}: {filter_}" if filter_ else head for head, filter_ in groups]
     candidates = [label for label in labels if all(needle in label.lower() for needle in needles)]
-    return "<br>".join(candidates) if candidates else "none (no query/graph/inference candidate group)"
+    return (
+        "<br>".join(candidates) if candidates else "none (no query/graph/inference candidate group)"
+    )
 
 
 def has_record_emitter(key: tuple[str, str, str, str], groups: list[tuple[str, str]]) -> bool:
@@ -87,7 +91,8 @@ def has_record_emitter(key: tuple[str, str, str, str], groups: list[tuple[str, s
         if structure == "graph_posterior" and "graph_posterior" not in test_filter.lower():
             continue
         if structure == "explicit" and any(
-            marker in test_filter.lower() for marker in ("accepted", "graph_posterior", "class_posterior")
+            marker in test_filter.lower()
+            for marker in ("accepted", "graph_posterior", "class_posterior")
         ):
             continue
         test_file = ROOT / "crates" / "antecedent" / "tests" / f"{head}.rs"
@@ -113,7 +118,10 @@ def has_record_emitter(key: tuple[str, str, str, str], groups: list[tuple[str, s
         # test body itself to spell `CoverageTally::for_record`; otherwise a
         # real, bound emitter is incorrectly classified as unmeasurable.
         emitter = _reaches_bound_record_emitter(source, test_filter, body)
-        if emitter and "#[ignore = \"calibration: run via scripts/gate_calibration.sh\"]" in source[:start]:
+        if (
+            emitter
+            and '#[ignore = "calibration: run via scripts/gate_calibration.sh"]' in source[:start]
+        ):
             return True
     return False
 
@@ -148,7 +156,8 @@ def _reaches_bound_record_emitter(source: str, test_name: str, test_body: str) -
             continue
         reached.append(body)
         pending.extend(
-            called for called in functions
+            called
+            for called in functions
             if re.search(rf"(?<![\w:]){re.escape(called)}\s*\(", body)
         )
     chain = "\n".join(reached)
@@ -208,9 +217,7 @@ def render() -> str:
                 if has_truth_fixture
                 else "add a known-truth repeated-sampling DGP and exact interval estimand truth"
             )
-            readiness = (
-                f"Not yet measurable: {truth_step}; bind the candidate group to this exact procedure and estimator target, then add a `CoverageTally::for_record` RecordKey emission."
-            )
+            readiness = f"Not yet measurable: {truth_step}; bind the candidate group to this exact procedure and estimator target, then add a `CoverageTally::for_record` RecordKey emission."
         coordinate = " / ".join(key)
         lines.append(
             f"| {coordinate} | {cells} | {route_text} | {fixture_text} | {estimator_text} | {group_text} | {readiness} |"
@@ -221,7 +228,9 @@ def render() -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="verify the checked-in audit is current")
+    parser.add_argument(
+        "--check", action="store_true", help="verify the checked-in audit is current"
+    )
     args = parser.parse_args()
     report = render()
     if args.check:

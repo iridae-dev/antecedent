@@ -5,6 +5,7 @@ Scans code and TOML only. Hand-written markdown is not read, so rewording
 CONTRIBUTING, ROADMAP, SECURITY, or a file under docs/guides cannot fail
 this gate.
 """
+
 import re
 import subprocess
 import sys
@@ -51,7 +52,9 @@ def string_list(data: dict, key: str, *, required: bool) -> list[str]:
             fail(f"upstream-name allowlist: {allowlist_path} missing `{key}`")
         return []
     value = data[key]
-    if not isinstance(value, list) or not all(isinstance(item, str) and item.strip() for item in value):
+    if not isinstance(value, list) or not all(
+        isinstance(item, str) and item.strip() for item in value
+    ):
         fail(f"upstream-name allowlist: `{key}` must be a list of non-empty strings")
     return value
 
@@ -82,9 +85,13 @@ def load_allowlist(path: Path) -> dict:
             fail(f"upstream-name allowlist: match #{i} has unknown keys {unknown}")
         any_of = rule.get("path_contains_any")
         if any_of is not None and (
-            not isinstance(any_of, list) or not any_of or not all(isinstance(item, str) and item for item in any_of)
+            not isinstance(any_of, list)
+            or not any_of
+            or not all(isinstance(item, str) and item for item in any_of)
         ):
-            fail(f"upstream-name allowlist: match #{i} path_contains_any must be a non-empty string list")
+            fail(
+                f"upstream-name allowlist: match #{i} path_contains_any must be a non-empty string list"
+            )
         for key in ("prefix", "suffix", "contains", "name_contains", "path_contains"):
             if key in rule and (not isinstance(rule[key], str) or not rule[key]):
                 fail(f"upstream-name allowlist: match #{i} `{key}` must be a non-empty string")

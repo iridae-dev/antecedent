@@ -1,4 +1,5 @@
 """Residual-limitation generator and checker: build-free unit tests."""
+
 from __future__ import annotations
 
 import tempfile
@@ -12,16 +13,27 @@ import check_residual_limitations as check  # noqa: E402
 import residual_limitations as gen  # noqa: E402
 from _repo import load_toml, read_text  # noqa: E402
 
-TRACKER = "\n".join([
-    "- [ ] **A1** open item that carries work",
-    "- [x] **B2 — closed item.** done",
-    "- [ ] **Engineering Pass — architecture.** open unnumbered item",
-])
+TRACKER = "\n".join(
+    [
+        "- [ ] **A1** open item that carries work",
+        "- [x] **B2 — closed item.** done",
+        "- [ ] **Engineering Pass — architecture.** open unnumbered item",
+    ]
+)
 
 
 def row(**fields: str) -> dict:
-    base = {"id": "r1", "kind": "narrowed_promise", "source": "s", "locator": "C3.x", "text": "t",
-            "item": "C3", "owner": "A1", "decision": "", "rationale": ""}
+    base = {
+        "id": "r1",
+        "kind": "narrowed_promise",
+        "source": "s",
+        "locator": "C3.x",
+        "text": "t",
+        "item": "C3",
+        "owner": "A1",
+        "decision": "",
+        "rationale": "",
+    }
     return base | fields
 
 
@@ -39,11 +51,27 @@ class Tracker(unittest.TestCase):
 class Scanning(unittest.TestCase):
     def test_narrowed_promise_and_theory_rows_become_limitations(self) -> None:
         rows = [
-            {"id": "P9.a.temporal.frequentist", "closure": "narrowed_promise", "status": "executing_unlicensed",
-             "reason": "no interval", "next_attempt": "derive it"},
-            {"id": "T#static.bayesian", "closure": "delivered", "status": "not_applicable_with_theory_reason",
-             "reason": "no static graph", "next_attempt": ""},
-            {"id": "ok", "closure": "delivered", "status": "licensed", "reason": "", "next_attempt": ""},
+            {
+                "id": "P9.a.temporal.frequentist",
+                "closure": "narrowed_promise",
+                "status": "executing_unlicensed",
+                "reason": "no interval",
+                "next_attempt": "derive it",
+            },
+            {
+                "id": "T#static.bayesian",
+                "closure": "delivered",
+                "status": "not_applicable_with_theory_reason",
+                "reason": "no static graph",
+                "next_attempt": "",
+            },
+            {
+                "id": "ok",
+                "closure": "delivered",
+                "status": "licensed",
+                "reason": "",
+                "next_attempt": "",
+            },
         ]
         found = gen.counterpart_limitations(rows)
         self.assertEqual([r["kind"] for r in found], ["narrowed_promise", "theory_reason"])
@@ -51,11 +79,13 @@ class Scanning(unittest.TestCase):
         self.assertIn("Next attempt: derive it", found[0]["text"])
 
     def test_only_unmeasured_sentences_of_a_limitations_field_are_kept(self) -> None:
-        doc = {"cell": [
-            {"id": "a", "limitations": "Fits a model. No coverage record covers the interval."},
-            {"id": "b", "limitations": "No coverage record covers the interval. Other."},
-            {"id": "c", "limitations": "Assumes no-unmeasured confounding."},
-        ]}
+        doc = {
+            "cell": [
+                {"id": "a", "limitations": "Fits a model. No coverage record covers the interval."},
+                {"id": "b", "limitations": "No coverage record covers the interval. Other."},
+                {"id": "c", "limitations": "Assumes no-unmeasured confounding."},
+            ]
+        }
         found = gen.evidence_limitations("parity/x.toml", doc)
         self.assertEqual([r["text"] for r in found], ["No coverage record covers the interval."])
         self.assertEqual(found[0]["locator"], "2 rows")
@@ -65,24 +95,49 @@ class Scanning(unittest.TestCase):
             root = Path(tmp)
             (root / "crates/a/src").mkdir(parents=True)
             (root / "crates/a/tests").mkdir(parents=True)
-            (root / "crates/a/src/lib.rs").write_text("// Coverage has not been measured.\nfn f() {}\n", encoding="utf-8")
-            (root / "crates/a/tests/t.rs").write_text("// coverage has not been measured\n", encoding="utf-8")
+            (root / "crates/a/src/lib.rs").write_text(
+                "// Coverage has not been measured.\nfn f() {}\n", encoding="utf-8"
+            )
+            (root / "crates/a/tests/t.rs").write_text(
+                "// coverage has not been measured\n", encoding="utf-8"
+            )
             found = gen.phrase_limitations(root)
         self.assertEqual([r["source"] for r in found], ["crates/a/src/lib.rs"])
         self.assertEqual(found[0]["text"], "Coverage has not been measured.")
 
     def test_route_next_attempts_become_limitations(self) -> None:
-        routes = [{"id": "r", "counterpart_reason": "why", "counterpart_next_attempt": "do"}, {"id": "q"}]
+        routes = [
+            {"id": "r", "counterpart_reason": "why", "counterpart_next_attempt": "do"},
+            {"id": "q"},
+        ]
         found = gen.route_limitations(routes)
         self.assertEqual([r["id"] for r in found], ["route.r.route_counterpart"])
 
 
 class Assignment(unittest.TestCase):
     def test_first_matching_rule_owns_and_unmatched_rows_stay_unowned(self) -> None:
-        rows = [{"id": "a", "kind": "evidence_limit", "source": "s", "locator": "", "text": "t", "item": ""},
-                {"id": "b", "kind": "source_phrase", "source": "s", "locator": "", "text": "t", "item": ""}]
-        rules = [{"name": "first", "kind": "^evidence_limit$", "owner": "A1"},
-                 {"name": "second", "kind": "evidence", "owner": "B2"}]
+        rows = [
+            {
+                "id": "a",
+                "kind": "evidence_limit",
+                "source": "s",
+                "locator": "",
+                "text": "t",
+                "item": "",
+            },
+            {
+                "id": "b",
+                "kind": "source_phrase",
+                "source": "s",
+                "locator": "",
+                "text": "t",
+                "item": "",
+            },
+        ]
+        rules = [
+            {"name": "first", "kind": "^evidence_limit$", "owner": "A1"},
+            {"name": "second", "kind": "evidence", "owner": "B2"},
+        ]
         out = gen.assign(rows, rules)
         self.assertEqual((out[0]["owner"], out[0]["rule"]), ("A1", "first"))
         self.assertEqual((out[1]["owner"], out[1]["decision"]), ("", ""))
@@ -92,6 +147,7 @@ class Assignment(unittest.TestCase):
 
     def test_rendering_round_trips_through_toml(self) -> None:
         import tomllib
+
         text = gen.render(gen.assign([row(text='quote " and \\ slash')], []))
         self.assertEqual(tomllib.loads(text)["limitation"][0]["text"], 'quote " and \\ slash')
 
@@ -129,8 +185,12 @@ class Rejections(unittest.TestCase):
 
     def test_scan_and_ledger_must_agree(self) -> None:
         scanned = [row(id="r1"), row(id="r2")]
-        self.assertEqual(codes(check.problems([row(id="r1")], self.tracker, scanned)), ["missing_row"])
-        self.assertEqual(codes(check.problems([row(id="r3")], self.tracker, [row(id="r3")][:0])), ["missing_row"])
+        self.assertEqual(
+            codes(check.problems([row(id="r1")], self.tracker, scanned)), ["missing_row"]
+        )
+        self.assertEqual(
+            codes(check.problems([row(id="r3")], self.tracker, [row(id="r3")][:0])), ["missing_row"]
+        )
 
     def test_a_rule_matching_nothing_is_rejected(self) -> None:
         rules = [{"name": "dead", "kind": "^nothing$", "owner": "A1"}]

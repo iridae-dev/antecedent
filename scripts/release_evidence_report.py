@@ -38,9 +38,7 @@ def build_report(root: Path) -> dict:
         if rid in all_records:
             raise ValueError(f"duplicate promotion record {rid}")
         all_records[rid] = record
-    carried = {
-        rid for rid, r in all_records.items() if r["status"] == "carried_forward"
-    }
+    carried = {rid for rid, r in all_records.items() if r["status"] == "carried_forward"}
     if set(by_id) != carried:
         raise ValueError(
             f"carryover disposition mismatch: missing={sorted(carried - set(by_id))}; "
@@ -52,10 +50,7 @@ def build_report(root: Path) -> dict:
         if not gates or any(not isinstance(g, str) or not g.strip() for g in gates):
             raise ValueError(f"{rid}: precise failed gates required")
         for key in ("detail", "corrective_action"):
-            if (
-                not isinstance(disposition.get(key), str)
-                or not disposition[key].strip()
-            ):
+            if not isinstance(disposition.get(key), str) or not disposition[key].strip():
                 raise ValueError(f"{rid}: {key} required")
         if not record.get("owners"):
             raise ValueError(f"{rid}: corrective owners required")
@@ -65,16 +60,9 @@ def build_report(root: Path) -> dict:
         for route in routes:
             for key in ("reason_code", "refusal_test", "refusal_assertion"):
                 if not route.get(key):
-                    raise ValueError(
-                        f"{rid}: {route['name']}: unchanged refusal {key} required"
-                    )
-            if not any(
-                r.get("code") == route["reason_code"]
-                for r in record.get("refusals", [])
-            ):
-                raise ValueError(
-                    f"{rid}: {route['name']}: refusal reason absent from record"
-                )
+                    raise ValueError(f"{rid}: {route['name']}: unchanged refusal {key} required")
+            if not any(r.get("code") == route["reason_code"] for r in record.get("refusals", [])):
+                raise ValueError(f"{rid}: {route['name']}: refusal reason absent from record")
     summaries = []
     for record in records:
         summary = {
@@ -130,11 +118,7 @@ def render(report: dict) -> str:
             f"    corrective action: {disposition['corrective_action']}",
         ]
         for route in record["routes"]:
-            details = [
-                r["detail"]
-                for r in record["refusals"]
-                if r["code"] == route["reason_code"]
-            ]
+            details = [r["detail"] for r in record["refusals"] if r["code"] == route["reason_code"]]
             lines.append(
                 f"    unchanged closed route: {route['name']} -> "
                 f"{route['reason_code']} "
@@ -168,11 +152,15 @@ owners = ["synthetic_owner"]
 routes = [{{ name = "synthetic.{index}", status = "closed", reason_code = "cell_not_licensed", refusal_test = "synthetic.rs", refusal_assertion = "refuses_{index}" }}]
 refusals = [{{ code = "cell_not_licensed", detail = "synthetic.closed" }}]
 '''
-                for index, rid in enumerate(["sensitivity.joint_uncertainty", "synthetic.transport"])
-            )
-        , encoding="utf-8", newline="\n")
+                for index, rid in enumerate(
+                    ["sensitivity.joint_uncertainty", "synthetic.transport"]
+                )
+            ),
+            encoding="utf-8",
+            newline="\n",
+        )
         (root / "parity/promotion_carryovers.toml").write_text(
-            '''version = 1
+            """version = 1
 [[cell]]
 id = "sensitivity.joint_uncertainty"
 failed_gates = ["public_interval_producer", "independent_public_interval_consumer"]
@@ -183,13 +171,14 @@ id = "synthetic.transport"
 failed_gates = ["synthetic_transport"]
 detail = "Synthetic transport gap."
 corrective_action = "Add independent transport evidence."
-'''
-        , encoding="utf-8", newline="\n")
+""",
+            encoding="utf-8",
+            newline="\n",
+        )
         report = build_report(root)
         assert report["records"]
         assert not any(
-            report[k]
-            for k in ("execution_verified", "calibration_verified", "release_certified")
+            report[k] for k in ("execution_verified", "calibration_verified", "release_certified")
         )
         assert "parity/promotion.toml;" in render(report)
         baseline = (root / "parity/promotion_carryovers.toml").read_text(encoding="utf-8")
@@ -209,36 +198,44 @@ corrective_action = "Add independent transport evidence."
         ]:
             assert before in baseline
             (root / "parity/promotion_carryovers.toml").write_text(
-                baseline.replace(before, after, 1)
-            , encoding="utf-8", newline="\n")
+                baseline.replace(before, after, 1), encoding="utf-8", newline="\n"
+            )
             try:
                 build_report(root)
             except ValueError as error:
                 assert expected in str(error), str(error)
             else:
                 raise AssertionError(f"mutation accepted: {expected}")
-        (root / "parity/promotion_carryovers.toml").write_text(baseline, encoding="utf-8", newline="\n")
+        (root / "parity/promotion_carryovers.toml").write_text(
+            baseline, encoding="utf-8", newline="\n"
+        )
         duplicate = baseline[
-            baseline.index("[[cell]]") : baseline.index(
-                "[[cell]]", baseline.index("[[cell]]") + 1
-            )
+            baseline.index("[[cell]]") : baseline.index("[[cell]]", baseline.index("[[cell]]") + 1)
         ]
-        (root / "parity/promotion_carryovers.toml").write_text(baseline + duplicate, encoding="utf-8", newline="\n")
+        (root / "parity/promotion_carryovers.toml").write_text(
+            baseline + duplicate, encoding="utf-8", newline="\n"
+        )
         try:
             build_report(root)
         except ValueError as error:
             assert "duplicate carryover disposition" in str(error)
         else:
             raise AssertionError("duplicate disposition accepted")
-        (root / "parity/promotion_carryovers.toml").write_text(baseline, encoding="utf-8", newline="\n")
+        (root / "parity/promotion_carryovers.toml").write_text(
+            baseline, encoding="utf-8", newline="\n"
+        )
         registry = root / "parity/promotion.toml"
         original = registry.read_text(encoding="utf-8")
         # All carried routes must be closed regardless of the report filter.
         carried_at = original.index('id = "sensitivity.joint_uncertainty"')
         closed_at = original.index('status = "closed"', carried_at)
         registry.write_text(
-            original[:closed_at] + 'status = "licensed"' + original[closed_at + len('status = "closed"') :]
-        , encoding="utf-8", newline="\n")
+            original[:closed_at]
+            + 'status = "licensed"'
+            + original[closed_at + len('status = "closed"') :],
+            encoding="utf-8",
+            newline="\n",
+        )
         try:
             build_report(root)
         except ValueError as error:
@@ -249,15 +246,17 @@ corrective_action = "Add independent transport evidence."
         # Losing an executable refusal citation must fail even when the route
         # still has a reason code and remains closed.
         first = next(
-            r
-            for r in tomllib.loads(original)["record"]
-            if r["status"] == "carried_forward"
+            r for r in tomllib.loads(original)["record"] if r["status"] == "carried_forward"
         )
         assertion = first["routes"][0]["refusal_assertion"]
         carried_at = original.index(f'id = "{first["id"]}"')
         token = f'refusal_assertion = "{assertion}"'
         at = original.index(token, carried_at)
-        registry.write_text(original[:at] + 'refusal_assertion = ""' + original[at + len(token) :], encoding="utf-8", newline="\n")
+        registry.write_text(
+            original[:at] + 'refusal_assertion = ""' + original[at + len(token) :],
+            encoding="utf-8",
+            newline="\n",
+        )
         try:
             build_report(root)
         except ValueError as error:

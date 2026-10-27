@@ -76,7 +76,10 @@ def materialize(ov: Path, rel: str) -> Path:
 
 def run_gate(ov: Path, script: str) -> tuple[int, str]:
     proc = subprocess.run(
-        ["bash", str(ov / "scripts" / script)], cwd=ov, capture_output=True, text=True,
+        ["bash", str(ov / "scripts" / script)],
+        cwd=ov,
+        capture_output=True,
+        text=True,
         env={**os.environ, "GIT_DIR": str(ROOT / ".git"), "GIT_WORK_TREE": str(ov)},
     )
     return proc.returncode, proc.stdout + proc.stderr
@@ -375,7 +378,7 @@ def schema_cases() -> list[bool]:
             "no_interval_reported_out_of_scope",
             {
                 "parity/reason_codes.toml": in_block(
-                    "code", "no_interval_reported", replace(', "ChangeAttribution"', '')
+                    "code", "no_interval_reported", replace(', "ChangeAttribution"', "")
                 )
             },
             ["no_interval_reported on a ChangeAttribution cell"],
@@ -487,7 +490,9 @@ def schema_cases() -> list[bool]:
                     "    needs: [prepare, crates-dry-run]\n", "    needs: []\n"
                 )
             },
-            ["publish-release.yml: job 'publish-pypi' does not depend on the attestation job 'prepare'"],
+            [
+                "publish-release.yml: job 'publish-pypi' does not depend on the attestation job 'prepare'"
+            ],
         ),
         case(
             g,
@@ -621,9 +626,15 @@ def schema_cases() -> list[bool]:
         case(
             g,
             "nominal_method_cannot_take_conservative_point_role",
-            {"parity/coverage_records.toml": append(gridded_record(
-                [(150, 0.99, False), (300, 0.985, False), (600, 1.0, False)],
-                False, role="conservative_point"))},
+            {
+                "parity/coverage_records.toml": append(
+                    gridded_record(
+                        [(150, 0.99, False), (300, 0.985, False), (600, 1.0, False)],
+                        False,
+                        role="conservative_point",
+                    )
+                )
+            },
             ["conservative_point requires the Gaussian study-mean theorem and target"],
         ),
         # One-sided role: a floor at the level, no upper band, and a stated side and target.
@@ -704,7 +715,9 @@ def _live_citation(boundary: bool) -> tuple[str, str, float]:
     next collection, before any of its cases runs."""
     records = {
         rec["id"]: rec
-        for rec in tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))["record"]
+        for rec in tomllib.loads(
+            (ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8")
+        )["record"]
     }
     prose = (ROOT / "parity/support_licensed.toml").read_text(encoding="utf-8")
     for m in re.finditer(r"(0\.\d{3}) \((boundary )?record `(cov\.[^`]+\.l90\.[^`]+)`\)", prose):
@@ -722,7 +735,9 @@ def _live_citation(boundary: bool) -> tuple[str, str, float]:
                 continue
         if abs(float(rec["observed"]) - float(m.group(1))) <= 0.0005 + 1e-9:
             return m.group(0), m.group(1), float(rec["observed"])
-    raise SystemExit(f"no live {'boundary ' if boundary else ''}l90 citation to build a fixture from")
+    raise SystemExit(
+        f"no live {'boundary ' if boundary else ''}l90 citation to build a fixture from"
+    )
 
 
 COND_DAG_BAYES, COND_FIG, COND_OBSERVED = _live_citation(boundary=False)

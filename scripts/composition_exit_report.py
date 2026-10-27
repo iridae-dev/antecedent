@@ -41,7 +41,10 @@ STORIES = {
     7: "release boundary: corrected measurement, pooled evidence, decision, revision ",
 }
 RUST = re.compile(r"^test (?:\S+::)?story_(\d)_\w+ \.\.\. (ok|FAILED|ignored)\s*$", re.M)
-PYTHON = re.compile(r"(?:^|/)test_composition_exit_gate\.py::test_story_(\d)_\w+(?:\[[^\]]*\])?\s+(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)", re.M)
+PYTHON = re.compile(
+    r"(?:^|/)test_composition_exit_gate\.py::test_story_(\d)_\w+(?:\[[^\]]*\])?\s+(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)",
+    re.M,
+)
 
 
 def outcomes(pattern: re.Pattern[str], log: str, passing: set[str]) -> dict[int, str]:
@@ -51,7 +54,9 @@ def outcomes(pattern: re.Pattern[str], log: str, passing: set[str]) -> dict[int,
     return {n: ("PASS" if all(v) else "FAIL") for n, v in seen.items()}
 
 
-def evaluate(rust_log: str, python_log: str, intervals: dict, require_calibrated: bool) -> tuple[list[str], int]:
+def evaluate(
+    rust_log: str, python_log: str, intervals: dict, require_calibrated: bool
+) -> tuple[list[str], int]:
     rust = outcomes(RUST, rust_log, {"ok"})
     python = outcomes(PYTHON, python_log, {"PASSED"})
     calibration = intervals.get("calibration", {})
@@ -67,14 +72,24 @@ def evaluate(rust_log: str, python_log: str, intervals: dict, require_calibrated
             status = learned["status"]
             detail = f"calibrated: {learned['status']} ({learned['detail']})"
         rows.append((f"story {number}", title, r, p, status + (f"  [{detail}]" if detail else "")))
-    rows.append((
-        "multi-source coverage", "multi-source interval records (interval-coordinate check)", "-", "-",
-        f"{multi_source['status']}  [{multi_source['detail']}]",
-    ))
-    rows.append((
-        "intervals", "zero newly introduced unmeasured interval coordinates", "-", "-",
-        intervals.get("intervals", "FAIL"),
-    ))
+    rows.append(
+        (
+            "multi-source coverage",
+            "multi-source interval records (interval-coordinate check)",
+            "-",
+            "-",
+            f"{multi_source['status']}  [{multi_source['detail']}]",
+        )
+    )
+    rows.append(
+        (
+            "intervals",
+            "zero newly introduced unmeasured interval coordinates",
+            "-",
+            "-",
+            intervals.get("intervals", "FAIL"),
+        )
+    )
     width = max(len(r[0]) for r in rows), max(len(r[1]) for r in rows)
     lines = ["composition exit", ""]
     lines.append(f"{'item':<{width[0]}}  {'story':<{width[1]}}  rust     python   status")
@@ -93,7 +108,9 @@ def evaluate(rust_log: str, python_log: str, intervals: dict, require_calibrated
         lines.append("verdict: PENDING_CALIBRATION (--require-calibrated: not accepted)")
         return lines, 1
     if pending:
-        lines.append("verdict: PENDING_CALIBRATION (every executable story passes; calibration is unmeasured)")
+        lines.append(
+            "verdict: PENDING_CALIBRATION (every executable story passes; calibration is unmeasured)"
+        )
         return lines, 0
     lines.append("verdict: PASS")
     return lines, 0
@@ -101,7 +118,10 @@ def evaluate(rust_log: str, python_log: str, intervals: dict, require_calibrated
 
 def self_test() -> int:
     ok_rust = "".join(f"test story_{n}_x ... ok\n" for n in range(1, 8))
-    ok_py = "".join(f"tests/test_composition_exit_gate.py::test_story_{n}_x PASSED [ 10%]\n" for n in range(1, 8))
+    ok_py = "".join(
+        f"tests/test_composition_exit_gate.py::test_story_{n}_x PASSED [ 10%]\n"
+        for n in range(1, 8)
+    )
     ok_py += "tests/test_composition_exit_gate.py::test_story_3_x[nested_cohort] PASSED\n"
     pending = {
         "intervals": "PASS",
@@ -116,7 +136,9 @@ def self_test() -> int:
         state.update(status="PASS", detail="records present and attested")
     failures: list[str] = []
 
-    def expect(label: str, rust: str, py: str, iv: dict, strict: bool, code: int, verdict: str) -> None:
+    def expect(
+        label: str, rust: str, py: str, iv: dict, strict: bool, code: int, verdict: str
+    ) -> None:
         lines, rc = evaluate(rust, py, iv, strict)
         text = "\n".join(lines)
         if rc != code or verdict not in text:
@@ -124,21 +146,102 @@ def self_test() -> int:
         else:
             print(f"self-test ok: {label}")
 
-    expect("pending calibration exits 0 by default", ok_rust, ok_py, pending, False, 0, "verdict: PENDING_CALIBRATION")
-    expect("pending calibration fails --require-calibrated", ok_rust, ok_py, pending, True, 1, "not accepted")
+    expect(
+        "pending calibration exits 0 by default",
+        ok_rust,
+        ok_py,
+        pending,
+        False,
+        0,
+        "verdict: PENDING_CALIBRATION",
+    )
+    expect(
+        "pending calibration fails --require-calibrated",
+        ok_rust,
+        ok_py,
+        pending,
+        True,
+        1,
+        "not accepted",
+    )
     expect("measured calibration passes", ok_rust, ok_py, done, True, 0, "verdict: PASS")
-    expect("a failed Rust story fails", ok_rust.replace("story_4_x ... ok", "story_4_x ... FAILED"), ok_py, done, False, 1, "verdict: FAIL")
-    expect("a failed Python story fails", ok_rust, ok_py.replace("story_2_x PASSED", "story_2_x FAILED"), done, False, 1, "verdict: FAIL")
-    expect("a story that never ran fails", ok_rust.replace("test story_5_x ... ok\n", ""), ok_py, done, False, 1, "verdict: FAIL")
-    expect("the release-boundary story never ran", ok_rust.replace("test story_7_x ... ok\n", ""), ok_py, done, False, 1, "verdict: FAIL")
-    expect("a failed release-boundary Python story fails", ok_rust, ok_py.replace("story_7_x PASSED", "story_7_x FAILED"), done, False, 1, "verdict: FAIL")
-    expect("one failed parametrization fails story 3",
-           ok_rust, ok_py + "tests/test_composition_exit_gate.py::test_story_3_x[independent_samples] FAILED\n", done, False, 1, "verdict: FAIL")
-    expect("a failed hard part outranks pending", ok_rust.replace("story_3_x ... ok", "story_3_x ... FAILED"), ok_py, pending, False, 1, "verdict: FAIL")
-    broken = dict(pending, intervals="FAIL", errors=["licensed row carries estimator_grid_not_measured"])
+    expect(
+        "a failed Rust story fails",
+        ok_rust.replace("story_4_x ... ok", "story_4_x ... FAILED"),
+        ok_py,
+        done,
+        False,
+        1,
+        "verdict: FAIL",
+    )
+    expect(
+        "a failed Python story fails",
+        ok_rust,
+        ok_py.replace("story_2_x PASSED", "story_2_x FAILED"),
+        done,
+        False,
+        1,
+        "verdict: FAIL",
+    )
+    expect(
+        "a story that never ran fails",
+        ok_rust.replace("test story_5_x ... ok\n", ""),
+        ok_py,
+        done,
+        False,
+        1,
+        "verdict: FAIL",
+    )
+    expect(
+        "the release-boundary story never ran",
+        ok_rust.replace("test story_7_x ... ok\n", ""),
+        ok_py,
+        done,
+        False,
+        1,
+        "verdict: FAIL",
+    )
+    expect(
+        "a failed release-boundary Python story fails",
+        ok_rust,
+        ok_py.replace("story_7_x PASSED", "story_7_x FAILED"),
+        done,
+        False,
+        1,
+        "verdict: FAIL",
+    )
+    expect(
+        "one failed parametrization fails story 3",
+        ok_rust,
+        ok_py + "tests/test_composition_exit_gate.py::test_story_3_x[independent_samples] FAILED\n",
+        done,
+        False,
+        1,
+        "verdict: FAIL",
+    )
+    expect(
+        "a failed hard part outranks pending",
+        ok_rust.replace("story_3_x ... ok", "story_3_x ... FAILED"),
+        ok_py,
+        pending,
+        False,
+        1,
+        "verdict: FAIL",
+    )
+    broken = dict(
+        pending, intervals="FAIL", errors=["licensed row carries estimator_grid_not_measured"]
+    )
     expect("an interval violation fails", ok_rust, ok_py, broken, False, 1, "verdict: FAIL")
     absent = dict(done, calibration={})
-    expect("missing calibration state is a failure, not a pass", ok_rust, ok_py, absent, False, 1, "verdict: FAIL")
+    expect(
+        "missing calibration state is a failure, not a pass",
+        ok_rust,
+        ok_py,
+        absent,
+        False,
+        1,
+        "verdict: FAIL",
+    )
     if failures:
         for failure in failures:
             print(f"SELF-TEST FAIL: {failure}")
@@ -154,7 +257,11 @@ def main(argv: list[str]) -> int:
     args = dict(zip(flags[::2], flags[1::2], strict=False))
     rust_log = Path(args["--rust"]).read_text(encoding="utf-8") if "--rust" in args else ""
     python_log = Path(args["--python"]).read_text(encoding="utf-8") if "--python" in args else ""
-    intervals = json.loads(Path(args["--intervals"]).read_text(encoding="utf-8")) if "--intervals" in args else {}
+    intervals = (
+        json.loads(Path(args["--intervals"]).read_text(encoding="utf-8"))
+        if "--intervals" in args
+        else {}
+    )
     lines, code = evaluate(rust_log, python_log, intervals, "--require-calibrated" in argv)
     print("\n".join(lines))
     return code

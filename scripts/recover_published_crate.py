@@ -31,14 +31,11 @@ class Release:
 def old_dependency(version: str) -> str:
     """The exact self dependency line the release was originally published with."""
     return (
-        f'antecedent = {{ version = "{version}", path = ".", '
-        'features = ["calibration-internal"] }'
+        f'antecedent = {{ version = "{version}", path = ".", features = ["calibration-internal"] }}'
     )
 
 
-def run(
-    source: Path, *command: str, capture: bool = False, env: dict | None = None
-) -> str:
+def run(source: Path, *command: str, capture: bool = False, env: dict | None = None) -> str:
     result = subprocess.run(
         command, cwd=source, check=True, text=True, capture_output=capture, env=env
     )
@@ -58,9 +55,7 @@ def repair_manifest(text: str, version: str) -> str:
     expected_manifest = tomllib.loads(text)
     del expected_manifest["dev-dependencies"]["antecedent"]["version"]
     if tomllib.loads(repaired) != expected_manifest:
-        raise ValueError(
-            "repair changed more than the test-only self dependency version"
-        )
+        raise ValueError("repair changed more than the test-only self dependency version")
     return repaired
 
 
@@ -72,9 +67,7 @@ def repair_workspace_manifest(text: str, version: str) -> str:
         "path": "crates/antecedent-test-support",
     }
     if (
-        original.get("workspace", {})
-        .get("dependencies", {})
-        .get("antecedent-test-support")
+        original.get("workspace", {}).get("dependencies", {}).get("antecedent-test-support")
         != expected
     ):
         raise ValueError("unexpected original private test helper dependency")
@@ -129,10 +122,7 @@ def verify_release(source: Path, release: Release) -> None:
             capture=True,
         )
     )
-    if (
-        workflow["headSha"] != release.source_sha
-        or workflow["workflowName"] != "publish-release"
-    ):
+    if workflow["headSha"] != release.source_sha or workflow["workflowName"] != "publish-release":
         raise ValueError("original release workflow identity does not match")
     jobs = {job["name"]: job["conclusion"] for job in workflow["jobs"]}
     required = (
@@ -142,9 +132,7 @@ def verify_release(source: Path, release: Release) -> None:
         "Publish wheels to PyPI",
     )
     if any(jobs.get(name) != "success" for name in required):
-        raise ValueError(
-            "the original source verification and Python release must have succeeded"
-        )
+        raise ValueError("the original source verification and Python release must have succeeded")
     run(source, "bash", "scripts/gate_calibration_attestation.sh")
     # This manual workflow runs on main; verification operates on the actual
     # release-tag checkout, whose exact identity was checked above.
@@ -176,9 +164,7 @@ def recover(source: Path, release: Release, execute: bool) -> None:
         return
     manifest = source / "crates/antecedent/Cargo.toml"
     original = manifest.read_bytes()
-    manifest.write_bytes(
-        repair_manifest(original.decode("utf-8"), release.version).encode("utf-8")
-    )
+    manifest.write_bytes(repair_manifest(original.decode("utf-8"), release.version).encode("utf-8"))
     try:
         if (
             run(source, "git", "diff", "--name-only", capture=True)
@@ -206,18 +192,14 @@ def recover_workspace(source: Path, release: Release, execute: bool) -> None:
     original = manifest.read_bytes()
     repaired = repair_workspace_manifest(original.decode("utf-8"), release.version)
     helper = tomllib.loads(
-        (source / "crates/antecedent-test-support/Cargo.toml").read_text(
-            encoding="utf-8"
-        )
+        (source / "crates/antecedent-test-support/Cargo.toml").read_text(encoding="utf-8")
     )
     if helper.get("package", {}).get("publish") is not False:
         raise ValueError("the test helper must remain unpublished")
     try:
         manifest.write_bytes(repaired.encode("utf-8"))
         if run(source, "git", "diff", "--name-only", capture=True) != "Cargo.toml":
-            raise ValueError(
-                "only the reviewed workspace packaging manifest may change"
-            )
+            raise ValueError("only the reviewed workspace packaging manifest may change")
         command = (
             "bash",
             str(Path(__file__).with_name("publish_crates.sh")),
@@ -228,9 +210,7 @@ def recover_workspace(source: Path, release: Release, execute: bool) -> None:
         run(source, *command, "--dry-run", "--source", str(source))
         if execute:
             run(source, *command, "--execute", "--source", str(source), "--allow-dirty")
-            print(
-                f"Completed crates.io release {release.version} from {release.source_sha}."
-            )
+            print(f"Completed crates.io release {release.version} from {release.source_sha}.")
     finally:
         manifest.write_bytes(original)
 
@@ -245,14 +225,10 @@ def main() -> None:
     parser.add_argument(
         "--execute", action="store_true", help="publish after verification and dry-run"
     )
-    parser.add_argument(
-        "--tag", required=True, help="published release tag, e.g. v1.2.3"
-    )
+    parser.add_argument("--tag", required=True, help="published release tag, e.g. v1.2.3")
     parser.add_argument("--source-sha", required=True, help="commit the tag points at")
     parser.add_argument("--release-run", required=True, help="publish-release run id")
-    parser.add_argument(
-        "--ci-run", required=True, help="CI run id of the tagged commit"
-    )
+    parser.add_argument("--ci-run", required=True, help="CI run id of the tagged commit")
     args = parser.parse_args()
     release = Release(args.tag, args.source_sha, args.release_run, args.ci_run)
     recover(args.source.resolve(), release, args.execute)

@@ -13,6 +13,11 @@ the declared evaluation:
   sampling realization is refused (a sampling law is not a state belief) and the refusal names
   the Bayesian realization; a store the admission pool cannot hold is refused before any
   allocation;
+* :func:`compile_decision_for_study` compiles the study for a terminal decision (no value of
+  information): the lowered program's decision layer carries the carrier the decision demands of
+  the statistical program, the actions, the utility's affine form, the unit and the contract
+  identity, and a carrier the route's realization cannot publish is refused with the next attempt
+  named;
 * :func:`evaluate_for_study` runs that compile first, then the evaluation, and binds the sealed
   ranking to the lowered program's identity.
 """
@@ -44,9 +49,11 @@ from ._declarations import (
 from .ranking import DesignRankingResult, _ValueBody
 
 __all__ = [
+    "DecisionProgram",
     "RankingStudy",
     "StudyProgram",
     "StudyRanking",
+    "compile_decision_for_study",
     "compile_for_study",
     "evaluate_for_study",
 ]
@@ -326,3 +333,87 @@ def evaluate_for_study(
         _bytes=data,
     )
     return StudyRanking(result=result, lowered_program_identity=str(program))
+
+
+_CARRIERS = ("mean", "parameter_posterior", "outcome_law")
+
+
+@dataclass(frozen=True)
+class DecisionProgram:
+    """The lowered program a study compiled for a terminal decision.
+
+    ``program_identity`` differs from ``estimate_program_identity``, the identity of the same
+    study compiled for its estimate alone: the decision is part of the program.
+    ``utility_coefficients`` are the ``(intercept, slope)`` of each action in declaration order.
+    """
+
+    program_identity: str
+    estimate_program_identity: str
+    carrier: str
+    actions: int
+    constraints: int
+    chance_threshold: float
+    utility_unit: str | None
+    contract_identity: str | None
+    utility_coefficients: tuple[tuple[float, float], ...]
+
+
+def compile_decision_for_study(
+    study: RankingStudy,
+    decision: DesignDecision,
+    carrier: str = "parameter_posterior",
+    *,
+    chance_threshold: float = 1.0,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
+) -> DecisionProgram:
+    """Compile ``study`` for the terminal ``decision``, demanding ``carrier`` of its answer.
+
+    ``carrier`` is what the decision needs the statistical program to publish: ``mean`` (an
+    affine utility of the point estimate), ``parameter_posterior`` (expected utility over the
+    parameter; only a Bayesian realization carries it) or ``outcome_law`` (risk of an individual
+    outcome; only an interventional law carries it). Nothing is fitted. A different utility,
+    threshold or carrier gives a different program identity.
+
+    Raises:
+        DesignRankingRefusal: the study's realization cannot publish ``carrier`` (a confidence
+            interval is not a parameter posterior; the refusal names the realization and the next
+            attempt, for example compiling under Bayesian inference).
+        CausalValueError: a decision with no actions, a chance threshold outside ``[0, 1]`` or a
+            utility that is not affine.
+    """
+    if not isinstance(decision, DesignDecision):
+        raise CausalTypeError("decision must be a design.DesignDecision")
+    if carrier not in _CARRIERS:
+        raise CausalValueError(f"carrier must be one of {_CARRIERS}, got {carrier!r}")
+    names, columns, edges, treatment, outcome = study._arguments()
+    text, refusal = _native.compile_decision_for_study(
+        carrier,
+        decision._identity(),
+        decision._units(),
+        [float(a.intercept) for a in decision.actions],
+        [float(a.slope) for a in decision.actions],
+        names,
+        columns,
+        edges,
+        treatment,
+        outcome,
+        chance_threshold=float(chance_threshold),
+        memory_bytes=memory_bytes,
+        cancel=cancel,
+        **_study_options(study),
+    )
+    raise_refusal(refusal, _refusal_type)
+    assert text is not None
+    wire = json.loads(text)
+    return DecisionProgram(
+        program_identity=str(wire["program_identity"]),
+        estimate_program_identity=str(wire["estimate_program_identity"]),
+        carrier=str(wire["carrier"]),
+        actions=int(wire["actions"]),
+        constraints=int(wire["constraints"]),
+        chance_threshold=float(wire["chance_threshold"]),
+        utility_unit=wire["utility_unit"],
+        contract_identity=wire["contract_identity"],
+        utility_coefficients=tuple((float(a), float(b)) for a, b in wire["utility_coefficients"]),
+    )

@@ -43,13 +43,23 @@ def orphans_of(crate: Path) -> list[str]:
         compiled |= included_files(crate / entry.get("path", f"tests/{entry['name']}.rs"))
     for suite in crate.glob("tests/suite_*.rs"):
         compiled |= included_files(suite)
-    return [f"{crate.name}/tests/{f.name}" for f in sorted(crate.glob("tests/*.rs")) if f.resolve() not in compiled]
+    return [
+        f"{crate.name}/tests/{f.name}"
+        for f in sorted(crate.glob("tests/*.rs"))
+        if f.resolve() not in compiled
+    ]
 
 
 def main() -> int:
-    orphans = [o for manifest in sorted(ROOT.glob("crates/*/Cargo.toml")) for o in orphans_of(manifest.parent)]
+    orphans = [
+        o
+        for manifest in sorted(ROOT.glob("crates/*/Cargo.toml"))
+        for o in orphans_of(manifest.parent)
+    ]
     for orphan in orphans:
-        print(f"FAIL: crates/{orphan} is compiled by no test target; add it to a suite_NN.rs or a [[test]] entry")
+        print(
+            f"FAIL: crates/{orphan} is compiled by no test target; add it to a suite_NN.rs or a [[test]] entry"
+        )
     if orphans:
         return 1
     print("test targets OK: every tests/*.rs file is compiled by a test target")

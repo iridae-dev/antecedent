@@ -39,7 +39,11 @@ class SourceOnlyCertificate(unittest.TestCase):
 
     def check(self, waiver, require_outcome=False):
         return facets.validate_waivers(
-            self.surface, [waiver], self.records, self.repo, self.refs,
+            self.surface,
+            [waiver],
+            self.records,
+            self.repo,
+            self.refs,
             require_outcome=require_outcome,
         )
 
@@ -60,7 +64,9 @@ class SourceOnlyCertificate(unittest.TestCase):
 
     def test_mode_is_boolean_and_cannot_claim_numerical_replay(self):
         text = facets.render_waivers([self.waiver])
-        parsed, errors = facets.parse_waivers(text.replace("source_only = true", 'source_only = "true"'))
+        parsed, errors = facets.parse_waivers(
+            text.replace("source_only = true", 'source_only = "true"')
+        )
         self.assertFalse(parsed)
         self.assertTrue(errors)
         mixed = dataclasses.replace(
@@ -87,7 +93,9 @@ class SourceOnlyCertificate(unittest.TestCase):
                 self.assertFalse(checked.valid)
 
     def test_whole_compiled_input_proof_is_mandatory(self):
-        with patch.object(transfer, "verify_input_transfer", side_effect=ValueError("extra Cargo input")):
+        with patch.object(
+            transfer, "verify_input_transfer", side_effect=ValueError("extra Cargo input")
+        ):
             checked = self.check(self.waiver)
         self.assertFalse(checked.valid)
         self.assertTrue(any("compiled-input proof failed" in e for e in checked.problems))

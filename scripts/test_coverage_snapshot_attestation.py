@@ -67,9 +67,7 @@ class SnapshotAttestationTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.snapshot = Path(self.temp.name) / "coverage_records.json"
         self.snapshot.write_text(
-            json.dumps(
-                {"records": [{"id": "cov.old"}], "attesting_record_ids": ["cov.old"]}
-            ),
+            json.dumps({"records": [{"id": "cov.old"}], "attesting_record_ids": ["cov.old"]}),
             encoding="utf-8",
         )
 
@@ -95,7 +93,9 @@ class SnapshotAttestationTests(unittest.TestCase):
             patch.object(generator, "load", return_value={"record": [{"id": "cov.old"}]}),
             patch.object(calibration_facets, "load_records", return_value={}),
             patch.object(calibration_facets, "load_surface", return_value=object()),
-            patch.object(calibration_facets, "assess", side_effect=OSError("unresolvable Git surface")),
+            patch.object(
+                calibration_facets, "assess", side_effect=OSError("unresolvable Git surface")
+            ),
         ):
             self.assertEqual(generator.attesting_record_ids(), [])
 

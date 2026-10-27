@@ -45,11 +45,32 @@ CHILDREN = "parity/method_children/children.toml"
 MANIFEST = "parity/capabilities/route_manifest.toml"
 REVIEW_STATUSES = ("admitted", "specification_only", "blocked_research", "not_admitted")
 ADMISSIONS = ("licensed", "executing_unlicensed", "refused", "not_admitted")
-SCIENTIFIC = ("identifying_result", "assumptions", "sampling_units", "estimator", "diagnostics", "failure_policy")
+SCIENTIFIC = (
+    "identifying_result",
+    "assumptions",
+    "sampling_units",
+    "estimator",
+    "diagnostics",
+    "failure_policy",
+)
 FIELD_ORDER = (
-    "id", "parent", "gap", "route", "target", "review_status", "admission", "decision_basis",
-    "provenance", "api_review", "identifying_result", "assumptions", "sampling_units", "estimator", "diagnostics",
-    "failure_policy", "references",
+    "id",
+    "parent",
+    "gap",
+    "route",
+    "target",
+    "review_status",
+    "admission",
+    "decision_basis",
+    "provenance",
+    "api_review",
+    "identifying_result",
+    "assumptions",
+    "sampling_units",
+    "estimator",
+    "diagnostics",
+    "failure_policy",
+    "references",
 )
 HEADER = """\
 # Method specifications. One record per method child in parity/method_children/children.toml.
@@ -144,7 +165,14 @@ def spec_review(existing: str, status: str, gap: str) -> tuple[str, str]:
     if status == "not_applicable_with_theory_reason":
         return "specification_only", "refused"
     kept = existing if existing in ("blocked_research", "specification_only") else ""
-    return (kept or ("blocked_research" if gap in ("theory", "temporal-identification", "statistical") else "specification_only")), "refused"
+    return (
+        kept
+        or (
+            "blocked_research"
+            if gap in ("theory", "temporal-identification", "statistical")
+            else "specification_only"
+        )
+    ), "refused"
 
 
 def basis(row: dict) -> str:
@@ -158,19 +186,26 @@ def basis(row: dict) -> str:
     return f"closed with a named next attempt: {row['next_attempt']}"
 
 
-REFUSAL_TEST = re.compile(r"refus|reject|forg|invalid|unsupported|weak|sparse|forbid|mismatch|tamper|corrupt|withhold", re.I)
+REFUSAL_TEST = re.compile(
+    r"refus|reject|forg|invalid|unsupported|weak|sparse|forbid|mismatch|tamper|corrupt|withhold",
+    re.I,
+)
 
 
 def tests_named(ev: Evidence, child: dict, pattern: re.Pattern) -> str:
     """Names of the fixture tests whose name speaks of a refusal; else the fixture tests themselves."""
     names: list[str] = []
     fallback: list[str] = []
-    for token in ev.tokens(child["fixtures"]) + [t for t in ev.tokens(child["consumer"]) if "/tests/" in t]:
+    for token in ev.tokens(child["fixtures"]) + [
+        t for t in ev.tokens(child["consumer"]) if "/tests/" in t
+    ]:
         path, name = ev.split(token)
         if name:
             (names if pattern.search(name) else fallback).append(name)
         elif path.endswith((".rs", ".py")):
-            for found in re.findall(r"#\[test\]\s*(?:#\[[^\]]*\]\s*)*fn (\w+)|^\s*def (test_\w+)", ev.text(path), re.M):
+            for found in re.findall(
+                r"#\[test\]\s*(?:#\[[^\]]*\]\s*)*fn (\w+)|^\s*def (test_\w+)", ev.text(path), re.M
+            ):
                 n = found[0] or found[1]
                 (names if pattern.search(n) else fallback).append(n)
     pool = list(dict.fromkeys(names)) or list(dict.fromkeys(fallback))
@@ -194,14 +229,25 @@ class Claims:
     def sentences(self, methods: list[dict]) -> list[str]:
         out: list[str] = []
         for method in methods:
-            key = (method["target"], method["graph_class"], method["estimator"], method["inference"])
+            key = (
+                method["target"],
+                method["graph_class"],
+                method["estimator"],
+                method["inference"],
+            )
             for text in self.groups.get(key, [])[:1]:
                 clean = re.sub(r"\s+", " ", text.replace("`", ""))
-                out += [s.strip() for s in re.split(r"(?<=[.;])\s+(?=[A-Z(])", clean) if 25 <= len(s.strip()) <= 420]
+                out += [
+                    s.strip()
+                    for s in re.split(r"(?<=[.;])\s+(?=[A-Z(])", clean)
+                    if 25 <= len(s.strip()) <= 420
+                ]
         return list(dict.fromkeys(out))
 
 
-def derive_fields(ev: Evidence, child: dict, spec: dict, methods: list[dict], claims: Claims, stale: bool) -> dict:
+def derive_fields(
+    ev: Evidence, child: dict, spec: dict, methods: list[dict], claims: Claims, stale: bool
+) -> dict:
     """Fill the unlisted (or, for a record written under an earlier gap, the superseded) fields.
 
     Sources, in order: the claim text of the licensed cells that back the method, the implementing
@@ -232,9 +278,14 @@ def derive_fields(ev: Evidence, child: dict, spec: dict, methods: list[dict], cl
     audit_like = child["target"] in ("RouteMigration", "ClosureAudit")
     designs = [m["design_time_model"] for m in methods if m["design_time_model"] not in UNLISTED]
     informative = next((d for d in designs if len(d) > 30 and not GENERIC_COORDINATE.match(d)), "")
-    identifiers = sorted({i for m in methods if m["kind"] == "licensed_estimator" for i in m["identifier"]})
+    identifiers = sorted(
+        {i for m in methods if m["kind"] == "licensed_estimator" for i in m["identifier"]}
+    )
     if audit_like:
-        fill("sampling_units", "none: an audit or migration over method records, not a statistical method")
+        fill(
+            "sampling_units",
+            "none: an audit or migration over method records, not a statistical method",
+        )
         fill("identifying_result", "none: not an identification result")
     if identifiers:
         fill("identifying_result", f"{child['target']} identified by {', '.join(identifiers)}")
@@ -243,45 +294,77 @@ def derive_fields(ev: Evidence, child: dict, spec: dict, methods: list[dict], cl
     fill("assumptions", find([header], ASSUME, 2))
     fill("diagnostics", find([header], DIAGNOSE, 2), force=stale)
     fill("identifying_result", find([header], IDENTIFY))
-    realization = child["inference"] if child["inference"] not in UNLISTED and child["inference"] not in ("frequentist", "bayesian") else ""
+    realization = (
+        child["inference"]
+        if child["inference"] not in UNLISTED
+        and child["inference"] not in ("frequentist", "bayesian")
+        else ""
+    )
     summary = header[0] if header else ""
-    fill("estimator", f"{realization}: {summary}" if realization and summary else realization or summary, force=stale)
+    fill(
+        "estimator",
+        f"{realization}: {summary}" if realization and summary else realization or summary,
+        force=stale,
+    )
     if not executes:
         reason = child["missing"] if child["missing"] != "none" else notes
-        fill("sampling_units", "none: the axis defines no sampling design that this method executes over")
+        fill(
+            "sampling_units",
+            "none: the axis defines no sampling design that this method executes over",
+        )
         fill("estimator", "none: no estimator exists on this axis")
         fill("identifying_result", f"none: {reason[:240]}")
         fill("assumptions", f"none beyond the recorded boundary: {reason[:240]}")
         fill("diagnostics", "the typed refusal this axis raises, exercised by its fixture")
     default_units = (
         "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
-        if temporal else "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
+        if temporal
+        else "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
     )
     fill("sampling_units", default_units)
-    fill("assumptions", f"the identification premises of {child['target']} on the recorded route; the module documents no further premise")
+    fill(
+        "assumptions",
+        f"the identification premises of {child['target']} on the recorded route; the module documents no further premise",
+    )
     suites = sorted({v for m in methods for v in m["validations"]})
     if suites:
-        fill("diagnostics", f"validation suites {', '.join(suites)} on the licensed cells; refusals asserted by {tests_named(ev, child, REFUSAL_TEST)}")
-    fill("diagnostics", f"refusals and diagnostics asserted by {tests_named(ev, child, REFUSAL_TEST)}")
+        fill(
+            "diagnostics",
+            f"validation suites {', '.join(suites)} on the licensed cells; refusals asserted by {tests_named(ev, child, REFUSAL_TEST)}",
+        )
+    fill(
+        "diagnostics",
+        f"refusals and diagnostics asserted by {tests_named(ev, child, REFUSAL_TEST)}",
+    )
     fill("identifying_result", child["target"] if child["target"] not in UNLISTED else "none")
     fill("estimator", child["inference"] if child["inference"] not in UNLISTED else "none")
     narrowed = child["missing"] if child["missing"] != "none" else ""
     stated = find([claim, header], refusal, 2)
     if stale:
         text = (f"Adjusted claim: {narrowed}. " if narrowed else "") + stated
-        fill("failure_policy", text.strip() or "Execution refuses with a typed error naming the unmet premise.", force=True)
+        fill(
+            "failure_policy",
+            text.strip() or "Execution refuses with a typed error naming the unmet premise.",
+            force=True,
+        )
     fill("failure_policy", stated)
-    fill("failure_policy", f"Refused cases are exercised by {tests_named(ev, child, REFUSAL_TEST)}.")
+    fill(
+        "failure_policy", f"Refused cases are exercised by {tests_named(ev, child, REFUSAL_TEST)}."
+    )
     return out
 
 
-def review_links(ev: Evidence, child: dict, methods: list[dict], admission: str) -> tuple[list[str], str]:
+def review_links(
+    ev: Evidence, child: dict, methods: list[dict], admission: str
+) -> tuple[list[str], str]:
     """The provenance records and the public-API review behind an admitted method."""
     module = child["module"].split(";")[0].strip().split(" ")[0]
     if admission not in ("licensed", "executing_unlicensed"):
         return ["not_applicable: no method executes on this axis"], "none: no executing module"
     if module in provenance_links.NOT_AN_ALGORITHM:
-        return [f"not_applicable: {provenance_links.NOT_AN_ALGORITHM[module]}"], provenance_links.api_review(module, ev.root)
+        return [
+            f"not_applicable: {provenance_links.NOT_AN_ALGORITHM[module]}"
+        ], provenance_links.api_review(module, ev.root)
     records = provenance_links.records_for(module, ev.root)
     if not records:
         known = provenance_links.stems(ev.root)
@@ -295,7 +378,9 @@ def review_links(ev: Evidence, child: dict, methods: list[dict], admission: str)
 
 def complete(ev: Evidence) -> list[dict]:
     children = tomllib.loads(ev.text(CHILDREN))["child"]
-    existing = {s["id"]: s for s in tomllib.loads(ev.text(SPECS))["spec"]} if ev.repo.exists(SPECS) else {}
+    existing = (
+        {s["id"]: s for s in tomllib.loads(ev.text(SPECS))["spec"]} if ev.repo.exists(SPECS) else {}
+    )
     rows = {r["id"]: r for r in counterparts.build() if r["kind"] == "method"}
     manifest = tomllib.loads(ev.text(MANIFEST))
     evidenced = counterparts.Evidenced(manifest, list(existing.values()), ev)
@@ -306,23 +391,38 @@ def complete(ev: Evidence) -> list[dict]:
         cid = child["id"]
         row = rows[cid]
         before = existing.get(cid, {})
-        spec = dict(before or {"id": cid, "references": ["Static and temporal parity", "Frequentist and Bayesian parity"]})
+        spec = dict(
+            before
+            or {
+                "id": cid,
+                "references": ["Static and temporal parity", "Frequentist and Bayesian parity"],
+            }
+        )
         stale = bool(before) and (
             before.get("gap") != child["gap"]
-            or (before.get("review_status") in STALE_STATUSES and row["status"] in counterparts.EXECUTING)
+            or (
+                before.get("review_status") in STALE_STATUSES
+                and row["status"] in counterparts.EXECUTING
+            )
         )
         methods = evidenced.methods_of_child(child, cid.rsplit(".", 1)[-1])
         spec["parent"] = child["parent"]
         spec["gap"] = child["gap"]
         matched = by_child.get(cid) or [m for m in methods if m["route"] not in UNLISTED]
         spec["route"] = (
-            child["route"] if child["route"] not in UNLISTED
-            else by_child[cid][0]["id"] if cid in by_child
-            else matched[0]["route"] if matched else "none"
+            child["route"]
+            if child["route"] not in UNLISTED
+            else by_child[cid][0]["id"]
+            if cid in by_child
+            else matched[0]["route"]
+            if matched
+            else "none"
         )
         if spec.get("target", "unlisted") in UNLISTED:
             spec["target"] = child["target"] if child["target"] not in UNLISTED else "none"
-        review, admission = spec_review(existing.get(cid, {}).get("review_status", ""), row["status"], child["gap"])
+        review, admission = spec_review(
+            existing.get(cid, {}).get("review_status", ""), row["status"], child["gap"]
+        )
         spec["review_status"], spec["admission"] = review, admission
         spec["decision_basis"] = basis(row)
         spec = derive_fields(ev, child, spec, methods, claims, stale)
@@ -373,8 +473,15 @@ def verify(ev: Evidence, specs: list[dict]) -> list[str]:
             out.append(f"{sid}: review_status {spec['review_status']!r} is outside the vocabulary")
         if spec["admission"] not in ADMISSIONS:
             out.append(f"{sid}: admission {spec['admission']!r} is outside the vocabulary")
-        expected = spec_review(spec["review_status"] if spec["review_status"] == "not_admitted" else "", row["status"], child["gap"])
-        if spec["review_status"] != "not_admitted" and (spec["admission"] != expected[1] or (expected[0] == "admitted") != (spec["review_status"] == "admitted")):
+        expected = spec_review(
+            spec["review_status"] if spec["review_status"] == "not_admitted" else "",
+            row["status"],
+            child["gap"],
+        )
+        if spec["review_status"] != "not_admitted" and (
+            spec["admission"] != expected[1]
+            or (expected[0] == "admitted") != (spec["review_status"] == "admitted")
+        ):
             out.append(
                 f"{sid}: review {spec['review_status']}/{spec['admission']} contradicts the executing evidence "
                 f"({row['status']}); expected {expected[0]}/{expected[1]}"
@@ -426,20 +533,31 @@ def report(specs: list[dict]) -> str:
             f"specs: {len(specs)}",
             "review_status: " + json.dumps(Counter(s["review_status"] for s in specs)),
             "admission: " + json.dumps(Counter(s["admission"] for s in specs)),
-            "unlisted scientific fields: " + json.dumps(
-                Counter(f for s in specs for f in SCIENTIFIC if s[f] in UNLISTED)
-            ),
+            "unlisted scientific fields: "
+            + json.dumps(Counter(f for s in specs for f in SCIENTIFIC if s[f] in UNLISTED)),
         ]
     )
 
 
 def self_test() -> int:
     assert spec_review("", "licensed", "none") == ("admitted", "licensed")
-    assert spec_review("", "executing_unlicensed", "validation") == ("admitted", "executing_unlicensed")
-    assert spec_review("not_admitted", "executing_unlicensed", "none") == ("not_admitted", "not_admitted")
+    assert spec_review("", "executing_unlicensed", "validation") == (
+        "admitted",
+        "executing_unlicensed",
+    )
+    assert spec_review("not_admitted", "executing_unlicensed", "none") == (
+        "not_admitted",
+        "not_admitted",
+    )
     assert spec_review("", "closed_with_next_attempt", "theory") == ("blocked_research", "refused")
-    assert spec_review("specification_only", "closed_with_next_attempt", "theory") == ("specification_only", "refused")
-    assert spec_review("", "not_applicable_with_theory_reason", "target") == ("specification_only", "refused")
+    assert spec_review("specification_only", "closed_with_next_attempt", "theory") == (
+        "specification_only",
+        "refused",
+    )
+    assert spec_review("", "not_applicable_with_theory_reason", "target") == (
+        "specification_only",
+        "refused",
+    )
     sentences = [
         "Each row is one independent subject at one decision time.",
         "The estimand is the average mean-scale contrast.",

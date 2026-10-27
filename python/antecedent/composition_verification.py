@@ -81,11 +81,22 @@ __all__ = [
     "CompositionView",
     "Edge",
     "Effect",
+    "InvalidationEntry",
+    "InvalidationTarget",
     "Node",
+    "PlanDeclaration",
     "SharedData",
+    "ClaimBinding",
+    "StageBinding",
+    "Standing",
     "consume_composition_verification_artifact",
+    "contract_effects",
     "digest",
+    "freshness_effects",
+    "invalidation_effects",
     "ledger_effects",
+    "plan_declaration",
+    "query_revalidation",
     "registry_record_attests",
     "registry_record_identity",
     "registry_resolved_calibration",
@@ -133,7 +144,7 @@ CALIBRATION_STATES: tuple[str, ...] = (
     "required",
 )
 
-_TRUST = ("not_applicable", "held", "withdrawn")
+_TRUST = ("not_applicable", "held", "withdrawn", "undeclared")
 _HEX = re.compile(r"\A[0-9a-fA-F]{64}\Z")
 _DEFAULT_ARTIFACT_ID = "composition_verification"
 
@@ -257,7 +268,8 @@ class Node:
     declarations it came from change); ``structure`` the identity of the structural derivation
     alone (it survives a data replacement); ``coordinate`` where the claim is evaluated (target
     population, regime, quantity); ``unsupported`` the coordinates outside the support;
-    ``trust`` (``not_applicable``, ``held`` or ``withdrawn``) a provider's trust standing;
+    ``trust`` (``not_applicable``, ``held``, ``withdrawn`` or ``undeclared``) a provider's trust
+    standing;
     ``evidence`` the ledger source ids (hex) the node counts.
     """
 
@@ -435,18 +447,24 @@ def ledger_effects(ledger: Any, bindings: Mapping[str, str]) -> tuple[Effect, ..
     """The effects of ledger standings on the nodes bound to ledger results.
 
     ``bindings`` maps a node key to a result id. A result that needs recomputation is a numerical
-    effect; a withdrawn or replaced result is a withdrawal.
+    effect; a withdrawn or replaced result is a withdrawal. The standings are read by the native
+    ledger itself.
+
+    Raises:
+        CausalValueError: a result id the ledger does not hold.
     """
-    effects: list[Effect] = []
-    for key, result in sorted(bindings.items()):
-        standing = ledger.standing(result)
-        if standing is None:
-            raise CausalValueError(f"result {result!r} is not in the ledger")
-        if standing == "recompute":
-            effects.append(Effect.recomputed(key, f"ledger.standing:{result}"))
-        elif standing == "withdrawn":
-            effects.append(Effect.withdrawn(key, f"ledger.standing:{result}"))
-    return tuple(effects)
+    handle = getattr(ledger, "_handle", None)
+    if not isinstance(handle, _native.EvidenceLedgerHandle):
+        raise CausalTypeError("ledger must be an evidence_ledger.EvidenceLedger")
+    wire = {_name(key, "node key"): _hex(result, "result") for key, result in bindings.items()}
+    text, refusal = _native.composition_ledger_effects(handle, _dumps(wire))
+    if refusal is not None:
+        found = json.loads(refusal)
+        if found.get("detail") == "composition_verification.unknown_result":
+            raise CausalValueError(str(found["message"]))
+        raise_refusal(refusal, CompositionVerificationRefusal)
+    assert text is not None
+    return _effects_of(text)
 
 
 def shared_data_from_ledger(graph: CompositionGraph, ledger: Any) -> tuple[SharedData, ...]:
@@ -751,6 +769,329 @@ def _wrap(handle: Any) -> CompositionVerification:
         shared_data=_shared(summary["shared_data"]),
         _handle=handle,
     )
+
+
+# --------------------------------------------------------------------------- observed effects
+
+
+def _effects_of(text: str) -> tuple[Effect, ...]:
+    return tuple(Effect(str(i["key"]), str(i["kind"]), str(i["text"])) for i in json.loads(text))
+
+
+def _calibration_of(item: Mapping[str, Any]) -> Calibration:
+    kind = str(item["kind"])
+    if kind == "held":
+        return Calibration.held(str(item["record"]), str(item["coordinate"]))
+    if kind == "inherited":
+        return Calibration.inherited(
+            str(item["from"]), str(item["record"]), str(item["coordinate"])
+        )
+    return Calibration.required() if kind == "required" else Calibration.point_only()
+
+
+def _node_of(wire: Mapping[str, Any]) -> Node:
+    return Node(
+        key=str(wire["key"]),
+        kind=str(wire["kind"]),
+        identity=str(wire["identity"]),
+        structure=wire.get("structure"),
+        representation=wire.get("representation"),
+        coordinate=wire.get("coordinate"),
+        unsupported=tuple(wire.get("unsupported", ())),
+        trust=str(wire["trust"]),
+        calibration=_calibration_of(wire["calibration"]),
+        assumptions=tuple(wire["assumptions"]),
+        transformation=wire.get("transformation"),
+        evidence=tuple(wire["evidence"]),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class Standing:
+    """What a producing route states about a claim beyond its identity.
+
+    ``unsupported`` names coordinates outside the support (empty: supported), ``trust`` a
+    provider's trust standing and ``calibration`` the uncertainty guarantee the claim states.
+    A stage reused between two snapshots keeps its authority only while these are unchanged.
+    """
+
+    unsupported: tuple[str, ...] = ()
+    trust: str = "not_applicable"
+    calibration: Calibration = field(default_factory=Calibration.point_only)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "unsupported", _texts(self.unsupported, "unsupported"))
+        _choice(self.trust, "trust", _TRUST)
+        if not isinstance(self.calibration, Calibration):
+            raise CausalTypeError("calibration must be a Calibration")
+
+    def to_wire(self) -> dict[str, Any]:
+        wire: dict[str, Any] = {"trust": self.trust, "calibration": self.calibration.to_wire()}
+        if self.unsupported:
+            wire["unsupported"] = list(self.unsupported)
+        return wire
+
+
+@dataclass(frozen=True, slots=True)
+class StageBinding:
+    """A node ``key`` of ``kind`` whose content identity is a recalculation stage's identity.
+
+    Without a ``standing`` the node is a supported point-only claim with no provider trust; a
+    claim that states an interval or posterior, or rests on a provider, states its standing.
+    """
+
+    key: str
+    kind: str
+    stage: Any
+    standing: Standing | None = None
+
+    def __post_init__(self) -> None:
+        _name(self.key, "key")
+        _choice(self.kind, "kind", NODE_KINDS)
+        if self.standing is not None and not isinstance(self.standing, Standing):
+            raise CausalTypeError("standing must be a Standing")
+
+
+@dataclass(frozen=True, slots=True)
+class PlanDeclaration:
+    """The nodes a recalculation plan's stages give a claim graph and the effects it implies."""
+
+    nodes: tuple[Node, ...]
+    effects: tuple[Effect, ...]
+
+    def node(self, key: str) -> Node:
+        """The node under ``key``."""
+        for node in self.nodes:
+            if node.key == key:
+                return node
+        raise CausalValueError(f"no node {key!r}")
+
+
+def plan_declaration(
+    previous: Mapping[Any, str],
+    requested: Mapping[Any, str],
+    bindings: Sequence[StageBinding],
+    capabilities: Any = None,
+) -> PlanDeclaration:
+    """Build claim-graph nodes from the stages of a recalculation plan and read its effects.
+
+    ``previous`` and ``requested`` map each stage to its own-input digest as for
+    :func:`antecedent.recalc.plan_recalculation`. Each binding gives a node whose identity is the
+    effective identity the plan assigned to its stage, so it changes exactly when the stage's own
+    inputs or any stage it depends on change. The effects are the plan's: a reused stage is no
+    effect, a recomputed stage a numerical effect, a refused stage an unexecutable one.
+
+    Raises:
+        CompositionVerificationRefusal: ``invalid_argument`` (``composition_verification.
+            stage_not_in_plan``) for a binding to a stage the requested workflow does not contain.
+    """
+    from . import recalc
+
+    items = list(bindings)
+    if not items or not all(isinstance(b, StageBinding) for b in items):
+        raise CausalTypeError("bindings must be a non-empty sequence of StageBinding values")
+    caps = capabilities if capabilities is not None else recalc.Capabilities()
+    rows = []
+    for b in items:
+        row: dict[str, Any] = {
+            "key": b.key,
+            "kind": b.kind,
+            "stage": recalc._stage(b.stage).value,
+        }
+        if b.standing is not None:
+            row["standing"] = b.standing.to_wire()
+        rows.append(row)
+    text = _unwrap(
+        _native.composition_plan_declaration(
+            recalc._declared_json(previous),
+            recalc._declared_json(requested),
+            json.dumps(caps.to_wire()),
+            _dumps(rows),
+        )
+    )
+    wire = json.loads(text)
+    return PlanDeclaration(
+        nodes=tuple(_node_of(n) for n in wire["nodes"]),
+        effects=_effects_of(json.dumps(wire["effects"])),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimBinding:
+    """A node ``key`` bound to a claim and what its receiver knows about it now.
+
+    ``claim`` is a :class:`antecedent.scientific_bridge.SourceClaim`. ``withdrawn`` and
+    ``superseded_by`` are recorded facts about the claim; ``current_snapshot`` is the data snapshot
+    the receiver holds (``None`` offline: nothing is learned); ``current`` is the claim the
+    receiver now holds in its place, whose identity layers every layer of ``claim`` is compared to.
+    """
+
+    key: str
+    claim: Any
+    last_verified_snapshot: str | None = None
+    current_snapshot: str | None = None
+    superseded_by: str | None = None
+    withdrawn: bool = False
+    locally_ready: bool = True
+    current: Any = None
+
+    def __post_init__(self) -> None:
+        from .scientific_bridge import SourceClaim
+
+        _name(self.key, "key")
+        if not isinstance(self.claim, SourceClaim):
+            raise CausalTypeError("claim must be a scientific_bridge.SourceClaim")
+        if self.current is not None and not isinstance(self.current, SourceClaim):
+            raise CausalTypeError("current must be a scientific_bridge.SourceClaim or None")
+        for what in ("last_verified_snapshot", "current_snapshot", "superseded_by"):
+            value = getattr(self, what)
+            if value is not None:
+                _hex(value, what)
+
+    def to_wire(self) -> dict[str, Any]:
+        wire: dict[str, Any] = {
+            "key": self.key,
+            "claim": self.claim.to_wire()["claim"],
+            "last_verified_snapshot": self.last_verified_snapshot,
+            "current_snapshot": self.current_snapshot,
+            "superseded_by": self.superseded_by,
+            "withdrawn": bool(self.withdrawn),
+            "locally_ready": bool(self.locally_ready),
+        }
+        if self.current is not None:
+            wire["current"] = dict(self.current.identities)
+        return wire
+
+
+def _claim_bindings(bindings: Sequence[ClaimBinding]) -> str:
+    items = list(bindings)
+    if not all(isinstance(b, ClaimBinding) for b in items):
+        raise CausalTypeError("bindings must be ClaimBinding values")
+    return _dumps([b.to_wire() for b in items])
+
+
+def freshness_effects(bindings: Sequence[ClaimBinding]) -> tuple[Effect, ...]:
+    """The effects of claim freshness: a withdrawn claim is withdrawn, a superseded claim or one
+    whose snapshot no longer matches recomputes, and an offline receiver learns nothing."""
+    return _effects_of(_native.composition_freshness_effects(_claim_bindings(bindings)))
+
+
+def contract_effects(bindings: Sequence[ClaimBinding]) -> tuple[Effect, ...]:
+    """The effects of claim contracts against the identities the receiver now holds.
+
+    Every identity layer (target, identification and its product, program, inference binding,
+    observation, data snapshot) is compared, so a layer that moved recomputes the claim even when
+    the data snapshot is unchanged, and the changed layers are named in the effect's cause. A
+    binding with no ``current`` claim falls back to its freshness reading.
+    """
+    return _effects_of(_native.composition_contract_effects(_claim_bindings(bindings)))
+
+
+@dataclass(frozen=True, slots=True)
+class InvalidationTarget:
+    """What became stale after an event: a query result, a model or every cached result."""
+
+    kind: str
+    id: int | None = None
+
+    def __post_init__(self) -> None:
+        _choice(self.kind, "kind", ("query_result", "model", "all_results"))
+        if (self.kind == "all_results") != (self.id is None):
+            raise CausalValueError("only a query result or a model names an id")
+        if self.id is not None and (isinstance(self.id, bool) or not 0 <= self.id < 2**32):
+            raise CausalValueError("an id is a non-negative 32-bit integer")
+
+    @classmethod
+    def query_result(cls, query: int) -> InvalidationTarget:
+        return cls("query_result", query)
+
+    @classmethod
+    def model(cls, model: int) -> InvalidationTarget:
+        return cls("model", model)
+
+    @classmethod
+    def all_results(cls) -> InvalidationTarget:
+        return cls("all_results")
+
+    def to_wire(self) -> dict[str, Any]:
+        return {"kind": self.kind} if self.id is None else {"kind": self.kind, "id": self.id}
+
+
+@dataclass(frozen=True, slots=True)
+class InvalidationEntry:
+    """One entry of a state's invalidation log.
+
+    ``input`` is the stage input the causing event changed, as ``(stage, change, identity)`` with
+    ``change`` one of ``added``, ``removed`` or ``modified``; an entry that names none can only
+    ask for recomputation.
+    """
+
+    at_version: int
+    target: InvalidationTarget
+    reason: str
+    input: tuple[Any, str, str] | None = None
+
+    def __post_init__(self) -> None:
+        if isinstance(self.at_version, bool) or not 0 <= self.at_version < 2**64:
+            raise CausalValueError("at_version is a non-negative integer")
+        if not isinstance(self.target, InvalidationTarget):
+            raise CausalTypeError("target must be an InvalidationTarget")
+        _name(self.reason, "reason")
+        if self.input is not None:
+            if len(self.input) != 3:
+                raise CausalValueError("input is (stage, change, identity)")
+            _choice(self.input[1], "change", ("added", "removed", "modified"))
+            _hex(self.input[2], "input identity")
+
+    def to_wire(self) -> dict[str, Any]:
+        from . import recalc
+
+        wire: dict[str, Any] = {
+            "at_version": self.at_version,
+            "target": self.target.to_wire(),
+            "reason": self.reason,
+        }
+        if self.input is not None:
+            stage, change, identity = self.input
+            wire["input"] = {
+                "stage": recalc._stage(stage).value,
+                "change": change,
+                "identity": identity,
+            }
+        return wire
+
+
+def _log_text(log: Iterable[InvalidationEntry]) -> str:
+    entries = list(log)
+    if not all(isinstance(e, InvalidationEntry) for e in entries):
+        raise CausalTypeError("log must hold InvalidationEntry values")
+    return _dumps([e.to_wire() for e in entries])
+
+
+def invalidation_effects(
+    log: Iterable[InvalidationEntry], since: int, bindings: Mapping[str, InvalidationTarget]
+) -> tuple[Effect, ...]:
+    """The effects of invalidations recorded after state version ``since``.
+
+    A node bound to a query result (or a model) the log invalidated recomputes; one whose premise
+    the log shows removed is withdrawn; an invalidation of every result applies to every bound
+    node. The most severe entry per node wins and its cause names the stage input that moved.
+    """
+    rows = []
+    for key, target in bindings.items():
+        if not isinstance(target, InvalidationTarget):
+            raise CausalTypeError("bindings must map node keys to InvalidationTarget values")
+        rows.append({"key": _name(key, "node key"), "target": target.to_wire()})
+    return _effects_of(
+        _native.composition_invalidation_effects(_log_text(log), int(since), _dumps(rows))
+    )
+
+
+def query_revalidation(log: Iterable[InvalidationEntry], query: int, since: int) -> str:
+    """The class of a query after version ``since``: ``still_valid`` when no entry concerns it,
+    ``recompute`` for changed data or premises, ``withdrawn`` when a premise it rested on was
+    removed."""
+    return str(_native.composition_query_revalidation(_log_text(log), int(query), int(since)))
 
 
 # --------------------------------------------------------------------------- registry

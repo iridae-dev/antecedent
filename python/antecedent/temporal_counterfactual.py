@@ -27,7 +27,13 @@ from ._artifact_protocol import (
 )
 from ._columns import coerce_fields
 from ._native import (
+    consume_general_temporal_counterfactual_artifact as _consume_general,
+)
+from ._native import (
     consume_temporal_counterfactual_artifact as _consume_temporal,
+)
+from ._native import (
+    evaluate_general_temporal_counterfactual as _evaluate_general,
 )
 from ._native import (
     evaluate_temporal_counterfactual as _evaluate_temporal,
@@ -51,11 +57,19 @@ __all__ = [
     "TemporalCounterfactualEffect",
     "TemporalCounterfactualIdentity",
     "TemporalMechanisms",
+    "TemporalWorldsEffect",
+    "TemporalWorldsIdentity",
+    "TemporalWorldsReceipt",
     "TransportedPrerequisites",
     "UnitCounterfactual",
     "UnitHistory",
+    "UnitWorldOutcomes",
+    "WorldActions",
+    "WorldHistory",
     "consume_temporal_counterfactual_artifact",
+    "consume_temporal_worlds_artifact",
     "temporal_fixed_population",
+    "temporal_worlds",
     "transported_path_specific",
 ]
 
@@ -497,6 +511,371 @@ def consume_temporal_counterfactual_artifact(
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _temporal_effect(report, data)
+
+
+# --- Any horizon, any number of named action histories ---------------------------------------
+
+
+def _real_sequence(value: object, what: str, *, detail: str, offending: str) -> tuple[float, ...]:
+    if isinstance(value, str | bytes) or not isinstance(value, Sequence):
+        raise CausalTypeError(f"{what} must be a sequence of numbers")
+    return tuple(_number(v, what, detail=detail, offending=offending) for v in value)
+
+
+def _time_sequence(value: object, what: str) -> tuple[int, ...]:
+    if (
+        isinstance(value, str | bytes)
+        or not isinstance(value, Sequence)
+        or not all(isinstance(t, int) and not isinstance(t, bool) for t in value)
+    ):
+        raise CausalTypeError(f"{what} must be a sequence of integer observation times")
+    if not all(0 <= t <= _U32_MAX for t in value):
+        raise CausalValueError(f"{what} must lie in [0, 2**32)")
+    return tuple(int(t) for t in value)
+
+
+def _node_index(name: str, horizon: int) -> int:
+    """Index of ``covariate_<t>`` (``2t``), ``action_<t>`` (``2t + 1``) or ``outcome`` (``2h``)."""
+    if name == "outcome":
+        return 2 * horizon
+    kind, _, tail = name.rpartition("_")
+    if kind in ("covariate", "action") and tail.isdecimal() and int(tail) < horizon:
+        return 2 * int(tail) + (1 if kind == "action" else 0)
+    raise CausalValueError(
+        f"node {name!r} is not covariate_<t>, action_<t> (t < {horizon}) or outcome",
+        reason_code="invalid_argument",
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class WorldHistory:
+    """One unit's factual trajectory over ``horizon`` slices.
+
+    ``values`` lists the ``2 * horizon + 1`` node values in node order
+    ``covariate_0, action_0, covariate_1, action_1, ..., outcome``. ``times`` are the
+    observation times of the slices (default ``0 .. horizon - 1``) and ``history`` the factual
+    history id (default ``"<unit>:history"``).
+    """
+
+    unit: str
+    values: tuple[float, ...]
+    history: str | None = None
+    times: tuple[int, ...] | None = None
+
+    def __post_init__(self) -> None:
+        _name(self.unit, "unit")
+        if self.history is not None:
+            _name(self.history, "history")
+        coerce_fields(
+            self,
+            values=_real_sequence(
+                self.values,
+                "values",
+                detail="temporal_counterfactual.non_finite_history",
+                offending=self.unit,
+            ),
+        )
+        if self.times is not None:
+            coerce_fields(self, times=_time_sequence(self.times, "times"))
+
+    def _wire(self, horizon: int) -> dict[str, Any]:
+        return {
+            "unit": self.unit,
+            "history": self.history if self.history is not None else f"{self.unit}:history",
+            "times": list(self.times) if self.times is not None else list(range(horizon)),
+            "values": list(self.values),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class WorldActions:
+    """A named action history ``(A_0, ..., A_{h-1})`` and the units it is requested for.
+
+    ``times`` must equal the factual observation times (default ``0 .. horizon - 1``);
+    ``units=None`` requests every unit of the factual histories.
+    """
+
+    name: str
+    actions: tuple[float, ...]
+    times: tuple[int, ...] | None = None
+    units: tuple[str, ...] | None = None
+
+    def __post_init__(self) -> None:
+        _name(self.name, "name")
+        coerce_fields(
+            self,
+            actions=_real_sequence(
+                self.actions,
+                "actions",
+                detail="temporal_counterfactual.non_finite_history",
+                offending=self.name,
+            ),
+        )
+        if self.times is not None:
+            coerce_fields(self, times=_time_sequence(self.times, "times"))
+        if self.units is not None:
+            coerce_fields(self, units=tuple(_name(u, "unit") for u in self.units))
+
+    def _wire(self, horizon: int, units: Sequence[str]) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "times": list(self.times) if self.times is not None else list(range(horizon)),
+            "actions": list(self.actions),
+            "units": list(self.units if self.units is not None else units),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class UnitWorldOutcomes:
+    """One unit's final outcome, factual and under every named action history."""
+
+    unit: str
+    history: str
+    factual_outcome: float
+    outcomes: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TemporalWorldsReceipt:
+    """Receipt that every world was replayed against one shared abduced history per unit."""
+
+    snapshot: str
+    fit_digest: str
+    factual_digest: str
+    world_digests: tuple[str, ...]
+    unit_draws: tuple[tuple[str, str, str], ...]
+    exogenous_digest: str
+    n_units: int
+    n_worlds: int
+    horizon: int
+    shared_by_all_worlds: bool
+    digest: str
+
+
+@dataclass(frozen=True, slots=True)
+class TemporalWorldsIdentity:
+    """Identity digests a consumer retains independently of the artifact bytes.
+
+    Pass it to :func:`consume_temporal_worlds_artifact` as ``expected_identity=`` to refuse a
+    *resealed* change of action time, unit history, snapshot, mechanism fit or any world.
+    """
+
+    snapshot: str
+    fit_digest: str
+    factual_digest: str
+    world_digests: tuple[str, ...]
+    exogenous_digest: str
+    receipt_digest: str
+    spec_id: str
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "snapshot": self.snapshot,
+            "fit_digest": self.fit_digest,
+            "factual_digest": self.factual_digest,
+            "world_digests": list(self.world_digests),
+            "exogenous_digest": self.exogenous_digest,
+            "receipt_digest": self.receipt_digest,
+            "spec_id": self.spec_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class TemporalWorldsEffect(ScientificResult):
+    """Per-unit counterfactual outcomes under every named action history, with the receipt.
+
+    ``world_means[i]`` is the sample mean of the final outcome under ``world_names[i]``; each
+    unit's outcomes in all worlds use that unit's own abduced history. The claim is a point
+    (no interval, no posterior, no transport): ``inference_claim == "point_only"``.
+    """
+
+    units: tuple[UnitWorldOutcomes, ...]
+    world_names: tuple[str, ...]
+    world_means: tuple[float, ...]
+    horizon: int
+    mechanism_class: str
+    inference_claim: str
+    snapshot: str
+    receipt: TemporalWorldsReceipt
+    identity: TemporalWorldsIdentity
+    _artifact_bytes: bytes
+
+    def mean(self, world: str) -> float:
+        """Sample mean final outcome under the named action history."""
+        return self.world_means[self._index(world)]
+
+    def contrast(self, plus: str, minus: str) -> float:
+        """Sample mean of ``plus - minus`` (each unit's own abduced history in both worlds)."""
+        return self.mean(plus) - self.mean(minus)
+
+    def _index(self, world: str) -> int:
+        try:
+            return self.world_names.index(world)
+        except ValueError:
+            raise CausalValueError(
+                f"unknown world {world!r}; the worlds are {list(self.world_names)}"
+            ) from None
+
+    @artifact_export
+    def export(self) -> ExportedArtifact[TemporalWorldsEffect]:
+        """The checksummed ``temporal_counterfactual_general_v1`` artifact."""
+        return artifact_from_receipt(self, self._artifact_bytes)
+
+
+def _worlds_effect(report_json: str, artifact: bytes) -> TemporalWorldsEffect:
+    artifact = container_bytes(artifact)
+    report = json.loads(report_json)
+    receipt = report["receipt"]
+    return TemporalWorldsEffect(
+        units=tuple(
+            UnitWorldOutcomes(
+                unit=u["unit"],
+                history=u["history"],
+                factual_outcome=float(u["factual_outcome"]),
+                outcomes=tuple(float(o) for o in u["outcomes"]),
+            )
+            for u in report["units"]
+        ),
+        world_names=tuple(report["world_names"]),
+        world_means=tuple(float(m) for m in report["world_means"]),
+        horizon=int(report["horizon"]),
+        mechanism_class=report["mechanism_class"],
+        inference_claim=report["inference_claim"],
+        snapshot=report["snapshot"],
+        receipt=TemporalWorldsReceipt(
+            snapshot=receipt["snapshot"],
+            fit_digest=receipt["fit_digest"],
+            factual_digest=receipt["factual_digest"],
+            world_digests=tuple(receipt["world_digests"]),
+            unit_draws=tuple((d["unit"], d["history"], d["digest"]) for d in receipt["unit_draws"]),
+            exogenous_digest=receipt["exogenous_digest"],
+            n_units=int(receipt["n_units"]),
+            n_worlds=int(receipt["n_worlds"]),
+            horizon=int(receipt["horizon"]),
+            shared_by_all_worlds=bool(receipt["shared_by_all_worlds"]),
+            digest=receipt["digest"],
+        ),
+        identity=TemporalWorldsIdentity(
+            **{
+                **report["identity"],
+                "world_digests": tuple(report["identity"]["world_digests"]),
+            }
+        ),
+        _artifact_bytes=artifact,
+    )
+
+
+def temporal_worlds(
+    histories: Sequence[WorldHistory],
+    *,
+    worlds: Sequence[WorldActions],
+    mechanisms: TemporalMechanisms,
+    snapshot: str,
+    horizon: int,
+    latent_confounding: bool = False,
+) -> TemporalWorldsEffect:
+    """What would each unit's final outcome have been under every named action history?
+
+    The general counterpart of :func:`temporal_fixed_population`: any ``horizon`` of slices
+    (a covariate and an action per slice, then the outcome) and any number of ``worlds``. The
+    mechanisms are named ``covariate_<t>`` (``t < horizon``) and ``outcome``, with parents named
+    ``covariate_<t>``, ``action_<t>`` of strictly earlier nodes. Each unit's exogenous history
+    is abduced once from its factual trajectory and every world replays against it. Cost is
+    linear in ``units x worlds x nodes`` and bounded by a work budget, not by a count of slices
+    or worlds.
+
+    Raises :class:`~antecedent.temporal.TemporalRefusal` with ``route_not_supported`` and
+    ``temporal_counterfactual.unpaired_histories`` (``witness`` names the unit and world),
+    ``.time_misaligned``, ``.shared_history_missing``, ``.latent_confounding`` or
+    ``.refuting_history`` (``witness`` retains unit, history, residual and bound), and with
+    ``invalid_argument`` for ``.too_many_units``, ``.invalid_graph`` (zero horizon),
+    ``.fit_mismatch``, ``.history_name_invalid`` or ``.non_finite_history`` (including a
+    trajectory or action history of the wrong length).
+    """
+    if isinstance(histories, str | bytes) or not isinstance(histories, Sequence):
+        raise CausalTypeError("histories must be a sequence of WorldHistory")
+    if not all(isinstance(h, WorldHistory) for h in histories):
+        raise CausalTypeError("histories must be WorldHistory objects")
+    if isinstance(worlds, str | bytes) or not isinstance(worlds, Sequence):
+        raise CausalTypeError("worlds must be a sequence of WorldActions")
+    if not all(isinstance(w, WorldActions) for w in worlds):
+        raise CausalTypeError("worlds must be WorldActions objects")
+    if not isinstance(mechanisms, TemporalMechanisms):
+        raise CausalTypeError("mechanisms must be TemporalMechanisms")
+    _name(snapshot, "snapshot")
+    if isinstance(horizon, bool) or not isinstance(horizon, int) or not 0 <= horizon <= _U32_MAX:
+        raise CausalValueError("horizon must be a non-negative integer")
+    units = [h.unit for h in histories]
+    fit = {
+        "fit_id": mechanisms.fit_id,
+        "mechanisms": [
+            {
+                "node": _node_index(m.node, horizon),
+                "intercept": m.intercept,
+                "parent_coefficients": [
+                    [_node_index(parent, horizon), coef] for parent, coef in m.coefficients.items()
+                ],
+                "noise_halfwidth": m.noise_halfwidth,
+            }
+            for m in mechanisms.mechanisms
+        ],
+    }
+    request = {
+        "horizon": horizon,
+        "latent_confounding": bool(latent_confounding),
+        "fit": fit,
+        "snapshot": snapshot,
+        "factual": [h._wire(horizon) for h in histories],
+        "worlds": [w._wire(horizon, units) for w in worlds],
+    }
+    report, artifact, refusal = _evaluate_general(
+        json.dumps(request, allow_nan=False), "temporal_counterfactual_general"
+    )
+    raise_refusal(refusal, TemporalRefusal)
+    if report is None or artifact is None:  # pragma: no cover - the native contract
+        raise CausalValueError(
+            "the native general temporal counterfactual returned neither a result nor a refusal"
+        )
+    return _worlds_effect(report, bytes(artifact))
+
+
+@artifact_consumer(
+    proof="temporal_counterfactual.consume_temporal_worlds_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
+def consume_temporal_worlds_artifact(
+    artifact: bytes,
+    *,
+    expected_identity: TemporalWorldsIdentity | Mapping[str, Any] | None = None,
+) -> TemporalWorldsEffect:
+    """Replay every world of an exported artifact and accept only an identical one.
+
+    Every unit's exogenous history is abduced again from the stored factual history and every
+    action history is replayed; every stored outcome, every world mean and the whole receipt
+    must reproduce bit for bit. With ``expected_identity`` (the
+    :attr:`TemporalWorldsEffect.identity` retained out-of-band) a changed action time, unit
+    history, snapshot, mechanism fit or world is refused even when the artifact was resealed
+    consistently (:class:`~antecedent.temporal.TemporalRefusal`, ``route_not_supported``,
+    ``temporal_counterfactual.artifact_changed``). Corruption and unknown major versions raise
+    :class:`~antecedent.errors.CausalSerializationError`.
+    """
+    artifact = container_bytes(artifact)
+    if not isinstance(artifact, bytes | bytearray | memoryview):
+        raise CausalTypeError("artifact must be bytes")
+    if expected_identity is None:
+        expected_json = None
+    elif isinstance(expected_identity, TemporalWorldsIdentity):
+        expected_json = json.dumps(expected_identity._wire())
+    elif isinstance(expected_identity, Mapping):
+        expected_json = json.dumps(dict(expected_identity))
+    else:
+        raise CausalTypeError("expected_identity must be a TemporalWorldsIdentity or a mapping")
+    data = bytes(artifact)
+    report, refusal = _consume_general(data, expected_json)
+    raise_refusal(refusal, TemporalRefusal)
+    if report is None:  # pragma: no cover - the native contract
+        raise CausalValueError("the native consumer returned neither a result nor a refusal")
+    return _worlds_effect(report, data)
 
 
 @dataclass(frozen=True, slots=True)

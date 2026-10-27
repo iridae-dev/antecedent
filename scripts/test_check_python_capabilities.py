@@ -215,6 +215,33 @@ class CapabilityGateTests(unittest.TestCase):
         problems, gaps = check(self.root, manifest, inventory, complete=True)
         self.assertTrue(any("unmapped Rust method" in p for p in problems))
 
+    def test_a_row_claims_a_whole_type_only_by_its_exact_name(self):
+        (self.root / "parity/public_api").mkdir()
+        snapshot = (
+            "pub struct antecedent::Study\n"
+            "pub fn <antecedent::Study>::fn inspect(&self) -> Report\n"
+            "pub struct antecedent::StudyBuilder\n"
+        )
+        (self.root / "parity/public_api/antecedent.txt").write_text(snapshot, encoding="utf-8")
+        (self.root / "parity/python_facade_surface.toml").write_text("entry=[]\n", encoding="utf-8")
+        row = {
+            "id": "study",
+            "rust": [],
+            "rust_types": ["antecedent::Study"],
+            "status": "gap",
+            "owner": "integration",
+            "behavior": "study lifecycle",
+            "gap": "open",
+            "required_dimensions": ["inspection"],
+        }
+        inventory = {"schema": 1, "items": rust_surface(snapshot)}
+        _, gaps = check(self.root, {"schema": 1, "capability": [row]}, inventory)
+        unmapped = [gap for gap in gaps if gap.startswith("unmapped")]
+        self.assertEqual(unmapped, ["unmapped Rust type: antecedent::StudyBuilder"])
+        row["rust_types"] = ["antecedent::Missing"]
+        problems, _ = check(self.root, {"schema": 1, "capability": [row]}, inventory)
+        self.assertTrue(any("unknown Rust type antecedent::Missing" in p for p in problems))
+
     def test_inherent_methods_and_export_edges_are_inventory(self):
         snapshot = (
             "pub fn <antecedent::Study>::fn inspect(&self) -> Report\n"

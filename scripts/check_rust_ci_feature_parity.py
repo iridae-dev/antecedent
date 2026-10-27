@@ -19,8 +19,16 @@ def main() -> None:
     names = {package["name"] for package in metadata["packages"] if package["id"] in workspace}
 
     def features(*selection: str) -> dict[str, set[str]]:
-        lines = cargo("tree", *selection, "-e", "normal,build,dev", "--prefix", "none",
-                      "--format", "{p} [{f}]").splitlines()
+        lines = cargo(
+            "tree",
+            *selection,
+            "-e",
+            "normal,build,dev",
+            "--prefix",
+            "none",
+            "--format",
+            "{p} [{f}]",
+        ).splitlines()
         found: dict[str, set[str]] = {}
         for line in lines:
             package, separator, rest = line.partition(" v")

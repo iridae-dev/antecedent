@@ -76,9 +76,7 @@ def registry_problems(data: dict[str, Any], root: Path = ROOT) -> list[str]:
             errors.append(f"{rid}: needs evidence_test and evidence_assertion")
             continue
         errors.extend(
-            evidence_problems(
-                rid, {"status": "bound", "test": f"{test}::{assertion}"}, root
-            )
+            evidence_problems(rid, {"status": "bound", "test": f"{test}::{assertion}"}, root)
         )
     for clause in sorted(set(clauses) - covered):
         errors.append(f"clause {clause} has no cited test")
@@ -91,11 +89,7 @@ def performance_problems(benches: Any, covered: set[str], root: Path) -> list[st
         return ["registry has no [[performance]] benchmark"]
     errors: list[str] = []
     gate = _read(root, GATE) if (root / GATE).is_file() else ""
-    hot_paths = (
-        _read(root, "docs/hot_paths.md")
-        if (root / "docs/hot_paths.md").is_file()
-        else ""
-    )
+    hot_paths = _read(root, "docs/hot_paths.md") if (root / "docs/hot_paths.md").is_file() else ""
     if '["performance"]' not in gate:
         errors.append(f"{GATE} does not run the registry's [[performance]] benchmarks")
     for bench in benches:
@@ -126,17 +120,11 @@ def performance_problems(benches: Any, covered: set[str], root: Path) -> list[st
             if manifest.is_file()
             else []
         )
-        if not any(
-            b.get("name") == name and b.get("harness") is False for b in declared
-        ):
-            errors.append(
-                f"{bid}: {name} is not a harness = false [[bench]] of {package}"
-            )
+        if not any(b.get("name") == name and b.get("harness") is False for b in declared):
+            errors.append(f"{bid}: {name} is not a harness = false [[bench]] of {package}")
         smoke = f"cargo bench -p {package} --bench {name}"
         if smoke not in hot_paths:
-            errors.append(
-                f"{bid}: docs/hot_paths.md has no smoke command `{smoke} -- --test`"
-            )
+            errors.append(f"{bid}: docs/hot_paths.md has no smoke command `{smoke} -- --test`")
     return errors
 
 
@@ -144,8 +132,7 @@ def manifest_problems(
     manifest: dict[str, Any], data: dict[str, Any], require_bound: bool
 ) -> list[str]:
     cited = {
-        f"{r['evidence_test']}::{r['evidence_assertion']}"
-        for r in data.get("conformance", [])
+        f"{r['evidence_test']}::{r['evidence_assertion']}" for r in data.get("conformance", [])
     }
     cited |= {f"{b['file']}::{b['function']}" for b in data.get("performance", [])}
     errors: list[str] = []
@@ -155,9 +142,7 @@ def manifest_problems(
         evidence = case.get("evidence", {})
         if evidence.get("status") != "bound":
             if require_bound:
-                errors.append(
-                    f"{case['id']}: planned case in an area the conformance gate owns"
-                )
+                errors.append(f"{case['id']}: planned case in an area the conformance gate owns")
             continue
         if evidence.get("test") not in cited:
             errors.append(
@@ -196,29 +181,19 @@ def self_test() -> int:
         "clause without a test",
         corrupted(
             lambda d: d.update(
-                conformance=[
-                    r
-                    for r in d["conformance"]
-                    if r["clause"] != "falsification_correct"
-                ]
+                conformance=[r for r in d["conformance"] if r["clause"] != "falsification_correct"]
             )
         ),
         "falsification_correct has no cited test",
     )
     expect(
         "missing test function",
-        corrupted(
-            lambda d: d["conformance"][0].update(evidence_assertion="no_such_test")
-        ),
+        corrupted(lambda d: d["conformance"][0].update(evidence_assertion="no_such_test")),
         "does not define no_such_test",
     )
     expect(
         "missing test file",
-        corrupted(
-            lambda d: d["conformance"][0].update(
-                evidence_test="crates/none/tests/none.rs"
-            )
-        ),
+        corrupted(lambda d: d["conformance"][0].update(evidence_test="crates/none/tests/none.rs")),
         "does not exist",
     )
     expect(
@@ -261,9 +236,7 @@ def self_test() -> int:
             }
         ]
     }
-    if manifest_problems(planned, good, False) or not manifest_problems(
-        planned, good, True
-    ):
+    if manifest_problems(planned, good, False) or not manifest_problems(planned, good, True):
         failures.append("planned cases are not handled by --require-bound")
     if failures:
         print("check_gcm_conformance self-test FAILED:")

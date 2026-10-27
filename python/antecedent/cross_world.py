@@ -211,8 +211,13 @@ def path_specific_effect(
     )
 
 
-def consume_cross_world_artifact(artifact: bytes, *, seed: int = 1) -> CrossWorldEffect:
+def consume_cross_world_artifact(
+    artifact: bytes, *, seed: int = 1, expected_data_digest: str | None = None
+) -> CrossWorldEffect:
     """Replay an exported artifact from its stored premises and accept only an identical one.
+
+    ``expected_data_digest`` (a result's ``data_digest``) additionally requires the artifact's
+    factual table to be the caller's: an artifact computed on other data is refused.
 
     The replay uses the same evaluator plus a separate closed-form recomputation
     of the point for both mechanism families. It detects corruption and re-sealed
@@ -222,4 +227,6 @@ def consume_cross_world_artifact(artifact: bytes, *, seed: int = 1) -> CrossWorl
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
-    return _effect(_consume(bytes(artifact), seed=seed))
+    if expected_data_digest is not None and not isinstance(expected_data_digest, str):
+        raise CausalTypeError("expected_data_digest must be a string")
+    return _effect(_consume(bytes(artifact), seed=seed, expected_data_digest=expected_data_digest))

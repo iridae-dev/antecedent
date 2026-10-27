@@ -49,7 +49,20 @@ import route_methods  # noqa: E402
 from method_evidence import Evidence  # noqa: E402
 
 OUTPUT = "parity/milestone_readiness.toml"
-PREREQUISITES = ("B01", "B02", "B03", "B04", "B05", "B10", "C01", "C02", "C03", "C04", "C05", "C05.1")
+PREREQUISITES = (
+    "B01",
+    "B02",
+    "B03",
+    "B04",
+    "B05",
+    "B10",
+    "C01",
+    "C02",
+    "C03",
+    "C04",
+    "C05",
+    "C05.1",
+)
 MILESTONE = "K0"
 QUADRANTS = {"static.frequentist", "static.bayesian", "temporal.frequentist", "temporal.bayesian"}
 HEADER = (
@@ -108,10 +121,18 @@ def conditions(ev: Evidence) -> list[dict]:
     records = scope_module.gather(ev.repo)
     mandatory_open = [r["id"] for r in records if r["mandatory"] and r["status"] != "reconciled"]
     derived = {
-        "B02": (not route_problems, f"{len(methods)} method records verified against the implementation", route_problems[:3]),
+        "B02": (
+            not route_problems,
+            f"{len(methods)} method records verified against the implementation",
+            route_problems[:3],
+        ),
         "B03": (not child_problems, f"{len(children)} children verified", child_problems[:3]),
         "B04": (not spec_problems, f"{len(specs)} specifications reconciled", spec_problems[:3]),
-        "B05": (not mandatory_open, f"{sum(r['mandatory'] for r in records)} mandatory rows reconciled", mandatory_open[:3]),
+        "B05": (
+            not mandatory_open,
+            f"{sum(r['mandatory'] for r in records)} mandatory rows reconciled",
+            mandatory_open[:3],
+        ),
     }
     for item in PREREQUISITES:
         checked, paths = todo.get(item, (False, []))
@@ -140,8 +161,18 @@ def conditions(ev: Evidence) -> list[dict]:
         and not (c["owner"].startswith("crates/") and ev.repo.exists(c["owner"].split(" ")[0]))
     ]
     constrained = sum(c["gap"] in ("implementation", "statistical") for c in children)
-    add("owners.crate", not owners, f"{constrained} implementation or statistical children", "; ".join(owners[:4]))
-    add("evidence.children", not child_problems, f"{len(children)} children name a registered fixture and a reading consumer", "; ".join(child_problems[:3]))
+    add(
+        "owners.crate",
+        not owners,
+        f"{constrained} implementation or statistical children",
+        "; ".join(owners[:4]),
+    )
+    add(
+        "evidence.children",
+        not child_problems,
+        f"{len(children)} children name a registered fixture and a reading consumer",
+        "; ".join(child_problems[:3]),
+    )
     decided = Counter(s["review_status"] for s in specs)
     add(
         "reviews.decided",
@@ -151,7 +182,9 @@ def conditions(ev: Evidence) -> list[dict]:
     )
     lanes = subprocess.run(
         [sys.executable, "-I", str(ROOT / "parity/performance_lanes/check_lanes.py")],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     protocol = tomllib.loads(ev.text("parity/measurement_protocol/protocol.toml"))
     lanes_table = tomllib.loads(ev.text("parity/performance_lanes/lanes.toml"))
@@ -160,21 +193,35 @@ def conditions(ev: Evidence) -> list[dict]:
         and len(lanes_table.get("lane", [])) == 4
         and protocol.get("lanes_table") == "parity/performance_lanes/lanes.toml"
     )
-    add("lanes.registered", registered, lanes.stdout.strip().splitlines()[-1] if lanes.stdout.strip() else "no lane check output", lanes.stderr.strip()[:120])
+    add(
+        "lanes.registered",
+        registered,
+        lanes.stdout.strip().splitlines()[-1] if lanes.stdout.strip() else "no lane check output",
+        lanes.stderr.strip()[:120],
+    )
     return out
 
 
 def render(items: list[dict], checked_in_todo: bool) -> str:
     ready = all(c["met"] for c in items)
     lines = [
-        HEADER, "schema = 1", f"milestone = {quote(MILESTONE)}", f"ready = {str(ready).lower()}",
-        f"conditions = {len(items)}", f"met = {sum(c['met'] for c in items)}",
-        f"checked_in_plan = {str(checked_in_todo).lower()}", "",
+        HEADER,
+        "schema = 1",
+        f"milestone = {quote(MILESTONE)}",
+        f"ready = {str(ready).lower()}",
+        f"conditions = {len(items)}",
+        f"met = {sum(c['met'] for c in items)}",
+        f"checked_in_plan = {str(checked_in_todo).lower()}",
+        "",
     ]
     for c in items:
         lines += [
-            "[[condition]]", f"id = {quote(c['id'])}", f"met = {str(c['met']).lower()}",
-            f"evidence = {quote(c['evidence'])}", f"detail = {quote(c['detail'])}", "",
+            "[[condition]]",
+            f"id = {quote(c['id'])}",
+            f"met = {str(c['met']).lower()}",
+            f"evidence = {quote(c['evidence'])}",
+            f"detail = {quote(c['detail'])}",
+            "",
         ]
     return "\n".join(lines)
 
@@ -218,13 +265,18 @@ def main(argv: list[str]) -> int:
         stored = output.read_text(encoding="utf-8") if output.is_file() else None
         problems = findings(items, claimed)
         if stored != text:
-            problems.insert(0, f"stale: {OUTPUT} differs from the recomputed verdict; run python3 scripts/derive_milestone_readiness.py")
+            problems.insert(
+                0,
+                f"stale: {OUTPUT} differs from the recomputed verdict; run python3 scripts/derive_milestone_readiness.py",
+            )
         for line in problems:
             print(f"FAIL: {line}")
         print(f"{MILESTONE} readiness: {sum(c['met'] for c in items)}/{len(items)} conditions met")
         return 1 if problems else 0
     output.write_text(text, encoding="utf-8", newline="\n")
-    print(f"wrote {OUTPUT}: {MILESTONE} ready = {all(c['met'] for c in items)} ({sum(c['met'] for c in items)}/{len(items)})")
+    print(
+        f"wrote {OUTPUT}: {MILESTONE} ready = {all(c['met'] for c in items)} ({sum(c['met'] for c in items)}/{len(items)})"
+    )
     return 0
 
 

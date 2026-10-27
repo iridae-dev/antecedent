@@ -67,7 +67,9 @@ COMPLETE_GLOBS = (
 def head_sha(repo: Path) -> str | None:
     proc = subprocess.run(
         ["git", "-C", str(repo), "rev-parse", "HEAD"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     sha = proc.stdout.strip()
     if proc.returncode != 0 or not SHA.fullmatch(sha):
@@ -172,7 +174,9 @@ def unregistered(root: Path, registered: set[str]) -> list[str]:
             if path.name.startswith("suite_") or path.name == "__init__.py":
                 continue
             text = path.read_text(encoding="utf-8")
-            is_test = bool(PY_TEST.search(text)) if rel.endswith(".py") else bool(TEST_ATTR.search(text))
+            is_test = (
+                bool(PY_TEST.search(text)) if rel.endswith(".py") else bool(TEST_ATTR.search(text))
+            )
             if is_test and rel not in registered and rel not in INCLUDED_MODULES:
                 found.append(rel)
     return found
@@ -220,7 +224,11 @@ def problems(root: Path, head: str | None) -> list[str]:
             errors.append(f"FAIL: {entry_id}: cargo_target is required")
             cargo_target = ""
         gates = entry.get("gates")
-        if not isinstance(gates, list) or not gates or not all(isinstance(gate, str) for gate in gates):
+        if (
+            not isinstance(gates, list)
+            or not gates
+            or not all(isinstance(gate, str) for gate in gates)
+        ):
             errors.append(f"FAIL: {entry_id}: gates must be a non-empty list")
             gates = []
         for gate in gates:
@@ -243,9 +251,17 @@ def problems(root: Path, head: str | None) -> list[str]:
             errors.append(f"FAIL: {entry_id}: path {rel} does not exist")
             continue
         suite_line = entry.get("suite_map_line")
-        if "named" in gates and cargo_target != "script" and not executes_tests(path.read_text(encoding="utf-8")):
+        if (
+            "named" in gates
+            and cargo_target != "script"
+            and not executes_tests(path.read_text(encoding="utf-8"))
+        ):
             errors.append(f"FAIL: {entry_id}: gate named but {rel} has no non-ignored test")
-        if cargo_target == "script" and rel.endswith(".py") and not runnable_python(path.read_text(encoding="utf-8")):
+        if (
+            cargo_target == "script"
+            and rel.endswith(".py")
+            and not runnable_python(path.read_text(encoding="utf-8"))
+        ):
             errors.append(f"FAIL: {entry_id}: {rel} defines no test function")
         if cargo_target == "script":
             if rel.startswith("crates/") or (root / "crates" / crate).is_dir():
@@ -271,7 +287,7 @@ def problems(root: Path, head: str | None) -> list[str]:
             if suite_line is not None:
                 errors.append(f"FAIL: {entry_id}: suite_map_line set but test is not consolidated")
             continue
-        crate_rel = rel[len(prefix):]
+        crate_rel = rel[len(prefix) :]
         if crate_rel.startswith("src/"):
             if cargo_target != "lib":
                 errors.append(f"FAIL: {entry_id}: src/ test must use cargo_target lib")
@@ -288,7 +304,9 @@ def problems(root: Path, head: str | None) -> list[str]:
             continue
         expected, kind = target
         if cargo_target != expected:
-            errors.append(f"FAIL: {entry_id}: cargo_target {cargo_target} does not compile {rel} ({expected})")
+            errors.append(
+                f"FAIL: {entry_id}: cargo_target {cargo_target} does not compile {rel} ({expected})"
+            )
         if kind != "suite":
             if suite_line is not None:
                 errors.append(f"FAIL: {entry_id}: suite_map_line set but test is not consolidated")
@@ -346,7 +364,9 @@ def _registry(root: Path, entries: list[dict[str, object]]) -> None:
 def _run(root: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(Path(__file__).resolve()), "--root", str(root)],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 
@@ -354,7 +374,9 @@ def _expect_fail(name: str, root: Path, needle: str) -> None:
     proc = _run(root)
     text = proc.stdout + proc.stderr
     if proc.returncode == 0 or needle not in text or "Traceback" in text:
-        sys.exit(f"self-test {name}: expected non-zero with {needle!r}, rc={proc.returncode}\n{text}")
+        sys.exit(
+            f"self-test {name}: expected non-zero with {needle!r}, rc={proc.returncode}\n{text}"
+        )
     print(f"ok  {name}")
 
 
@@ -368,7 +390,10 @@ def _expect_ok(name: str, root: Path) -> None:
 
 def _crate(root: Path, suite_map_text: str) -> None:
     crate = root / "crates" / "demo"
-    _write(crate, "Cargo.toml", """[package]
+    _write(
+        crate,
+        "Cargo.toml",
+        """[package]
 name = "demo"
 version = "0.0.0"
 edition = "2021"
@@ -377,7 +402,8 @@ autotests = false
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
-""")
+""",
+    )
     _write(crate, "tests/suite_01.rs", '#[path = "foo.rs"]\nmod foo;\n')
     _write(crate, "tests/foo.rs", "#[test]\nfn runs() {}\n")
     _write(crate, "tests/suite_map.txt", suite_map_text)
@@ -390,13 +416,18 @@ def self_test() -> int:
         root = Path(tmp)
         _write(root, "python/Cargo.toml", '[package]\nname = "antecedent-py"\n')
         _write(root, "python/src/callbacks.rs", "#[test]\nfn evidence_boundary() {}\n")
-        _registry(root, [{
-            "id": "native-binding-unit",
-            "crate": "python",
-            "cargo_target": "lib",
-            "path": "python/src/callbacks.rs",
-            "gates": ["inventory", "named"],
-        }])
+        _registry(
+            root,
+            [
+                {
+                    "id": "native-binding-unit",
+                    "crate": "python",
+                    "cargo_target": "lib",
+                    "path": "python/src/callbacks.rs",
+                    "gates": ["inventory", "named"],
+                }
+            ],
+        )
         _expect_ok("native binding compiled unit test", root)
         _write(root, "python/src/callbacks.rs", "#[test]\n#[ignore]\nfn missing() {}\n")
         _expect_fail("native binding ignored-only unit", root, "has no non-ignored test")
@@ -407,101 +438,144 @@ def self_test() -> int:
         return 1
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        _registry(root, [{
-            "id": "missing",
-            "crate": "scripts",
-            "cargo_target": "script",
-            "path": "scripts/no_such_check.py",
-            "gates": ["inventory"],
-        }])
+        _registry(
+            root,
+            [
+                {
+                    "id": "missing",
+                    "crate": "scripts",
+                    "cargo_target": "script",
+                    "path": "scripts/no_such_check.py",
+                    "gates": ["inventory"],
+                }
+            ],
+        )
         _expect_fail("missing source file", root, "path scripts/no_such_check.py does not exist")
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _crate(root, "suite_01: other\n")
-        _registry(root, [{
-            "id": "folded",
-            "crate": "demo",
-            "cargo_target": "suite_01",
-            "path": "crates/demo/tests/foo.rs",
-            "suite_map_line": "suite_01: foo",
-            "gates": ["named"],
-        }])
+        _registry(
+            root,
+            [
+                {
+                    "id": "folded",
+                    "crate": "demo",
+                    "cargo_target": "suite_01",
+                    "path": "crates/demo/tests/foo.rs",
+                    "suite_map_line": "suite_01: foo",
+                    "gates": ["named"],
+                }
+            ],
+        )
         _expect_fail("missing suite_map line", root, "missing suite_map line")
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         crate = root / "crates" / "demo"
-        _write(crate, "Cargo.toml", """[package]
+        _write(
+            crate,
+            "Cargo.toml",
+            """[package]
 name = "demo"
 version = "0.0.0"
 edition = "2021"
 autotests = false
-""")
+""",
+        )
         _write(crate, "tests/suite_01.rs", '#[path = "foo.rs"]\nmod foo;\n')
         _write(crate, "tests/foo.rs", "#[test]\nfn runs() {}\n")
         _write(crate, "tests/suite_map.txt", "suite_01: foo\n")
-        _registry(root, [{
-            "id": "unbuilt",
-            "crate": "demo",
-            "cargo_target": "suite_01",
-            "path": "crates/demo/tests/foo.rs",
-            "suite_map_line": "suite_01: foo",
-            "gates": ["named"],
-        }])
+        _registry(
+            root,
+            [
+                {
+                    "id": "unbuilt",
+                    "crate": "demo",
+                    "cargo_target": "suite_01",
+                    "path": "crates/demo/tests/foo.rs",
+                    "suite_map_line": "suite_01: foo",
+                    "gates": ["named"],
+                }
+            ],
+        )
         _expect_fail("unbuilt suite include", root, "compiled by no test target")
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _write(root, "scripts/check.py", "# executable check\n")
-        _registry(root, [{
-            "id": "absent",
-            "crate": "scripts",
-            "cargo_target": "script",
-            "path": "scripts/check.py",
-            "gates": ["checked_execution"],
-            "evidence_path": "parity/no_such_evidence.toml",
-        }])
-        _expect_fail("absent evidence file", root, "evidence path parity/no_such_evidence.toml does not exist")
+        _registry(
+            root,
+            [
+                {
+                    "id": "absent",
+                    "crate": "scripts",
+                    "cargo_target": "script",
+                    "path": "scripts/check.py",
+                    "gates": ["checked_execution"],
+                    "evidence_path": "parity/no_such_evidence.toml",
+                }
+            ],
+        )
+        _expect_fail(
+            "absent evidence file",
+            root,
+            "evidence path parity/no_such_evidence.toml does not exist",
+        )
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _write(root, "scripts/check.py", "# executable check\n")
         _write(root, "parity/stale.toml", f'# v3-evidence\nrevision = "{"0" * 40}"\n')
-        _registry(root, [{
-            "id": "stale",
-            "crate": "scripts",
-            "cargo_target": "script",
-            "path": "scripts/check.py",
-            "gates": ["transport"],
-            "evidence_path": "parity/stale.toml",
-        }])
+        _registry(
+            root,
+            [
+                {
+                    "id": "stale",
+                    "crate": "scripts",
+                    "cargo_target": "script",
+                    "path": "scripts/check.py",
+                    "gates": ["transport"],
+                    "evidence_path": "parity/stale.toml",
+                }
+            ],
+        )
         _expect_fail("stale evidence revision", root, "revision is stale")
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _write(root, "scripts/check.py", "# executable check\n")
         _write(root, "parity/unstamped.toml", "# v3-evidence\n")
-        _registry(root, [{
-            "id": "unstamped",
-            "crate": "scripts",
-            "cargo_target": "script",
-            "path": "scripts/check.py",
-            "gates": ["evidence"],
-            "evidence_path": "parity/unstamped.toml",
-        }])
+        _registry(
+            root,
+            [
+                {
+                    "id": "unstamped",
+                    "crate": "scripts",
+                    "cargo_target": "script",
+                    "path": "scripts/check.py",
+                    "gates": ["evidence"],
+                    "evidence_path": "parity/unstamped.toml",
+                }
+            ],
+        )
         _expect_fail("evidence stamp missing revision", root, "missing required key revision")
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _write(root, "scripts/check.py", "# executable check\n")
-        _registry(root, [{
-            "id": "no-evidence",
-            "crate": "scripts",
-            "cargo_target": "script",
-            "path": "scripts/check.py",
-            "gates": ["decision"],
-        }])
+        _registry(
+            root,
+            [
+                {
+                    "id": "no-evidence",
+                    "crate": "scripts",
+                    "cargo_target": "script",
+                    "path": "scripts/check.py",
+                    "gates": ["decision"],
+                }
+            ],
+        )
         _expect_fail("evidence gate without evidence_path", root, "requires evidence_path")
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -511,57 +585,83 @@ autotests = false
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        _write(root, "scripts/check_v3_test_registry.py", "if __name__ == \"__main__\":\n    pass\n")
-        _registry(root, [{
-            "id": "v3-registry-sentinel",
-            "crate": "scripts",
-            "cargo_target": "script",
-            "path": "scripts/check_v3_test_registry.py",
-            "gates": ["inventory"],
-        }])
+        _write(root, "scripts/check_v3_test_registry.py", 'if __name__ == "__main__":\n    pass\n')
+        _registry(
+            root,
+            [
+                {
+                    "id": "v3-registry-sentinel",
+                    "crate": "scripts",
+                    "cargo_target": "script",
+                    "path": "scripts/check_v3_test_registry.py",
+                    "gates": ["inventory"],
+                }
+            ],
+        )
         _expect_ok("positive script sentinel", root)
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _crate(root, "suite_01: foo\n")
         _write(root, "parity/fresh.toml", f'# v3-evidence\nrevision = "{head}"\n')
-        _registry(root, [{
-            "id": "folded",
-            "crate": "demo",
-            "cargo_target": "suite_01",
-            "path": "crates/demo/tests/foo.rs",
-            "suite_map_line": "suite_01: foo",
-            "gates": ["named", "composition"],
-            "evidence_path": "parity/fresh.toml",
-        }])
+        _registry(
+            root,
+            [
+                {
+                    "id": "folded",
+                    "crate": "demo",
+                    "cargo_target": "suite_01",
+                    "path": "crates/demo/tests/foo.rs",
+                    "suite_map_line": "suite_01: foo",
+                    "gates": ["named", "composition"],
+                    "evidence_path": "parity/fresh.toml",
+                }
+            ],
+        )
         _expect_ok("positive consolidated test with fresh evidence", root)
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _crate(root, "suite_01: foo\n")
         _write(root, "crates/demo/tests/foo.rs", "#[test]\n#[ignore]\nfn never_runs() {}\n")
-        _registry(root, [{
-            "id": "ignored",
-            "crate": "demo",
-            "cargo_target": "suite_01",
-            "path": "crates/demo/tests/foo.rs",
-            "suite_map_line": "suite_01: foo",
-            "gates": ["named"],
-        }])
+        _registry(
+            root,
+            [
+                {
+                    "id": "ignored",
+                    "crate": "demo",
+                    "cargo_target": "suite_01",
+                    "path": "crates/demo/tests/foo.rs",
+                    "suite_map_line": "suite_01: foo",
+                    "gates": ["named"],
+                }
+            ],
+        )
         _expect_fail("named gate on an ignored-only file", root, "has no non-ignored test")
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _write(root, "scripts/test_orphan.py", "def test_runs():\n    pass\n")
         _write(root, "scripts/test_listed.py", "def test_runs():\n    pass\n")
-        _write(root, REGISTRY, "schema = 1\ncomplete = true\n\n" + _entry({
-            "id": "listed",
-            "crate": "scripts",
-            "cargo_target": "script",
-            "path": "scripts/test_listed.py",
-            "gates": ["inventory"],
-        }))
-        _expect_fail("complete registry with an unregistered test", root, "scripts/test_orphan.py: test file has no registry row")
+        _write(
+            root,
+            REGISTRY,
+            "schema = 1\ncomplete = true\n\n"
+            + _entry(
+                {
+                    "id": "listed",
+                    "crate": "scripts",
+                    "cargo_target": "script",
+                    "path": "scripts/test_listed.py",
+                    "gates": ["inventory"],
+                }
+            ),
+        )
+        _expect_fail(
+            "complete registry with an unregistered test",
+            root,
+            "scripts/test_orphan.py: test file has no registry row",
+        )
 
     print("v3 test registry self-test: ok")
     return 0

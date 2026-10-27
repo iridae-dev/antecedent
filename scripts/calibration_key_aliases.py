@@ -67,11 +67,16 @@ def validated_aliases(root: Path) -> list[dict[str, str]]:
         raise ValueError("mapping must bind the exact original recovery measurement")
     subprocess.run(
         ["git", "merge-base", "--is-ancestor", COLLECTION_SHA, "HEAD"],
-        cwd=root, check=True, capture_output=True,
+        cwd=root,
+        check=True,
+        capture_output=True,
     )
     original_text = subprocess.run(
         ["git", "show", f"{COLLECTION_SHA}:parity/coverage_records.toml"],
-        cwd=root, check=True, capture_output=True, text=True,
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout
     original = next(
         record for record in tomllib.loads(original_text)["record"] if record["id"] == RECORD_ID
@@ -88,9 +93,19 @@ def validated_aliases(root: Path) -> list[dict[str, str]]:
         if set(row) != set(expected) | {"status"}:
             raise ValueError("pending mapping cannot carry unchecked runtime claims")
         return []
-    receipt_fields = {"native_receipt", "native_receipt_sha256", "replay_receipt", "replay_receipt_sha256"}
-    if row.get("status") != "verified_identity_replay" or set(row) != set(expected) | {"status"} | receipt_fields:
-        raise ValueError("identity mapping requires reviewed native construction and replay evidence")
+    receipt_fields = {
+        "native_receipt",
+        "native_receipt_sha256",
+        "replay_receipt",
+        "replay_receipt_sha256",
+    }
+    if (
+        row.get("status") != "verified_identity_replay"
+        or set(row) != set(expected) | {"status"} | receipt_fields
+    ):
+        raise ValueError(
+            "identity mapping requires reviewed native construction and replay evidence"
+        )
     native = read_receipt(root, row["native_receipt"], row["native_receipt_sha256"])
     replay = read_receipt(root, row["replay_receipt"], row["replay_receipt_sha256"])
     evidence = validate_evidence(root, original, native, replay)
@@ -104,8 +119,10 @@ def validated_aliases(root: Path) -> list[dict[str, str]]:
 # Producers and consumers only know the current name; the measured record keeps
 # the original token as immutable evidence.
 IDENTITY_RENAMES = (
-    ("recovery_scientific.v1:x10.recovery.v1|",
-     "recovery_scientific.v1:binary_observation_recovery.v1|"),
+    (
+        "recovery_scientific.v1:x10.recovery.v1|",
+        "recovery_scientific.v1:binary_observation_recovery.v1|",
+    ),
 )
 
 
@@ -135,8 +152,11 @@ def read_receipt(root: Path, relative: str, digest: str) -> dict:
     if not isinstance(relative, str):
         raise ValueError("identity evidence must name a registry JSON receipt")
     path = root / relative
-    if (not relative.startswith("parity/")
-            or path.suffix != ".json" or not path.resolve().is_relative_to(root.resolve())):
+    if (
+        not relative.startswith("parity/")
+        or path.suffix != ".json"
+        or not path.resolve().is_relative_to(root.resolve())
+    ):
         raise ValueError("identity evidence must be a bounded registry JSON receipt")
     if path.stat().st_size > MAX_RECEIPT_BYTES:
         raise ValueError("identity evidence exceeds receipt bounds")
@@ -150,10 +170,16 @@ def read_receipt(root: Path, relative: str, digest: str) -> dict:
 
 
 def parse_native_log(log: str) -> dict:
-    proofs = [json.loads(line[len(PROOF_MARKER):]) for line in log.splitlines()
-              if line.startswith(PROOF_MARKER)]
-    if (len(proofs) != 1 or not isinstance(proofs[0], dict)
-            or "test result: ok. 1 passed; 0 failed;" not in log):
+    proofs = [
+        json.loads(line[len(PROOF_MARKER) :])
+        for line in log.splitlines()
+        if line.startswith(PROOF_MARKER)
+    ]
+    if (
+        len(proofs) != 1
+        or not isinstance(proofs[0], dict)
+        or "test result: ok. 1 passed; 0 failed;" not in log
+    ):
         raise ValueError("native construction evidence requires one actual passing proof test")
     return proofs[0]
 
@@ -164,14 +190,23 @@ def validate_evidence(root: Path, original: dict, native: dict, replay: dict) ->
     import collect_coverage_records
 
     source = native.get("source_sha")
-    if (native.get("version") != 1 or replay.get("version") != 1
-            or not isinstance(source, str) or not re.fullmatch(r"[0-9a-f]{40}", source)
-            or replay.get("source_sha") != source or replay.get("record_id") != RECORD_ID
-            or native.get("branch") != archived_capture_branch()
-            or replay.get("branch") != archived_capture_branch()):
+    if (
+        native.get("version") != 1
+        or replay.get("version") != 1
+        or not isinstance(source, str)
+        or not re.fullmatch(r"[0-9a-f]{40}", source)
+        or replay.get("source_sha") != source
+        or replay.get("record_id") != RECORD_ID
+        or native.get("branch") != archived_capture_branch()
+        or replay.get("branch") != archived_capture_branch()
+    ):
         raise ValueError("identity evidence must bind one real main-branch source commit")
-    subprocess.run(["git", "merge-base", "--is-ancestor", source, "HEAD"],
-                   cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "merge-base", "--is-ancestor", source, "HEAD"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
     log = native.get("log")
     if not isinstance(log, str) or sha256(log) != native.get("log_sha256"):
         raise ValueError("native construction log digest changed")
@@ -179,37 +214,61 @@ def validate_evidence(root: Path, original: dict, native: dict, replay: dict) ->
     if not calibration_facets._bit_equal(proof, native.get("proof")):
         raise ValueError("native construction proof differs from actual test output")
     config = {
-        "interval_method": "bootstrap_bca", "replicates": 2000, "seed": 0x46ab0000 + 100000,
+        "interval_method": "bootstrap_bca",
+        "replicates": 2000,
+        "seed": 0x46AB0000 + 100000,
         "max_failed_fraction_bits": "0000000000000000",
-        "normalization_tolerance_bits": "3fb999999999999a", "small_cell_count_bits": "4014000000000000",
-        "treated_level_bits": "3ff0000000000000", "control_level_bits": "0000000000000000",
+        "normalization_tolerance_bits": "3fb999999999999a",
+        "small_cell_count_bits": "4014000000000000",
+        "treated_level_bits": "3ff0000000000000",
+        "control_level_bits": "0000000000000000",
     }
     negatives = proof.get("negative_mutations")
-    if (proof.get("version") != 1 or proof.get("record_id") != RECORD_ID
-            or proof.get("original_functional") != original["functional"]
-            or proof.get("config") != config or proof.get("rows") != 1000
-            or proof.get("identical_repeated_native_receipt") is not True
-            or any(not isinstance(proof.get(field), str)
-                   or not re.fullmatch(r"[0-9a-f]{32}", proof[field])
-                   for field in ("input_digest", "receipt_digest"))
-            or not isinstance(negatives, dict) or set(negatives) != {"graph", "effect", "sampling"}
-            or any(value not in {"refused", "different_scientific_identity"} for value in negatives.values())):
-        raise ValueError("native construction does not prove the original BCa graph/effect/row protocol")
+    if (
+        proof.get("version") != 1
+        or proof.get("record_id") != RECORD_ID
+        or proof.get("original_functional") != original["functional"]
+        or proof.get("config") != config
+        or proof.get("rows") != 1000
+        or proof.get("identical_repeated_native_receipt") is not True
+        or any(
+            not isinstance(proof.get(field), str) or not re.fullmatch(r"[0-9a-f]{32}", proof[field])
+            for field in ("input_digest", "receipt_digest")
+        )
+        or not isinstance(negatives, dict)
+        or set(negatives) != {"graph", "effect", "sampling"}
+        or any(
+            value not in {"refused", "different_scientific_identity"}
+            for value in negatives.values()
+        )
+    ):
+        raise ValueError(
+            "native construction does not prove the original BCa graph/effect/row protocol"
+        )
     identity = proof.get("scientific_derivation_identity")
     if not isinstance(identity, str) or not identity.startswith("recovery_scientific.v1:"):
         raise ValueError("canonical identity must come from checked native recovery")
-    canonical = "recovered_effect:" + identity + ":treated=3ff0000000000000:control=0000000000000000"
+    canonical = (
+        "recovered_effect:" + identity + ":treated=3ff0000000000000:control=0000000000000000"
+    )
     if proof.get("canonical_functional") != canonical or canonical == original["functional"]:
-        raise ValueError("canonical functional differs from the original native scalar construction")
+        raise ValueError(
+            "canonical functional differs from the original native scalar construction"
+        )
     logs = replay.get("logs")
     if not isinstance(logs, dict) or not 1 <= len(logs) <= 6:
         raise ValueError("replay evidence must retain the actual bounded recovery logs")
     with tempfile.TemporaryDirectory() as directory:
         paths = []
         for name, entry in logs.items():
-            if (not isinstance(name, str) or Path(name).name != name or not isinstance(entry, dict)
-                    or set(entry) != {"text", "sha256"} or not isinstance(entry["text"], str)
-                    or sha256(entry["text"]) != entry["sha256"]):
+            if (
+                not isinstance(name, str)
+                or Path(name).name != name
+                or not isinstance(entry, dict)
+                or set(entry) != {"text", "sha256"}
+                or not isinstance(entry["text"], str)
+                or sha256(entry["text"]) != entry["sha256"]
+            ):
                 raise ValueError("replay evidence log digest changed")
             path = Path(directory) / name
             path.write_text(entry["text"], encoding="utf-8")
@@ -224,23 +283,36 @@ def validate_evidence(root: Path, original: dict, native: dict, replay: dict) ->
     if set(actual) != {RECORD_ID}:
         raise ValueError("identity evidence must replay only its governing recovery record")
     raw = actual.get(RECORD_ID)
-    if not isinstance(raw, dict) or not calibration_facets._bit_equal(raw, replay.get("raw_main_replay_record")):
+    if not isinstance(raw, dict) or not calibration_facets._bit_equal(
+        raw, replay.get("raw_main_replay_record")
+    ):
         raise ValueError("raw recovery replay record differs from actual emitted logs")
     if raw.get("functional") != canonical:
         raise ValueError("replay functional differs from original checked native construction")
-    differences = calibration_facets.compare_replay(original, raw | {"functional": original["functional"]})
+    differences = calibration_facets.compare_replay(
+        original, raw | {"functional": original["functional"]}
+    )
     if differences:
-        raise ValueError("recovery replay changes measured values or scope: " + "; ".join(differences))
-    return {"record_id": RECORD_ID, "measurement_sha": MEASUREMENT_SHA,
-            "original_functional": original["functional"], "canonical_functional": canonical,
-            "source_sha": source}
+        raise ValueError(
+            "recovery replay changes measured values or scope: " + "; ".join(differences)
+        )
+    return {
+        "record_id": RECORD_ID,
+        "measurement_sha": MEASUREMENT_SHA,
+        "original_functional": original["functional"],
+        "canonical_functional": canonical,
+        "source_sha": source,
+    }
 
 
 def clean_main_source(root: Path) -> str:
     """Captures must execute on a clean checkout of the archived capture branch."""
+
     def git(*args: str) -> str:
-        return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True,
-                              text=True).stdout.strip()
+        return subprocess.run(
+            ["git", *args], cwd=root, check=True, capture_output=True, text=True
+        ).stdout.strip()
+
     branch = archived_capture_branch()
     if not (root / ".git").is_dir() or git("branch", "--show-current") != branch:
         raise ValueError(f"capture requires the primary {branch} branch checkout")
@@ -251,14 +323,34 @@ def clean_main_source(root: Path) -> str:
 
 def capture_native(root: Path) -> dict:
     source = clean_main_source(root)
-    result = subprocess.run([
-        "cargo", "test", "-p", "antecedent-estimate", "--test", "recovery_whole_method_calibration",
-        "recovery_bca_original_measurement_identity_receipt", "--", "--exact", "--nocapture",
-    ], cwd=root, check=True, capture_output=True, text=True)
+    result = subprocess.run(
+        [
+            "cargo",
+            "test",
+            "-p",
+            "antecedent-estimate",
+            "--test",
+            "recovery_whole_method_calibration",
+            "recovery_bca_original_measurement_identity_receipt",
+            "--",
+            "--exact",
+            "--nocapture",
+        ],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     if clean_main_source(root) != source:
         raise ValueError("source changed during native construction capture")
-    return {"version": 1, "source_sha": source, "branch": archived_capture_branch(), "log": result.stdout,
-            "log_sha256": sha256(result.stdout), "proof": parse_native_log(result.stdout)}
+    return {
+        "version": 1,
+        "source_sha": source,
+        "branch": archived_capture_branch(),
+        "log": result.stdout,
+        "log_sha256": sha256(result.stdout),
+        "proof": parse_native_log(result.stdout),
+    }
 
 
 def capture_replay(root: Path, path: Path) -> dict:
@@ -278,8 +370,14 @@ def capture_replay(root: Path, path: Path) -> dict:
             logs[name] = {"text": text, "sha256": sha256(text)}
     if clean_main_source(root) != source:
         raise ValueError("source changed during raw replay capture")
-    return {"version": 1, "source_sha": source, "branch": archived_capture_branch(), "record_id": RECORD_ID,
-            "logs": logs, "raw_main_replay_record": payloads[RECORD_ID]}
+    return {
+        "version": 1,
+        "source_sha": source,
+        "branch": archived_capture_branch(),
+        "record_id": RECORD_ID,
+        "logs": logs,
+        "raw_main_replay_record": payloads[RECORD_ID],
+    }
 
 
 def main() -> None:
@@ -299,7 +397,9 @@ def main() -> None:
     if len(encoded.encode("utf-8")) > MAX_RECEIPT_BYTES:
         raise ValueError("captured receipt exceeds evidence bounds")
     args.output.write_text(encoded, encoding="utf-8")
-    print(f"Captured actual main-source evidence at {receipt['source_sha']}; alias remains pending.")
+    print(
+        f"Captured actual main-source evidence at {receipt['source_sha']}; alias remains pending."
+    )
 
 
 if __name__ == "__main__":

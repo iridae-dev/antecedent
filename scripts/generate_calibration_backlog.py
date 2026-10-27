@@ -46,20 +46,17 @@ def reviewed_ceiling() -> int:
     """Use the existing reason-code ratchet as the single reviewed ceiling."""
     codes = tomllib.loads((ROOT / "parity/reason_codes.toml").read_text(encoding="utf-8"))["code"]
     return next(
-        int(code["max_uses"])
-        for code in codes if code["id"] == "estimator_grid_not_measured"
+        int(code["max_uses"]) for code in codes if code["id"] == "estimator_grid_not_measured"
     )
 
 
 def render() -> tuple[str, int]:
     cells = tomllib.loads(SOURCE.read_text(encoding="utf-8"))["cell"]
     gaps = [
-        cell for cell in cells
-        if cell.get("calibration_reason") == "estimator_grid_not_measured"
+        cell for cell in cells if cell.get("calibration_reason") == "estimator_grid_not_measured"
     ]
     counts: Counter[tuple[str, str, str, str]] = Counter(
-        (cell["query"], cell["graph_class"], cell["structure"], cell["inference"])
-        for cell in gaps
+        (cell["query"], cell["graph_class"], cell["structure"], cell["inference"]) for cell in gaps
     )
     lines = [
         "# Licensed interval-calibration backlog",
@@ -95,12 +92,18 @@ def ready_coordinate_problems(
     problems = []
     for coordinate in ready:
         label = " / ".join(coordinate)
-        members = [c for c in cells if (c["query"], c["graph_class"], c["structure"], c["inference"]) == coordinate]
+        members = [
+            c
+            for c in cells
+            if (c["query"], c["graph_class"], c["structure"], c["inference"]) == coordinate
+        ]
         if not members:
             problems.append(f"{label}: no licensed cell")
         for cell in members:
             if cell.get("calibration_reason") in UNRESOLVED_REASONS:
-                problems.append(f"{label}: cell {cell['validation']} is still {cell['calibration_reason']}")
+                problems.append(
+                    f"{label}: cell {cell['validation']} is still {cell['calibration_reason']}"
+                )
             names = cell.get("calibration", [])
             if not names:
                 problems.append(f"{label}: cell {cell['validation']} cites no coverage record")
@@ -108,7 +111,9 @@ def ready_coordinate_problems(
                 record = by_id.get(name)
                 if record is None:
                     problems.append(f"{label}: cited record {name} does not exist")
-                elif record.get("boundary") or any(p.get("boundary") for p in record.get("grid", [])):
+                elif record.get("boundary") or any(
+                    p.get("boundary") for p in record.get("grid", [])
+                ):
                     problems.append(f"{label}: record {name} has an unresolved failed grid point")
     return problems
 
@@ -116,27 +121,31 @@ def ready_coordinate_problems(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
-    parser.add_argument("--require-measured", action="store_true",
-                        help="fail unless every ready coordinate is measured with every failure resolved")
+    parser.add_argument(
+        "--require-measured",
+        action="store_true",
+        help="fail unless every ready coordinate is measured with every failure resolved",
+    )
     args = parser.parse_args()
     if args.require_measured:
         problems = ready_coordinate_problems(
             tomllib.loads(SOURCE.read_text(encoding="utf-8"))["cell"],
-            tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"])
+            tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"],
+        )
         for problem in problems:
             print(f"FAIL: {problem}")
         text, count = render()
         if count or OUTPUT.read_text(encoding="utf-8") != text:
             problems.append("backlog lists unmeasured cells or is stale")
-            print(f"FAIL: {OUTPUT.relative_to(ROOT)} lists {count} unmeasured cells (regenerate after measuring)")
+            print(
+                f"FAIL: {OUTPUT.relative_to(ROOT)} lists {count} unmeasured cells (regenerate after measuring)"
+            )
         print(f"Ready coordinates: {len(READY_COORDINATES)}, {len(problems)} problems")
         return 1 if problems else 0
     text, count = render()
     ceiling = reviewed_ceiling()
     if count > ceiling:
-        parser.error(
-            f"{count} unmeasured cells exceed reviewed ceiling {ceiling}"
-        )
+        parser.error(f"{count} unmeasured cells exceed reviewed ceiling {ceiling}")
     if args.check:
         if not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != text:
             parser.error(f"{OUTPUT.relative_to(ROOT)} is stale")

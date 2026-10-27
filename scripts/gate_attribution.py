@@ -43,12 +43,16 @@ EXIT_ARTIFACTS = [
 problems = pr.honesty_problems("parity/attribution.toml", EVIDENCE)
 problems += pr.exit_artifact_problems(EXIT_ARTIFACTS)
 problems += hp.missing_ids(("shapley",))
-problems += pr.require_done("parity/gcm.toml", (
-    "gcm.attribution.shapley",
-    "gcm.attribution.distribution_change",
-    "gcm.attribution.robust",
-    "gcm.attribution.unit_change",
-    "gcm.attribution.feature_relevance",
-    "gcm.attribution.structure",
-), "Attribution")
+problems += pr.require_done(
+    "parity/gcm.toml",
+    (
+        "gcm.attribution.shapley",
+        "gcm.attribution.distribution_change",
+        "gcm.attribution.robust",
+        "gcm.attribution.unit_change",
+        "gcm.attribution.feature_relevance",
+        "gcm.attribution.structure",
+    ),
+    "Attribution",
+)
 pr.finish("Attribution", problems, "Attribution inventory evidence map OK")

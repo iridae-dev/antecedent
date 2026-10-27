@@ -173,7 +173,13 @@ class Evidence:
             found |= self.public_symbols(module.strip().split(" ")[0])
         route = str(child.get("route", ""))
         for part in route.split("."):
-            if len(part) > 5 and part not in ("licensed", "graphless", "execution_only", "closed", "unlisted"):
+            if len(part) > 5 and part not in (
+                "licensed",
+                "graphless",
+                "execution_only",
+                "closed",
+                "unlisted",
+            ):
                 found.add(part)
         return {a for a in found if len(a) > 3}
 

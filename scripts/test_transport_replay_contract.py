@@ -1,4 +1,5 @@
 """Negative evidence must not stand in for an actual detached measured replay."""
+
 import sys
 import unittest
 
@@ -19,9 +20,7 @@ class ReplayContractTests(unittest.TestCase):
         cls.body = (ROOT / PATH).read_text(encoding="utf-8")
 
     def test_actual_detached_source_replay_is_accepted(self):
-        self.assertEqual(
-            replay_body_problems(self.body, ASSERTION, "joint_bayesian_transport"), []
-        )
+        self.assertEqual(replay_body_problems(self.body, ASSERTION, "joint_bayesian_transport"), [])
 
     def test_missing_or_fake_lifecycle_evidence_refuses(self):
         mutations = [
@@ -60,9 +59,7 @@ class ReplayContractTests(unittest.TestCase):
                 )
         # A similarly named but unused proof outside the actual helper is insufficient.
         mutated = self.body.replace("def independent_replay(", "def unused_replay(")
-        self.assertTrue(
-            replay_body_problems(mutated, ASSERTION, "joint_bayesian_transport")
-        )
+        self.assertTrue(replay_body_problems(mutated, ASSERTION, "joint_bayesian_transport"))
 
     def test_sole_shared_citation_does_not_prove_distinct_routes(self):
         first = {
@@ -74,9 +71,7 @@ class ReplayContractTests(unittest.TestCase):
         second = first | {"route": "second"}
         self.assertTrue(shared_evidence_problems([first, second]))
         self.assertEqual(
-            shared_evidence_problems(
-                [first, second | {"evidence_assertion": "distinct_test"}]
-            ),
+            shared_evidence_problems([first, second | {"evidence_assertion": "distinct_test"}]),
             [],
         )
 
@@ -96,9 +91,7 @@ class ReplayContractTests(unittest.TestCase):
             ("evidence_test", "unregistered.py"),
         ]:
             with self.subTest(key=key):
-                self.assertTrue(
-                    source_replay_problems(ROOT, route | {key: value}, self.body)
-                )
+                self.assertTrue(source_replay_problems(ROOT, route | {key: value}, self.body))
 
 
 if __name__ == "__main__":

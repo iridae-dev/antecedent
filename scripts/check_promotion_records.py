@@ -69,6 +69,7 @@ Environment overrides (gate self-tests and analysis only):
   PROMOTION_EVIDENCE_CACHE     directory caching cargo/pytest listing results
   PROMOTION_STATIC_ONLY        1: resolve evidence statically, without cargo or pytest
 """
+
 import hashlib
 import json
 import os
@@ -225,10 +226,26 @@ SYNTHETIC = os.environ.get("PROMOTION_SYNTHETIC_EVIDENCE") == "1"
 CACHE_DIR = os.environ.get("PROMOTION_EVIDENCE_CACHE")
 
 FROZEN = (
-    "id", "capability", "status", "consumer_question",
-    "theorem", "reference", "guarantee", "graph_class", "population_semantics",
-    "evidence_family", "provider", "estimand", "inference_claim", "owners",
-    "identity_inputs", "wire_changes", "compatibility", "refusals", "routes", "fixtures",
+    "id",
+    "capability",
+    "status",
+    "consumer_question",
+    "theorem",
+    "reference",
+    "guarantee",
+    "graph_class",
+    "population_semantics",
+    "evidence_family",
+    "provider",
+    "estimand",
+    "inference_claim",
+    "owners",
+    "identity_inputs",
+    "wire_changes",
+    "compatibility",
+    "refusals",
+    "routes",
+    "fixtures",
 )
 STATUSES = {"frozen", "in_progress", "promoted", "carried_forward"}
 # Statuses at which implementation exists, so refusals, details, surface and
@@ -262,24 +279,41 @@ SOURCE_GLOBS = ("crates/*/src/**/*.rs", "python/src/**/*.rs", "python/antecedent
 
 codes = {
     row["id"]: row
-    for row in tomllib.loads((root / "parity/reason_codes.toml").read_text(encoding="utf-8"))["code"]
+    for row in tomllib.loads((root / "parity/reason_codes.toml").read_text(encoding="utf-8"))[
+        "code"
+    ]
 }
-runtime_codes = {cid for cid, row in codes.items() if "runtime_refusal" in row.get("applies_to", [])}
-stages_path = Path(os.environ.get("PROMOTION_TRANSPORT_STAGES", root / "parity/transport_stages.toml"))
-support_path = Path(os.environ.get("PROMOTION_SUPPORT_LICENSED", root / "parity/support_licensed.toml"))
-support_closed_path = Path(os.environ.get("PROMOTION_SUPPORT_CLOSED", root / "parity/support_closed.toml"))
-extra_sources = [Path(p) for p in os.environ.get("PROMOTION_EXTRA_SOURCES", "").split(os.pathsep) if p]
+runtime_codes = {
+    cid for cid, row in codes.items() if "runtime_refusal" in row.get("applies_to", [])
+}
+stages_path = Path(
+    os.environ.get("PROMOTION_TRANSPORT_STAGES", root / "parity/transport_stages.toml")
+)
+support_path = Path(
+    os.environ.get("PROMOTION_SUPPORT_LICENSED", root / "parity/support_licensed.toml")
+)
+support_closed_path = Path(
+    os.environ.get("PROMOTION_SUPPORT_CLOSED", root / "parity/support_closed.toml")
+)
+extra_sources = [
+    Path(p) for p in os.environ.get("PROMOTION_EXTRA_SOURCES", "").split(os.pathsep) if p
+]
 stage_routes = {
-    row.get("route"): row for row in tomllib.loads(stages_path.read_text(encoding="utf-8")).get("routes", [])
+    row.get("route"): row
+    for row in tomllib.loads(stages_path.read_text(encoding="utf-8")).get("routes", [])
 }
 support_cells = tomllib.loads(support_path.read_text(encoding="utf-8")).get("cell", [])
 # The support axes cannot name a contrast, so a closed sub-cell contrast owned by
 # a record is a [[closed_contrast]] row (the support-matrix gates read only
 # [[closed]]).
-support_closed_contrasts = tomllib.loads(support_closed_path.read_text(encoding="utf-8")).get("closed_contrast", [])
+support_closed_contrasts = tomllib.loads(support_closed_path.read_text(encoding="utf-8")).get(
+    "closed_contrast", []
+)
 coverage_ids = {
     row.get("id")
-    for row in tomllib.loads((root / "parity/coverage_records.toml").read_text(encoding="utf-8")).get("record", [])
+    for row in tomllib.loads(
+        (root / "parity/coverage_records.toml").read_text(encoding="utf-8")
+    ).get("record", [])
 }
 
 errors: list[str] = []
@@ -302,7 +336,17 @@ if registry.get("version") != 1 or "release" in registry:
 # value type's own accessors and constructors are data access, not routes. Methods
 # that start with an executing verb are not covered; they must be routes or
 # surface_internal. Free functions and pyo3 items are never covered this way.
-EXECUTING_VERBS = ("run", "execute", "evaluate", "decide", "identify", "prepare", "estimate", "consume", "fit")
+EXECUTING_VERBS = (
+    "run",
+    "execute",
+    "evaluate",
+    "decide",
+    "identify",
+    "prepare",
+    "estimate",
+    "consume",
+    "fit",
+)
 
 
 # A #[pymethods] fn of a listed #[pyclass] is covered the same way, with two more
@@ -351,7 +395,11 @@ def _synthetic_problems(path: str, assertion: str) -> list[str]:
             return [f"no fn {assertion} in {path}"]
         attrs = [re.sub(r"\s+", "", a) for a in fns[0].attrs]
         problems = [] if "#[test]" in attrs else [f"fn {assertion} has no #[test] attribute"]
-        return problems + ([f"fn {assertion} is #[ignore]d"] if any(a.startswith("#[ignore") for a in attrs) else [])
+        return problems + (
+            [f"fn {assertion} is #[ignore]d"]
+            if any(a.startswith("#[ignore") for a in attrs)
+            else []
+        )
     return [f"{path}: evidence must be a collected Rust or Python test"]
 
 
@@ -548,10 +596,16 @@ for rec in records:
     implemented = status in IMPLEMENTED
     claim = rec.get("inference_claim")
     if claim not in CLAIMS:
-        fail("claim_invalid", f"{rid}: inference_claim {claim!r} is not an allowed inference claim ({', '.join(sorted(CLAIMS))})")
+        fail(
+            "claim_invalid",
+            f"{rid}: inference_claim {claim!r} is not an allowed inference claim ({', '.join(sorted(CLAIMS))})",
+        )
     cov = rec.get("coverage_records") or []
     if claim == "calibrated" and not cov:
-        fail("coverage_required", f"{rid}: a calibrated interval must allocate its coverage record ids")
+        fail(
+            "coverage_required",
+            f"{rid}: a calibrated interval must allocate its coverage record ids",
+        )
     if claim != "calibrated" and cov:
         fail("coverage_unexpected", f"{rid}: coverage records allocated for a {claim} claim")
     if promoted:
@@ -642,9 +696,7 @@ for rec in records:
                 f"{rid}: refusal detail {detail!r} must be <namespace>.<snake_case>",
             )
         if detail in details:
-            fail(
-                "refusal_detail_duplicate", f"{rid}: duplicate refusal detail {detail}"
-            )
+            fail("refusal_detail_duplicate", f"{rid}: duplicate refusal detail {detail}")
         details.add(detail)
         detail_code.setdefault(detail, code)
     namespaces = {d.split(".")[0] for d in details}
@@ -674,9 +726,7 @@ for rec in records:
             problems = resolve(path, assertion)
             for problem in problems:
                 fail("evidence_unresolved", f"{rid}: {problem}")
-            for problem in input_exception_evidence_problems(
-                entry, root / path, assertion
-            ):
+            for problem in input_exception_evidence_problems(entry, root / path, assertion):
                 fail("evidence_no_assertion", f"{rid}: {problem}")
             evidence_rows.append((f"{rid}.{detail}.input_exception", path, assertion))
     namespaces |= {d.split(".")[0] for d in exception_details}
@@ -687,18 +737,14 @@ for rec in records:
     # that names the code.
     for ns in sorted(namespaces) if implemented else []:
         in_code = code_details.get(ns, {})
-        local_details = {
-            d for d in details | exception_details if d.startswith(ns + ".")
-        }
+        local_details = {d for d in details | exception_details if d.startswith(ns + ".")}
         for detail in sorted(local_details - set(in_code)):
             fail(
                 "refusal_detail_missing",
                 f"{rid}: refusal detail {detail} is not emitted by non-test source "
                 f'(no "{detail}" or "{detail}: ..." literal in {", ".join(SOURCE_GLOBS)})',
             )
-        for detail in sorted(
-            set(in_code) - details - namespace_declared.get(ns, set())
-        ):
+        for detail in sorted(set(in_code) - details - namespace_declared.get(ns, set())):
             places = ", ".join(f"{rel(p)}:{lit.line}" for p, _, lit in in_code[detail])
             fail(
                 "refusal_detail_undeclared",
@@ -734,9 +780,7 @@ for rec in records:
                     f"that no non-test code uses; emit it or delete it",
                 )
                 continue
-            proven_codes = {
-                lit.reason_code for _, _, lit in uses if lit.reason_code is not None
-            }
+            proven_codes = {lit.reason_code for _, _, lit in uses if lit.reason_code is not None}
             if proven_codes and proven_codes != {code}:
                 fail(
                     "refusal_pair_code",
@@ -744,15 +788,15 @@ for rec in records:
                 )
             spellings = (str(code), camel(str(code)), *CODE_ALIASES.get(str(code), ()))
             named = re.compile(
-                r"(?<![A-Za-z0-9_])(?:"
-                + "|".join(map(re.escape, spellings))
-                + r")(?![A-Za-z0-9_])"
+                r"(?<![A-Za-z0-9_])(?:" + "|".join(map(re.escape, spellings)) + r")(?![A-Za-z0-9_])"
             )
             # A verified closed helper proves the emitted pair at its definition;
             # generated code need not repeat that reason token at the invocation.
             # Unproven occurrences still require the ordinary source-name check.
             all_codes_proven = all(lit.reason_code == code for _, _, lit in uses)
-            if not all_codes_proven and not any(named.search(code_of(p, c)) for p, c in files.items()):
+            if not all_codes_proven and not any(
+                named.search(code_of(p, c)) for p, c in files.items()
+            ):
                 fail(
                     "refusal_pair_code",
                     f"{rid}: refusal ({code}, {detail}): no non-test file that emits {detail} "
@@ -777,7 +821,10 @@ for rec in records:
         roles.add(role)
         path, assertion = fixture.get("evidence_test", ""), fixture.get("evidence_assertion", "")
         if bool(path) != bool(assertion):
-            fail("evidence_pair", f"{rid}: fixture {fid} needs both evidence_test and evidence_assertion")
+            fail(
+                "evidence_pair",
+                f"{rid}: fixture {fid} needs both evidence_test and evidence_assertion",
+            )
         elif path:
             problems = resolve(path, assertion)
             for p in problems:
@@ -795,16 +842,24 @@ for rec in records:
             if role == "budget" and rec.get("search") is True and ok:
                 body = closure_code(root / path, assertion)
                 if not any(symbol in body for symbol in SEARCH_SYMBOLS):
-                    fail("budget_symbol", f"{rid}: budget fixture {fid} does not exercise {SEARCH_CONTRACT}")
+                    fail(
+                        "budget_symbol",
+                        f"{rid}: budget fixture {fid} does not exercise {SEARCH_CONTRACT}",
+                    )
                     ok = False
                 else:
                     budget_evidenced = True
-                    if any(BUDGET_OBSERVED.search(t) for t in assertion_texts(root / path, assertion)):
+                    if any(
+                        BUDGET_OBSERVED.search(t) for t in assertion_texts(root / path, assertion)
+                    ):
                         budget_asserting = True
             if ok:
                 evidenced.add(role)
         elif promoted:
-            fail("promoted_evidence", f"{rid}: promoted record lacks executed evidence for fixture {fid}")
+            fail(
+                "promoted_evidence",
+                f"{rid}: promoted record lacks executed evidence for fixture {fid}",
+            )
     if rec.get("search") is True and implemented and budget_evidenced and not budget_asserting:
         fail(
             "budget_asserts",
@@ -820,7 +875,9 @@ for rec in records:
     if missing:
         fail("fixture_roles", f"{rid}: missing fixture roles {', '.join(missing)}")
     # Roles an in_progress record must evidence before licensing any route.
-    early_roles = {"positive", "negative", "artifact"} | ({"budget"} if rec.get("search") is True else set())
+    early_roles = {"positive", "negative", "artifact"} | (
+        {"budget"} if rec.get("search") is True else set()
+    )
     unevidenced = sorted(early_roles - evidenced)
 
     route_names: list[str] = []
@@ -833,8 +890,13 @@ for rec in records:
         route_names.append(name or "")
         route_cover = route.get("covers")
         if route_cover is not None:
-            if not isinstance(route_cover, list) or not all(isinstance(c, str) and c for c in route_cover):
-                fail("route_covers_shape", f"{rid}: {name}: covers must be a list of non-empty symbol names")
+            if not isinstance(route_cover, list) or not all(
+                isinstance(c, str) and c for c in route_cover
+            ):
+                fail(
+                    "route_covers_shape",
+                    f"{rid}: {name}: covers must be a list of non-empty symbol names",
+                )
             else:
                 route_covers[name or ""] = route_cover
         stage = route.get("stage")
@@ -846,17 +908,26 @@ for rec in records:
         permanent = route.get("permanent_in_release") is True
         route_claim = route.get("claim")
         if route_claim is not None and route_claim not in CLAIMS:
-            fail("route_claim", f"{rid}: {name}: claim {route_claim!r} is not an allowed inference claim")
+            fail(
+                "route_claim",
+                f"{rid}: {name}: claim {route_claim!r} is not an allowed inference claim",
+            )
         route_status = route.get("status")
         licensed = route_status == "licensed"
         if route_status == "closed":
             reason = route.get("reason_code")
             if reason not in runtime_codes:
-                fail("closed_reason", f"{rid}: {name}: closed route needs a registered runtime reason_code")
+                fail(
+                    "closed_reason",
+                    f"{rid}: {name}: closed route needs a registered runtime reason_code",
+                )
             # A closed route of implemented work must be shown to refuse at runtime.
             rpath, rassert = route.get("refusal_test", ""), route.get("refusal_assertion", "")
             if bool(rpath) != bool(rassert):
-                fail("closed_refusal_pair", f"{rid}: {name}: closed route needs both refusal_test and refusal_assertion")
+                fail(
+                    "closed_refusal_pair",
+                    f"{rid}: {name}: closed route needs both refusal_test and refusal_assertion",
+                )
             elif rpath:
                 problems = resolve(rpath, rassert)
                 for p in problems:
@@ -866,7 +937,9 @@ for rec in records:
                     check_evidence_body(f"{rid}: {name}: refusal evidence", rpath, rassert)
                 if not problems and reason:
                     body = closure_code(root / rpath, rassert)
-                    named = re.compile(rf"(?<![A-Za-z0-9_])(?:{re.escape(reason)}|{re.escape(camel(reason))})(?![A-Za-z0-9_])")
+                    named = re.compile(
+                        rf"(?<![A-Za-z0-9_])(?:{re.escape(reason)}|{re.escape(camel(reason))})(?![A-Za-z0-9_])"
+                    )
                     if not named.search(body):
                         fail(
                             "closed_refusal_reason_named",
@@ -881,17 +954,23 @@ for rec in records:
                 )
         elif licensed:
             if permanent:
-                fail("licensed_permanent", f"{rid}: {name}: licensed but marked permanent_in_release (closed)")
+                fail(
+                    "licensed_permanent",
+                    f"{rid}: {name}: licensed but marked permanent_in_release (closed)",
+                )
             elif promoted:
                 pass
             elif status == "in_progress":
                 if stage == "uncertainty":
-                    fail("licensed_uncertainty", f"{rid}: {name}: uncertainty route licensed before its record is promoted")
+                    fail(
+                        "licensed_uncertainty",
+                        f"{rid}: {name}: uncertainty route licensed before its record is promoted",
+                    )
                 if route_claim not in EARLY_CLAIMS:
                     fail(
                         "licensed_claim",
-                        f"{rid}: {name}: licensed before promotion requires claim = \"point_only\" "
-                        f"or \"none\" on the route (got {route_claim!r})",
+                        f'{rid}: {name}: licensed before promotion requires claim = "point_only" '
+                        f'or "none" on the route (got {route_claim!r})',
                     )
                 if unevidenced:
                     fail(
@@ -911,19 +990,28 @@ for rec in records:
             if row is None:
                 fail(
                     "stages_missing",
-                    f"{rid}: {name} has no row in transport_stages.toml; add [[routes]] route = \"{name}\", "
-                    f"stage = \"{stage}\", status = \"{'licensed' if licensed else 'closed'}\""
-                    + ("" if licensed else f", reason_code = \"{route.get('reason_code')}\""),
+                    f'{rid}: {name} has no row in transport_stages.toml; add [[routes]] route = "{name}", '
+                    f'stage = "{stage}", status = "{"licensed" if licensed else "closed"}"'
+                    + ("" if licensed else f', reason_code = "{route.get("reason_code")}"'),
                 )
             else:
                 owning_rows.append(row)
                 there = row.get("status")
                 if row.get("stage") != stage:
-                    fail("stages_stage", f"{rid}: {name}: transport_stages.toml stage {row.get('stage')!r} != record stage {stage!r}")
+                    fail(
+                        "stages_stage",
+                        f"{rid}: {name}: transport_stages.toml stage {row.get('stage')!r} != record stage {stage!r}",
+                    )
                 if there == "licensed" and not licensed:
-                    fail("stages_licensed_only_there", f"{rid}: {name} is licensed in transport_stages.toml but closed in its record")
+                    fail(
+                        "stages_licensed_only_there",
+                        f"{rid}: {name} is licensed in transport_stages.toml but closed in its record",
+                    )
                 elif there != "licensed" and licensed:
-                    fail("stages_licensed_only_here", f"{rid}: {name} is licensed in its record but not in transport_stages.toml")
+                    fail(
+                        "stages_licensed_only_here",
+                        f"{rid}: {name} is licensed in its record but not in transport_stages.toml",
+                    )
                 elif there == "closed" and row.get("reason_code") != route.get("reason_code"):
                     fail(
                         "stages_reason",
@@ -931,31 +1019,55 @@ for rec in records:
                         f"!= record reason_code {route.get('reason_code')!r}",
                     )
             if promoted and not permanent and not licensed:
-                fail("promoted_closed_route", f"{rid}: promoted record leaves non-permanent route {name} closed")
+                fail(
+                    "promoted_closed_route",
+                    f"{rid}: promoted record leaves non-permanent route {name} closed",
+                )
         elif owner == "support_licensed":
             query, contrast = route.get("query"), route.get("contrast")
             if not query or not contrast:
-                fail("support_query_contrast", f"{rid}: {name}: a support_licensed route names its query and contrast")
-            cells = [c for c in support_cells if c.get("query") == query and c.get("contrast") == contrast]
+                fail(
+                    "support_query_contrast",
+                    f"{rid}: {name}: a support_licensed route names its query and contrast",
+                )
+            cells = [
+                c
+                for c in support_cells
+                if c.get("query") == query and c.get("contrast") == contrast
+            ]
             closed_rows = [
-                c for c in support_closed_contrasts if c.get("query") == query and c.get("contrast") == contrast
+                c
+                for c in support_closed_contrasts
+                if c.get("query") == query and c.get("contrast") == contrast
             ]
             owning_rows.extend(cells + closed_rows)
             if cells and not licensed:
-                fail("support_licensed_only_there", f"{rid}: {name} is licensed in support_licensed.toml but closed in its record")
+                fail(
+                    "support_licensed_only_there",
+                    f"{rid}: {name} is licensed in support_licensed.toml but closed in its record",
+                )
             if licensed and not cells:
-                fail("support_licensed_no_cell", f"{rid}: {name} is licensed in its record but has no support_licensed.toml cell")
+                fail(
+                    "support_licensed_no_cell",
+                    f"{rid}: {name} is licensed in its record but has no support_licensed.toml cell",
+                )
             if closed_rows and licensed:
-                fail("support_licensed_still_closed", f"{rid}: {name} is licensed in its record but still closed in support_closed.toml")
+                fail(
+                    "support_licensed_still_closed",
+                    f"{rid}: {name} is licensed in its record but still closed in support_closed.toml",
+                )
             if not licensed and not closed_rows:
                 fail(
                     "support_no_closed_row",
-                    f"{rid}: {name} has no support_closed.toml row; add [[closed_contrast]] query = \"{query}\", "
-                    f"contrast = \"{contrast}\", reason_code = \"{route.get('reason_code')}\", record = \"{rid}\"",
+                    f'{rid}: {name} has no support_closed.toml row; add [[closed_contrast]] query = "{query}", '
+                    f'contrast = "{contrast}", reason_code = "{route.get("reason_code")}", record = "{rid}"',
                 )
             for row in closed_rows:
                 if row.get("record") != rid:
-                    fail("support_closed_record", f"{rid}: {name}: support_closed.toml row names record {row.get('record')!r}")
+                    fail(
+                        "support_closed_record",
+                        f"{rid}: {name}: support_closed.toml row names record {row.get('record')!r}",
+                    )
                 if row.get("reason_code") != route.get("reason_code"):
                     fail(
                         "support_closed_reason",
@@ -963,7 +1075,10 @@ for rec in records:
                         f"!= record reason_code {route.get('reason_code')!r}",
                     )
             if promoted and not permanent and not licensed:
-                fail("promoted_closed_route", f"{rid}: promoted record leaves non-permanent route {name} closed")
+                fail(
+                    "promoted_closed_route",
+                    f"{rid}: promoted record leaves non-permanent route {name} closed",
+                )
 
         # No nominal-only interval ships from implemented work, anywhere.
         if implemented:
@@ -990,23 +1105,34 @@ for rec in records:
     surface_exports = str_list(rid, "surface_exports", rec.get("surface_exports"))
     owned = str_list(rid, "owned_exports", rec.get("owned_exports"))
     values = rec.get("surface_values")
-    if values is not None and (not isinstance(values, list) or not all(isinstance(v, str) and v for v in values)):
+    if values is not None and (
+        not isinstance(values, list) or not all(isinstance(v, str) and v for v in values)
+    ):
         fail("surface_values_shape", f"{rid}: surface_values must be a list of symbol names")
         values = []
     values = values or []
     internal_raw = rec.get("surface_internal")
     internal: dict[str, str] = {}
     if internal_raw is not None and not isinstance(internal_raw, list):
-        fail("surface_internal_shape", f"{rid}: surface_internal must be a list of {{ name, why }} tables")
+        fail(
+            "surface_internal_shape",
+            f"{rid}: surface_internal must be a list of {{ name, why }} tables",
+        )
         internal_raw = []
     for entry in internal_raw or []:
         if not isinstance(entry, dict) or not entry.get("name") or not entry.get("why"):
-            fail("surface_internal_shape", f"{rid}: surface_internal entry {entry!r} needs a name and a why")
+            fail(
+                "surface_internal_shape",
+                f"{rid}: surface_internal entry {entry!r} needs a name and a why",
+            )
         else:
             internal[entry["name"]] = entry["why"]
     has_surface = surface is not None or bool(surface_rust or surface_pyo3 or surface_exports)
     if values and not has_surface:
-        fail("surface_values_orphan", f"{rid}: surface_values {', '.join(values)} listed without a surface")
+        fail(
+            "surface_values_orphan",
+            f"{rid}: surface_values {', '.join(values)} listed without a surface",
+        )
     if bool(surface_exports) != bool(owned):
         fail(
             "surface_owned_orphan",
@@ -1029,7 +1155,9 @@ for rec in records:
         if path.suffix == ".py":
             symbols = list(python_symbols(path).values())
         else:  # a Rust facade: top-level public items and re-exports, not methods
-            symbols = [s for s in rust_pub_items(path, in_crate=in_crate_of(path)) if s.where == "top"]
+            symbols = [
+                s for s in rust_pub_items(path, in_crate=in_crate_of(path)) if s.where == "top"
+            ]
         checked += [(src, sym) for sym in symbols]
     for keyname, files, scan in (
         ("surface_rust", surface_rust, rust_pub_items),
@@ -1042,7 +1170,10 @@ for rec in records:
                 continue
             surface_files.append(src)
             found_syms = scan(path, in_crate=in_crate_of(path))
-            checked += [(src, sym) for sym in (found_syms if isinstance(found_syms, list) else found_syms.values())]
+            checked += [
+                (src, sym)
+                for sym in (found_syms if isinstance(found_syms, list) else found_syms.values())
+            ]
     for src in surface_exports:
         path = root / src
         if not path.is_file() or path.suffix != ".py":
@@ -1054,7 +1185,10 @@ for rec in records:
             if name in symbols:
                 checked.append((src, symbols[name]))
             else:
-                fail("surface_export_stale", f"{rid}: owned_exports entry {name} is not in __all__ of {src}")
+                fail(
+                    "surface_export_stale",
+                    f"{rid}: owned_exports entry {name} is not in __all__ of {src}",
+                )
     # `covers`: public symbols a route accounts for besides its name components. An
     # entry is `symbol` (any owner, like a route-name component) or `Type.method`.
     covers = {c for lst in route_covers.values() for c in lst}
@@ -1071,12 +1205,14 @@ for rec in records:
         # evidence test closure of the record or in the source file declaring the
         # route's own entry point.
         bodies = []
-        for pth, assertion in [(f.get("evidence_test"), f.get("evidence_assertion")) for f in rec.get("fixtures") or []] + [
-            (r.get("refusal_test"), r.get("refusal_assertion")) for r in rec.get("routes") or []
-        ]:
+        for pth, assertion in [
+            (f.get("evidence_test"), f.get("evidence_assertion")) for f in rec.get("fixtures") or []
+        ] + [(r.get("refusal_test"), r.get("refusal_assertion")) for r in rec.get("routes") or []]:
             if pth and assertion and ((root / pth).is_file() or outside_repo(pth)):
                 try:
-                    bodies.append(closure_code(root / pth if not outside_repo(pth) else Path(pth), assertion))
+                    bodies.append(
+                        closure_code(root / pth if not outside_repo(pth) else Path(pth), assertion)
+                    )
                 except (ValueError, SyntaxError, OSError):
                     continue
         for cname, lst in route_covers.items():
@@ -1085,7 +1221,9 @@ for rec in records:
                 raw(root / src) for src in sorted({s2 for s2, y in checked if y.name in parts})
             )
             for entry in lst:
-                word = re.compile(r"(?<![A-Za-z0-9_])" + re.escape(entry.rsplit(".", 1)[-1]) + r"(?![A-Za-z0-9_])")
+                word = re.compile(
+                    r"(?<![A-Za-z0-9_])" + re.escape(entry.rsplit(".", 1)[-1]) + r"(?![A-Za-z0-9_])"
+                )
                 if not (any(word.search(b) for b in bodies) or word.search(entry_text)):
                     print(
                         f"warning: {rid}: {cname}: covers entry {entry} appears in no cited evidence test closure "
@@ -1097,8 +1235,15 @@ for rec in records:
             declared[sym.name] = (sym.kind, src)
     value_types = {v for v in values if declared.get(v, ("", ""))[0] == "type"}
     for src, sym in checked:
-        if sym.name in components or sym.name in values or sym.name in internal or sym.name in covers or (
-            sym.owner and (f"{sym.owner}.{sym.name}" in covers or f"{sym.owner}.{sym.name}" in internal)
+        if (
+            sym.name in components
+            or sym.name in values
+            or sym.name in internal
+            or sym.name in covers
+            or (
+                sym.owner
+                and (f"{sym.owner}.{sym.name}" in covers or f"{sym.owner}.{sym.name}" in internal)
+            )
         ):
             continue
         state = value_method_state(sym, value_types)
@@ -1116,10 +1261,22 @@ for rec in records:
         fail(
             "surface_symbol",
             f"{rid}: surface symbol {sym.name} ({src}) is not a component of any route name; "
-            + (f"it is a method of {sym.owner}: list {sym.owner} in surface_values to cover its accessors, " if sym.owner else "")
-            + ("add it to surface_values if it is a pure value/descriptor type, " if sym.kind == "type" else "")
+            + (
+                f"it is a method of {sym.owner}: list {sym.owner} in surface_values to cover its accessors, "
+                if sym.owner
+                else ""
+            )
+            + (
+                "add it to surface_values if it is a pure value/descriptor type, "
+                if sym.kind == "type"
+                else ""
+            )
             + "add a route for it (closed until evidenced) or list it in a route's `covers`, "
-            + ("list it in surface_internal with a why and mark it #[doc(hidden)], " if sym.where in ("top", "method", "pyo3") else "")
+            + (
+                "list it in surface_internal with a why and mark it #[doc(hidden)], "
+                if sym.where in ("top", "method", "pyo3")
+                else ""
+            )
             + "or make it private",
         )
     for value in values:
@@ -1137,7 +1294,8 @@ for rec in records:
             )
     for name in internal:
         matches = [
-            s for _, s in checked
+            s
+            for _, s in checked
             if (s.name == name or (s.owner and f"{s.owner}.{s.name}" == name))
             and s.where in ("top", "method", "pyo3")
         ]
@@ -1174,30 +1332,51 @@ def suggest_report() -> None:
     """Per record: public symbols of its likely Rust/pyo3/export files that no
     route, surface_values or surface_internal entry covers."""
     ns_all = {
-        r.get("detail", "").split(".")[0] for rec in records for r in rec.get("refusals") or [] if "." in r.get("detail", "")
+        r.get("detail", "").split(".")[0]
+        for rec in records
+        for r in rec.get("refusals") or []
+        if "." in r.get("detail", "")
     }
     found, _ = scan_details(ns_all)
     py_files = sorted((root / "python/antecedent").glob("**/*.py"))
     for rec in records:
         rid = rec.get("id", "?")
-        components = {part for r in rec.get("routes") or [] for part in r.get("name", "").split(".")}
+        components = {
+            part for r in rec.get("routes") or [] for part in r.get("name", "").split(".")
+        }
         values = set(rec.get("surface_values") or [])
         internal = {e.get("name") for e in rec.get("surface_internal") or [] if isinstance(e, dict)}
-        covers = {c.rsplit(".", 1)[-1] for r in rec.get("routes") or [] for c in r.get("covers") or []}
+        covers = {
+            c.rsplit(".", 1)[-1] for r in rec.get("routes") or [] for c in r.get("covers") or []
+        }
         covered = components | values | internal | covers
-        ns = {r.get("detail", "").split(".")[0] for r in rec.get("refusals") or [] if "." in r.get("detail", "")}
+        ns = {
+            r.get("detail", "").split(".")[0]
+            for r in rec.get("refusals") or []
+            if "." in r.get("detail", "")
+        }
         rs: set[Path] = {root / p for p in rec.get("search_impl") or [] if p.endswith(".rs")}
         rs |= {root / p for p in (rec.get("surface") or []) if p.endswith(".rs")}
         rs |= {root / p for p in rec.get("surface_rust") or []}
         for n in ns:
             for uses in found.get(n, {}).values():
-                rs |= {p for p, c, _ in uses if p.suffix == ".rs" and "/python/src/" not in p.as_posix()}
-        pyfaces = {root / p: python_symbols(root / p) for p in (rec.get("surface") or []) if p.endswith(".py")}
+                rs |= {
+                    p
+                    for p, c, _ in uses
+                    if p.suffix == ".rs" and "/python/src/" not in p.as_posix()
+                }
+        pyfaces = {
+            root / p: python_symbols(root / p)
+            for p in (rec.get("surface") or [])
+            if p.endswith(".py")
+        }
         names = {s for syms in pyfaces.values() for s in syms} | values
         pyo3: set[Path] = {root / p for p in rec.get("surface_pyo3") or []}
         for path in sorted((root / "python/src").glob("*.rs")):
             text = raw(path)
-            if any(f"{n}." in text for n in ns) or any(re.search(rf"\b{re.escape(s)}\b", text) for s in names if len(s) > 4):
+            if any(f"{n}." in text for n in ns) or any(
+                re.search(rf"\b{re.escape(s)}\b", text) for s in names if len(s) > 4
+            ):
                 pyo3.add(path)
         owned_exports: dict[Path, list[str]] = {}
         for path in py_files:
@@ -1209,7 +1388,9 @@ def suggest_report() -> None:
                 continue
             face_mods = {p.stem for p in pyfaces}
             imported = set()
-            for m in re.finditer(r"from\s+\.(\w+)\s+import\s+\(?([^)\n]*(?:\n[^)\n]*)*?)\)?(?=\n\S|\Z)", raw(path)):
+            for m in re.finditer(
+                r"from\s+\.(\w+)\s+import\s+\(?([^)\n]*(?:\n[^)\n]*)*?)\)?(?=\n\S|\Z)", raw(path)
+            ):
                 if m.group(1) in face_mods:
                     imported |= set(re.findall(r"[A-Za-z_]\w*", m.group(2)))
             mine = sorted(n for n in syms if n in imported)
@@ -1219,7 +1400,9 @@ def suggest_report() -> None:
         items: dict[Path, list[Symbol]] = {
             path: rust_pub_items(path, in_crate=crate_src(path) is not None) for path in sorted(rs)
         }
-        declared_types = {s.name for syms in items.values() for s in syms if s.kind == "type" and s.where == "top"}
+        declared_types = {
+            s.name for syms in items.values() for s in syms if s.kind == "type" and s.where == "top"
+        }
         value_types = values & declared_types
         need_py = {}
         for path in sorted(pyo3):
@@ -1229,7 +1412,8 @@ def suggest_report() -> None:
                 {
                     f"{s.owner}.{s.name}" if s.owner else s.name
                     for s in syms
-                    if s.name not in covered and value_method_state(s, value_types | py_types) != "covered"
+                    if s.name not in covered
+                    and value_method_state(s, value_types | py_types) != "covered"
                 }
             )
             if gaps:
@@ -1238,9 +1422,17 @@ def suggest_report() -> None:
         n_covered = n_verb = n_free = 0
         all_syms = [s for syms in items.values() for s in syms]
         for path, syms in items.items():
-            todo = [s for s in syms if s.name not in covered and value_method_state(s, value_types) != "covered"]
+            todo = [
+                s
+                for s in syms
+                if s.name not in covered and value_method_state(s, value_types) != "covered"
+            ]
             free = sorted({s.name for s in todo if s.where == "top" and s.kind != "type"})
-            verbs = sorted(f"{s.owner}.{s.name}" for s in todo if s.where == "method" and s.owner in value_types)
+            verbs = sorted(
+                f"{s.owner}.{s.name}"
+                for s in todo
+                if s.where == "method" and s.owner in value_types
+            )
             # types not yet listed that would become values, with the methods each would cover
             cand: dict[str, int] = {}
             for s in todo:
@@ -1248,20 +1440,28 @@ def suggest_report() -> None:
                     cand[s.name] = sum(
                         1
                         for t in all_syms
-                        if t.where == "method" and t.owner == s.name and t.name not in covered and not executing_verb(t.name)
+                        if t.where == "method"
+                        and t.owner == s.name
+                        and t.name not in covered
+                        and not executing_verb(t.name)
                     )
             # methods of a type not listed in surface_values and not a candidate here (declared in another file)
             orphans = sorted(
                 {
                     f"{s.owner}.{s.name}"
                     for s in todo
-                    if s.where == "method" and s.owner not in value_types and s.owner not in declared_types
+                    if s.where == "method"
+                    and s.owner not in value_types
+                    and s.owner not in declared_types
                 }
             )
             cand_verbs = sorted(
                 f"{t.owner}.{t.name}"
                 for t in all_syms
-                if t.where == "method" and t.owner in cand and t.name not in covered and executing_verb(t.name)
+                if t.where == "method"
+                and t.owner in cand
+                and t.name not in covered
+                and executing_verb(t.name)
             )
             if not (free or verbs or cand or orphans):
                 continue
@@ -1273,13 +1473,19 @@ def suggest_report() -> None:
                 )
                 n_covered += sum(cand.values())
             if free:
-                print(f"      free functions / other items still needing a route or surface_internal -> {free}")
+                print(
+                    f"      free functions / other items still needing a route or surface_internal -> {free}"
+                )
                 n_free += len(free)
             if verbs or cand_verbs:
-                print(f"      executing-verb methods a value type cannot cover -> {sorted(verbs + cand_verbs)}")
+                print(
+                    f"      executing-verb methods a value type cannot cover -> {sorted(verbs + cand_verbs)}"
+                )
                 n_verb += len(verbs) + len(cand_verbs)
             if orphans:
-                print(f"      methods of types declared outside these files (route or surface_internal) -> {orphans}")
+                print(
+                    f"      methods of types declared outside these files (route or surface_internal) -> {orphans}"
+                )
                 n_free += len(orphans)
         print(
             f"  summary: {n_covered} methods coverable by listing value types, "
@@ -1305,8 +1511,10 @@ if emit_path is not None:
         "".join(
             f'[[fixture_evidence]]\nid = "{fid}"\nevidence_test = "{path}"\nevidence_assertion = "{assertion}"\n\n'
             for fid, path, assertion in evidence_rows
-        )
-    , encoding="utf-8", newline="\n")
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
 if errors:
     print("Promotion record gate FAILED:\n" + "\n".join(f" - {e}" for e in errors))
     sys.exit(1)

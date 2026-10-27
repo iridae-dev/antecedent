@@ -18,8 +18,10 @@ from _repo import REPO_ROOT as ROOT
 class CalibrationIdentityAliasTests(unittest.TestCase):
     def pending_metadata(self) -> str:
         fields = {
-            "record_id": aliases.RECORD_ID, "measurement_sha": aliases.MEASUREMENT_SHA,
-            "collection_sha": aliases.COLLECTION_SHA, "original_record_sha256": aliases.RECORD_SHA256,
+            "record_id": aliases.RECORD_ID,
+            "measurement_sha": aliases.MEASUREMENT_SHA,
+            "collection_sha": aliases.COLLECTION_SHA,
+            "original_record_sha256": aliases.RECORD_SHA256,
             "original_functional_sha256": aliases.FUNCTIONAL_SHA256,
             "status": "pending_identity_replay",
         }
@@ -33,24 +35,36 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
     def validate_modified(self, metadata: str, records: str | None = None) -> list[dict[str, str]]:
         original = subprocess.run(
             ["git", "show", f"{aliases.COLLECTION_SHA}:parity/coverage_records.toml"],
-            cwd=ROOT, check=True, capture_output=True, text=True,
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
         ).stdout
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "parity").mkdir()
             (root / "parity/calibration_key_aliases.toml").write_text(metadata, encoding="utf-8")
             (root / "parity/coverage_records.toml").write_text(
-                records if records is not None else original, encoding="utf-8",
+                records if records is not None else original,
+                encoding="utf-8",
             )
-            with patch.object(aliases.subprocess, "run", return_value=subprocess.CompletedProcess(
-                [], 0, stdout=original,
-            )):
+            with patch.object(
+                aliases.subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess(
+                    [],
+                    0,
+                    stdout=original,
+                ),
+            ):
                 return aliases.validated_aliases(root)
 
     def test_status_flag_alone_cannot_activate_mapping(self) -> None:
         metadata = self.pending_metadata()
         with self.assertRaisesRegex(ValueError, "reviewed native construction"):
-            self.validate_modified(metadata.replace("pending_identity_replay", "verified_identity_replay"))
+            self.validate_modified(
+                metadata.replace("pending_identity_replay", "verified_identity_replay")
+            )
 
     def test_receipt_hash_and_path_cannot_be_forged_or_escape_registry(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -59,19 +73,26 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
             raw = b'{"version":1}\n'
             (root / "parity/proof.json").write_bytes(raw)
             import hashlib
+
             digest = hashlib.sha256(raw).hexdigest()
-            self.assertEqual(aliases.read_receipt(root, "parity/proof.json", digest), {"version": 1})
-            for relative, expected_digest in (("parity/proof.json", "0" * 64),
-                                               ("parity/../../outside.json", digest)):
+            self.assertEqual(
+                aliases.read_receipt(root, "parity/proof.json", digest), {"version": 1}
+            )
+            for relative, expected_digest in (
+                ("parity/proof.json", "0" * 64),
+                ("parity/../../outside.json", digest),
+            ):
                 with self.subTest(relative=relative), self.assertRaises(ValueError):
                     aliases.read_receipt(root, relative, expected_digest)
 
     def test_native_marker_requires_passing_original_test_and_one_object(self) -> None:
         valid = 'RECOVERY_IDENTITY_PROOF={"version":1}\ntest result: ok. 1 passed; 0 failed;\n'
         self.assertEqual(aliases.parse_native_log(valid), {"version": 1})
-        for altered in (valid.replace("ok. 1 passed", "FAILED. 0 passed"),
-                        valid + 'RECOVERY_IDENTITY_PROOF={}\n',
-                        valid.replace('{"version":1}', '[]')):
+        for altered in (
+            valid.replace("ok. 1 passed", "FAILED. 0 passed"),
+            valid + "RECOVERY_IDENTITY_PROOF={}\n",
+            valid.replace('{"version":1}', "[]"),
+        ):
             with self.subTest(log=altered), self.assertRaises(ValueError):
                 aliases.parse_native_log(altered)
 
@@ -84,10 +105,17 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
                 aliases.clean_main_source(root)
             (root / ".git").unlink()
             (root / ".git").mkdir()
-            with patch.object(aliases.subprocess, "run", side_effect=[
-                subprocess.CompletedProcess([], 0, stdout=f"{branch}\n"),
-                subprocess.CompletedProcess([], 0, stdout=" M dirty.rs\n"),
-            ]), self.assertRaisesRegex(ValueError, "clean committed main"):
+            with (
+                patch.object(
+                    aliases.subprocess,
+                    "run",
+                    side_effect=[
+                        subprocess.CompletedProcess([], 0, stdout=f"{branch}\n"),
+                        subprocess.CompletedProcess([], 0, stdout=" M dirty.rs\n"),
+                    ],
+                ),
+                self.assertRaisesRegex(ValueError, "clean committed main"),
+            ):
                 aliases.clean_main_source(root)
 
     def test_foreign_record_and_changed_measurement_sha_refuse(self) -> None:
@@ -107,48 +135,111 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
 
         records = tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))
         original = next(record for record in records["record"] if record["id"] == aliases.RECORD_ID)
-        source = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, check=True,
-                                capture_output=True, text=True).stdout.strip()
+        source = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True, capture_output=True, text=True
+        ).stdout.strip()
         identity = "recovery_scientific.v1:synthetic_test_construction"
-        canonical = "recovered_effect:" + identity + ":treated=3ff0000000000000:control=0000000000000000"
+        canonical = (
+            "recovered_effect:" + identity + ":treated=3ff0000000000000:control=0000000000000000"
+        )
         proof = {
-            "version": 1, "record_id": aliases.RECORD_ID,
-            "original_functional": original["functional"], "canonical_functional": canonical,
+            "version": 1,
+            "record_id": aliases.RECORD_ID,
+            "original_functional": original["functional"],
+            "canonical_functional": canonical,
             "scientific_derivation_identity": identity,
-            "rows": 1000, "input_digest": "a" * 32, "receipt_digest": "b" * 32,
+            "rows": 1000,
+            "input_digest": "a" * 32,
+            "receipt_digest": "b" * 32,
             "identical_repeated_native_receipt": True,
-            "negative_mutations": {"graph": "refused", "effect": "refused", "sampling": "different_scientific_identity"},
-            "config": {"interval_method": "bootstrap_bca", "replicates": 2000,
-                       "seed": 0x46ab0000 + 100000, "max_failed_fraction_bits": "0000000000000000",
-                       "normalization_tolerance_bits": "3fb999999999999a", "small_cell_count_bits": "4014000000000000",
-                       "treated_level_bits": "3ff0000000000000", "control_level_bits": "0000000000000000"},
+            "negative_mutations": {
+                "graph": "refused",
+                "effect": "refused",
+                "sampling": "different_scientific_identity",
+            },
+            "config": {
+                "interval_method": "bootstrap_bca",
+                "replicates": 2000,
+                "seed": 0x46AB0000 + 100000,
+                "max_failed_fraction_bits": "0000000000000000",
+                "normalization_tolerance_bits": "3fb999999999999a",
+                "small_cell_count_bits": "4014000000000000",
+                "treated_level_bits": "3ff0000000000000",
+                "control_level_bits": "0000000000000000",
+            },
         }
         branch = aliases.archived_capture_branch()
 
         def native_receipt(value: dict) -> dict:
-            text = "RECOVERY_IDENTITY_PROOF=" + json.dumps(value) + "\ntest result: ok. 1 passed; 0 failed;\n"
-            return {"version": 1, "source_sha": source, "branch": branch, "proof": value,
-                    "log": text, "log_sha256": aliases.sha256(text)}
-        raw = {key: value for key, value in original.items() if key not in calibration_facets.NOT_EMITTED}
+            text = (
+                "RECOVERY_IDENTITY_PROOF="
+                + json.dumps(value)
+                + "\ntest result: ok. 1 passed; 0 failed;\n"
+            )
+            return {
+                "version": 1,
+                "source_sha": source,
+                "branch": branch,
+                "proof": value,
+                "log": text,
+                "log_sha256": aliases.sha256(text),
+            }
+
+        raw = {
+            key: value
+            for key, value in original.items()
+            if key not in calibration_facets.NOT_EMITTED
+        }
         raw["functional"] = canonical
         text = "synthetic backend fixture log\n"
-        replay = {"version": 1, "source_sha": source, "branch": branch, "record_id": aliases.RECORD_ID,
-                  "logs": {"recovery.log": {"text": text, "sha256": aliases.sha256(text)}},
-                  "raw_main_replay_record": raw}
+        replay = {
+            "version": 1,
+            "source_sha": source,
+            "branch": branch,
+            "record_id": aliases.RECORD_ID,
+            "logs": {"recovery.log": {"text": text, "sha256": aliases.sha256(text)}},
+            "raw_main_replay_record": raw,
+        }
+
         # Mock only the physical log backend. Scientific comparison runs the
         # production exact-float comparator; this fixture is never registry evidence.
         def check(native: dict, receipt: dict, emitted: dict) -> dict:
-            with patch.object(collect_coverage_records, "log_problems", return_value=([], set())), \
-                    patch.object(collect_coverage_records, "merged_records", return_value={aliases.RECORD_ID: emitted}):
+            with (
+                patch.object(collect_coverage_records, "log_problems", return_value=([], set())),
+                patch.object(
+                    collect_coverage_records,
+                    "merged_records",
+                    return_value={aliases.RECORD_ID: emitted},
+                ),
+            ):
                 return aliases.validate_evidence(ROOT, original, native, receipt)
+
         self.assertEqual(check(native_receipt(proof), replay, raw)["source_sha"], source)
-        for field in ("observed", "mcse", "n_min", "replicates_min", "estimator", "dependence", "grid"):
+        for field in (
+            "observed",
+            "mcse",
+            "n_min",
+            "replicates_min",
+            "estimator",
+            "dependence",
+            "grid",
+        ):
             changed = copy.deepcopy(raw)
-            changed[field] = [] if field == "grid" else ("foreign" if isinstance(changed[field], str) else -1)
+            changed[field] = (
+                [] if field == "grid" else ("foreign" if isinstance(changed[field], str) else -1)
+            )
             changed_receipt = replay | {"raw_main_replay_record": changed}
-            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "measured values or scope"):
+            with (
+                self.subTest(field=field),
+                self.assertRaisesRegex(ValueError, "measured values or scope"),
+            ):
                 check(native_receipt(proof), changed_receipt, changed)
-        for field in ("replicates", "interval_method", "treated_level_bits", "normalization_tolerance_bits"):
+        for field in (
+            "replicates",
+            "interval_method",
+            "treated_level_bits",
+            "normalization_tolerance_bits",
+        ):
             changed = copy.deepcopy(proof)
             changed["config"][field] = "foreign"
             with self.subTest(config=field), self.assertRaisesRegex(ValueError, "original BCa"):
@@ -162,8 +253,12 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
 
     def test_reviewed_label_rename_adds_only_the_renamed_canonical_spelling(self) -> None:
         legacy = "recovery_scientific.v1:x10.recovery.v1|graph=g"
-        alias = {"record_id": "r", "measurement_sha": "m", "original_functional": "orig",
-                 "canonical_functional": "recovered_effect:" + legacy + ":treated=1"}
+        alias = {
+            "record_id": "r",
+            "measurement_sha": "m",
+            "original_functional": "orig",
+            "canonical_functional": "recovered_effect:" + legacy + ":treated=1",
+        }
         [renamed] = aliases.renamed_identities(alias)
         self.assertEqual(
             renamed["canonical_functional"],
@@ -176,10 +271,14 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
         )
         # A canonical spelling that already uses the new name or lacks the token
         # is not rewritten, and a repeated token is never guessed at.
-        for text in ("recovered_effect:recovery_scientific.v1:binary_observation_recovery.v1|g",
-                     "recovered_effect:other", legacy + ";" + legacy):
+        for text in (
+            "recovered_effect:recovery_scientific.v1:binary_observation_recovery.v1|g",
+            "recovered_effect:other",
+            legacy + ";" + legacy,
+        ):
             self.assertEqual(
-                aliases.renamed_identities(alias | {"canonical_functional": text}), [],
+                aliases.renamed_identities(alias | {"canonical_functional": text}),
+                [],
             )
 
     def test_original_record_values_axes_and_provenance_are_immutable(self) -> None:
@@ -189,9 +288,19 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
         for field in ("observed", "estimator", "functional", "calibration_sha", "n_min"):
             changed = dict(record)
             changed[field] = "tampered" if isinstance(changed[field], str) else -1
-            with self.subTest(field=field), patch.object(aliases.tomllib, "loads", side_effect=[
-                tomllib.loads(metadata), {"record": [record]}, {"record": [changed]},
-            ]), self.assertRaisesRegex(ValueError, "must remain unchanged"):
+            with (
+                self.subTest(field=field),
+                patch.object(
+                    aliases.tomllib,
+                    "loads",
+                    side_effect=[
+                        tomllib.loads(metadata),
+                        {"record": [record]},
+                        {"record": [changed]},
+                    ],
+                ),
+                self.assertRaisesRegex(ValueError, "must remain unchanged"),
+            ):
                 self.validate_modified(metadata)
 
 

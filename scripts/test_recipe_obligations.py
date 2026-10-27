@@ -11,16 +11,20 @@ from _repo import REPO_ROOT, ensure_scripts_on_path
 ensure_scripts_on_path()
 import gate_recipe_obligations as gate  # noqa: E402
 
-CLOSED = [{
-    "queries": ["Counterfactual"],
-    "graph_classes": ["Admg"],
-    "reason": "Counterfactual requires a supplied static Dag.",
-}]
-NOT_APPLICABLE = [{
-    "queries": ["Counterfactual"],
-    "graph_classes": ["Admg"],
-    "reason": "typed impossibility that must not replace the closed reason",
-}]
+CLOSED = [
+    {
+        "queries": ["Counterfactual"],
+        "graph_classes": ["Admg"],
+        "reason": "Counterfactual requires a supplied static Dag.",
+    }
+]
+NOT_APPLICABLE = [
+    {
+        "queries": ["Counterfactual"],
+        "graph_classes": ["Admg"],
+        "reason": "typed impossibility that must not replace the closed reason",
+    }
+]
 AXES = {
     "query": ["AverageEffect", "Counterfactual", "PulseEffect"],
     "graph_class": ["Dag", "Admg"],
@@ -45,11 +49,13 @@ def route(**extra) -> dict:
 def licensed_row(**extra) -> dict:
     row = route(
         estimators=["linear.adjustment.ate"],
-        checked_execution=[{
-            "estimator": "linear.adjustment.ate",
-            "test": "crates/antecedent/tests/example.rs",
-            "assertion": "retains_the_plan",
-        }],
+        checked_execution=[
+            {
+                "estimator": "linear.adjustment.ate",
+                "test": "crates/antecedent/tests/example.rs",
+                "assertion": "retains_the_plan",
+            }
+        ],
         evidence_kind="internal_known_truth",
         evidence_test="crates/antecedent/tests/example.rs",
         evidence_assertion="known_truth",
@@ -89,10 +95,14 @@ class RecipeObligationTest(unittest.TestCase):
         licensed = licensed_row(query="Counterfactual", graph_class="Admg")
         matrix = matrix_cell(query="Counterfactual", graph_class="Admg")
         problems = gate.cross_check([licensed], [matrix], CLOSED, NOT_APPLICABLE)
-        self.assertTrue(any("Counterfactual" in problem and "stays closed" in problem for problem in problems))
+        self.assertTrue(
+            any("Counterfactual" in problem and "stays closed" in problem for problem in problems)
+        )
         self.assertTrue(all("not_applicable" not in problem for problem in problems))
 
-    def test_licensed_obligations_match_the_matrix_and_leave_calibration_on_the_license(self) -> None:
+    def test_licensed_obligations_match_the_matrix_and_leave_calibration_on_the_license(
+        self,
+    ) -> None:
         licensed = licensed_row()
         matrix = matrix_cell(estimators=["linear.adjustment.ate", "cell.aipw"])
         self.assertEqual(gate.cross_check([licensed], [matrix], [], []), [])
@@ -118,7 +128,9 @@ class RecipeObligationTest(unittest.TestCase):
             return [f"evidence assertion {assertion!r} is not reachable"]
 
         problems = gate.cross_check([licensed_row()], [matrix_cell()], [], [], cite=cite)
-        self.assertTrue(any("AverageEffect" in problem and "not reachable" in problem for problem in problems))
+        self.assertTrue(
+            any("AverageEffect" in problem and "not reachable" in problem for problem in problems)
+        )
 
     def test_recorded_licenses_match_the_support_matrix(self) -> None:
         problems = gate.matrix_alignment_problems(Path(REPO_ROOT), cite=_path_exists)

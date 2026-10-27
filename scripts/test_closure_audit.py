@@ -1,4 +1,5 @@
 """Closure audit: unit tests."""
+
 from __future__ import annotations
 
 import unittest
@@ -11,15 +12,30 @@ import closure_audit as audit  # noqa: E402
 CHILD = {"id": "FAM.method.static.bayesian", "gap": "none"}
 
 
-def row(identifier: str, status: str, closure: str, reason: str = "", next_attempt: str = "") -> dict:
+def row(
+    identifier: str, status: str, closure: str, reason: str = "", next_attempt: str = ""
+) -> dict:
     return {
-        "id": identifier, "method": "M", "design": "static", "inference": "bayesian", "route": "r",
-        "status": status, "closure": closure, "reason": reason, "next_attempt": next_attempt,
+        "id": identifier,
+        "method": "M",
+        "design": "static",
+        "inference": "bayesian",
+        "route": "r",
+        "status": status,
+        "closure": closure,
+        "reason": reason,
+        "next_attempt": next_attempt,
     }
 
 
 def record(identifier: str, status: str, missing: list[str]) -> dict:
-    return {"id": identifier, "list": "mandatory", "mandatory": True, "status": status, "missing": missing}
+    return {
+        "id": identifier,
+        "list": "mandatory",
+        "mandatory": True,
+        "status": status,
+        "missing": missing,
+    }
 
 
 class ClosureAudit(unittest.TestCase):
@@ -31,12 +47,28 @@ class ClosureAudit(unittest.TestCase):
         report = audit.audit([CHILD], {}, [], records)
         self.assertEqual(
             report["unresolved_mandatory"],
-            [{"id": "OPEN.static.bayesian", "list": "mandatory", "missing": ["no consumer is named"]}],
+            [
+                {
+                    "id": "OPEN.static.bayesian",
+                    "list": "mandatory",
+                    "missing": ["no consumer is named"],
+                }
+            ],
         )
-        self.assertTrue(any("OPEN.static.bayesian" in line for line in audit.release_findings(report)))
+        self.assertTrue(
+            any("OPEN.static.bayesian" in line for line in audit.release_findings(report))
+        )
 
     def test_a_counterpart_without_a_verified_attempt_is_reported(self) -> None:
-        rows = [row("M#static.bayesian", "closed_with_next_attempt", "narrowed_promise", "no law", "derive the law")]
+        rows = [
+            row(
+                "M#static.bayesian",
+                "closed_with_next_attempt",
+                "narrowed_promise",
+                "no law",
+                "derive the law",
+            )
+        ]
         report = audit.audit([CHILD], {}, rows, [])
         self.assertEqual(report["missing_attempt"][0]["next_attempt"], "derive the law")
         self.assertEqual(report["missing_attempt"][0]["side"], "static.bayesian")
@@ -58,7 +90,10 @@ class ClosureAudit(unittest.TestCase):
         self.assertTrue(any("without a reason" in line for line in audit.release_findings(bare)))
 
     def test_the_report_is_deterministic_and_names_the_audited_attempts(self) -> None:
-        records = [record("ATT.static.bayesian", "reconciled", []), record("OTHER.linear.static.bayesian", "reconciled", [])]
+        records = [
+            record("ATT.static.bayesian", "reconciled", []),
+            record("OTHER.linear.static.bayesian", "reconciled", []),
+        ]
         report = audit.audit([CHILD], {}, [], records, {"ATT.static.bayesian"})
         self.assertEqual([a["id"] for a in report["audited_attempt"]], ["ATT.static.bayesian"])
         scope = [
@@ -67,7 +102,9 @@ class ClosureAudit(unittest.TestCase):
             {"id": "OTHER.static.bayesian", "source": "method_children"},
             {"id": "FLAG.static.bayesian", "source": "method_children", "obligation": "flagship"},
         ]
-        self.assertEqual(audit.audited_ids(scope), {"ATT.first", "ATT.static.bayesian", "FLAG.static.bayesian"})
+        self.assertEqual(
+            audit.audited_ids(scope), {"ATT.first", "ATT.static.bayesian", "FLAG.static.bayesian"}
+        )
         self.assertEqual(audit.render(report), audit.render(report))
 
 

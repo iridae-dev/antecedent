@@ -22,7 +22,9 @@ silently, and refuses whenever the drop could change what is fitted.
 
 ``estimate_cost`` is a planning hint, not a runtime guarantee. It reports counts, and
 ``seconds`` only when ``parity/cost_model.toml`` (written by ``scripts/bench_cost_model.py``
-on a named machine) is present; otherwise ``seconds`` is ``None``.
+on a named machine) is present; otherwise ``seconds`` is ``None``. Pass ``cost_model=`` a
+:class:`CostModel` to take the seconds from a model you declare instead, independent of the
+working directory and the environment.
 
 A refusal raised by these calls carries its structured fields on
 ``error.refusal_fields`` (``None`` on every other error).
@@ -33,9 +35,11 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, overload
 
 from . import _native
+from ._columns import coerce_fields
 from ._data import ingest_columns
 from .errors import CausalTypeError, CausalUnsupportedError
 from .execution import Execution
@@ -53,6 +57,7 @@ __all__ = [
     "ColumnMissingness",
     "ColumnWeight",
     "CostEstimate",
+    "CostModel",
     "DependentColumn",
     "DroppedColumn",
     "DuplicateGroup",
@@ -321,6 +326,62 @@ class CostEstimate:
     shared_covariate_bytes: int | None
     seconds: float | None
     seconds_basis: str
+
+
+@dataclass(frozen=True)
+class CostModel:
+    """A declared planning cost model: seconds per counted fit are ``a + b * rows * columns**2``.
+
+    ``benchmark`` and ``platform`` name the measurement the coefficients came from and
+    ``cpu_count`` the machine; ``coefficients`` maps an estimator id (for example ``aipw`` or
+    ``linear.adjustment.ate``) to its ``(a, b)``. A model with an empty benchmark or platform,
+    no CPU, no coefficients or a negative or non-finite coefficient is refused
+    (:class:`~antecedent.errors.CausalValueError`). :meth:`from_toml` reads the text
+    ``scripts/bench_cost_model.py`` writes. The seconds it backs stay a planning hint: an
+    estimator the model has no coefficients for reports counts only, and says so.
+    """
+
+    benchmark: str
+    platform: str
+    cpu_count: int
+    coefficients: Mapping[str, tuple[float, float]]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.coefficients, Mapping):
+            raise CausalTypeError("coefficients must map an estimator id to (a, b)")
+        benchmark, platform, cpu_count, rows = _native.build_cost_model(
+            self.benchmark,
+            self.platform,
+            self.cpu_count,
+            [(str(k), float(a), float(b)) for k, (a, b) in self.coefficients.items()],
+        )
+        coerce_fields(
+            self,
+            benchmark=benchmark,
+            platform=platform,
+            cpu_count=cpu_count,
+            coefficients=MappingProxyType({k: (a, b) for k, a, b in rows}),
+        )
+
+    @classmethod
+    def from_toml(cls, text: str) -> CostModel:
+        """A model from the TOML subset ``scripts/bench_cost_model.py`` writes.
+
+        A top-level ``benchmark``, a ``[machine]`` table with ``platform`` and ``cpu_count`` and
+        one ``[coefficients."<estimator id>"]`` table per estimator with ``a`` and ``b``.
+        """
+        if not isinstance(text, str):
+            raise CausalTypeError("cost model text must be a string")
+        benchmark, platform, cpu_count, rows = _native.parse_cost_model(text)
+        return cls(benchmark, platform, cpu_count, {k: (a, b) for k, a, b in rows})
+
+    def _wire(self) -> tuple[str, str, int, list[tuple[str, float, float]]]:
+        return (
+            self.benchmark,
+            self.platform,
+            self.cpu_count,
+            [(k, a, b) for k, (a, b) in self.coefficients.items()],
+        )
 
 
 @dataclass(frozen=True)
@@ -797,28 +858,38 @@ def diagnose_fit(study: Any, *, execution: Execution | None = None) -> Outcome[A
 
 @overload
 def estimate_cost(
-    study: PreparedAnalysis[Any], *, execution: Execution | None = None
+    study: PreparedAnalysis[Any],
+    *,
+    execution: Execution | None = None,
+    cost_model: CostModel | None = None,
 ) -> CostEstimate: ...
 
 
 @overload
 def estimate_cost(
-    study: PreparedBatch, *, execution: Execution | None = None
+    study: PreparedBatch,
+    *,
+    execution: Execution | None = None,
+    cost_model: CostModel | None = None,
 ) -> BatchCostEstimate: ...
 
 
 def estimate_cost(
-    study: Any, *, execution: Execution | None = None
+    study: Any, *, execution: Execution | None = None, cost_model: CostModel | None = None
 ) -> CostEstimate | BatchCostEstimate:
     """Read the retained plan's scientific budgets and work counts without executing it.
 
     Counts describe the prepared plan; overriding the policy for this read does not replan
     its scientific declarations or turn a planning estimate into a measured execution.
+    ``cost_model`` takes the seconds from the model you declare; without it the process-wide
+    benchmark file (``parity/cost_model.toml`` or ``ANTECEDENT_COST_MODEL``) is read.
     """
+    if cost_model is not None and not isinstance(cost_model, CostModel):
+        raise CausalTypeError("cost_model must be a CostModel")
     native, policy, batch = _prepared_context(study, execution)
     if batch:
-        return policy._call(estimate_cost_batch, native)
-    return policy._call(estimate_cost_prepared, native)
+        return policy._call(estimate_cost_batch, native, cost_model)
+    return policy._call(estimate_cost_prepared, native, cost_model)
 
 
 def diagnose_prepared(native: Any, *, seed: int, threads: int | None) -> PreflightReport:
@@ -839,9 +910,9 @@ def plan_rank_drop_prepared(
     return _plan(_call(native, "plan_rank_drop_json", names, seed=seed, threads=threads))
 
 
-def estimate_cost_prepared(native: Any) -> CostEstimate:
+def estimate_cost_prepared(native: Any, cost_model: CostModel | None = None) -> CostEstimate:
     """``PreparedAnalysis.estimate_cost``: planning counts of a prepared plan."""
-    return _cost(_call(native, "estimate_cost_json"))
+    return _cost(_call(native, "estimate_cost_json", _wire_of(cost_model)))
 
 
 def diagnose_batch(native: Any, *, seed: int, threads: int | None) -> BatchPreflightReport:
@@ -870,6 +941,10 @@ def plan_rank_drop_batch(
     return tuple(_plan(r) for r in raw)
 
 
-def estimate_cost_batch(native: Any) -> BatchCostEstimate:
+def estimate_cost_batch(native: Any, cost_model: CostModel | None = None) -> BatchCostEstimate:
     """``PreparedBatch.estimate_cost``: planning counts of every plan and their totals."""
-    return _batch_cost(_call(native, "estimate_cost_json"))
+    return _batch_cost(_call(native, "estimate_cost_json", _wire_of(cost_model)))
+
+
+def _wire_of(cost_model: CostModel | None) -> Any:
+    return None if cost_model is None else cost_model._wire()

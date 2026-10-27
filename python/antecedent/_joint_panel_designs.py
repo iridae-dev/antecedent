@@ -44,6 +44,56 @@ class JointDesignResult:
 
         return condition(self._handle, **declaration)
 
+    def attempt_population_reference(
+        self,
+        *,
+        baseline: int,
+        strata: list[float],
+        stratum_worlds: list[list[int]],
+        before_weights: list[float],
+        after_weights: list[float],
+        exposure: list[int],
+        saturation: list[int],
+        mechanism: list[int],
+        diagram: Mapping[str, Any],
+        fallback: Mapping[str, Any],
+        order: list[str] | None = None,
+        require_identified: bool = True,
+        **execution: Any,
+    ) -> dict[str, Any]:
+        """Population-standardized reference worlds, else the explicit coarser components.
+
+        The declaration is that of :meth:`decompose_population_reference`. When the selection
+        diagram does not earn the population transport (``route == "coarser_components"``) the
+        original ``refusal`` is retained and ``fallback`` (the
+        :meth:`decompose_reference_components` arguments: ``exposure``, ``saturation``,
+        ``mechanism``, ``hybrids`` and optionally ``order``) is executed under the same scope.
+        Invalid inputs, resource limits and cancellation raise; they are never a fallback.
+        """
+        declaration = {
+            "baseline": baseline,
+            "strata": strata,
+            "stratum_worlds": stratum_worlds,
+            "before_weights": before_weights,
+            "after_weights": after_weights,
+            "exposure": exposure,
+            "saturation": saturation,
+            "mechanism": mechanism,
+            "diagram": dict(diagram),
+            "order": order or ["exposure", "saturation", "population", "mechanism"],
+            "require_identified": require_identified,
+        }
+        components = {
+            "order": order or ["exposure", "saturation", "population", "mechanism"],
+            "require_identified": require_identified,
+            **dict(fallback),
+        }
+        return json.loads(
+            self._handle.attempt_population_reference(
+                _json(declaration), _json(components), **execution
+            )
+        )
+
     def decompose_reference_components(
         self,
         *,
@@ -211,6 +261,18 @@ def prepare_joint_design(
     return PreparedJointDesign(
         _native.prepare_joint_design(_json(target), _json(proof), **execution)
     )
+
+
+def target_contrast(target: Mapping[str, Any], contrast: Mapping[str, Any]) -> dict[str, Any]:
+    """Re-form a worlds target as one checked assembled contrast over the same worlds.
+
+    ``contrast`` is ``{"kind": "difference", "plus": w, "minus": w0, "reference": w0}`` or
+    ``{"kind": "linear", "terms": [[world, coefficient], ...], "reference": w0}`` using the
+    target's numeric world IDs. Every world of the target must take part, with exactly one
+    flagged baseline as ``reference``. The result is a new ScientificTargetWire with its own
+    identity; a design executed for it can condition experiments on that contrast.
+    """
+    return dict(json.loads(_native.joint_target_contrast(_json(target), _json(contrast))))
 
 
 def prepare_joint_design_for_panel(

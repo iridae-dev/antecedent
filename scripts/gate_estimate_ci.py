@@ -4,7 +4,6 @@ import parity_rows as pr
 
 EVIDENCE = {
     "estimate.temporal_sequential": "crates/antecedent/tests/temporal_response_facade.rs",
-
     # Estimate inventory
     "estimate.identify.efficient_backdoor": "conformance/estimate/efficient_backdoor",
     "estimate.glm": "conformance/estimate/glm_adjustment",
@@ -44,4 +43,8 @@ EVIDENCE = {
 
 # Only the estimate/CI evidence set is gated here (not every inventory row).
 problems = pr.evidence_map_problems(EVIDENCE, ["parity/estimate.toml", "parity/discovery.toml"])
-pr.finish("parity inventory", problems, f"parity inventory evidence map: ok ({len(EVIDENCE)} estimate/CI rows)")
+pr.finish(
+    "parity inventory",
+    problems,
+    f"parity inventory evidence map: ok ({len(EVIDENCE)} estimate/CI rows)",
+)

@@ -20,11 +20,21 @@ AXES = {
     "inference": ["Frequentist"],
     "validation": ["none"],
 }
-COORD = dict(query="AverageEffect", graph_class="Dag", structure="explicit", inference="Frequentist", validation="none")
-CLOSED = [{
-    "queries": ["Counterfactual"], "graph_classes": ["Admg"],
-    "reason": "needs a supplied Dag", "executes_unlicensed": True,
-}]
+COORD = dict(
+    query="AverageEffect",
+    graph_class="Dag",
+    structure="explicit",
+    inference="Frequentist",
+    validation="none",
+)
+CLOSED = [
+    {
+        "queries": ["Counterfactual"],
+        "graph_classes": ["Admg"],
+        "reason": "needs a supplied Dag",
+        "executes_unlicensed": True,
+    }
+]
 RECORD = "cov.example.record"
 
 
@@ -32,20 +42,36 @@ def sources() -> dict:
     cell = dict(
         COORD,
         estimators=["linear.adjustment.ate"],
-        checked_execution=[{"estimator": "linear.adjustment.ate", "test": "t/example.rs", "assertion": "retains_the_plan"}],
-        evidence_kind="internal_known_truth", evidence_test="t/example.rs", evidence_assertion="known_truth",
-        known_truth_fixture="conformance/example", calibration=[RECORD], calibration_reason="boundary_record",
+        checked_execution=[
+            {
+                "estimator": "linear.adjustment.ate",
+                "test": "t/example.rs",
+                "assertion": "retains_the_plan",
+            }
+        ],
+        evidence_kind="internal_known_truth",
+        evidence_test="t/example.rs",
+        evidence_assertion="known_truth",
+        known_truth_fixture="conformance/example",
+        calibration=[RECORD],
+        calibration_reason="boundary_record",
     )
-    matrix_cell = dict(COORD, route_estimator="linear.adjustment.ate", estimators=["linear.adjustment.ate"])
+    matrix_cell = dict(
+        COORD, route_estimator="linear.adjustment.ate", estimators=["linear.adjustment.ate"]
+    )
     return {
-        "licensed": [cell], "closed": CLOSED, "na": [], "axes": AXES,
+        "licensed": [cell],
+        "closed": CLOSED,
+        "na": [],
+        "axes": AXES,
         "matrix": {"licensed": [matrix_cell], "closed_rules": CLOSED, "na_rules": []},
     }
 
 
 def run(rows, src=None, cite=None, exists=None, ids=None) -> list[str]:
     return chk.check(
-        rows, src or sources(),
+        rows,
+        src or sources(),
         cite=cite or (lambda t, a: []),
         fixture_exists=exists or (lambda p: True),
         coverage_ids=ids if ids is not None else {RECORD},
@@ -61,8 +87,14 @@ class RouteObligationTest(unittest.TestCase):
         rows = rows_of()
         self.assertEqual([r["kind"] for r in rows], ["licensed", "execution_only"])
         licensed, closed = rows
-        self.assertEqual(licensed["compiler_execution"], ["linear.adjustment.ate = t/example.rs::retains_the_plan"])
-        self.assertEqual(licensed["identification_license"], "internal_known_truth|t/example.rs|known_truth|conformance/example")
+        self.assertEqual(
+            licensed["compiler_execution"],
+            ["linear.adjustment.ate = t/example.rs::retains_the_plan"],
+        )
+        self.assertEqual(
+            licensed["identification_license"],
+            "internal_known_truth|t/example.rs|known_truth|conformance/example",
+        )
         self.assertEqual(licensed["calibration_license"], f"records:{RECORD}")
         self.assertEqual(closed["coordinates"], 1)
         self.assertEqual(closed["identification_license"], "none")
@@ -88,10 +120,17 @@ class RouteObligationTest(unittest.TestCase):
             return [f"test {t!r} does not exist"]
 
         self.assertTrue(any(p.startswith("unreachable:") for p in run(rows_of(), cite=bad_cite)))
-        self.assertTrue(any("conformance/example" in p for p in run(rows_of(), exists=lambda p: p != "conformance/example")))
+        self.assertTrue(
+            any(
+                "conformance/example" in p
+                for p in run(rows_of(), exists=lambda p: p != "conformance/example")
+            )
+        )
         self.assertTrue(any("coverage record" in p for p in run(rows_of(), ids=set())))
         missing = chk.check(
-            rows_of(), sources(), assertion_present=lambda rel, name: [f"{rel} does not name {name!r}"]
+            rows_of(),
+            sources(),
+            assertion_present=lambda rel, name: [f"{rel} does not name {name!r}"],
         )
         self.assertTrue(any("does not name 'known_truth'" in p for p in missing))
 
@@ -113,7 +152,9 @@ class RouteObligationTest(unittest.TestCase):
     def test_a_closed_route_cannot_be_licensed_by_its_recipe(self) -> None:
         src = sources()
         src["licensed"].append(dict(src["licensed"][0], query="Counterfactual", graph_class="Admg"))
-        src["matrix"]["licensed"].append(dict(src["matrix"]["licensed"][0], query="Counterfactual", graph_class="Admg"))
+        src["matrix"]["licensed"].append(
+            dict(src["matrix"]["licensed"][0], query="Counterfactual", graph_class="Admg")
+        )
         self.assertTrue(any("stays closed" in p for p in run(rows_of(src), src)))
 
     def test_the_committed_file_matches_the_sources(self) -> None:

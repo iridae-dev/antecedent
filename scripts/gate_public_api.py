@@ -188,7 +188,9 @@ class Lister:
         b = c["binding"]
         if "equality" in b:
             eq = b["equality"]
-            return f"{head} = {self.rtype(eq['type']) if 'type' in eq else self.rconst(eq['const'])}"
+            return (
+                f"{head} = {self.rtype(eq['type']) if 'type' in eq else self.rconst(eq['const'])}"
+            )
         return f"{head}: {self.rbounds(b['constraint'])}"
 
     def rbounds(self, bounds) -> str:
@@ -240,7 +242,7 @@ class Lister:
             ins = ", ".join(self.rtype(ty) for _, ty in sig["inputs"])
             out = f" -> {self.rtype(sig['output'])}" if sig.get("output") else ""
             hdr = v["header"]
-            pre = ("unsafe " if hdr["is_unsafe"] else "")
+            pre = "unsafe " if hdr["is_unsafe"] else ""
             return f"{pre}fn({ins}){out}"
         if k == "qualified_path":
             tr = f" as {self.rpath(v['trait'])}" if v.get("trait") else ""
@@ -565,7 +567,9 @@ def main() -> int:
         else:
             print(f"ok   {name}")
     if args.write:
-        stale = sorted(p for p in SNAPSHOT_DIR.glob("*.txt") if p.stem not in set(published_crates()))
+        stale = sorted(
+            p for p in SNAPSHOT_DIR.glob("*.txt") if p.stem not in set(published_crates())
+        )
         for p in stale:
             p.unlink()
             print(f"removed stale {p.relative_to(ROOT)}")

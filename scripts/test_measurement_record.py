@@ -82,11 +82,17 @@ def payload_from(run: dict) -> dict:
 class ObservedWorkTest(unittest.TestCase):
     def test_peak_rss_attached_to_the_result_is_what_the_process_reached(self) -> None:
         small, large = touch_in_child(8), touch_in_child(128)
-        small_fields = bench.comparison_result(ESTIMATE, "touch", payload_from(small))["measurement"]
-        large_fields = bench.comparison_result(ESTIMATE, "touch", payload_from(large))["measurement"]
+        small_fields = bench.comparison_result(ESTIMATE, "touch", payload_from(small))[
+            "measurement"
+        ]
+        large_fields = bench.comparison_result(ESTIMATE, "touch", payload_from(large))[
+            "measurement"
+        ]
         self.assertNotIn("python_peak_bytes", large_fields)
         self.assertGreaterEqual(large_fields["peak_rss_bytes"], 128 * MIB)
-        self.assertGreater(large_fields["peak_rss_bytes"], small_fields["peak_rss_bytes"] + 90 * MIB)
+        self.assertGreater(
+            large_fields["peak_rss_bytes"], small_fields["peak_rss_bytes"] + 90 * MIB
+        )
         self.assertEqual(large_fields["stage_times_ns"][0]["name"], "process_wall")
         self.assertGreater(large_fields["stage_times_ns"][0]["nanos"], 0)
         self.assertFalse(large_fields["failed"])
@@ -181,9 +187,7 @@ class RustEmittedMeasurementTest(unittest.TestCase):
     def test_the_native_summary_rides_on_a_criterion_comparison(self) -> None:
         payload = self.load()
         result = bench.comparison_result(ESTIMATE, "native_probe_scaling", payload)
-        self.assertEqual(
-            result["measurement"]["variability"]["allocation_bytes"]["count"], 3
-        )
+        self.assertEqual(result["measurement"]["variability"]["allocation_bytes"]["count"], 3)
 
 
 if __name__ == "__main__":

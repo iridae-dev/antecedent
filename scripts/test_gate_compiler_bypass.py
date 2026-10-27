@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Self-test: the compiler-bypass check passes on the repo and fails on each reopened bypass.
 
-    python3 scripts/test_gate_compiler_bypass.py
+python3 scripts/test_gate_compiler_bypass.py
 """
 
 import shutil
@@ -104,8 +104,7 @@ def main() -> None:
         overlay(destination)
         wrapper = destination / "python/antecedent/identify.py"
         wrapper.write_text(
-            wrapper.read_text(encoding="utf-8")
-            + "\nfrom ._native import _binary_iv_ate_bounds\n",
+            wrapper.read_text(encoding="utf-8") + "\nfrom ._native import _binary_iv_ate_bounds\n",
             encoding="utf-8",
         )
         if not compiler_bypass_problems(destination):

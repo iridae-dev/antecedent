@@ -78,11 +78,15 @@ from .evidence import (
     PlanOutcome,
     PlanRoute,
     PlanUnlocks,
+    RankedStudy,
+    StudyRanking,
     StudyValue,
     UnverifiedRoute,
+    UnverifiedStudy,
     confounder_decision,
     consume_plan,
     evidence_plan,
+    rank_studies,
 )
 from .objectives import (
     DecisionRegret,
@@ -111,7 +115,10 @@ from .ranking import (
     IdentificationCandidate,
     IdentificationGate,
     ObjectiveCandidate,
+    RankingObligation,
+    RankingPreview,
     evsi,
+    preview_ranking,
     rank_designs,
 )
 from .structural import (
@@ -174,6 +181,9 @@ __all__ = [
     "PlanUnlocks",
     "PlanningResult",
     "ProviderIdentity",
+    "RankedStudy",
+    "RankingObligation",
+    "RankingPreview",
     "Sampling",
     "SignalProvider",
     "SignalProviderRefusal",
@@ -188,8 +198,10 @@ __all__ = [
     "StructuralEntry",
     "StructuralRanking",
     "StructurePrior",
+    "StudyRanking",
     "StudyValue",
     "UnverifiedRoute",
+    "UnverifiedStudy",
     "confounder_decision",
     "consume",
     "consume_plan",
@@ -199,8 +211,10 @@ __all__ = [
     "evidence_plan",
     "evsi",
     "plan_experiment",
+    "preview_ranking",
     "rank_designs",
     "rank_structural",
+    "rank_studies",
 ]
 
 from .prior_signal import CheckedPriorSignal, PriorSignalSource, adapt_prior_to_signal

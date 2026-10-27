@@ -268,6 +268,29 @@ class RetargetContrast:
 
 
 @dataclass(frozen=True)
+class RetargetCost:
+    """Planning counts of a retarget family. A planning hint, not a runtime guarantee.
+
+    A retarget fits no nuisance model: ``nuisance_fits`` is zero. ``snapshot_rows`` are the rows
+    of the shared snapshot the claims reweight (``None`` when the scores share none),
+    ``weighted_score_reads`` is ``claims * rows`` and ``covariance_products`` is
+    ``claims * (claims + 1) / 2 * rows``. ``seconds`` is ``None``: no benchmark covers a
+    retarget, and ``seconds_basis`` says so.
+    """
+
+    planning_hint: bool
+    note: str
+    claims: int
+    contrasts: int
+    snapshot_rows: int | None
+    nuisance_fits: int
+    weighted_score_reads: int | None
+    covariance_products: int | None
+    seconds: float | None
+    seconds_basis: str
+
+
+@dataclass(frozen=True)
 class RetargetMember:
     """One claim or contrast of a :class:`BatchRetarget`, failed members included."""
 
@@ -1079,7 +1102,52 @@ class BatchResult:
         Mixed snapshots, an undeclared ``expected_snapshot`` and malformed families raise
         typed refusals; a member that cannot be retargeted is reported, never dropped.
         """
-        native_claims = []
+        native_claims, labels, native_contrasts = self._declared_family(claims, contrasts)
+        raw = self.study.execution._call(
+            self._native.retarget_family,
+            native_claims,
+            native_contrasts,
+            expected_snapshot=expected_snapshot,
+            simultaneous_level=float(simultaneous_level),
+            simultaneous_seed=int(simultaneous_seed),
+            simultaneous_draws=int(simultaneous_draws),
+        )
+        return self._retarget_report(raw, labels)
+
+    def retarget_cost(
+        self,
+        claims: Sequence[RetargetClaim],
+        contrasts: Sequence[RetargetContrast] = (),
+    ) -> RetargetCost:
+        """Planning counts of retargeting the declared family, without retargeting it.
+
+        A retarget reuses the retained score tables, so ``nuisance_fits`` is zero by
+        construction; what it reads is one pass of the shared snapshot per claim
+        (``weighted_score_reads``) and the products of the weighted influence values in the
+        upper triangle of the family covariance (``covariance_products``). The request is
+        counted as declared, not validated: a family :meth:`retarget` refuses is still counted.
+        A planning hint, not a runtime guarantee; no benchmark covers a retarget, so there are no
+        seconds.
+        """
+        native_claims, _, native_contrasts = self._declared_family(claims, contrasts)
+        raw = self._native.retarget_cost(native_claims, native_contrasts)
+        return RetargetCost(
+            planning_hint=bool(raw["planning_hint"]),
+            note=str(raw["note"]),
+            claims=int(raw["claims"]),
+            contrasts=int(raw["contrasts"]),
+            snapshot_rows=raw["snapshot_rows"],
+            nuisance_fits=int(raw["nuisance_fits"]),
+            weighted_score_reads=raw["weighted_score_reads"],
+            covariance_products=raw["covariance_products"],
+            seconds=raw["seconds"],
+            seconds_basis=str(raw["seconds_basis"]),
+        )
+
+    def _declared_family(
+        self, claims: Sequence[RetargetClaim], contrasts: Sequence[RetargetContrast]
+    ) -> tuple[list[Any], dict[str, str], list[Any]]:
+        native_claims: list[Any] = []
         labels: dict[str, str] = {}
         for claim in claims:
             if isinstance(claim.query, int) and not isinstance(claim.query, bool):
@@ -1111,15 +1179,9 @@ class BatchResult:
         native_contrasts = [
             (c.name, [(str(n), float(v)) for n, v in c.coefficients.items()]) for c in contrasts
         ]
-        raw = self.study.execution._call(
-            self._native.retarget_family,
-            native_claims,
-            native_contrasts,
-            expected_snapshot=expected_snapshot,
-            simultaneous_level=float(simultaneous_level),
-            simultaneous_seed=int(simultaneous_seed),
-            simultaneous_draws=int(simultaneous_draws),
-        )
+        return native_claims, labels, native_contrasts
+
+    def _retarget_report(self, raw: Mapping[str, Any], labels: Mapping[str, str]) -> BatchRetarget:
         members: list[RetargetMember] = []
         for entry in raw["claims"]:
             if entry["name"] in labels:

@@ -53,20 +53,32 @@ def recipe_only_problems(row: dict) -> list[str]:
     problems = []
     if row.get("kind") == "licensed":
         if row.get("license_basis") != "explicit_license":
-            problems.append(f"recipe_only: {rid} is licensed on basis {row.get('license_basis')!r}, not the explicit license")
+            problems.append(
+                f"recipe_only: {rid} is licensed on basis {row.get('license_basis')!r}, not the explicit license"
+            )
         ident = str(row.get("identification_license") or "").split("|")
         if len(ident) != 4 or not all(ident[:3]):
-            problems.append(f"recipe_only: {rid} has no explicit identification license (evidence kind, test, assertion)")
+            problems.append(
+                f"recipe_only: {rid} has no explicit identification license (evidence kind, test, assertion)"
+            )
         if not row.get("calibration_license"):
-            problems.append(f"recipe_only: {rid} has no explicit calibration license (records or reason)")
+            problems.append(
+                f"recipe_only: {rid} has no explicit calibration license (records or reason)"
+            )
         if not row.get("uncertainty"):
             problems.append(f"recipe_only: {rid} states no uncertainty")
         if not row.get("compiler_execution"):
             problems.append(f"recipe_only: {rid} cites no compiler execution")
     else:
-        for name, none in (("license_basis", "none"), ("identification_license", "none"), ("calibration_license", "none")):
+        for name, none in (
+            ("license_basis", "none"),
+            ("identification_license", "none"),
+            ("calibration_license", "none"),
+        ):
             if row.get(name) != none:
-                problems.append(f"recipe_only: {rid} executes unlicensed yet carries {name}={row.get(name)!r}")
+                problems.append(
+                    f"recipe_only: {rid} executes unlicensed yet carries {name}={row.get(name)!r}"
+                )
     return problems
 
 
@@ -84,8 +96,12 @@ def check(
     problems += [
         f"stale: {p}"
         for p in gate.cross_check(
-            sources["licensed"], matrix.get("licensed") or [], sources["closed"], sources["na"],
-            closed_snapshot=matrix.get("closed_rules") or [], na_snapshot=matrix.get("na_rules") or [],
+            sources["licensed"],
+            matrix.get("licensed") or [],
+            sources["closed"],
+            sources["na"],
+            closed_snapshot=matrix.get("closed_rules") or [],
+            na_snapshot=matrix.get("na_rules") or [],
             axes=sources["axes"],
         )
     ]
@@ -103,7 +119,11 @@ def check(
     for rid, row in seen.items():
         want = expected.get(rid)
         if want is None:
-            why = "the matrix does not license it" if row.get("kind") == "licensed" and rid not in licensed_keys else "no executing route derives it"
+            why = (
+                "the matrix does not license it"
+                if row.get("kind") == "licensed" and rid not in licensed_keys
+                else "no executing route derives it"
+            )
             problems.append(f"stale: row {rid} has no executing route ({why})")
             problems += recipe_only_problems(row)
             continue
@@ -125,9 +145,11 @@ def check(
                 problems.append(f"unreachable: {rid} cites {path!r}, which does not exist")
         cal = str(row.get("calibration_license") or "")
         if cal.startswith("records:") and coverage_ids is not None:
-            for record in cal[len("records:"):].split(","):
+            for record in cal[len("records:") :].split(","):
                 if record not in coverage_ids:
-                    problems.append(f"unreachable: {rid} cites coverage record {record!r}, which is not recorded")
+                    problems.append(
+                        f"unreachable: {rid} cites coverage record {record!r}, which is not recorded"
+                    )
     return problems
 
 
@@ -147,14 +169,18 @@ def run(root: Path = ROOT) -> list[str]:
     import test_evidence  # noqa: E402
 
     cite = functools.lru_cache(maxsize=None)(
-        lambda test, assertion: tuple(test_evidence.checked_execution_citation_problems(test, assertion))
+        lambda test, assertion: tuple(
+            test_evidence.checked_execution_citation_problems(test, assertion)
+        )
     )
 
     path = root / gen.OUTPUT
     if not path.is_file():
         return [f"missing: {gen.OUTPUT} does not exist; run scripts/generate_route_obligations.py"]
     rows = tomllib.loads(path.read_text(encoding="utf-8")).get("obligation", [])
-    records = tomllib.loads((root / "parity/coverage_records.toml").read_text(encoding="utf-8")).get("record", [])
+    records = tomllib.loads(
+        (root / "parity/coverage_records.toml").read_text(encoding="utf-8")
+    ).get("record", [])
     problems = check(
         rows,
         gen.load_sources(root),

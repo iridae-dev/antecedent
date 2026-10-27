@@ -81,7 +81,9 @@ class Repo:
     def text(self, rel: str) -> str | None:
         if rel not in self._text:
             path = self.root / rel
-            self._text[rel] = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else None
+            self._text[rel] = (
+                path.read_text(encoding="utf-8", errors="replace") if path.is_file() else None
+            )
         return self._text[rel]
 
     def sources_reading(self, symbol: str) -> list[str]:
@@ -92,9 +94,21 @@ class Repo:
                 if not (self.root / base).is_dir():
                     continue
                 proc = subprocess.run(
-                    ["grep", "-rlw", "--include=*.rs", "--include=*.py", "--exclude-dir=tests",
-                     "--exclude-dir=target", "--", symbol, base],
-                    cwd=self.root, capture_output=True, text=True, check=False,
+                    [
+                        "grep",
+                        "-rlw",
+                        "--include=*.rs",
+                        "--include=*.py",
+                        "--exclude-dir=tests",
+                        "--exclude-dir=target",
+                        "--",
+                        symbol,
+                        base,
+                    ],
+                    cwd=self.root,
+                    capture_output=True,
+                    text=True,
+                    check=False,
                 )
                 found.extend(sorted(proc.stdout.split()))
             self._grep[symbol] = found
@@ -103,7 +117,9 @@ class Repo:
     def cargo(self, crate_dir: str) -> dict:
         if crate_dir not in self._cargo:
             path = self.root / crate_dir / "Cargo.toml"
-            self._cargo[crate_dir] = tomllib.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+            self._cargo[crate_dir] = (
+                tomllib.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+            )
         return self._cargo[crate_dir]
 
     def registry_paths(self) -> set[str]:
@@ -119,8 +135,16 @@ class Repo:
         """Sources that run things: registered Rust tests, python tests, scripts and gates."""
         if self._corpus is None:
             files: dict[str, str] = {}
-            patterns = ("crates/*/tests/*.rs", "crates/*/tests/**/*.rs", "python/tests/*.py", "python/tests/**/*.py",
-                        "scripts/*.py", "scripts/*.sh", "examples/**/*.py", "examples/**/*.rs")
+            patterns = (
+                "crates/*/tests/*.rs",
+                "crates/*/tests/**/*.rs",
+                "python/tests/*.py",
+                "python/tests/**/*.py",
+                "scripts/*.py",
+                "scripts/*.sh",
+                "examples/**/*.py",
+                "examples/**/*.rs",
+            )
             for pattern in patterns:
                 for path in sorted(self.root.glob(pattern)):
                     rel = path.relative_to(self.root).as_posix()
@@ -154,7 +178,9 @@ class Repo:
                     continue
                 suite, rest = line.split(":", 1)
                 if f"tests/{suite.strip()}.rs" in explicit:
-                    found |= {f"tests/{part.strip()}.rs" for part in rest.split(",") if part.strip()}
+                    found |= {
+                        f"tests/{part.strip()}.rs" for part in rest.split(",") if part.strip()
+                    }
         # a module that a compiled test pulls in with #[path = "..."] runs with it
         pending = list(found)
         while pending:
@@ -181,7 +207,10 @@ def paths_in(value: object) -> list[str]:
     for part in parts:
         if part.strip() in UNLISTED:
             continue
-        found.extend(m.group(0).rstrip("/") if "::" not in m.group(0) else m.group(0) for m in PATH_TOKEN.finditer(part))
+        found.extend(
+            m.group(0).rstrip("/") if "::" not in m.group(0) else m.group(0)
+            for m in PATH_TOKEN.finditer(part)
+        )
     return list(dict.fromkeys(found))
 
 
@@ -217,7 +246,11 @@ def fixture_problem(repo: Repo, token: str) -> str | None:
         if body is None or not re.search(rf"\b(?:fn|def|class)\s+{re.escape(name)}\b", body):
             return f"fixture {path} defines no `{name}`"
     if path.endswith(".rs") and "/tests/" in path:
-        return None if repo.rust_test_registered(path) else f"fixture {path} is not a registered test target"
+        return (
+            None
+            if repo.rust_test_registered(path)
+            else f"fixture {path} is not a registered test target"
+        )
     if path.endswith(".rs") and "/src/" in path:
         body = repo.text(path) or ""
         if path in repo.registry_paths() or "#[cfg(test)]" in body or "#[test]" in body:
@@ -252,7 +285,9 @@ def fixture_problem(repo: Repo, token: str) -> str | None:
         if "/golden/" in path and f'"{stem}"' in body:
             return None
     if path.startswith("scripts/") and path.endswith(".py"):
-        gates = (repo.text("scripts/gate_selftests.sh") or "") + (repo.text("scripts/gate_release.sh") or "")
+        gates = (repo.text("scripts/gate_selftests.sh") or "") + (
+            repo.text("scripts/gate_release.sh") or ""
+        )
         if base in gates:
             return None
     return f"fixture {path} is read by no registered test, gate or script"
@@ -265,8 +300,13 @@ def owner_problem(repo: Repo, owner: str, symbol: str | None = None) -> str | No
     if symbol:
         body = repo.text(path)
         if body is None:  # a directory owner defines the symbol somewhere beneath it
-            proc = subprocess.run(["grep", "-rlw", "--", symbol, path], cwd=repo.root,
-                                  capture_output=True, text=True, check=False)
+            proc = subprocess.run(
+                ["grep", "-rlw", "--", symbol, path],
+                cwd=repo.root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
             if not proc.stdout.strip():
                 return f"owner {path} defines no `{symbol}`"
         elif not re.search(rf"\b{re.escape(symbol)}\b", body):
@@ -279,7 +319,9 @@ SYMBOL = re.compile(
 )
 
 
-def consumer_problem(repo: Repo, texts: list[str], symbol: str | None, owners: list[str]) -> str | None:
+def consumer_problem(
+    repo: Repo, texts: list[str], symbol: str | None, owners: list[str]
+) -> str | None:
     """A consumer is a path that exists or a symbol that source code outside tests reads."""
     owner_set = {o.split(" ")[0].rstrip("/") for o in owners}
     paths = paths_in(texts)
@@ -297,11 +339,17 @@ def consumer_problem(repo: Repo, texts: list[str], symbol: str | None, owners: l
     if not paths and not symbols and not any(t.strip() not in UNLISTED for t in texts):
         return "no consumer is named"
     for name in symbols:
-        if (name == symbol or len(name) > 5) and any(src not in owner_set for src in repo.sources_reading(name)):
+        if (name == symbol or len(name) > 5) and any(
+            src not in owner_set for src in repo.sources_reading(name)
+        ):
             return None
     if paths:
         return "the only consumer named is the owner itself"
-    return f"no source reads the consumer named ({texts[0][:60]!r}...)" if texts else "no consumer is named"
+    return (
+        f"no source reads the consumer named ({texts[0][:60]!r}...)"
+        if texts
+        else "no consumer is named"
+    )
 
 
 def route_lowerings(licensed: dict) -> dict[tuple[str, str], set[str]]:
@@ -347,7 +395,9 @@ def gather(repo: Repo) -> list[dict]:
                 owners.append(route["owning_module"].split(" ")[0])
                 lowered = sorted(lowerings.get((route["target"], route["graph_class"]), ()))
                 if not lowered:
-                    missing.append("no lowering is registered for the route in parity/licensed_routes.toml")
+                    missing.append(
+                        "no lowering is registered for the route in parity/licensed_routes.toml"
+                    )
                 else:
                     symbol = lowered[0]
                     pass
@@ -359,7 +409,11 @@ def gather(repo: Repo) -> list[dict]:
                 missing.append(f"child {rid} is not in {CHILDREN}")
             else:
                 route_id = child["route"]
-                if route_id not in UNLISTED and not repo.exists(route_id.split(" ")[0]) and route_id not in manifest:
+                if (
+                    route_id not in UNLISTED
+                    and not repo.exists(route_id.split(" ")[0])
+                    and route_id not in manifest
+                ):
                     missing.append(f"route {route_id} is not in the route manifest")
                 owners.extend(paths_in(child["module"]))
                 owners.extend(paths_in(child["owner"]))
@@ -371,7 +425,9 @@ def gather(repo: Repo) -> list[dict]:
         carrier = row.get("carrier")
         if carrier and carrier not in manifest:
             missing.append(f"carrier route {carrier} is not in the route manifest")
-        if str(row.get("implementation_evidence", "")).endswith("acceptance.toml") and repo.exists(row["implementation_evidence"]):
+        if str(row.get("implementation_evidence", "")).endswith("acceptance.toml") and repo.exists(
+            row["implementation_evidence"]
+        ):
             capabilities = repo.load(row["implementation_evidence"])
             by_id = {c["id"]: c for c in capabilities.get("capability", [])}
             members = [c for k, c in by_id.items() if k == rid or k.startswith(rid + ".")]
@@ -380,17 +436,25 @@ def gather(repo: Repo) -> list[dict]:
                 missing.append(f"{row['implementation_evidence']} holds no capability {rid}")
             for member in members:
                 owners.extend(member.get("rust", []))
-                fixtures.extend(p for p in member.get("rust", []) if p.endswith(".rs")
-                                and "#[test]" in (repo.text(p) or ""))
+                fixtures.extend(
+                    p
+                    for p in member.get("rust", [])
+                    if p.endswith(".rs") and "#[test]" in (repo.text(p) or "")
+                )
             fixtures.extend(integrated.get("tests", []))
             fixtures.extend(p for p in [capabilities.get("python_acceptance", "")] if p)
             consumers.extend(integrated.get("rust", []))
         # evidence declared on the row itself, then the overlay
         for source in (row, extra):
             owners.extend(paths_in(source.get("owner", "")))
-            fixtures.extend(paths_in(source.get("acceptance_fixtures", [])) + paths_in(source.get("fixtures", [])))
+            fixtures.extend(
+                paths_in(source.get("acceptance_fixtures", []))
+                + paths_in(source.get("fixtures", []))
+            )
             consumers.extend(source.get("consumer_paths", []))
-            consumers.extend([source["consumer"]] if isinstance(source.get("consumer"), str) else [])
+            consumers.extend(
+                [source["consumer"]] if isinstance(source.get("consumer"), str) else []
+            )
             symbol = source.get("consumer_symbol", symbol)
             owner_symbol = source.get("owner_symbol", owner_symbol)
         owners = list(dict.fromkeys(owners))
@@ -412,10 +476,19 @@ def gather(repo: Repo) -> list[dict]:
         if problem:
             missing.append(problem)
         status = "reconciled" if not missing else "open"
-        records.append({
-            "id": rid, "source": row["source"], "list": row["list"], "mandatory": mandatory,
-            "status": status, "owner": owners, "fixtures": fixtures, "consumer": consumers, "missing": missing,
-        })
+        records.append(
+            {
+                "id": rid,
+                "source": row["source"],
+                "list": row["list"],
+                "mandatory": mandatory,
+                "status": status,
+                "owner": owners,
+                "fixtures": fixtures,
+                "consumer": consumers,
+                "missing": missing,
+            }
+        )
     return records
 
 
@@ -430,16 +503,29 @@ def listing(items: list[str]) -> str:
 def render(records: list[dict]) -> str:
     counts = Counter(r["status"] for r in records)
     mandatory = Counter(r["status"] for r in records if r["mandatory"])
-    lines = [HEADER.rstrip("\n"), "", "schema = 1",
-             f"rows = {len(records)}",
-             f"reconciled = {counts['reconciled']}", f"open = {counts['open']}",
-             f"mandatory_rows = {sum(mandatory.values())}",
-             f"mandatory_reconciled = {mandatory['reconciled']}", f"mandatory_open = {mandatory['open']}", ""]
+    lines = [
+        HEADER.rstrip("\n"),
+        "",
+        "schema = 1",
+        f"rows = {len(records)}",
+        f"reconciled = {counts['reconciled']}",
+        f"open = {counts['open']}",
+        f"mandatory_rows = {sum(mandatory.values())}",
+        f"mandatory_reconciled = {mandatory['reconciled']}",
+        f"mandatory_open = {mandatory['open']}",
+        "",
+    ]
     for r in records:
-        lines += ["[[row]]", f"id = {quote(r['id'])}", f"source = {quote(r['source'])}",
-                  f"list = {quote(r['list'])}", f"status = {quote(r['status'])}",
-                  f"owner = {listing(r['owner'])}", f"fixtures = {listing(r['fixtures'])}",
-                  f"consumer = {listing(r['consumer'])}"]
+        lines += [
+            "[[row]]",
+            f"id = {quote(r['id'])}",
+            f"source = {quote(r['source'])}",
+            f"list = {quote(r['list'])}",
+            f"status = {quote(r['status'])}",
+            f"owner = {listing(r['owner'])}",
+            f"fixtures = {listing(r['fixtures'])}",
+            f"consumer = {listing(r['consumer'])}",
+        ]
         if r["missing"]:
             lines.append(f"missing = {listing(r['missing'])}")
         lines.append("")
@@ -450,13 +536,22 @@ def problems(repo: Repo, records: list[dict], stored: str | None) -> list[str]:
     errors: list[str] = []
     expected = render(records)
     if stored is None or stored != expected:
-        errors.append(f"stale: {OUTPUT} differs from the sources; run python3 scripts/reconcile_release_scope.py")
+        errors.append(
+            f"stale: {OUTPUT} differs from the sources; run python3 scripts/reconcile_release_scope.py"
+        )
     for r in records:
         if not r["mandatory"] or r["status"] == "reconciled":
             continue
         for item in r["missing"]:
-            kind = "dangling" if "does not exist" in item or "defines no" in item or "not a registered" in item \
-                or "read by no registered" in item or "holds no unit tests" in item else "open"
+            kind = (
+                "dangling"
+                if "does not exist" in item
+                or "defines no" in item
+                or "not a registered" in item
+                or "read by no registered" in item
+                or "holds no unit tests" in item
+                else "open"
+            )
             errors.append(f"{kind}: {r['id']}: {item}")
     return errors
 
@@ -471,20 +566,38 @@ def self_test() -> int:
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        write(root, MANIFEST, '[[route]]\nid = "licensed.A.Dag"\ntarget = "A"\ngraph_class = "Dag"\nstatus = "licensed"\n'
-              'owning_module = "crates/c/src/owner.rs"\nartifact_consumer = "unlisted"\n')
-        write(root, CHILDREN, '[[child]]\nid = "P.x"\nroute = "licensed.A.Dag"\nmodule = "crates/c/src/owner.rs"\n'
-              'owner = "crates/c"\nfixtures = "crates/c/tests/t.rs"\nconsumer = "crates/c/src/reader.rs"\n')
-        write(root, LICENSED, '[[route]]\ncoordinate = "A:Dag:explicit:Frequentist:none"\nlowering = "Low"\n')
+        write(
+            root,
+            MANIFEST,
+            '[[route]]\nid = "licensed.A.Dag"\ntarget = "A"\ngraph_class = "Dag"\nstatus = "licensed"\n'
+            'owning_module = "crates/c/src/owner.rs"\nartifact_consumer = "unlisted"\n',
+        )
+        write(
+            root,
+            CHILDREN,
+            '[[child]]\nid = "P.x"\nroute = "licensed.A.Dag"\nmodule = "crates/c/src/owner.rs"\n'
+            'owner = "crates/c"\nfixtures = "crates/c/tests/t.rs"\nconsumer = "crates/c/src/reader.rs"\n',
+        )
+        write(
+            root,
+            LICENSED,
+            '[[route]]\ncoordinate = "A:Dag:explicit:Frequentist:none"\nlowering = "Low"\n',
+        )
         write(root, REGISTRY, "schema = 1\n")
-        write(root, "crates/c/Cargo.toml", '[package]\nname = "c"\nautotests = false\n[[test]]\nname = "t"\n')
+        write(
+            root,
+            "crates/c/Cargo.toml",
+            '[package]\nname = "c"\nautotests = false\n[[test]]\nname = "t"\n',
+        )
         write(root, "crates/c/src/owner.rs", "pub struct Thing;\n")
         write(root, "crates/c/src/reader.rs", "use Thing;\nLow\n")
         write(root, "crates/c/tests/t.rs", "#[test]\nfn it() {}\n")
         write(root, "crates/antecedent/tests/licensed_compiler.rs", "#[test]\nfn it() {}\n")
         write(root, "crates/antecedent/Cargo.toml", '[package]\nname = "a"\n')
-        scope = ('[[entry]]\nid = "licensed.A.Dag"\nstatus = "mandatory"\nlist = "mandatory"\nsource = "route_manifest"\n\n'
-                 '[[entry]]\nid = "P.x"\nstatus = "mandatory"\nlist = "mandatory"\nsource = "method_children"\n')
+        scope = (
+            '[[entry]]\nid = "licensed.A.Dag"\nstatus = "mandatory"\nlist = "mandatory"\nsource = "route_manifest"\n\n'
+            '[[entry]]\nid = "P.x"\nstatus = "mandatory"\nlist = "mandatory"\nsource = "method_children"\n'
+        )
         write(root, SCOPE, scope)
         repo = Repo(root)
         records = gather(repo)
@@ -492,7 +605,9 @@ def self_test() -> int:
         assert by_id["P.x"]["status"] == "reconciled", by_id["P.x"]
         assert by_id["licensed.A.Dag"]["status"] == "reconciled", by_id["licensed.A.Dag"]
         assert problems(repo, records, render(records)) == []
-        assert any(e.startswith("stale") for e in problems(repo, records, "old")), "stale output must fail"
+        assert any(e.startswith("stale") for e in problems(repo, records, "old")), (
+            "stale output must fail"
+        )
         # a fixture that does not exist fails the mandatory row
         (root / "crates/c/tests/t.rs").unlink()
         broken = gather(Repo(root))
@@ -505,21 +620,40 @@ def self_test() -> int:
         errors = problems(Repo(root), unregistered, render(unregistered))
         assert any("not a registered test target" in e for e in errors), errors
         # a missing consumer fails, and a research row never does
-        write(root, "crates/c/Cargo.toml", '[package]\nname = "c"\nautotests = false\n[[test]]\nname = "t"\n')
+        write(
+            root,
+            "crates/c/Cargo.toml",
+            '[package]\nname = "c"\nautotests = false\n[[test]]\nname = "t"\n',
+        )
         (root / "crates/c/src/reader.rs").unlink()
         errors = problems(Repo(root), gather(Repo(root)), None)
         assert any("consumer" in e and "P.x" in e for e in errors), errors
-        write(root, SCOPE, scope.replace('list = "mandatory"\nsource = "method_children"', 'list = "research"\nsource = "method_children"'))
+        write(
+            root,
+            SCOPE,
+            scope.replace(
+                'list = "mandatory"\nsource = "method_children"',
+                'list = "research"\nsource = "method_children"',
+            ),
+        )
         research = gather(Repo(root))
         assert not [e for e in problems(Repo(root), research, render(research)) if "P.x" in e]
         # an awaiting table is not an exemption: a mandatory row with no evidence stays open and fails
         write(root, SCOPE, scope)
-        write(root, CHILDREN, '[[child]]\nid = "P.x"\nroute = "unlisted"\nmodule = "none"\nowner = "unlisted"\n'
-              'fixtures = "unlisted"\nconsumer = "unlisted"\n')
+        write(
+            root,
+            CHILDREN,
+            '[[child]]\nid = "P.x"\nroute = "unlisted"\nmodule = "none"\nowner = "unlisted"\n'
+            'fixtures = "unlisted"\nconsumer = "unlisted"\n',
+        )
         held = gather(Repo(root))
         assert {r["id"]: r["status"] for r in held}["P.x"] == "open"
         assert any(e.startswith("open: P.x") for e in problems(Repo(root), held, render(held)))
-        write(root, EVIDENCE, '[[awaiting]]\nid = "P.x"\nowner_item = "P99"\nreason = "later"\ncompletes_when = "it runs"\n')
+        write(
+            root,
+            EVIDENCE,
+            '[[awaiting]]\nid = "P.x"\nowner_item = "P99"\nreason = "later"\ncompletes_when = "it runs"\n',
+        )
         try:
             gather(Repo(root))
         except SystemExit as exit_:
@@ -547,7 +681,10 @@ def main(argv: list[str]) -> int:
         return 0
     if "--report" in argv:
         counts = Counter((r["list"], r["status"]) for r in records)
-        print(f"rows: {len(records)}  " + "  ".join(f"{k[0]}/{k[1]}={v}" for k, v in sorted(counts.items())))
+        print(
+            f"rows: {len(records)}  "
+            + "  ".join(f"{k[0]}/{k[1]}={v}" for k, v in sorted(counts.items()))
+        )
         for r in records:
             for item in r["missing"]:
                 print(f"{r['status']:10} {r['id']}: {item}")

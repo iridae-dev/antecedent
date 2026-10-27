@@ -62,8 +62,12 @@ SCANNED_SUFFIXES = {".rs", ".py", ".md"}
 # Generated prose repeats the evidence rows scanned above; tests assert refusal strings.
 SKIPPED_PATHS = ("docs/support-matrix.md", "docs/graphless-support-matrix.md")
 SKIPPED_PARITY = {
-    "counterparts.toml", "residual_limitations.toml", "residual_limitation_owners.toml",
-    "promotion.toml", "evidence_ledger.toml", "transport_stages.toml",
+    "counterparts.toml",
+    "residual_limitations.toml",
+    "residual_limitation_owners.toml",
+    "promotion.toml",
+    "evidence_ledger.toml",
+    "transport_stages.toml",
 }
 ITEM_PREFIX = re.compile(r"^([A-Z]\d+(?:\.\d+)?)\b")
 
@@ -115,14 +119,16 @@ def counterpart_limitations(rows: list[dict]) -> list[dict]:
         if row.get("next_attempt"):
             text = f"{text} Next attempt: {squash(row['next_attempt'])}"
         item = ITEM_PREFIX.match(row["id"])
-        out.append({
-            "id": f"counterpart.{row['id']}",
-            "kind": "narrowed_promise" if narrowed else "theory_reason",
-            "source": "parity/counterparts.toml",
-            "locator": row["id"],
-            "text": text,
-            "item": item.group(1) if item else "",
-        })
+        out.append(
+            {
+                "id": f"counterpart.{row['id']}",
+                "kind": "narrowed_promise" if narrowed else "theory_reason",
+                "source": "parity/counterparts.toml",
+                "locator": row["id"],
+                "text": text,
+                "item": item.group(1) if item else "",
+            }
+        )
     return out
 
 
@@ -139,14 +145,16 @@ def route_limitations(routes: list[dict]) -> list[dict]:
             if not route.get(attempt):
                 continue
             text = f"{squash(route.get(reason, ''))} Next attempt: {squash(route[attempt])}".strip()
-            out.append({
-                "id": f"route.{route['id']}.{kind}",
-                "kind": kind,
-                "source": "parity/capabilities/route_manifest.toml",
-                "locator": route["id"],
-                "text": text,
-                "item": "",
-            })
+            out.append(
+                {
+                    "id": f"route.{route['id']}.{kind}",
+                    "kind": kind,
+                    "source": "parity/capabilities/route_manifest.toml",
+                    "locator": route["id"],
+                    "text": text,
+                    "item": "",
+                }
+            )
     return out
 
 
@@ -154,7 +162,9 @@ def _walk_limitations(node: object, found: list[tuple[str, str]]) -> None:
     if isinstance(node, dict):
         for key, value in node.items():
             if key == "limitations" and isinstance(value, str):
-                found.append((str(node.get("id") or node.get("key") or node.get("query") or ""), value))
+                found.append(
+                    (str(node.get("id") or node.get("key") or node.get("query") or ""), value)
+                )
             else:
                 _walk_limitations(value, found)
     elif isinstance(node, list):
@@ -190,14 +200,16 @@ def carryover_limitations(document: dict) -> list[dict]:
     for cell in document.get("cell", []):
         gates = ", ".join(cell.get("failed_gates", []))
         text = f"{gates}: {squash(cell.get('corrective_action', ''))}"
-        out.append({
-            "id": f"carryover.{cell['id']}",
-            "kind": "failed_gate",
-            "source": "parity/promotion_carryovers.toml",
-            "locator": cell["id"],
-            "text": text,
-            "item": "",
-        })
+        out.append(
+            {
+                "id": f"carryover.{cell['id']}",
+                "kind": "failed_gate",
+                "source": "parity/promotion_carryovers.toml",
+                "locator": cell["id"],
+                "text": text,
+                "item": "",
+            }
+        )
     return out
 
 
@@ -233,14 +245,16 @@ def phrase_limitations(root: Path) -> list[dict]:
                 key = f"{rel}\x1f{text}"
                 seen[key] = seen.get(key, 0) + 1
                 suffix = "" if seen[key] == 1 else f".{seen[key]}"
-                out.append({
-                    "id": f"phrase.{Path(rel).stem}.{digest(rel, text)}{suffix}",
-                    "kind": "source_phrase",
-                    "source": rel,
-                    "locator": "",
-                    "text": text,
-                    "item": "",
-                })
+                out.append(
+                    {
+                        "id": f"phrase.{Path(rel).stem}.{digest(rel, text)}{suffix}",
+                        "kind": "source_phrase",
+                        "source": rel,
+                        "locator": "",
+                        "text": text,
+                        "item": "",
+                    }
+                )
     return out
 
 
@@ -272,7 +286,13 @@ def collect(root: Path = ROOT) -> list[dict]:
 
 def rule_matches(rule: dict, row: dict) -> bool:
     """Every pattern the rule carries must match; a rule with no pattern matches nothing."""
-    patterns = {"limitation": "id", "kind": "kind", "path": "source", "locator": "locator", "text": "text"}
+    patterns = {
+        "limitation": "id",
+        "kind": "kind",
+        "path": "source",
+        "locator": "locator",
+        "text": "text",
+    }
     present = [k for k in patterns if k in rule]
     if not present:
         return False
@@ -312,7 +332,18 @@ def render(rows: list[dict]) -> str:
     lines = [HEADER, "schema = 1", f"count = {len(rows)}", ""]
     for row in rows:
         lines.append("[[limitation]]")
-        for key in ("id", "kind", "source", "locator", "text", "item", "owner", "decision", "rationale", "rule"):
+        for key in (
+            "id",
+            "kind",
+            "source",
+            "locator",
+            "text",
+            "item",
+            "owner",
+            "decision",
+            "rationale",
+            "rule",
+        ):
             lines.append(f"{key} = {toml_str(row.get(key, ''))}")
         lines.append("")
     return "\n".join(lines)
@@ -328,7 +359,9 @@ def main(argv: list[str]) -> int:
     target = ROOT / LEDGER
     if "--check" in argv:
         if not target.is_file() or read_text(target) != text:
-            print(f"{LEDGER} is stale; run python3 scripts/residual_limitations.py", file=sys.stderr)
+            print(
+                f"{LEDGER} is stale; run python3 scripts/residual_limitations.py", file=sys.stderr
+            )
             return 1
         return 0
     write_text(target, text)

@@ -50,8 +50,16 @@ STATUSES = (
 )
 UNCERTAINTY_KINDS = ("analytic", "design_aware_resampling", "posterior", "enclosure", "none")
 BASES = (
-    "measured_record", "point_only_cell", "asserted_in_test", "estimator_records", "declared_unmeasured",
-    "declared_and_corroborated", "graphless_claim", "no_executing_route", "refused_route", "no_method_record",
+    "measured_record",
+    "point_only_cell",
+    "asserted_in_test",
+    "estimator_records",
+    "declared_unmeasured",
+    "declared_and_corroborated",
+    "graphless_claim",
+    "no_executing_route",
+    "refused_route",
+    "no_method_record",
 )
 CLOSURE_KINDS = ("delivered", "narrowed_promise")
 
@@ -78,7 +86,13 @@ CLOSED_ROUTE_NEXT = (
 )
 SPECS = ROOT / "parity/method_specs/specs.toml"
 TEMPORAL_MARK = re.compile(r"temporal|panel|sequential|series|period|time", re.I)
-UNCERTAINTY_RANK = {"none": 0, "enclosure": 1, "analytic": 2, "design_aware_resampling": 2, "posterior": 2}
+UNCERTAINTY_RANK = {
+    "none": 0,
+    "enclosure": 1,
+    "analytic": 2,
+    "design_aware_resampling": 2,
+    "posterior": 2,
+}
 
 
 def toml_str(value: str) -> str:
@@ -153,7 +167,9 @@ def child_status(child: dict, methods: list[dict], verified: bool) -> tuple[str,
     gap, missing = child["gap"], child["missing"]
     if gap == "target" or missing.lower().startswith("not applicable"):
         return "not_applicable_with_theory_reason", "delivered"
-    executes = gap in ("none", "validation") or (gap == "implementation" and child["module"] != "none")
+    executes = gap in ("none", "validation") or (
+        gap == "implementation" and child["module"] != "none"
+    )
     if executes and (methods or (verified and child["module"] != "none")):
         licensed = any(m["status"] == "licensed" for m in methods)
         status = "licensed" if licensed else "executing_unlicensed"
@@ -165,7 +181,9 @@ def scope_by_id(scope: dict) -> dict[str, dict]:
     return {entry["id"]: entry for entry in scope["entry"]}
 
 
-def child_rows(children: list[dict], routes: dict[str, dict], scope: dict[str, dict], evidenced: Evidenced) -> list[dict]:
+def child_rows(
+    children: list[dict], routes: dict[str, dict], scope: dict[str, dict], evidenced: Evidenced
+) -> list[dict]:
     ev = evidenced.ev
     from check_method_children import child_findings
 
@@ -185,7 +203,9 @@ def child_rows(children: list[dict], routes: dict[str, dict], scope: dict[str, d
         else:
             kind, basis = "unresolved", "no_method_record"
         spec = evidenced.specs.get(child["id"], {})
-        sampling = next((m["design_time_model"] for m in methods if m["design_time_model"] not in UNLISTED), "")
+        sampling = next(
+            (m["design_time_model"] for m in methods if m["design_time_model"] not in UNLISTED), ""
+        )
         sampling = sampling or spec.get("sampling_units", "unlisted")
         fixtures = ev.tokens(child["fixtures"])
         consumers = ev.tokens(child["consumer"])
@@ -204,9 +224,16 @@ def child_rows(children: list[dict], routes: dict[str, dict], scope: dict[str, d
                 "target": child["target"],
                 "sampling_design": sampling,
                 "execution": fixtures[0] if fixtures else "unlisted",
-                "reuse_key": child["inference"] if child["inference"] != "unlisted" else child["route"],
-                "decision_port": methods[0]["decision_ports"] if methods else (route["decision_ports"] if route else "unlisted"),
-                "artifact": next((c for c in consumers if not ev.is_test_path(ev.split(c)[0])), consumers[0] if consumers else "unlisted"),
+                "reuse_key": child["inference"]
+                if child["inference"] != "unlisted"
+                else child["route"],
+                "decision_port": methods[0]["decision_ports"]
+                if methods
+                else (route["decision_ports"] if route else "unlisted"),
+                "artifact": next(
+                    (c for c in consumers if not ev.is_test_path(ev.split(c)[0])),
+                    consumers[0] if consumers else "unlisted",
+                ),
                 "closure": closure,
                 "scope_status": entry.get("status", "unlisted"),
                 "gap": child["gap"],
@@ -214,7 +241,9 @@ def child_rows(children: list[dict], routes: dict[str, dict], scope: dict[str, d
                 "next_attempt": (
                     NO_INTERVAL_NEXT
                     if closure == "narrowed_promise" and kind == "none" and status in EXECUTING
-                    else NEXT_ATTEMPT.get(child["gap"], "") if closure == "narrowed_promise" else ""
+                    else NEXT_ATTEMPT.get(child["gap"], "")
+                    if closure == "narrowed_promise"
+                    else ""
                 ),
             }
         )
@@ -236,7 +265,11 @@ def route_method(route: dict) -> str:
     its manifest target names, so the temporal measurement routes (whose target is the
     sequentially randomized design they correct) join the static ones.
     """
-    return "MeasurementCorrectedFunctional" if route["id"].startswith("measurement.") else route["target"]
+    return (
+        "MeasurementCorrectedFunctional"
+        if route["id"].startswith("measurement.")
+        else route["target"]
+    )
 
 
 def route_design(route: dict) -> str:
@@ -287,14 +320,22 @@ def route_rows(routes: list[dict], lowerings: dict[str, str], evidenced: Evidenc
             continue
         targets = list(dict.fromkeys([route_method(route), *counterparts]))
         for inference in inferences:
-            kind, basis = evidenced.route_kind(route["id"], inference) if not closed else ("none", "refused_route")
+            kind, basis = (
+                evidenced.route_kind(route["id"], inference)
+                if not closed
+                else ("none", "refused_route")
+            )
             methods = evidenced.for_side(evidenced.by_route.get(route["id"], []), inference)
             status = (
-                "closed_with_next_attempt" if closed
-                else "licensed" if (
+                "closed_with_next_attempt"
+                if closed
+                else "licensed"
+                if (
                     any(m["status"] == "licensed" for m in methods)
-                    if methods else route["status"] == "licensed"
-                ) else "executing_unlicensed"
+                    if methods
+                    else route["status"] == "licensed"
+                )
+                else "executing_unlicensed"
             )
             reason = route["notes"] if closed else ""
             weak = kind == "none" and not closed
@@ -317,23 +358,42 @@ def route_rows(routes: list[dict], lowerings: dict[str, str], evidenced: Evidenc
                         "uncertainty_basis": basis,
                         "target": target,
                         "sampling_design": route["design_time_model"],
-                        "execution": methods[0]["evidence"][0] if methods and methods[0]["evidence"] else "unlisted",
+                        "execution": methods[0]["evidence"][0]
+                        if methods and methods[0]["evidence"]
+                        else "unlisted",
                         "reuse_key": lowerings.get(route["id"], route["id"]),
                         "decision_port": route["decision_ports"],
                         "artifact": next(
-                            (c for m in methods for c in m["artifact_consumer"] if not evidenced.ev.is_test_path(evidenced.ev.split(c)[0])),
+                            (
+                                c
+                                for m in methods
+                                for c in m["artifact_consumer"]
+                                if not evidenced.ev.is_test_path(evidenced.ev.split(c)[0])
+                            ),
                             "unlisted",
                         ),
-                        "closure": "narrowed_promise" if closed or weak or narrowed else "delivered",
+                        "closure": "narrowed_promise"
+                        if closed or weak or narrowed
+                        else "delivered",
                         "scope_status": "mandatory",
-                        "gap": "target" if closed else ("validation" if weak or narrowed else "none"),
+                        "gap": "target"
+                        if closed
+                        else ("validation" if weak or narrowed else "none"),
                         "reason": (
-                            route[reason_key] if narrowed
-                            else reason or (f"the route publishes a point value and no interval ({basis})" if weak else "")
+                            route[reason_key]
+                            if narrowed
+                            else reason
+                            or (
+                                f"the route publishes a point value and no interval ({basis})"
+                                if weak
+                                else ""
+                            )
                         ),
                         "next_attempt": (
-                            route[attempt_key] if narrowed
-                            else CLOSED_ROUTE_NEXT if closed
+                            route[attempt_key]
+                            if narrowed
+                            else CLOSED_ROUTE_NEXT
+                            if closed
                             else (NEXT_ATTEMPT["validation"] if weak else "")
                         ),
                     }
@@ -353,13 +413,24 @@ def static_boundaries(rows: list[dict]) -> list[dict]:
         for inference in INFERENCES:
             extra.append(
                 {
-                    "id": f"{target}#static.{inference}", "kind": "route", "method": target,
-                    "design": "static", "inference": inference, "route": "unlisted",
-                    "status": "not_applicable_with_theory_reason", "uncertainty": "none",
-                    "uncertainty_basis": "no_executing_route", "target": target,
-                    "sampling_design": "unlisted", "execution": "unlisted", "reuse_key": "unlisted",
-                    "decision_port": "unlisted", "artifact": "unlisted", "closure": "delivered",
-                    "scope_status": "mandatory", "gap": "target",
+                    "id": f"{target}#static.{inference}",
+                    "kind": "route",
+                    "method": target,
+                    "design": "static",
+                    "inference": inference,
+                    "route": "unlisted",
+                    "status": "not_applicable_with_theory_reason",
+                    "uncertainty": "none",
+                    "uncertainty_basis": "no_executing_route",
+                    "target": target,
+                    "sampling_design": "unlisted",
+                    "execution": "unlisted",
+                    "reuse_key": "unlisted",
+                    "decision_port": "unlisted",
+                    "artifact": "unlisted",
+                    "closure": "delivered",
+                    "scope_status": "mandatory",
+                    "gap": "target",
                     "reason": f"{target} is defined over a time-indexed process, so it has no static graph class",
                     "next_attempt": "",
                 }
@@ -385,15 +456,38 @@ def build() -> list[dict]:
     evidenced = Evidenced(manifest_data, load(SPECS)["spec"], Evidence(ROOT))
     rows = child_rows(children, routes, scope, evidenced)
     rows += route_rows(manifest, licensed_lowerings(load(LICENSED)), evidenced)
-    rows.sort(key=lambda row: (row["kind"], row["method"], QUADRANTS.index(f"{row['design']}.{row['inference']}"), row["id"]))
+    rows.sort(
+        key=lambda row: (
+            row["kind"],
+            row["method"],
+            QUADRANTS.index(f"{row['design']}.{row['inference']}"),
+            row["id"],
+        )
+    )
     return rows
 
 
 FIELDS = (
-    "id", "kind", "method", "design", "inference", "route", "status", "uncertainty",
-    "uncertainty_basis", "target", "sampling_design", "execution", "reuse_key", "decision_port",
-    "artifact", "closure", "scope_status",
-    "gap", "reason", "next_attempt",
+    "id",
+    "kind",
+    "method",
+    "design",
+    "inference",
+    "route",
+    "status",
+    "uncertainty",
+    "uncertainty_basis",
+    "target",
+    "sampling_design",
+    "execution",
+    "reuse_key",
+    "decision_port",
+    "artifact",
+    "closure",
+    "scope_status",
+    "gap",
+    "reason",
+    "next_attempt",
 )
 
 
@@ -474,7 +568,9 @@ def render_doc(rows: list[dict]) -> str:
                 continue
             cells = []
             for quadrant in QUADRANTS:
-                cells.append(short[best(quads[quadrant])["status"]] if quadrant in quads else "**missing**")
+                cells.append(
+                    short[best(quads[quadrant])["status"]] if quadrant in quads else "**missing**"
+                )
             out.append(f"| `{method}` | " + " | ".join(cells) + " |")
         out.append("")
     out += ["## Narrowed promises", "", "| Row | Status | Next attempt |", "| --- | --- | --- |"]
@@ -495,9 +591,15 @@ def main() -> int:
     rows = build()
     toml_text, doc_text = render_toml(rows), render_doc(rows)
     if "--check" in sys.argv[1:]:
-        stale = [p for p, t in ((OUT_TOML, toml_text), (OUT_DOC, doc_text)) if not p.exists() or p.read_text(encoding="utf-8") != t]
+        stale = [
+            p
+            for p, t in ((OUT_TOML, toml_text), (OUT_DOC, doc_text))
+            if not p.exists() or p.read_text(encoding="utf-8") != t
+        ]
         for path in stale:
-            print(f"{path.relative_to(ROOT)} is stale; run python3 scripts/generate_counterparts.py")
+            print(
+                f"{path.relative_to(ROOT)} is stale; run python3 scripts/generate_counterparts.py"
+            )
         return 1 if stale else 0
     OUT_TOML.write_text(toml_text, encoding="utf-8")
     OUT_DOC.write_text(doc_text, encoding="utf-8")

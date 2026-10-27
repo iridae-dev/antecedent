@@ -457,6 +457,10 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
         "temporal_counterfactual",
         "consume_temporal_counterfactual_artifact",
     ),
+    "temporal_counterfactual_general_v1": (
+        "temporal_counterfactual",
+        "consume_temporal_worlds_artifact",
+    ),
     "effect_constancy_v1": ("temporal", "consume_effect_constancy_artifact"),
     "categorical_treatment_v1": ("categorical_treatment", "consume_categorical_effects"),
     "nonlinear_mediation_v1": ("nonlinear_mediation", "consume_mediation_artifact"),

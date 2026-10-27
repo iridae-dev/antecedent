@@ -53,6 +53,8 @@ __all__ = [
     "refusal_record",
     "schema",
     "schema_text",
+    "support_cell_report",
+    "support_cells",
 ]
 
 #: What a host may do with a claim or an operation.
@@ -250,6 +252,32 @@ def operation_record(report: Mapping[str, Any]) -> dict[str, Any]:
             str(report["applicability"]), None if readiness is None else str(readiness)
         ),
     }
+
+
+def support_cells() -> tuple[str, ...]:
+    """Every licensed support-matrix coordinate, ``query:graph:structure:inference:validation``.
+
+    The list is the generated matrix itself, read without preparing or fitting anything. A
+    prepared study's ``matrix_coordinate`` is one of these exactly when its matrix status is
+    ``licensed``.
+    """
+    return tuple(_native.support_licensed_cells())
+
+
+def support_cell_report(coordinate: str) -> dict[str, Any]:
+    """Classification, blocker text and licensed neighbors of one matrix coordinate.
+
+    ``status`` is ``licensed``, ``refused`` or ``not_applicable``. ``message`` is the blocker
+    text a refused or not-applicable cell reports (``None`` for a licensed cell), and
+    ``neighbors`` the licensed cells of the same graph class that change explicit premises,
+    nearest first, each with the ``changed`` axes and the ``required_action``: an alternative
+    the caller chooses, never an automatic fallback. A licensed cell has no neighbors.
+    A coordinate that is malformed or names an axis value outside the matrix raises
+    :class:`~antecedent.errors.CausalValueError`.
+    """
+    if not isinstance(coordinate, str):
+        raise CausalTypeError("coordinate must be a text coordinate")
+    return cast(dict[str, Any], json.loads(_native.support_cell_report(coordinate)))
 
 
 def claim_record(claim: Mapping[str, Any]) -> dict[str, Any]:

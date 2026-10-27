@@ -13,9 +13,7 @@ meta = json.loads(
     )
 )
 workspace = {
-    pkg["name"]: pkg
-    for pkg in meta["packages"]
-    if pkg["id"] in set(meta["workspace_members"])
+    pkg["name"]: pkg for pkg in meta["packages"] if pkg["id"] in set(meta["workspace_members"])
 }
 members = {
     name: pkg
@@ -28,9 +26,7 @@ deps = {name: set() for name in members}
 version_errors = []
 for name, pkg in members.items():
     for dep in pkg.get("dependencies", []):
-        private = (
-            dep["name"] in workspace and workspace[dep["name"]].get("publish") == []
-        )
+        private = dep["name"] in workspace and workspace[dep["name"]].get("publish") == []
         if (
             dep["name"] in workspace
             and workspace[dep["name"]].get("publish") == []
@@ -44,20 +40,14 @@ for name, pkg in members.items():
             # A versioned self dependency survives Cargo packaging and tries to
             # resolve this not-yet-published crate from the registry. A path-only
             # self dependency is omitted from the published dev dependencies.
-            manifest = tomllib.loads(
-                Path(pkg["manifest_path"]).read_text(encoding="utf-8")
-            )
+            manifest = tomllib.loads(Path(pkg["manifest_path"]).read_text(encoding="utf-8"))
             tables = [manifest.get("dev-dependencies", {})]
             tables.extend(
-                target.get("dev-dependencies", {})
-                for target in manifest.get("target", {}).values()
+                target.get("dev-dependencies", {}) for target in manifest.get("target", {}).values()
             )
             alias = dep.get("rename") or dep["name"]
             specifications = [table.get(alias) for table in tables]
-            if any(
-                isinstance(spec, dict) and spec.get("workspace")
-                for spec in specifications
-            ):
+            if any(isinstance(spec, dict) and spec.get("workspace") for spec in specifications):
                 root = Path(meta["workspace_root"]) / "Cargo.toml"
                 specifications.append(
                     tomllib.loads(root.read_text(encoding="utf-8"))

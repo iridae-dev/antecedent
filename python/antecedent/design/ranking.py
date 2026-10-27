@@ -33,7 +33,7 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields, is_dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from .. import _native
 from .._artifact_protocol import (
@@ -81,6 +81,9 @@ from .structural import (
     StructuralRanking,
     _rank_structural_result,
 )
+
+if TYPE_CHECKING:
+    from ..prepared import PreparedAnalysis
 
 Basis = Literal[
     "identification",
@@ -604,6 +607,8 @@ def _native_plan_ranking(
     rng_seed: int,
     threads: int | None,
     objective: DesignObjective | None = None,
+    study: Any = None,
+    decision_target: str | None = None,
 ) -> Any:
     options: dict[str, Any] = {}
     if monte_carlo is not None:
@@ -613,31 +618,80 @@ def _native_plan_ranking(
             batch_size=monte_carlo.batch_size,
             rank_uncertainty_threshold=monte_carlo.rank_uncertainty_threshold,
         )
-    objective_options = (
-        {"objective": "increase_identification_probability", "query_id": query_id}
-        if objective is None
-        else objective._options()
+    if study is not None:
+        options.update(prepared=_bound_native(study), decision_target=decision_target)
+    wire = _ranking_inputs(
+        plans,
+        prior,
+        query_id=query_id,
+        variable_unlocks=variable_unlocks,
+        environment_unlocks=environment_unlocks,
+        objective=objective,
     )
     return _native.rank_designs(
-        list(prior.weights),
-        [int(v) for v in prior.identified],
-        list(prior.keys),
-        [plan._wire(i) for i, plan in enumerate(plans)],
-        **objective_options,
-        query_id_unlock=_unlocks(variable_unlocks, "variable_unlocks"),
-        env_id_unlock=_unlocks(environment_unlocks, "environment_unlocks"),
-        identified_under_intervention=(
-            [int(v) for v in prior.identified_under_intervention]
-            if prior.identified_under_intervention is not None
-            else None
-        ),
-        graph_features=list(prior.features) if prior.features is not None else None,
+        **wire,
         max_cost=max_cost,
         max_sample_budget=max_sample_budget,
         seed=rng_seed,
         threads=threads,
         **options,
     )
+
+
+def _ranking_inputs(
+    plans: Sequence[DesignPlan],
+    prior: StructurePrior,
+    *,
+    query_id: int,
+    variable_unlocks: Mapping[int, Sequence[int]] | None,
+    environment_unlocks: Mapping[int, Sequence[int]] | None,
+    objective: DesignObjective | None,
+) -> dict[str, Any]:
+    """The posterior ensemble and the evaluation context of a plan ranking, as keywords."""
+    objective_options = (
+        {"objective": "increase_identification_probability", "query_id": query_id}
+        if objective is None
+        else objective._options()
+    )
+    return {
+        "graph_weights": list(prior.weights),
+        "identified": [int(v) for v in prior.identified],
+        "graph_keys": list(prior.keys),
+        "candidates": [plan._wire(i) for i, plan in enumerate(plans)],
+        **objective_options,
+        "query_id_unlock": _unlocks(variable_unlocks, "variable_unlocks"),
+        "env_id_unlock": _unlocks(environment_unlocks, "environment_unlocks"),
+        "identified_under_intervention": (
+            [int(v) for v in prior.identified_under_intervention]
+            if prior.identified_under_intervention is not None
+            else None
+        ),
+        "graph_features": list(prior.features) if prior.features is not None else None,
+    }
+
+
+def _bound_native(study: Any) -> Any:
+    """The native handle of an immutable prepared study a ranking is bound to."""
+    from ..prepared import PreparedAnalysis
+
+    if not isinstance(study, PreparedAnalysis):
+        raise CausalTypeError("study must be an immutable prepared study")
+    if study._refused is not None:
+        assert study._refused.refusal is not None
+        study._refused.refusal.raise_error()
+    return study._engine._native
+
+
+def _target_digest(decision_target: str | None) -> str | None:
+    if decision_target is None:
+        return None
+    if (
+        not isinstance(decision_target, str)
+        or len(decision_target) != 64
+        or any(c not in "0123456789abcdef" for c in decision_target.lower())
+    ):
+        raise CausalValueError("decision_target must be a 64-character hexadecimal identity")
+    return decision_target.lower()
 
 
 def _check_plans(candidates: Sequence[Any]) -> list[DesignPlan]:
@@ -680,6 +734,8 @@ def rank_designs(
     monte_carlo: MonteCarlo | None = None,
     rng_seed: int = 0,
     threads: int | None = None,
+    study: PreparedAnalysis[Any] | None = None,
+    decision_target: str | None = None,
 ) -> DesignRankingResult:
     """Rank candidate studies; the result's ``basis`` says on what.
 
@@ -715,11 +771,30 @@ def rank_designs(
     identification probability is reported as ``result.gate`` and candidates below
     ``min_identification`` are not valued. ``monte_carlo``, ``rng_seed`` and ``threads``
     apply to either basis.
+
+    **Bound to a prepared study** (``study=``): plan rankings (identification and the native
+    objectives) are ranked through that study's contract. An unlicensed support cell or a
+    study without an identification product raises
+    :class:`~antecedent.errors.CausalUnsupportedError`; a width ranking across a
+    ``decision_target`` (a 64-hex target identity) other than the study's own is refused; a
+    plan the objective cannot score is reported in ``violations`` and the rest are ranked at
+    their declared positions. :func:`preview_ranking` reads the same obligations without
+    scoring.
     """
     if isinstance(candidates, (str, bytes)) or not isinstance(candidates, Sequence):
         raise CausalTypeError("candidates must be a sequence")
     if not candidates:
         raise CausalValueError("rank_designs needs at least one candidate")
+    decision_target = _target_digest(decision_target)
+    if decision_target is not None and study is None:
+        raise CausalValueError("decision_target applies only to a ranking bound to a study")
+    if study is not None and (
+        decision is not None or any(isinstance(c, StructuralCandidate) for c in candidates)
+    ):
+        raise CausalValueError(
+            "study= binds plan rankings (identification or a native objective) to a prepared "
+            "contract; decision= and structural rankings do not take a study"
+        )
     if monte_carlo is not None and not isinstance(monte_carlo, MonteCarlo):
         raise CausalTypeError("monte_carlo must be design.MonteCarlo")
     rng_seed = _count(rng_seed, "rng_seed")
@@ -811,6 +886,8 @@ def rank_designs(
             rng_seed=rng_seed,
             threads=threads,
             objective=objective,
+            study=study,
+            decision_target=decision_target,
         )
     if not isinstance(decision, DesignDecision):
         raise CausalTypeError("decision must be a design.DesignDecision")
@@ -868,6 +945,8 @@ def _rank_plans(
     rng_seed: int,
     threads: int | None,
     objective: DesignObjective | None = None,
+    study: Any = None,
+    decision_target: str | None = None,
 ) -> DesignRankingResult:
     if not isinstance(prior, StructurePrior):
         raise CausalTypeError("prior must be a design.StructurePrior")
@@ -883,6 +962,8 @@ def _rank_plans(
         rng_seed=rng_seed,
         threads=threads,
         objective=objective,
+        study=study,
+        decision_target=decision_target,
     )
     ids = [plan_id(p, i) for i, p in enumerate(plans)]
     baseline = _identified_mass(prior)
@@ -1114,6 +1195,105 @@ def evsi(decision: DesignDecision, candidate: Candidate, **options: Any) -> Cand
     return value
 
 
+@dataclass(frozen=True, slots=True)
+class RankingObligation:
+    """An obligation a contract-bound ranking inspects before it scores anything."""
+
+    id: str
+    scope: str
+    kind: str
+    status: str
+    required_check: str | None
+    description: str
+
+
+@dataclass(frozen=True, slots=True)
+class RankingPreview:
+    """What ranking plans through a prepared study's contract would require, without scoring.
+
+    ``obligations`` are the posterior, hypothetical-data-model, candidate-mapping, cost and
+    update-rule obligations of the ranking; ``unidentified_mass`` the mass of the declared
+    structure prior on which the query is not identified (``None`` without a prior);
+    ``target`` the prepared target identity the ranking is bound to; ``violations`` the plans
+    the objective cannot score; and ``unresolved`` that a required utility cannot be evaluated,
+    so a ranking would be incomplete. Reading a preview scores and fits nothing.
+    """
+
+    obligations: tuple[RankingObligation, ...]
+    unidentified_mass: float | None
+    target: str
+    violations: tuple[ConstraintViolation, ...]
+    unresolved: bool
+
+
+def preview_ranking(
+    study: PreparedAnalysis[Any],
+    candidates: Sequence[DesignPlan],
+    *,
+    prior: StructurePrior,
+    objective: DesignObjective | None = None,
+    query_id: int = 0,
+    variable_unlocks: Mapping[int, Sequence[int]] | None = None,
+    environment_unlocks: Mapping[int, Sequence[int]] | None = None,
+    decision_target: str | None = None,
+) -> RankingPreview:
+    """Inspect the obligations of ranking ``candidates`` through ``study``'s contract.
+
+    The refusals are those of :func:`rank_designs` with ``study=``: an unlicensed support cell
+    or a study without an identification product, a width ranking across a ``decision_target``
+    other than the study's own, and an identification ranking whose structure prior renormalizes
+    the identified mass the study's contract reports
+    (:class:`~antecedent.errors.CausalUnsupportedError`).
+    """
+    if isinstance(candidates, (str, bytes)) or not isinstance(candidates, Sequence):
+        raise CausalTypeError("candidates must be a sequence")
+    if not candidates:
+        raise CausalValueError("preview_ranking needs at least one candidate")
+    if objective is not None and not isinstance(objective, OBJECTIVE_TYPES):
+        raise CausalTypeError(
+            "objective must be GraphEntropy, EffectWidth, ModelDistinction or DecisionRegret"
+        )
+    plans = _check_plans(candidates)
+    if not isinstance(prior, StructurePrior):
+        raise CausalTypeError("prior must be a design.StructurePrior")
+    wire = _ranking_inputs(
+        plans,
+        prior,
+        query_id=_count(query_id, "query_id"),
+        variable_unlocks=variable_unlocks,
+        environment_unlocks=environment_unlocks,
+        objective=objective,
+    )
+    raw = json.loads(
+        _native.preview_design_rank(
+            _bound_native(study), **wire, decision_target=_target_digest(decision_target)
+        )
+    )
+    ids = [plan_id(p, i) for i, p in enumerate(plans)]
+    return RankingPreview(
+        obligations=tuple(
+            RankingObligation(
+                id=o["id"],
+                scope=o["scope"],
+                kind=o["kind"],
+                status=o["status"],
+                required_check=o["required_check"],
+                description=o["description"],
+            )
+            for o in raw["obligations"]
+        ),
+        unidentified_mass=raw["unidentified_mass"],
+        target=raw["target"],
+        violations=tuple(
+            ConstraintViolation(
+                ids[v["candidate_index"]], int(v["candidate_index"]), v["constraint"], v["detail"]
+            )
+            for v in raw["violations"]
+        ),
+        unresolved=bool(raw["unresolved"]),
+    )
+
+
 __all__ = [
     "Basis",
     "ConstraintViolation",
@@ -1121,6 +1301,9 @@ __all__ = [
     "GateEntry",
     "IdentificationCandidate",
     "IdentificationGate",
+    "RankingObligation",
+    "RankingPreview",
     "evsi",
+    "preview_ranking",
     "rank_designs",
 ]

@@ -6,8 +6,11 @@ from pathlib import Path
 
 
 def problems(directory: Path, version: str) -> list[str]:
-    expected = {(f"cp3{minor}", platform) for minor in (11, 12, 13, 14)
-                for platform in ("linux-x86_64", "linux-aarch64", "macos-arm64", "windows-x86_64")}
+    expected = {
+        (f"cp3{minor}", platform)
+        for minor in (11, 12, 13, 14)
+        for platform in ("linux-x86_64", "linux-aarch64", "macos-arm64", "windows-x86_64")
+    }
     found: set[tuple[str, str]] = set()
     errors: list[str] = []
     wheels = sorted(directory.glob("*.whl"))

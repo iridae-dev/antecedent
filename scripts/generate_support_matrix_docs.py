@@ -434,9 +434,7 @@ def calibration_summary(cells: list[dict]) -> str:
         for c in cells
         if c.get("calibration_reason") == "estimator_grid_not_measured"
     }
-    no_interval = sum(
-        1 for c in cells if c.get("calibration_reason") == "no_interval_reported"
-    )
+    no_interval = sum(1 for c in cells if c.get("calibration_reason") == "no_interval_reported")
     other = total - recorded - not_measured - no_interval
     if other:
         raise AssertionError(
@@ -527,9 +525,7 @@ def _support_coordinates(block: str, source: Path) -> set[tuple[str, ...]]:
         choices = []
         for part in parts:
             tokens = part.split(" / ")
-            if any(
-                not re.fullmatch(r"`[A-Za-z_][A-Za-z0-9_]*`", token) for token in tokens
-            ):
+            if any(not re.fullmatch(r"`[A-Za-z_][A-Za-z0-9_]*`", token) for token in tokens):
                 raise ValueError(f"{source}: invalid support axis {part!r}")
             choices.append([token[1:-1] for token in tokens])
         coordinates = set(product(*choices))
@@ -558,9 +554,7 @@ def frozen_support_coordinates(path: Path) -> set[tuple[str, ...]]:
     if count:
         previous = _support_coordinates(block, path)
         if len(previous) != int(count[1]):
-            raise ValueError(
-                f"{path}: frozen support count does not match its coordinates"
-            )
+            raise ValueError(f"{path}: frozen support count does not match its coordinates")
         return previous
     delta = re.search(
         r"^Changes to generic analysis support since (\d+\.\d+\.\d+): "
@@ -588,7 +582,9 @@ def release_support_delta(cells: list[dict], axes: dict, baseline: Path) -> list
     keys = ("query", "graph_class", "structure", "inference", "validation")
     current = {tuple(cell[key] for key in keys) for cell in cells}
     added = [cell for cell in cells if tuple(cell[key] for key in keys) not in previous]
-    removed = [dict(zip(keys, coordinate, strict=True)) for coordinate in sorted(previous - current)]
+    removed = [
+        dict(zip(keys, coordinate, strict=True)) for coordinate in sorted(previous - current)
+    ]
     version = baseline.stem.removeprefix("v")
     lines = [
         f"Changes to generic analysis support since {version}: {len(added)} added coordinates, {len(removed)} removed coordinates.",
@@ -650,13 +646,9 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
         raise SystemExit(
             f"{RELEASE_NOTES}: missing generated-block markers {RN_BEGIN!r} / {RN_END!r}"
         )
-    baseline_match = re.search(
-        r"<!-- support-delta-baseline: v(\d+\.\d+\.\d+) -->", text
-    )
+    baseline_match = re.search(r"<!-- support-delta-baseline: v(\d+\.\d+\.\d+) -->", text)
     if baseline_match:
-        body_lines = release_support_delta(
-            cells, axes, release_notes_path(baseline_match[1])
-        )
+        body_lines = release_support_delta(cells, axes, release_notes_path(baseline_match[1]))
     else:
         body_lines = [
             f"{counts['licensed']} licensed of {counts['cartesian'] - counts['n_a']} meaningful "
@@ -837,9 +829,7 @@ def coverage_snapshot() -> dict:
     )
     return {
         "records": [_coverage_record(row) for row in records],
-        "functional_identity_aliases": [
-            {key: row[key] for key in alias_keys} for row in aliases
-        ],
+        "functional_identity_aliases": [{key: row[key] for key in alias_keys} for row in aliases],
         "attesting_record_ids": attesting_record_ids(),
         "interval_method_reasons": _interval_method_reasons(records),
     }
@@ -947,7 +937,6 @@ def cell_estimators(row: dict, routes: dict[str, dict]) -> list[str]:
     for wire in estimators_from_calibration(list(row.get("calibration") or [])):
         add(wire)
     return out
-
 
 
 def _rule_snapshot(rule: dict, *, parent: bool = False) -> dict:

@@ -211,9 +211,13 @@ def check() -> dict:
                     if (
                         cell.get("query") == route.get("query")
                         and cell.get("contrast") == route.get("contrast")
-                        and (cell.get("calibration_reason") == NOMINAL or NOMINAL in json.dumps(cell))
+                        and (
+                            cell.get("calibration_reason") == NOMINAL or NOMINAL in json.dumps(cell)
+                        )
                     ):
-                        errors.append(f"{rid}: licensed route {name} has a support cell carrying {NOMINAL}")
+                        errors.append(
+                            f"{rid}: licensed route {name} has a support cell carrying {NOMINAL}"
+                        )
             # (b) an uncertainty route is closed, or licensed with every record present.
             if stage == "uncertainty":
                 if status == "licensed":
@@ -227,7 +231,9 @@ def check() -> dict:
                     closed_uncertainty = True
                 else:
                     errors.append(f"{rid}: uncertainty route {name} has status {status!r}")
-            if status == "closed" and (stage == "uncertainty" or route.get("reason_code") in WITHHOLD_REASONS):
+            if status == "closed" and (
+                stage == "uncertainty" or route.get("reason_code") in WITHHOLD_REASONS
+            ):
                 test, assertion = route.get("refusal_test"), route.get("refusal_assertion")
                 if not test or not assertion:
                     errors.append(f"{rid}: closed route {name} cites no executed refusal test")
@@ -244,7 +250,9 @@ def check() -> dict:
                         f"{rid}: {name}: refusal test {test}::{assertion} never names "
                         f"{route.get('reason_code')!r}"
                     )
-                refusals.append({"record": rid, "route": name, "test": test, "assertion": assertion})
+                refusals.append(
+                    {"record": rid, "route": name, "test": test, "assertion": assertion}
+                )
         # (c) public interval-bearing outputs must sit behind a closed or covered route.
         surfaces = INTERVAL_SURFACES[rid]
         findings = []
@@ -260,8 +268,10 @@ def check() -> dict:
                 "closed uncertainty route and no coverage records"
             )
         if findings:
-            notes.append(f"{rid}: {len(findings)} interval-bearing public names, all behind "
-                         f"{'a closed route' if closed_uncertainty else 'covered routes'}")
+            notes.append(
+                f"{rid}: {len(findings)} interval-bearing public names, all behind "
+                f"{'a closed route' if closed_uncertainty else 'covered routes'}"
+            )
         # Calibration state of a calibrated record.
         if claim == "calibrated":
             if missing:
@@ -275,13 +285,18 @@ def check() -> dict:
                 if ok:
                     calibration[rid] = {"status": "PASS", "detail": "records present and attested"}
                 else:
-                    calibration[rid] = {"status": "FAIL", "detail": f"records present, not attested: {message}"}
+                    calibration[rid] = {
+                        "status": "FAIL",
+                        "detail": f"records present, not attested: {message}",
+                    }
                     errors.append(f"{rid}: coverage records present but not attested: {message}")
     # Rows outside these records are reported, not judged.
     legacy = [
         name
         for name, row in stage_rows.items()
-        if name not in scoped_routes and NOMINAL in json.dumps(row) and row.get("status") == "licensed"
+        if name not in scoped_routes
+        and NOMINAL in json.dumps(row)
+        and row.get("status") == "licensed"
     ]
     if legacy:
         notes.append(f"{len(legacy)} licensed rows outside these records keep {NOMINAL}")
@@ -328,14 +343,32 @@ def run_refusals(tests: list[dict]) -> list[str]:
         proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
         passed = len(re.findall(r"^test .* \.\.\. ok$", proc.stdout, re.M))
         flag = target if target == "--lib" else f"--test {target}"
-        print(f"  cargo test -p {crate} {flag} ({len(names)} refusal test(s)): "
-              f"{'ok' if proc.returncode == 0 and passed >= len(names) else 'FAILED'}", file=sys.stderr)
+        print(
+            f"  cargo test -p {crate} {flag} ({len(names)} refusal test(s)): "
+            f"{'ok' if proc.returncode == 0 and passed >= len(names) else 'FAILED'}",
+            file=sys.stderr,
+        )
         if proc.returncode != 0 or passed < len(names):
-            failures.append(f"{crate}/{target}: {' '.join(names)}\n{proc.stdout[-1500:]}{proc.stderr[-800:]}")
+            failures.append(
+                f"{crate}/{target}: {' '.join(names)}\n{proc.stdout[-1500:]}{proc.stderr[-800:]}"
+            )
     if python:
-        cmd = ["uv", "run", "--project", str(ROOT / "python"), "pytest", "-q", "-p", "no:cacheprovider", *python]
+        cmd = [
+            "uv",
+            "run",
+            "--project",
+            str(ROOT / "python"),
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            *python,
+        ]
         proc = subprocess.run(cmd, cwd=ROOT / "python", capture_output=True, text=True)
-        print(f"  pytest ({len(python)} refusal test(s)): {'ok' if proc.returncode == 0 else 'FAILED'}", file=sys.stderr)
+        print(
+            f"  pytest ({len(python)} refusal test(s)): {'ok' if proc.returncode == 0 else 'FAILED'}",
+            file=sys.stderr,
+        )
         if proc.returncode != 0:
             failures.append(f"pytest {' '.join(python)}\n{proc.stdout[-1500:]}{proc.stderr[-800:]}")
     return failures
@@ -384,13 +417,19 @@ def self_test() -> int:
             coverage_id
             for record in promotion["record"]
             if record.get("id") in INTERVAL_SURFACES
-            and any(route.get("stage") == "uncertainty" and route.get("status") == "licensed"
-                    for route in record.get("routes") or [])
+            and any(
+                route.get("stage") == "uncertainty" and route.get("status") == "licensed"
+                for route in record.get("routes") or []
+            )
             for coverage_id in record.get("coverage_records") or []
         }
         (baseline / "parity/coverage_records.toml").write_text(
-            "".join(f'[[record]]\nid = "{coverage_id}"\n' for coverage_id in sorted(baseline_coverage))
-        , encoding="utf-8", newline="\n")
+            "".join(
+                f'[[record]]\nid = "{coverage_id}"\n' for coverage_id in sorted(baseline_coverage)
+            ),
+            encoding="utf-8",
+            newline="\n",
+        )
         os.environ["INTERVAL_SURFACES_SKIP_ATTEST"] = "1"
 
         def run(edit=None, coverage: list[str] | None = None) -> dict:
@@ -400,8 +439,13 @@ def self_test() -> int:
                 shutil.copytree(baseline, case, dirs_exist_ok=True)
                 if coverage is not None:
                     (case / "parity/coverage_records.toml").write_text(
-                        "".join(f'[[record]]\nid = "{c}"\n' for c in sorted(baseline_coverage | set(coverage)))
-                    , encoding="utf-8", newline="\n")
+                        "".join(
+                            f'[[record]]\nid = "{c}"\n'
+                            for c in sorted(baseline_coverage | set(coverage))
+                        ),
+                        encoding="utf-8",
+                        newline="\n",
+                    )
                 if edit is not None:
                     edit(case)
                 ROOT = case
@@ -432,21 +476,25 @@ def self_test() -> int:
             else:
                 print(f"self-test ok: '{label}' fails")
 
-        multi_source = next(r for r in promotion["record"] if r["id"] == "transport.multi_source_limited_experiment")
+        multi_source = next(
+            r for r in promotion["record"] if r["id"] == "transport.multi_source_limited_experiment"
+        )
         multi_source_records = list(multi_source["coverage_records"])
         multi_source_route = next(r for r in multi_source["routes"] if r["stage"] == "uncertainty")
         promo = "parity/promotion.toml"
-        licensed_route = (
-            f'{{ name = "{multi_source_route["name"]}", stage = "uncertainty", status = "licensed", claim = "calibrated" }}'
+        licensed_route = f'{{ name = "{multi_source_route["name"]}", stage = "uncertainty", status = "licensed", claim = "calibrated" }}'
+        closed_route_head = (
+            f'{{ name = "{multi_source_route["name"]}", stage = "uncertainty", status = "closed"'
         )
-        closed_route_head = f'{{ name = "{multi_source_route["name"]}", stage = "uncertainty", status = "closed"'
 
         def open_multi_source(case: Path) -> None:
             path = case / promo
             text = path.read_text(encoding="utf-8")
             start = text.index(closed_route_head)
             end = text.index("},", start) + 1
-            path.write_text(text[:start] + licensed_route + text[end:], encoding="utf-8", newline="\n")
+            path.write_text(
+                text[:start] + licensed_route + text[end:], encoding="utf-8", newline="\n"
+            )
 
         expect("baseline copy", run(), fail_with=None)
         result = run()
@@ -455,28 +503,45 @@ def self_test() -> int:
             failures.append(f"absent records must be PENDING_CALIBRATION, got {state}")
         else:
             print("self-test ok: absent coverage records report PENDING_CALIBRATION")
-        expect("uncertainty route licensed without coverage records", run(open_multi_source),
-               fail_with="licensed but coverage records are absent")
+        expect(
+            "uncertainty route licensed without coverage records",
+            run(open_multi_source),
+            fail_with="licensed but coverage records are absent",
+        )
         covered = run(open_multi_source, coverage=multi_source_records)
-        expect("uncertainty route licensed with every coverage record present", covered, fail_with=None)
+        expect(
+            "uncertainty route licensed with every coverage record present", covered, fail_with=None
+        )
         if covered["calibration"].get(multi_source["id"], {}).get("status") != "PASS":
             failures.append(f"present records must report PASS: {covered['calibration']}")
         else:
             print("self-test ok: present and attested coverage records report PASS")
         half = run(open_multi_source, coverage=multi_source_records[:1])
-        expect("only one of two coverage records present", half, fail_with="licensed but coverage records are absent")
+        expect(
+            "only one of two coverage records present",
+            half,
+            fail_with="licensed but coverage records are absent",
+        )
         stale = run(coverage=multi_source_records[:1])
         if stale["calibration"][multi_source["id"]]["status"] != "PENDING_CALIBRATION":
             failures.append("one of two records present must stay PENDING_CALIBRATION")
         else:
             print("self-test ok: one of two records stays PENDING_CALIBRATION")
         licensed_name = next(
-            r["name"] for r in multi_source["routes"] if r["status"] == "licensed" and r["stage"] == "prepare"
+            r["name"]
+            for r in multi_source["routes"]
+            if r["status"] == "licensed" and r["stage"] == "prepare"
         )
         row_head = f'route = "{licensed_name}"\n'
         expect(
             "licensed row carries estimator_grid_not_measured",
-            run(edit_file("parity/transport_stages.toml", row_head, row_head + f'calibration_reason = "{NOMINAL}"\n')),
+            run(
+                edit_file(
+                    "parity/transport_stages.toml",
+                    row_head,
+                    row_head + f'calibration_reason = "{NOMINAL}"\n',
+                )
+            ),
             fail_with="carrying estimator_grid_not_measured",
         )
         expect(
@@ -486,12 +551,22 @@ def self_test() -> int:
         )
         expect(
             "closed route without refusal evidence",
-            run(edit_file(promo, f', refusal_assertion = "{multi_source_route["refusal_assertion"]}"', "")),
+            run(
+                edit_file(
+                    promo, f', refusal_assertion = "{multi_source_route["refusal_assertion"]}"', ""
+                )
+            ),
             fail_with="cites no executed refusal test",
         )
         expect(
             "refusal test that does not exist",
-            run(edit_file(promo, f'refusal_assertion = "{multi_source_route["refusal_assertion"]}"', 'refusal_assertion = "no_such_test"')),
+            run(
+                edit_file(
+                    promo,
+                    f'refusal_assertion = "{multi_source_route["refusal_assertion"]}"',
+                    'refusal_assertion = "no_such_test"',
+                )
+            ),
             fail_with="does not exist",
         )
         two_step = next(r for r in promotion["record"] if r["id"] == "transport.two_step_temporal")
@@ -512,13 +587,21 @@ def self_test() -> int:
                 text = text[:start] + text[end:]
             path.write_text(text, encoding="utf-8", newline="\n")
 
-        expect("interval-bearing surface with no closed route", run(drop_two_step_interval_route),
-               fail_with="has no closed uncertainty route")
+        expect(
+            "interval-bearing surface with no closed route",
+            run(drop_two_step_interval_route),
+            fail_with="has no closed uncertainty route",
+        )
         fresh_surface = INTERVAL_SURFACES["counterfactual.path_specific_edge"][0]
 
         def add_public_interval(case: Path) -> None:
             path = case / fresh_surface
-            path.write_text(path.read_text(encoding="utf-8") + "\npub struct SelfTestLeak {\n    pub interval: Option<(f64, f64)>,\n}\n", encoding="utf-8", newline="\n")
+            path.write_text(
+                path.read_text(encoding="utf-8")
+                + "\npub struct SelfTestLeak {\n    pub interval: Option<(f64, f64)>,\n}\n",
+                encoding="utf-8",
+                newline="\n",
+            )
 
         def drop_cross_world_route(case: Path) -> None:
             path = case / promo
@@ -532,9 +615,14 @@ def self_test() -> int:
             add_public_interval(case)
             drop_cross_world_route(case)
 
-        expect("new public interval field without a closed route", run(leak_without_route),
-               fail_with="public interval-bearing output")
-        expect("public interval field behind a closed route", run(add_public_interval), fail_with=None)
+        expect(
+            "new public interval field without a closed route",
+            run(leak_without_route),
+            fail_with="public interval-bearing output",
+        )
+        expect(
+            "public interval field behind a closed route", run(add_public_interval), fail_with=None
+        )
     except (LookupError, ValueError, StopIteration) as err:
         failures.append(f"self-test could not build a case: {err!r}")
     finally:

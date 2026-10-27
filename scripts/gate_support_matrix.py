@@ -14,7 +14,10 @@ root = Path(".")
 fail: list[str] = []
 matrix_shard = sys.argv[1]
 if matrix_shard != "all":
-    print(f"support matrix: validating all cells and cited tests in shard {matrix_shard}/8", flush=True)
+    print(
+        f"support matrix: validating all cells and cited tests in shard {matrix_shard}/8",
+        flush=True,
+    )
 
 EVIDENCE_KINDS = {
     "implementation_exists",
@@ -27,6 +30,7 @@ EVIDENCE_KINDS = {
     "behavioral_parity",
     "contract_equivalence",
 }
+
 
 def regression_pin_problem(fixture: str, inference: str) -> str | None:
     """Why `fixture` cannot back known truth for a cell of this inference mode.
@@ -49,10 +53,10 @@ def regression_pin_problem(fixture: str, inference: str) -> str | None:
         and inference not in (oracle.get("independent_inferences") or [])
     ):
         return (
-                f"known_truth_fixture {fixture} is a regression_pin fixture (frozen output of "
-                f"this library) and lists no independent {inference} reference; the cell is "
-                "evidence_kind = regression_pin, not known truth"
-            )
+            f"known_truth_fixture {fixture} is a regression_pin fixture (frozen output of "
+            f"this library) and lists no independent {inference} reference; the cell is "
+            "evidence_kind = regression_pin, not known truth"
+        )
     return None
 
 
@@ -66,6 +70,7 @@ def load(rel: str) -> dict:
     except tomllib.TOMLDecodeError as exc:
         fail.append(f"{rel}: not valid TOML: {exc}")
         return {}
+
 
 axes = load("parity/support_axes.toml")
 na_doc = load("parity/support_n_a.toml")
@@ -141,7 +146,9 @@ stage_files = [
 ]
 found_public_types: set[str] = set()
 for path in stage_files:
-    for name in re.findall(r"^class ([A-Za-z][A-Za-z0-9]*)\b", path.read_text(encoding="utf-8"), re.M):
+    for name in re.findall(
+        r"^class ([A-Za-z][A-Za-z0-9]*)\b", path.read_text(encoding="utf-8"), re.M
+    ):
         found_public_types.add(class_to_axis.get(name, name))
 needed_public_types = set(off_axis_public_queries) | set(public_query_companions)
 missing_public_types = sorted(needed_public_types - found_public_types)
@@ -165,9 +172,7 @@ for name in stage_queries:
     else:
         src_path = root / "python/antecedent/interference.py"
     if src_path.is_dir():
-        src = "\n".join(
-            path.read_text(encoding="utf-8") for path in sorted(src_path.rglob("*.py"))
-        )
+        src = "\n".join(path.read_text(encoding="utf-8") for path in sorted(src_path.rglob("*.py")))
     elif src_path.is_file():
         src = src_path.read_text(encoding="utf-8")
     else:
@@ -254,7 +259,10 @@ for i, rule in enumerate(na_rules, 1):
             continue
         for v in vals:
             if v not in legal:
-                fail.append(f"parity/support_n_a.toml rule #{i}: {key} value {v!r} is not an axis value")
+                fail.append(
+                    f"parity/support_n_a.toml rule #{i}: {key} value {v!r} is not an axis value"
+                )
+
 
 def rule_matches(rule: dict, cell: dict) -> bool:
     mapping = {
@@ -270,8 +278,10 @@ def rule_matches(rule: dict, cell: dict) -> bool:
             return False
     return True
 
+
 def is_n_a(cell: dict) -> bool:
     return any(rule_matches(rule, cell) for rule in na_rules)
+
 
 # Cited evidence is read through scripts/test_evidence.py, the one reader of test
 # source for the gates: the cited function must be an executing test and, with the
@@ -298,8 +308,10 @@ for i, rule in enumerate(closed_rules, 1):
                     f"parity/support_closed.toml rule #{i}: {key} value {v!r} is not an axis value"
                 )
 
+
 def is_closed(cell: dict) -> bool:
     return (not is_n_a(cell)) and any(rule_matches(rule, cell) for rule in closed_rules)
+
 
 # n/a and reason-backed refusals are disjoint. A too-broad n/a must not mask
 # a reason row in legacy-named support_closed.toml.
@@ -315,9 +327,7 @@ if all_queries and graph_classes and structures and inferences and validations:
         for row in (lic_doc.get("cell") or [])
     }
     overlap_n = 0
-    for q, g, s, inf, v in product(
-        all_queries, graph_classes, structures, inferences, validations
-    ):
+    for q, g, s, inf, v in product(all_queries, graph_classes, structures, inferences, validations):
         cell = {
             "query": q,
             "graph_class": g,
@@ -370,6 +380,7 @@ for i, rule in enumerate(allowed_rules, 1):
             if v not in legal:
                 fail.append(f"{label}: {key} value {v!r} is not an axis value")
 
+
 def is_allowed(cell: dict) -> bool:
     return (
         (not is_n_a(cell))
@@ -377,12 +388,19 @@ def is_allowed(cell: dict) -> bool:
         and any(rule_matches(rule, cell) for rule in allowed_rules)
     )
 
+
 # Retained compatibility rules must not match any licensed, n/a, or
 # reason-backed refused cell. The 0.9 invariant above requires zero rules;
 # these checks remain so a bad legacy entry reports all of its defects.
 if all_queries and graph_classes and structures and inferences and validations:
     lic_keys_for_disjointness = {
-        (row.get("query"), row.get("graph_class"), row.get("structure"), row.get("inference"), row.get("validation"))
+        (
+            row.get("query"),
+            row.get("graph_class"),
+            row.get("structure"),
+            row.get("inference"),
+            row.get("validation"),
+        )
         for row in (lic_doc.get("cell") or [])
     }
     for i, rule in enumerate(allowed_rules, 1):
@@ -390,7 +408,10 @@ if all_queries and graph_classes and structures and inferences and validations:
         for q, g, s, inf, v in product(
             all_queries, graph_classes, structures, inferences, validations
         ):
-            if not rule_matches(rule, {"query": q, "graph_class": g, "structure": s, "inference": inf, "validation": v}):
+            if not rule_matches(
+                rule,
+                {"query": q, "graph_class": g, "structure": s, "inference": inf, "validation": v},
+            ):
                 continue
             cell = {"query": q, "graph_class": g, "structure": s, "inference": inf, "validation": v}
             if (q, g, s, inf, v) in lic_keys_for_disjointness:
@@ -418,6 +439,7 @@ legal_q = set(all_queries)
 # carries its evidence. Rows licensed before this rule are frozen in
 # parity/_evidence_test_backlog.txt; the backlog only shrinks.
 missing_evidence: set[str] = set()
+
 
 # Estimator wire-ids recorded on licensed rows (secondary axis; not cartesian).
 # When present, every entry must be a non-empty string. Empty lists are allowed
@@ -554,9 +576,7 @@ for i, row in enumerate(cells, 1):
 # estimand itself is checked against a simulation truth somewhere.
 _truth_kinds = {"internal_known_truth", "frozen_external_oracle"}
 _truthful = {
-    (c.get("query"), c.get("inference"))
-    for c in cells
-    if c.get("evidence_kind") in _truth_kinds
+    (c.get("query"), c.get("inference")) for c in cells if c.get("evidence_kind") in _truth_kinds
 }
 for row in cells:
     if (
@@ -565,11 +585,11 @@ for row in cells:
         and (row.get("query"), row.get("inference")) not in _truthful
     ):
         fail.append(
-                f"{row.get('query')}/{row.get('graph_class')}/{row.get('structure')}/"
-                f"{row.get('inference')}/{row.get('validation')}: {row.get('evidence_kind')} with no "
-                "calibration and no known-truth sibling cell of the same query and inference "
-                "mode; add known-truth evidence or a measured calibration"
-            )
+            f"{row.get('query')}/{row.get('graph_class')}/{row.get('structure')}/"
+            f"{row.get('inference')}/{row.get('validation')}: {row.get('evidence_kind')} with no "
+            "calibration and no known-truth sibling cell of the same query and inference "
+            "mode; add known-truth evidence or a measured calibration"
+        )
 
 # --- evidence_test ratchet ---------------------------------------------------
 backlog_rel = "parity/_evidence_test_backlog.txt"
@@ -598,9 +618,7 @@ if all_queries and graph_classes and structures and inferences and validations:
     n_a_count = 0
     reason_backed_refused_count = 0
     allowed_count = 0
-    for q, g, s, inf, v in product(
-        all_queries, graph_classes, structures, inferences, validations
-    ):
+    for q, g, s, inf, v in product(all_queries, graph_classes, structures, inferences, validations):
         cartesian += 1
         cell = {
             "query": q,

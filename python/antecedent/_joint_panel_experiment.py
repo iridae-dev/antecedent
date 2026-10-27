@@ -10,6 +10,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from . import _native
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -263,3 +264,52 @@ class PanelExperiment:
         """Bind replay to this update and the caller's current evidence authority."""
         artifact = container_bytes(artifact)
         self._handle.verify_current(artifact, ledger._handle, **execution)
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalPanelExperiment:
+    """An exported experimental update replayed from its retained inputs alone.
+
+    The replay recomputes the weighted posterior law and its weighted coordinate means.
+    ``grants_current_authority`` is always ``False``: consuming withdrawn or superseded
+    evidence needs the caller's current ledger through ``verify_current`` on a live update.
+    ``replays_original_design`` records whether the original design data and statistical
+    recipe were re-executed (always for a method-native update).
+    """
+
+    draws: int
+    coordinates: int
+    posterior_weights: tuple[float, ...]
+    posterior_means: tuple[float, ...]
+    provider_id: str
+    dependency: str
+    replays_original_design: bool
+    grants_current_authority: bool
+
+    @classmethod
+    def _from_json(cls, text: str) -> HistoricalPanelExperiment:
+        raw = json.loads(text)
+        return cls(
+            draws=int(raw["draws"]),
+            coordinates=int(raw["coordinates"]),
+            posterior_weights=tuple(float(w) for w in raw["posterior_weights"]),
+            posterior_means=tuple(float(m) for m in raw["posterior_means"]),
+            provider_id=raw["provider_id"],
+            dependency=raw["dependency"],
+            replays_original_design=bool(raw["replays_original_design"]),
+            grants_current_authority=bool(raw["grants_current_authority"]),
+        )
+
+
+def replay_design_experiment(artifact: bytes, **execution: Any) -> HistoricalPanelExperiment:
+    """Historical replay of an experiment exported from a population design result."""
+    return HistoricalPanelExperiment._from_json(
+        _native.replay_joint_law_experiment(container_bytes(artifact), **execution)
+    )
+
+
+def replay_native_experiment(artifact: bytes, **execution: Any) -> HistoricalPanelExperiment:
+    """Historical replay of a method-native experiment, re-executing its original design."""
+    return HistoricalPanelExperiment._from_json(
+        _native.replay_native_joint_experiment(container_bytes(artifact), **execution)
+    )

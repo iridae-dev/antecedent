@@ -55,9 +55,7 @@ class PredictiveScoreScopeTest(unittest.TestCase):
             "iid 400 to 1,600 cases,",
             "iid 400 cases upward,",
         )
-        self.assertTrue(
-            any(f.startswith("unqualified_upward") for f in findings), findings
-        )
+        self.assertTrue(any(f.startswith("unqualified_upward") for f in findings), findings)
 
     def test_a_widened_shipped_range_is_found(self) -> None:
         records = tomllib.loads((REPO_ROOT / scope.RECORDS_FILE).read_text(encoding="utf-8"))
@@ -65,17 +63,13 @@ class PredictiveScoreScopeTest(unittest.TestCase):
         findings = self.audit_with(
             scope.DOC_FILE, f"| {low:,} to {high:,} |", f"| {low:,} to {high * 2:,} |"
         )
-        self.assertTrue(
-            any(f.startswith("shipped_range_mismatch") for f in findings), findings
-        )
+        self.assertTrue(any(f.startswith("shipped_range_mismatch") for f in findings), findings)
 
     def test_a_changed_design_range_is_found(self) -> None:
         findings = self.audit_with(
             scope.DESIGN_FILE, "Design::Cluster => 1_600", "Design::Cluster => 3_200"
         )
-        self.assertTrue(
-            any(f.startswith("design_range_mismatch") for f in findings), findings
-        )
+        self.assertTrue(any(f.startswith("design_range_mismatch") for f in findings), findings)
 
 
 if __name__ == "__main__":

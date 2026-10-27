@@ -98,7 +98,9 @@ DECISION_STORIES: dict[str, dict] = {
         "title": "latent-confounded ADMG transport row",
         "rust": [("antecedent", "decision_exit_gate")],
         "python": [],
-        "evidence": ["story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals"],
+        "evidence": [
+            "story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals"
+        ],
     },
     "smoothed_dose_response": {
         "records": ["transport.smoothed_dose_response"],
@@ -112,28 +114,36 @@ DECISION_STORIES: dict[str, dict] = {
         "title": "joint mechanism deviations + sampling uncertainty",
         "rust": [("antecedent", "decision_exit_gate")],
         "python": [],
-        "evidence": ["story_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range"],
+        "evidence": [
+            "story_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range"
+        ],
     },
     "study_planning": {
         "records": ["design.study_planning"],
         "title": "planning over restricted catalogs / competing designs",
         "rust": [("antecedent", "decision_exit_gate")],
         "python": [],
-        "evidence": ["story_a_failed_multi_source_decision_is_planned_replayed_and_flipped_by_arrival"],
+        "evidence": [
+            "story_a_failed_multi_source_decision_is_planned_replayed_and_flipped_by_arrival"
+        ],
     },
     "admg_counterfactual_identification": {
         "records": ["counterfactual.admg_identification"],
         "title": "bounded ADMG counterfactual-ID cell",
         "rust": [("antecedent", "decision_exit_gate")],
         "python": [],
-        "evidence": ["story_confounded_admg_ett_matches_the_latent_model_and_refuses_outside_the_cell"],
+        "evidence": [
+            "story_confounded_admg_ett_matches_the_latent_model_and_refuses_outside_the_cell"
+        ],
     },
     "binary_observation_recovery": {
         "records": ["recovery.binary_observation"],
         "title": "exact binary causal observation recovery",
         "rust": [("antecedent", "decision_exit_gate")],
         "python": [],
-        "evidence": ["story_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identification"],
+        "evidence": [
+            "story_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identification"
+        ],
     },
 }
 
@@ -176,16 +186,12 @@ def parse_runs(text: str) -> dict[tuple[str, str, str], tuple[int, str]]:
 
 def _rust_files(root: Path, crate: str, target: str) -> list[Path]:
     base = root / "crates" / crate / "tests"
-    return [
-        p for p in (base / f"{target}.rs", base / target / "main.rs") if p.is_file()
-    ]
+    return [p for p in (base / f"{target}.rs", base / target / "main.rs") if p.is_file()]
 
 
 def _defines(text: str, name: str, python: bool) -> bool:
     pat = (
-        rf"^\s*(?:async )?def {re.escape(name)}\("
-        if python
-        else rf"\bfn {re.escape(name)}\s*[(<]"
+        rf"^\s*(?:async )?def {re.escape(name)}\(" if python else rf"\bfn {re.escape(name)}\s*[(<]"
     )
     return re.search(pat, text, re.M) is not None
 
@@ -203,9 +209,7 @@ def _fixture_evidence(recs: list[dict]) -> list[tuple[str, str]]:
     return out
 
 
-def evidence_problems(
-    pkg: str, entry: dict, runs: dict, recs: list[dict], root: Path
-) -> list[str]:
+def evidence_problems(pkg: str, entry: dict, runs: dict, recs: list[dict], root: Path) -> list[str]:
     """Why the story's registered stories do not evidence its routes (empty: they do)."""
     evidence = list(entry.get("evidence") or [])
     if not evidence:
@@ -213,9 +217,7 @@ def evidence_problems(
             f"{pkg}: stories are registered but DECISION_STORIES lists no `evidence` assertions (the story "
             "file must name the route evidence tests it covers)"
         ]
-    story_files: list[
-        tuple[str, str, Path, str]
-    ] = []  # (kind, target key, file, log body)
+    story_files: list[tuple[str, str, Path, str]] = []  # (kind, target key, file, log body)
     for crate, target in entry["rust"]:
         got = runs.get(("rust", pkg, f"{crate}/{target}"))
         for f in _rust_files(root, crate, target):
@@ -339,11 +341,7 @@ def evaluate(
             ids = _allocated(r)
             cal = calibration.get(r["id"])
             if ids and (cal is None or cal.get("status") != "PASS"):
-                why = (
-                    cal["detail"]
-                    if cal
-                    else "no calibration reading in the interval check"
-                )
+                why = cal["detail"] if cal else "no calibration reading in the interval check"
                 extra.append(
                     (
                         f"{pkg} calibration",
@@ -415,9 +413,7 @@ def evaluate(
     )
     width = max(len(r[0]) for r in rows)
     lines = ["decision exit", ""]
-    lines += [
-        f"{item:<{width}}  {status:<22}  {detail}" for item, status, detail in rows
-    ]
+    lines += [f"{item:<{width}}  {status:<22}  {detail}" for item, status, detail in rows]
     for error in intervals.get("errors", []):
         lines.append(f"  interval check: {error}")
     statuses = {r[1] for r in rows}
@@ -502,9 +498,7 @@ def self_test() -> int:
             DECISION_STORIES[P1]["python"] = ["tests/test_synth_exit_gate.py"]
             DECISION_STORIES[P1]["evidence"] = [ev, ev2]
 
-            def rec(
-                pkg: str, status: str, claim: str = "point_only", ids=None, rid=None
-            ) -> dict:
+            def rec(pkg: str, status: str, claim: str = "point_only", ids=None, rid=None) -> dict:
                 return {
                     "id": rid or RECORD_IDS.get(pkg, f"synth.{pkg}"),
                     "status": status,
@@ -515,9 +509,7 @@ def self_test() -> int:
             def runs(rust=rust_ok, py=py_ok, rc_rust=0, rc_py=0, skip_py=False) -> dict:
                 lines = [f"rust\t{P1}\tantecedent/synth_exit_gate\t{rc_rust}\t{rust}"]
                 if not skip_py:
-                    lines.append(
-                        f"python\t{P1}\ttests/test_synth_exit_gate.py\t{rc_py}\t{py}"
-                    )
+                    lines.append(f"python\t{P1}\ttests/test_synth_exit_gate.py\t{rc_py}\t{py}")
                 return parse_runs("\n".join(lines))
 
             iv_ok = {"intervals": "PASS", "calibration": {}, "errors": []}
@@ -546,15 +538,12 @@ def self_test() -> int:
                 if verdict.startswith("ROW:"):
                     _, item, status = verdict.split(":")
                     found = any(
-                        ln.split()[:1] == [item] and status in ln.split()[1:2]
-                        for ln in lines
+                        ln.split()[:1] == [item] and status in ln.split()[1:2] for ln in lines
                     )
                 else:
                     found = verdict in text
                 if rc != code or not found:
-                    failures.append(
-                        f"'{label}': rc={rc} (want {code}), want {verdict!r}\n{text}"
-                    )
+                    failures.append(f"'{label}': rc={rc} (want {code}), want {verdict!r}\n{text}")
 
             # ---- all six promoted and passing (every package its own stories)
             full = {p: rec(p, "promoted") for p in DECISION_STORIES}
@@ -842,9 +831,7 @@ def self_test() -> int:
                 0,
                 f"ROW:{P1}:PASS",
             )
-            carried = rec(
-                P1, "carried_forward", "calibrated", ids, rid="synth.carried"
-            )
+            carried = rec(P1, "carried_forward", "calibrated", ids, rid="synth.carried")
             expect(
                 "a carried_forward sibling's unmeasured ids are a CARRIED_FORWARD calibration row",
                 {P1: [rec(P1, "promoted"), carried]},
@@ -869,9 +856,7 @@ def self_test() -> int:
                 runs(),
                 {
                     "intervals": "PASS",
-                    "calibration": {
-                        RECORD_IDS[P1]: {"status": "FAIL", "detail": "not attested"}
-                    },
+                    "calibration": {RECORD_IDS[P1]: {"status": "FAIL", "detail": "not attested"}},
                     "errors": [],
                 },
                 1,
@@ -890,7 +875,13 @@ def self_test() -> int:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    for flag in ("--self-test", "--list-tests", "--release", "--require-calibrated", "--require-implemented"):
+    for flag in (
+        "--self-test",
+        "--list-tests",
+        "--release",
+        "--require-calibrated",
+        "--require-implemented",
+    ):
         parser.add_argument(flag, action="store_true")
     for flag in ("--runs", "--intervals", "--promotion"):
         parser.add_argument(flag)
@@ -913,9 +904,7 @@ def main(argv: list[str]) -> int:
         return 0
     args = {}
     it = iter(
-        a
-        for a in argv
-        if a not in ("--require-calibrated", "--require-implemented", "--release")
+        a for a in argv if a not in ("--require-calibrated", "--require-implemented", "--release")
     )
     for k in it:
         args[k] = next(it, "")

@@ -34,9 +34,7 @@ def _index(tree: ast.Module, *, constants: bool) -> dict[str, ast.AST]:
     return defs
 
 
-def closure_nodes(
-    tree: ast.Module, name: str, *, constants: bool = False
-) -> list[ast.AST]:
+def closure_nodes(tree: ast.Module, name: str, *, constants: bool = False) -> list[ast.AST]:
     """The function ``name`` plus every module-level function its body names."""
     defs = _index(tree, constants=constants)
     seen: set[str] = set()

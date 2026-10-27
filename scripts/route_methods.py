@@ -56,9 +56,15 @@ SUPPORT_AXES = "parity/support_axes.toml"
 CHILDREN = "parity/method_children/children.toml"
 IDS = "crates/antecedent/src/strategy_table/ids.rs"
 CONSISTENCY = "crates/antecedent/tests/compiler_consistency.rs"
-MARK = "# ---- generated method records (scripts/route_methods.py); do not edit below this line ----"
-ANALYSIS_CONSUME = "crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"
-ANALYSIS_DECODE = "crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact"
+MARK = (
+    "# ---- generated method records (scripts/route_methods.py); do not edit below this line ----"
+)
+ANALYSIS_CONSUME = (
+    "crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"
+)
+ANALYSIS_DECODE = (
+    "crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact"
+)
 STRUCTURE_ORDER = ("explicit", "accepted", "graph_posterior")
 KINDS = ("analytic", "design_aware_resampling", "posterior", "enclosure", "none")
 
@@ -150,8 +156,14 @@ DECLARED_KIND = {
     "interference.cluster_bayesian_bootstrap": "posterior",
 }
 for _design in (
-    "two_arm", "multi_arm", "categorical", "factorial", "interference", "continuous_dose",
-    "smoothed_dose", "dose_grid",
+    "two_arm",
+    "multi_arm",
+    "categorical",
+    "factorial",
+    "interference",
+    "continuous_dose",
+    "smoothed_dose",
+    "dose_grid",
 ):
     DECLARED_KIND[f"temporal_design.excursion.{_design}"] = "analytic"
     DECLARED_KIND[f"bayesian.temporal_design.excursion.{_design}"] = "posterior"
@@ -223,8 +235,26 @@ FACADE_KIND = {
 # What the owning sources of a declared procedure must show. `none` needs no corroboration.
 CORROBORATION = {
     "posterior": ("posterior", "Posterior", "Dirichlet", "credible", "bayesian"),
-    "design_aware_resampling": ("bootstrap", "resample", "permutation", "multiplier", "conformal", "placebo"),
-    "analytic": ("standard_error", "se_analytic", "sandwich", "delta", "variance", "interval", "Wald", "hc1", "newey", "Newey"),
+    "design_aware_resampling": (
+        "bootstrap",
+        "resample",
+        "permutation",
+        "multiplier",
+        "conformal",
+        "placebo",
+    ),
+    "analytic": (
+        "standard_error",
+        "se_analytic",
+        "sandwich",
+        "delta",
+        "variance",
+        "interval",
+        "Wald",
+        "hc1",
+        "newey",
+        "Newey",
+    ),
     "enclosure": ("bound", "identified_set", "IdentifiedSet", "partial"),
 }
 # Sibling coordinates of an estimator whose cells carry no record of their own: the Bayesian
@@ -240,66 +270,185 @@ DECLARED_UNMEASURED = {
 T = "crates/antecedent/tests/"
 # Executing routes whose evidence the literal search cannot find: the tests that run them.
 EVIDENCE_OVERRIDE = {
-    "gcm.model.mechanism_selection": [T + "structure_compiler_routes.rs::wrapped_mechanisms_name_themselves_in_the_program"],
+    "gcm.model.mechanism_selection": [
+        T + "structure_compiler_routes.rs::wrapped_mechanisms_name_themselves_in_the_program"
+    ],
     "gcm.attribution.intrinsic_influence": [
         "crates/antecedent-attribution/tests/intrinsic_influence.rs::a_bootstrap_with_data_quantifies_mechanism_fit_separately",
-        T + "attribute_mechanism_posterior.rs::an_intrinsic_influence_has_a_posterior_over_the_mechanisms",
+        T
+        + "attribute_mechanism_posterior.rs::an_intrinsic_influence_has_a_posterior_over_the_mechanisms",
     ],
-    "gcm.attribute.temporal.frequentist": [T + "temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"],
-    "gcm.attribute.temporal.bayesian": [T + "temporal_attribution_route_evidence.rs::temporal_attribution_bayesian_known_truth"],
-    "quasi.covariate_adjusted_two_period": [T + "quasi_rollout_routes.rs::covariate_adjusted_two_period_did_recovers_the_effect_under_conditional_trends"],
-    "quasi.augmented_panel_supplied_nuisance": [T + "augmented_panel_did_route.rs::augmented_panel_did_retains_known_truth_and_point_only_semantics"],
-    "quasi.multi_unit_synthetic_placebo": [T + "quasi_rollout_routes.rs::multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals"],
-    "bayesian.synthetic_control_predictive_path": [T + "bayesian_design_routes.rs::synthetic_control_posterior_recovers_the_effect_and_records_convergence"],
+    "gcm.attribute.temporal.frequentist": [
+        T + "temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"
+    ],
+    "gcm.attribute.temporal.bayesian": [
+        T + "temporal_attribution_route_evidence.rs::temporal_attribution_bayesian_known_truth"
+    ],
+    "quasi.covariate_adjusted_two_period": [
+        T
+        + "quasi_rollout_routes.rs::covariate_adjusted_two_period_did_recovers_the_effect_under_conditional_trends"
+    ],
+    "quasi.augmented_panel_supplied_nuisance": [
+        T
+        + "augmented_panel_did_route.rs::augmented_panel_did_retains_known_truth_and_point_only_semantics"
+    ],
+    "quasi.multi_unit_synthetic_placebo": [
+        T
+        + "quasi_rollout_routes.rs::multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals"
+    ],
+    "bayesian.synthetic_control_predictive_path": [
+        T
+        + "bayesian_design_routes.rs::synthetic_control_posterior_recovers_the_effect_and_records_convergence"
+    ],
     "quasi.local_ratio.design_layer": [
-        T + "local_polynomial_ratio_route.rs::retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval",
-        T + "quasi_rollout_routes.rs::fuzzy_rd_with_a_selected_bandwidth_and_diagnostics_recovers_the_effect",
+        T
+        + "local_polynomial_ratio_route.rs::retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval",
+        T
+        + "quasi_rollout_routes.rs::fuzzy_rd_with_a_selected_bandwidth_and_diagnostics_recovers_the_effect",
     ],
-    "attribution.mechanism_change_detection": [T + "attribute_mechanism_posterior.rs::mechanism_change_detection_has_no_posterior_and_says_why"],
-    "attribution.unit_change": [T + "structure_compiler_routes.rs::mechanism_and_unit_change_run_on_the_retained_path"],
-    "gcm.attribute": [T + "structure_compiler_routes.rs::attribution_and_simulation_equal_their_engines"],
+    "attribution.mechanism_change_detection": [
+        T
+        + "attribute_mechanism_posterior.rs::mechanism_change_detection_has_no_posterior_and_says_why"
+    ],
+    "attribution.unit_change": [
+        T + "structure_compiler_routes.rs::mechanism_and_unit_change_run_on_the_retained_path"
+    ],
+    "gcm.attribute": [
+        T + "structure_compiler_routes.rs::attribution_and_simulation_equal_their_engines"
+    ],
     "gcm.simulate": [
         T + "structure_compiler_routes.rs::attribution_and_simulation_equal_their_engines",
-        T + "attribute_mechanism_posterior.rs::every_simulation_target_carries_refit_uncertainty_in_both_modes",
+        T
+        + "attribute_mechanism_posterior.rs::every_simulation_target_carries_refit_uncertainty_in_both_modes",
     ],
-    "measurement.transport.pooled_differential": ["python/tests/test_pooled_differential_transport.py::test_heterogeneity_widens_and_a_target_sample_narrows_the_interval"],
-    "composition.static.frequentist": [T + "composed_uncertainty_facade.rs::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"],
-    "composition.static.bayesian": [T + "joint_law_propagation_facade.rs::an_aligned_nonlinear_functional_matches_the_joint_moment_truth"],
-    "composition.temporal.frequentist": [T + "horizon_composition.rs::coupled_horizons_compose_with_the_spread_of_the_realizations"],
-    "composition.temporal.bayesian": [T + "horizon_composition.rs::the_compiled_temporal_response_retains_joint_horizons_in_both_modes"],
+    "measurement.transport.pooled_differential": [
+        "python/tests/test_pooled_differential_transport.py::test_heterogeneity_widens_and_a_target_sample_narrows_the_interval"
+    ],
+    "composition.static.frequentist": [
+        T
+        + "composed_uncertainty_facade.rs::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"
+    ],
+    "composition.static.bayesian": [
+        T
+        + "joint_law_propagation_facade.rs::an_aligned_nonlinear_functional_matches_the_joint_moment_truth"
+    ],
+    "composition.temporal.frequentist": [
+        T + "horizon_composition.rs::coupled_horizons_compose_with_the_spread_of_the_realizations"
+    ],
+    "composition.temporal.bayesian": [
+        T
+        + "horizon_composition.rs::the_compiled_temporal_response_retains_joint_horizons_in_both_modes"
+    ],
 }
 for _class in ("TemporalDag", "TemporalCpdag", "TemporalPag"):
     EVIDENCE_OVERRIDE[f"closed.AverageEffect.{_class}"] = [
-        T + "lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed",
-        T + "lag_zero_average_effect.rs::every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads",
+        T
+        + "lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed",
+        T
+        + "lag_zero_average_effect.rs::every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads",
     ]
 
 
 # Executing routes whose artifact the evidence tests do not read back: the production reader of
 # each artifact, and the test that drives it where one exists.
 CONSUMER_OVERRIDE = {
-    "bayesian.gcomp.model_based_arm_effect": [ANALYSIS_CONSUME, T + "identity_contract.rs::target_population_moves_target_and_program_not_identification"],
-    "gcm.model.intervention_programs": ["crates/antecedent-io-core/src/policy_program_artifact.rs", T + "policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits"],
-    "gcm.model.mechanism_selection": ["crates/antecedent-io-core/src/mechanism_wire.rs::mechanisms_from_wire", T + "structure_compiler_routes.rs::wrapped_mechanisms_name_themselves_in_the_program"],
-    "gcm.attribution.intrinsic_influence": [ANALYSIS_CONSUME, T + "checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"],
-    "gcm.attribute": [ANALYSIS_CONSUME, T + "checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"],
-    "attribution.mechanism_change_detection": [ANALYSIS_CONSUME, T + "checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"],
-    "attribution.unit_change": [ANALYSIS_CONSUME, T + "checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"],
-    "gcm.simulate": ["crates/antecedent-io-core/src/policy_program_artifact.rs", T + "policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits"],
-    "discovery.static": ["crates/antecedent/src/analysis/structure_route.rs::accept_discovered", T + "structure_compiler_routes.rs::discovered_provenance_reaches_the_downstream_contract_and_program"],
-    "discovery.temporal": ["crates/antecedent/src/analysis/structure_route.rs::accept_discovered", T + "structure_compiler_routes.rs::discovered_provenance_reaches_the_downstream_contract_and_program"],
-    "association.descriptive.static": [ANALYSIS_CONSUME, T + "association_route.rs::every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from"],
-    "association.descriptive.temporal": [ANALYSIS_CONSUME, T + "association_route.rs::every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from"],
-    "bayesian.association.descriptive.static": [ANALYSIS_CONSUME, T + "association_route.rs::every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from"],
-    "bayesian.association.descriptive.temporal": [ANALYSIS_CONSUME, T + "association_route.rs::every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from"],
-    "measurement.static.frequentist": ["crates/antecedent-io-core/src/measurement_model_wire.rs", "crates/antecedent-estimate/tests/measurement_models.rs::artifact_replays_independently_and_refuses_semantic_mutation"],
-    "measurement.static.bayesian": ["crates/antecedent-io-core/src/measurement_model_wire.rs", "crates/antecedent-estimate/tests/measurement_models.rs::artifact_replays_independently_and_refuses_semantic_mutation"],
-    "measurement.transport.pooled_differential": ["crates/antecedent/src/analysis/transported_measurement.rs"],
-    "composition.static.frequentist": ["crates/antecedent/src/analysis/composition.rs", T + "identity_contract.rs::composition_artifact_reload_in_separate_process"],
-    "composition.static.bayesian": ["crates/antecedent/src/analysis/composition.rs", T + "identity_contract.rs::composition_artifact_reload_in_separate_process"],
-    "composition.temporal.frequentist": ["crates/antecedent/src/analysis/composition.rs", T + "cross_surface_horizon.rs"],
-    "composition.temporal.bayesian": ["crates/antecedent/src/analysis/composition.rs", T + "cross_surface_horizon.rs"],
-    "graphless.dose_grid.randomized_dose.local_quadratic": ["crates/antecedent-io/src/dose_grid_functional_artifact.rs::consume_typed", "crates/antecedent-io/tests/dose_grid_artifact.rs::a_declared_curvature_bound_seals_bias_aware_intervals_and_the_band"],
+    "bayesian.gcomp.model_based_arm_effect": [
+        ANALYSIS_CONSUME,
+        T + "identity_contract.rs::target_population_moves_target_and_program_not_identification",
+    ],
+    "gcm.model.intervention_programs": [
+        "crates/antecedent-io-core/src/policy_program_artifact.rs",
+        T + "policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits",
+    ],
+    "gcm.model.mechanism_selection": [
+        "crates/antecedent-io-core/src/mechanism_wire.rs::mechanisms_from_wire",
+        T + "structure_compiler_routes.rs::wrapped_mechanisms_name_themselves_in_the_program",
+    ],
+    "gcm.attribution.intrinsic_influence": [
+        ANALYSIS_CONSUME,
+        T
+        + "checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused",
+    ],
+    "gcm.attribute": [
+        ANALYSIS_CONSUME,
+        T
+        + "checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused",
+    ],
+    "attribution.mechanism_change_detection": [
+        ANALYSIS_CONSUME,
+        T
+        + "checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused",
+    ],
+    "attribution.unit_change": [
+        ANALYSIS_CONSUME,
+        T
+        + "checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused",
+    ],
+    "gcm.simulate": [
+        "crates/antecedent-io-core/src/policy_program_artifact.rs",
+        T + "policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits",
+    ],
+    "discovery.static": [
+        "crates/antecedent/src/analysis/structure_route.rs::accept_discovered",
+        T
+        + "structure_compiler_routes.rs::discovered_provenance_reaches_the_downstream_contract_and_program",
+    ],
+    "discovery.temporal": [
+        "crates/antecedent/src/analysis/structure_route.rs::accept_discovered",
+        T
+        + "structure_compiler_routes.rs::discovered_provenance_reaches_the_downstream_contract_and_program",
+    ],
+    "association.descriptive.static": [
+        ANALYSIS_CONSUME,
+        T
+        + "association_route.rs::every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from",
+    ],
+    "association.descriptive.temporal": [
+        ANALYSIS_CONSUME,
+        T
+        + "association_route.rs::every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from",
+    ],
+    "bayesian.association.descriptive.static": [
+        ANALYSIS_CONSUME,
+        T
+        + "association_route.rs::every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from",
+    ],
+    "bayesian.association.descriptive.temporal": [
+        ANALYSIS_CONSUME,
+        T
+        + "association_route.rs::every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from",
+    ],
+    "measurement.static.frequentist": [
+        "crates/antecedent-io-core/src/measurement_model_wire.rs",
+        "crates/antecedent-estimate/tests/measurement_models.rs::artifact_replays_independently_and_refuses_semantic_mutation",
+    ],
+    "measurement.static.bayesian": [
+        "crates/antecedent-io-core/src/measurement_model_wire.rs",
+        "crates/antecedent-estimate/tests/measurement_models.rs::artifact_replays_independently_and_refuses_semantic_mutation",
+    ],
+    "measurement.transport.pooled_differential": [
+        "crates/antecedent/src/analysis/transported_measurement.rs"
+    ],
+    "composition.static.frequentist": [
+        "crates/antecedent/src/analysis/composition.rs",
+        T + "identity_contract.rs::composition_artifact_reload_in_separate_process",
+    ],
+    "composition.static.bayesian": [
+        "crates/antecedent/src/analysis/composition.rs",
+        T + "identity_contract.rs::composition_artifact_reload_in_separate_process",
+    ],
+    "composition.temporal.frequentist": [
+        "crates/antecedent/src/analysis/composition.rs",
+        T + "cross_surface_horizon.rs",
+    ],
+    "composition.temporal.bayesian": [
+        "crates/antecedent/src/analysis/composition.rs",
+        T + "cross_surface_horizon.rs",
+    ],
+    "graphless.dose_grid.randomized_dose.local_quadratic": [
+        "crates/antecedent-io/src/dose_grid_functional_artifact.rs::consume_typed",
+        "crates/antecedent-io/tests/dose_grid_artifact.rs::a_declared_curvature_bound_seals_bias_aware_intervals_and_the_band",
+    ],
 }
 
 
@@ -337,7 +486,9 @@ def parse_estimators(ids_text: str) -> dict[str, dict]:
     }
     identifier_names = {}
     ident_start = ids_text.index("const fn identifier_data")
-    for m in re.finditer(r"IdentifierId::(\w+) => IdentifierData \{(.*?)\n        \},", ids_text[ident_start:], re.S):
+    for m in re.finditer(
+        r"IdentifierId::(\w+) => IdentifierData \{(.*?)\n        \},", ids_text[ident_start:], re.S
+    ):
         name = re.search(r'name: "([^"]+)"', m.group(2))
         if name:
             identifier_names[m.group(1)] = name.group(1)
@@ -360,7 +511,10 @@ def parse_estimators(ids_text: str) -> dict[str, dict]:
 def inference_classes(text: str) -> dict[str, str]:
     """Estimator wire id -> Frequentist | Bayesian from the pinned refusals of compiler_consistency."""
     out: dict[str, str] = {}
-    for const, side in (("REFUSED_UNDER_BAYESIAN", "Frequentist"), ("REFUSED_UNDER_FREQUENTIST", "Bayesian")):
+    for const, side in (
+        ("REFUSED_UNDER_BAYESIAN", "Frequentist"),
+        ("REFUSED_UNDER_FREQUENTIST", "Bayesian"),
+    ):
         m = re.search(rf"const {const}: &\[&str\] = &\[(.*?)\];", text, re.S)
         for name in re.findall(r'"([^"]+)"', m.group(1) if m else ""):
             out[name] = side
@@ -376,7 +530,8 @@ class Sources:
         self.cells = load(SUPPORT_LICENSED)["cell"]
         self.lowered = load(LICENSED_ROUTES)["route"]
         self.graphless = {
-            (lic["family"], lic["design"], lic["method"]): lic for lic in load(SUPPORT_GRAPHLESS)["license"]
+            (lic["family"], lic["design"], lic["method"]): lic
+            for lic in load(SUPPORT_GRAPHLESS)["license"]
         }
         self.queries = set(load(SUPPORT_AXES)["queries"])
         self.children = load(CHILDREN)["child"]
@@ -391,7 +546,9 @@ class Sources:
         if self._tests is None:
             files: list[tuple[str, str]] = []
             for rel in sorted(self.ev.repo.corpus()):
-                if rel.endswith((".rs", ".py")) and ("/tests/" in rel or rel.startswith("scripts/test_")):
+                if rel.endswith((".rs", ".py")) and (
+                    "/tests/" in rel or rel.startswith("scripts/test_")
+                ):
                     files.append((rel, self.ev.text(rel)))
             self._tests = files
         return self._tests
@@ -404,7 +561,9 @@ class Sources:
                 continue
             for name, block in split_tests(rel, body):
                 if all(any(lit in block for lit in group) for group in requirement):
-                    score = int("consume_analysis_result" in block) * 2 + int("encode_contracted_result" in block)
+                    score = int("consume_analysis_result" in block) * 2 + int(
+                        "encode_contracted_result" in block
+                    )
                     found.append((-score, f"{rel}::{name}"))
         found.sort()
         return [token for _, token in found[:limit]]
@@ -417,7 +576,9 @@ class Sources:
                 continue
             for name, block in split_tests(rel, body):
                 if any(lit in block for lit in literals):
-                    score = int("consume_analysis_result" in block) * 2 + int("encode_contracted_result" in body)
+                    score = int("consume_analysis_result" in block) * 2 + int(
+                        "encode_contracted_result" in body
+                    )
                     found.append((-score, f"{rel}::{name}"))
         found.sort()
         return [token for _, token in found[:limit]]
@@ -431,7 +592,10 @@ def split_tests(rel: str, body: str) -> list[tuple[str, str]]:
     else:
         spans = [
             (m.start(), m.group(1))
-            for m in re.finditer(r"#\[(?:tokio::)?test[^\]]*\]\s*(?:#\[[^\]]*\]\s*)*(?:pub )?(?:async )?fn (\w+)", body)
+            for m in re.finditer(
+                r"#\[(?:tokio::)?test[^\]]*\]\s*(?:#\[[^\]]*\]\s*)*(?:pub )?(?:async )?fn (\w+)",
+                body,
+            )
         ]
     for index, (start, name) in enumerate(spans):
         end = spans[index + 1][0] if index + 1 < len(spans) else len(body)
@@ -453,7 +617,9 @@ def record_ids(cell: dict) -> set[str]:
     return ids
 
 
-def consumer_for(src: Sources, tests: list[str], ladder: list[list[list[str]]] | None = None) -> list[str]:
+def consumer_for(
+    src: Sources, tests: list[str], ladder: list[list[list[str]]] | None = None
+) -> list[str]:
     """The production reader of the artifact and the evidence test that exercises it.
 
     The named evidence tests come first. When none of them reads the artifact, a test that
@@ -488,7 +654,9 @@ def licensed_methods(src: Sources) -> list[dict]:
     for cell in src.cells:
         for estimator in cell["estimators"]:
             groups[(cell["query"], cell["graph_class"], estimator, cell["inference"])].append(cell)
-    lowered: dict[tuple[str, str, str, str], tuple[set[str], set[str]]] = defaultdict(lambda: (set(), set()))
+    lowered: dict[tuple[str, str, str, str], tuple[set[str], set[str]]] = defaultdict(
+        lambda: (set(), set())
+    )
     for row in src.lowered:
         query, graph, _structure, inference, _validation = row["coordinate"].split(":")
         key = (query, graph, row["estimator"], inference)
@@ -536,14 +704,18 @@ def licensed_methods(src: Sources) -> list[dict]:
                     for ck in c["checked_execution"]:
                         if ck["estimator"] == estimator:
                             asserted |= {
-                                INTERVAL_KIND[VARIANT_METHOD[v]] for v in INTERVAL_REF.findall(ev.text(ck["test"]))
+                                INTERVAL_KIND[VARIANT_METHOD[v]]
+                                for v in INTERVAL_REF.findall(ev.text(ck["test"]))
                             }
                 asserted -= {"none"}
                 inherited = sibling[(estimator, inference, design_of(graph), structure)]
                 if asserted:
                     kinds, basis = asserted, "asserted_in_test"
                     first = next(
-                        ck["test"] for c in members for ck in c["checked_execution"] if ck["estimator"] == estimator
+                        ck["test"]
+                        for c in members
+                        for ck in c["checked_execution"]
+                        if ck["estimator"] == estimator
                     )
                     sources_ = [f"test:{first}"]
                 elif inherited:
@@ -551,8 +723,15 @@ def licensed_methods(src: Sources) -> list[dict]:
                     sources_ = [f"estimator:{estimator}:{inference}:{design_of(graph)}:{structure}"]
                 elif (estimator, inference) in DECLARED_UNMEASURED:
                     kinds_list, test = DECLARED_UNMEASURED[(estimator, inference)]
-                    kinds, basis, sources_ = set(kinds_list), "declared_unmeasured", [f"test:{test}"]
-            by_structure[structure] = (",".join(sorted(kinds, key=KINDS.index)), basis + ("|" + sources_[0] if sources_ else ""))
+                    kinds, basis, sources_ = (
+                        set(kinds_list),
+                        "declared_unmeasured",
+                        [f"test:{test}"],
+                    )
+            by_structure[structure] = (
+                ",".join(sorted(kinds, key=KINDS.index)),
+                basis + ("|" + sources_[0] if sources_ else ""),
+            )
         primary_structure = next(s for s in STRUCTURE_ORDER if s in by_structure)
         primary_kinds, primary_basis = by_structure[primary_structure]
         primary = primary_kinds.split(",")[0] if primary_kinds else "unresolved"
@@ -602,7 +781,12 @@ def licensed_methods(src: Sources) -> list[dict]:
             }
         )
     for extra in EXECUTING_UNLICENSED:
-        query, graph, estimator, inference = extra["query"], extra["graph"], extra["estimator"], extra["inference"]
+        query, graph, estimator, inference = (
+            extra["query"],
+            extra["graph"],
+            extra["estimator"],
+            extra["inference"],
+        )
         route_id = f"licensed.{query}.{graph}"
         route = src.routes[route_id]
         info = src.estimators.get(estimator)
@@ -629,15 +813,20 @@ def licensed_methods(src: Sources) -> list[dict]:
                 "coordinates": 1,
                 "uncertainty": kinds.split(",")[0] if kinds else "unresolved",
                 "uncertainty_structure": "explicit",
-                "uncertainty_basis": "estimator_records|" + f"estimator:{estimator}:{inference}:{design_of(graph)}:explicit",
+                "uncertainty_basis": "estimator_records|"
+                + f"estimator:{estimator}:{inference}:{design_of(graph)}:explicit",
                 "uncertainty_by_structure": [f"explicit={kinds}|estimator_records"],
                 "decision_ports": route["decision_ports"],
                 "owning_module": route["owning_module"].split(" ")[0],
-                "implementation": implementation_files(src, estimator, info["variant"] if info else ""),
+                "implementation": implementation_files(
+                    src, estimator, info["variant"] if info else ""
+                ),
                 "provenance": list(info["provenance"]) if info else [],
                 "evidence": evidence,
                 "artifact_consumer": consumer_for(
-                    src, evidence, [[wire_literals(estimator, info), [graph]], [wire_literals(estimator, info)]]
+                    src,
+                    evidence,
+                    [[wire_literals(estimator, info), [graph]], [wire_literals(estimator, info)]],
                 ),
             }
         )
@@ -682,31 +871,50 @@ def route_methods(src: Sources) -> list[dict]:
         rid = route["id"]
         owner = route["owning_module"].split(" ")[0]
         inference = (
-            "frequentist" if route["inference"].startswith("Frequentist") and "Bayesian" not in route["inference"].split(";")[0]
-            else "bayesian" if route["inference"].startswith("Bayesian")
-            else "both" if "Bayesian" in route["inference"] and "Frequentist" in route["inference"]
+            "frequentist"
+            if route["inference"].startswith("Frequentist")
+            and "Bayesian" not in route["inference"].split(";")[0]
+            else "bayesian"
+            if route["inference"].startswith("Bayesian")
+            else "both"
+            if "Bayesian" in route["inference"] and "Frequentist" in route["inference"]
             else "unlisted"
         )
         evidence: list[str] = []
         if route.get("retained_route_test"):
             evidence.append(route["retained_route_test"])
         for child in by_route.get(rid, []):
-            evidence += [t for t in ev.tokens(child["fixtures"]) if TOKEN.match(t) and t not in evidence]
-        estimator = rid if rid in src.estimators else next(
-            (e for e in src.estimators if re.search(rf"\bestimator {re.escape(e)}\b", route["notes"])), ""
+            evidence += [
+                t for t in ev.tokens(child["fixtures"]) if TOKEN.match(t) and t not in evidence
+            ]
+        estimator = (
+            rid
+            if rid in src.estimators
+            else next(
+                (
+                    e
+                    for e in src.estimators
+                    if re.search(rf"\bestimator {re.escape(e)}\b", route["notes"])
+                ),
+                "",
+            )
         )
         evidence += [t for t in EVIDENCE_OVERRIDE.get(rid, []) if t not in evidence]
         if not evidence:
             literals = [rid] + ([estimator] if estimator and estimator != rid else [])
             variant = src.estimators[estimator]["variant"] if estimator in src.estimators else ""
-            literals = [f'"{x}"' for x in literals] + ([f"EstimatorId::{variant}"] if variant else [])
+            literals = [f'"{x}"' for x in literals] + (
+                [f"EstimatorId::{variant}"] if variant else []
+            )
             evidence = src.tests_naming(literals)
         evidence = [t for t in evidence if ev.fixture_findings(t) == []][:4]
         uncertainty, basis = "unresolved", ""
         if rid.startswith("graphless.") and rid not in DECLARED_KIND:
             note = re.search(r"method=([A-Za-z0-9_]+)", route["notes"])
             match = [
-                lic for (f, _d, m), lic in src.graphless.items() if note and m == note.group(1) and rid.startswith(f"graphless.{f}.")
+                lic
+                for (f, _d, m), lic in src.graphless.items()
+                if note and m == note.group(1) and rid.startswith(f"graphless.{f}.")
             ]
             if match and match[0]["inference_claim"] in GRAPHLESS_CLAIM_KIND:
                 uncertainty = GRAPHLESS_CLAIM_KIND[match[0]["inference_claim"]]
@@ -723,7 +931,9 @@ def route_methods(src: Sources) -> list[dict]:
                 "child": "",
                 "target": route["target"],
                 "graph_class": route["graph_class"],
-                "design": "temporal" if route["graph_class"].startswith("Temporal") or "temporal" in rid else "static",
+                "design": "temporal"
+                if route["graph_class"].startswith("Temporal") or "temporal" in rid
+                else "static",
                 "estimator": estimator or "unlisted",
                 "identifier": info["identifiers"] if info else [],
                 "lowering": [],
@@ -773,7 +983,11 @@ def facade_methods(src: Sources, methods: list[dict]) -> list[dict]:
     out = []
     for child in src.children:
         module = child["module"].split(";")[0].strip().split(" ")[0]
-        if module in ("none", "unlisted") or child["gap"] not in ("none", "validation", "implementation"):
+        if module in ("none", "unlisted") or child["gap"] not in (
+            "none",
+            "validation",
+            "implementation",
+        ):
             continue
         if children_covered(methods, child):
             continue
@@ -816,10 +1030,32 @@ def facade_methods(src: Sources, methods: list[dict]) -> list[dict]:
 
 
 FIELDS = (
-    "id", "kind", "route", "child", "target", "graph_class", "design", "estimator", "identifier", "lowering",
-    "inference", "design_time_model", "status", "structures", "validations", "coordinates",
-    "uncertainty", "uncertainty_structure", "uncertainty_basis", "uncertainty_by_structure",
-    "decision_ports", "owning_module", "implementation", "provenance", "evidence", "artifact_consumer",
+    "id",
+    "kind",
+    "route",
+    "child",
+    "target",
+    "graph_class",
+    "design",
+    "estimator",
+    "identifier",
+    "lowering",
+    "inference",
+    "design_time_model",
+    "status",
+    "structures",
+    "validations",
+    "coordinates",
+    "uncertainty",
+    "uncertainty_structure",
+    "uncertainty_basis",
+    "uncertainty_by_structure",
+    "decision_ports",
+    "owning_module",
+    "implementation",
+    "provenance",
+    "evidence",
+    "artifact_consumer",
 )
 
 
@@ -836,7 +1072,11 @@ def render(methods: list[dict]) -> str:
         out.append("[[method]]")
         for field in FIELDS:
             value = method[field]
-            out.append(f"{field} = {listing(value) if isinstance(value, list) else quote(value)}" if not isinstance(value, int) else f"{field} = {value}")
+            out.append(
+                f"{field} = {listing(value) if isinstance(value, list) else quote(value)}"
+                if not isinstance(value, int)
+                else f"{field} = {value}"
+            )
         out.append("")
     return "\n".join(out)
 
@@ -875,7 +1115,10 @@ def verify(src: Sources, methods: list[dict]) -> list[str]:
             for impl in m["implementation"]:
                 body = ev.text(impl)
                 info = src.estimators.get(m["estimator"], {})
-                if f'"{m["estimator"]}"' not in body and f"EstimatorId::{info.get('variant', '')}" not in body:
+                if (
+                    f'"{m["estimator"]}"' not in body
+                    and f"EstimatorId::{info.get('variant', '')}" not in body
+                ):
                     out.append(f"{mid}: implementation {impl} does not name {m['estimator']}")
             if not m["implementation"]:
                 out.append(f"{mid}: no source dispatches or implements {m['estimator']}")
@@ -907,15 +1150,25 @@ def verify_uncertainty(src: Sources, m: dict) -> list[str]:
     mid = m["id"]
     kind, basis = m["uncertainty"], m["uncertainty_basis"]
     if kind not in KINDS:
-        return [f"{mid}: uncertainty is not derived ({kind!r}); no coverage record, asserted interval, point-only cell, sibling record or declared procedure supports it"]
+        return [
+            f"{mid}: uncertainty is not derived ({kind!r}); no coverage record, asserted interval, point-only cell, sibling record or declared procedure supports it"
+        ]
     label, _, detail = basis.partition("|")
     if m["kind"] == "licensed_estimator":
-        if label not in ("measured_record", "point_only_cell", "asserted_in_test", "estimator_records", "declared_unmeasured"):
+        if label not in (
+            "measured_record",
+            "point_only_cell",
+            "asserted_in_test",
+            "estimator_records",
+            "declared_unmeasured",
+        ):
             return [f"{mid}: uncertainty basis {label!r} is outside the vocabulary"]
         if label == "measured_record":
             rid = detail.removeprefix("coverage_record:")
             record = src.records.get(rid)
-            if record is None or ev.record_kind(record) not in m["uncertainty_by_structure"][0].split("=")[1].split("|")[0].split(","):
+            if record is None or ev.record_kind(record) not in m["uncertainty_by_structure"][
+                0
+            ].split("=")[1].split("|")[0].split(","):
                 return [f"{mid}: coverage record {rid} does not show {kind}"]
         if label == "asserted_in_test":
             path = detail.removeprefix("test:")
@@ -933,7 +1186,11 @@ def verify_uncertainty(src: Sources, m: dict) -> list[str]:
         return []
     if label != "declared_and_corroborated":
         return [f"{mid}: uncertainty basis {label!r} is outside the vocabulary"]
-    declared = FACADE_KIND.get(f"{m['owning_module']}|{m['design']}.{m['inference']}") if m["kind"] == "facade_method" else DECLARED_KIND.get(m["route"])
+    declared = (
+        FACADE_KIND.get(f"{m['owning_module']}|{m['design']}.{m['inference']}")
+        if m["kind"] == "facade_method"
+        else DECLARED_KIND.get(m["route"])
+    )
     if declared != kind:
         return [f"{mid}: no declared procedure for {m['child'] or m['route']}"]
     if kind == "none":
@@ -965,11 +1222,23 @@ def implementation_extra(rid: str) -> list[str]:
 # the declared procedure is the design-aware resample the executing sources construct.
 X = "crates/antecedent/src/analysis/execute/"
 CLOSED_IMPLEMENTATION = {
-    "AnomalyAttribution": [X + "attribution_path.rs", X + "class_attribution.rs", X + "temporal_attribution.rs"],
-    "ChangeAttribution": [X + "attribution_path.rs", X + "class_attribution.rs", X + "temporal_attribution.rs"],
+    "AnomalyAttribution": [
+        X + "attribution_path.rs",
+        X + "class_attribution.rs",
+        X + "temporal_attribution.rs",
+    ],
+    "ChangeAttribution": [
+        X + "attribution_path.rs",
+        X + "class_attribution.rs",
+        X + "temporal_attribution.rs",
+    ],
     "Counterfactual": [X + "class_counterfactual.rs", X + "cross_world_posterior.rs"],
     "MediationEffect": [X + "mediation_mixed.rs", X + "mediation_refutation.rs"],
-    "TemporalMediationEffect": [X + "temporal_pag_mediation.rs", X + "temporal_admg_mediation.rs", X + "mediation_mixed.rs"],
+    "TemporalMediationEffect": [
+        X + "temporal_pag_mediation.rs",
+        X + "temporal_admg_mediation.rs",
+        X + "mediation_mixed.rs",
+    ],
     "NestedCounterfactualEffect": [X + "class_path_specific.rs", X + "static_path.rs"],
     "PathSpecificEffect": [X + "class_path_specific.rs", X + "static_path.rs"],
     "InterventionalDistribution": [X + "class_distribution.rs"],
@@ -981,18 +1250,31 @@ CLOSED_IMPLEMENTATION = {
     "ConditionalEffect": [X + "temporal_admg_path.rs", X + "atom_mix.rs"],
     "TransportQuery": [X + "transport_class.rs", X + "checked_transport_trial.rs"],
 }
-for _q in ("AverageDerivative", "PointDerivative", "DirectionalDerivative", "Elasticity", "SemiElasticity", "ResponseJacobian"):
+for _q in (
+    "AverageDerivative",
+    "PointDerivative",
+    "DirectionalDerivative",
+    "Elasticity",
+    "SemiElasticity",
+    "ResponseJacobian",
+):
     CLOSED_IMPLEMENTATION[_q] = [X + "response_path.rs", X + "temporal_response_execution.rs"]
 ARTIFACTS = T + "class_route_artifacts.rs::"
 DERIVATIVE_STATIC = [
-    T + "class_derivative_response.rs::frequentist_class_and_latent_confounded_derivatives_match_the_structural_reference",
-    T + "class_derivative_response.rs::bayesian_class_and_latent_confounded_derivatives_publish_credible_intervals",
-    T + "derivative_validation_on_classes.rs::class_derivative_validation_checks_the_finite_difference_against_the_regression_slope",
+    T
+    + "class_derivative_response.rs::frequentist_class_and_latent_confounded_derivatives_match_the_structural_reference",
+    T
+    + "class_derivative_response.rs::bayesian_class_and_latent_confounded_derivatives_publish_credible_intervals",
+    T
+    + "derivative_validation_on_classes.rs::class_derivative_validation_checks_the_finite_difference_against_the_regression_slope",
 ]
 DERIVATIVE_TEMPORAL = [
-    T + "temporal_admg_derivative.rs::every_derivative_functional_on_a_temporal_admg_publishes_a_consumable_artifact",
-    T + "temporal_admg_derivative.rs::the_window_adjustment_recovers_the_structural_slope_with_a_block_band",
-    T + "temporal_admg_derivative.rs::the_bayesian_derivative_publishes_a_credible_band_around_the_same_slope",
+    T
+    + "temporal_admg_derivative.rs::every_derivative_functional_on_a_temporal_admg_publishes_a_consumable_artifact",
+    T
+    + "temporal_admg_derivative.rs::the_window_adjustment_recovers_the_structural_slope_with_a_block_band",
+    T
+    + "temporal_admg_derivative.rs::the_bayesian_derivative_publishes_a_credible_band_around_the_same_slope",
 ]
 CP = T + "class_attribution_route.rs::"
 GP = T + "graph_posterior_attribution_routes.rs::"
@@ -1005,55 +1287,207 @@ TA = T + "temporal_admg_route_evidence.rs::"
 CD = T + "class_and_design_validation_suites.rs::"
 # The tests that run each closed route and encode its contracted result for an independent reader.
 CLOSED_EVIDENCE = {
-    ("AnomalyAttribution", "Admg"): [CP + "an_admg_anomaly_is_attributed_to_the_noise_blocks", ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads"],
-    ("AnomalyAttribution", "Cpdag"): [CP + "a_cpdag_anomaly_is_the_mean_of_its_dag_completions", CP + "a_bayesian_cpdag_publishes_a_shared_posterior_and_never_a_mixture", ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads"],
-    ("AnomalyAttribution", "Pag"): [CP + "a_pag_with_a_hedged_completion_keeps_the_identified_mass", ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads"],
-    ("AnomalyAttribution", "TemporalCpdag"): [CP + "a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions", ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"],
-    ("AnomalyAttribution", "TemporalPag"): [ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"],
-    ("AnomalyAttribution", "TemporalAdmg"): [CP + "a_temporal_admg_whose_latent_edge_misses_the_ancestors_is_the_temporal_dag_route", ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"],
-    ("ChangeAttribution", "Admg"): [CP + "an_admg_change_matches_the_known_shift_of_each_block", ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads"],
-    ("ChangeAttribution", "Cpdag"): [CP + "a_cpdag_change_that_every_member_agrees_on_keeps_one_value", ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads"],
-    ("ChangeAttribution", "Pag"): [GP + "a_change_attribution_carries_the_graph_sensitivity_across_the_atoms", ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads"],
-    ("ChangeAttribution", "TemporalCpdag"): [CP + "a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions", ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"],
-    ("ChangeAttribution", "TemporalPag"): [ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"],
-    ("ChangeAttribution", "TemporalAdmg"): [ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"],
-    ("Counterfactual", "Admg"): [CF + "an_admg_counterfactual_is_the_enumerated_effect_on_the_treated", CF + "the_bayesian_bootstrap_posterior_centres_on_the_identified_functional", CF + "every_class_counterfactual_publishes_an_artifact_a_consumer_reads"],
-    ("Counterfactual", "Cpdag"): [CF + "a_cpdag_whose_completions_disagree_publishes_the_mean_and_the_identified_set", CF + "every_class_counterfactual_publishes_an_artifact_a_consumer_reads"],
-    ("Counterfactual", "Pag"): [CF + "a_pag_is_read_through_the_admgs_its_mag_stands_for", CF + "every_class_counterfactual_publishes_an_artifact_a_consumer_reads"],
-    ("Counterfactual", "TemporalAdmg"): [CF + "a_temporal_admg_reads_its_contemporaneous_projection_and_resamples_in_blocks", CF + "every_class_counterfactual_publishes_an_artifact_a_consumer_reads"],
-    ("MediationEffect", "Admg"): [MM + "an_admg_decomposition_is_the_counted_total_direct_and_indirect_effect", MM + "the_bayesian_bootstrap_pairs_the_component_posteriors", MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads"],
-    ("MediationEffect", "Cpdag"): [MM + "the_contemporaneous_projection_and_a_fully_oriented_cpdag_give_the_same_decomposition", MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads"],
-    ("MediationEffect", "Pag"): [MV + "a_pag_decomposition_is_refuted_member_by_member_against_the_structural_effect", MV + "a_pag_decomposition_publishes_an_artifact_a_consumer_reads"],
-    ("MediationEffect", "TemporalAdmg"): [MM + "a_temporal_admg_window_with_one_period_reproduces_the_counted_decomposition", MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads"],
-    ("TemporalMediationEffect", "TemporalPag"): [T + "temporal_pag_mediation.rs::a_lagged_window_matches_the_structural_decomposition_of_the_series", T + "temporal_pag_mediation.rs::a_temporal_pag_decomposition_publishes_an_artifact_a_consumer_reads"],
-    ("TemporalMediationEffect", "TemporalAdmg"): [T + "temporal_pag_mediation.rs::a_two_period_temporal_admg_decomposition_publishes_an_artifact_a_consumer_reads", MM + "a_temporal_admg_window_with_one_period_reproduces_the_counted_decomposition", MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads", T + "temporal_admg_posterior.rs::a_mediation_posterior_mixes_each_component_over_the_atoms_that_identify_it"],
-    ("NestedCounterfactualEffect", "Admg"): [PS + "natural_direct_effect_with_covariate_confounding_matches_the_structural_effect", PS + "contracted_results_round_trip_through_the_consumer"],
-    ("NestedCounterfactualEffect", "Cpdag"): [PS + "the_natural_direct_effect_over_a_class_matches_its_one_completion", PS + "contracted_results_round_trip_through_the_consumer"],
-    ("NestedCounterfactualEffect", "Pag"): [PP + "the_natural_direct_effect_over_a_pag_lies_in_its_identified_set", PP + "contracted_pag_results_round_trip_through_the_consumer"],
-    ("NestedCounterfactualEffect", "TemporalAdmg"): [PS + "contracted_results_round_trip_through_the_consumer", PS + "prepared_handles_run_through_the_estimator_route_and_equal_a_fresh_run"],
-    ("PathSpecificEffect", "Admg"): [PS + "effect_through_a_confounded_child_uses_the_district_formula", PS + "a_bootstrap_interval_accompanies_the_frequentist_point", PS + "contracted_results_round_trip_through_the_consumer"],
-    ("PathSpecificEffect", "Cpdag"): [PS + "a_class_with_one_completion_reproduces_the_structural_effect", PS + "completions_that_disagree_publish_the_identified_set", PS + "contracted_results_round_trip_through_the_consumer"],
-    ("PathSpecificEffect", "Pag"): [PP + "a_pag_with_visible_edges_reproduces_the_structural_effect", PP + "a_bootstrap_interval_accompanies_the_pag_point", PP + "contracted_pag_results_round_trip_through_the_consumer"],
-    ("PathSpecificEffect", "TemporalAdmg"): [PS + "contracted_results_round_trip_through_the_consumer", PS + "prepared_handles_run_through_the_estimator_route_and_equal_a_fresh_run"],
-    ("InterventionalDistribution", "Cpdag"): [MM + "a_cpdag_whose_completions_agree_gives_the_counted_interventional_distribution", MM + "completions_that_disagree_publish_the_identified_set_of_each_atom", MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads"],
-    ("InterventionalDistribution", "Pag"): [MV + "a_pag_interventional_distribution_publishes_an_artifact_a_consumer_reads"],
-    ("PulseEffect", "TemporalAdmg"): [TA + "a_pulse_is_the_counted_contrast_and_stays_unlicensed", TA + "overlapping_windows_are_resampled_in_blocks_and_never_row_by_row", TA + "the_bayesian_form_shares_one_dirichlet_weight_per_block"],
-    ("SustainedEffect", "TemporalAdmg"): [TA + "a_sustained_contrast_sets_every_treated_period", TA + "overlapping_windows_are_resampled_in_blocks_and_never_row_by_row"],
-    ("TemporalConditionalPulse", "TemporalAdmg"): [TA + "a_conditional_contrast_is_idc_on_the_same_window", T + "admg_conditional_effect.rs::a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast"],
-    ("TemporalConditionalSustained", "TemporalAdmg"): [TA + "a_conditional_sustained_contrast_is_idc_on_the_same_window"],
-    ("ConditionalEffect", "TemporalAdmg"): [T + "admg_conditional_effect.rs::a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast", T + "graph_posterior_functional_routes.rs::the_temporal_admg_conditional_mixture_is_the_counted_contrast_with_the_lost_mass", T + "graph_posterior_functional_routes.rs::the_bayesian_temporal_admg_conditional_pools_the_atoms_draw_by_draw"],
-    ("TransportQuery", "Dag"): [T + "checked_transport_trial_route_evidence.rs::a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query", T + "checked_transport_trial_route_evidence.rs::transport_trial_executes_from_retained_sid_proof_after_builder_drop"],
-    ("TransportQuery", "Cpdag"): [CD + "a_cpdag_and_a_pag_transport_publish_an_artifact_a_consumer_reads", CD + "a_cpdag_and_a_pag_run_the_transport_suite_on_both_inferences", T + "graph_posterior_exposure_routes.rs::a_cpdag_whose_members_certify_different_formulas_is_partially_identified"],
-    ("TransportQuery", "Pag"): [CD + "a_cpdag_and_a_pag_transport_publish_an_artifact_a_consumer_reads", CD + "a_cpdag_and_a_pag_run_the_transport_suite_on_both_inferences", T + "graph_posterior_exposure_routes.rs::a_pag_is_read_through_the_graphs_its_completions_stand_for"],
+    ("AnomalyAttribution", "Admg"): [
+        CP + "an_admg_anomaly_is_attributed_to_the_noise_blocks",
+        ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads",
+    ],
+    ("AnomalyAttribution", "Cpdag"): [
+        CP + "a_cpdag_anomaly_is_the_mean_of_its_dag_completions",
+        CP + "a_bayesian_cpdag_publishes_a_shared_posterior_and_never_a_mixture",
+        ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads",
+    ],
+    ("AnomalyAttribution", "Pag"): [
+        CP + "a_pag_with_a_hedged_completion_keeps_the_identified_mass",
+        ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads",
+    ],
+    ("AnomalyAttribution", "TemporalCpdag"): [
+        CP + "a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions",
+        ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads",
+    ],
+    ("AnomalyAttribution", "TemporalPag"): [
+        ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"
+    ],
+    ("AnomalyAttribution", "TemporalAdmg"): [
+        CP + "a_temporal_admg_whose_latent_edge_misses_the_ancestors_is_the_temporal_dag_route",
+        ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads",
+    ],
+    ("ChangeAttribution", "Admg"): [
+        CP + "an_admg_change_matches_the_known_shift_of_each_block",
+        ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads",
+    ],
+    ("ChangeAttribution", "Cpdag"): [
+        CP + "a_cpdag_change_that_every_member_agrees_on_keeps_one_value",
+        ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads",
+    ],
+    ("ChangeAttribution", "Pag"): [
+        GP + "a_change_attribution_carries_the_graph_sensitivity_across_the_atoms",
+        ARTIFACTS + "static_class_attributions_publish_an_artifact_a_consumer_reads",
+    ],
+    ("ChangeAttribution", "TemporalCpdag"): [
+        CP + "a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions",
+        ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads",
+    ],
+    ("ChangeAttribution", "TemporalPag"): [
+        ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"
+    ],
+    ("ChangeAttribution", "TemporalAdmg"): [
+        ARTIFACTS + "temporal_class_attributions_publish_an_artifact_a_consumer_reads"
+    ],
+    ("Counterfactual", "Admg"): [
+        CF + "an_admg_counterfactual_is_the_enumerated_effect_on_the_treated",
+        CF + "the_bayesian_bootstrap_posterior_centres_on_the_identified_functional",
+        CF + "every_class_counterfactual_publishes_an_artifact_a_consumer_reads",
+    ],
+    ("Counterfactual", "Cpdag"): [
+        CF + "a_cpdag_whose_completions_disagree_publishes_the_mean_and_the_identified_set",
+        CF + "every_class_counterfactual_publishes_an_artifact_a_consumer_reads",
+    ],
+    ("Counterfactual", "Pag"): [
+        CF + "a_pag_is_read_through_the_admgs_its_mag_stands_for",
+        CF + "every_class_counterfactual_publishes_an_artifact_a_consumer_reads",
+    ],
+    ("Counterfactual", "TemporalAdmg"): [
+        CF + "a_temporal_admg_reads_its_contemporaneous_projection_and_resamples_in_blocks",
+        CF + "every_class_counterfactual_publishes_an_artifact_a_consumer_reads",
+    ],
+    ("MediationEffect", "Admg"): [
+        MM + "an_admg_decomposition_is_the_counted_total_direct_and_indirect_effect",
+        MM + "the_bayesian_bootstrap_pairs_the_component_posteriors",
+        MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads",
+    ],
+    ("MediationEffect", "Cpdag"): [
+        MM
+        + "the_contemporaneous_projection_and_a_fully_oriented_cpdag_give_the_same_decomposition",
+        MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads",
+    ],
+    ("MediationEffect", "Pag"): [
+        MV + "a_pag_decomposition_is_refuted_member_by_member_against_the_structural_effect",
+        MV + "a_pag_decomposition_publishes_an_artifact_a_consumer_reads",
+    ],
+    ("MediationEffect", "TemporalAdmg"): [
+        MM + "a_temporal_admg_window_with_one_period_reproduces_the_counted_decomposition",
+        MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads",
+    ],
+    ("TemporalMediationEffect", "TemporalPag"): [
+        T
+        + "temporal_pag_mediation.rs::a_lagged_window_matches_the_structural_decomposition_of_the_series",
+        T
+        + "temporal_pag_mediation.rs::a_temporal_pag_decomposition_publishes_an_artifact_a_consumer_reads",
+    ],
+    ("TemporalMediationEffect", "TemporalAdmg"): [
+        T
+        + "temporal_pag_mediation.rs::a_two_period_temporal_admg_decomposition_publishes_an_artifact_a_consumer_reads",
+        MM + "a_temporal_admg_window_with_one_period_reproduces_the_counted_decomposition",
+        MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads",
+        T
+        + "temporal_admg_posterior.rs::a_mediation_posterior_mixes_each_component_over_the_atoms_that_identify_it",
+    ],
+    ("NestedCounterfactualEffect", "Admg"): [
+        PS + "natural_direct_effect_with_covariate_confounding_matches_the_structural_effect",
+        PS + "contracted_results_round_trip_through_the_consumer",
+    ],
+    ("NestedCounterfactualEffect", "Cpdag"): [
+        PS + "the_natural_direct_effect_over_a_class_matches_its_one_completion",
+        PS + "contracted_results_round_trip_through_the_consumer",
+    ],
+    ("NestedCounterfactualEffect", "Pag"): [
+        PP + "the_natural_direct_effect_over_a_pag_lies_in_its_identified_set",
+        PP + "contracted_pag_results_round_trip_through_the_consumer",
+    ],
+    ("NestedCounterfactualEffect", "TemporalAdmg"): [
+        PS + "contracted_results_round_trip_through_the_consumer",
+        PS + "prepared_handles_run_through_the_estimator_route_and_equal_a_fresh_run",
+    ],
+    ("PathSpecificEffect", "Admg"): [
+        PS + "effect_through_a_confounded_child_uses_the_district_formula",
+        PS + "a_bootstrap_interval_accompanies_the_frequentist_point",
+        PS + "contracted_results_round_trip_through_the_consumer",
+    ],
+    ("PathSpecificEffect", "Cpdag"): [
+        PS + "a_class_with_one_completion_reproduces_the_structural_effect",
+        PS + "completions_that_disagree_publish_the_identified_set",
+        PS + "contracted_results_round_trip_through_the_consumer",
+    ],
+    ("PathSpecificEffect", "Pag"): [
+        PP + "a_pag_with_visible_edges_reproduces_the_structural_effect",
+        PP + "a_bootstrap_interval_accompanies_the_pag_point",
+        PP + "contracted_pag_results_round_trip_through_the_consumer",
+    ],
+    ("PathSpecificEffect", "TemporalAdmg"): [
+        PS + "contracted_results_round_trip_through_the_consumer",
+        PS + "prepared_handles_run_through_the_estimator_route_and_equal_a_fresh_run",
+    ],
+    ("InterventionalDistribution", "Cpdag"): [
+        MM + "a_cpdag_whose_completions_agree_gives_the_counted_interventional_distribution",
+        MM + "completions_that_disagree_publish_the_identified_set_of_each_atom",
+        MM + "mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads",
+    ],
+    ("InterventionalDistribution", "Pag"): [
+        MV + "a_pag_interventional_distribution_publishes_an_artifact_a_consumer_reads"
+    ],
+    ("PulseEffect", "TemporalAdmg"): [
+        TA + "a_pulse_is_the_counted_contrast_and_stays_unlicensed",
+        TA + "overlapping_windows_are_resampled_in_blocks_and_never_row_by_row",
+        TA + "the_bayesian_form_shares_one_dirichlet_weight_per_block",
+    ],
+    ("SustainedEffect", "TemporalAdmg"): [
+        TA + "a_sustained_contrast_sets_every_treated_period",
+        TA + "overlapping_windows_are_resampled_in_blocks_and_never_row_by_row",
+    ],
+    ("TemporalConditionalPulse", "TemporalAdmg"): [
+        TA + "a_conditional_contrast_is_idc_on_the_same_window",
+        T
+        + "admg_conditional_effect.rs::a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast",
+    ],
+    ("TemporalConditionalSustained", "TemporalAdmg"): [
+        TA + "a_conditional_sustained_contrast_is_idc_on_the_same_window"
+    ],
+    ("ConditionalEffect", "TemporalAdmg"): [
+        T
+        + "admg_conditional_effect.rs::a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast",
+        T
+        + "graph_posterior_functional_routes.rs::the_temporal_admg_conditional_mixture_is_the_counted_contrast_with_the_lost_mass",
+        T
+        + "graph_posterior_functional_routes.rs::the_bayesian_temporal_admg_conditional_pools_the_atoms_draw_by_draw",
+    ],
+    ("TransportQuery", "Dag"): [
+        T
+        + "checked_transport_trial_route_evidence.rs::a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query",
+        T
+        + "checked_transport_trial_route_evidence.rs::transport_trial_executes_from_retained_sid_proof_after_builder_drop",
+    ],
+    ("TransportQuery", "Cpdag"): [
+        CD + "a_cpdag_and_a_pag_transport_publish_an_artifact_a_consumer_reads",
+        CD + "a_cpdag_and_a_pag_run_the_transport_suite_on_both_inferences",
+        T
+        + "graph_posterior_exposure_routes.rs::a_cpdag_whose_members_certify_different_formulas_is_partially_identified",
+    ],
+    ("TransportQuery", "Pag"): [
+        CD + "a_cpdag_and_a_pag_transport_publish_an_artifact_a_consumer_reads",
+        CD + "a_cpdag_and_a_pag_run_the_transport_suite_on_both_inferences",
+        T
+        + "graph_posterior_exposure_routes.rs::a_pag_is_read_through_the_graphs_its_completions_stand_for",
+    ],
 }
 for _class in ("Admg", "Cpdag", "Pag", "TemporalAdmg"):
     CLOSED_EVIDENCE[("InterferenceQuery", _class)] = [
         CD + "every_class_interference_route_publishes_an_artifact_a_consumer_reads",
-        T + "staged_attribution_transport_interference.rs::interference_is_stated_under_every_static_structure_class_with_the_design_identification",
-        CD + "supplied_exposure_probabilities_are_checked_against_the_realized_exposures_on_every_class",
+        T
+        + "staged_attribution_transport_interference.rs::interference_is_stated_under_every_static_structure_class_with_the_design_identification",
+        CD
+        + "supplied_exposure_probabilities_are_checked_against_the_realized_exposures_on_every_class",
     ]
-    for _q in ("AverageDerivative", "PointDerivative", "DirectionalDerivative", "Elasticity", "SemiElasticity", "ResponseJacobian"):
-        CLOSED_EVIDENCE[(_q, _class)] = list(DERIVATIVE_TEMPORAL if _class == "TemporalAdmg" else DERIVATIVE_STATIC)
+    for _q in (
+        "AverageDerivative",
+        "PointDerivative",
+        "DirectionalDerivative",
+        "Elasticity",
+        "SemiElasticity",
+        "ResponseJacobian",
+    ):
+        CLOSED_EVIDENCE[(_q, _class)] = list(
+            DERIVATIVE_TEMPORAL if _class == "TemporalAdmg" else DERIVATIVE_STATIC
+        )
 for (_q, _class), _tests in CLOSED_EVIDENCE.items():
     _rid = f"closed.{_q}.{_class}"
     EVIDENCE_OVERRIDE[_rid] = _tests
@@ -1067,7 +1501,9 @@ def sources_of(ev: Evidence, m: dict) -> list[str]:
     files.extend(implementation_extra(m["route"]))
     folder = (ev.root / owner).parent
     stem = Path(owner).stem
-    for sibling in sorted(folder.glob(f"{stem}*.rs")) + sorted((folder / stem).glob("*.rs") if (folder / stem).is_dir() else []):
+    for sibling in sorted(folder.glob(f"{stem}*.rs")) + sorted(
+        (folder / stem).glob("*.rs") if (folder / stem).is_dir() else []
+    ):
         files.append(sibling.relative_to(ev.root).as_posix())
     return list(dict.fromkeys(files))
 
@@ -1081,14 +1517,17 @@ def report(methods: list[dict]) -> str:
     lines = [f"methods: {len(methods)}"]
     lines.append("kinds: " + json.dumps(Counter(m["kind"] for m in methods)))
     lines.append("uncertainty: " + json.dumps(Counter(m["uncertainty"] for m in methods)))
-    lines.append("basis: " + json.dumps(Counter(m["uncertainty_basis"].split("|")[0].split(":")[0] for m in methods)))
+    lines.append(
+        "basis: "
+        + json.dumps(Counter(m["uncertainty_basis"].split("|")[0].split(":")[0] for m in methods))
+    )
     lines.append("inference: " + json.dumps(Counter(m["inference"] for m in methods)))
     return "\n".join(lines)
 
 
 def self_test() -> int:
     text = (
-        'pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {\n    match id {\n'
+        "pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {\n    match id {\n"
         '        IdentifierId::BackdoorAdjustment => IdentifierData {\n            name: "backdoor.adjustment",\n        },\n    }\n}\n'
         "const ADJUSTMENT: &[IdentifierId] = &[\n    IdentifierId::BackdoorAdjustment,\n];\n"
         "pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {\n    match id {\n"
@@ -1098,20 +1537,56 @@ def self_test() -> int:
         '            provenance: ("estimate.glm_adjustment", "estimate.glm_adjustment_ate"),\n        },\n    }\n}\n'
     )
     table = parse_estimators(text)
-    assert table["aipw"] == {"variant": "Aipw", "identifiers": ["backdoor.adjustment"], "provenance": ("estimate.aipw", "estimate.aipw")}, table
-    assert table["glm.adjustment"]["provenance"] == ("estimate.glm_adjustment", "estimate.glm_adjustment_ate")
+    assert table["aipw"] == {
+        "variant": "Aipw",
+        "identifiers": ["backdoor.adjustment"],
+        "provenance": ("estimate.aipw", "estimate.aipw"),
+    }, table
+    assert table["glm.adjustment"]["provenance"] == (
+        "estimate.glm_adjustment",
+        "estimate.glm_adjustment_ate",
+    )
     sides = inference_classes(
         'const REFUSED_UNDER_BAYESIAN: &[&str] = &[\n    "aipw",\n];\nconst REFUSED_UNDER_FREQUENTIST: &[&str] = &[\n    "bayesian.gcomp",\n];\n'
     )
     assert sides == {"aipw": "Frequentist", "bayesian.gcomp": "Bayesian"}, sides
     blocks = split_tests("x/tests/t.rs", "#[test]\nfn a() { one }\n#[test]\nfn b() { two }\n")
-    assert [n for n, _ in blocks] == ["a", "b"] and "two" in blocks[1][1] and "two" not in blocks[0][1]
-    pyblocks = split_tests("python/tests/test_t.py", "def helper():\n    pass\ndef test_x():\n    one\ndef test_y():\n    two\n")
+    assert (
+        [n for n, _ in blocks] == ["a", "b"] and "two" in blocks[1][1] and "two" not in blocks[0][1]
+    )
+    pyblocks = split_tests(
+        "python/tests/test_t.py",
+        "def helper():\n    pass\ndef test_x():\n    one\ndef test_y():\n    two\n",
+    )
     assert [n for n, _ in pyblocks] == ["test_x", "test_y"]
     assert design_of("TemporalDag") == "temporal" and design_of("Dag") == "static"
-    sample = {f: ([] if f in ("identifier", "lowering", "structures", "validations", "uncertainty_by_structure", "implementation", "provenance", "evidence", "artifact_consumer") else 0 if f == "coordinates" else "x") for f in FIELDS}
+    sample = {
+        f: (
+            []
+            if f
+            in (
+                "identifier",
+                "lowering",
+                "structures",
+                "validations",
+                "uncertainty_by_structure",
+                "implementation",
+                "provenance",
+                "evidence",
+                "artifact_consumer",
+            )
+            else 0
+            if f == "coordinates"
+            else "x"
+        )
+        for f in FIELDS
+    }
     rendered = render([sample])
-    assert rendered.startswith(MARK) and "[[method]]" in rendered and tomllib.loads(rendered)["method"][0]["id"] == "x"
+    assert (
+        rendered.startswith(MARK)
+        and "[[method]]" in rendered
+        and tomllib.loads(rendered)["method"][0]["id"] == "x"
+    )
     print("route_methods self-test passed")
     return 0
 
@@ -1130,7 +1605,9 @@ def main(argv: list[str]) -> int:
     if "--check" in argv:
         stale = path.read_text(encoding="utf-8") != text
         if stale:
-            print(f"FAIL: {MANIFEST} method records are stale; run python3 scripts/route_methods.py")
+            print(
+                f"FAIL: {MANIFEST} method records are stale; run python3 scripts/route_methods.py"
+            )
         problems = verify(src, methods)
         for line in problems:
             print(f"FAIL: {line}")

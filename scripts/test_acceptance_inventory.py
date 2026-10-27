@@ -44,32 +44,56 @@ fn representatives() -> Vec<Rep> {
 
 def counterpart(**over) -> dict:
     row = {
-        "id": "licensed.AverageEffect.Dag#static.frequentist", "kind": "route",
-        "method": "AverageEffect", "design": "static", "inference": "frequentist",
-        "route": "licensed.AverageEffect.Dag", "status": "licensed", "uncertainty": "analytic",
-        "uncertainty_basis": "measured_record", "target": "AverageEffect", "sampling_design": "static",
-        "execution": "crates/a/tests/t.rs::runs", "reuse_key": "k", "decision_port": "unlisted",
-        "artifact": "crates/a/src/consume.rs::consume", "closure": "delivered",
-        "scope_status": "mandatory", "gap": "none", "reason": "", "next_attempt": "",
+        "id": "licensed.AverageEffect.Dag#static.frequentist",
+        "kind": "route",
+        "method": "AverageEffect",
+        "design": "static",
+        "inference": "frequentist",
+        "route": "licensed.AverageEffect.Dag",
+        "status": "licensed",
+        "uncertainty": "analytic",
+        "uncertainty_basis": "measured_record",
+        "target": "AverageEffect",
+        "sampling_design": "static",
+        "execution": "crates/a/tests/t.rs::runs",
+        "reuse_key": "k",
+        "decision_port": "unlisted",
+        "artifact": "crates/a/src/consume.rs::consume",
+        "closure": "delivered",
+        "scope_status": "mandatory",
+        "gap": "none",
+        "reason": "",
+        "next_attempt": "",
     }
     return row | over
 
 
 def licensed_obligation(**over) -> dict:
     row = {
-        "id": "AverageEffect:Dag:explicit:Frequentist:none", "kind": "licensed", "query": "AverageEffect",
-        "graph_class": "Dag", "structure": "explicit", "inference": "Frequentist", "validation": "none",
+        "id": "AverageEffect:Dag:explicit:Frequentist:none",
+        "kind": "licensed",
+        "query": "AverageEffect",
+        "graph_class": "Dag",
+        "structure": "explicit",
+        "inference": "Frequentist",
+        "validation": "none",
         "identification_license": "internal_known_truth|crates/a/tests/t.rs|runs|fixture",
-        "calibration_license": "records:cov.one", "uncertainty": "coverage_records",
+        "calibration_license": "records:cov.one",
+        "uncertainty": "coverage_records",
     }
     return row | over
 
 
 def association_row(route: str, design: str, inference: str) -> dict:
     return counterpart(
-        id=f"{route}#{design}.{inference}", route=route, status="executing_unlicensed",
-        uncertainty="analytic", uncertainty_basis="declared_and_corroborated", design=design,
-        inference=inference, scope_status="mandatory",
+        id=f"{route}#{design}.{inference}",
+        route=route,
+        status="executing_unlicensed",
+        uncertainty="analytic",
+        uncertainty_basis="declared_and_corroborated",
+        design=design,
+        inference=inference,
+        scope_status="mandatory",
     )
 
 
@@ -84,13 +108,34 @@ class Fixture:
         self.sources = {
             "root": root,
             "counterparts": [counterpart()],
-            "manifest": {"route": [{
-                "id": "licensed.AverageEffect.Dag", "target": "AverageEffect", "inference": "Frequentist",
-                "status": "licensed", "decision_ports": "unlisted",
-            }], "method": []},
-            "families": [{"id": "static_effect", "status": "covered", "representatives": ["association_static"],
-                          "routes": ["licensed.AverageEffect.Dag"]}],
-            "scope": [{"id": "licensed.AverageEffect.Dag", "status": "mandatory", "list": "mandatory", "source": "route_manifest"}],
+            "manifest": {
+                "route": [
+                    {
+                        "id": "licensed.AverageEffect.Dag",
+                        "target": "AverageEffect",
+                        "inference": "Frequentist",
+                        "status": "licensed",
+                        "decision_ports": "unlisted",
+                    }
+                ],
+                "method": [],
+            },
+            "families": [
+                {
+                    "id": "static_effect",
+                    "status": "covered",
+                    "representatives": ["association_static"],
+                    "routes": ["licensed.AverageEffect.Dag"],
+                }
+            ],
+            "scope": [
+                {
+                    "id": "licensed.AverageEffect.Dag",
+                    "status": "mandatory",
+                    "list": "mandatory",
+                    "source": "route_manifest",
+                }
+            ],
             "children": [],
             "obligations": [licensed_obligation()],
             "limitations": [],
@@ -120,41 +165,68 @@ class AcceptanceInventoryTest(unittest.TestCase):
     def test_a_fully_evidenced_route_is_complete_and_checks_clean(self):
         rows = self.fx.rows()
         self.assertEqual(rows[0]["acceptance"], "complete")
-        self.assertEqual(rows[0]["licensing_obligations"], ["AverageEffect:Dag:explicit:Frequentist:none"])
+        self.assertEqual(
+            rows[0]["licensing_obligations"], ["AverageEffect:Dag:explicit:Frequentist:none"]
+        )
         self.assertEqual(self.problems(rows), [])
 
     def test_render_round_trips_through_toml(self):
         import tomllib
 
         text = gen.render(self.fx.rows())
-        self.assertEqual(tomllib.loads(text)["row"][0]["id"], "licensed.AverageEffect.Dag#static.frequentist")
+        self.assertEqual(
+            tomllib.loads(text)["row"][0]["id"], "licensed.AverageEffect.Dag#static.frequentist"
+        )
 
     def test_representative_labels_come_from_the_registered_list_only(self):
-        self.assertEqual(gen.registered_representatives(SUITE), {"association_static", "chain_five"})
+        self.assertEqual(
+            gen.registered_representatives(SUITE), {"association_static", "chain_five"}
+        )
 
     # ---- incomplete ---------------------------------------------------------------------
     def test_executing_route_without_its_claimed_uncertainty_is_incomplete(self):
-        self.fx.sources["counterparts"] = [counterpart(
-            status="executing_unlicensed", uncertainty="none", uncertainty_basis="declared_and_corroborated")]
+        self.fx.sources["counterparts"] = [
+            counterpart(
+                status="executing_unlicensed",
+                uncertainty="none",
+                uncertainty_basis="declared_and_corroborated",
+            )
+        ]
         self.fx.sources["obligations"] = []
         row = self.fx.rows()[0]
         self.assertEqual(row["acceptance"], "incomplete")
         self.assertTrue(any("claimed uncertainty" in r for r in row["incomplete_reasons"]), row)
 
     def test_executing_route_without_a_resolvable_consumer_is_incomplete(self):
-        for artifact, needle in (("unlisted", "no artifact consumer"), ("crates/a/src/gone.rs::consume", "does not exist"),
-                                 ("crates/a/src/consume.rs::absent", "does not mention")):
+        for artifact, needle in (
+            ("unlisted", "no artifact consumer"),
+            ("crates/a/src/gone.rs::consume", "does not exist"),
+            ("crates/a/src/consume.rs::absent", "does not mention"),
+        ):
             self.fx.sources["counterparts"] = [counterpart(artifact=artifact)]
             row = self.fx.rows()[0]
             self.assertEqual(row["acceptance"], "incomplete", artifact)
             self.assertTrue(any(needle in r for r in row["incomplete_reasons"]), row)
 
     def test_a_narrowed_promise_is_incomplete_with_its_reason_and_limitation(self):
-        self.fx.sources["counterparts"] = [counterpart(closure="narrowed_promise", gap="validation",
-                                                       reason="point only", next_attempt="derive the interval")]
-        self.fx.sources["limitations"] = [{"id": "lim.1", "kind": "narrowed_promise",
-                                           "locator": "licensed.AverageEffect.Dag#static.frequentist",
-                                           "owner": "P20", "decision": "", "rationale": ""}]
+        self.fx.sources["counterparts"] = [
+            counterpart(
+                closure="narrowed_promise",
+                gap="validation",
+                reason="point only",
+                next_attempt="derive the interval",
+            )
+        ]
+        self.fx.sources["limitations"] = [
+            {
+                "id": "lim.1",
+                "kind": "narrowed_promise",
+                "locator": "licensed.AverageEffect.Dag#static.frequentist",
+                "owner": "P20",
+                "decision": "",
+                "rationale": "",
+            }
+        ]
         row = self.fx.rows()[0]
         self.assertEqual(row["acceptance"], "incomplete")
         self.assertEqual(row["limitations"], ["lim.1"])
@@ -162,15 +234,34 @@ class AcceptanceInventoryTest(unittest.TestCase):
         self.assertEqual(self.problems(), [])
 
     def test_unregistered_association_counterparts_are_incomplete_until_registered(self):
-        routes = [("association.descriptive.static", "static", "frequentist"),
-                  ("association.descriptive.temporal", "temporal", "frequentist"),
-                  ("bayesian.association.descriptive.static", "static", "bayesian"),
-                  ("bayesian.association.descriptive.temporal", "temporal", "bayesian")]
+        routes = [
+            ("association.descriptive.static", "static", "frequentist"),
+            ("association.descriptive.temporal", "temporal", "frequentist"),
+            ("bayesian.association.descriptive.static", "static", "bayesian"),
+            ("bayesian.association.descriptive.temporal", "temporal", "bayesian"),
+        ]
         self.fx.sources["counterparts"] = [association_row(*r) for r in routes]
-        self.fx.sources["manifest"] = {"route": [{"id": r, "target": "Association", "inference": "x", "status": "execution_only",
-                                                  "decision_ports": "unlisted"} for r, _, _ in routes], "method": []}
-        self.fx.sources["families"] = [{"id": "associational", "status": "covered",
-                                        "representatives": ["association_static"], "routes": [r for r, _, _ in routes]}]
+        self.fx.sources["manifest"] = {
+            "route": [
+                {
+                    "id": r,
+                    "target": "Association",
+                    "inference": "x",
+                    "status": "execution_only",
+                    "decision_ports": "unlisted",
+                }
+                for r, _, _ in routes
+            ],
+            "method": [],
+        }
+        self.fx.sources["families"] = [
+            {
+                "id": "associational",
+                "status": "covered",
+                "representatives": ["association_static"],
+                "routes": [r for r, _, _ in routes],
+            }
+        ]
         self.fx.sources["scope"] = []
         self.fx.sources["obligations"] = []
         by_route = {r["route"]: r for r in self.fx.rows()}
@@ -178,14 +269,27 @@ class AcceptanceInventoryTest(unittest.TestCase):
         for route in routes[1:]:
             row = by_route[route[0]]
             self.assertEqual(row["acceptance"], "incomplete", route)
-            self.assertTrue(any("no conformance representative" in r for r in row["incomplete_reasons"]), row)
-        self.fx.sources["representatives"] = {"association_static", "association_temporal",
-                                              "association_static_bayesian", "association_temporal_bayesian"}
+            self.assertTrue(
+                any("no conformance representative" in r for r in row["incomplete_reasons"]), row
+            )
+        self.fx.sources["representatives"] = {
+            "association_static",
+            "association_temporal",
+            "association_static_bayesian",
+            "association_temporal_bayesian",
+        }
         self.assertTrue(all(r["acceptance"] == "complete" for r in self.fx.rows()))
 
     def test_a_manifest_route_no_counterpart_names_is_a_row_and_incomplete(self):
-        self.fx.sources["manifest"]["route"].append({
-            "id": "graphless.x", "target": "x", "inference": "i", "status": "graphless", "decision_ports": "unlisted"})
+        self.fx.sources["manifest"]["route"].append(
+            {
+                "id": "graphless.x",
+                "target": "x",
+                "inference": "i",
+                "status": "graphless",
+                "decision_ports": "unlisted",
+            }
+        )
         self.fx.sources["families"][0]["routes"].append("graphless.x")
         rows = self.fx.rows()
         extra = [r for r in rows if r["kind"] == "manifest_route"]
@@ -195,17 +299,33 @@ class AcceptanceInventoryTest(unittest.TestCase):
 
     # ---- rejections ---------------------------------------------------------------------
     def test_rejects_a_counterpart_row_missing_from_the_inventory(self):
-        self.assertRejected("missing: no inventory row for licensed.AverageEffect.Dag#static.frequentist", rows=[])
+        self.assertRejected(
+            "missing: no inventory row for licensed.AverageEffect.Dag#static.frequentist", rows=[]
+        )
 
     def test_rejects_a_route_obligation_no_row_carries(self):
-        self.fx.sources["obligations"].append(licensed_obligation(id="AverageEffect:Dag:explicit:Bayesian:none", inference="Bayesian"))
+        self.fx.sources["obligations"].append(
+            licensed_obligation(id="AverageEffect:Dag:explicit:Bayesian:none", inference="Bayesian")
+        )
         rows = self.fx.rows()
         rows[0]["obligations"] = ["AverageEffect:Dag:explicit:Frequentist:none"]
-        self.assertRejected("route obligation AverageEffect:Dag:explicit:Bayesian:none is carried by no inventory row", rows)
+        self.assertRejected(
+            "route obligation AverageEffect:Dag:explicit:Bayesian:none is carried by no inventory row",
+            rows,
+        )
 
     def test_rejects_a_method_child_and_scope_entry_without_a_row(self):
-        self.fx.sources["children"] = [{"id": "P99.x.static.frequentist", "route": "unlisted", "gap": "none"}]
-        self.fx.sources["scope"].append({"id": "P99.x.static.frequentist", "status": "mandatory", "list": "mandatory", "source": "method_children"})
+        self.fx.sources["children"] = [
+            {"id": "P99.x.static.frequentist", "route": "unlisted", "gap": "none"}
+        ]
+        self.fx.sources["scope"].append(
+            {
+                "id": "P99.x.static.frequentist",
+                "status": "mandatory",
+                "list": "mandatory",
+                "source": "method_children",
+            }
+        )
         self.assertRejected("missing: method child P99.x.static.frequentist", None)
         self.assertRejected("missing: release-scope child P99.x.static.frequentist", None)
 
@@ -226,27 +346,51 @@ class AcceptanceInventoryTest(unittest.TestCase):
     def test_rejects_a_closure_kind_that_conflicts_with_the_inventory(self):
         rows = self.fx.rows()
         rows[0]["closure_kind"] = "narrowed_promise"
-        self.assertRejected("conflict: licensed.AverageEffect.Dag#static.frequentist: closure_kind", rows)
+        self.assertRejected(
+            "conflict: licensed.AverageEffect.Dag#static.frequentist: closure_kind", rows
+        )
 
     def test_rejects_a_narrowed_promise_without_a_residual_limitation(self):
-        self.fx.sources["counterparts"] = [counterpart(closure="narrowed_promise", reason="r", next_attempt="n")]
+        self.fx.sources["counterparts"] = [
+            counterpart(closure="narrowed_promise", reason="r", next_attempt="n")
+        ]
         self.assertRejected("narrowed_promise has no residual limitation row", None)
 
     def test_rejects_a_delivered_row_that_carries_a_narrowed_promise_limitation(self):
-        self.fx.sources["limitations"] = [{"id": "lim.1", "kind": "narrowed_promise",
-                                           "locator": "licensed.AverageEffect.Dag#static.frequentist",
-                                           "owner": "P20", "decision": "", "rationale": ""}]
+        self.fx.sources["limitations"] = [
+            {
+                "id": "lim.1",
+                "kind": "narrowed_promise",
+                "locator": "licensed.AverageEffect.Dag#static.frequentist",
+                "owner": "P20",
+                "decision": "",
+                "rationale": "",
+            }
+        ]
         self.assertRejected("delivered row has a narrowed_promise residual limitation", None)
 
     def test_rejects_a_not_applicable_row_without_a_scope_decision(self):
-        self.fx.sources["counterparts"] = [counterpart(status="not_applicable_with_theory_reason", route="unlisted",
-                                                       uncertainty="none", uncertainty_basis="no_executing_route")]
+        self.fx.sources["counterparts"] = [
+            counterpart(
+                status="not_applicable_with_theory_reason",
+                route="unlisted",
+                uncertainty="none",
+                uncertainty_basis="no_executing_route",
+            )
+        ]
         self.fx.sources["obligations"] = []
         self.fx.sources["scope"] = []
         self.assertRejected("no theory_reason residual limitation", None)
-        self.fx.sources["limitations"] = [{"id": "t.1", "kind": "theory_reason",
-                                           "locator": "licensed.AverageEffect.Dag#static.frequentist",
-                                           "owner": "", "decision": "", "rationale": ""}]
+        self.fx.sources["limitations"] = [
+            {
+                "id": "t.1",
+                "kind": "theory_reason",
+                "locator": "licensed.AverageEffect.Dag#static.frequentist",
+                "owner": "",
+                "decision": "",
+                "rationale": "",
+            }
+        ]
         self.assertRejected("records no scope decision with a rationale", None)
 
     def test_rejects_a_scope_list_that_conflicts_with_the_row(self):
@@ -254,12 +398,21 @@ class AcceptanceInventoryTest(unittest.TestCase):
         self.assertRejected("scope list 'research' conflicts with counterpart scope_status", None)
 
     def test_rejects_a_child_gap_that_conflicts_with_the_row(self):
-        row = counterpart(id="P99.x.static.frequentist", kind="method", method="P99.x", route="unlisted",
-                          status="executing_unlicensed", uncertainty_basis="declared_and_corroborated", gap="none")
+        row = counterpart(
+            id="P99.x.static.frequentist",
+            kind="method",
+            method="P99.x",
+            route="unlisted",
+            status="executing_unlicensed",
+            uncertainty_basis="declared_and_corroborated",
+            gap="none",
+        )
         self.fx.sources["counterparts"] = [row]
         self.fx.sources["obligations"] = []
         self.fx.sources["scope"] = []
-        self.fx.sources["children"] = [{"id": "P99.x.static.frequentist", "route": "unlisted", "gap": "statistical"}]
+        self.fx.sources["children"] = [
+            {"id": "P99.x.static.frequentist", "route": "unlisted", "gap": "statistical"}
+        ]
         self.assertRejected("child gap 'statistical' conflicts with counterpart gap 'none'", None)
 
     def test_rejects_a_route_in_no_conformance_family(self):
@@ -268,7 +421,10 @@ class AcceptanceInventoryTest(unittest.TestCase):
 
     def test_rejects_a_licensed_row_without_an_explicit_licence(self):
         self.fx.sources["obligations"] = []
-        self.assertRejected("unsupported: licensed.AverageEffect.Dag#static.frequentist: licensed row has no explicit licence obligation", None)
+        self.assertRejected(
+            "unsupported: licensed.AverageEffect.Dag#static.frequentist: licensed row has no explicit licence obligation",
+            None,
+        )
 
     def test_rejects_an_obligation_without_calibration_or_identification_licence(self):
         self.fx.sources["obligations"] = [licensed_obligation(calibration_license="")]
@@ -281,13 +437,20 @@ class AcceptanceInventoryTest(unittest.TestCase):
         self.assertRejected("cites coverage record cov.one, which is not recorded", None)
 
     def test_rejects_measured_uncertainty_with_no_record_behind_it(self):
-        self.fx.sources["obligations"] = [licensed_obligation(calibration_license="reason:no_interval_reported")]
-        self.assertRejected("rests on a measured record but no obligation cites a coverage record", None)
+        self.fx.sources["obligations"] = [
+            licensed_obligation(calibration_license="reason:no_interval_reported")
+        ]
+        self.assertRejected(
+            "rests on a measured record but no obligation cites a coverage record", None
+        )
 
     def test_rejects_a_stale_row_and_a_row_naming_nothing(self):
         rows = self.fx.rows()
         rows[0]["compiler_execution"] = "crates/a/tests/t.rs::other"
-        self.assertRejected("stale: licensed.AverageEffect.Dag#static.frequentist differs from the records in compiler_execution", rows)
+        self.assertRejected(
+            "stale: licensed.AverageEffect.Dag#static.frequentist differs from the records in compiler_execution",
+            rows,
+        )
         ghost = copy.deepcopy(self.fx.rows()[0])
         ghost["id"] = "ghost"
         self.assertRejected("stale: row ghost names no counterpart row", self.fx.rows() + [ghost])
@@ -300,7 +463,9 @@ class AcceptanceInventoryTest(unittest.TestCase):
 
     def test_rejects_a_counterpart_row_recorded_twice(self):
         self.fx.sources["counterparts"] = [counterpart(), counterpart()]
-        self.assertRejected("counterpart row licensed.AverageEffect.Dag#static.frequentist appears 2 times", None)
+        self.assertRejected(
+            "counterpart row licensed.AverageEffect.Dag#static.frequentist appears 2 times", None
+        )
 
     def test_rejects_a_duplicate_inventory_row(self):
         rows = self.fx.rows()

@@ -69,19 +69,11 @@ def design_ranges(source: str) -> dict[str, tuple[int, int]]:
     """Case-count range each dependence is measured over: half the smallest base to twice the
     largest, from `base_cases` and the `<dependence>_*_<n>_cases_l95` designs."""
     bases: dict[str, set[int]] = {name: set() for name in DEPENDENCES}
-    for name, count in re.findall(
-        r"Design::(Iid|Cluster|Serial)\s*=>\s*([\d_]+)", source
-    ):
+    for name, count in re.findall(r"Design::(Iid|Cluster|Serial)\s*=>\s*([\d_]+)", source):
         bases[name.lower()].add(integer(count))
-    for name, count in re.findall(
-        r"fn (iid|cluster|serial)_\w*?_(\d+)_cases_l95\b", source
-    ):
+    for name, count in re.findall(r"fn (iid|cluster|serial)_\w*?_(\d+)_cases_l95\b", source):
         bases[name].add(int(count))
-    return {
-        name: (min(found) // 2, max(found) * 2)
-        for name, found in bases.items()
-        if found
-    }
+    return {name: (min(found) // 2, max(found) * 2) for name, found in bases.items() if found}
 
 
 def record_ranges(
@@ -139,9 +131,7 @@ def audit() -> list[str]:
     for dependence in DEPENDENCES:
         cells = rows.get(dependence)
         if cells is None or len(cells) < 4:
-            findings.append(
-                f"design_range_mismatch: {DOC_FILE} has no scope row for {dependence}"
-            )
+            findings.append(f"design_range_mismatch: {DOC_FILE} has no scope row for {dependence}")
             continue
         documented, shipped = span(cells[2]), span(cells[3])
         if documented != design.get(dependence):
@@ -167,26 +157,18 @@ def audit() -> list[str]:
     for path in [*notes, ROOT / DOC_FILE, ROOT / PYTHON_FILE]:
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if UPWARD.search(line):
-                findings.append(
-                    f"unqualified_upward: {path.relative_to(ROOT)}:{number}"
-                )
+                findings.append(f"unqualified_upward: {path.relative_to(ROOT)}:{number}")
 
     limit = re.search(r"MAX_CASES: usize = ([\d_]+)", read(LAW_FILE))
     largest = max((high for _, high in design.values()), default=0)
     if limit and integer(limit.group(1)) < largest:
-        findings.append(
-            f"limit_below_design: MAX_CASES {limit.group(1)} < {fmt(largest)}"
-        )
+        findings.append(f"limit_below_design: MAX_CASES {limit.group(1)} < {fmt(largest)}")
     return findings
 
 
 def self_test() -> int:
-    source = (
-        "Design::Iid => 800,\nDesign::Cluster => 1_600,\nDesign::Serial => 3_200,\n"
-    )
-    source += (
-        "fn iid_crps_mean_3200_cases_l95() {}\nfn iid_crps_mean_51200_cases_l95() {}\n"
-    )
+    source = "Design::Iid => 800,\nDesign::Cluster => 1_600,\nDesign::Serial => 3_200,\n"
+    source += "fn iid_crps_mean_3200_cases_l95() {}\nfn iid_crps_mean_51200_cases_l95() {}\n"
     expected = {
         "iid": (400, 102_400),
         "cluster": (800, 3_200),

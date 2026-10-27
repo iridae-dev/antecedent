@@ -37,14 +37,8 @@ def integer_expression(
     def visit(node: ast.AST) -> int:
         if isinstance(node, ast.Constant) and type(node.value) is int:
             value = node.value
-        elif (
-            isinstance(node, ast.Name)
-            and node.id in constants
-            and node.id not in active
-        ):
-            value = integer_expression(
-                constants[node.id], constants, active | {node.id}
-            )
+        elif isinstance(node, ast.Name) and node.id in constants and node.id not in active:
+            value = integer_expression(constants[node.id], constants, active | {node.id})
         elif isinstance(node, ast.BinOp) and type(node.op) in OPS:
             left, right = visit(node.left), visit(node.right)
             if isinstance(node.op, ast.LShift) and not 0 <= right <= 63:
@@ -62,7 +56,8 @@ def integer_expression(
 def constants_in(text: str) -> dict[str, str]:
     return dict(
         re.findall(
-            r"\bconst\s+([A-Z][A-Z0-9_]*)\s*:\s*(?:[ui](?:8|16|32|64|128|size))\s*=\s*([^;\n]+);", text
+            r"\bconst\s+([A-Z][A-Z0-9_]*)\s*:\s*(?:[ui](?:8|16|32|64|128|size))\s*=\s*([^;\n]+);",
+            text,
         )
     )
 
@@ -89,8 +84,7 @@ def _expand_paths(expr: str, source: Path, seen: frozenset[str]) -> str:
         if name not in raw:
             raise ValueError(f"{token} is not an integer constant")
         expanded = {
-            key: _expand_paths(value.strip(), sibling, seen | {token})
-            for key, value in raw.items()
+            key: _expand_paths(value.strip(), sibling, seen | {token}) for key, value in raw.items()
         }
         return str(integer_expression(expanded[name], expanded, frozenset({name})))
 
@@ -240,17 +234,13 @@ def check(root: Path = ROOT) -> tuple[list[str], list[str]]:
             identity = (record["id"], key)
             prose = prose_rows.get(identity)
             if prose is None:
-                errors.append(
-                    f"{identity}: numeric prose requires an exact noninteger mapping"
-                )
+                errors.append(f"{identity}: numeric prose requires an exact noninteger mapping")
                 continue
             have = {
                 int(token.replace("_", "").replace(",", ""))
                 for token in re.findall(r"\d[\d_,]*", value)
             }
-            expected = {
-                bounds.get(source_key) for source_key in prose.get("numbers_from", [])
-            }
+            expected = {bounds.get(source_key) for source_key in prose.get("numbers_from", [])}
             if (
                 not expected
                 or any(type(number) is not int for number in expected)
@@ -261,9 +251,7 @@ def check(root: Path = ROOT) -> tuple[list[str], list[str]]:
                 )
     for identity in prose_rows:
         record = records_by_id.get(identity[0])
-        if record is None or not isinstance(
-            record.get("bounds", {}).get(identity[1]), str
-        ):
+        if record is None or not isinstance(record.get("bounds", {}).get(identity[1]), str):
             errors.append(f"{identity}: stale noninteger bound mapping")
     for identity in rows:
         record = records_by_id.get(identity[0])
@@ -313,9 +301,7 @@ def self_test() -> int:
                 if isinstance(value, dict):
                     return (
                         "{ "
-                        + ", ".join(
-                            key + " = " + toml(item) for key, item in value.items()
-                        )
+                        + ", ".join(key + " = " + toml(item) for key, item in value.items())
                         + " }"
                     )
                 if isinstance(value, list):
@@ -397,9 +383,7 @@ def self_test() -> int:
             encoding="utf-8",
         )
         if check(root)[0]:
-            failures.append(
-                "numeric prose matching an independently compared cap must pass"
-            )
+            failures.append("numeric prose matching an independently compared cap must pass")
         prose_records[0]["bounds"]["operation_limit"] = "declared cap 5"
         write_rows(root / RECORDS, "record", prose_records)
         if not check(root)[0]:

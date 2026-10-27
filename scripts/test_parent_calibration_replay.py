@@ -152,7 +152,9 @@ class WeightedClusterReplayProtocolTest(unittest.TestCase):
             with self.subTest(test=test):
                 old = self.record(test, "analytic_se", "all_observed.mean+weights=sampling")
                 new = self.record(
-                    test, "student_analytic", "all_observed.mean+reference=cluster_df+weights=sampling"
+                    test,
+                    "student_analytic",
+                    "all_observed.mean+reference=cluster_df+weights=sampling",
                 )
                 self.assertEqual(
                     facets.weighted_cluster_replay_environment([old]),
@@ -174,12 +176,15 @@ class WeightedClusterReplayProtocolTest(unittest.TestCase):
     def test_checked_in_cluster_records_bind_the_actual_sampling_weight_functional(self) -> None:
         records = facets.load_records()
         selected = [
-            record for record in records
-            if record["test"].endswith((
-                "::weighted_aipw_cluster_dml_interval",
-                "::weighted_dml_cluster_interval",
-                "::weighted_dr_learner_cluster_interval",
-            ))
+            record
+            for record in records
+            if record["test"].endswith(
+                (
+                    "::weighted_aipw_cluster_dml_interval",
+                    "::weighted_dml_cluster_interval",
+                    "::weighted_dr_learner_cluster_interval",
+                )
+            )
         ]
         self.assertEqual(len(selected), 6)
         for record in selected:
@@ -352,7 +357,9 @@ class CoverageFamilyReplayRecipeTest(unittest.TestCase):
         historical.assert_called_once_with(record["calibration_sha"])
         self.assertEqual([int(e["ANTECEDENT_CALIBRATION_NSIM"]) for e in envs], [400, 2000, 20000])
         self.assertEqual([e["ANTECEDENT_CALIBRATION_GRID_POINTS"] for e in envs], ["0", "1", "2"])
-        self.assertEqual([int(e["ANTECEDENT_CALIBRATION_ACCEPTANCE_NSIM"]) for e in envs], [400, 2000, 20000])
+        self.assertEqual(
+            [int(e["ANTECEDENT_CALIBRATION_ACCEPTANCE_NSIM"]) for e in envs], [400, 2000, 20000]
+        )
         for env in envs:
             self.assertEqual(json.loads(env[decision.ENV]), config)
             self.assertNotIn("ANTECEDENT_CALIBRATION_SHA", env)

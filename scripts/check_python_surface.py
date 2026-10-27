@@ -54,7 +54,11 @@ STALE = re.compile(
     re.IGNORECASE,
 )
 DOC_FILES = ("docs", "README.md")
-DOC_EXTRA = ("parity/producer_consumer.toml", "parity/transport_stages.toml", "parity/promotion.toml")
+DOC_EXTRA = (
+    "parity/producer_consumer.toml",
+    "parity/transport_stages.toml",
+    "parity/promotion.toml",
+)
 
 
 def snapshot_entries(text: str) -> dict[str, str]:
@@ -336,8 +340,12 @@ def self_test() -> int:
         [("docs/x.md", 3, "The route `read_tier_diagnostics` is Rust-only; no Python wrapper.")],
     )
     assert len(stale) == 1 and "docs/x.md:3" in stale[0], stale
-    assert not stale_doc_problems(rows, [("docs/x.md", 1, "A Rust-only helper `other_helper_name`.")])
-    hidden_source = "#[doc(hidden)]\npub fn sealed_helper(x: i32) {}\n\n/// Doc.\npub fn open_helper() {}\n"
+    assert not stale_doc_problems(
+        rows, [("docs/x.md", 1, "A Rust-only helper `other_helper_name`.")]
+    )
+    hidden_source = (
+        "#[doc(hidden)]\npub fn sealed_helper(x: i32) {}\n\n/// Doc.\npub fn open_helper() {}\n"
+    )
     assert public_items(hidden_source, r"(?:const )?fn ([a-z_0-9]+)[(<]") == ["open_helper"]
     assert snapshot_entries("#[doc(hidden)] pub fn antecedent::gcm::hidden_one(x: i32)\n") == {}
     print("check_python_surface self-test OK")

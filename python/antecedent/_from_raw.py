@@ -1370,6 +1370,8 @@ def _wrap_ate(
             predictive_sd=float(predictive_sd),
             p_value=float(p_value),
             n_sims=int(n_sims),
+            dispersion_p_value=getattr(raw, f"{prefix}_dispersion_p_value", None),
+            noise=getattr(raw, f"{prefix}_noise", None),
         )
 
     prior_predictive = _ppc("prior_ppc", "prior_predictive")

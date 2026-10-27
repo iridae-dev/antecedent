@@ -32,7 +32,11 @@ def main() -> int:
     assert missing.returncode == 2 and "expected one argument" in missing.stderr
     with tempfile.TemporaryDirectory() as temporary:
         alternate = Path(temporary) / "different.toml"
-        alternate.write_text((ROOT / "parity/promotion.toml").read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
+        alternate.write_text(
+            (ROOT / "parity/promotion.toml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+            newline="\n",
+        )
         refused = run("--promotion", str(alternate))
         assert refused.returncode == 2 and "parity/promotion.toml" in refused.stderr
     checked = run("--self-test")

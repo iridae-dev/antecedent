@@ -71,6 +71,7 @@ from ._artifact_protocol import (
 )
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
+from ._validate import count
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .outcomes import outcome_operation
@@ -968,6 +969,10 @@ def consume_bundle(
     expected_identity: str | None = None,
     supplied: SuppliedSources | None = None,
     actual_claims: Mapping[str, object] | None = None,
+    max_bundle_bytes: int | None = None,
+    max_nodes: int | None = None,
+    max_edges: int | None = None,
+    max_embedded_bytes: int | None = None,
 ) -> ConsumedBundle:
     """Consume exported bundle bytes under the identity the consumer retained.
 
@@ -978,6 +983,11 @@ def consume_bundle(
     without hiding the rest of the bundle. ``actual_claims`` binds original source
     digests to opaque claims from actual executions; each source's original engine
     executes once to resolve its native operation. Serialized metadata is insufficient.
+
+    ``max_bundle_bytes``, ``max_nodes``, ``max_edges`` and ``max_embedded_bytes`` are the
+    consumer's own bounds (each omitted one keeps its default); a bundle beyond any of them
+    refuses as :class:`OversizedRefusal` before a node is verified. They are not available
+    together with ``actual_claims``.
 
     ``expected_identity`` is required: the bundle identity (``Bundle.identity``) the consumer
     retained independently of the bytes. It is a keyword so a forgotten identity is named in
@@ -1003,11 +1013,26 @@ def consume_bundle(
         )
     if not isinstance(expected_identity, str):
         raise CausalTypeError("expected_identity must be the bundle identity string")
+    bounds = {
+        name: count(value, name, minimum=1)
+        for name, value in (
+            ("max_bundle_bytes", max_bundle_bytes),
+            ("max_nodes", max_nodes),
+            ("max_edges", max_edges),
+            ("max_embedded_bytes", max_embedded_bytes),
+        )
+        if value is not None
+    }
     if actual_claims is None:
         wire, refusal = _native.consume_composition_bundle(
-            bytes(data), expected_identity, None if supplied is None else supplied._json()
+            bytes(data),
+            expected_identity,
+            None if supplied is None else supplied._json(),
+            **bounds,
         )
     else:
+        if bounds:
+            raise CausalValueError("consumer bounds are not available with actual_claims")
         from .program_claims import NativeClaim
 
         if len(actual_claims) > 64:

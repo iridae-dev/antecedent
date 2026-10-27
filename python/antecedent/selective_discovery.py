@@ -92,7 +92,7 @@ from .errors import CausalTypeError, CausalValueError
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
-    from .composition_verification import CompositionGraph
+    from .composition_verification import ClaimClassification, CompositionGraph
     from .evidence_ledger import SourceDeclaration
 
 __all__ = [
@@ -100,6 +100,7 @@ __all__ = [
     "AnalysisBinding",
     "DiscoveryClaimKeys",
     "DiscoveryClaims",
+    "DiscoveryRevalidation",
     "PerPopulationClaims",
     "PerPopulationDiscovery",
     "PerPopulationReport",
@@ -134,6 +135,7 @@ __all__ = [
     "inspect_selective_discovery_artifact",
     "replace",
     "request_score_search_reuse",
+    "revalidate_after_discovery",
 ]
 
 #: The algorithms of each kind.
@@ -757,14 +759,48 @@ class SelectiveDiscovery(ScientificResult):
             if name not in self._names:
                 raise CausalValueError(f"{name!r} is not a searched variable")
             ids.append(self._names.index(name))
-        payload = self._handle.request_selection_diagram(ids)
-        wire = json.loads(payload)
-        refusal = SelectiveDiscoveryRefusal(wire)
-        refusal.unresolved_edges = tuple(wire.get("unresolved_edges", ()))  # type: ignore[attr-defined]
-        refusal.bounded_search_receipts = tuple(  # type: ignore[attr-defined]
-            wire.get("bounded_search_receipts", ())
+        raise _structure_refusal(self._handle.request_selection_diagram(ids))
+
+    def accepted_graph_stage_identity(
+        self, declared_by: str, *, completion: tuple[str, str] | None = None
+    ) -> str:
+        """The identity to declare for the graph stage of a recalculation plan.
+
+        It covers the retained structure, the declared completion and ``declared_by`` (who
+        accepted the graph), so a change of any of them reaches every downstream stage through
+        the planner's ordinary dependency rules. ``completion`` is a ``(label, identity)`` pair
+        naming the declared member of the equivalence class (``identity`` is 64 hexadecimal
+        characters); it is required when the structure has unresolved edges.
+
+        Returns:
+            The 64-character hexadecimal stage identity.
+
+        Raises:
+            CausalValueError: discovery has not run, or ``completion`` is malformed.
+            SelectiveDiscoveryRefusal: ``discovered_structure_unresolved`` for a search that
+                exhausted a bound (``selective_discovery.search_incomplete``) or a structure with
+                unresolved edges and no completion (``selective_discovery.unresolved_structure``);
+                the refusal's ``unresolved_edges`` and ``bounded_search_receipts`` say what is
+                undecided.
+        """
+        label, identity = (None, None) if completion is None else _completion(completion)
+        text, refusal = self._handle.accepted_graph_stage_identity(
+            _name(declared_by, "declared_by"), label, identity
         )
-        raise refusal
+        if refusal is not None:
+            raise _structure_refusal(refusal)
+        assert text is not None
+        return text
+
+
+def _structure_refusal(payload: str) -> SelectiveDiscoveryRefusal:
+    wire = json.loads(payload)
+    refusal = SelectiveDiscoveryRefusal(wire)
+    refusal.unresolved_edges = tuple(wire.get("unresolved_edges", ()))  # type: ignore[attr-defined]
+    refusal.bounded_search_receipts = tuple(  # type: ignore[attr-defined]
+        wire.get("bounded_search_receipts", ())
+    )
+    return refusal
 
 
 # --------------------------------------------------------------------------- artifacts
@@ -1874,3 +1910,60 @@ def discovered_graph_source(label: str, data_sources: Sequence[str]) -> SourceDe
     ids = [str(source) for source in data_sources]
     text = _native.selective_discovery_graph_source(_name(label, "label"), ids)
     return _declaration(text)
+
+
+@dataclass(frozen=True, slots=True)
+class DiscoveryRevalidation:
+    """The classification of every claim after a discovery change, with the graph identities."""
+
+    claims: Mapping[str, ClaimClassification]
+    removed: tuple[str, ...]
+    previous_identity: str
+    current_identity: str
+    identity: str
+
+    def classify(self, key: str) -> ClaimClassification:
+        """The classification of one claim."""
+        try:
+            return self.claims[key]
+        except KeyError:
+            raise CausalValueError(f"no claim {key!r} in the current graph") from None
+
+    def keys_of(self, klass: str) -> tuple[str, ...]:
+        """Claim keys with a class (``still_valid``, ``recompute`` or ``withdrawn``), sorted."""
+        return tuple(sorted(k for k, c in self.claims.items() if c.klass == klass))
+
+
+def revalidate_after_discovery(
+    previous: CompositionGraph, current: CompositionGraph
+) -> DiscoveryRevalidation:
+    """Classify every claim of ``current`` against ``previous`` after a discovery change.
+
+    The discovery nodes carry their own identities (the data, the statistics, the discovered
+    graph and a declared completion), so new data, a new threshold, new background knowledge or a
+    changed completion is read as an identity or structure change, and no further observed effect
+    is needed: a claim built on a moved node recomputes, an unrelated one stays valid. Build the
+    graphs with :meth:`SelectiveDiscovery.add_claims` and the like.
+
+    Raises:
+        CompositionVerificationRefusal: ``invalid_argument`` for a graph that does not validate.
+    """
+    from . import composition_verification as cv
+
+    for what, graph in (("previous", previous), ("current", current)):
+        if not isinstance(graph, cv.CompositionGraph):
+            raise CausalTypeError(f"{what} must be a composition_verification.CompositionGraph")
+    text, refusal = _native.selective_discovery_revalidate(
+        json.dumps(previous.to_wire(), sort_keys=True),
+        json.dumps(current.to_wire(), sort_keys=True),
+    )
+    raise_refusal(refusal, cv.CompositionVerificationRefusal)
+    assert text is not None
+    wire = json.loads(text)
+    return DiscoveryRevalidation(
+        claims={c["key"]: cv._classification(c) for c in wire["claims"]},
+        removed=tuple(wire["removed"]),
+        previous_identity=str(wire["previous_identity"]),
+        current_identity=str(wire["current_identity"]),
+        identity=str(wire["identity"]),
+    )

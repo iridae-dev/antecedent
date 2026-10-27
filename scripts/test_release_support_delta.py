@@ -38,7 +38,9 @@ class ReleaseSupportDeltaTests(unittest.TestCase):
             )
             return "\n".join(release_support_delta(cells, self.axes, baseline))
 
-    inventory = "- `AverageEffect` × `Dag` / `Admg` × `explicit` × `Frequentist` × validation `none`"
+    inventory = (
+        "- `AverageEffect` × `Dag` / `Admg` × `explicit` × `Frequentist` × validation `none`"
+    )
 
     def test_unchanged_inventory_does_not_repeat_old_capabilities(self):
         rendered = self.compare([self.cell(), self.cell("Admg")], self.inventory)
@@ -46,9 +48,7 @@ class ReleaseSupportDeltaTests(unittest.TestCase):
         self.assertNotIn("- `AverageEffect`", rendered)
 
     def test_only_actual_additions_and_removals_are_rendered(self):
-        rendered = self.compare(
-            [self.cell(), self.cell(structure="accepted")], self.inventory
-        )
+        rendered = self.compare([self.cell(), self.cell(structure="accepted")], self.inventory)
         self.assertIn("1 added coordinates, 1 removed coordinates", rendered)
         self.assertIn("Added analysis coordinates", rendered)
         self.assertIn("`Dag` × `accepted`", rendered)

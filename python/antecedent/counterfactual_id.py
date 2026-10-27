@@ -240,8 +240,14 @@ def prepare_effect_on_treated(
     return PreparedEffectOnTreated(native, names, level_lists)
 
 
-def consume_counterfactual_id_artifact(artifact: bytes, *, seed: int = 1) -> EffectOnTreated:
+def consume_counterfactual_id_artifact(
+    artifact: bytes, *, seed: int = 1, expected_data_digest: str | None = None
+) -> EffectOnTreated:
     """Replay an exported artifact and accept only an identical derivation and point.
+
+    ``expected_data_digest`` is the digest of the law the consumer holds independently of the
+    bytes (an ``EffectOnTreated.data_digest``); an artifact computed on another law is refused
+    with ``invalid_argument``.
 
     It detects corruption and re-sealed edits that change the derivation or the
     point, and recomputes the point with a separate direct-sum evaluator; it does
@@ -252,4 +258,6 @@ def consume_counterfactual_id_artifact(artifact: bytes, *, seed: int = 1) -> Eff
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
-    return _effect(_consume(bytes(artifact), seed=seed))
+    if expected_data_digest is not None and not isinstance(expected_data_digest, str):
+        raise CausalTypeError("expected_data_digest must be a string or None")
+    return _effect(_consume(bytes(artifact), seed=seed, expected_data_digest=expected_data_digest))

@@ -174,7 +174,9 @@ def cross_check(
             continue
         obligations = emit_obligations(row)
         if set(obligations) != OBLIGATION_KEYS:
-            problems.append(f"{label}: a recipe emitted something other than route and test obligations")
+            problems.append(
+                f"{label}: a recipe emitted something other than route and test obligations"
+            )
         for field in IDENTIFICATION + CALIBRATION:
             if field in obligations:
                 problems.append(f"{label}: recipe obligations include explicit {field}")
@@ -197,12 +199,17 @@ def cross_check(
                 entry.get("test"),
                 entry.get("assertion"),
             )
-            if not all(isinstance(value, str) and value.strip() for value in (estimator, test_rel, assertion)):
+            if not all(
+                isinstance(value, str) and value.strip()
+                for value in (estimator, test_rel, assertion)
+            ):
                 problems.append(f"{label} is licensed for {estimators}")
                 continue
             test_names.append(estimator)
             if estimator not in matrix_estimators:
-                problems.append(f"{label} is licensed on the support matrix for {matrix_estimators}")
+                problems.append(
+                    f"{label} is licensed on the support matrix for {matrix_estimators}"
+                )
             if cite is not None:
                 for problem in cite(test_rel, assertion):
                     problems.append(f"{label}::estimator={estimator}: {problem}")
@@ -210,7 +217,9 @@ def cross_check(
             problems.append(f"{label} is licensed for {estimators}")
         extras = [item for item in matrix_estimators if item not in estimators]
         for estimator in extras:
-            if any(isinstance(entry, dict) and entry.get("estimator") == estimator for entry in tests):
+            if any(
+                isinstance(entry, dict) and entry.get("estimator") == estimator for entry in tests
+            ):
                 problems.append(
                     f"{label} is licensed for {estimators}; {estimator} stays on the matrix record"
                 )
@@ -246,15 +255,21 @@ def _unlicensed_search(axes, closed_rules, na_rules, licensed_keys):
 
 def matrix_alignment_problems(root: Path, cite=None) -> list[str]:
     """Load the records the support-matrix gate already reads and cross-check them."""
-    licensed_rows = tomllib.loads((root / "parity" / "support_licensed.toml").read_text(encoding="utf-8")).get(
-        "cell", []
-    )
-    closed_rules = tomllib.loads((root / "parity" / "support_closed.toml").read_text(encoding="utf-8")).get(
-        "closed", []
-    )
-    na_rules = tomllib.loads((root / "parity" / "support_n_a.toml").read_text(encoding="utf-8")).get("n_a", [])
+    licensed_rows = tomllib.loads(
+        (root / "parity" / "support_licensed.toml").read_text(encoding="utf-8")
+    ).get("cell", [])
+    closed_rules = tomllib.loads(
+        (root / "parity" / "support_closed.toml").read_text(encoding="utf-8")
+    ).get("closed", [])
+    na_rules = tomllib.loads(
+        (root / "parity" / "support_n_a.toml").read_text(encoding="utf-8")
+    ).get("n_a", [])
     axes_doc = tomllib.loads((root / "parity" / "support_axes.toml").read_text(encoding="utf-8"))
-    matrix = json.loads((root / "crates" / "antecedent" / "data" / "support_matrix.json").read_text(encoding="utf-8"))
+    matrix = json.loads(
+        (root / "crates" / "antecedent" / "data" / "support_matrix.json").read_text(
+            encoding="utf-8"
+        )
+    )
     axes = {
         "query": list(axes_doc["queries"]),
         "graph_class": list(axes_doc["graph_classes"]),
