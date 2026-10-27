@@ -63,6 +63,9 @@ default_test_opt=2
 if [[ "$suite" == dev ]]; then default_test_opt=0; fi
 export CARGO_PROFILE_TEST_OPT_LEVEL="${CARGO_PROFILE_TEST_OPT_LEVEL:-$default_test_opt}"
 export CARGO_PROFILE_TEST_DEBUG="${CARGO_PROFILE_TEST_DEBUG:-line-tables-only}"
+if [[ "${ANTECEDENT_TEST_RECEIPT_ACTIVE:-0}" != 1 ]]; then
+  exec python3 "$ROOT/scripts/test_run_receipt.py" -- bash "$ROOT/scripts/test.sh" "$suite" "$@"
+fi
 workspace=(--workspace --features antecedent/calibration-internal,antecedent-identify/test-util,antecedent-io/calibration-internal,antecedent-validate/calibration-internal)
 rust_run_index=0
 report_directory="$ROOT/target/test-performance/$(date -u +%Y%m%dT%H%M%SZ)-$$"

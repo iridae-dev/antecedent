@@ -74,6 +74,15 @@ have explicit coverage dispositions in `parity/test_refactor_dispositions.toml`.
 
 ## Feedback measurements
 
+Every `scripts/test.sh` invocation now writes a local JSON receipt under
+`target/test-performance/`: exact command, host/build settings, before/after
+checkout identities including dirty-file hashes, exit status, wall/CPU costs
+and available child-process peak RSS. Changed checkouts are explicit. These
+ordinary feedback measurements are not performance acceptance evidence; Cargo
+build timings and nextest/pytest durations still separate build and execution
+costs. A failed-child control confirms that receipt generation preserves failure.
+
+
 On this macOS arm64 host, the registry checker on the 1,594-row intermediate
 inventory took 82.90 seconds before per-crate target-map reuse and 3.42 seconds
 afterward (43.95/3.03 user seconds, 38.06/0.35 system seconds). The latter run
@@ -86,7 +95,7 @@ also has a separate timing/RSS receipt in `registry_timings.json`.
 
 The focused ordinary statistical target passes ten tests, retaining its existing
 ignored fixture writer. The new learner point assertion passes. Thirty-nine
-compiled evidence-gate fault controls and twenty-three audit/tooling controls pass.
+compiled evidence-gate fault controls and twenty-four audit/tooling controls pass.
 The eight existing independent reference-generator checks pass. The explicit
 DoWhy environment passes all seven public-API comparison tests. These results
 do not grant coverage or license the deferred calibration study.
@@ -98,7 +107,7 @@ assertions pass; the ten foundations assertions pass. These are fixed-input
 comparisons. Temporal Sobel uncertainty is checked only under explicit iid
 opt-in, and GAM fit outputs remain product regression pins.
 
-Ten retained reference reviews bind generator, transitive comparison
+Thirteen retained reference reviews bind generator, transitive comparison
 helper, lock, assertion source and fixture payload by digest. Gates reject
 changed inputs, expected outputs, tolerances, origins, assertions and helpers
 until reviewed again. Reviews record limited independence, redistribution
@@ -130,6 +139,14 @@ Two more reference reviews and one bounded primary implementation review bind
 the exact Vehtari/Geyer sections, assumptions, source, assertions and fixtures.
 Citation/deviation-content edits also make that method review stale. This is
 one reviewed method record among 495; other primary reviews remain open.
+The prior-support reference now reproduces 24 domain cases in its own pinned
+SciPy environment. Exact evidence fields cover support and coefficient precision;
+upstream normalization checks are separate fixture context, not product density
+calculations. A constant-only threshold test was removed with a disposition to
+the existing executing publication-gate boundary and missing-metric tests. The
+Bayesian-check configuration fixture is labelled software-only and retains its
+historical external-generator disclosure.
+
 Neither fixed-chain comparison nor source correspondence licenses sampling
 calibration, convergence, causal identification or interval coverage.
 
@@ -143,7 +160,7 @@ evidence ledger now accounts for all 711 owned routes, including the previously
 missing continuous-conditioning, parameter-spread and measurement bindings.
 Their references distinguish exact conditional laws, uncalibrated posterior
 spread and refusal contracts; no interval status was promoted. The calibration surface
-check now passes with 470 paths in 222 facets. Reviewed repairs remove stale
+check now passes with 475 paths in 222 facets. Reviewed repairs remove stale
 allowances, assign moved numerical counterfactual modules to mechanism, and
 include observation table posteriors and counterfactual transport in that
 dependency. Wire/result adapters and local-name collisions have exact reviewed
