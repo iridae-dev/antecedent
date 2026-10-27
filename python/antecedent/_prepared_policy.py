@@ -16,6 +16,7 @@ from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution
 from .graph import Dag
 from .intervention_programs import (
+    PROVENANCE_ID,
     PolicyContract,
     PolicyPreparation,
     PolicyProgramResult,
@@ -203,6 +204,7 @@ class PreparedPolicyAnalysis:
             details={
                 "phase": "executed" if self._completed else "compiled",
                 "fit_materialized": self._native.fit_materialized,
+                "provenance_id": PROVENANCE_ID,
                 "draws": self._query.n_draws,
                 "work_dimensions": self._native.quote(self._query.n_draws),
             },

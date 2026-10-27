@@ -30,6 +30,7 @@ from ..query import (
     ResponseJacobian,
     SemiElasticity,
 )
+from ._evaluation import TransportEvaluation, require_evaluation
 from ._impl import (
     ClassicalTransportIdentification,
     DependenceGroupName,
@@ -46,20 +47,18 @@ from ._impl import (
     SelectionDiagram,
     StatisticalTransportData,
     TargetSamplingName,
-    TransportControls,
     TransportInference,
     TransportStage,
     TrialAipw,
     TrialAipwData,
     VariableCoordinate,
     VariableDomainName,
+    _TransportLimits,
     identify_classical,
     identify_meta,
     inspect_catalog,
 )
-from ._impl import (
-    prepare as prepare_stage,
-)
+from ._impl.prepare import compile_modality as prepare_stage
 from ._status import identification_status as canonical_identification_status
 
 _RESPONSE_FAMILY = (
@@ -175,11 +174,13 @@ class Transport:
     evidence: Evidence
     _: KW_ONLY
     selections: Sequence[str] = ()
+    evaluation: TransportEvaluation = field(default_factory=TransportEvaluation)
     kind: Literal["transport_compiler"] = field(
         default="transport_compiler", init=False, repr=False
     )
 
     def __post_init__(self) -> None:
+        require_evaluation(self.evaluation)
         coerce_fields(self, target=_require_name("target", self.target))
         coerce_fields(self, selections=tuple(self.selections))
         if not isinstance(self.evidence, Evidence):
@@ -780,7 +781,12 @@ def refuse_transport_only_kwargs(
     inference: object = None,
     controls: object = None,
 ) -> None:
-    if isinstance(query, Transport):
+    from ._impl import ExactTransportQuery, StatisticalTransportQuery, TransportResponseGridQuery
+
+    if isinstance(
+        query,
+        (Transport, ExactTransportQuery, StatisticalTransportQuery, TransportResponseGridQuery),
+    ):
         return
     extra = []
     if provider is not None:
@@ -797,6 +803,14 @@ def refuse_transport_only_kwargs(
         )
 
 
+def _evaluation_limits(evaluation: TransportEvaluation) -> dict[str, int]:
+    return dict(
+        max_operations=evaluation.max_operations,
+        max_depth=evaluation.max_depth,
+        max_support_rows=evaluation.max_support_rows,
+    )
+
+
 def prepare_transport(
     data: Any,
     *,
@@ -804,13 +818,13 @@ def prepare_transport(
     graph: Admg,
     provider: EmpiricalTable | LearnedCategorical | TrialAipw | str | None = None,
     inference: TransportInference | None = None,
-    controls: TransportControls | None = None,
+    controls: _TransportLimits | None = None,
     cancel: Any = None,
     seed: int = 1,
 ) -> Any:
-    """Compile the T5–T9 request that PreparedAnalysis already knows."""
+    """Compile the T5–T9 request that _PreparedEngine already knows."""
 
-    from ..estimation import PreparedAnalysis
+    from ..estimation import _PreparedEngine
     from ._restricted import prepare_restricted, restricted_experiment
 
     if restricted_experiment(query):
@@ -820,7 +834,7 @@ def prepare_transport(
             graph=graph,
             provider=provider,
             inference=inference,
-            controls=controls or TransportControls(),
+            controls=controls or _TransportLimits(**_evaluation_limits(query.evaluation)),
             seed=seed,
         )
 
@@ -830,9 +844,9 @@ def prepare_transport(
     resolved = default_provider(bound if bound is not None else data, provider)
     exact = isinstance(bound if bound is not None else data, ExactTransportData)
     settings = inference if inference is not None else (None if exact else TransportInference())
-    limits = controls or TransportControls()
+    limits = controls or _TransportLimits(**_evaluation_limits(query.evaluation))
     if cancel is not None and limits.cancel is None:
-        limits = TransportControls(
+        limits = _TransportLimits(
             max_operations=limits.max_operations,
             max_depth=limits.max_depth,
             max_support_rows=limits.max_support_rows,
@@ -849,7 +863,7 @@ def prepare_transport(
         graph=graph,
     )
     if identified.outcome != "identified":
-        study: PreparedAnalysis[Any] = PreparedAnalysis(None, kind="statistical_transport")
+        study: _PreparedEngine[Any] = _PreparedEngine(None, kind="statistical_transport")
         study._query = query
         study._transport_stage = stage_snapshot
         return study

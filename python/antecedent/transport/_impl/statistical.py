@@ -18,10 +18,12 @@ from ..._defaults import OMITTED
 from ..._scientific import ScientificResult
 from ..._transport_results import TransportContrast, TransportUncertainty
 from ...errors import CausalValueError
+from ...execution import Execution
 from ...learners import LearnerSpec, Logistic, _learner_wire
+from .._evaluation import TransportEvaluation, require_evaluation
 
 if TYPE_CHECKING:
-    from ...estimation import PreparedAnalysis
+    from ...estimation import _PreparedEngine
 
 
 from .authority import _no_native_authority
@@ -170,11 +172,14 @@ class StatisticalTransportQuery:
     coverage_level: float = OMITTED["transport_coverage_level"]
     estimator: EmpiricalTable | LearnedCategorical | str = "plugin"
 
+    evaluation: TransportEvaluation = field(default_factory=TransportEvaluation)
+
     def __post_init__(self) -> None:
+        require_evaluation(self.evaluation)
         coerce_fields(self, at=MappingProxyType(dict(self.at)))
 
 
-def prepare_statistical(
+def _prepare_statistical(
     identification: ClassicalTransportIdentification,
     catalog: EvidenceCatalog,
     data: StatisticalTransportData,
@@ -189,10 +194,10 @@ def prepare_statistical(
     coverage_level: float = OMITTED["transport_coverage_level"],
     estimator: EmpiricalTable | LearnedCategorical | str = "plugin",
     seed: int = 1,
-) -> PreparedAnalysis[StatisticalTransportDistribution]:
-    """Prepare the empirical-table modality of the common PreparedAnalysis lifecycle."""
+) -> _PreparedEngine[StatisticalTransportDistribution]:
+    """Prepare the empirical-table modality of the common _PreparedEngine lifecycle."""
     from ..._native import prepare_statistical_transport
-    from ...estimation import PreparedAnalysis, _Controls
+    from ...estimation import _Controls, _PreparedEngine
 
     native = prepare_statistical_transport(
         identification._native,
@@ -209,7 +214,7 @@ def prepare_statistical(
         estimator=estimator,
         seed=seed,
     )
-    return PreparedAnalysis(native, kind="statistical_transport", controls=_Controls(cancel=cancel))
+    return _PreparedEngine(native, kind="statistical_transport", controls=_Controls(cancel=cancel))
 
 
 def evaluate_statistical_grid(
@@ -218,18 +223,44 @@ def evaluate_statistical_grid(
     data: StatisticalTransportData,
     *,
     at: Sequence[Mapping[str, float]],
-    **kwargs: Any,
+    bootstrap: int = OMITTED["transport_bootstrap"],
+    coverage_level: float = OMITTED["transport_coverage_level"],
+    estimator: EmpiricalTable | LearnedCategorical | str = "plugin",
+    evaluation: TransportEvaluation | None = None,
+    execution: Execution | None = None,
 ) -> tuple[StatisticalTransportDistribution, ...]:
     """Evaluate a grid using shared dataset refits and shared successful replicate IDs.
 
     Intervals are pointwise. Use ``result.contrast(reference, outcome)`` to keep
     shared-factor covariance when comparing two points from the same execution.
+    ``evaluation`` bounds formula evaluation and support enumeration; seed, memory
+    and cancellation belong to ``execution``.
     """
     if not at:
         raise CausalValueError("The treatment grid must not be empty")
-    study = prepare_statistical(identification, catalog, data, at=at[0], **kwargs)
-    points = study._native.estimate_grid([dict(point) for point in at], cancel=kwargs.get("cancel"))
-    return tuple(_statistical_distribution(point, point.last_result()) for point in points)
+    limits = TransportEvaluation() if evaluation is None else evaluation
+    require_evaluation(limits)
+    policy = Execution() if execution is None else execution
+
+    def run() -> tuple[StatisticalTransportDistribution, ...]:
+        study = _prepare_statistical(
+            identification,
+            catalog,
+            data,
+            at=at[0],
+            max_operations=limits.max_operations,
+            max_depth=limits.max_depth,
+            max_support_rows=limits.max_support_rows,
+            cancel=policy.cancel,
+            bootstrap=bootstrap,
+            coverage_level=coverage_level,
+            estimator=estimator,
+            seed=policy.seed,
+        )
+        points = study._native.estimate_grid([dict(point) for point in at], cancel=policy.cancel)
+        return tuple(_statistical_distribution(point, point.last_result()) for point in points)
+
+    return policy._call(run)
 
 
 @artifact_consumer(
@@ -240,7 +271,7 @@ def evaluate_statistical_grid(
         "raw source samples are not embedded; bind_snapshot before a new estimator execution",
     ),
 )
-def consume_statistical(
+def _consume_statistical(
     artifact: bytes,
     *,
     max_operations: int = 10_000_000,
@@ -248,7 +279,7 @@ def consume_statistical(
     max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> PreparedAnalysis[StatisticalTransportDistribution]:
+) -> _PreparedEngine[StatisticalTransportDistribution]:
     """Verify portable proof and recomputed plug-in point; do not re-bootstrap.
 
     ``max_support_rows`` bounds the samples a later ``refresh`` or
@@ -256,7 +287,7 @@ def consume_statistical(
     """
     artifact = container_bytes(artifact)
     from ... import _native
-    from ...estimation import PreparedAnalysis, _Controls
+    from ...estimation import _Controls, _PreparedEngine
 
     native = _native.consume_statistical_transport(
         artifact,
@@ -266,7 +297,39 @@ def consume_statistical(
         memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
         cancel=cancel,
     )
-    return PreparedAnalysis(native, kind="statistical_transport", controls=_Controls(cancel=cancel))
+    return _PreparedEngine(native, kind="statistical_transport", controls=_Controls(cancel=cancel))
+
+
+def consume_statistical(
+    artifact: bytes,
+    *,
+    evaluation: TransportEvaluation | None = None,
+    execution: Execution | None = None,
+) -> StatisticalTransportDistribution:
+    """Independently verify a statistical-transport artifact and read its recorded answer.
+
+    The proof and plug-in point are recomputed from the embedded fitted joints;
+    nothing is re-bootstrapped and raw samples are not recovered, so the result
+    is a read model that cannot be re-estimated. ``evaluation`` bounds replay;
+    memory and cancellation belong to ``execution``.
+    """
+    from ..._workflow import _consumed_transport_view
+
+    limits = TransportEvaluation() if evaluation is None else evaluation
+    require_evaluation(limits)
+
+    def consume() -> Any:
+        return _consume_statistical(
+            artifact,
+            max_operations=limits.max_operations,
+            max_depth=limits.max_depth,
+            max_support_rows=limits.max_support_rows,
+        )
+
+    prepared = consume() if execution is None else execution._call(consume)
+    return _consumed_transport_view(
+        prepared, _statistical_distribution(prepared._native, prepared._native.last_result())
+    )
 
 
 def _statistical_distribution(native: Any, payload: Any) -> StatisticalTransportDistribution:

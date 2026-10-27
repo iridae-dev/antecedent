@@ -39,7 +39,8 @@ class JourneyRecorder:
         if selector is None:
             return
         record = self.tests.setdefault(
-            report.nodeid, {"nodeid": report.nodeid, "selector": selector, "outcome": "incomplete"}
+            report.nodeid,
+            {"nodeid": report.nodeid, "selector": selector, "outcome": "incomplete"},
         )
         if (
             report.failed
@@ -57,7 +58,7 @@ def main() -> int:
     parser.add_argument("--build-receipt", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    manifest = tomllib.loads((ROOT / MANIFEST).read_text())
+    manifest = tomllib.loads((ROOT / MANIFEST).read_text(encoding="utf-8"))
     selectors = sorted(
         {
             item["test"]
@@ -70,7 +71,7 @@ def main() -> int:
         parser.error("manifest selects no executing tests")
     native = importlib.import_module("antecedent._native")
     native_path = Path(native.__file__).resolve()
-    receipt = json.loads(args.build_receipt.read_text())
+    receipt = json.loads(args.build_receipt.read_text(encoding="utf-8"))
     source = source_digest(ROOT)
     native_hash = digest(native_path)
     if receipt.get("source_digest") != source or receipt.get("native_sha256") != native_hash:
@@ -113,7 +114,7 @@ def main() -> int:
         "tests": tests,
         "exit_code": code if not changed else 1,
     }
-    args.output.write_text(json.dumps(payload, indent=2) + "\n")
+    args.output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return payload["exit_code"] if tests else 1
 
 

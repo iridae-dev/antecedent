@@ -9,7 +9,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast, overload
 
 from ._freeze import freeze
 from ._prepared_inspection import InspectionPage
@@ -77,6 +77,12 @@ class PreparedAnalysis(Generic[T]):
 
     def retarget(self, weights: Any, *, depends_on: Sequence[str]) -> Outcome[Any]:
         return retarget(self, weights, depends_on=depends_on)
+
+    def reexecute_retarget(self, artifact: bytes) -> Outcome[Any]:
+        return reexecute_retarget(self, artifact)
+
+    def mechanism_sensitivity(self, **declarations: Any) -> Outcome[Any]:
+        return mechanism_sensitivity(self, **declarations)
 
     def plan_view(self) -> Any:
         return plan_view(self)
@@ -211,6 +217,15 @@ class PreparedAnalysis(Generic[T]):
                 kind="provider",
                 execution=self.execution,
             )
+        from ._prepared_policy import PreparedPolicyAnalysis
+
+        if isinstance(self._engine, PreparedPolicyAnalysis):
+            from .errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "a policy-program question has no identified estimand to navigate",
+                reason_code="option_not_applicable",
+            )
         native = getattr(self._engine, "_native", None)
         if native is None or not hasattr(native, "identification_view"):
             from .errors import CausalStateError
@@ -233,13 +248,54 @@ class PreparedAnalysis(Generic[T]):
 
         if isinstance(self._engine, PreparedProvider):
             return self._engine.inspect()
+        from ._prepared_policy import PreparedPolicyAnalysis
+
+        if isinstance(self._engine, PreparedPolicyAnalysis):
+            return self._engine.inspect()
         if getattr(self._engine, "_kind", None) == "learned_trial":
             # This native family exposes its own bounded four-slot metadata.
             return self._engine.inspect().model_copy(update={"stage": "prepared"})
         completed = getattr(self._engine, "_last_result", None)
         if completed is not None:
             return completed.inspect().model_copy(update={"stage": "executed"})
+        if getattr(self._engine, "_transport", None) is not None:
+            # Transport stages retain a plan-sized native record of the checked
+            # derivation and four reasoning slots; reading it solves nothing.
+            return self._engine.inspect_plan().model_copy(
+                update={
+                    "stage": "prepared",
+                    "operations": ("inspect", "estimate", "rebind", "reconfigure"),
+                }
+            )
         return inspect_prepared(self)
+
+    def _plan_summary(self) -> Mapping[str, Any]:
+        native = getattr(self._engine, "_native", None)
+        if self._refused is not None or native is None or not hasattr(native, "plan_summary"):
+            return {}
+        return cast("Mapping[str, Any]", native.plan_summary())
+
+    @property
+    def structure_source(self) -> str | None:
+        """Support-matrix structure axis frozen at preparation (`explicit` or `accepted`)."""
+        summary = self._plan_summary()
+        return str(summary.get("structure_source", "explicit")) if summary else None
+
+    @property
+    def evidence_status(self) -> str | None:
+        """`licensed` or `allowed_unlicensed`, or ``None`` when the query is off-axis."""
+        raw = self._plan_summary().get("evidence_status")
+        return None if raw is None else str(raw)
+
+    @property
+    def allowlist_reason(self) -> str | None:
+        raw = self._plan_summary().get("allowlist_reason")
+        return None if raw is None else str(raw)
+
+    @property
+    def allowlist_parent(self) -> str | None:
+        raw = self._plan_summary().get("allowlist_parent")
+        return None if raw is None else str(raw)
 
     def assumption_obligations(self, *, offset: int = 0, limit: int = 32) -> InspectionPage:
         """Explicitly page retained scoped native assumption obligations."""
@@ -309,7 +365,6 @@ def prepare(
     validators: Sequence[Any] | Mapping[str, Any] | None = None,
     regimes: Sequence[int] | None = None,
     provider: Any = None,
-    controls: Any = None,
     sampling_design: str | None = None,
     accept_discovered: bool = False,
     retain_joint_horizons: bool = False,
@@ -321,13 +376,24 @@ def prepare(
     dose_units: str | None = None,
 ) -> PreparedAnalysis[Any]:
     """Validate, own inputs, identify and quote work without executing estimators."""
-    from .estimation import PreparedAnalysis as Engine
+    from .estimation import _PreparedEngine as Engine
 
     policy = Execution() if execution is None else execution
     if not isinstance(policy, Execution):
         raise CausalTypeError("execution must be an Execution declaration")
+    from ._table_file import coerce_table_source
+
+    data = coerce_table_source(data)
     if on_refusal not in ("refuse", "describe"):
         raise CausalValueError("on_refusal must be refuse or describe")
+    if evidence_candidates is not None and on_refusal != "describe":
+        from .errors import CausalUnsupportedError
+
+        raise CausalUnsupportedError(
+            "evidence_candidates are consumed only when an unidentified question is described; "
+            "declare on_refusal='describe'",
+            reason_code="option_not_applicable",
+        )
     if outcome_units is None and (
         quantity_population != "target" or quantity_transform != "identity"
     ):
@@ -375,7 +441,6 @@ def prepare(
             "validators": validators,
             "regimes": regimes,
             "provider": provider,
-            "controls": controls,
             "sampling_design": sampling_design,
             "accept_discovered": accept_discovered,
             "retain_joint_horizons": retain_joint_horizons,
@@ -445,7 +510,14 @@ def prepare(
         options["accept_discovered"] = True
     # Resolved estimator defaults stay native. Explicit statistical budgets belong
     # to inference and are passed through the one existing native lowering path.
-    bootstrap = None if transport else getattr(inference, "bootstrap", None)
+    # The ordinary design cell reads its inference like any analysis (and refuses a
+    # bootstrap it does not support); the family transport queries carry theirs in
+    # TransportInference, which the transport lowering applies itself.
+    bootstrap = (
+        None
+        if transport and not isinstance(query, TransportQuery)
+        else getattr(inference, "bootstrap", None)
+    )
 
     def build() -> Any:
         from .extensibility import ProviderQuery
@@ -472,7 +544,15 @@ def prepare(
             # active Execution owns its native context; execution forks bind
             # the requested RNG/thread policy before any statistical run.
             seed=policy.seed,
-            threads=None if transport else policy.threads,
+            # The typed provider families have no thread policy to honour: the declared
+            # Execution threads reach the native preparation, which refuses them.
+            threads=None
+            if transport
+            and not isinstance(
+                query,
+                (ExactTransportQuery, StatisticalTransportQuery, TransportResponseGridQuery),
+            )
+            else policy.threads,
             cancel=policy.cancel,
             on_progress=None if transport else policy.on_progress,
             on_stage=None if transport else policy.on_stage,
@@ -506,9 +586,7 @@ def _fork(study: PreparedAnalysis[Any]) -> Any:
     engine._seed = study.execution.seed
     engine._threads = study.execution.threads
     engine._controls = _Controls(
-        cancel=study.execution.cancel
-        if study.execution.cancel is not None
-        else engine._controls.cancel,
+        cancel=study.execution.cancel,
         on_progress=study.execution.on_progress,
         on_stage=study.execution.on_stage,
     )
@@ -549,13 +627,30 @@ def estimate(study: Any) -> Outcome[Any]:
         # the public immutable branch rather than its private engine header.
         setattr(error, "study", study)  # noqa: B010 — public execution context on the original error
         raise
+    if outcome.refusal is not None and isinstance(outcome.refusal._error, CausalError):
+        # A captured refusal re-raises through require_success: its context is the
+        # public branch, not the private engine header the inner operation attached.
+        setattr(outcome.refusal._error, "study", study)  # noqa: B010
     completed = getattr(outcome.value, "_prepared", None)
+    execution = getattr(outcome.value, "_execution", None)
     if completed is None and getattr(engine, "_kind", None) == "learned_trial":
         completed = engine
-    execution = getattr(outcome.value, "_execution", None)
-    if completed is not None and execution is not None:
+    elif completed is None and getattr(engine, "_last_result", None) is not None:
+        # A family result that does not point back at its study (an exact or
+        # statistical transport distribution) still completed this branch; its
+        # native handle stays the live one, so the branch reports as executed.
+        completed, execution = engine, None
+    from .transport._wrap import _ExportAdapter
+
+    if (
+        completed is not None
+        and execution is not None
+        and not isinstance(execution, _ExportAdapter)
+    ):
         # Keep the actual materialized native snapshot, including retained
         # score tables and fits, instead of the declaration used to start it.
+        # A transport family result carries an export adapter, not a native
+        # handle: the engine's own handle stays the live one for rebinding.
         completed = copy.copy(completed)
         completed._native = execution
     retained = study if completed is None else replace(study, _engine=completed)
@@ -763,6 +858,41 @@ def retarget(
     return _finish_outcome(replace(study, _engine=engine), outcome)
 
 
+def reexecute_retarget(study: PreparedAnalysis[Any], artifact: bytes) -> Outcome[Any]:
+    """Re-execute the row-weight retarget an exported contract carries, without refitting.
+
+    The weights travel in the artifact bound to one data snapshot and score table;
+    a different snapshot refuses with ``row_weights_bound_to_snapshot``.
+    """
+    if not isinstance(study, PreparedAnalysis):
+        raise CausalTypeError("reexecute_retarget requires a PreparedAnalysis")
+    if study._refused is not None:
+        return _finish_outcome(study, study._refused)
+    engine = _fork(study)
+    outcome = capture_outcome(
+        study.execution._call,
+        engine.reexecute_retarget,
+        artifact,
+        seed=study.execution.seed,
+        threads=study.execution.threads,
+    )
+    return _finish_outcome(replace(study, _engine=engine), outcome)
+
+
+def mechanism_sensitivity(study: PreparedAnalysis[Any], **declarations: Any) -> Outcome[Any]:
+    """Evaluate checked fixed-graph mechanism sensitivity of a prepared exact transport."""
+    if not isinstance(study, PreparedAnalysis):
+        raise CausalTypeError("mechanism_sensitivity requires a PreparedAnalysis")
+    if study._refused is not None:
+        return _finish_outcome(study, study._refused)
+    return capture_outcome(
+        study.execution._call,
+        study._engine.mechanism_sensitivity,
+        cancel=study.execution.cancel,
+        **declarations,
+    )
+
+
 @overload
 def rebind(study: PreparedAnalysis[T], *, data: Any) -> PreparedAnalysis[T]: ...
 
@@ -796,6 +926,9 @@ def rebind(study: Any, *, data: Any) -> Any:
                 invalidated=(*member_branch.reuse.invalidated, "family_inference"),
             ),
         )
+    from ._table_file import coerce_table_source
+
+    data = coerce_table_source(data)
     if study._refused is not None:
         return prepare(data, execution=study.execution, **replay_declaration(study._declarations))
     from ._table_snapshot import Table, table
@@ -828,7 +961,25 @@ def rebind(study: Any, *, data: Any) -> Any:
             reuse=Reuse(("declarations",), ("fits", "scores"), "reprepared"),
         )
     guard_design(engine, data)
+    from .errors import CausalUnsupportedError
+    from .policy import MultiActionPolicyValue, PolicyValue
+
+    if isinstance(getattr(engine, "_query", None), (PolicyValue, MultiActionPolicyValue)):
+        raise CausalUnsupportedError(
+            "PolicyValue recommendations, nuisance predictions, and subject ownership are bound to the prepared evaluation rows; prepare a new study for new data",
+            reason_code="option_not_applicable",
+        )
     if engine._transport is not None:
+        from .transport._day1 import Transport, catalog_from_evidence
+
+        if isinstance(engine._query, Transport):
+            # A table bound to a Transport declaration is lowered through its evidence
+            # catalog exactly as at preparation; the new stage belongs to the new branch.
+            stage = engine._transport_stage or {}
+            catalog, bound = catalog_from_evidence(engine._query, data, graph=stage.get("graph"))
+            if bound is not None:
+                data = bound
+            engine._transport_stage = retain({**stage, "catalog": catalog, "bound": bound})
         native = study.execution._call(
             engine._native.bind_snapshot,
             engine._transport.payload(data),

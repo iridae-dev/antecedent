@@ -23,18 +23,21 @@ fitted on; :func:`load_artifact` refits from it and refuses any edited, swapped 
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import ItemsView, Iterator, Mapping, Sequence
+from dataclasses import dataclass, field
 from math import isfinite
 from typing import TYPE_CHECKING, Any
 
 from ._artifact_protocol import (
+    ArtifactAcceptance,
+    ArtifactExpectation,
     ExportedArtifact,
+    artifact_consumer,
     artifact_export,
-    artifact_from_receipt,
     container_bytes,
 )
 from ._freeze import freeze, thaw
+from ._native import _ArrayFit as _NativeArrayFit
 from ._native import consume_array_fit_artifact as _consume
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution
@@ -128,7 +131,7 @@ def treatment_score_posterior(
     native, policy = context.value
 
     def fit() -> NuisanceScoreProduct:
-        report, artifact = policy._call(
+        native_product = policy._call(
             native.treatment_score_posterior,
             prior_sd=prior_sd,
             draws=draws,
@@ -137,7 +140,7 @@ def treatment_score_posterior(
             clip=clip,
             summary_rows=rows,
         )
-        return _product(report, artifact)
+        return _product(native_product, policy)
 
     return capture_outcome(fit)
 
@@ -183,7 +186,7 @@ def temporal_treatment_score(
     native, policy = context.value
 
     def fit() -> NuisanceScoreProduct:
-        report, artifact = policy._call(
+        native_product = policy._call(
             native.temporal_treatment_score,
             rows,
             penalty=penalty,
@@ -193,38 +196,125 @@ def temporal_treatment_score(
             seed=policy.seed,
             threads=policy.threads,
         )
-        return _product(report, artifact)
+        return _product(native_product, policy)
 
     return capture_outcome(fit)
 
 
+@dataclass(frozen=True, slots=True, eq=False)
+class _NuisanceValues(Mapping[str, float]):
+    """Read-only scalar views retain their immutable native owner."""
+
+    _native: _NativeArrayFit = field(repr=False)
+    _count: int
+
+    def __len__(self) -> int:
+        return self._count
+
+    def __getitem__(self, name: str) -> float:
+        if not isinstance(name, str):
+            raise CausalTypeError("a nuisance value name must be a string")
+        value = self._native.value(name)
+        if value is None:
+            raise KeyError(name)
+        return float(value)
+
+    def __iter__(self) -> Iterator[str]:
+        for offset in range(0, self._count, 256):
+            for name, _value in self._native.values_page(offset=offset, limit=256):
+                yield name
+
+    def items(self) -> ItemsView[str, float]:
+        return _NuisanceItems(self)
+
+
+class _NuisanceItems(ItemsView[str, float]):
+    def __init__(self, values: _NuisanceValues) -> None:
+        super().__init__(values)
+        self._values = values
+
+    def __iter__(self) -> Iterator[tuple[str, float]]:
+        values = self._values
+        for offset in range(0, len(values), 256):
+            yield from values._native.values_page(offset=offset, limit=256)
+
+
 @dataclass(frozen=True, slots=True, repr=False)
 class NuisanceScoreProduct:
-    """A retained nuisance-score posterior with its standing and its artifact."""
+    """Immutable native nuisance summaries; export alone encodes their replay design."""
 
-    estimator_id: str
-    #: What the numbers are about: ``propensity_score_nuisance``.
-    target: str
-    #: ``nuisance_posterior_laplace_not_an_effect_posterior``.
-    uncertainty: str
-    #: Always ``"unlicensed"``.
-    licensing: str
-    #: Always ``"unmeasured"``.
-    calibration: str
-    #: Named reals: ``prior_sd``, ``mode.<j>`` and per summary row ``row<i>.mean``, ``.at_mode``,
-    #: ``.sd`` and ``.outside_band``.
-    values: Mapping[str, float]
-    assumptions: tuple[str, ...]
-    request_digest: str
-    #: The binary artifact; refit on load by :func:`load_artifact`.
-    artifact: bytes
-    diagnostics: tuple[str, ...] = ()
+    _native: _NativeArrayFit = field(repr=False)
+    _metadata: Mapping[str, Any] = field(init=False, repr=False)
+    execution: Execution = field(default_factory=Execution, repr=False, compare=False)
+    acceptance: ArtifactAcceptance | None = field(
+        default=None, init=False, repr=False, compare=False
+    )
+    _artifact_bytes: bytes | None = field(default=None, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "values", freeze(self.values))
-        object.__setattr__(self, "assumptions", freeze(self.assumptions))
-        object.__setattr__(self, "diagnostics", freeze(self.diagnostics))
-        object.__setattr__(self, "artifact", bytes(self.artifact))
+        if not isinstance(self._native, _NativeArrayFit):
+            raise CausalTypeError("a nuisance product requires an immutable native fit owner")
+        if not isinstance(self.execution, Execution):
+            raise CausalTypeError("execution must be an Execution declaration")
+        metadata = json.loads(self._native.metadata_json())
+        object.__setattr__(self, "_metadata", freeze(metadata))
+        consumed = metadata["consumed"]
+        object.__setattr__(
+            self,
+            "acceptance",
+            ArtifactAcceptance(
+                "verified" if consumed else "sealed",
+                metadata["identity_bound"],
+                True,
+                False,
+                proof="independent_native_array_fit_refit" if consumed else "native_array_fit_seal",
+            ),
+        )
+
+    @property
+    def estimator_id(self) -> str:
+        return str(self._metadata["estimator_id"])
+
+    @property
+    def target(self) -> str:
+        return str(self._metadata["target"])
+
+    @property
+    def uncertainty(self) -> str:
+        return str(self._metadata["uncertainty"])
+
+    @property
+    def licensing(self) -> str:
+        return str(self._metadata["licensing"])
+
+    @property
+    def calibration(self) -> str:
+        return str(self._metadata["calibration"])
+
+    @property
+    def request_digest(self) -> str:
+        return str(self._metadata["request_digest"])
+
+    @property
+    def values(self) -> Mapping[str, float]:
+        """Read-only views share native storage; dict(product.values) materializes."""
+        return _NuisanceValues(self._native, int(self._metadata["value_count"]))
+
+    def _strings(self, field: str) -> tuple[str, ...]:
+        read = getattr(self._native, field + "_page")
+        return tuple(
+            value
+            for offset in range(0, self._metadata[field[:-1] + "_count"], 256)
+            for value in read(offset=offset, limit=256)
+        )
+
+    @property
+    def assumptions(self) -> tuple[str, ...]:
+        return self._strings("assumptions")
+
+    @property
+    def diagnostics(self) -> tuple[str, ...]:
+        return self._strings("diagnostics")
 
     @property
     def answer(self) -> Answer:
@@ -276,8 +366,12 @@ class NuisanceScoreProduct:
             target={"kind": self.target},
             calibration=self.calibration,
             family="nuisance_scores",
-            stage="executed",
-            details={"value_count": len(self.values), "request_digest": self.request_digest},
+            stage="consumed" if self._metadata["consumed"] else "executed",
+            details={
+                "value_count": len(self.values),
+                "request_digest": self.request_digest,
+                "acceptance": self.acceptance,
+            },
             operations=("inspect", "export", "to_dict"),
         )
 
@@ -290,7 +384,7 @@ class NuisanceScoreProduct:
                 "uncertainty": self.uncertainty,
                 "licensing": self.licensing,
                 "calibration": self.calibration,
-                "values": self.values,
+                "values": dict(self.values.items()),
                 "assumptions": self.assumptions,
                 "diagnostics": self.diagnostics,
                 "request_digest": self.request_digest,
@@ -321,9 +415,18 @@ class NuisanceScoreProduct:
         return self.values[name]
 
     @artifact_export
-    def export(self) -> ExportedArtifact:
-        """The retained artifact."""
-        return artifact_from_receipt(self, self.artifact)
+    def export(self, *, execution: Execution | None = None) -> ExportedArtifact:
+        """Explicitly encode the native replay design, or forward its verified original bytes."""
+        policy = self.execution if execution is None else execution
+        if not isinstance(policy, Execution):
+            raise CausalTypeError("execution must be an Execution declaration")
+        data = policy._call(self._native.export_bytes)
+        return ExportedArtifact(
+            data,
+            "array_fit_replay_v1",
+            ArtifactExpectation("array_fit_replay_v1", self.request_digest),
+            {"estimator_id": self.estimator_id, "target": self.target},
+        )
 
     def explain(self) -> str:
         """What the product is, and what it is not."""
@@ -333,31 +436,40 @@ class NuisanceScoreProduct:
         )
 
 
-def _product(report_json: str, artifact: bytes) -> NuisanceScoreProduct:
-    artifact = container_bytes(artifact)
-    report: Mapping[str, Any] = json.loads(report_json)
-    result = report["result"]
-    return NuisanceScoreProduct(
-        estimator_id=result["estimator_id"],
-        target=result["target"],
-        uncertainty=result["uncertainty"],
-        licensing=result["licensing"],
-        calibration=result["calibration"],
-        values={entry["name"]: float(entry["value"]) for entry in result["values"]},
-        assumptions=tuple(result["assumptions"]),
-        request_digest=report["request_digest"],
-        artifact=bytes(artifact),
-        diagnostics=tuple(result["diagnostics"]),
-    )
+def _product(native_product: _NativeArrayFit, execution: Execution) -> NuisanceScoreProduct:
+    return NuisanceScoreProduct(native_product, execution)
 
 
-def load_artifact(artifact: bytes) -> NuisanceScoreProduct:
-    """Load a retained artifact, refit it from its own design and return the product.
+@artifact_consumer(
+    proof="independent_native_array_fit_refit",
+    input="artifact",
+    identity=("expected_identity",),
+    replayable=True,
+)
+def load_artifact(
+    artifact: bytes | ExportedArtifact,
+    *,
+    expected_identity: str | None = None,
+    execution: Execution | None = None,
+) -> NuisanceScoreProduct:
+    """Independently refit the original nuisance recipe; retain no study or dataset.
 
-    Raises:
-        CausalUnsupportedError: an edited, swapped, license-claiming or resealed artifact, or a
-            stored result that does not replay from the retained arrays.
+    ``expected_identity`` is the producer request digest, retained separately from
+    the encoding. Omitting it still replays every stored value but leaves the
+    producer identity unbound. Scientific model/seed settings come from the
+    artifact; Execution controls resources, threads, cancellation and observers.
     """
-    artifact = container_bytes(artifact)
-    report_json, _ = _consume(bytes(artifact))
-    return _product(report_json, bytes(artifact))
+    policy = Execution() if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an Execution declaration")
+    if policy.on_stage is not None:
+        raise CausalUnsupportedError(
+            "nuisance replay does not expose causal stages", reason_code="stage_stream_unavailable"
+        )
+    if expected_identity is not None and not isinstance(expected_identity, str):
+        raise CausalTypeError("expected_identity must be a native request digest string")
+    data = container_bytes(artifact)
+    owner = policy._call(
+        _consume, data, expected_identity=expected_identity, threads=policy.threads
+    )
+    return _product(owner, policy)

@@ -654,7 +654,7 @@ class AdaptiveResult(ScientificResult, Generic[PayloadT]):
 
     @artifact_export
     def export(
-        self, artifact_id: str = "adaptive-result", *, cancel: Any = None
+        self, artifact_id: str = "adaptive-result", *, cancel: object = None
     ) -> ExportedArtifact[ConsumedAdaptiveResult]:
         """Export this request under the immutable prepared adaptive contract."""
         if self._export_session is None or self._export_request is None:
@@ -931,6 +931,28 @@ class AdaptiveInferenceSession:
             if pooling is None
             else (str(pooling["code"]), str(pooling["detail"])),
         )
+
+    @overload
+    def export(
+        self,
+        request: Request,
+        artifact_id: str = "adaptive-result",
+        *,
+        paradigm: None = None,
+        procedure: ParticipantProcedure | None = None,
+        cancel: Any = None,
+    ) -> ExportedArtifact[ConsumedAdaptiveResult]: ...
+
+    @overload
+    def export(
+        self,
+        request: None = None,
+        artifact_id: str = "adaptive-result",
+        *,
+        paradigm: str,
+        procedure: ParticipantProcedure | None = None,
+        cancel: Any = None,
+    ) -> ExportedArtifact[ConsumedMonitoringContract]: ...
 
     @artifact_export
     def export(

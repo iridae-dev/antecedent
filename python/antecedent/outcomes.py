@@ -192,6 +192,11 @@ def is_scientific_refusal(error: BaseException) -> bool:
         return False
     if getattr(error, "reason_code", None) in _OPERATIONAL_CODES:
         return False
+    # A native refusal that carries its structured stage/subject/reason/remedy fields is a
+    # typed statement that the data cannot answer the question, not a failed implementation.
+    fields = getattr(error, "refusal_fields", None)
+    if isinstance(fields, Mapping) and fields:
+        return True
     return isinstance(error, (EffectNotIdentified, ReviewRequired, StructuredRefusal)) or (
         isinstance(error, CausalUnsupportedError)
         and getattr(error, "reason_code", None)

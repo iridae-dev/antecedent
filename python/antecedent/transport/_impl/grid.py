@@ -17,9 +17,11 @@ from ..._columns import coerce_fields
 from ..._defaults import OMITTED
 from ..._scientific import ScientificResult
 from ..._transport_results import TransportContrast, TransportGridPoint
+from ...execution import Execution
+from .._evaluation import TransportEvaluation, require_evaluation
 
 if TYPE_CHECKING:
-    from ...estimation import PreparedAnalysis
+    from ...estimation import _PreparedEngine
 
 
 from .catalog import EvidenceCatalog
@@ -38,7 +40,10 @@ class TransportResponseGridQuery:
     coverage_level: float = OMITTED["transport_coverage_level"]
     estimator: EmpiricalTable | LearnedCategorical | str = "plugin"
 
+    evaluation: TransportEvaluation = field(default_factory=TransportEvaluation)
+
     def __post_init__(self) -> None:
+        require_evaluation(self.evaluation)
         coerce_fields(self, at=tuple(MappingProxyType(dict(point)) for point in self.at))
 
 
@@ -96,7 +101,7 @@ def _response_grid(native: Any, payload: str) -> TransportResponseGrid:
     )
 
 
-def prepare_response_grid(
+def _prepare_response_grid(
     identification: ClassicalTransportIdentification,
     catalog: EvidenceCatalog,
     data: ExactTransportData | StatisticalTransportData,
@@ -111,10 +116,10 @@ def prepare_response_grid(
     max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> PreparedAnalysis[TransportResponseGrid]:
+) -> _PreparedEngine[TransportResponseGrid]:
     """Prepare exact or empirical finite responses on the common study lifecycle."""
     from ... import _native
-    from ...estimation import PreparedAnalysis, _Controls
+    from ...estimation import _Controls, _PreparedEngine
 
     if not isinstance(data, (ExactTransportData, StatisticalTransportData)):
         raise TypeError("Grid data must be exact laws or explicit statistical providers")
@@ -134,7 +139,7 @@ def prepare_response_grid(
         memory_bytes=memory_bytes,
         cancel=cancel,
     )
-    return PreparedAnalysis(native, kind="transport_grid", controls=_Controls(cancel=cancel))
+    return _PreparedEngine(native, kind="transport_grid", controls=_Controls(cancel=cancel))
 
 
 def _grid_acceptance(result: Any, bound: bool) -> ArtifactAcceptance:
@@ -168,18 +173,18 @@ def _grid_acceptance(result: Any, bound: bool) -> ArtifactAcceptance:
     acceptance=_grid_acceptance,
     identity=(),
 )
-def consume_response_grid(
+def _consume_response_grid(
     artifact: bytes,
     *,
     max_operations: int = 10_000_000,
     max_depth: int = 256,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> PreparedAnalysis[TransportResponseGrid]:
+) -> _PreparedEngine[TransportResponseGrid]:
     """Verify a grid without fetching, fitting, or rebuilding raw samples."""
     artifact = container_bytes(artifact)
     from ... import _native
-    from ...estimation import PreparedAnalysis, _Controls
+    from ...estimation import _Controls, _PreparedEngine
 
     native = _native.consume_transport_grid(
         artifact,
@@ -188,4 +193,32 @@ def consume_response_grid(
         memory_bytes=memory_bytes,
         cancel=cancel,
     )
-    return PreparedAnalysis(native, kind="transport_grid", controls=_Controls(cancel=cancel))
+    return _PreparedEngine(native, kind="transport_grid", controls=_Controls(cancel=cancel))
+
+
+def consume_response_grid(
+    artifact: bytes,
+    *,
+    evaluation: TransportEvaluation | None = None,
+    execution: Execution | None = None,
+) -> TransportResponseGrid:
+    """Independently verify a response grid and read its ordered local outcomes.
+
+    Every embedded point is consumed without fetching, fitting or rebuilding raw
+    samples. The result is a read model, not a resumable study. ``evaluation``
+    bounds replay; memory and cancellation belong to ``execution``.
+    """
+    from ..._workflow import _consumed_transport_view
+
+    limits = TransportEvaluation() if evaluation is None else evaluation
+    require_evaluation(limits)
+
+    def consume() -> Any:
+        return _consume_response_grid(
+            artifact, max_operations=limits.max_operations, max_depth=limits.max_depth
+        )
+
+    prepared = consume() if execution is None else execution._call(consume)
+    return _consumed_transport_view(
+        prepared, _response_grid(prepared._native, prepared._native.last_result())
+    )

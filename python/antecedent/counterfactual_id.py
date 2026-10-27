@@ -2,9 +2,10 @@
 
 One cell: ``P(Y_x = y | X = x')`` with ``x != x'``, its distribution over every
 level of ``Y`` and the contrast ``E[Y_x | X = x'] - E[Y | X = x']``, on a
-supplied explicit ``Admg`` (or ``Dag``) of at most six finite-discrete
-variables with at most four levels each, from the observational joint: an exact
-law (``probabilities``) or an empirical count table (``counts``).
+supplied explicit ``Admg`` (or ``Dag``) of finite-discrete variables, from the
+observational joint: an exact law (``probabilities``) or an empirical count
+table (``counts``). Identification has no fixed count of variables or levels:
+the search budget and memory bound it, and it stops with a budget refusal.
 
 ``prepare_effect_on_treated`` decides the query once (ID* on the conjunction
 ``{Y_x = y, X = x'}``, each district term identified from the joint by ID, under

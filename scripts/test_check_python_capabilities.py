@@ -27,7 +27,7 @@ from run_python_capabilities import JourneyRecorder
 class CapabilityGateTests(unittest.TestCase):
     def test_regeneration_replaces_stale_entries_and_is_deterministic(self):
         target = self.root / SURFACE
-        target.write_text('{"items": {"stale": {}}}')
+        target.write_text('{"items": {"stale": {}}}', encoding="utf-8")
         items = {
             "antecedent::New": {
                 "kind": "type",
@@ -77,10 +77,11 @@ class CapabilityGateTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / "python/tests").mkdir(parents=True)
         (self.root / "parity/python_api_pass").mkdir(parents=True)
-        (self.root / MANIFEST).write_text("schema=1\n")
+        (self.root / MANIFEST).write_text("schema=1\n", encoding="utf-8")
         self.source = self.root / "python/tests/test_journey.py"
         self.source.write_text(
-            "def helper():\n    assert 2 + 2 == 4\ndef test_live():\n    helper()\n"
+            "def helper():\n    assert 2 + 2 == 4\ndef test_live():\n    helper()\n",
+            encoding="utf-8",
         )
         self.evidence = {
             "test": "python/tests/test_journey.py::test_live",
@@ -120,7 +121,7 @@ class CapabilityGateTests(unittest.TestCase):
         self.assertTrue(evidence_problems(self.root, self.evidence))
 
     def test_assertion_cannot_be_replaced_with_export_count(self):
-        self.source.write_text('def test_live():\n    print("exports exist")\n')
+        self.source.write_text('def test_live():\n    print("exports exist")\n', encoding="utf-8")
         self.evidence["assertion_scopes"] = ["test_live"]
         self.assertTrue(evidence_problems(self.root, self.evidence))
 
@@ -131,7 +132,10 @@ class CapabilityGateTests(unittest.TestCase):
             "pytest.mark.xfail",
         ]:
             with self.subTest(decorator=decorator):
-                self.source.write_text(f"@{decorator}\ndef test_live():\n    assert True\n")
+                self.source.write_text(
+                    f"@{decorator}\ndef test_live():\n    assert True\n",
+                    encoding="utf-8",
+                )
                 self.evidence["assertion_scopes"] = ["test_live"]
                 self.assertTrue(evidence_problems(self.root, self.evidence))
 
@@ -157,7 +161,7 @@ class CapabilityGateTests(unittest.TestCase):
         Path(run["native_path"]).write_bytes(b"replaced extension")
         self.assertTrue(execution_problems(self.root, self.manifest(), run))
         run = self.execution()
-        self.source.write_text("def test_live():\n    assert False\n")
+        self.source.write_text("def test_live():\n    assert False\n", encoding="utf-8")
         self.assertTrue(execution_problems(self.root, self.manifest(), run))
 
     def test_runtime_cannot_promote_xpass_or_teardown_failure(self):
@@ -187,8 +191,8 @@ class CapabilityGateTests(unittest.TestCase):
     def test_completion_cannot_ignore_a_named_gap_or_unmapped_method(self):
         (self.root / "parity/public_api").mkdir()
         snapshot = "pub fn <antecedent::Study>::fn inspect(&self) -> Report\n"
-        (self.root / "parity/public_api/antecedent.txt").write_text(snapshot)
-        (self.root / "parity/python_facade_surface.toml").write_text("entry=[]\n")
+        (self.root / "parity/public_api/antecedent.txt").write_text(snapshot, encoding="utf-8")
+        (self.root / "parity/python_facade_surface.toml").write_text("entry=[]\n", encoding="utf-8")
         manifest = {
             "schema": 1,
             "capability": [

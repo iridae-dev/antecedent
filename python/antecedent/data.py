@@ -39,6 +39,7 @@ from ._table_file import (
 )
 from ._table_snapshot import Table as Table
 from ._table_snapshot import table as table
+from .errors import CausalValueError
 
 
 @dataclass(frozen=True)
@@ -128,6 +129,8 @@ def event(
 
     _integer(align_interval_ns, "align_interval_ns", positive=True)
     snapshot = table(data)
+    if np.ndim(event_times_ns) != 1:
+        raise CausalValueError("event_times_ns must be 1-d")
     index = _native._IndexSnapshot(event_times_ns)
     return EventFrame(
         names=tuple(snapshot),

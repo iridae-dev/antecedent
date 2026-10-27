@@ -1,4 +1,4 @@
-"""Prepare-route dispatch for :class:`~antecedent.estimation.PreparedAnalysis`.
+"""Prepare-route dispatch for :class:`~antecedent.prepared.PreparedAnalysis`.
 
 The route body is unchanged. Helpers that the rest of ``estimation`` still
 calls stay in that module and are imported here. ``estimation`` loads this

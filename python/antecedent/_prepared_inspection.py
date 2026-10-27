@@ -186,6 +186,7 @@ def _slot(name: str, raw: Mapping[str, Any], *, retained: Any = None) -> SlotMod
 
 
 def inspect_prepared(study: Any) -> InspectionReport:
+    from .results._execution import CalibrationInfo
     from .results._report import InspectionReport
 
     native = getattr(study._engine, "_native", None)
@@ -228,6 +229,7 @@ def inspect_prepared(study: Any) -> InspectionReport:
         observation_id=identities["observation_id"],
         data_snapshot_id=identities["data_snapshot_id"],
         contract=None,
+        calibration=CalibrationInfo.from_contract(None),
         stage="prepared",
         family=raw["graph_class"],
         details=details,

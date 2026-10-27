@@ -756,6 +756,13 @@ class JointGaussianLaw(ScientificResult):
             }
         )
 
+    def _summary_fields(self) -> dict[str, Any]:
+        # A bounded display: the first few declared means, never the whole matrix.
+        shown: dict[str, Any] = {"n_variables": len(self.variables)}
+        for index, name in enumerate(self.variables[:6]):
+            shown[f"mean[{name}]"] = float(self.mean[index])
+        return shown
+
     def _index(self, variable: str) -> int:
         try:
             return self.variables.index(variable)
@@ -1155,10 +1162,10 @@ class PreparedMechanismComposition(ScientificResult):
     @artifact_export
     def export(
         self,
-        query: MeanContrast | Mapping[str, Any],
+        query: MeanContrast | Mapping[str, object],
         *,
         outcome: str | None = None,
-        cancel: Any = None,
+        cancel: object = None,
     ) -> ExportedArtifact[ConsumedComposition]:
         """Seal the premises and one query into a ``mechanism_composition_v1`` artifact.
 
@@ -1571,10 +1578,10 @@ class TransportedMechanismComposition(ScientificResult):
     @artifact_export
     def export(
         self,
-        query: MeanContrast | Mapping[str, Any],
+        query: MeanContrast | Mapping[str, object],
         *,
         outcome: str | None = None,
-        cancel: Any = None,
+        cancel: object = None,
     ) -> ExportedArtifact[ConsumedComposition]:
         """Seal the transported premises (with the diagram and invariances) and one query.
 

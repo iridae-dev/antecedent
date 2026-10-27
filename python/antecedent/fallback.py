@@ -4,13 +4,14 @@ causal question is refused for want of identification.
 A causal query the declared structure does not identify ends in a refusal
 (:class:`~antecedent.errors.EffectNotIdentified`). That refusal is the answer to the causal
 question and stays so. ``analyze(..., on_refusal="describe")`` adds two things *beside* it, only
-when asked for, and returns an :class:`AnalysisWithFallback`::
+when asked for, and keeps the causal refusal as the primary outcome::
 
     outcome = antecedent.analyze(data, graph=bow, query=AverageEffect("t", "y"),
                                  on_refusal="describe")
-    outcome.refusal           # the unchanged refusal: same class, code, remedy and report
-    outcome.associational     # a labelled-noncausal Association result, or why there is none
+    outcome.refusal           # the causal refusal: code, remedy and the original exception
+    outcome.associational     # an Outcome: a labelled-noncausal Association, or why there is none
     outcome.evidence_plan     # obligations, next actions and (with candidates) a ranked plan
+    described(outcome)        # the three read together, with an explicit report and host record
 
 * ``associational`` is the compiled associational route
   (:class:`~antecedent.descriptive.Association`) over the same outcome, treatment and
@@ -31,14 +32,14 @@ estimator). A query that succeeds returns the ordinary result and never an
 limit, an invalid argument and every data or estimation error are not identification-class
 refusals and are raised exactly as without the option.
 
-The default, ``on_refusal="raise"``, is unchanged: the refusal is raised.
+The default, ``on_refusal="refuse"``, is unchanged: the refusal is the outcome.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from . import _native
 from .errors import (
@@ -67,6 +68,7 @@ __all__ = [
     "FallbackRoles",
     "FallbackUnavailable",
     "describe",
+    "described",
     "fallback_roles",
     "is_identification_refusal",
 ]
@@ -518,7 +520,7 @@ def _associational(
     options: Mapping[str, Any],
 ) -> AnalysisResult | FallbackUnavailable:
     from .descriptive import Association
-    from .estimation import PreparedAnalysis
+    from .estimation import _PreparedEngine
 
     reason = getattr(refusal, "reason_code", None) or "effect_not_identified"
     try:
@@ -528,7 +530,7 @@ def _associational(
             conditioning=roles.adjustment,
             refused_after=str(reason),
         )
-        prepared = PreparedAnalysis.prepare(data, query=query, **options)
+        prepared = _PreparedEngine.prepare(data, query=query, **options)
         result = prepared.estimate()
     except (CausalCancelledError, CausalResourceError):
         raise
@@ -623,6 +625,53 @@ def _evidence(
         next_actions=actions,
         templates=templates,
         plan=plan,
+    )
+
+
+def described(outcome: Any) -> AnalysisWithFallback:
+    """The combined refusal-and-description view of a ``describe`` outcome.
+
+    ``ant.analyze(..., on_refusal="describe")`` keeps the causal refusal as the primary outcome
+    and attaches ``outcome.associational`` and ``outcome.evidence_plan``. This reads them
+    together as an :class:`AnalysisWithFallback`: the unchanged refusal object, the noncausal
+    association (or the typed reason there is none), the evidence plan, and the explicit report
+    and host record. It executes nothing and re-reads no data; a refusal that carries no
+    description is an invalid argument.
+    """
+    from ._names import table_names
+    from .errors import CausalTypeError, CausalValueError
+    from .outcomes import Outcome
+    from .prepared import PreparedAnalysis
+
+    if not isinstance(outcome, Outcome):
+        raise CausalTypeError("described needs the Outcome of an on_refusal='describe' analysis")
+    if outcome.refusal is None or outcome.associational is None or outcome.evidence_plan is None:
+        raise CausalValueError(
+            "this outcome carries no descriptive fallback; request it with on_refusal='describe' "
+            "on a question refused for want of identification"
+        )
+    error = outcome.refusal._error
+    associational: AnalysisResult | FallbackUnavailable
+    if outcome.associational.refusal is not None:
+        unavailable = outcome.associational.refusal
+        associational = FallbackUnavailable(
+            "associational", unavailable.code, unavailable.detail or "", unavailable.message
+        )
+        roles = None
+    else:
+        associational = cast("AnalysisResult", outcome.associational.value)
+        study = outcome.study
+        roles = None
+        if isinstance(study, PreparedAnalysis) and study._data is not None:
+            found = fallback_roles(
+                study.query, study._declarations.get("graph"), table_names(study._data)
+            )
+            roles = None if isinstance(found, FallbackUnavailable) else found
+    return AnalysisWithFallback(
+        refusal=cast("CausalError", error),
+        associational=associational,
+        evidence_plan=outcome.evidence_plan,
+        roles=roles,
     )
 
 

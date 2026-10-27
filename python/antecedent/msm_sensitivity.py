@@ -557,9 +557,9 @@ def msm_ate_sensitivity(
     """Sharp marginal-sensitivity-model bounds of the stratified ATE over a ``Lambda`` grid.
 
     ``strata`` are the exact adjustment-set strata (mass, propensity, treated and control
-    outcome laws). ``lambda_max`` (above one, at most 1000) is the largest odds-ratio bound;
+    outcome laws). ``lambda_max`` (above one, at most ``1e12``) is the largest odds-ratio bound;
     the grid has ``grid_points`` equally spaced values from ``1`` to ``lambda_max`` (2 to
-    1024). With a ``decision_threshold`` the result carries the tipping point: the smallest
+    8192). With a ``decision_threshold`` the result carries the tipping point: the smallest
     ``Lambda`` at which the identified-side bound reaches it, found by bisection to
     ``tolerance`` (``1e-12`` to ``1e-3``).
 
@@ -632,9 +632,11 @@ def from_analysis(
     its own digest. Continuous covariates require explicitly declared finite strata.
     """
     from ._data import as_columns
+    from .outcomes import require_success
     from .query import AverageEffect
     from .results import AnalysisResult
 
+    result = require_success(result)
     if not isinstance(result, AnalysisResult) or not isinstance(result.query, AverageEffect):
         raise CausalTypeError("MSM from_analysis requires an AverageEffect analysis result")
     if not result.identification:

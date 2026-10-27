@@ -49,7 +49,6 @@ from .exact import (
     identify_meta,
     inspect_catalog,
     inspect_proof_graph,
-    prepare_exact,
 )
 from .exact import (
     _exact_distribution as _exact_distribution,
@@ -58,7 +57,6 @@ from .grid import (
     TransportResponseGrid,
     TransportResponseGridQuery,
     consume_response_grid,
-    prepare_response_grid,
 )
 from .grid import (
     _response_grid as _response_grid,
@@ -106,9 +104,6 @@ from .limits import (
 from .limits import (
     _optional_non_negative as _optional_non_negative,
 )
-from .prepare import (
-    prepare,
-)
 from .statistical import (
     EmpiricalTable,
     LearnedCategorical,
@@ -118,14 +113,12 @@ from .statistical import (
     StatisticalTransportQuery,
     consume_statistical,
     evaluate_statistical_grid,
-    prepare_statistical,
 )
 from .statistical import (
     _statistical_distribution as _statistical_distribution,
 )
 from .trial import (
     LearnedTrialEstimate,
-    TransportControls,
     TransportInference,
     TrialAipw,
     TrialAipwData,
@@ -135,6 +128,9 @@ from .trial import (
 )
 from .trial import (
     _learned_trial as _learned_trial,
+)
+from .trial import (
+    _TransportLimits as _TransportLimits,
 )
 
 __all__ = [
@@ -189,18 +185,14 @@ __all__ = [
     "StatisticalTransportData",
     "StatisticalTransportDistribution",
     "StatisticalTransportQuery",
-    "prepare",
-    "prepare_statistical",
     "consume_statistical",
     "evaluate_statistical_grid",
-    "prepare_exact",
     "consume_exact",
     "ExactTransportQuery",
     "inspect_catalog",
     "inspect_proof_graph",
     "TransportResponseGridQuery",
     "TransportResponseGrid",
-    "prepare_response_grid",
     "consume_response_grid",
     "consume_identification",
     "EmpiricalTable",
@@ -211,7 +203,6 @@ __all__ = [
     "TrialAipwData",
     "TrialAipwQuery",
     "TransportInference",
-    "TransportControls",
     "LearnedTrialEstimate",
     "prepare_trial",
     "TransportContrast",
@@ -290,18 +281,14 @@ for _name in (
     "StatisticalTransportData",
     "StatisticalTransportDistribution",
     "StatisticalTransportQuery",
-    "prepare",
-    "prepare_statistical",
     "consume_statistical",
     "evaluate_statistical_grid",
-    "prepare_exact",
     "consume_exact",
     "ExactTransportQuery",
     "inspect_catalog",
     "inspect_proof_graph",
     "TransportResponseGridQuery",
     "TransportResponseGrid",
-    "prepare_response_grid",
     "consume_response_grid",
     "consume_identification",
     "EmpiricalTable",
@@ -310,7 +297,6 @@ for _name in (
     "TrialAipwData",
     "TrialAipwQuery",
     "TransportInference",
-    "TransportControls",
     "LearnedTrialEstimate",
     "prepare_trial",
     "TransportContrast",

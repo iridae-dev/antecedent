@@ -24,6 +24,7 @@ from typing import NoReturn
 
 from . import advanced as advanced
 from ._day1 import Evidence, Source, Transport
+from ._evaluation import TransportEvaluation
 from ._impl import (
     EmpiricalTable,
     ExactDiscreteLaw,
@@ -31,7 +32,6 @@ from ._impl import (
     LearnedCategorical,
     RegimeSample,
     StatisticalTransportData,
-    TransportControls,
     TransportInference,
     TrialAipw,
     TrialAipwData,
@@ -83,7 +83,7 @@ __all__ = [
     "LearnedCategorical",
     "TrialAipw",
     "TransportInference",
-    "TransportControls",
+    "TransportEvaluation",
     "ExactTransportData",
     "StatisticalTransportData",
     "TrialAipwData",

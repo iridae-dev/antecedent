@@ -47,10 +47,7 @@ from ._impl import (
     StatisticalTransportDistribution,
     TransportResponseGrid,
     TrialAipw,
-    _exact_distribution,
     _learned_trial,
-    _response_grid,
-    _statistical_distribution,
     consume_exact,
     consume_identification,
     consume_response_grid,
@@ -335,16 +332,11 @@ def _consume_specialist_artifact(encoded: bytes) -> Any:
         native = _native.consume_learned_trial(encoded)
         return _learned_trial(native, native.last_result())
     if encoded.startswith(b"ANTECEDENT-EXACT-TRANSPORT\x01"):
-        exact_prepared = consume_exact(encoded)
-        return _exact_distribution(exact_prepared._native, exact_prepared._native.last_result())
+        return consume_exact(encoded)
     if encoded.startswith(b"ANTECEDENT-STATISTICAL-TRANSPORT\x01"):
-        statistical_prepared = consume_statistical(encoded)
-        return _statistical_distribution(
-            statistical_prepared._native, statistical_prepared._native.last_result()
-        )
+        return consume_statistical(encoded)
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-GRID\x01"):
-        grid_prepared = consume_response_grid(encoded)
-        return _response_grid(grid_prepared._native, grid_prepared._native.last_result())
+        return consume_response_grid(encoded)
     if encoded.startswith(Z_TRANSPORT_PREFIX):
         return consume_restricted_artifacts([encoded])
     raise CausalSerializationError("unrecognized transport specialist artifact")

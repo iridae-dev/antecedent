@@ -146,7 +146,7 @@ assumptions, empirical support diagnostics and native refutation reports.
 Mediation stores total/direct/indirect values; counterfactuals store unit ITEs,
 their mean and both intervention levels. Counterfactual sampling errors remain
 absent. Family/payload mismatches and invalid numerical values refuse on load.
-`PreparedAnalysis.export_artifact()` produces this payload after estimation;
+`outcome.export(quantity="record")` produces this payload after estimation;
 `artifacts.loads` / `artifacts.dumps` round-trip it. Derivatives and observation
 curves continue using `response_result` with their existing four-axis wire.
 

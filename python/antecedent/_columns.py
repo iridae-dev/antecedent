@@ -623,7 +623,7 @@ class IdentifierRefreshReceipt:
     ``changes`` lists every row whose label differs from the frozen one, in row order.
     ``duplicated`` lists the labels the supplied column repeats although every frozen label was
     unique. ``standing`` is ``recompute``: a claim computed under the frozen identifiers does
-    not describe the supplied table, and only ``reprepare`` binds the new ones; the prepared
+    not describe the supplied table, and only a new ``ant.prepare`` binds the new ones; the prepared
     study and its last result are untouched.
     """
 
@@ -677,12 +677,12 @@ def _refresh_refusal(receipt: IdentifierRefreshReceipt) -> CausalValueError:
     refusal = CausalValueError(
         f"frozen identifier column {receipt.column!r} changed labels or row order"
         f"{': ' + detail if receipt.changes else ''}; claims computed under the frozen identifiers "
-        "are marked recompute, use study.reprepare(data) to declare new identifiers",
+        "are marked recompute, prepare the new identifiers with ant.prepare(data, ...)",
         reason_code="invalid_argument",
     )
     setattr(refusal, "offending", receipt.column)  # noqa: B010 — structured optional error field
     setattr(refusal, "receipt", receipt)  # noqa: B010 — structured optional error field
-    refusal.remedy = "use study.reprepare(data) to bind the new identifiers"
+    refusal.remedy = "prepare the new identifiers with ant.prepare(data, ...)"
     return refusal
 
 
@@ -701,11 +701,11 @@ def guard_identifiers(study: Any, data: Any) -> None:
         if rows is not None and rows != frozen.rows:
             refusal = CausalValueError(
                 f"frozen identifier column {column!r} labels {frozen.rows} rows; the supplied "
-                f"table has {rows}; use study.reprepare(data) to declare new identifiers",
+                f"table has {rows}; prepare the new identifiers with ant.prepare(data, ...)",
                 reason_code="invalid_argument",
             )
             setattr(refusal, "offending", column)  # noqa: B010 — structured optional error field
-            refusal.remedy = "use study.reprepare(data) to bind the new identifiers"
+            refusal.remedy = "prepare the new identifiers with ant.prepare(data, ...)"
             raise refusal
         if available is None or column not in available:
             continue  # the frozen labels stay; the native side checks the row count
@@ -715,11 +715,11 @@ def guard_identifiers(study: Any, data: Any) -> None:
             if digest != frozen.digest:
                 refusal = CausalValueError(
                     f"frozen weights column {column!r} changed values; "
-                    "use study.reprepare(data) to declare new identifiers",
+                    "prepare the new identifiers with ant.prepare(data, ...)",
                     reason_code="invalid_argument",
                 )
                 setattr(refusal, "offending", column)  # noqa: B010 — structured optional error field
-                refusal.remedy = "use study.reprepare(data) to bind the new identifiers"
+                refusal.remedy = "prepare the new identifiers with ant.prepare(data, ...)"
                 raise refusal
             continue
         supplied_binding, _ = encode_identifier(data, column, what="cluster", keep_rows=True)

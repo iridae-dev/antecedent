@@ -135,7 +135,9 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
     def export(
         self,
         *,
-        quantity: Literal["result", "posterior", "query", "provider", "host"] = "provider",
+        quantity: Literal[
+            "result", "posterior", "record", "query", "provider", "host"
+        ] = "provider",
         artifact_id: str | None = None,
     ) -> ExportedArtifact:
         if quantity == "host":
@@ -156,7 +158,14 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
                 "provider result has no portable artifact; the provider returned none",
                 reason_code="not_executed",
             )
-        return artifact_from_receipt(self, self.provider_artifact)
+        # The provider's artifact is opaque to Antecedent: it is not an Antecedent
+        # container, so no family is inferred and no acceptance is claimed. The host
+        # envelope (quantity="host") is the natively validated container.
+        return ExportedArtifact(
+            bytes(self.provider_artifact),
+            "provider_opaque_receipt",
+            metadata={"provider": self.provider_name, "opaque": True},
+        )
 
     def _host_bytes(self) -> bytes:
         """Export the native-validated host envelope and opaque provider receipt."""

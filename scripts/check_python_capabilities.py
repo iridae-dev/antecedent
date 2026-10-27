@@ -144,7 +144,7 @@ def rust_surface(snapshot: str) -> dict[str, dict[str, str]]:
 
 
 def current_surface(root: Path) -> dict[str, dict[str, str]]:
-    items = rust_surface((root / "parity/public_api/antecedent.txt").read_text())
+    items = rust_surface((root / "parity/public_api/antecedent.txt").read_text(encoding="utf-8"))
     # Preserve feature-conditional source entries not represented by normal-feature rustdoc.
     from check_python_surface import source_entries
 
@@ -156,7 +156,7 @@ def current_surface(root: Path) -> dict[str, dict[str, str]]:
             if not source.is_file():
                 source = root / f"crates/antecedent/src/analysis/{module}/mod.rs"
             name = re.escape(parts[-1])
-            text = source.read_text()
+            text = source.read_text(encoding="utf-8")
             declaration = re.search(
                 rf"^pub (?:const )?(?:fn|struct) {name}[^\n]*", text, re.MULTILINE
             )
@@ -176,7 +176,9 @@ def write_surface(root: Path) -> None:
         "source": "parity/public_api/antecedent.txt plus conditional public analysis source",
         "items": current_surface(root),
     }
-    (root / SURFACE).write_text(json.dumps(inventory, indent=2, sort_keys=True) + "\n")
+    (root / SURFACE).write_text(
+        json.dumps(inventory, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def local_path(root: Path, name: str) -> Path:
@@ -224,7 +226,7 @@ def evidence_problems(root: Path, evidence: dict) -> list[str]:
     if "[" in name or "::" in name:
         return [f"use a concrete module-level test scope (all its parameters execute): {test}"]
     try:
-        tree = ast.parse(local_path(root, filename).read_text())
+        tree = ast.parse(local_path(root, filename).read_text(encoding="utf-8"))
         defs = functions(tree)
     except (OSError, ValueError, SyntaxError) as error:
         return [f"{test}: {error}"]
@@ -338,7 +340,9 @@ def check(
     from check_python_surface import PythonIndex
 
     python_index = PythonIndex(root)
-    registry = tomllib.loads((root / "parity/python_facade_surface.toml").read_text())["entry"]
+    registry = tomllib.loads(
+        (root / "parity/python_facade_surface.toml").read_text(encoding="utf-8")
+    )["entry"]
     internal = {row["rust"] for row in registry if row["status"] == "internal"}
     seen, old_internal, mapped = set(), set(), set()
     for cap in manifest.get("capability", []):
@@ -420,9 +424,9 @@ def main() -> int:
     args = parser.parse_args()
     if args.write_surface:
         write_surface(ROOT)
-    manifest = tomllib.loads((ROOT / MANIFEST).read_text())
-    inventory = json.loads((ROOT / SURFACE).read_text())
-    execution = json.loads(args.execution.read_text()) if args.execution else None
+    manifest = tomllib.loads((ROOT / MANIFEST).read_text(encoding="utf-8"))
+    inventory = json.loads((ROOT / SURFACE).read_text(encoding="utf-8"))
+    execution = json.loads(args.execution.read_text(encoding="utf-8")) if args.execution else None
     problems, gaps = check(
         ROOT, manifest, inventory, complete=args.require_complete, execution=execution
     )

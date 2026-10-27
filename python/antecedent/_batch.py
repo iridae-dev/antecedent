@@ -911,7 +911,7 @@ def estimate_many(study: PreparedBatch) -> Outcome[BatchResult]:
     from dataclasses import replace
 
     from ._table_snapshot import Table
-    from .estimation import PreparedAnalysis as Engine
+    from .estimation import _PreparedEngine as Engine
     from .prepared import PreparedAnalysis as Study
     from .prepared import Reuse, _finish_outcome, _preparation_declarations
 

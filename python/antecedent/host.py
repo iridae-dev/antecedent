@@ -282,13 +282,18 @@ def claim_response(claim: Mapping[str, Any]) -> dict[str, Any]:
 def fallback_response(fallback: Any) -> dict[str, Any]:
     """Host record of a descriptive fallback, shaped as the schema's ``fallback_response``.
 
-    ``fallback`` is the :class:`antecedent.fallback.AnalysisWithFallback` that
-    ``analyze(..., on_refusal="describe")`` returned. The causal question stays refused:
+    ``fallback`` is the :class:`antecedent.fallback.AnalysisWithFallback`, or the refusal
+    :class:`~antecedent.outcomes.Outcome` that ``analyze(..., on_refusal="describe")`` returned. The causal question stays refused:
     ``status`` and ``causal_status`` are ``"unsupported"`` and ``refusal`` is the unchanged
     refusal record. Beside them ``associational_status`` is the host status of the noncausal
     claim (or ``"unavailable"`` with its typed reason), and the associational claim carries
     ``causal: false`` and ranks no action.
     """
+    from .fallback import described
+    from .outcomes import Outcome
+
+    if isinstance(fallback, Outcome):
+        fallback = described(fallback)
     associational_status, associational = fallback._associational_record()
     evidence = fallback.evidence_plan
     return {

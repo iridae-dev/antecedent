@@ -43,11 +43,11 @@ from ._impl import (
     RegimeSample,
     SelectionDiagram,
     StatisticalTransportData,
-    TransportControls,
     TransportInference,
     TrialAipw,
     TrialAipwData,
     ZTransportQuery,
+    _TransportLimits,
     consume_z_transport_artifact,
     identify_z_transport,
 )
@@ -303,7 +303,7 @@ def identification_from_snapshot(snapshot: bytes) -> RestrictedTransportIdentifi
 
 
 class _RestrictedNative(ScientificResult):
-    """PreparedAnalysis native adapter over one prepared z-transport handle per world.
+    """_PreparedEngine native adapter over one prepared z-transport handle per world.
 
     Every target assignment keeps its own ``PreparedZTransportStage``. A
     snapshot with the same catalog binding is rebound through the native
@@ -321,7 +321,7 @@ class _RestrictedNative(ScientificResult):
         laws: tuple[ExactDiscreteLaw, ...],
         worlds: Sequence[Mapping[str, float]],
         empirical: bool,
-        limits: TransportControls,
+        limits: _TransportLimits,
         seed: int,
         rules: tuple[str, ...],
         rebuild: Callable[[Any], tuple[tuple[ExactDiscreteLaw, ...], EvidenceCatalog]],
@@ -601,13 +601,13 @@ def prepare_restricted(
     graph: Admg,
     provider: Any = None,
     inference: TransportInference | None = None,
-    controls: TransportControls | None = None,
+    controls: _TransportLimits | None = None,
     seed: int = 1,
 ) -> Any:
     """Prepare the licensed z-transport stage for a restricted experiment."""
 
-    from ..estimation import PreparedAnalysis
-    from ._day1 import lower_question, transport_stage
+    from ..estimation import _PreparedEngine
+    from ._day1 import _evaluation_limits, lower_question, transport_stage
 
     if isinstance(provider, (LearnedCategorical, TrialAipw)) or isinstance(data, TrialAipwData):
         raise CausalUnsupportedError(
@@ -617,7 +617,7 @@ def prepare_restricted(
         )
     identified, catalog = identify_restricted(graph, query, data)
     shape, worlds = lower_question(query.question)
-    limits = controls or TransportControls()
+    limits = controls or _TransportLimits(**_evaluation_limits(query.evaluation))
     stage_snapshot = transport_stage(
         identified=identified,
         catalog=catalog,
@@ -628,7 +628,7 @@ def prepare_restricted(
         graph=graph,
     )
     if identified.outcome != "identified" or identified.stage is None:
-        study: PreparedAnalysis[Any] = PreparedAnalysis(None, kind="z_transport", query=query)
+        study: _PreparedEngine[Any] = _PreparedEngine(None, kind="z_transport", query=query)
         study._transport_stage = stage_snapshot
         return study
     native = _RestrictedNative(
@@ -645,7 +645,7 @@ def prepare_restricted(
             _rebuild, graph, replay_declaration(retain(query)), source_name=identified.source
         ),
     )
-    prepared: PreparedAnalysis[Any] = PreparedAnalysis(native, kind="z_transport", query=query)
+    prepared: _PreparedEngine[Any] = _PreparedEngine(native, kind="z_transport", query=query)
     prepared._transport_stage = stage_snapshot
     native.stage_snapshot = stage_snapshot
     return prepared

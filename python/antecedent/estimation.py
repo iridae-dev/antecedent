@@ -171,7 +171,6 @@ from .survival import (
 )
 from .transport import (
     Transport,
-    TransportControls,
     TransportInference,
 )
 from .transport._impl import (
@@ -180,6 +179,7 @@ from .transport._impl import (
     TransportResponseGrid,
     TransportStage,
 )
+from .transport._impl.trial import LearnedTrialEstimate, _TransportLimits
 from .transport.advanced import (
     ExactTransportQuery,
     StatisticalTransportQuery,
@@ -990,13 +990,14 @@ _PreparedResult = (
     | ExactTransportDistribution
     | StatisticalTransportDistribution
     | TransportResponseGrid
+    | LearnedTrialEstimate
     | PolicyProgramResult
 )
 
 ResultT = TypeVar("ResultT", covariant=True)
 
 
-class PreparedAnalysis(Generic[ResultT]):
+class _PreparedEngine(Generic[ResultT]):
     """Compile-once / re-estimate-many handle for licensed analysis cells.
 
     **Frozen at prepare:** schema (names, types, order); graph, accepted graph,
@@ -1099,9 +1100,9 @@ class PreparedAnalysis(Generic[ResultT]):
         self._batch_family = False
         self._identification_view: Any = None
 
-    def _frozen(self, execution: Any) -> PreparedAnalysis[ResultT]:
+    def _frozen(self, execution: Any) -> _PreparedEngine[ResultT]:
         """A handle over one retained execution with this study's seed and controls."""
-        frozen: PreparedAnalysis[ResultT] = PreparedAnalysis(
+        frozen: _PreparedEngine[ResultT] = _PreparedEngine(
             execution,
             kind=self._kind,
             query=self._query,
@@ -1188,7 +1189,7 @@ class PreparedAnalysis(Generic[ResultT]):
         accept_discovered: bool = True,
         regimes: Sequence[int] | None = None,
         provider: Any | None = None,
-        controls: TransportControls | None = None,
+        controls: _TransportLimits | None = None,
         participant: str | None = None,
         missing: str | MissingPolicy | None = None,
         sampling_design: Literal[
@@ -1196,7 +1197,7 @@ class PreparedAnalysis(Generic[ResultT]):
         ]
         | None = None,
         retain_joint_horizons: bool = False,
-    ) -> PreparedAnalysis[_PreparedResult] | PreparedPolicyAnalysis:
+    ) -> _PreparedEngine[_PreparedResult] | PreparedPolicyAnalysis:
         """Compile a durable plan for a licensed analysis cell.
 
         Every argument either reaches the compiled study or is refused with a
@@ -1301,9 +1302,6 @@ class PreparedAnalysis(Generic[ResultT]):
             ExactTransportQuery,
             StatisticalTransportQuery,
             TransportResponseGridQuery,
-            prepare_exact,
-            prepare_response_grid,
-            prepare_statistical,
         )
 
         refuse_transport_only_kwargs(
@@ -1451,7 +1449,7 @@ class PreparedAnalysis(Generic[ResultT]):
             ):
                 raise CausalUnsupportedError(
                     "transport.Transport uses provider=, inference=TransportInference, "
-                    "and controls=; ordinary analyze knobs do not apply",
+                    "and query-owned evaluation bounds; physical controls belong to Execution",
                     reason_code="option_not_applicable",
                 )
             return prepare_transport(
@@ -1465,16 +1463,21 @@ class PreparedAnalysis(Generic[ResultT]):
                 seed=seed,
             )
 
-        if isinstance(query, TransportResponseGridQuery):
-            if not isinstance(data, (ExactTransportData, StatisticalTransportData)):
-                raise ValueError("Transport grid requires explicit exact or statistical providers")
+        if isinstance(
+            query, (ExactTransportQuery, StatisticalTransportQuery, TransportResponseGridQuery)
+        ) or isinstance(data, (ExactTransportData, StatisticalTransportData)):
+            if not isinstance(
+                query, (ExactTransportQuery, StatisticalTransportQuery, TransportResponseGridQuery)
+            ):
+                raise CausalTypeError(
+                    "transport providers require a typed exact, statistical, or grid query"
+                )
             if (
                 any(
                     option is not None
                     for option in (
                         graph,
                         discovery,
-                        inference,
                         identifier,
                         estimator,
                         estimator_config,
@@ -1493,110 +1496,21 @@ class PreparedAnalysis(Generic[ResultT]):
                 )
                 or not accept_discovered
             ):
-                raise ValueError(
-                    "Transport grids use their retained graph, catalog, and inference settings"
+                raise CausalUnsupportedError(
+                    "typed transport queries retain their graph, evidence and scientific declaration",
+                    reason_code="option_not_applicable",
                 )
-            return prepare_response_grid(
-                query.identification,
-                query.catalog,
-                data,
-                at=query.at,
-                bootstrap=query.bootstrap,
-                coverage_level=query.coverage_level,
-                seed=seed,
-                estimator=query.estimator,
-                cancel=cancel,
-            )
-        if isinstance(query, StatisticalTransportQuery) or isinstance(
-            data, StatisticalTransportData
-        ):
-            if not isinstance(query, StatisticalTransportQuery) or not isinstance(
-                data, StatisticalTransportData
-            ):
-                raise ValueError(
-                    "Statistical transport requires StatisticalTransportData and StatisticalTransportQuery"
-                )
-            if (
-                any(
-                    option is not None
-                    for option in (
-                        graph,
-                        discovery,
-                        inference,
-                        identifier,
-                        estimator,
-                        estimator_config,
-                        refute,
-                        threads,
-                        latency,
-                        class_prior,
-                        max_completions,
-                        population_registry,
-                        on_progress,
-                        on_stage,
-                        validators,
-                        regimes,
-                    )
-                )
-                or not accept_discovered
-            ):
-                raise ValueError(
-                    "Statistical transport uses its retained graph, catalog, and inference settings"
-                )
-            statistical_prepared = prepare_statistical(
-                query.identification,
-                query.catalog,
-                data,
-                at=query.at,
-                cancel=cancel,
-                bootstrap=query.bootstrap,
-                coverage_level=query.coverage_level,
-                estimator=query.estimator,
-                seed=seed,
-            )
-            statistical_prepared._controls = _Controls(cancel=cancel)
-            return statistical_prepared
+            if inference is not None and not isinstance(inference, TransportInference):
+                raise CausalTypeError("transport inference requires TransportInference")
+            from .transport._day1 import _evaluation_limits
+            from .transport._impl.prepare import compile_modality
 
-        if isinstance(query, ExactTransportQuery) or isinstance(data, ExactTransportData):
-            if not isinstance(query, ExactTransportQuery) or not isinstance(
-                data, ExactTransportData
-            ):
-                raise ValueError(
-                    "Exact transport requires ExactTransportData and ExactTransportQuery"
-                )
-            if (
-                any(
-                    option is not None
-                    for option in (
-                        graph,
-                        discovery,
-                        inference,
-                        identifier,
-                        estimator,
-                        estimator_config,
-                        refute,
-                        bootstrap,
-                        threads,
-                        latency,
-                        class_prior,
-                        max_completions,
-                        population_registry,
-                        on_progress,
-                        on_stage,
-                        validators,
-                        regimes,
-                    )
-                )
-                or not accept_discovered
-            ):
-                raise ValueError(
-                    "Exact transport uses its retained graph and evidence contract; sampled-data preparation options do not apply"
-                )
-            exact_prepared = prepare_exact(
-                query.identification, query.catalog, data, at=query.at, cancel=cancel
+            limits = controls or _TransportLimits(
+                **_evaluation_limits(query.evaluation), cancel=cancel
             )
-            exact_prepared._controls = _Controls(cancel=cancel)
-            return exact_prepared
+            return compile_modality(
+                query, data, provider=provider, inference=inference, controls=limits, seed=seed
+            )
 
         from .population import registry_wire
 
@@ -1658,7 +1572,7 @@ class PreparedAnalysis(Generic[ResultT]):
                 "already accepted (call rediscover() explicitly to replace it)"
             )
         if graph is not None and discovery is not None:
-            raise CausalValueError("PreparedAnalysis.prepare rejects both graph= and discovery=")
+            raise CausalValueError("prepare rejects both graph= and discovery=")
         if regimes is not None and not isinstance(discovery, RPCMCI):
             raise _not_applicable("regimes", "a discovery other than RPCMCI")
         if not accept_discovered and not live_discovery:
@@ -1846,7 +1760,7 @@ class PreparedAnalysis(Generic[ResultT]):
                 "several identifications, so it has no such stages (use on_progress)",
                 reason_code="stage_stream_unavailable",
             )
-        return cast(PreparedAnalysis[_PreparedResult], prepared)
+        return cast(_PreparedEngine[_PreparedResult], prepared)
 
     def export_artifact(
         self,
@@ -1992,7 +1906,7 @@ class PreparedAnalysis(Generic[ResultT]):
     @describe_refusal
     def reprepare(
         self, data: Any, *, query: Any = _UNSET
-    ) -> PreparedAnalysis[Any] | PreparedPolicyAnalysis:
+    ) -> _PreparedEngine[Any] | PreparedPolicyAnalysis:
         """Resolve the original declarations against a new table into a new study."""
         request = replay_declaration(getattr(self, "_preparation_request", {}))
         if not request:
@@ -2121,66 +2035,6 @@ class PreparedAnalysis(Generic[ResultT]):
         from .preflight import plan_rank_drop_prepared
 
         return plan_rank_drop_prepared(self._native, priority, seed=seed, threads=threads)
-
-    def treatment_score_posterior(
-        self,
-        *,
-        prior_sd: float = 2.0,
-        draws: int = 4000,
-        seed: int = 0,
-        clip: float = 0.05,
-        summary_rows: Sequence[int] = (),
-    ) -> Any:
-        """Posterior of the treatment propensity on this study's certified adjustment set.
-
-        A static ``AverageEffect`` study only. The result is a posterior of a *nuisance*, never of
-        an effect, under ``N(0, prior_sd**2)`` on every logit coefficient; ``summary_rows`` are
-        row positions of the prepared data whose score posterior is reported. See
-        :mod:`antecedent.nuisance_scores`. The product is unlicensed with calibration unmeasured
-        and retains an artifact that is refit on load.
-        """
-        from .nuisance_scores import _product
-
-        report, artifact = self._native.treatment_score_posterior(
-            prior_sd=float(prior_sd),
-            draws=int(draws),
-            seed=int(seed),
-            clip=float(clip),
-            summary_rows=[int(row) for row in summary_rows],
-        )
-        return _product(report, artifact)
-
-    def temporal_treatment_score(
-        self,
-        histories: Sequence[Sequence[float]],
-        *,
-        penalty: float | None = None,
-        intercept_sd: float = 1.0,
-        slope_sd: float = 1.0,
-        draws: int = 4000,
-        seed: int = 0,
-    ) -> Any:
-        """Temporal treatment propensity on the independent-subject rows of a panel study.
-
-        Each unit contributes its earliest row with a full lag window; the treatment of that row
-        is modelled on the identified adjustment lags. With ``penalty`` the score is the ridge
-        mode (intercept unpenalized) and carries no uncertainty; otherwise it is the Laplace
-        posterior under independent ``N(0, sd**2)`` priors on the intercept and the slopes,
-        which is not a ridge penalty. ``histories`` are lag histories whose scores are reported.
-        A single dependent series is refused with ``reason_code="route_not_supported"``. The
-        product is a nuisance, never an effect; see :mod:`antecedent.nuisance_scores`.
-        """
-        from .nuisance_scores import _product
-
-        report, artifact = self._native.temporal_treatment_score(
-            [[float(v) for v in history] for history in histories],
-            penalty=None if penalty is None else float(penalty),
-            intercept_sd=float(intercept_sd),
-            slope_sd=float(slope_sd),
-            draws=int(draws),
-            seed=int(seed),
-        )
-        return _product(report, artifact)
 
     def estimate_cost(self) -> CostEstimate:
         """Planning-time counts (nuisance fits, folds, bootstrap replicates, design bytes)
@@ -2813,7 +2667,7 @@ class PreparedAnalysis(Generic[ResultT]):
             )
         if self._kind == "response_curve":
             raise CausalUnsupportedError(
-                "not_applicable: PreparedAnalysis.refute is AverageEffect and scalar "
+                "not_applicable: refute is AverageEffect and scalar "
                 "Dag InterventionResponse; ResponseCurve cheap/full/placebo do not denote."
             )
         if isinstance(self._query, (TransportQuery, InterferenceQuery)):
@@ -2867,7 +2721,6 @@ __all__ = [
     "PosteriorView",
     "ProgramPlanView",
     "PredictiveCheckReport",
-    "PreparedAnalysis",
     "PreparedBatch",
     "BatchResult",
     "BatchRetarget",

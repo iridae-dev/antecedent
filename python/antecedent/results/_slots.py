@@ -64,6 +64,15 @@ def _target_query(contract: Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(query, Mapping) and len(query) == 1:
         kind, body = next(iter(query.items()))
         body = body if isinstance(body, Mapping) else {}
+        # A wrapped question (for example a conditional effect) reports its inner question's
+        # variables, while the outer kind stays the declared query kind.
+        inner = body.get("inner")
+        while isinstance(inner, Mapping) and len(inner) == 1:
+            inner_body = next(iter(inner.values()))
+            if not isinstance(inner_body, Mapping):
+                break
+            body = {**inner_body, **{k: v for k, v in body.items() if k != "inner"}}
+            inner = inner_body.get("inner")
         treatment_id = body.get("treatment", body.get("treatments"))
         outcome_id = body.get("outcome", body.get("outcomes"))
         population: Any = body.get("target_population")

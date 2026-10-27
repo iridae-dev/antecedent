@@ -253,6 +253,9 @@ class ScientificQuantity:
             CausalTypeError: ``response`` is not a response-curve result.
             CausalValueError: units are blank.
         """
+        from .outcomes import require_success
+
+        response = require_success(response)
         if not hasattr(response, "response_coordinates") or not hasattr(response, "response"):
             raise CausalTypeError(
                 "ScientificQuantity.from_response needs a response-curve analysis result, "
@@ -303,6 +306,9 @@ class ScientificQuantity:
         Raises:
             CausalValueError: ``dose`` is not a grid point of the response.
         """
+        from .outcomes import require_success
+
+        response = require_success(response)
         coordinates = cls.from_response(
             response, outcome_units=outcome_units, population=population, transform=transform
         )

@@ -420,8 +420,8 @@ class TransportedDecision(ScientificResult):
 
 
 def _prepared_native(analysis: Any) -> Any:
-    study = analysis if hasattr(analysis, "_native") else getattr(analysis, "study", None)
-    native = getattr(study, "_native", None)
+    study = analysis if hasattr(analysis, "_engine") else getattr(analysis, "study", None)
+    native = getattr(getattr(study, "_engine", study), "_native", None)
     if native is None:
         raise CausalTypeError(
             "analysis must be a prepared analysis or an analysis result that retains one"

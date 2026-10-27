@@ -17,7 +17,8 @@ named world is evaluated under that same posterior state. The pipeline keeps its
   mechanism and exogenous law is declared): it takes one value that every mechanism reading it
   sees in every world, so the counterfactual is enumerated with no identification question.
   Confounding whose mechanisms are not declared is ``cross_world_not_identified``; a declared
-  model whose joint exogenous enumeration exceeds the bound is ``route_not_supported``.
+  model whose joint exogenous space exceeds the enumeration bound is executed exactly by
+  variable elimination, without forming that space.
 
 Every value is a ``point_only`` result of exact enumeration under the declared model (mechanism
 adequacy is a premise, not a check). Intervals, posteriors and a sampled abduction are closed:

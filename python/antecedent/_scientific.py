@@ -22,9 +22,15 @@ class ScientificResult:
             setattr(cls, "__repr__", ScientificResult.__repr__)  # noqa: B010 — dataclass hook
 
     def __post_init__(self) -> None:
+        from ._artifact_protocol import ExportedArtifact
+
         for field in fields(cast(Any, self)):
             if field.name not in ("_session", "_handle", "_native"):
-                object.__setattr__(self, field.name, freeze(getattr(self, field.name)))
+                value = getattr(self, field.name)
+                # An exported artifact is already immutable: retaining the very object keeps
+                # its identity (and its producer-side expectation) through re-export.
+                if not isinstance(value, ExportedArtifact):
+                    object.__setattr__(self, field.name, freeze(value))
 
     def to_dict(self) -> dict[str, Any]:
         if is_dataclass(self):

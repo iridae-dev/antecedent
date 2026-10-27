@@ -140,7 +140,7 @@ def tier_diagnostics(result: Any, *, cancel: Any = None) -> TierDiagnostics:
 
     Args:
         result: The :class:`~antecedent.results.AnalysisResult` of a tiered study (its retained
-            study is read) or the :class:`~antecedent.estimation.PreparedAnalysis` that ran it.
+            study is read) or the :class:`~antecedent.prepared.PreparedAnalysis` that ran it.
             The diagnostics are those of the study's most recent estimate.
         cancel: An optional cancellation token; observed on entry and before each read.
 
@@ -150,7 +150,7 @@ def tier_diagnostics(result: Any, *, cancel: Any = None) -> TierDiagnostics:
         CausalTypeError: ``result`` carries no prepared study.
     """
     study = getattr(result, "study", result)
-    native = getattr(study, "_native", None)
+    native = getattr(getattr(study, "_engine", study), "_native", None)
     reader = getattr(native, "tier_diagnostics_json", None)
     if reader is None:
         raise CausalTypeError(

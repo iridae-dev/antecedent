@@ -342,7 +342,7 @@ class CpdagScenarioResult(ScientificResult):
 def _result(
     raw: Mapping[str, Any], *, run: Any = None, artifact: bytes | None = None
 ) -> CpdagScenarioResult:
-    artifact = container_bytes(artifact)
+    artifact = None if artifact is None else container_bytes(artifact)
     completions = tuple(
         CpdagCompletion(
             id=c["id"],
@@ -780,7 +780,7 @@ class ScenarioCovarianceResult(ScientificResult):
 def _covariance_result(
     raw: Mapping[str, Any], *, run: Any = None, artifact: bytes | None = None
 ) -> ScenarioCovarianceResult:
-    artifact = container_bytes(artifact)
+    artifact = None if artifact is None else container_bytes(artifact)
     return ScenarioCovarianceResult(
         scenario_ids=tuple(raw["scenario_ids"]),
         means=tuple(raw["means"]),

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from itertools import islice
 from typing import Any, Literal, Self
 
 from pydantic import (
@@ -168,6 +169,17 @@ class InspectionReport(BaseModel):
                     reading += f" {name}={str(value)[:160]}"
         else:
             reading = ""
+        # Only the first few scalar entries of a mapping are shown; nested or large
+        # records are never walked or serialized by a notebook display.
+        for label, record in (("answer", values), ("details", self.details)):
+            if isinstance(record, Mapping):
+                shown = [
+                    f"{key}={str(item)[:80]}"
+                    for key, item in islice(record.items(), 32)
+                    if type(item) in (str, int, float, bool)
+                ][:8]
+                if shown:
+                    reading += ("\n" if reading else "") + f"{label}: " + " ".join(shown)
         detail = f"<pre>{escape(reading)}</pre>" if reading else ""
         limitation = self.rendering_limitation()
         warning = f"<p>{escape(limitation.replace('_', ' '))}</p>" if limitation else ""

@@ -80,7 +80,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .. import _native
-from .._artifact_protocol import artifact_consumer, container_bytes
+from .._artifact_protocol import ExportedArtifact, artifact_consumer, container_bytes
 from .._refusal import raise_refusal
 from .._scientific import ScientificResult
 from .._validate import count
@@ -489,7 +489,7 @@ class DiscoveredTransportEstimate(ScientificResult):
     answer: TransportAnswer
     report_identity: str
     identity: str
-    _artifact_bytes: bytes
+    _artifact_bytes: bytes | ExportedArtifact[Any]
     outcome: Outcome
     report: RunReport
 
@@ -589,9 +589,13 @@ def estimate_discovered_transport(
 
 
 def _estimate_of(
-    wire: Mapping[str, Any], artifact: bytes, found: Outcome, report: RunReport
+    wire: Mapping[str, Any],
+    artifact: bytes | ExportedArtifact[Any],
+    found: Outcome,
+    report: RunReport,
 ) -> DiscoveredTransportEstimate:
-    artifact = container_bytes(artifact)
+    if not isinstance(artifact, ExportedArtifact):
+        artifact = container_bytes(artifact)
     members = tuple(
         MemberEstimate(
             member=int(m["member"]),

@@ -11,7 +11,7 @@ from ._api import describe_refusal
 from ._artifact_protocol import ExportedArtifact, LoadContext
 from ._freeze import freeze, thaw
 from .errors import CausalSerializationError, CausalValueError
-from .estimation import PreparedAnalysis, _PreparedQuery, _PreparedResult
+from .estimation import _PreparedEngine, _PreparedQuery, _PreparedResult
 from .execution import Execution
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
@@ -67,7 +67,7 @@ def prepare(
         "independent_subject_trajectories", "clustered_panel", "dependent_time_series"
     ]
     | None = None,
-) -> PreparedAnalysis[_PreparedResult] | PreparedPolicyAnalysis:
+) -> _PreparedEngine[_PreparedResult] | PreparedPolicyAnalysis:
     """Prepare the same ordinary request as :func:`analyze`, stopping before estimation.
 
     Every argument :func:`analyze` accepts for a native query is accepted here,
@@ -76,7 +76,7 @@ def prepare(
     exception is ``extensibility.ProviderQuery``, which :func:`analyze` dispatches
     directly to its registered provider (it retains no prepared study to stop at).
     """
-    return PreparedAnalysis.prepare(
+    return _PreparedEngine.prepare(
         data,
         query=query,
         graph=graph,
@@ -301,7 +301,7 @@ class LoadedResult(ResultAPI):
         self,
         *,
         artifact_id: str | None = None,
-        quantity: Literal["result", "posterior", "query"] = "result",
+        quantity: Literal["result", "posterior", "record", "query"] = "result",
     ) -> ExportedArtifact[LoadedResult]:
         if quantity != "result":
             from .errors import CausalUnsupportedError
@@ -343,7 +343,6 @@ def _load_analysis(
     """
     from . import artifacts
 
-    prepared: PreparedAnalysis[Any]
     encoded = bytes(data)
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-VIEW\x01"):
         from .transport._wrap import decode_transport_view
@@ -356,26 +355,17 @@ def _load_analysis(
         native = _native.consume_learned_trial(encoded)
         return _learned_trial(native, native.last_result_summary())
     if encoded.startswith(b"ANTECEDENT-EXACT-TRANSPORT\x01"):
-        from .transport._impl import _exact_distribution, consume_exact
+        from .transport._impl import consume_exact
 
-        prepared = consume_exact(encoded)
-        return _consumed_transport_view(
-            prepared, _exact_distribution(prepared._native, prepared._native.last_result())
-        )
+        return consume_exact(encoded)
     if encoded.startswith(b"ANTECEDENT-STATISTICAL-TRANSPORT\x01"):
-        from .transport._impl import _statistical_distribution, consume_statistical
+        from .transport._impl import consume_statistical
 
-        prepared = consume_statistical(encoded)
-        return _consumed_transport_view(
-            prepared, _statistical_distribution(prepared._native, prepared._native.last_result())
-        )
+        return consume_statistical(encoded)
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-GRID\x01"):
-        from .transport._impl import _response_grid, consume_response_grid
+        from .transport._impl import consume_response_grid
 
-        prepared = consume_response_grid(encoded)
-        return _consumed_transport_view(
-            prepared, _response_grid(prepared._native, prepared._native.last_result())
-        )
+        return consume_response_grid(encoded)
     if encoded.startswith(b"ANTECEDENT-Z-TRANSPORT\x01"):
         from .transport._restricted import consume_restricted_artifacts
 
@@ -443,11 +433,17 @@ def load(
     return (
         _load(data, expected=expected, context=context)
         if policy is None
-        else policy._call(_load, data, expected=expected, context=context)
+        else policy._call(_load, data, expected=expected, context=context, execution=policy)
     )
 
 
-def _load(data: Any, *, expected: Any = None, context: LoadContext | None = None) -> Any:
+def _load(
+    data: Any,
+    *,
+    expected: Any = None,
+    context: LoadContext | None = None,
+    execution: Execution | None = None,
+) -> Any:
     """Consume a scientific artifact using its native family consumer.
 
     Expectations must be supplied separately; envelope metadata never binds an identity implicitly.
@@ -491,7 +487,7 @@ def _load(data: Any, *, expected: Any = None, context: LoadContext | None = None
             "provider_result_v1",
             "external_callback_v1",
         ):
-            return load_scientific(encoded, expected=expected, context=context)
+            return load_scientific(encoded, expected=expected, context=context, execution=execution)
     result = _load_analysis(encoded)
     if isinstance(expected, ArtifactExpectation):
         actual_kind = (

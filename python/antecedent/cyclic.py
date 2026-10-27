@@ -74,10 +74,16 @@ from ._cyclic_typed import (
 from ._cyclic_typed import EvidenceVariable as EvidenceVariable
 from ._freeze import freeze, thaw
 from ._scientific import ScientificResult
-from .errors import CausalValueError, StructuredRefusal
+from .errors import CausalError, CausalValueError, StructuredRefusal
 from .execution import Execution
 from .intervention import Set, Shift, Soft
-from .outcomes import outcome_operation, require_success
+from .outcomes import (
+    Refusal,
+    is_scientific_refusal,
+    outcome_from_error,
+    outcome_operation,
+    require_success,
+)
 
 
 def _reseed(request, seed):
@@ -759,13 +765,41 @@ class PreparedCyclicFamily:
     _lock: Any = field(default_factory=threading.Lock, init=False, repr=False, compare=False)
     _inspection_facts: Any = field(default=None, init=False, repr=False, compare=False)
     _retained_law_declaration: Any = field(default=None, init=False, repr=False, compare=False)
+    _scientific_refusal: Refusal | None = field(default=None, init=False, repr=False, compare=False)
 
     def __repr__(self) -> str:
         return "PreparedCyclicFamily()"
 
     def __post_init__(self) -> None:
-        self.execution._call(self._prepare, execution=self.execution)
+        try:
+            self.execution._call(self._prepare, execution=self.execution)
+        except CausalError as error:
+            if not is_scientific_refusal(error):
+                raise
+            object.__setattr__(self, "_scientific_refusal", outcome_from_error(error).refusal)
         self._cache_inspection_facts()
+
+    @property
+    def refusal(self) -> Refusal | None:
+        """The native scientific preparation refusal, if no program was licensed."""
+        return self._scientific_refusal
+
+    @classmethod
+    def _from_refused(cls, request_json, variable_names, refusal, execution, *, retained_law=None):
+        """Retain the same immutable declarations and actual typed native refusal."""
+        result = object.__new__(cls)
+        for name, value in (
+            ("request_json", request_json),
+            ("variable_names", variable_names),
+            ("execution", execution),
+            ("_handle", None),
+            ("_lock", threading.Lock()),
+            ("_retained_law_declaration", retained_law),
+            ("_scientific_refusal", refusal),
+        ):
+            object.__setattr__(result, name, value)
+        result._cache_inspection_facts()
+        return result
 
     @classmethod
     def _from_retained_law(cls, law, worlds, names, outcome, handle, execution):
@@ -777,6 +811,7 @@ class PreparedCyclicFamily:
             ("_handle", handle),
             ("_lock", threading.Lock()),
             ("_retained_law_declaration", (law, tuple(worlds), tuple(names), outcome)),
+            ("_scientific_refusal", None),
             (
                 "_inspection_facts",
                 freeze(
@@ -797,6 +832,31 @@ class PreparedCyclicFamily:
     def _cache_inspection_facts(self) -> None:
         from ._cyclic_typed import family_facts
 
+        if self._scientific_refusal is not None:
+            family = (
+                "experimental_recovery"
+                if self._retained_law_declaration is not None
+                else json.loads(self.request_json)["family"]
+            )
+            object.__setattr__(
+                self,
+                "_inspection_facts",
+                freeze(
+                    {
+                        "family": family,
+                        "stage": "preparation_refused",
+                        "identity": None,
+                        "identity_unavailable": "native_program_not_prepared",
+                        "variable_count": None
+                        if self.variable_names is None
+                        else len(self.variable_names),
+                        "applicable_operations": ("inspect", "estimate", "reconfigure")
+                        if self._retained_law_declaration is not None
+                        else ("inspect", "estimate", "reconfigure", "rebind"),
+                    }
+                ),
+            )
+            return
         native = json.loads(self._handle.inspect())
         facts = family_facts(json.loads(self.request_json), None, native.get("design_unresolved"))
         object.__setattr__(self, "_inspection_facts", freeze(facts))
@@ -811,6 +871,7 @@ class PreparedCyclicFamily:
             ("_handle", handle),
             ("_lock", threading.Lock()),
             ("_retained_law_declaration", None),
+            ("_scientific_refusal", None),
         ):
             object.__setattr__(result, name, value)
         result._cache_inspection_facts()
@@ -830,6 +891,8 @@ class PreparedCyclicFamily:
         actual recovered law, draw statuses and unresolved directions belong to
         ``result.law``; execution never rewrites the preparation's declarations.
         """
+        if self._scientific_refusal is not None:
+            return dict(thaw(self._inspection_facts), refusal=self._scientific_refusal)
         facts = dict(json.loads(self._handle.inspect()))
         facts.update(thaw(self._inspection_facts))
         if self.variable_names is not None:
@@ -853,17 +916,9 @@ class PreparedCyclicFamily:
         assert execution is not None
         max_bytes = None
         cancel = None
-        from ._cyclic_typed import _next_attempt_refusal
-
         with self._lock:
             self._prepare(execution=execution)
-            try:
-                owner, facts = self._handle.execute(max_bytes=max_bytes, cancel=cancel)
-            except ValueError as error:
-                refusal = _next_attempt_refusal(error, "cyclic_family.interventions")
-                if refusal is None:
-                    raise
-                raise refusal from error
+            owner, facts = self._handle.execute(max_bytes=max_bytes, cancel=cancel)
         return CyclicInterventions._from_native(
             owner, self.variable_names, facts, self, execution=execution
         )
@@ -918,6 +973,8 @@ class PreparedCyclicFamily:
     ) -> IdentifiedCyclicFunctional:
         """Retain the checked functional and its exact graph/assumption source."""
         assert execution is not None
+        if self._scientific_refusal is not None:
+            self._scientific_refusal.raise_error()
         if self._retained_law_declaration is not None:
             raise CausalValueError("a recovered law is not a graph-identification preparation")
         source = json.loads(self.request_json)
@@ -970,6 +1027,12 @@ class PreparedCyclicFamily:
         license.
         """
         assert execution is not None
+        if self._scientific_refusal is not None:
+            return {
+                "available": False,
+                "reason": "native_program_not_prepared",
+                "refusal": self._scientific_refusal,
+            }
         result: dict[str, Any] = json.loads(self._native_handle(execution=execution).contract())
         return result
 
@@ -1102,8 +1165,18 @@ class PreparedCyclicFamily:
     ) -> PreparedCyclicFamily:
         """Recompile changed inputs, reusing only compatible statistical products."""
         assert execution is not None
-        with self._lock:
-            handle = self._handle.rebind(request_json)
+        if self._handle is None:
+            return PreparedCyclicFamily(request_json, self.variable_names, execution)
+        try:
+            with self._lock:
+                handle = self._handle.rebind(request_json)
+        except CausalError as error:
+            if not is_scientific_refusal(error):
+                raise
+            refusal = outcome_from_error(error).refusal
+            return PreparedCyclicFamily._from_refused(
+                request_json, self.variable_names, refusal, execution
+            )
         return PreparedCyclicFamily._from_handle(
             request_json, self.variable_names, handle, execution
         )
@@ -1117,6 +1190,8 @@ class PreparedCyclicFamily:
         assert execution is not None
         max_bytes = None
         cancel = None
+        if self._scientific_refusal is not None:
+            self._scientific_refusal.raise_error()
         if self._handle is None:
             object.__setattr__(
                 self,
@@ -2451,7 +2526,13 @@ class CyclicEvidence:
         return freeze(
             {
                 key: self._metadata[key]
-                for key in ("identity", "source_identity", "scope", "source_bridge")
+                for key in (
+                    "identity",
+                    "source_identity",
+                    "scope",
+                    "source_bridge",
+                    "recovery_origins",
+                )
                 if key in self._metadata
             }
         )
@@ -2475,21 +2556,37 @@ class CyclicEvidence:
     @outcome_operation
     def joint_law(
         self,
-        *,
+        *others: Any,
+        dependence: Literal["aligned", "independent"] | None = None,
         execution: Execution | None = None,
     ) -> Any:
-        """Use the existing joint-distribution/decision API for complete aligned laws.
+        """Compose explicit native columns with their verified scientific draw pairing.
 
-        Bootstrap laws, numerical root sets, finite mass bounds, uncertified roots
-        and failed posterior slots cannot be silently coerced to an outcome law.
+        Version-three recovered functional posterior columns keep exact weights.
+        Shared observations cannot be declared independent; equal draw counts do
+        not establish pairing. Sampling laws, Gaussian means, failed slots and
+        numerical mass bounds remain distinct from outcome distributions.
         """
-        assert execution is not None
-        max_bytes = None
-        cancel = None
+        from .errors import CausalTypeError, CausalValueError
         from .joint_distribution import JointDistributionArtifact
+        from .outcomes import Outcome, require_success
 
+        if dependence not in (None, "aligned", "independent"):
+            raise CausalValueError("dependence must be aligned or independent")
+        if len(others) > 256:
+            raise CausalValueError("at most 256 additional evidence products")
+        selected = tuple(
+            require_success(item) if isinstance(item, Outcome) else item for item in others
+        )
+        if any(not isinstance(item, CyclicEvidence) for item in selected):
+            raise CausalTypeError("joint_law inputs must be CyclicEvidence outcomes or values")
         return JointDistributionArtifact._from_native(
-            self._handle.joint_law(max_bytes=max_bytes, cancel=cancel)
+            self._handle.joint_law(
+                others=[item._handle for item in selected],
+                dependence=dependence,
+                max_bytes=None,
+                cancel=None,
+            )
         )
 
     @outcome_operation

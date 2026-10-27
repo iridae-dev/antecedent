@@ -1145,6 +1145,7 @@ class CallbackSession:
 @artifact_consumer(
     proof="provider_callbacks.consume_callback_result: recompute stored identity and bounds; no callback execution",
     replayable=False,
+    resumable=True,
     status="sealed",
     unresolved=("callback_provider",),
 )

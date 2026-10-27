@@ -116,20 +116,24 @@ def guard_design(study: Any, data: Any) -> None:
             equal = _same(normalized, study._resolved_design_query)
         except (ValueError, TypeError) as error:
             refusal = CausalValueError(
-                f"frozen design column {name!r} is invalid: {error}; use study.reprepare(data)",
+                f"frozen design column {name!r} is invalid: {error}; prepare the new design with ant.prepare(data, ...)",
                 reason_code="invalid_argument",
             )
             setattr(refusal, "offending", name)  # noqa: B010 — structured optional error field
-            refusal.remedy = "use study.reprepare(data) to resolve and check the new design"
+            refusal.remedy = (
+                "prepare the new design with ant.prepare(data, ...), which resolves and checks it"
+            )
             raise refusal from error
         if not equal:
             refusal = CausalValueError(
                 f"frozen design column {name!r} changed values or row order; "
-                "use study.reprepare(data) to declare a new design",
+                "prepare the new design with ant.prepare(data, ...)",
                 reason_code="invalid_argument",
             )
             setattr(refusal, "offending", name)  # noqa: B010 — structured optional error field
-            refusal.remedy = "use study.reprepare(data) to resolve and check the new design"
+            refusal.remedy = (
+                "prepare the new design with ant.prepare(data, ...), which resolves and checks it"
+            )
             raise refusal
 
 

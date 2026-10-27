@@ -230,6 +230,16 @@ def artifact_consumer(
     return decorate
 
 
+# Native source-lineage envelopes with their own bounded framing. Their family
+# consumers re-derive every number; recognition here only names the kind.
+_SOURCE_ENVELOPE_MAGICS = (
+    b"ANTE-SOURCE-EVIDENCE-1",
+    b"ANTE-SOURCE-PROJECTION-1",
+    b"ANTE-LAW-FUNCTIONAL-1",
+    b"ANTE-SENSITIVITY-SOURCE-1",
+)
+
+
 def inspect_artifact(value: Any) -> ArtifactInspection:
     from . import _native
 
@@ -242,14 +252,35 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
             ArtifactAcceptance("unavailable", False, False, False),
             data,
         )
+    for magic in _SOURCE_ENVELOPE_MAGICS:
+        if data.startswith(magic):
+            kind = magic.decode("ascii")
+            return ArtifactInspection(
+                kind,
+                {"artifact_kind": kind},
+                {},
+                ArtifactAcceptance("unavailable", False, False, False),
+                data,
+            )
     if data.startswith(b"ANTECEDENT-TRANSPORT-VIEW\x01"):
         from .transport._wrap import _parse_view_envelope
 
         payload, _, identification, snapshot, carried_artifacts = _parse_view_envelope(data)
-        carried = [
-            item for item in (identification, snapshot, *carried_artifacts) if item is not None
-        ]
+        carried = [item for item in (identification, *carried_artifacts) if item is not None]
         readings = [inspect_artifact(item).to_dict() for item in carried]
+        if snapshot is not None:
+            # The native failure snapshot is schema-versioned JSON without a
+            # format discriminator; its owning consumer rechecks it on load.
+            kind = "z_transport_failure_snapshot"
+            readings.append(
+                ArtifactInspection(
+                    kind,
+                    {"artifact_kind": kind},
+                    {},
+                    ArtifactAcceptance("unavailable", False, False, False),
+                    snapshot,
+                ).to_dict()
+            )
         return ArtifactInspection(
             "ANTECEDENT-TRANSPORT-VIEW",
             {"artifact_kind": "ANTECEDENT-TRANSPORT-VIEW"},
@@ -401,6 +432,7 @@ def artifact_from_receipt(source: Any, receipt: Any) -> ExportedArtifact[Any]:
 
 # No consumer is selected by trying families until one accepts. The native manifest is the discriminator.
 _CONSUMERS: dict[str, tuple[str, str]] = {
+    "array_fit_replay_v1": ("nuisance_scores", "load_artifact"),
     "staleness_baseline_v1": ("drift", "consume_baseline"),
     "causal_posterior": ("_posterior_artifact", "consume_posterior"),
     "ANTECEDENT-PERIOD-REFRESH": ("transport.advanced", "consume_period_refresh_artifact"),

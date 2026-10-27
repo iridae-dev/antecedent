@@ -13,7 +13,7 @@ from ...graph import Admg
 from ...learners import LearnerSpec, Logistic, Ridge, _learner_wire
 
 if TYPE_CHECKING:
-    from ...estimation import PreparedAnalysis
+    from ...estimation import _PreparedEngine
 
 
 from .catalog import SelectionDiagram
@@ -95,8 +95,8 @@ class TransportInference:
 
 
 @dataclass(frozen=True, slots=True)
-class TransportControls:
-    """Physical resource limits, separate from scientific inference settings."""
+class _TransportLimits:
+    """Private translation into legacy native compiler parameters."""
 
     max_operations: int = 10_000_000
     max_depth: int = 256
@@ -183,18 +183,18 @@ def prepare_trial(
     *,
     provider: TrialAipw | None = None,
     inference: TransportInference | None = None,
-    controls: TransportControls | None = None,
+    controls: _TransportLimits | None = None,
     seed: int = 1,
-) -> PreparedAnalysis[LearnedTrialEstimate]:
+) -> _PreparedEngine[LearnedTrialEstimate]:
     """Prepare a checked binary contrast; baseline covariates must match its certificate."""
     import json
 
     from ... import _native
-    from ...estimation import PreparedAnalysis, _Controls
+    from ...estimation import _Controls, _PreparedEngine
 
     provider = provider or TrialAipw()
     inference = inference or TransportInference()
-    controls = controls or TransportControls()
+    controls = controls or _TransportLimits()
     if (controls.max_operations, controls.max_depth, controls.max_support_rows) != (
         10_000_000,
         256,
@@ -224,6 +224,4 @@ def prepare_trial(
         memory_bytes=controls.memory_bytes,
         cancel=controls.cancel,
     )
-    return PreparedAnalysis(
-        native, kind="learned_trial", controls=_Controls(cancel=controls.cancel)
-    )
+    return _PreparedEngine(native, kind="learned_trial", controls=_Controls(cancel=controls.cancel))

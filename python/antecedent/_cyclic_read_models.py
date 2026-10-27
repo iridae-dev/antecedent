@@ -216,8 +216,10 @@ class RecoveredCyclicLaw(ScientificResult):
         scientific bridge and keeps the native refusal. This is intervention
         evaluation, not factual abduction or a sampling-to-posterior conversion.
         """
-        from ._cyclic_typed import _names, _next_attempt_refusal, _worlds
+        from ._cyclic_typed import _names, _worlds
         from .cyclic import PreparedCyclicFamily
+        from .errors import CausalError
+        from .outcomes import is_scientific_refusal, outcome_from_error
 
         assert execution is not None
         names = _names(variables)
@@ -238,11 +240,17 @@ class RecoveredCyclicLaw(ScientificResult):
                 max_bytes=None,
                 cancel=None,
             )
-        except ValueError as error:
-            refusal = _next_attempt_refusal(error, "recovered_cyclic_law.prepare")
-            if refusal is None:
+        except CausalError as error:
+            if not is_scientific_refusal(error):
                 raise
-            raise refusal from error
+            refusal = outcome_from_error(error, operation="recovered_cyclic_law.prepare").refusal
+            return PreparedCyclicFamily._from_refused(
+                None,
+                names,
+                refusal,
+                execution,
+                retained_law=(self, requested, names, outcome),
+            )
         return PreparedCyclicFamily._from_retained_law(
             self,
             requested,

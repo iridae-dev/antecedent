@@ -508,9 +508,9 @@ class RefuterRefusal:
     next_attempt: str
 
     @property
-    def code(self) -> Literal["refuter_not_applicable"]:
+    def code(self) -> Literal["refutation_not_applicable"]:
         """Stable standing; ``reason`` retains the native scientific explanation."""
-        return "refuter_not_applicable"
+        return "refutation_not_applicable"
 
 
 @dataclass(frozen=True, slots=True)
@@ -723,7 +723,7 @@ def refute_target(
     executes its original target once before the suite. Neither operation changes
     the source. For different observations, first use :func:`antecedent.rebind`.
     """
-    from .estimation import PreparedAnalysis as Engine
+    from .estimation import _PreparedEngine as Engine
     from .prepared import PreparedAnalysis
 
     completed = isinstance(source, Outcome)
@@ -794,7 +794,7 @@ def refute_target(
                 "detail": "target_refutation.no_applicable_refuters",
                 "message": "none of the declared target refuters can assess this target",
                 "causes": tuple(
-                    {"code": "refuter_not_applicable", "refuter": r.refuter, "message": r.reason}
+                    {"code": "refutation_not_applicable", "refuter": r.refuter, "message": r.reason}
                     for r in report.refused
                 ),
                 "next_actions": tuple(

@@ -72,7 +72,8 @@ from .regimes import LongitudinalRegime, SequentialContrast
 from .repair import StudyCandidate
 from .results import Analysis, ProviderAnalysisResult
 from .survival import CompetingRisksOutcome, SurvivalOutcome
-from .transport import Transport, TransportControls, TransportInference
+from .transport import Transport, TransportInference
+from .transport._impl.trial import _TransportLimits
 from .transport.advanced import TransportQuery
 
 
@@ -174,7 +175,7 @@ def analyze(
     on_progress: Any | None = None,
     on_stage: Any | None = None,
     provider: Any | None = None,
-    controls: TransportControls | None = None,
+    controls: _TransportLimits | None = None,
     return_posterior_artifact: bool = False,
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
@@ -282,7 +283,7 @@ def analyze(
     on_progress: Any | None = None,
     on_stage: Any | None = None,
     provider: Any | None = None,
-    controls: TransportControls | None = None,
+    controls: _TransportLimits | None = None,
     return_posterior_artifact: bool = False,
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
@@ -390,7 +391,7 @@ def analyze(
     on_progress: Any | None = None,
     on_stage: Any | None = None,
     provider: Any | None = None,
-    controls: TransportControls | None = None,
+    controls: _TransportLimits | None = None,
     return_posterior_artifact: bool = False,
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
@@ -537,7 +538,7 @@ def analyze(
         raises ``TypeError`` (it carried no information beyond "unset" and was
         easy to confuse with an explicit choice). An omitted ``refute``
         resolves from the same omitted-default table for :func:`analyze`,
-        :func:`antecedent.prepare` and ``PreparedAnalysis.prepare``
+        :func:`antecedent.prepare` and the prepared-analysis constructor
         (``antecedent._native.omitted_defaults()``).
     cancel:
         Optional ``CancellationToken`` from ``antecedent.state``. Checked at the
@@ -587,7 +588,7 @@ def analyze(
         hydrate). Default ``False``: UI summaries only. A mixture over several
         identified completions has no single estimand to hydrate and refuses.
     """
-    from .estimation import PreparedAnalysis
+    from .estimation import _PreparedEngine
 
     if on_refusal not in ("raise", "describe"):
         from .errors import CausalValueError
@@ -720,7 +721,7 @@ def analyze(
                 raise CausalValueError(f"{name} must be non-empty")
 
     try:
-        prepared = PreparedAnalysis.prepare(
+        prepared = _PreparedEngine.prepare(
             data,
             query=query,
             graph=graph,
@@ -794,7 +795,7 @@ def analyze(
         if (
             not isinstance(result, AnalysisResult)
             or result.posterior is None
-            or not isinstance(prepared, PreparedAnalysis)
+            or not isinstance(prepared, _PreparedEngine)
         ):
             raise _Unsupported(
                 "return_posterior_artifact requires a scalar posterior",

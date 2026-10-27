@@ -849,7 +849,7 @@ class SemiElasticity:
 class DirectionalDerivative:
     """Plug-in response derivative along a supplied direction (not renormalized).
 
-    The additive-GAM plug-in gradient (at most two treatments) dotted with
+    The additive-GAM plug-in gradient dotted with
     ``direction``. Frequentist results are point-only: ``uncertainty`` is empty
     and the warning ``response.derivative_interval_withheld`` explains that its
     coefficient-sandwich band is wired for calibration but stays closed until
@@ -886,8 +886,8 @@ class DirectionalDerivative:
 class ResponseJacobian:
     """Low-dimensional Jacobian of outcomes with respect to treatments.
 
-    Row-major outcomes x treatments from the additive-GAM plug-in gradient (at
-    most two treatments). Frequentist results are point-only: ``uncertainty``
+    Row-major outcomes x treatments from the additive-GAM plug-in gradient.
+    Frequentist results are point-only: ``uncertainty``
     is empty and the warning ``response.derivative_interval_withheld`` explains
     that its coefficient-sandwich band is wired for calibration but stays closed
     until its coverage is measured. Bayesian inference publishes a pointwise

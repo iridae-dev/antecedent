@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 from collections.abc import Iterator, Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
@@ -31,10 +30,10 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from . import _native
 from ._scientific import ScientificResult
-from .errors import CausalValueError
+from .errors import CausalError, CausalValueError
 from .execution import Execution
 from .intervention import Set, Shift, Soft
-from .outcomes import outcome_operation
+from .outcomes import is_scientific_refusal, outcome_from_error, outcome_operation
 
 if TYPE_CHECKING:
     from .cyclic import (
@@ -60,7 +59,6 @@ _DESIGN_RESAMPLING: dict[str, str] = {
     "clustered_panel": "whole_cluster",
     "dependent_time_series": "contiguous_block",
 }
-_NEXT_ATTEMPT = re.compile(r"next attempt:\s*(?P<sentence>.+)", re.IGNORECASE | re.DOTALL)
 _MAX_ID = 2**32 - 1
 
 
@@ -116,28 +114,6 @@ def _refusal(
     from .cyclic import CyclicRefusal
 
     return CyclicRefusal(message, reason_code=reason_code, detail=detail, next_attempt=next_attempt)
-
-
-def _next_attempt_refusal(error: BaseException, detail: str) -> CyclicRefusal | None:
-    """A native refusal that names its next attempt, as a :class:`CyclicRefusal`.
-
-    A registered ``reason=<code>:`` the native layer wrote into the message is kept as the
-    refusal's ``reason_code``; otherwise the route is ``route_not_supported``.
-    """
-    text = str(error)
-    match = _NEXT_ATTEMPT.search(text)
-    if match is None:
-        return None
-    refusal = _refusal(
-        text,
-        reason_code=getattr(error, "reason_code", None) or "route_not_supported",
-        detail=detail,
-        next_attempt=match.group("sentence").strip(),
-    )
-    facts = getattr(error, "execution_facts", None)
-    if facts is not None:
-        refusal.execution_facts = facts
-    return refusal
 
 
 def _identifier(value: Any, what: str) -> int:
@@ -212,12 +188,7 @@ def _resolve(name: Any, ids: Mapping[str, int], *, world: int | None = None) -> 
     if name in ids:
         return ids[name]
     where = f"world {world}: " if world is not None else ""
-    raise _refusal(
-        f"{where}variable {name!r} is not declared",
-        reason_code="unknown_variable",
-        detail="cyclic_world.unknown_variable",
-        next_attempt="name one of the declared variables " + ", ".join(map(repr, ids)),
-    )
+    raise CausalValueError(f"{where}variable {name!r} is not declared; name one of {tuple(ids)!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +239,11 @@ class World:
         states = self.initial_states
         if isinstance(states, InitialState):
             states = (states,)
+        if not isinstance(interventions, Sequence) or isinstance(interventions, str | bytes):
+            raise CausalValueError("interventions must be Set, Shift or Soft values")
+        for item in interventions:
+            if not isinstance(item, Set | Shift | Soft):
+                raise CausalValueError("interventions must be Set, Shift or Soft values")
         object.__setattr__(self, "interventions", tuple(interventions))
         object.__setattr__(self, "initial_states", tuple(states))
         for state in self.initial_states:
@@ -303,11 +279,8 @@ class World:
                     }
                 )
             else:
-                raise _refusal(
-                    f"world {self.id}: {type(action).__name__} is not a cyclic world action",
-                    reason_code="route_not_supported",
-                    detail="cyclic_world.action_not_supported",
-                    next_attempt="declare the action as Set, Shift or Soft on a named variable",
+                raise CausalValueError(
+                    f"world {self.id}: {type(action).__name__} is not a cyclic world action; use Set, Shift or Soft"
                 )
         return {
             "world": self.id,
@@ -334,7 +307,7 @@ def _compiled(
     experimental: bool = False,
     execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
-    """Compile now, so a refused world surfaces at preparation with its next attempt."""
+    """Compile now and retain native scientific refusal without executing a model."""
     assert execution is not None
     max_bytes = None
     cancel = None
@@ -348,11 +321,11 @@ def _compiled(
     )
     try:
         handle = prepare(request_json, max_bytes=max_bytes, cancel=cancel)
-    except ValueError as error:
-        refusal = _next_attempt_refusal(error, detail)
-        if refusal is None:
+    except CausalError as error:
+        if not is_scientific_refusal(error):
             raise
-        raise refusal from error
+        refusal = outcome_from_error(error, operation=detail).refusal
+        return PreparedCyclicFamily._from_refused(request_json, names, refusal, execution)
     return PreparedCyclicFamily._from_handle(request_json, names, handle, execution)
 
 
@@ -1018,13 +991,7 @@ class CyclicInterventions(ScientificResult, Mapping[int, "WorldAnswer | Recovere
 
     @classmethod
     def _from_native(cls, owner, names, facts, prepared=None, *, execution=None):
-        try:
-            owner.require_intervention_worlds()
-        except ValueError as error:
-            refusal = _next_attempt_refusal(error, "cyclic_family.interventions")
-            if refusal is None:
-                raise
-            raise refusal from error
+        owner.require_intervention_worlds()
         return cls(
             owner,
             None if names is None else tuple(names),
@@ -1193,13 +1160,8 @@ def _inference_wire(
 ) -> dict[str, Any]:
     if isinstance(uncertainty, RecoveryBootstrap):
         if design is None:
-            raise _refusal(
-                "a bootstrap recovery resamples the unit the study's sampling design names, "
-                "and no sampling design was declared",
-                reason_code="required_option_missing",
-                detail="cyclic_recovery.sampling_design_required",
-                next_attempt="declare sampling_design= ('independent_subject_trajectories', "
-                "'clustered_panel' or 'dependent_time_series')",
+            raise CausalValueError(
+                "RecoveryBootstrap requires an explicit sampling_design declaration"
             )
         return {
             "method": "bootstrap",
@@ -1516,13 +1478,7 @@ def _dynamic_inference(
     assert execution is not None
     design = _design(sampling_design)
     if design is None:
-        raise _refusal(
-            "dynamic inference follows the study's declared sampling design",
-            reason_code="required_option_missing",
-            detail="cyclic_dynamic_inference.sampling_design_required",
-            next_attempt="declare sampling_design= ('independent_subject_trajectories', "
-            "'clustered_panel' or 'dependent_time_series')",
-        )
+        raise CausalValueError("dynamic inference requires an explicit sampling_design declaration")
     request = {
         "family": "dynamic_inference",
         "problem": {"family": family, "problem": problem},

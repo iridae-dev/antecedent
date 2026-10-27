@@ -944,9 +944,14 @@ class ResultAPI:
         self,
         *,
         artifact_id: str | None = None,
-        quantity: Literal["result", "posterior", "query"] = "result",
+        quantity: Literal["result", "posterior", "record", "query"] = "result",
     ) -> ExportedArtifact[LoadedResult]:
-        """Export this exact execution, even after another estimate or refresh."""
+        """Export this exact execution, even after another estimate or refresh.
+
+        ``"posterior"`` is a transferable single-estimand prior (scalar draws only);
+        ``"record"`` is the full retained posterior or response record of the execution,
+        including response surfaces and structural mixtures, which are not priors.
+        """
         execution = getattr(self, "_execution", None)
         if execution is None:
             raise CausalUnsupportedError(
@@ -955,10 +960,10 @@ class ResultAPI:
             )
         from .._artifact_protocol import artifact_from_receipt
 
-        if quantity not in ("result", "posterior", "query"):
+        if quantity not in ("result", "posterior", "record", "query"):
             from ..errors import CausalValueError
 
-            raise CausalValueError("quantity must be result, posterior or query")
+            raise CausalValueError("quantity must be result, posterior, record or query")
         if quantity == "posterior":
             if (
                 getattr(self, "posterior", None) is None
@@ -975,7 +980,7 @@ class ResultAPI:
                     "draws mixing structural completions are not a transferable single-estimand prior",
                     reason_code="option_not_applicable",
                 )
-        if quantity in ("posterior", "query"):
+        if quantity in ("posterior", "record", "query"):
             return artifact_from_receipt(
                 self,
                 execution.export_artifact(

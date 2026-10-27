@@ -1,6 +1,6 @@
 """One view over every layer of a compiled route.
 
-:meth:`antecedent.estimation.PreparedAnalysis.plan_view` returns a
+:func:`antecedent.prepared.plan_view` returns a
 :class:`ProgramPlanView`. It is read from the lowered program the prepared handle
 executes, before any estimate: building it does not identify, fit, scan rows,
 enumerate graphs or simulate. Each layer is a typed attribute; ``to_dict()`` is

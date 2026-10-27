@@ -103,10 +103,12 @@ def family_code(class_name: str) -> str:
 
 def error_families() -> list[dict[str, object]]:
     """Native families from their declarations, then the Python-only narrowings."""
-    lib = read_text(ROOT / "python" / "src" / "lib.rs")
-    native = re.findall(r"create_exception!\(antecedent\._native,\s*(\w+),\s*(\w+)\)", lib)
+    declarations = read_text(ROOT / "python" / "src" / "errors.rs")
+    native = re.findall(
+        r"create_exception!\(antecedent\._native,\s*(\w+),\s*(\w+)\)", declarations
+    )
     if not native:
-        raise SystemExit("python/src/lib.rs: no native exception declarations")
+        raise SystemExit("python/src/errors.rs: no native exception declarations")
     families: list[dict[str, object]] = []
     for name, parent in native:
         families.append(

@@ -367,7 +367,7 @@ def _execution(source: Any, execution: Execution | None) -> Execution:
 
 
 def _study_engine(study: Any) -> Any:
-    from .estimation import PreparedAnalysis as Engine
+    from .estimation import _PreparedEngine as Engine
     from .prepared import PreparedAnalysis
 
     if not isinstance(study, PreparedAnalysis):
