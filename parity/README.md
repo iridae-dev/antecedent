@@ -15,6 +15,7 @@ and [docs/development.md](../docs/development.md).
 - [design_state.toml](design_state.toml) — Design / incremental-state
 - [release.toml](release.toml) — Release-prep / parity-closure
 - [response.toml](response.toml) — 0.5.0 response / observation / transport / interference
+- [scenario_matrix.toml](scenario_matrix.toml) — curated cells of the method-family scenario matrix (categorical, dependence, degeneracy, unsupported inputs, held-out regimes, weights/missingness); `scripts/scenario_matrix.py` joins them with `counterparts.toml` and `missing_policy_support.toml`, and `scripts/evidence_audit.py report` lists the gaps (not an inventory)
 - [compiler.toml](compiler.toml) — inspect / claim / reuse / handoff compositions (not analysis-matrix cells)
 
 **Support matrix** (license, not an inventory; see ADR 0020):

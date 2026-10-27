@@ -1,0 +1,249 @@
+# Method-family scenario matrix: the cells that cannot be derived from the other registries.
+#
+# scripts/scenario_matrix.py joins this file with parity/counterparts.toml (design x inference
+# quadrants, uncertainty, graph class), parity/missing_policy_support.toml and
+# parity/method_specs/specs.toml, enumerates every method family x axis value, and reports each
+# cell as delivered, unavailable or gap. A cell this file does not record and no registry derives
+# is a gap. `scripts/evidence_audit.py report` prints the gaps.
+#
+# Cell fields:
+#   family   a `method` of parity/counterparts.toml
+#   axis     one of the curated axes below
+#   value    one of that axis's values
+#   status   delivered | unavailable | gap
+#   test     `path::name` of a compiled, non-ignored test (delivered; also the assertion that
+#            shows a typed refusal for an unavailable cell), or
+#   fixture  a conformance/ directory with an expected.json
+#   what     one line saying what the evidence asserts
+#   reason   required for unavailable and gap; the next attempt for a gap goes in `next_attempt`
+#
+# A test whose name carries "smoke" or "limit", a measurement-only (#[ignore]d) test, a test that
+# is not compiled, or a source file named without a test does not make a cell delivered. A typed
+# refusal makes a cell delivered only for the axis value "typed_refusal"; for any other value it
+# is the evidence of an unavailable cell.
+
+schema = 1
+
+[[axis]]
+id = "weights_missingness"
+title = "Weights and missingness"
+values = ["sampling_weights", "missing_data"]
+
+[[axis]]
+id = "categorical_treatment"
+title = "Categorical treatments"
+values = ["categorical"]
+
+[[axis]]
+id = "dependence"
+title = "Dependence"
+values = ["clustered", "serial"]
+
+[[axis]]
+id = "degeneracy"
+title = "Degeneracy"
+values = ["collinear_or_constant"]
+
+[[axis]]
+id = "unsupported_input"
+title = "Unsupported inputs"
+values = ["typed_refusal"]
+
+[[axis]]
+id = "held_out_regime"
+title = "Held-out intervention regimes"
+values = ["held_out_intervention"]
+
+# ---------------------------------------------------------------------------------------------
+
+[[cell]]
+family = "P01.linear"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/missing_policy_support.rs::multiple_imputation_pools_by_rubins_rules_and_recovers_the_effect"
+what = "multiple imputation keeps every row, pools by Rubin's rules and recovers the simulated effect"
+
+[[cell]]
+family = "P02.penalized_propensity"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/treatment_score_row_semantics.rs::missing_outcome_selects_the_fit_cohort_without_becoming_a_predictor"
+what = "a missing outcome selects the fit cohort and never becomes a predictor"
+
+[[cell]]
+family = "P02.penalized_propensity"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/treatment_score_row_semantics.rs::declared_sampling_weights_refuse_even_when_the_storage_is_unweighted"
+reason = "the treatment-score product has no weighted population; declared sampling weights are refused rather than changing the population silently"
+
+[[cell]]
+family = "P03.aipw"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent-estimate/src/cell_aipw.rs::multinomial_propensity_matches_exact_two_stratum_frequencies"
+what = "the multinomial propensity equals the exact stratum frequencies"
+
+[[cell]]
+family = "P09.categorical"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/categorical_treatment.rs::categorical_dummy_regression_covariance_matches_group_mean_algebra"
+what = "dummy-regression covariance equals the group-mean algebra"
+
+[[cell]]
+family = "P12.counterfactual"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent/tests/licensed_static_cells.rs::counterfactual_dag_categorical_lever_is_invariant_to_parent_rescaling"
+what = "a categorical lever of the counterfactual is invariant to rescaling its parents"
+
+[[cell]]
+family = "P09.adaptive"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/adaptive_repeated_measures_facade.rs::a_clustered_outcome_has_its_own_cell_and_closed_form"
+what = "a clustered outcome has its own cell and its closed-form variance"
+
+[[cell]]
+family = "P07.curve"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent/tests/white_innovation_route.rs::a_curve_with_autocorrelated_innovations_refuses_the_premise_and_keeps_the_tempered_posterior"
+what = "autocorrelated innovations refuse the whiteness premise and keep the tempered posterior"
+
+[[cell]]
+family = "P02.penalized_propensity"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/temporal_treatment_score_product.rs::a_single_dependent_series_is_refused_with_its_next_attempt"
+reason = "a single dependent series has no valid interval for the temporal score product; it is refused and names its next attempt"
+
+[[cell]]
+family = "P01.iv"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/src/bayesian_iv.rs::the_posterior_is_scale_free_and_still_refuses_collinear_designs"
+what = "collinearity is judged scale-free and a collinear design is refused"
+
+[[cell]]
+family = "P01.linear"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/preflight_reproducers.rs::exact_collinearity_names_the_relation_in_original_units"
+what = "exact collinearity is refused and names the relation in original units"
+
+[[cell]]
+family = "P11.rd"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/src/bayesian_rd.rs::the_posterior_inverse_is_scale_free_and_still_refuses_collinear_designs"
+what = "the posterior inverse is scale-free and refuses a collinear design"
+
+[[cell]]
+family = "P11.synthetic_control"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/src/synthetic_control.rs::ridge_system_singularity_is_scale_free"
+what = "a singular ridge system is judged scale-free"
+
+[[cell]]
+family = "P03.policy"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-estimate/src/policy_value_posterior.rs::a_degenerate_propensity_is_refused"
+what = "a degenerate propensity is refused"
+
+[[cell]]
+family = "P09.two_arm"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_trial_route.rs::graphless_interval_license_refuses_zero_variance_despite_assignment_support"
+what = "zero outcome variance refuses the interval license"
+
+[[cell]]
+family = "P09.two_arm"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::a_randomized_trial_with_missing_outcomes_refuses_without_a_policy"
+what = "missing outcomes in a randomized trial are refused until a policy is declared"
+
+[[cell]]
+family = "P11.did"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::panel_did_refuses_missing_cells_and_never_deletes_single_unit_periods"
+what = "a panel with missing cells is refused and no unit-period is deleted"
+
+[[cell]]
+family = "P11.staggered"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/panel_did_route.rs::staggered_event_study_retains_full_curve_and_refuses_missing_controls"
+what = "a staggered event study keeps its full curve and refuses missing controls"
+
+[[cell]]
+family = "P11.synthetic_control"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/synthetic_control_route.rs::nonzero_constant_effect_null_round_trips_and_refuses_missing_assignment"
+what = "a missing assignment is refused"
+
+[[cell]]
+family = "P03.policy"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/policy_value_route.rs::policy_query_refuses_missing_ownership_or_overlap"
+what = "a policy query without ownership or overlap is refused"
+
+[[cell]]
+family = "P10"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/observational_survival_policy_routes.rs::a_missing_horizon_and_an_undeclared_censoring_assumption_are_refused_separately"
+what = "a missing horizon and an undeclared censoring assumption are each refused"
+
+[[cell]]
+family = "P02.penalized_propensity"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/treatment_score_row_semantics.rs::error_policy_and_missing_summary_predictors_are_not_silently_dropped"
+what = "missing summary predictors are refused, not dropped"
+
+[[cell]]
+family = "P07.derivative"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent-identify/src/admg_adjustment.rs::shared_confounder_downstream_of_a_treatment_refuses_the_joint_derivative"
+what = "a derivative over two treatments with no common joint adjustment set is not identified, on an ADMG, and a single-treatment derivative of the same graph still is"
+
+[[cell]]
+family = "P03.policy"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "delivered"
+test = "crates/antecedent/tests/policy_value_route.rs::retained_held_out_policy_intervals_round_trip_and_reject_forgery"
+what = "held-out policy intervals round-trip and reject a forged bound"

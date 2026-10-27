@@ -32,6 +32,7 @@ from evidence_kinds import (
     software_only_roles,
 )
 from provenance_links import method_review_problems
+from scenario_matrix import build as build_scenario_matrix
 from test_evidence import (
     registered_calibration_acceptance,
     calibration_discovery_problems,
@@ -620,6 +621,12 @@ def build_report(root: Path) -> dict:
         "doctest_sources": doctests,
         "test_refactor_dispositions": dispositions,
         "disposition_findings": disposition_problems(root, dispositions),
+        "scenario_matrix": (
+            build_scenario_matrix(root)
+            if (root / "parity/scenario_matrix.toml").is_file()
+            and (root / "parity/counterparts.toml").is_file()
+            else None
+        ),
         "route_evidence_ledger_findings": (
             check_evidence_ledger.problems(
                 tomllib.loads(
@@ -751,6 +758,40 @@ def render(report: dict) -> str:
     lines += [
         f"- {finding}" for finding in report.get("route_evidence_ledger_findings", [])
     ]
+    matrix = report.get("scenario_matrix")
+    if matrix:
+        lines += [
+            "",
+            "## Method-family scenario matrix (parity/scenario_matrix.toml; source inspection)",
+            "",
+            (
+                f"{len(matrix['families'])} families, {len(matrix['cells'])} cells: "
+                + ", ".join(f"{k} {v}" for k, v in sorted(matrix["counts"].items()))
+                + ". Only an exact compiled, non-ignored test or fixture counts as delivered; "
+                "unavailable cells state a reason; every other cell is a gap."
+            ),
+            "",
+            "| Axis | Delivered | Unavailable | Gap |",
+            "| --- | ---: | ---: | ---: |",
+        ]
+        for axis, counts in matrix["by_axis"].items():
+            lines.append(
+                f"| {axis} | {counts.get('delivered', 0)} | {counts.get('unavailable', 0)} "
+                f"| {counts.get('gap', 0)} |"
+            )
+        lines += ["", "Gaps by kind:", ""]
+        kinds = Counter(
+            (c["axis"], c["gap_kind"]) for c in matrix["cells"] if c["status"] == "gap"
+        )
+        lines += [f"- {axis} / {kind}: {n}" for (axis, kind), n in sorted(kinds.items())]
+        lines += ["", "Matrix findings (invalid curated cells):", ""]
+        lines += [f"- {finding}" for finding in matrix["findings"]] or ["- none"]
+        lines += ["", "Gap cells (family, axis, value):", ""]
+        lines += [
+            f"- `{c['family']}` {c['axis']} / {c['value']} [{c['gap_kind']}]"
+            for c in matrix["cells"]
+            if c["status"] == "gap"
+        ]
     lines += ["", "## Test coverage dispositions", ""]
     lines += [
         f"- `{case['previous']}` → `{case['replacement']}`: {case['disposition']}. {case['reason']}"
@@ -828,6 +869,13 @@ def main() -> int:
                 )
                 or bool(report["route_evidence_ledger_findings"])
                 or bool(report["disposition_findings"])
+                or bool(
+                    report.get("scenario_matrix")
+                    and (
+                        report["scenario_matrix"]["findings"]
+                        or report["scenario_matrix"]["counts"].get("gap")
+                    )
+                )
             )
         )
     rows = scientific_rows(report["claims"])
