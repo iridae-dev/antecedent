@@ -1327,7 +1327,7 @@ def _check_native_decision(o: Objs) -> None:
     assert estimate.value.expected == "mean_curve"
 
     # The claim itself is not a decision source.
-    with pytest.raises(Exception):  # noqa: B017, PT011
+    with pytest.raises(CausalTypeError):
         require_success(contract.evaluate(o.native))  # type: ignore[arg-type]
 
 
@@ -1566,7 +1566,7 @@ def _check_scenarios_decision(o: Objs) -> None:
     assert refused.value.detail == "decision_adapters.bayes_over_identified_set"
     assert refused.value.reason_code == "decision_contract_unsatisfied"
     # The transport stage is not itself a decision source.
-    with pytest.raises(Exception):  # noqa: B017, PT011
+    with pytest.raises(CausalTypeError):
         require_success(gen.decision_contract().evaluate(o.stage))
 
 

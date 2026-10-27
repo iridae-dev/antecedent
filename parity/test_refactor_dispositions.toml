@@ -1065,3 +1065,93 @@ replacement = "crates/antecedent-identify/tests/causaleffect_transport_subset.rs
 additional_replacements = ["crates/antecedent-identify/tests/causaleffect_transport_subset.rs::corrupted_oracle_expressions_cannot_borrow_local_formula_labels"]
 disposition = "external_expression_assertion_strengthened"
 reason = "Preserve both original graphs, certificate-rule/variant/standardizer checks and expression-drift checks. Derive the required formula class and sum variables from the actual reviewed R formula; formerly both frozen string copies could be corrupted together while a local class label still passed. New fault controls reject both invalid expressions and a valid standardization formula substituted for the direct case. Numeric transport and experiment-catalog equivalence remain outside this symbolic comparison."
+
+[[case]]
+previous = "python/tests/test_producer_consumer_matrix.py::test_producer_consumer_matrix_native_response_row"
+replacement = "python/tests/test_producer_consumer_matrix.py::test_producer_consumer_matrix_native_response_row"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The check that a native response claim is not a decision source accepted any exception, so an unrelated attribute or lookup error satisfied it. It now requires CausalTypeError, which Contract.evaluate raises for a source that is none of the accepted types (the message carries the NativeClaim hint). The same call is made and no case was removed. The class was determined from python/antecedent/decision.py and has not yet been run against the rebuilt extension."
+
+[[case]]
+previous = "python/tests/test_producer_consumer_matrix.py::test_producer_consumer_matrix_identified_scenarios_row"
+replacement = "python/tests/test_producer_consumer_matrix.py::test_producer_consumer_matrix_identified_scenarios_row"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The check that a transport stage is not a decision source accepted any exception. It now requires CausalTypeError, the class Contract.evaluate raises for an object that is not an accepted source. The same call is made and no case was removed. The class was determined from python/antecedent/decision.py and has not yet been run against the rebuilt extension."
+
+[[case]]
+previous = "python/tests/test_cohesive_learners.py::test_shared_learner_convenience_adapts_at_configuration"
+replacement = "python/tests/test_cohesive_learners.py::test_shared_learner_convenience_adapts_at_configuration"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The only assertion was that the effect is not None, which any completed run satisfies. It now requires the DML effect within 0.5 of the fixture's population ATE, E[2 + z] = 2 (the fixture's sample ATE differs from 2 by roughly 0.1). The tolerance is a loose bound chosen from that sampling spread and has not yet been run against the rebuilt extension."
+
+[[case]]
+previous = "python/tests/test_cohesive_learners.py::test_neural_nuisance_executes_in_standard_python_wheel"
+replacement = "python/tests/test_cohesive_learners.py::test_neural_nuisance_executes_in_standard_python_wheel"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The only assertion was that the effect is not None. It now requires a finite effect. The test remains an execution check for the neural nuisance in the installed wheel; a three-epoch network is not claimed to estimate the effect accurately."
+
+[[case]]
+previous = "python/tests/test_pathological_bayesian_families.py::test_response_tiny_sample_refuses_or_stays_finite"
+replacement = "python/tests/test_pathological_bayesian_families.py::test_response_tiny_sample_refuses_or_stays_finite"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The accepted branch asserted only that a response object exists. It now requires the declared grid points [0.0] and [1.0] and finite response values; the typed-refusal branch is unchanged."
+
+[[case]]
+previous = "python/tests/test_result_containers.py::test_posterior_view_array_decodes_real_artifact"
+replacement = "python/tests/test_result_containers.py::test_posterior_view_array_decodes_real_artifact"
+disposition = "tautology_replaced_by_consistency_check"
+reason = "np.asarray always returns an ndarray, so isinstance(arr, np.ndarray) established nothing. It now requires a finite array (empty for a moments-only artifact, which has no draws) equal to the native decoder's output for the same artifact. This is a consistency check between the view and the decoder, not an independent reference for the draws."
+
+[[case]]
+previous = "crates/antecedent-discovery/src/ges.rs::ges_scores_a_degenerate_parent_as_negative_infinity"
+replacement = "crates/antecedent-discovery/src/ges.rs::ges_scores_a_degenerate_parent_as_negative_infinity"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The test named a negative-infinity score for a parent identical to its child but asserted only that the run returned Ok. It keeps the Ok requirement and now also requires that no edge between the two identical columns is chosen, which is the observable consequence of that score. The data and run are unchanged; the new assertion has not yet been executed."
+
+[[case]]
+previous = "python/tests/test_structure_uncertainty_routes.py::test_unsupported_bases_are_refused_with_a_next_attempt"
+replacement = "python/tests/test_structure_uncertainty_routes.py::test_unsupported_bases_are_refused_with_a_next_attempt"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The incomplete-rows case accepted any exception, so an unrelated attribute or runtime failure satisfied it. It now requires a ValueError, CausalValueError or CausalUnsupportedError, the typed refusal families the native binding raises. The same call is made and no case was removed. The accepted classes were chosen from the binding's value_err use and have not yet been run against the rebuilt extension."
+
+[[case]]
+previous = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs::a_resealed_declaration_edit_is_refused_on_replay"
+replacement = "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs::a_resealed_declaration_edit_is_refused_on_replay"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The only requirement was that the error carried some registered refusal, which corruption-free but unrelated semantic errors also satisfy. It now requires that replay refused it (Refused) or recomputed a different operation identity (ReplayMismatch operation identity), and keeps the refusal check. The mutation is unchanged; the new assertion has not yet been executed."
+
+[[case]]
+previous = "crates/antecedent-io-core/src/compact_export.rs::a_unit_diagonal_matrix_with_strongly_negative_correlations_is_not_psd"
+replacement = "crates/antecedent-io-core/src/compact_export.rs::a_unit_diagonal_matrix_with_strongly_negative_correlations_is_not_psd"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The pivot result was only required to be present. It now requires the third elimination step: after the first pivot the Schur complement has diagonals 0.19 and off-diagonal -1.71, so its last diagonal is 0.19 - 1.71^2/0.19, negative. Same matrix; not yet executed."
+
+[[case]]
+previous = "crates/antecedent-io-core/src/causal_artifact.rs::response_without_coordinates_is_unchanged"
+replacement = "crates/antecedent-io-core/src/causal_artifact.rs::response_without_coordinates_is_unchanged"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Decoding was only required to succeed. The decoded response must now also carry no coordinates, which is what unchanged means for a response sealed without them. Not yet executed."
+
+[[case]]
+previous = "crates/antecedent-io-core/src/propagation_chain_record_tests.rs::an_independent_pool_of_distinct_evidence_is_licensed"
+replacement = "crates/antecedent-io-core/src/propagation_chain_record_tests.rs::an_independent_pool_of_distinct_evidence_is_licensed"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Sealing was only required to succeed. The pooled stage must now give weights of 1/2 each (the two draws have equal variance 16/7, so precision weights are equal) and the record must replay. Same draft; not yet executed."
+
+[[case]]
+previous = "crates/antecedent-estimate/src/util/bootstrap/tests.rs::an_undeclared_design_takes_the_one_the_grouping_implies"
+replacement = "crates/antecedent-estimate/src/util/bootstrap/tests.rs::an_undeclared_design_takes_the_one_the_grouping_implies"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Each undeclared grouping only had to return Ok. Each must now keep all 8 requested replicates, so an implied design that silently skipped draws fails. The design implied by the grouping is not independently identified here; the trajectory and refusal tests cover the draw structure. Not yet executed."
+
+[[case]]
+previous = "crates/antecedent-counterfactual/src/temporal_cross_world/general.rs::unpaired_world_units_are_refused"
+replacement = "crates/antecedent-counterfactual/src/temporal_cross_world/general.rs::unpaired_world_units_are_refused"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "A refusal of any kind satisfied the test. It now requires the witness to name the edited world, the unit that was dropped from it and a factual history, which is what the unpaired-histories refusal reports. Same mutation; not yet executed."
+
+[[case]]
+previous = "crates/antecedent-estimate/src/glm_adjustment/tests.rs::recovers_att_via_gcomp"
+replacement = "crates/antecedent-estimate/src/glm_adjustment/tests.rs::recovers_att_via_gcomp"
+disposition = "tautology_replaced_by_reference_value"
+reason = "The test named recovery of the ATT but only required a finite estimate. Treatment alternates independently of Z, so the ATT equals the ATE, the mean over Z uniform on (-0.5, 0.5) of sigmoid(1.5 + z) - sigmoid(-0.5 + z) = 0.43378 by numerical integration. The estimate must be within 0.15 of that, the same tolerance the probit ATE check in this file uses (about four standard errors at n = 800). Not yet executed against the fixed-seed draw."

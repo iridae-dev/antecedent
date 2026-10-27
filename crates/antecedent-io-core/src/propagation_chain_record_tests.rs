@@ -282,7 +282,12 @@ fn an_independent_pool_of_distinct_evidence_is_licensed() {
     let record = PropagationChainRecordWire::seal(pool_draft(false, false), &ctx());
     // The declared rows differ, so the pool is licensed as independent even though the
     // arithmetic of these particular draws is the overlapping design.
-    assert!(record.is_ok());
+    let record = record.expect("distinct declared evidence seals as an independent pool");
+    let pooled = stage(&record, "pooled");
+    // Independent pooling weights by precision; for two equal-variance estimates that is 1/2 each.
+    near(value(pooled, "weight_0"), 0.5, 1e-12);
+    near(value(pooled, "weight_1"), 0.5, 1e-12);
+    record.consume(None, &ctx()).expect("replays");
 }
 
 // -------------------------------------------------- the joint-law counterexample

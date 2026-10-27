@@ -316,6 +316,16 @@ fn a_resealed_declaration_edit_is_refused_on_replay() {
         meta.operations[1].source.as_mut().and_then(|s| s.observations.as_mut()).expect("rows");
     rows[0] = first_row;
     let error = EvidenceLedgerArtifact::from_meta(&reseal(meta), None).expect_err("refused");
+    // A semantic refusal found by replay, not corruption or a malformed value: either the
+    // ledger rejects the stored operation or its recomputed identity differs from the stored one.
+    assert!(
+        matches!(
+            error,
+            EvidenceLedgerArtifactError::Refused { .. }
+                | EvidenceLedgerArtifactError::ReplayMismatch("operation identity")
+        ),
+        "{error}"
+    );
     assert!(error.refusal().is_some(), "{error}");
 }
 
@@ -488,6 +498,16 @@ fn a_transported_claim_keeps_its_transport_identity_through_export() {
         .expect("add");
     add_transported.source.as_mut().expect("source").transport = None;
     let error = EvidenceLedgerArtifact::from_meta(&reseal(meta), None).expect_err("refused");
+    // A semantic refusal found by replay, not corruption or a malformed value: either the
+    // ledger rejects the stored operation or its recomputed identity differs from the stored one.
+    assert!(
+        matches!(
+            error,
+            EvidenceLedgerArtifactError::Refused { .. }
+                | EvidenceLedgerArtifactError::ReplayMismatch("operation identity")
+        ),
+        "{error}"
+    );
     assert!(error.refusal().is_some(), "{error}");
 }
 

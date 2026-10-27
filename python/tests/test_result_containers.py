@@ -144,7 +144,10 @@ def test_posterior_view_array_decodes_real_artifact():
         artifact=encoded,
     )
     arr = np.asarray(view)
-    assert isinstance(arr, np.ndarray)
+    # Consistency check: the view returns exactly what the native decoder yields for its artifact.
+    # A moments-only artifact carries no draws, so the decoded array is legitimately empty.
+    assert np.isfinite(arr).all()
+    np.testing.assert_array_equal(arr, np.asarray(native.decode_posterior_artifact(encoded)))
 
 
 # --- PosteriorView.interval -----------------------------------------------------

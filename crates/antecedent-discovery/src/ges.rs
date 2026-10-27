@@ -1923,7 +1923,10 @@ mod tests {
             &mut DiscoveryWorkspace::default(),
             &ExecutionContext::for_tests(1),
         );
-        assert!(result.is_ok(), "{result:?}");
+        let graph = result.expect("a degenerate parent is scored, not an error").evidence.graph;
+        // A parent identical to the child is scored negative infinity, so no insertion is chosen.
+        let node = |i: u32| DenseNodeId::from_raw(i);
+        assert!(!graph.has_edge(node(0), node(1)), "{graph:?}");
     }
 
     /// Run GES on the chain data under `constraints`.

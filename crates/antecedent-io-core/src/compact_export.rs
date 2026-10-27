@@ -1026,7 +1026,9 @@ mod psd_tests {
     #[test]
     fn a_unit_diagonal_matrix_with_strongly_negative_correlations_is_not_psd() {
         let m = [1.0, -0.9, -0.9, -0.9, 1.0, -0.9, -0.9, -0.9, 1.0];
-        assert!(first_negative_pivot(&m, 3).is_some());
+        // Eliminating the first row leaves diagonals 0.19 and an off-diagonal of -1.71, so the
+        // Schur complement's last diagonal is 0.19 - 1.71^2 / 0.19 < 0 at the third pivot.
+        assert_eq!(first_negative_pivot(&m, 3), Some(2));
     }
 
     #[test]

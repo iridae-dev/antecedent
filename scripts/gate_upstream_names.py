@@ -158,7 +158,7 @@ for raw_path in tracked:
         continue
     try:
         text = path.read_text(errors="ignore", encoding="utf-8")
-    except Exception:
+    except OSError:
         continue
     if pat.search(text):
         # Ignore lines that only cite allowlisted baseline pin paths.

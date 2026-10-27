@@ -80,7 +80,8 @@ def test_response_tiny_sample_refuses_or_stays_finite():
         result = _run({"t": t, "y": y}, [("t", "y")], ac.ResponseCurve("t", "y", grid=[0.0, 1.0]))
     except ac.errors.CausalError:
         return
-    assert result.response is not None
+    assert [list(point) for point in result.response.points] == [[0.0], [1.0]]
+    assert np.isfinite(result.response.values).all()
 
 
 def test_sequential_short_series_refuses_or_stays_finite():

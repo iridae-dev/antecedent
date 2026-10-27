@@ -1,6 +1,8 @@
 //! Day-1 imports for the `antecedent` facade.
 //!
-//! ```rust,ignore
+//! The glob import below is compiled as a doctest, so every re-export must resolve.
+//!
+//! ```
 //! use antecedent::prelude::*;
 //! ```
 //!

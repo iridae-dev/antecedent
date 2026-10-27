@@ -2300,7 +2300,13 @@ mod tests {
 
     #[test]
     fn response_without_coordinates_is_unchanged() {
-        assert!(decode_three_point(three_point_response(None)).is_ok());
+        let response = three_point_response(None);
+        let CausalPayloadWire::ResponseResult(decoded) =
+            decode_three_point(response).expect("a response without coordinates decodes")
+        else {
+            unreachable!()
+        };
+        assert_eq!(decoded.coordinates, None);
     }
 
     fn temporal_mean_curve_response() -> CausalResponseWire {

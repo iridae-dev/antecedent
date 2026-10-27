@@ -113,7 +113,8 @@ def test_explicit_learner_roles_refuse_task_mismatch(estimator):
 
 
 def test_shared_learner_convenience_adapts_at_configuration():
-    assert analyze(DML(learner=Ridge(2.0))).effect is not None
+    # Population ATE of the fixture is E[2 + z] = 2; the sample mean of z moves it by about 0.1.
+    assert abs(analyze(DML(learner=Ridge(2.0))).effect - 2.0) < 0.5
 
 
 def test_neural_nuisance_executes_in_standard_python_wheel():
@@ -124,4 +125,5 @@ def test_neural_nuisance_executes_in_standard_python_wheel():
             folds=2,
         )
     )
-    assert result.effect is not None
+    # Three epochs of a four-unit network is not a calibrated fit: only a finite executed answer is claimed.
+    assert np.isfinite(result.effect)

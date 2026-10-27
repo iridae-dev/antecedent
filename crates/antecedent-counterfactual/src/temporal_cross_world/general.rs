@@ -756,9 +756,14 @@ mod tests {
     #[test]
     fn unpaired_world_units_are_refused() {
         let mut spec = general_spec(3, 4, &[vec![0.0, 1.0, 0.0]]);
-        spec.worlds[0].units.pop();
+        let dropped = spec.worlds[0].units.pop().expect("the world has units");
         let err = evaluate_general_temporal_counterfactual(&spec, &ExecutionContext::for_tests(1))
             .unwrap_err();
         assert!(err.refusal().is_some());
+        // The witness names the world and the factual unit it no longer pairs with.
+        let witness = err.witness().expect("an unpaired history carries a witness");
+        assert_eq!(witness.world.as_deref(), Some(spec.worlds[0].name.as_str()));
+        assert_eq!(witness.unit.as_ref(), Some(&dropped));
+        assert!(witness.history.is_some());
     }
 }

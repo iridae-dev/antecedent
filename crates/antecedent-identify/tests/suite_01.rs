@@ -7,6 +7,8 @@
 mod admg_conditional_transport;
 #[path = "artifact_compat_recovery_identity.rs"]
 mod artifact_compat_recovery_identity;
+#[path = "binary_iv_lp_oracle.rs"]
+mod binary_iv_lp_oracle;
 #[path = "counterfactual_id_search.rs"]
 mod counterfactual_id_search;
 #[path = "counterfactual_id_y0_parity.rs"]

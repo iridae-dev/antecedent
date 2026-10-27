@@ -205,6 +205,41 @@ change, Rust execution from JUnit, artifact transfer time, runner-seconds and
 the final required-check completion time. These distinguish saved compilation
 from a bottleneck that has simply moved elsewhere.
 
+## Cost report
+
+Every `scripts/test.sh` run writes a receipt under `target/test-performance/`
+(command, settings, host, checkout identity, wall, user and system time, peak
+child memory) and copies each nextest JUnit report beside it. To compare two
+runs:
+
+```bash
+python3 scripts/cost_report.py BEFORE.json AFTER.json \
+  --before-junit BEFORE.xml --after-junit AFTER.xml --output cost.json
+```
+
+The report prints each measurement as a signed difference (after minus before)
+and calls the comparison controlled only if all of these hold: identical
+command, settings, platform and CPU count; the same commit with no uncommitted
+inputs and no change during either run; both runs exited 0; JUnit reports for
+both with equal selected-case counts and no skipped or failed cases. Otherwise
+it lists the reasons and states that the differences establish neither an
+improvement nor a regression. Values that were not recorded are `null`; none is
+estimated. A receipt's wall time includes discovery, compilation and lock waits;
+only the JUnit case durations isolate execution, and build time must be taken
+from Cargo timings under matching cache conditions.
+
+The one comparison already on file,
+`parity/evidence_audit/ordinary_rust_comparison.json`, is not controlled: the
+selections, checkout and Cargo settings differ, and its execution time rose
+from 744.162 to 903.397 seconds. No workspace speedup is claimed.
+
+The required checks fail, with fault controls in `scripts/test_evidence_audit.py`
+and `scripts/test_cost_report.py`, for: a stale or missing native extension,
+an empty scientific or calibration selection, an unregistered or undiscovered
+calibration-acceptance test, a script test that is failed, skipped, expected to
+fail, deselected unknown or discovered as nothing, a Python session that skips
+more than 5% of its tests, and a Python selection that collects nothing.
+
 ## Further performance work
 
 The remaining opportunities should be evaluated from durations before

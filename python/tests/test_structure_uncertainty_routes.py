@@ -205,7 +205,8 @@ def test_unsupported_bases_are_refused_with_a_next_attempt():
         _native.discover_bootstrap_stability(names, cols, base="pc", unit_lengths=[300])
     with_missing = [c.copy() for c in cols]
     with_missing[0][3] = np.nan
-    with pytest.raises(Exception):  # noqa: B017, PT011 - any typed refusal: rows are incomplete
+    # rows are incomplete: a typed value or unsupported refusal, never an unrelated failure
+    with pytest.raises((ValueError, CausalValueError, CausalUnsupportedError)):
         _native.discover_bootstrap_stability(names, with_missing, base="pc", replicates=5)
 
 
