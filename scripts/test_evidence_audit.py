@@ -259,6 +259,7 @@ class Classification(unittest.TestCase):
                     "def compare(x,y): return x == y\n",
                 ),
                 ("environment_lock", "reference.py.lock", "version = 1\n"),
+                ("input_fixture", "data.csv", "x,y\n1,2\n"),
                 (
                     "assertion_source",
                     "test_truth.py",
@@ -296,12 +297,17 @@ class Classification(unittest.TestCase):
             self.assertTrue(
                 fixture_review_problems(root, {**document, "expected": 3.0})
             )
-            for rel in ["test_truth.py", "compare.py"]:
+            for rel in ["test_truth.py", "compare.py", "data.csv"]:
                 path = root / rel
                 original = path.read_text(encoding="utf-8")
                 path.write_text("# removed or changed\n", encoding="utf-8")
                 self.assertTrue(reference_review_problems(root, oracle))
                 path.write_text(original, encoding="utf-8")
+            (root / "data.csv").unlink()
+            self.assertIn(
+                "reference_review missing artifact: data.csv",
+                reference_review_problems(root, oracle),
+            )
             oracle["reference_review"]["artifacts"] = []
             self.assertTrue(reference_review_problems(root, oracle))
 

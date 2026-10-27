@@ -198,6 +198,7 @@ def reference_review_problems(root: Path, oracle: dict) -> list[str]:
             "environment_lock",
             "assertion_source",
             "comparison_helper",
+            "input_fixture",
         ):
             problems.append("reference_review artifact has an unknown role")
         else:

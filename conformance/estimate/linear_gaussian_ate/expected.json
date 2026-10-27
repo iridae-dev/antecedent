@@ -78,6 +78,11 @@
           "role": "assertion_source",
           "path": "crates/antecedent/tests/estimate_linear_gaussian_ate.rs",
           "sha256": "a17009762f583786fb67a1681a60dfcb401b5d4b923bc64959dc9c245936fff6"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/estimate/linear_gaussian_ate/data.csv",
+          "sha256": "c2efe7c53819ca742952fbecb61d1b2a100c8663e75d41c9979158ae46c5c1bb"
         }
       ],
       "fixture_payload_sha256": "31a9da08974d9dd8d76649185b42c04060f7dbffd1c80a3b06c3943339de443d"
