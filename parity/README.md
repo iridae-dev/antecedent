@@ -122,6 +122,12 @@ scope and limitations of an actual reference review; hashes and source scanning
 alone cannot establish scientific sufficiency, historical exposure or theorem
 correspondence.
 
+Fixtures serving only software checks may declare `evidence_roles = ["software"]`
+with `evidence_kind`, exact `evidence_source` (`path::assertion`),
+`evidence_proposition` and `limitations`. They need no invented numerical oracle.
+Known-truth claims cannot cite such a fixture, even if it also carries an
+external-origin tag. The audit lists these software propositions separately.
+
 A licensed row labelled `frozen_external_oracle` compares **the cell's own
 output** with a pinned upstream run. Most licensed routes instead rest on
 external oracles at the **component** level: the identifier and estimator each

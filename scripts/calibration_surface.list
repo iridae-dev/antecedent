@@ -451,7 +451,9 @@ mechanism crates/antecedent/src/analysis/temporal_counterfactual.rs
 allow mechanism crates/antecedent/src/analysis/mod.rs CheckedAttributionInfo mechanism_exports temporal_counterfactual transported_counterfactual
 # Artifact replay invokes only the named temporal mechanism evaluator.
 allow mechanism crates/antecedent-io-core/src/temporal_counterfactual_artifact.rs FactualUnitHistory HistoryId MAX_UNITS MECHANISM_CLASS NamedActionHistory NodeMechanism RefusingWitness SharedAbductionReceipt SnapshotId TemporalCounterfactualError TemporalCounterfactualResult TemporalCounterfactualSpec TemporalGraph TemporalMechanismFit TemporalNode UnitId antecedent_counterfactual evaluate_temporal_counterfactual temporal_cross_world
-key mechanism query Counterfactual AnomalyAttribution ChangeAttribution MechanismChange UnitChange
+# Observation posteriors execute model table redraws; counterfactual transport
+# executes the counterfactual substrate. They must not omit that dependency.
+key mechanism query *Counterfactual* ObservationConditionalProbability AnomalyAttribution ChangeAttribution MechanismChange UnitChange
 key mechanism estimator gcm.*
 # The dispatch arm of AnalysisRoute::ChangeAttribution, and the NestedCounterfactual
 # arm, which executes the prepared gcm::NestedCounterfactualOperation (or compiles
@@ -463,9 +465,8 @@ allow mechanism crates/antecedent/src/analysis/execute/mod.rs CheckedAttribution
 # The contract's nested counterfactual fit snapshot, built only when the prepared
 # analysis retains a gcm::NestedCounterfactualOperation (the NestedCounterfactual
 # `key` query); every other contract leaves the slot empty.
-allow mechanism crates/antecedent/src/analysis/contract.rs NestedCounterfactualOperation gcm policy_value
 # Result slots and payload enum variants holding the facet's outputs (types only).
-allow mechanism crates/antecedent/src/result.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection PolicyValue UnitChangeResult antecedent_attribution gcm policy_value unit_change
+allow mechanism crates/antecedent/src/result.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection PolicyValue UnitChangeResult antecedent_attribution gcm policy_value unit_change CounterfactualContrasts counterfactual_contrasts
 # CausalQuery::ChangeAttribution / a `unit_change` field: core names the facet shares.
 # Preparation also compiles and retains the checked counterfactual, nested
 # counterfactual and attribution operations for the Counterfactual,
@@ -525,7 +526,7 @@ allow design crates/antecedent/src/analysis/joint_panel/projection.rs MeanSource
 allow design crates/antecedent/src/analysis/joint_panel/search.rs CompiledContinuousCandidate CompiledProgramEvaluator ContinuousProgramSearchResult ContinuousSearchOptions FiniteProgramDomain Invalid JointPanelResponseFunctional JointPanelScientificScope PreparedContinuousProgramSearch PreparedFiniteProgramSearch ProgramCandidate ProgramSearchContract ProgramSearchError ProgramSearchScope ScientificDecisionSource ScientificSourceError ScientificSourcePayload ScopedProgramSearchResult antecedent_design continuous decision_contract program_search scientific_source
 allow design crates/antecedent/src/analysis/prepared/joint_response.rs Frequentist MeanEstimate MeanSource Posterior ScientificDecisionSource ScientificSourcePayload antecedent_design decision_eval scientific_source
 allow evidence crates/antecedent/src/analysis/prepared/joint_response.rs EvidencePort
-allow evidence crates/antecedent/src/analysis/finite_discrete.rs DecisionRequest EvidencePort EvidencePortError
+allow evidence crates/antecedent/src/analysis/finite_discrete.rs EvidencePort
 allow evidence crates/antecedent/src/planner/lowered/decision.rs DecisionRequest
 allow evidence crates/antecedent/src/planner/plan_view.rs DecisionRequest
 # Other items of the same names: the temporal slope executors' own `evaluate`
@@ -564,7 +565,6 @@ allow mechanism crates/antecedent-model/src/system_compile.rs CompiledCausalMode
 # Other items of the same names: the design crate's own planning covariate cap, the
 # SCC compiler's local `condition` count, the route table's PolicyValue row and the
 # lowered plan's own ChangeAttribution, PolicyValue and Affine variants.
-allow mechanism crates/antecedent-design/src/planning/mod.rs MAX_COVARIATES
 allow mechanism crates/antecedent-model/src/scc_compile.rs condition
 allow mechanism crates/antecedent/src/analysis/lowering/registry.rs PolicyValue
 allow mechanism crates/antecedent/src/planner/lowered.rs ChangeAttribution PolicyValue
@@ -706,7 +706,7 @@ allow design crates/antecedent/src/analysis/mod.rs ActionRobustness AdaptedClaim
 allow design crates/antecedent/src/analysis/transport_common.rs evaluate
 # Crate-root declarations and re-exports of the mechanism wire modules, and the
 # PolicyValue route-input variant: names, not mechanism execution.
-allow mechanism crates/antecedent-io-core/src/lib.rs MechanismSlotWire MechanismStoreWire ModelKindWire mechanism_wire mechanisms_from_wire mechanisms_to_wire transported_counterfactual_artifact
+allow mechanism crates/antecedent-io-core/src/lib.rs MechanismSlotWire MechanismStoreWire ModelKindWire mechanism_wire mechanisms_from_wire mechanisms_to_wire transported_counterfactual_artifact temporal_counterfactual_general_artifact
 allow mechanism crates/antecedent/src/analysis/execute/route_input.rs PolicyValue
 
 # Separately owned selected nested-Markov likelihood/information method.
@@ -807,7 +807,6 @@ allow design crates/antecedent/src/analysis/conditional_study_ranking.rs Structu
 # The recalculation receipt decoder shares `decode_parts` with mechanism artifacts. The
 # prepared-analysis slots below hold the checked counterfactual, attribution and nested
 # counterfactual operations, built only for the mechanism `key` queries.
-allow mechanism crates/antecedent/src/analysis/conditional_study_ranking.rs decode_parts
 allow mechanism crates/antecedent/src/analysis/prepared/execution.rs CheckedAttributionOperation CheckedCounterfactualPlan NestedCounterfactualOperation PolicyValue gcm
 allow mechanism crates/antecedent/src/analysis/prepared/execution_accessors.rs NestedCounterfactualOperation gcm
 allow mechanism crates/antecedent/src/analysis/prepared/info.rs CheckedAttributionInfo CheckedCounterfactualOperation NestedCounterfactualOperation PolicyValue gcm
@@ -833,7 +832,7 @@ allow mechanism crates/antecedent-io/src/sensitivity_artifact.rs decode_parts en
 # Result conversion, sealed slots and sealers of the mechanism `key` queries' checked
 # operations; the cross-world facade drives the counterfactual engine over a compiled
 # model for its own named route; the support-matrix cell names the ChangeAttribution query.
-allow mechanism crates/antecedent/src/analysis/execute/execute_helpers_route.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection PolicyValue UnitChangeResult antecedent_attribution gcm
+allow mechanism crates/antecedent/src/analysis/execute/execute_helpers_route.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection PolicyValue UnitChangeResult antecedent_attribution gcm CounterfactualContrasts
 allow mechanism crates/antecedent/src/analysis/prepared/mod.rs CheckedAttributionInfo
 allow mechanism crates/antecedent/src/analysis/prepared/sealed/program.rs NestedCounterfactualOperation gcm
 allow mechanism crates/antecedent/src/analysis/prepared/sealed/static_route.rs CheckedAttributionOperation CheckedCounterfactualPlan
@@ -852,7 +851,7 @@ allow registry_mirror crates/antecedent-io-core/src/contract_section/mod.rs Cove
 allow design crates/antecedent/src/analysis/mechanism_composition.rs antecedent_design artifact_kind_remedy inverse_query_artifact recognised_artifact_kind
 allow mechanism crates/antecedent-io-core/src/cross_world_execution_artifact.rs CrossWorldExecutionError ExogenousInference ExogenousVariable FactualUnit FiniteExecutionRequest FiniteExecutionResult FiniteQuantity FiniteScm FiniteScmExecutor FiniteVariable FiniteWorld MAX_JOINT_STATES MAX_UNITS MAX_VARIABLES NoiseCoupling WorldAtom WorldRoute antecedent_counterfactual finite_scm selective
 allow mechanism crates/antecedent-io-core/src/mechanism_composition_artifact.rs CoherenceFinding ComposedFinite ComposedLinearGaussian ComposedModelSpec CompositionError ContextCoordinate ContrastArm CrossCovarianceBlock Domain InvarianceDeclaration LatentDependence MAX_COMPOSED_MECHANISMS MeanContrast MechanismContext MechanismDescriptor MechanismFamily MechanismForm MechanismOrigin MechanismProvenance MechanismSlotWire MechanismUncertainty ParameterId ParameterTerm ParentBinding PosteriorDependence SelectionDiagramDeclaration SelectionNodeDeclaration TabularRow UncertaintyMeaning antecedent_model
-allow mechanism crates/antecedent-io-core/src/observation_query_artifact.rs BetaBernoulli ComposedFinite ComposedLinearGaussian ComposedModelSpec CompositionError Direction FiniteBayesModel FiniteLaw GaussianSufficient MAX_BAYES_HYPOTHESES MAX_BAYES_OBSERVATION_LEVELS MAX_BAYES_SEQUENCE MAX_COMPOSED_MECHANISMS MAX_LEVELS_PER_VARIABLE MAX_REDRAWS MAX_REDRAW_QUANTITIES MAX_RETAINED_REGRESSORS MechanismOrigin ObservationQueryError ParameterDraws RedrawPrior RedrawTarget RetainedMechanism TableCountRow TableCounts UnreachableBound antecedent_model condition condition_gaussian condition_on_measured conditioning_and_intervention intervene intervened_law observations_required_binary_signal observations_required_conjugate redraw_conditional required_bayes_factor threshold_crossing_observations
+allow mechanism crates/antecedent-io-core/src/observation_query_artifact.rs BetaBernoulli ComposedFinite ComposedLinearGaussian ComposedModelSpec CompositionError Direction FiniteBayesModel FiniteLaw GaussianSufficient MAX_BAYES_HYPOTHESES MAX_BAYES_OBSERVATION_LEVELS MAX_COMPOSED_MECHANISMS MAX_LEVELS_PER_VARIABLE MAX_REDRAWS MAX_REDRAW_QUANTITIES MAX_RETAINED_REGRESSORS MechanismOrigin ObservationQueryError ParameterDraws RedrawPrior RedrawTarget RetainedMechanism TableCountRow TableCounts UnreachableBound antecedent_model condition condition_gaussian condition_on_measured conditioning_and_intervention intervene intervened_law observations_required_binary_signal observations_required_conjugate redraw_conditional required_bayes_factor threshold_crossing_observations MAX_BAYES_UPDATE_WORK
 allow mechanism crates/antecedent/src/analysis/cross_world_execution.rs CapabilityStatus ConditioningKind CouplingKind CrossWorldExecutionError CrossWorldRefusal EvidenceKind ExecutionReceipt ExecutionStage ExogenousInference ExogenousVariable FactualUnit FiniteExecutionRequest FiniteExecutionResult FiniteQuantity FiniteScm FiniteScmExecutor FiniteVariable FiniteWorld HistoryKind InterventionKind MatrixDecision MatrixRefusal MatrixRequest MatrixRow ModelClass NoiseCoupling PopulationKind QuantityClass RetainedAbduction SourceAccount SourceTreatment StageReceipt StageStatus TemporalExecution TemporalExecutor UncertaintySource UnitAnswer UnitSampling UnitSpread WHOLE_PATH_UNCERTAINTY_VERSION WholePathUncertainty WorkCounters WorldAtom WorldRoute capability_matrix counterfactual_crate decide decide_capability derive_whole_path_uncertainty mechanism_exports rows selective stream_identity whole_path_uncertainty
 allow mechanism crates/antecedent/src/analysis/discretized_composition.rs ArmDiagnostic ArtifactRefusal BRIDGE_CALIBRATION BRIDGE_ERROR_SCOPE BRIDGE_INFERENCE BridgeRefusal DISCRETIZED_SCM_ARTIFACT_VERSION DISCRETIZED_SCM_VERSION DiscreteArm DiscreteContrast DiscretizationMethod DiscretizationPlan DiscretizedCompositionArtifactRefusal DiscretizedContrast DiscretizedLinearGaussian InferenceParadigm MAX_BRIDGE_LEVELS MIN_BRIDGE_LEVELS PARITY_TABLE ParadigmCell ParityRoute ParityRow antecedent_model consume_discretized_scm discretized_scm discretized_scm_artifact export_discretized_scm mechanism_exports model_crate parity_row require_paradigm
 allow mechanism crates/antecedent/src/analysis/inverse_sources.rs MechanismFamily antecedent_model
@@ -874,7 +873,7 @@ suite.predictive_assessment_facade_oracle crates/antecedent/tests/predictive_ass
 allow design crates/antecedent/src/analysis/cohort_decision.rs BoundaryError DecisionContract SupportPolicy SupportedDecision TrustRequirement antecedent_design cohort_decision_input cohort_forward_claim cohort_mean_source cohort_trust_evidence composition_boundary decision_contract design_crate design_exports evaluate_with_support export
 allow design crates/antecedent/src/analysis/cross_world_execution.rs decide
 allow design crates/antecedent/src/analysis/decision_reliability.rs BatchPlan CalibrationCoordinate CandidateCoupling CandidateDraws CandidateOrigin CandidateSearchRecord CohortUtilityDraws ConfidenceSetBasis CoverageCell DECISION_RELIABILITY_KIND DERIVED_UNCERTAINTY_VERSION DecisionChoice DecisionDraws DecisionReliabilityArtifact DecisionReliabilityExpectation DerivedStanding DerivedUncertainty DrawSegment Functional IntervalMultiplicity IntervalRequest JointLawDeclaration JointLawStanding KnownOptimumDesign MIN_NORMAL_ESS NoiseCoupling NumericalComponent NumericalInterval NumericalIntervalMethod OffPolicyReturnDraws OptimalityConfidenceSet PointOnlyOutput ProbabilityInterval ProbabilityQuantity ProducerCarrier ProducerKind ProducerOutput PublishedRoute RankingRequest ReliabilityError ReliabilityReport ReliabilityRequest RiskTail RolloutNoise RolloutUtilityDraws SelectionComponent SelectionCorrectedInterval SelectionRule SelectionUncertainty SourceParadigm SourceUncertainty StreamId StreamPurpose ThresholdSide TruthKind UncertaintyReporting UtilityInterval ValidationKind ValidationPlan WithinStreamDependence antecedent_design artifact_kind_remedy assess consume coverage_design decision_reliability derive_uncertainty design_crate design_exports inverse_query_artifact license_route reach_carrier recognised_artifact_kind
-allow design crates/antecedent/src/analysis/inverse_sources.rs ComposedActionResponse ComposedFamily ComposedResponse FORWARD_ORIGIN_VERSION ForwardOrigin ForwardRepresentation ForwardSourceKind ForwardSourceRefusal InverseDemand InverseQuery InverseQueryArtifact LicensedForwardSource MAX_OBSERVATIONAL_SCENARIOS OBSERVATIONAL_SCENARIO_SCOPE_NOTE OBSERVATIONAL_SCENARIO_VERSION ObservationalScenarioError ObservationalScenarioQuery ObservationalScenarioResult OutcomeEvent ScenarioCell ScenarioCondition ScenarioReport SourcedInverseResult TransportDeclaration TransportReceipt TransportedRefusal TransportedResponse TransportedRoute TransportedValue antecedent_design cohort_forward_source composed_forward_source composed_forward_source_accepting decision_transported_source design_crate design_exports evaluate_inverse_on_source evaluate_observational_scenarios export forward_claim_digest inverse_forward_source inverse_observational_scenarios inverse_query query_needs_law seal_on_source seal_per_action_on_source transported_forward_source verify_observational_scenarios
+allow design crates/antecedent/src/analysis/inverse_sources.rs ComposedActionResponse ComposedFamily ComposedResponse FORWARD_ORIGIN_VERSION ForwardOrigin ForwardRepresentation ForwardSourceKind ForwardSourceRefusal InverseDemand InverseQuery InverseQueryArtifact LicensedForwardSource OBSERVATIONAL_SCENARIO_SCOPE_NOTE OBSERVATIONAL_SCENARIO_VERSION ObservationalScenarioError ObservationalScenarioQuery ObservationalScenarioResult OutcomeEvent ScenarioCell ScenarioCondition ScenarioReport SourcedInverseResult TransportDeclaration TransportReceipt TransportedRefusal TransportedResponse TransportedRoute TransportedValue antecedent_design cohort_forward_source composed_forward_source composed_forward_source_accepting decision_transported_source design_crate design_exports evaluate_inverse_on_source evaluate_observational_scenarios export forward_claim_digest inverse_forward_source inverse_observational_scenarios inverse_query query_needs_law seal_on_source seal_per_action_on_source transported_forward_source verify_observational_scenarios
 allow design crates/antecedent/src/analysis/sequential_evaluation.rs ActionRole ActionSpec ActionSupport BeliefTracker CensoringRule ComparisonKind ComparisonReport ComparisonRow ComparisonSpec ContingentPolicy DecisionReceipt DelayedOutcome EvaluationIdentities EvaluationLimits ExpectedEvaluation FiniteSequentialModel HistoryKey HistoryReceipt HistoryStep LoggedStep LoggedTrajectory MAX_ACTIONS MAX_HORIZON MAX_LOGGED_TRAJECTORIES MAX_POLICY_ENTRIES MAX_ROLLOUTS MAX_SEQUENTIAL_EVALUATION_ARTIFACT_BYTES MAX_STATES NodeKind ObservationChannel ObservationReceipt OffPolicyEstimate OffPolicyInput PolicyEvaluation PolicySpec RolloutConfig RolloutEstimate SEQUENTIAL_EVALUATION_ARTIFACT_FEATURE SEQUENTIAL_EVALUATION_ARTIFACT_VERSION SEQUENTIAL_EVALUATION_IDENTITY_VERSION SEQUENTIAL_EVALUATION_INFERENCE STREAM_SCHEME SequentialAssumptions SequentialEvaluationArtifact SequentialEvaluationBody SequentialEvaluationError SequentialRequest SequentialResult StoppingBoundary StreamRole VoiCheck VoiRequest antecedent_design compare_policies consume design_crate design_exports evaluate_off_policy evaluate_policy request_interval rollout_policy sequential_evaluation sequential_evaluation_artifact stream_uniform value_of_collecting_evidence
 allow design crates/antecedent/src/analysis/transport_revalidation.rs ForwardClaim NodeKind TransportedResponse TransportedRoute TransportedValue antecedent_design decision_transported_source forward_claim_digest inverse_forward_source inverse_query
 allow design crates/antecedent/src/analysis/transport_sensitivity.rs REFERENCE_ACTION_ID SensitivityArtifact TRANSPORTED_ACTION_ID TRANSPORT_ASSUMPTION_RANGE_INTERPRETATION TRANSPORT_SENSITIVITY_VERSION TransportAssumptionRange TransportPremise TransportRoute TransportSensitivityRefusal TransportSensitivitySpec TransportedResponse TransportedRoute TransportedValue ViolationFamily antecedent_design decision_transported_source design_crate design_exports sensitivity_decision transport_assumption_range transport_sensitivity
@@ -1110,7 +1109,7 @@ allow design crates/antecedent/src/analysis/joint_panel/experiment/native.rs Dec
 
 # Z06/Z07: fallback planning runs only after an identification refusal and only
 # when requested. A successful ordinary analysis never enters these design paths.
-allow design crates/antecedent/src/analysis/fallback.rs CandidateGeneration GraphIdentFlag antecedent_design failure_routes generate_candidates identifies structure_identification EvidencePlanRequest EvidencePlanResult STUDY_POPULATION evidence_plan plan_over_routes variable_names
+allow design crates/antecedent/src/analysis/fallback.rs CandidateGeneration GraphIdentFlag antecedent_design failure_routes generate_candidates identifies structure_identification EvidencePlanRequest EvidencePlanResult STUDY_POPULATION evidence_plan plan_over_routes variable_names graph_variable_names
 # Local closure/local binding names, not calls into antecedent-design.
 allow design crates/antecedent/src/analysis/execute/dbn_route_posterior.rs evaluate
 # Explicit JointPanel API methods: every corresponding record carries design via
@@ -1137,3 +1136,22 @@ allow design crates/antecedent/src/analysis/recovery_chain.rs variable_names
 allow design crates/antecedent/src/analysis/smoothed_dose.rs variable_names
 allow design crates/antecedent/src/counterfactual_id/artifact.rs variable_names
 allow design crates/antecedent/src/cross_world/artifact.rs variable_names
+
+# Reviewed additions after nested module moves. Numerical contrast execution and
+# general temporal world replay belong to the same keyed mechanism family as
+# their parent executors. Other references below are wire/result types, keyed
+# contract builders, or local name collisions, never an unrelated estimator call.
+mechanism crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs
+mechanism crates/antecedent/src/gcm/counterfactual_contrasts.rs
+mechanism crates/antecedent-io-core/src/temporal_counterfactual_general_artifact.rs
+# `seal` is the local contract seal value, not the design crate's seal function.
+allow design crates/antecedent/src/analysis/contract/claim.rs seal
+allow mechanism crates/antecedent/src/analysis/contract/claim.rs CounterfactualContrasts gcm
+# Snapshot construction only for the retained nested-counterfactual operation.
+allow mechanism crates/antecedent/src/analysis/contract/compile.rs NestedCounterfactualOperation gcm
+# Core reasoning labels a result's own uncertainty; this is the core wire type.
+allow mechanism crates/antecedent/src/analysis/contract/reasoning.rs UncertaintyComponent
+allow mechanism crates/antecedent/src/analysis/contract/wire.rs counterfactual_contrasts policy_value
+allow mechanism crates/antecedent/src/analysis/execute/route_call.rs ChangeAttribution
+# Categorical measurement functional variant, not a GCM outcome contrast.
+allow mechanism crates/antecedent/src/analysis/measurement_model.rs OutcomeContrast

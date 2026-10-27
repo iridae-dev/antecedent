@@ -4,8 +4,21 @@
   "source_treatment_mean": 8.0,
   "source_coef_variance": 0.05,
   "alpha": 1.0,
-  "alpha_multipliers": [0.0, 0.25, 0.5, 0.75, 1.0],
+  "alpha_multipliers": [
+    0.0,
+    0.25,
+    0.5,
+    0.75,
+    1.0
+  ],
   "require_finite_effect_means": true,
   "m1_closer_to_source_than_m0": true,
-  "notes": "P4E α-multiplier prior sensitivity under external composed prior + refute=Full"
+  "notes": "P4E \u03b1-multiplier prior sensitivity under external composed prior + refute=Full",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/bayesian.rs::prior_bank_alpha_sensitivity",
+  "evidence_proposition": "The external-prior alpha grid is retained, produces finite effect means and moves its endpoint closer to the source mean in this setup.",
+  "limitations": "A single sensitivity-direction and routing consistency check; no independent numerical posterior reference or calibration is established."
 }

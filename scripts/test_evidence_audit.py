@@ -29,6 +29,27 @@ from reference_compare import values_close
 
 
 class Classification(unittest.TestCase):
+    def test_software_fixture_cannot_be_promoted_to_known_truth_by_an_origin_tag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "expected.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "evidence_roles": ["software"],
+                        "oracle": {"kind": "external_package"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            row = {
+                "evidence_kind": "frozen_external_oracle",
+                "known_truth_fixture": "expected.json",
+            }
+            self.assertIn("software-only", evidence.fixture_kind_problems(root, row)[0])
+            path.write_text(json.dumps({"evidence_roles": None}), encoding="utf-8")
+            self.assertTrue(evidence.fixture_kind_problems(root, row))
+
     def test_retained_review_rejects_removed_assertions_and_changed_helpers(self):
         import hashlib
 

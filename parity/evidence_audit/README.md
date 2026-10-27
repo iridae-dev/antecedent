@@ -86,7 +86,7 @@ also has a separate timing/RSS receipt in `registry_timings.json`.
 
 The focused ordinary statistical target passes ten tests, retaining its existing
 ignored fixture writer. The new learner point assertion passes. Thirty-nine
-compiled evidence-gate fault controls and twenty-one audit/tooling controls pass.
+compiled evidence-gate fault controls and twenty-two audit/tooling controls pass.
 The eight existing independent reference-generator checks pass. The explicit
 DoWhy environment passes all seven public-API comparison tests. These results
 do not grant coverage or license the deferred calibration study.
@@ -121,8 +121,19 @@ evidence ledger now accounts for all 711 owned routes, including the previously
 missing continuous-conditioning, parameter-spread and measurement bindings.
 Their references distinguish exact conditional laws, uncalibrated posterior
 spread and refusal contracts; no interval status was promoted. The calibration surface
-check also exposes existing cross-facet/stale-allowance findings; no blanket
-allowance or replay waiver was introduced to hide them.
+check now passes with 470 paths in 222 facets. Reviewed repairs remove stale
+allowances, assign moved numerical counterfactual modules to mechanism, and
+include observation table posteriors and counterfactual transport in that
+dependency. Wire/result adapters and local-name collisions have exact reviewed
+allowances. Twenty-two dependency/facet controls pass, including the corrected
+SID caller inventory after its engine/derive split. No replay waiver or
+attestation was created or changed; historical waiver records remain intact.
+
+Five Bayesian configuration fixtures now explicitly name software-only roles,
+their exact assertions and bounded propositions (tags, catalog compatibility,
+finiteness and sensitivity direction). They supply no independent numerical
+truth. Both the report and gates preserve that distinction; an external-origin
+tag cannot promote a software-only fixture to known truth.
 
 Complete those reviews and repairs, broaden the remaining method-family grids,
 and repeat complete ordinary/feature/CI verification on a stable revision with

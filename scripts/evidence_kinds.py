@@ -110,6 +110,21 @@ def fixture_kind_problems(root: Path, row: dict) -> list[str]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         return [f"invalid fixture {fixture}: {error}"]
+    if not isinstance(data, dict):
+        return ["fixture must contain a JSON object"]
+    if "evidence_roles" in data:
+        roles = data["evidence_roles"]
+        if (
+            not isinstance(roles, list)
+            or not roles
+            or any(
+                role not in ("software", "scientific", "statistical_smoke", "process")
+                for role in roles
+            )
+        ):
+            return ["invalid fixture evidence_roles"]
+        if "scientific" not in roles:
+            return ["software-only fixture cannot establish independent known truth"]
     return fixture_review_problems(root, data) + kind_problems(
         row["evidence_kind"],
         data.get("oracle"),

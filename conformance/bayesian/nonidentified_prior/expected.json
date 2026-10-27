@@ -2,5 +2,12 @@
   "identification": "NotIdentified",
   "unidentified_mass": 1.0,
   "prior_recorded": true,
-  "notes": "priors do not create nonparametric identification"
+  "notes": "priors do not create nonparametric identification",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_source": "crates/antecedent/tests/bayesian.rs::nonidentified_prior",
+  "evidence_proposition": "The prior-bearing refusal retains NotIdentified, unidentified mass 1 and an assumption record.",
+  "limitations": "This checks declared result tags and bookkeeping; it does not prove nonparametric nonidentification or justify an identified posterior."
 }

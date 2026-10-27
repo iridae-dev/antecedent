@@ -115,7 +115,36 @@ def fixture_report(root: Path, path: Path) -> dict:
                     candidates.add(candidate)
     gaps = []
     gaps.extend(fixture_review_problems(root, data))
-    if not oracle.get("kind"):
+    roles = data.get("evidence_roles")
+    if roles is not None and (
+        not isinstance(roles, list)
+        or not roles
+        or any(
+            role not in ("software", "scientific", "statistical_smoke", "process")
+            for role in roles
+        )
+    ):
+        gaps.append("invalid_fixture_evidence_roles")
+    software_only = (
+        isinstance(roles, list)
+        and "software" in roles
+        and all(role in ("software", "statistical_smoke") for role in roles)
+    )
+    if software_only:
+        source, _, assertion = str(data.get("evidence_source", "")).partition("::")
+        source_path = in_repo(root, source)
+        if not source_path or not source_path.is_file() or not assertion:
+            gaps.append("software_fixture_missing_exact_assertion")
+        else:
+            gaps.extend(
+                rust_test_declaration_problems(source_path, assertion)
+                if source_path.suffix == ".rs"
+                else static_python_test(source_path, assertion)
+            )
+        for field in ("evidence_proposition", "limitations"):
+            if not isinstance(data.get(field), str) or not data[field].strip():
+                gaps.append(f"software_fixture_missing_{field}")
+    if not oracle.get("kind") and not software_only:
         gaps.append("oracle_origin_unrecorded")
     if oracle.get("kind") == "external_package" and not candidates:
         gaps.append("external_generator_not_retained")
@@ -127,6 +156,11 @@ def fixture_report(root: Path, path: Path) -> dict:
         .as_posix(),
         "sha256": digest(path),
         "oracle": oracle,
+        "evidence_roles": roles,
+        "evidence_kind": data.get("evidence_kind"),
+        "evidence_source": data.get("evidence_source"),
+        "evidence_proposition": data.get("evidence_proposition"),
+        "limitations": data.get("limitations"),
         "reference": data.get("reference"),
         "generation": data.get("generation"),
         "historical_reference": data.get("historical_reference"),
@@ -478,6 +512,31 @@ def render(report: dict) -> str:
         Counter(c["evidence_kind"] for c in report["claims"]).items()
     ):
         lines.append(f"| {kind} | {count} |")
+    software_fixtures = [
+        f for f in report["fixtures"] if f.get("evidence_roles") == ["software"]
+    ]
+    reviewed = [
+        f
+        for f in report["fixtures"]
+        if f["independence_review"].startswith("recorded_")
+    ]
+    lines += [
+        "",
+        "## Software-only fixture propositions",
+        "",
+        "These declarations supply no independent numerical truth or calibration license.",
+        "",
+    ]
+    for f in software_fixtures:
+        lines.append(
+            f"- `{f['path']}` → `{f['evidence_source']}`: {f['evidence_proposition']} {f['limitations']}"
+        )
+    lines += [
+        "",
+        f"Retained generator/assertion reviews with current digests: {len(reviewed)} of {len(report['fixtures'])} fixtures. This is separate from primary theorem correspondence.",
+        "",
+        f"Measured-record acceptance assertions: {len(report.get('calibration_acceptance_assertions', []))}; pending frozen-branch measurements.",
+    ]
     lines += ["", "## Claim-link findings", ""]
     for c in report["claims"]:
         if c["gaps"]:

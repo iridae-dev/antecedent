@@ -1,6 +1,10 @@
 {
-  "accepted_ids": ["match"],
-  "partial_ids": ["unnamed"],
+  "accepted_ids": [
+    "match"
+  ],
+  "partial_ids": [
+    "unnamed"
+  ],
   "rejected": [
     {
       "artifact_id": "wrong",
@@ -8,10 +12,21 @@
     }
   ],
   "partial_missing_contains": {
-    "unnamed": ["durable_coef_names"]
+    "unnamed": [
+      "durable_coef_names"
+    ]
   },
   "partial_mappable_contains": {
-    "unnamed": ["ate"]
+    "unnamed": [
+      "ate"
+    ]
   },
-  "notes": "P4A catalog compatibility only; hydrate / power-prior are later slices"
+  "notes": "P4A catalog compatibility only; hydrate / power-prior are later slices",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_source": "crates/antecedent/tests/bayesian.rs::prior_bank_catalog",
+  "evidence_proposition": "Metadata compatibility reports have the expected accepted, partial and rejected identities and missing/mappable labels.",
+  "limitations": "Catalog bookkeeping only; this fixture does not validate numerical prior content, posterior calibration or causal transport."
 }
