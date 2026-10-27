@@ -698,15 +698,20 @@ jobs:
 
       - name: script unit tests
         run: |
-          python3 scripts/test_ci_python_native.py
-          python3 scripts/test_calibration_key_aliases.py
-          python3 scripts/test_collect_coverage_records.py
-          python3 scripts/test_promotion_refusal_helpers.py
-          python3 scripts/test_publish_crates.py
-          python3 scripts/test_recover_published_crate.py
-          python3 scripts/test_release_support_delta.py
-          python3 scripts/test_transport_replay_contract.py
+          # Publication controls run after real notebook execution in docs.yml.
+          # Every deselected assertion is named in the execution receipt.
+          bash scripts/test.sh scripts --exclude-module test_docs_publication
           python3 scripts/verify_release_selftest.py
+
+      - name: Retain script test execution receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: script-test-execution
+          path: |
+            target/script-tests/
+            target/test-performance/*.json
+          if-no-files-found: error
 
       - name: pytest with coverage floor
         working-directory: python

@@ -30,6 +30,45 @@ from reference_compare import values_close
 
 
 class Classification(unittest.TestCase):
+    def test_script_runner_rejects_failed_skipped_and_missing_required_assertions(self):
+        import contextlib
+        import io
+        import run_script_tests as runner
+
+        def passing():
+            self.assertEqual(2 + 2, 4)
+
+        def failing():
+            self.fail("injected incorrect output")
+
+        def skipped():
+            raise unittest.SkipTest("injected required skip")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            report = Path(tmp) / "receipt.json"
+            def run(functions, *extra):
+                suite = unittest.TestSuite(unittest.FunctionTestCase(fn) for fn in functions)
+                with (
+                    patch.object(sys, "argv", ["runner", "--report", str(report), *extra]),
+                    patch.object(runner.unittest.defaultTestLoader, "discover", return_value=suite),
+                    patch.object(runner, "checkout", return_value={"commit": "fixture"}),
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    return runner.main()
+
+            self.assertEqual(run([passing]), 0)
+            self.assertEqual(run([failing]), 1)
+            self.assertEqual(json.loads(report.read_text(encoding="utf-8"))["failures"], ["failing"])
+            self.assertEqual(run([skipped]), 1)
+            self.assertEqual(json.loads(report.read_text(encoding="utf-8"))["unexpected_skips"], ["skipped"])
+            self.assertEqual(run([]), 1)
+            self.assertEqual(run([passing], "--exclude-module", "passing"), 1)
+            self.assertEqual(json.loads(report.read_text(encoding="utf-8"))["explicit_deselections"], ["passing"])
+            with self.assertRaises(SystemExit) as unknown:
+                run([passing], "--exclude-module", "unknown")
+            self.assertEqual(unknown.exception.code, 2)
+
     def test_cached_source_rejects_same_process_assertion_and_helper_changes(self):
         from _source_cache import source_cache
 

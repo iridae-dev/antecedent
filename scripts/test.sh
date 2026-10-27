@@ -6,7 +6,7 @@ cd "$ROOT"
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/test.sh [dev|rust|integration|scientific|docs|python-test|python|python-software|python-calibration-acceptance|all] [test arguments...]
+Usage: bash scripts/test.sh [dev|rust|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|all] [test arguments...]
 
   dev     Run a focused Rust selection with cheap test compilation (opt-level 0).
           Supply a package/target selection; numerical package overrides remain.
@@ -17,6 +17,8 @@ Usage: bash scripts/test.sh [dev|rust|integration|scientific|docs|python-test|py
   integration  Run Rust integration targets (excluding library unit tests).
   scientific   Run exact scientific assertions cited by the evidence registries.
                No calibration, replay or performance measurement is selected.
+  scripts Run discovered script unit tests in their isolated locked environment.
+          Empty selections and unexpected skipped assertions fail.
   python  Sync the locked dev environment, rebuild the release extension, run pytest.
           Set ANTECEDENT_SKIP_NATIVE_BUILD=1 to reuse an already current extension.
   python-test  Run pytest against the existing extension without sync/rebuild.
@@ -47,7 +49,7 @@ suite="${1:-rust}"
 if [[ $# -gt 0 ]]; then shift; fi
 case "$suite" in
   -h|--help) usage; exit 0 ;;
-  dev|rust|integration|scientific|docs|python-test|python|python-software|python-calibration-acceptance|all) ;;
+  dev|rust|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|all) ;;
   *) usage >&2; exit 2 ;;
 esac
 if [[ ( "$suite" == all || "$suite" == scientific ) && $# -gt 0 ]]; then
@@ -117,6 +119,7 @@ case "$suite" in
     rust_tests "$@" -E 'kind(test)'
     ;;
   scientific) python3 "$ROOT/scripts/evidence_audit.py" run-scientific ;;
+  scripts) uv run --frozen --script "$ROOT/scripts/run_script_tests.py" "$@" ;;
   python) python_tests "$@" ;;
   python-test|python-software|python-calibration-acceptance)
     (cd "$ROOT/python" && uv run --no-sync python "$ROOT/scripts/native_build_identity.py" check)
@@ -128,6 +131,7 @@ case "$suite" in
     (cd "$ROOT/python" && uv run --no-sync pytest "$@")
     ;;
   all)
+    uv run --frozen --script "$ROOT/scripts/run_script_tests.py"
     rust_tests "${workspace[@]}"
     doctests "${workspace[@]}"
     rust_tests -p antecedent-learn --features ml-full,ml-neural

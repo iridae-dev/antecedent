@@ -13,6 +13,47 @@ import calibration_family as family
 
 
 class FamilyTests(unittest.TestCase):
+    def test_only_full_object_identities_cache_source_reads(self):
+        family._immutable_source.cache_clear()
+        self.addCleanup(family._immutable_source.cache_clear)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "source.rs"
+            path.write_bytes(b"before")
+            self.assertEqual(family.read_source(root, path.name), b"before")
+            path.write_bytes(b"after")
+            self.assertEqual(family.read_source(root, path.name), b"after")
+            with patch.object(
+                family.subprocess,
+                "check_output",
+                side_effect=[
+                    b"fixed",
+                    b"head1",
+                    b"head2",
+                    b"tag1",
+                    b"tag2",
+                    b"short1",
+                    b"short2",
+                ],
+            ) as show:
+                for _ in range(2):
+                    self.assertEqual(
+                        family.read_source(root, path.name, "a" * 40), b"fixed"
+                    )
+                self.assertEqual(show.call_count, 1)
+                for ref, expected in (
+                    ("HEAD", b"head"),
+                    ("v1", b"tag"),
+                    ("abcdef", b"short"),
+                ):
+                    self.assertEqual(
+                        family.read_source(root, path.name, ref), expected + b"1"
+                    )
+                    self.assertEqual(
+                        family.read_source(root, path.name, ref), expected + b"2"
+                    )
+                self.assertEqual(show.call_count, 7)
+
     def test_roster_ignores_inherited_selection_and_needs_only_historical_inputs(self):
         gate = b"""#!/usr/bin/env bash
 set -eu

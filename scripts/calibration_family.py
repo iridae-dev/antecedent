@@ -171,8 +171,16 @@ def _source_paths(root: Path, sha: str | None) -> list[str]:
     )
 
 
+@cache
+def _immutable_source(root: Path, path: str, sha: str) -> bytes:
+    return subprocess.check_output(["git", "show", f"{sha}:{path}"], cwd=root)
+
+
 def read_source(root: Path, path: str, sha: str | None = None) -> bytes:
     if sha:
+        # Cache complete object identities; mutable refs and live files stay fresh.
+        if re.fullmatch(r"[0-9a-f]{40}", sha):
+            return _immutable_source(root.resolve(), path, sha)
         return subprocess.check_output(["git", "show", f"{sha}:{path}"], cwd=root)
     return (root / path).read_bytes()
 

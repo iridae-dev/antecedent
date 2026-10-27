@@ -82,6 +82,19 @@ ordinary feedback measurements are not performance acceptance evidence; Cargo
 build timings and nextest/pytest durations still separate build and execution
 costs. A failed-child control confirms that receipt generation preserves failure.
 
+`bash scripts/test.sh scripts` discovers all script unit tests in a locked,
+isolated Python environment. The full run executed 517 controls successfully in
+322.91 seconds, with two explicitly pending external-performance-probe consumers.
+CI records the three documentation-publication assertions as deselected here;
+the documentation job executes them after notebook rendering. Empty selections,
+unknown exclusions, failed assertions and unexpected skips fail the runner.
+
+Historical source reads now cache only full Git object identities. Live files,
+HEAD, tags and abbreviated references are reread, with mutation controls. The
+21 historical receipt controls passed in 49.43 seconds versus the earlier
+178.13-second run. Both are ordinary local feedback timings with different
+contention and checkout state, not a controlled release performance comparison.
+
 
 On this macOS arm64 host, the registry checker on the 1,594-row intermediate
 inventory took 82.90 seconds before per-crate target-map reuse and 3.42 seconds
@@ -107,7 +120,7 @@ assertions pass; the ten foundations assertions pass. These are fixed-input
 comparisons. Temporal Sobel uncertainty is checked only under explicit iid
 opt-in, and GAM fit outputs remain product regression pins.
 
-Thirteen retained reference reviews bind generator, transitive comparison
+Fourteen retained reference reviews bind generator, transitive comparison
 helper, lock, assertion source and fixture payload by digest. Gates reject
 changed inputs, expected outputs, tolerances, origins, assertions and helpers
 until reviewed again. Reviews record limited independence, redistribution
