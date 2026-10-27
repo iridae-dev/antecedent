@@ -19,6 +19,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/prior_support"
 evidence_test = "crates/antecedent-prob/tests/prior_support_oracle.rs"
 evidence_assertion = "coefficient_effect_variance_and_inverse_gamma_support_matches_oracle"
+evidence_fields = ["coefficient_priors.valid", "coefficient_priors.precision", "inverse_gamma_priors.valid", "effect_priors.valid", "known_variances.valid"]
+limitations = "Domain validation and reciprocal-variance precision only; normalization is upstream context, container/default/contrast rules are software policy. No product density, posterior or calibration proposition."
 notes = "PriorSet / GaussianCoefficientPrior / InvGamma; contrasts required for categoricals"
 
 [[capabilities]]

@@ -15,8 +15,51 @@
       }
     },
     "python": "3.12.7",
-    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 python /tmp/antecedent_prior_support_oracle.py", "generator_retained": false,
-    "generation_location": "temporary external harness; not retained"
+    "command": "uv run --frozen --script conformance/bayesian/prior_support/reference.py --check",
+    "generator_retained": true,
+    "generation_location": "retained isolated public-API harness",
+    "independent_fields": [
+      "coefficient_priors.valid",
+      "coefficient_priors.precision",
+      "inverse_gamma_priors.valid",
+      "effect_priors.valid",
+      "known_variances.valid"
+    ],
+    "limitations": "Product assertions exercise scalar prior domains and coefficient precision only. SciPy normalization and means are frozen reference context, not product density tests. Nonempty aligned vectors, contrast requirements and default priors are repository policy, not external scientific truth. No sampling or interval calibration.",
+    "reference_review": {
+      "scope": "24 frozen prior-domain cases, reciprocal-variance precision and upstream normalization context, reviewed separately from repository vector/default/contrast policies.",
+      "independence_basis": "New repository-authored public SciPy distribution/integration harness reads frozen inputs only. No product or upstream implementation/test helper imports; reference_compare performs structural and numeric comparison only. The product assertion validates domains and precision; upstream integrals do not exercise product densities.",
+      "historical_exposure": "Original temporary harness and author exposure cannot be reconstructed; preserved verbatim in historical_oracle. Current harness used public versioned distribution documentation and product assertion source, with no upstream implementation source.",
+      "redistribution": "Repository-authored harness under MIT OR Apache-2.0; SciPy/NumPy BSD-3-Clause dependencies remain isolated in the pinned environment. No upstream code or tests are copied into the product.",
+      "limitations": "Scalar normal and inverse-gamma domains plus coefficient precision only. Normalization/mean regeneration is context, not product density accuracy or posterior/sampling/interval calibration. Nonempty vectors, exact lengths and finite parameters are explicit local API policy.",
+      "sources": [
+        "https://docs.scipy.org/doc/scipy-1.14.1/reference/generated/scipy.stats.norm.html",
+        "https://docs.scipy.org/doc/scipy-1.14.1/reference/generated/scipy.stats.invgamma.html"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/prior_support/reference.py",
+          "sha256": "4bbe31d72669429118c06c0bbf75c79d04908230a93b72e398f846a768b0c5a2"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/prior_support/reference.py.lock",
+          "sha256": "87774211723939884a170d86e8670db50824f24dae6ac357b443a107d4915711"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "scripts/reference_compare.py",
+          "sha256": "79904dc8724633c835ca4bcd894bedee2938a1ecbb7d4e4eda02be0b2b27d134"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-prob/tests/prior_support_oracle.rs",
+          "sha256": "30160d9724fff15bca4d770a1aa7caa40cec8f18914f081948703eeb55f209fb"
+        }
+      ],
+      "fixture_payload_sha256": "3817f8c8f06d951724f8addd58ab3d94bc18f58e8fad989cca888a80fb904230"
+    }
   },
   "coefficient_priors": [
     {
@@ -216,5 +259,24 @@
   },
   "tolerance": {
     "normalization_atol": 2e-08
+  },
+  "historical_oracle": {
+    "kind": "external_package",
+    "project": "SciPy distribution support and normalization oracle",
+    "api": "scipy.stats.norm, scipy.stats.invgamma, scipy.integrate.quad",
+    "packages": {
+      "scipy": {
+        "version": "1.14.1",
+        "metadata_sha256": "dd4e8542e7e319158dfab943b04eb811ee99566a1911241f1a3226e07bfbae57"
+      },
+      "numpy": {
+        "version": "2.1.3",
+        "metadata_sha256": "56f003c44b0ee98d6adb1cb49f292d2ef07daaab7c7ba409ab2679c846fe6bf8"
+      }
+    },
+    "python": "3.12.7",
+    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 python /tmp/antecedent_prior_support_oracle.py",
+    "generator_retained": false,
+    "generation_location": "temporary external harness; not retained"
   }
 }

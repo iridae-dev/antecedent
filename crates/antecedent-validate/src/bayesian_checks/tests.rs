@@ -1173,9 +1173,8 @@ mod predictive_null_calibration {
 
     #[test]
     fn mcmc_publication_gate_checks_numeric_boundaries_and_missing_values() {
-        // The pinned oracle contract is a looser diagnostics-routing check
-        // (R-hat 1.05 / ESS 10); publication uses the library's documented
-        // stricter floor (R-hat 1.01 / ESS 100 per chain). Exercise the
+        // Publication uses the library's documented boundary
+        // (R-hat 1.01 / ESS 100 per chain). Exercise the
         // actual publication boundary numerically so a missing metric cannot
         // silently become a pass.
         let mut d = InferenceDiagnostics::analytic("hmc");
@@ -1233,26 +1232,6 @@ mod predictive_null_calibration {
                 "failure should name {expected_clause}"
             );
         }
-    }
-
-    #[test]
-    fn pinned_external_diagnostics_thresholds_are_distinct_from_publication() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../conformance/validate/bayesian_checks/expected.json"
-        ))
-        .unwrap();
-        let oracle = &fixture["contracts"];
-        let oracle_rhat = oracle["mcmc_max_rhat"].as_f64().unwrap();
-        let oracle_ess = oracle["mcmc_min_bulk_ess"].as_f64().unwrap();
-        assert!((oracle_rhat - 1.05).abs() < f64::EPSILON);
-        assert!((oracle_ess - 10.0).abs() < f64::EPSILON);
-        // These oracle bounds define only whether ArviZ-style diagnostic
-        // values agree with the pinned external contract. The production
-        // publication gate remains 1.01 and 100 effective draws per chain.
-        let publication_rhat_limit = 1.01;
-        let publication_ess_limit_per_chain = 100.0;
-        assert!(oracle_rhat > publication_rhat_limit);
-        assert!(oracle_ess < publication_ess_limit_per_chain);
     }
 
     #[test]

@@ -58,3 +58,22 @@ previous = "crates/antecedent-core/src/execution.rs::request_identity_conflicts_
 replacement = "crates/antecedent-core/src/execution/tests.rs::request_identity_conflicts_on_reused_key"
 disposition = "citation_repaired_after_existing_move"
 reason = "Repair a stale capability citation after execution became a module directory."
+
+[[case]]
+previous = "crates/antecedent-prob/tests/prior_support_oracle.rs::prior_fixture_records_scipy_pins_and_no_generator"
+replacement = "crates/antecedent-prob/tests/prior_support_oracle.rs::prior_fixture_records_retained_scipy_harness_and_historical_metadata"
+disposition = "renamed_and_strengthened"
+reason = "Require retained pinned generation and preserve the original exposure record instead of requiring deletion. Existing package pins and metadata checks remain."
+
+[[case]]
+previous = "crates/antecedent-prob/tests/prior_support_oracle.rs::coefficient_effect_variance_and_inverse_gamma_support_matches_oracle"
+replacement = "crates/antecedent-prob/tests/prior_support_oracle.rs::coefficient_effect_variance_and_inverse_gamma_support_matches_oracle"
+additional_replacements = ["crates/antecedent-prob/tests/prior_support_oracle.rs::frozen_distribution_normalization_context_is_consistent"]
+disposition = "reference_context_separated"
+reason = "Preserve every domain and precision assertion. Move frozen upstream normalization sanity checks into accurately labelled software context: they never executed product integration. Declare the exact independent fields."
+
+[[case]]
+previous = "crates/antecedent-validate/src/bayesian_checks/tests.rs::pinned_external_diagnostics_thresholds_are_distinct_from_publication"
+replacement = "crates/antecedent-validate/src/bayesian_checks/tests.rs::mcmc_publication_gate_checks_numeric_boundaries_and_missing_values"
+disposition = "constant_comparison_removed"
+reason = "The removed case only compared frozen policy numbers with locally constructed constants, exercising no product algorithm or upstream oracle. The existing replacement executes the real gate at inclusive boundaries and faults R-hat, ESS, missing tail ESS and missing divergences. Historical context numbers remain in the software-only fixture."
