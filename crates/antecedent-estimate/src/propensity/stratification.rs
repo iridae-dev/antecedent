@@ -420,7 +420,7 @@ impl PropensityStratification {
                     s,
                     &self.backend,
                     &mut workspace.propensity,
-                    &self.glm_options,
+                    &crate::propensity::propensity_glm_options(&self.glm_options, problem.overlap),
                 )
             }
             None => antecedent_stats::fit_propensity(
@@ -430,7 +430,7 @@ impl PropensityStratification {
                 t,
                 &self.backend,
                 &mut workspace.propensity,
-                &self.glm_options,
+                &crate::propensity::propensity_glm_options(&self.glm_options, problem.overlap),
             ),
         };
         let Ok(fit) = fit else {

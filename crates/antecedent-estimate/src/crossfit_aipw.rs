@@ -32,8 +32,8 @@ use crate::crossfit_plan::{
 use crate::error::EstimationError;
 use crate::propensity::{
     FailedFit, FallbackRecord, PreparedPropensityProblem, RidgeFoldInput, RidgeFoldSelection,
-    clamp_scores, clip_of, fallback_provenance, fit_penalized_fold, gather,
-    require_interior_propensities, split_by_treatment,
+    clamp_scores, clip_of, fallback_provenance, fit_penalized_fold, gather, propensity_fit_error,
+    propensity_glm_options, require_interior_propensities, split_by_treatment,
 };
 use crate::scores::{ScoreColumn, ScoreTable};
 
@@ -322,6 +322,7 @@ impl PassInputs<'_> {
         (design_valid, valid): (&[f64], &[usize]),
     ) -> Result<Vec<f64>, EstimationError> {
         let ncols = self.ncols;
+        let glm_options = &propensity_glm_options(self.glm_options, self.problem.overlap);
         let fit = match self.sampling {
             Some(weights) => antecedent_stats::fit_propensity_weighted(
                 design_train,
@@ -331,7 +332,7 @@ impl PassInputs<'_> {
                 &gather(weights, train),
                 &self.backend,
                 &mut stage.workspace,
-                self.glm_options,
+                glm_options,
             ),
             None => fit_propensity(
                 design_train,
@@ -340,14 +341,10 @@ impl PassInputs<'_> {
                 t_train,
                 &self.backend,
                 &mut stage.workspace,
-                self.glm_options,
+                glm_options,
             ),
         }
-        .map_err(crate::error::EstimationError::from)
-        .and_then(|fit| {
-            fit.glm.require_ok().map_err(crate::error::EstimationError::from)?;
-            Ok(fit)
-        })
+        .map_err(propensity_fit_error)
         .inspect_err(|error| *stage.failed = Some(FailedFit::from_error(fold, error)))?;
         crate::crossfit_cache::record_completed_fold_fit();
         let mut e_valid = vec![0.0; valid.len()];

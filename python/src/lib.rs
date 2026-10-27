@@ -1013,6 +1013,10 @@ pub(crate) struct EstimateSection {
     /// Minimum estimated propensity score. `None` on the temporal DTO.
     #[pyo3(get)]
     pub(crate) overlap_propensity_min: Option<f64>,
+    /// Fraction of rows a declared overlap trim excluded (0 without a trim); the estimate
+    /// targets the retained common-support rows. `None` on the temporal DTO.
+    #[pyo3(get)]
+    pub(crate) overlap_excluded_fraction: Option<f64>,
     /// Per-arm / per-threshold interventional means or exceedance probabilities.
     #[pyo3(get)]
     functional_means: Option<Vec<f64>>,
@@ -1352,6 +1356,8 @@ pub(crate) fn shared_study_sections(
     let overlap_ess = estimate.diagnostics.overlap_report.as_ref().and_then(|r| r.ess);
     let overlap_propensity_min =
         estimate.diagnostics.overlap_report.as_ref().map(|r| r.propensity_min);
+    let overlap_excluded_fraction =
+        estimate.diagnostics.overlap_report.as_ref().map(|r| r.excluded_fraction);
     let estimate = EstimateSection {
         ate: estimate.ate.is_finite().then_some(estimate.ate),
         se_analytic: estimate.se_analytic(),
@@ -1360,6 +1366,7 @@ pub(crate) fn shared_study_sections(
         method: method.clone(),
         overlap_ess,
         overlap_propensity_min,
+        overlap_excluded_fraction,
         functional_means: estimate.scores.inference.as_ref().map(|s| s.raw_means.clone()).or_else(
             || {
                 estimate

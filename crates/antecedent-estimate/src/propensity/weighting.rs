@@ -605,7 +605,7 @@ impl PropensityWeighting {
                     s,
                     &self.backend,
                     &mut workspace.propensity,
-                    &self.glm_options,
+                    &crate::propensity::propensity_glm_options(&self.glm_options, problem.overlap),
                 )
             }
             None => antecedent_stats::fit_propensity_in_place(
@@ -615,7 +615,7 @@ impl PropensityWeighting {
                 t,
                 &self.backend,
                 &mut workspace.propensity,
-                &self.glm_options,
+                &crate::propensity::propensity_glm_options(&self.glm_options, problem.overlap),
             ),
         };
         if fitted.is_err() {

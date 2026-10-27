@@ -288,6 +288,7 @@ class EstimateView(ResultModel):
     method: str
     overlap_ess: float | None = None
     overlap_propensity_min: float | None = None
+    overlap_excluded_fraction: float | None = None
     mediation: MediationView | None = None
     functional_means: tuple[float, ...] | None = None
     exceedance_cdf: tuple[float, ...] | None = None

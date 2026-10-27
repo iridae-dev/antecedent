@@ -71,6 +71,7 @@ Common remedies:
 | `score_table_unavailable` / `recalc.unavailable_data` | The request needs the data or a fit; supply the data and refit, or ask only for a same-row reweighting of the frozen scores. |
 | `composition_bundle.node_not_found` | Add the node before connecting it (`NodeNotFoundRefusal.offending` is the missing id). |
 | `invalid_argument` | Fix the argument named in `detail` and `offending`. |
+| `positivity_violated` (`propensity.boundary_saturated`) | The propensity model gives some rows a probability within 1e-8 of 0 or 1 and no overlap policy is declared. Declare `Overlap(trim=...)` to estimate on the common-support population (`estimate.overlap_excluded_fraction` reports the exclusion), declare a clip that bounds the weights, restrict the population, or obtain a design that produces both treatments. `refusal_fields` carries `boundary_count` and `boundary_margin`. |
 
 See also the [refusal recipes](../guides/refusal-recipes.md) for the refusal-handling pattern in
 context.

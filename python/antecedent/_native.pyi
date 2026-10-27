@@ -950,6 +950,7 @@ class EstimateSection:
     method: str
     overlap_ess: float | None
     overlap_propensity_min: float | None
+    overlap_excluded_fraction: float | None
     functional_means: list[float] | None
     exceedance_cdf: list[float] | None
     monotone_rearranged: bool

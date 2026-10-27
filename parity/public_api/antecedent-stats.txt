@@ -3368,6 +3368,7 @@ pub field antecedent_stats::GlmFit::penalized: bool
 pub field antecedent_stats::GlmFit::separated: bool
 pub field antecedent_stats::GlmLaplaceFit::covariance: alloc::vec::Vec<f64>
 pub field antecedent_stats::GlmLaplaceFit::fit: antecedent_stats::GlmFit
+pub field antecedent_stats::GlmOptions::admit_boundary_saturation: bool
 pub field antecedent_stats::GlmOptions::max_iter: u32
 pub field antecedent_stats::GlmOptions::nb_alpha: antecedent_stats::NbAlphaPolicy
 pub field antecedent_stats::GlmOptions::ridge_on_separation: core::option::Option<f64>
@@ -4157,6 +4158,7 @@ pub fn <antecedent_stats::GaussianMixtureDensity>::fn density(&self, value: f64)
 pub fn <antecedent_stats::GaussianMixtureDensity>::fn new(means: &[f64], weights: core::option::Option<&[f64]>, standard_deviation: f64) -> core::result::Result<Self, antecedent_stats::StatsError>
 pub fn <antecedent_stats::GlmFamily>::fn mean_from_eta(self, eta: f64) -> f64
 pub fn <antecedent_stats::GlmFit>::fn require_ok(&self) -> core::result::Result<(), antecedent_stats::StatsError>
+pub fn <antecedent_stats::GlmOptions>::const fn admitting_boundary_saturation(self, admit: bool) -> Self
 pub fn <antecedent_stats::GlmOptions>::const fn new(max_iter: u32, tol: f64) -> Self
 pub fn <antecedent_stats::GlmOptions>::const fn without_separation_ridge(self) -> Self
 pub fn <antecedent_stats::Gpdc>::const fn length_scale(&self) -> f64

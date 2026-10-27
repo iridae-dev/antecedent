@@ -180,6 +180,7 @@ impl PropensityModel {
         workspace: &mut PropensityWorkspace,
         options: &GlmOptions,
     ) -> Result<Self, EstimationError> {
+        let options = &propensity_glm_options(options, problem.overlap);
         let fit = match problem.sampling_weights.as_ref() {
             Some(sampling) => antecedent_stats::fit_propensity_weighted(
                 &problem.design_matrix,
@@ -201,8 +202,7 @@ impl PropensityModel {
                 options,
             ),
         }
-        .map_err(crate::error::EstimationError::from)?;
-        fit.glm.require_ok().map_err(crate::error::EstimationError::from)?;
+        .map_err(propensity_fit_error)?;
         let clip = clip_of(problem.overlap);
         let mut clipped_scores = fit.scores.clone();
         if let Some(c) = clip {
@@ -236,6 +236,57 @@ pub(crate) fn clamp_linear_predictor(eta: f64, clip: Option<f64>) -> f64 {
         }
         None => eta,
     }
+}
+
+/// GLM options for a propensity fit under `overlap`: a declared clip or trim governs rows
+/// whose probability reaches the boundary, so such a fit is admitted
+/// ([`GlmOptions::admit_boundary_saturation`]) and the policy applies to those rows.
+pub(crate) fn propensity_glm_options(options: &GlmOptions, overlap: OverlapPolicy) -> GlmOptions {
+    let (clip, trim) = overlap_clip_trim(overlap);
+    options.admitting_boundary_saturation(clip.is_some() || trim.is_some())
+}
+
+/// The refusal of a failed propensity fit. A converged fit whose probabilities reach within
+/// `1e-8` of 0 or 1 (refused only when no overlap clip or trim is declared) means some rows
+/// have essentially no chance of the other treatment: a positivity problem in the data, not a
+/// numerical one. It refuses as `positivity_violated`, keeping the fit's diagnostics and
+/// naming the overlap policies that would license an answer. Every other failure keeps its
+/// own refusal.
+pub(crate) fn propensity_fit_error(error: antecedent_stats::StatsError) -> EstimationError {
+    let saturated = matches!(
+        error,
+        antecedent_stats::StatsError::GlmRefused {
+            kind: antecedent_stats::GlmRefusalKind::BoundarySaturated,
+            ..
+        }
+    );
+    let refused = EstimationError::from(error);
+    if !saturated {
+        return refused;
+    }
+    let mut fields = refused.refusal_fields().map(std::borrow::Cow::into_owned).unwrap_or_default();
+    let rows = fields.boundary_count.map_or_else(
+        || "some rows".to_owned(),
+        |count| format!("{count} row{}", if count == 1 { "" } else { "s" }),
+    );
+    fields.remedy = Some(
+        "declare an overlap trim to estimate on the common-support population (the target \
+         changes and the excluded fraction is reported), declare a clip that bounds the weights, \
+         restrict the population or covariates to where both treatments occur, or obtain data \
+         or a design that produces both treatments there"
+            .to_owned(),
+    );
+    EstimationError::refused_detail_with_fields(
+        antecedent_core::reason_code!("positivity_violated"),
+        "propensity.boundary_saturated",
+        format!(
+            "the propensity model gives {rows} a probability of treatment within 1e-8 of 0 or 1, \
+             so those rows have essentially no chance of the other treatment and an \
+             inverse-probability weight is unsupported there. Declare an overlap trim or clip, \
+             or restrict the population to where both treatments occur"
+        ),
+        fields,
+    )
 }
 
 /// Refuse propensities that are exactly 0 or 1 (or not finite): they carry an infinite

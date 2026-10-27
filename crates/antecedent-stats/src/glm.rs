@@ -115,6 +115,11 @@ pub struct GlmOptions {
     ///
     /// Default is [`DEFAULT_RIDGE_ON_SEPARATION`].
     pub ridge_on_separation: Option<f64>,
+    /// Propensity fits only: accept a converged, unseparated fit whose probabilities reach
+    /// within `1e-8` of 0 or 1. A caller sets this when its declared overlap policy (a clip or
+    /// a trim) governs those rows; the fit still records `boundary_saturated`, the margin and
+    /// the count. Every other fit ignores it. Default `false`.
+    pub admit_boundary_saturation: bool,
 }
 
 impl Default for GlmOptions {
@@ -124,6 +129,7 @@ impl Default for GlmOptions {
             tol: 1e-8,
             nb_alpha: NbAlphaPolicy::MethodOfMoments,
             ridge_on_separation: Some(DEFAULT_RIDGE_ON_SEPARATION),
+            admit_boundary_saturation: false,
         }
     }
 }
@@ -137,7 +143,15 @@ impl GlmOptions {
             tol,
             nb_alpha: NbAlphaPolicy::MethodOfMoments,
             ridge_on_separation: Some(DEFAULT_RIDGE_ON_SEPARATION),
+            admit_boundary_saturation: false,
         }
+    }
+
+    /// These options admitting a boundary-saturated propensity fit when `admit` holds (see
+    /// [`Self::admit_boundary_saturation`]).
+    #[must_use]
+    pub const fn admitting_boundary_saturation(self, admit: bool) -> Self {
+        Self { admit_boundary_saturation: admit, ..self }
     }
 
     /// These options with the separation-ridge refit turned off.

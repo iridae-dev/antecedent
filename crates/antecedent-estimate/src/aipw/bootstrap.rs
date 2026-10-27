@@ -608,7 +608,7 @@ impl AipwAte {
                 case_weights,
                 &self.backend,
                 &mut workspace.propensity,
-                &self.glm_options,
+                &crate::propensity::propensity_glm_options(&self.glm_options, problem.overlap),
             )
         };
         // The unweighted fit this replaces was observed as a GLM fit attempt; the sampling-

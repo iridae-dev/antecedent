@@ -111,3 +111,45 @@ def test_default_overlap_is_the_native_default_policy():
     assert Overlap().clip == OMITTED["overlap_clip"] == 0.01
     assert OMITTED["overlap_trim"] is None
     assert Overlap().trim is None
+
+
+def _saturated(n: int = 2000, seed: int = 11) -> dict[str, np.ndarray]:
+    """A strong, converged propensity model whose tail scores reach within 1e-8 of 0 or 1."""
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=n)
+    t = (rng.uniform(size=n) < _sigmoid(9.0 * z)).astype(float)
+    y = t + z + rng.normal(size=n)
+    return {"t": t, "y": y, "z": z}
+
+
+def _saturated_outcome(estimator: Any) -> Any:
+    return ant.analyze(
+        _saturated(),
+        graph=STATIC_DAG,
+        query=ant.AverageEffect("t", "y"),
+        estimator=estimator,
+        refute="none",
+        inference=ant.Frequentist(bootstrap=0),
+    )
+
+
+def test_saturated_propensities_without_an_overlap_policy_refuse_as_positivity():
+    outcome = _saturated_outcome(PropensityWeighting(bootstrap=0, overlap=Overlap(clip=None)))
+    refusal = outcome.refusal
+    assert refusal is not None
+    assert refusal.code == "positivity_violated"
+    assert "within 1e-8 of 0 or 1" in refusal.message
+    assert "overlap trim" in refusal.remedy
+    fields = refusal.fields["refusal_fields"]
+    assert fields["reason"] == "boundary_saturated" and fields["boundary_count"] > 0
+
+
+@pytest.mark.parametrize(
+    "overlap", [Overlap(clip=None, trim=0.01), Overlap(clip=0.01), Overlap()], ids=str
+)
+@pytest.mark.parametrize("estimator", [Aipw, PropensityWeighting])
+def test_a_declared_overlap_policy_governs_saturated_propensities(
+    estimator: Any, overlap: Overlap
+) -> None:
+    result = require_success(_saturated_outcome(estimator(bootstrap=0, overlap=overlap)))
+    assert np.isfinite(result.answer.value)

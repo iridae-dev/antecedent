@@ -38,6 +38,16 @@ impl PropensityWorkspace {
     }
 }
 
+/// Refuse a propensity fit as [`GlmFit::require_ok`] does, except that a converged,
+/// unseparated fit whose probabilities reach the boundary is accepted when `options` admits
+/// it ([`GlmOptions::admit_boundary_saturation`]).
+fn require_propensity_glm(glm: &GlmFit, options: &GlmOptions) -> Result<(), StatsError> {
+    if options.admit_boundary_saturation && glm.converged && !glm.separated {
+        return Ok(());
+    }
+    glm.require_ok()
+}
+
 /// Fit propensity scores: logistic regression of binary treatment on covariates.
 ///
 /// `x_colmajor` is column-major with an intercept column (typically column 0 all ones)
@@ -64,7 +74,7 @@ pub fn fit_propensity(
         workspace,
         &options.without_separation_ridge(),
     )?;
-    fit.glm.require_ok()?;
+    require_propensity_glm(&fit.glm, options)?;
     Ok(fit)
 }
 
@@ -96,7 +106,7 @@ pub fn fit_propensity_in_place(
         workspace,
         &options.without_separation_ridge(),
     )?;
-    glm.require_ok()?;
+    require_propensity_glm(&glm, options)?;
     predict_propensity(x_colmajor, nrows, ncols, &glm.coefficients, &mut workspace.scores)?;
     Ok(glm)
 }
@@ -134,7 +144,7 @@ pub fn fit_propensity_weighted_in_place(
         &mut workspace.ols,
         &options.without_separation_ridge(),
     )?;
-    glm.require_ok()?;
+    require_propensity_glm(&glm, options)?;
     predict_propensity(x_colmajor, nrows, ncols, &glm.coefficients, &mut workspace.scores)?;
     Ok(glm)
 }
