@@ -263,6 +263,23 @@ class SamplingWeightsView(ResultModel):
         return self.rows_used / self.effective_sample_size
 
 
+class CounterfactualContrastView(ResultModel):
+    """One outcome's unit-level contrast of a multi-outcome or joint-baseline counterfactual.
+
+    The fields are those the single-outcome result publishes on ``AnalysisResult``
+    (``unit_effects``, ``unit_effect_intervals``, ``unit_extrapolative``) with the
+    mean effect and its standard error, for the named ``outcome``.
+    """
+
+    outcome: str
+    mean_effect: float
+    standard_error: float | None = None
+    unit_effects: Sequence[float]
+    unit_effect_intervals: Sequence[tuple[float, float]] | None = None
+    unit_extrapolative: Sequence[bool] | None = None
+    unit_effects_homogeneous: bool = False
+
+
 class EstimateView(ResultModel):
     ate: float | None
     se_analytic: float
@@ -1021,6 +1038,10 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: support (covariate cell or abducted disturbance). Counts are in the
     #: ``gcm.counterfactual.support`` diagnostic.
     unit_extrapolative: Sequence[bool] | None = None
+    #: One contrast per outcome, in the query's order, when a ``Counterfactual`` named
+    #: ``also_outcomes`` or a joint baseline; the first is the one ``unit_effects`` and
+    #: the other per-unit fields above publish. ``None`` for a single-outcome query.
+    counterfactual_contrasts: tuple[CounterfactualContrastView, ...] | None = None
     assumptions: Sequence[str] | None = None
     support: Sequence[str] | None = None
     reasoning: ReasoningSlots | None = None

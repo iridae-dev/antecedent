@@ -70,6 +70,11 @@ class Execution:
     Scientific declarations and statistical budgets belong to the query,
     estimator and inference objects. Observers are bound to each executing run;
     retaining this policy never retains a completed run's exception scope.
+
+    ``callback_failure_capacity`` bounds how many distinct callback failures one
+    executing run retains so each can be attributed to its original exception
+    (default 256, nonnegative). A run that exceeds it still fails with its own
+    error; only the original-exception attribution of the surplus is dropped.
     """
 
     seed: int = 1
@@ -82,11 +87,15 @@ class Execution:
         default=None, repr=False, compare=False
     )
     on_stage: Callable[..., None] | None = field(default=None, repr=False, compare=False)
+    callback_failure_capacity: int = 256
     _handle: Any = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         _integer(self.seed, "seed")
         _integer(self.threads, "threads", positive=True)
+        if self.callback_failure_capacity is None:
+            raise CausalTypeError("callback_failure_capacity must be an integer")
+        _integer(self.callback_failure_capacity, "callback_failure_capacity")
         if self.threads is not None and self.threads > 2**32 - 1:
             raise CausalValueError("threads exceeds the native thread range")
         if not isinstance(self.limits, ResourceLimits) or not isinstance(self.cache, CachePolicy):
@@ -111,6 +120,7 @@ class Execution:
                 kernel=self.kernels,
                 cancel=self.cancel,
                 on_progress=self.on_progress,
+                callback_failure_capacity=self.callback_failure_capacity,
             ),
         )
 
@@ -144,6 +154,7 @@ def native_controls(
     cancel: str | None = None,
     memory: str | None = None,
     on_progress: str | None = None,
+    callback_failure_capacity: str | None = None,
 ) -> dict[str, Any]:
     """The loose control keywords one native entry takes, read from an ``Execution``.
 
@@ -166,4 +177,6 @@ def native_controls(
         controls[memory] = execution.limits.memory_bytes
     if on_progress is not None:
         controls[on_progress] = execution.on_progress
+    if callback_failure_capacity is not None:
+        controls[callback_failure_capacity] = execution.callback_failure_capacity
     return controls

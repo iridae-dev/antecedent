@@ -3,10 +3,11 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{EstimatorId, IdentifierId, Study};
-use antecedent_core::{AverageEffectQuery, CausalQuery, ResponseQuery};
+use antecedent_core::{AverageEffectQuery, CausalQuery, Intervention, ResponseQuery, Value};
 use antecedent_data::{TableView, TabularData};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
+use std::sync::Arc;
 
 use super::{
     PrepareRequest, PyPreparedAnalysis, StaticClassGraph, apply_estimator, configured_spec,
@@ -433,7 +434,8 @@ impl PyPreparedAnalysis {
     /// Static mediation and counterfactuals retain the same staged result axes.
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, kind, treatment, outcome, *, mediators=Vec::new(),
-        contrast="mediated", control_level=0.0, active_level=1.0, accepted=false, seed=1,
+        contrast="mediated", control_level=0.0, active_level=1.0, extra_outcomes=Vec::new(),
+        joint_active=Vec::new(), joint_control=Vec::new(), accepted=false, seed=1,
         threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_static_kind(
@@ -448,6 +450,9 @@ impl PyPreparedAnalysis {
         contrast: &str,
         control_level: f64,
         active_level: f64,
+        extra_outcomes: Vec<String>,
+        joint_active: Vec<(String, f64)>,
+        joint_control: Vec<(String, f64)>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -468,6 +473,22 @@ impl PyPreparedAnalysis {
             control_level,
             active_level,
         )?;
+        if kind == "counterfactual" {
+            query = widen_counterfactual(
+                query,
+                data.schema(),
+                &extra_outcomes,
+                &joint_active,
+                &joint_control,
+            )?;
+        } else if !extra_outcomes.is_empty()
+            || !joint_active.is_empty()
+            || !joint_control.is_empty()
+        {
+            return Err(crate::value_err(
+                "additional outcomes and joint interventions apply to a counterfactual only",
+            ));
+        }
         if let (CausalQuery::Mediation(q), Some(population)) =
             (&mut query, req.opts.target_population.clone())
         {
@@ -531,4 +552,53 @@ impl PyPreparedAnalysis {
             req.finish_applied(builder, false)
         })
     }
+}
+
+/// Widen a single-outcome counterfactual with further outcomes and a joint baseline.
+///
+/// `joint_active` adds simultaneous interventions to the active world and `joint_control`
+/// the matching ones to the control world; the query's own validation requires both worlds
+/// to intervene on the same variables.
+fn widen_counterfactual(
+    query: CausalQuery,
+    schema: &antecedent_core::CausalSchema,
+    extra_outcomes: &[String],
+    joint_active: &[(String, f64)],
+    joint_control: &[(String, f64)],
+) -> PyResult<CausalQuery> {
+    let CausalQuery::Counterfactual(mut cf) = query else {
+        return Ok(query);
+    };
+    if !extra_outcomes.is_empty() {
+        let mut outcomes = cf.outcomes.to_vec();
+        for name in extra_outcomes {
+            let id = schema.id_of(name).map_err(py_err)?;
+            if outcomes.contains(&id) {
+                return Err(crate::value_err(format!("outcome {name} is listed twice")));
+            }
+            outcomes.push(id);
+        }
+        cf.outcomes = Arc::from(outcomes);
+    }
+    if joint_active.is_empty() != joint_control.is_empty() {
+        return Err(crate::value_err(
+            "a joint baseline needs further interventions in both the active and control worlds",
+        ));
+    }
+    if !joint_active.is_empty() {
+        let mut active = cf.interventions.to_vec();
+        let mut control = cf.control_world();
+        for (name, level) in joint_active {
+            let id = schema.id_of(name).map_err(py_err)?;
+            active.push(Intervention::set(id, Value::f64(*level)));
+        }
+        for (name, level) in joint_control {
+            let id = schema.id_of(name).map_err(py_err)?;
+            control.push(Intervention::set(id, Value::f64(*level)));
+        }
+        cf.interventions = Arc::from(active);
+        cf = cf.with_joint_control(control);
+    }
+    cf.validate().map_err(|error| crate::value_err(error.to_string()))?;
+    Ok(CausalQuery::Counterfactual(cf))
 }

@@ -194,6 +194,20 @@ class AteAnalysisResult:
     unit_effect_intervals_level: float | None
     unit_effect_intervals_method: str | None
     unit_extrapolative: list[bool] | None
+    counterfactual_contrasts: (
+        list[
+            tuple[
+                str,
+                float,
+                float | None,
+                list[float],
+                list[tuple[float, float]] | None,
+                list[bool] | None,
+                bool,
+            ]
+        ]
+        | None
+    )
     assumptions: list[str]
     support_diagnostics: list[str]
     ate: float
@@ -2477,6 +2491,9 @@ class PreparedAnalysis:
         contrast: str = "mediated",
         control_level: float = 0.0,
         active_level: float = 1.0,
+        extra_outcomes: list[str] = ...,
+        joint_active: list[tuple[str, float]] = ...,
+        joint_control: list[tuple[str, float]] = ...,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,

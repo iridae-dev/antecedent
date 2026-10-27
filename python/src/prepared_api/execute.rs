@@ -309,7 +309,10 @@ impl PyPreparedAnalysis {
             let mut bytes = Vec::new();
             artifact.write_to(&mut bytes).map_err(py_err)?;
             bytes
-        } else if result.mediation().is_some() || result.counterfactual().is_some() {
+        } else if result.mediation().is_some()
+            || result.counterfactual().is_some()
+            || result.counterfactual_contrasts().is_some()
+        {
             let wire = result
                 .static_result_wire(self.inner.query(), self.inner.population_registry())
                 .map_err(|e| match e {

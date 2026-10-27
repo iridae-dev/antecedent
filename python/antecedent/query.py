@@ -603,6 +603,13 @@ class Counterfactual:
     uncertainty is unavailable. Bayesian ``none`` publishes a mechanism
     posterior and per-draw AAP unit effects. Nested and accepted forms stay
     refused.
+
+    ``also_outcomes`` names further outcomes read from the same abduction, so the
+    result carries one contrast per outcome (``outcome`` first). ``active_interventions``
+    and ``control_interventions`` map further variables to the levels set
+    simultaneously with ``treatment`` in the active and control worlds (a joint
+    baseline); both worlds must intervene on the same variables. With none of the
+    three, the query and its result are the single-outcome counterfactual.
     """
 
     treatment: str
@@ -610,7 +617,36 @@ class Counterfactual:
     _: KW_ONLY
     control_level: float = 0.0
     active_level: float = 1.0
+    also_outcomes: Sequence[str] = ()
+    active_interventions: Mapping[str, float] = field(default_factory=dict)
+    control_interventions: Mapping[str, float] = field(default_factory=dict)
     kind: Literal["counterfactual"] = field(default="counterfactual", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.also_outcomes, str):
+            raise CausalValueError("also_outcomes must be a sequence of variable names")
+        also = tuple(self.also_outcomes)
+        for name in also:
+            _require_name("also_outcomes", name)
+        if len({self.outcome, *also}) != 1 + len(also):
+            raise CausalValueError("a counterfactual lists each outcome once")
+        active = {str(k): float(v) for k, v in dict(self.active_interventions).items()}
+        control = {str(k): float(v) for k, v in dict(self.control_interventions).items()}
+        for name, level in (*active.items(), *control.items()):
+            _require_name("joint intervention", name)
+            _require_finite("joint intervention level", level)
+        if self.treatment in active or self.treatment in control:
+            raise CausalValueError("the treatment is not repeated among the joint interventions")
+        if set(active) != set(control):
+            raise CausalValueError(
+                "a joint baseline intervenes on the same variables in the active and control worlds"
+            )
+        coerce_fields(
+            self,
+            also_outcomes=also,
+            active_interventions=active,
+            control_interventions=control,
+        )
 
 
 @dataclass(frozen=True, slots=True)

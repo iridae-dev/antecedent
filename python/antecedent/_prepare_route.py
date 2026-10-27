@@ -2286,6 +2286,15 @@ class _PrepareRoute:
             contrast=query.contrast if isinstance(query, MediationEffect) else "mediated",
             control_level=query.control_level,
             active_level=query.active_level,
+            **(
+                {
+                    "extra_outcomes": list(query.also_outcomes),
+                    "joint_active": list(query.active_interventions.items()),
+                    "joint_control": list(query.control_interventions.items()),
+                }
+                if isinstance(query, Counterfactual)
+                else {}
+            ),
             accepted=self.accepted,
             **self._common(),
         )

@@ -77,6 +77,7 @@ from .results import (
     ValidationView,
 )
 from .results._views import (
+    CounterfactualContrastView,
     DropReasonView,
     GroupAccountingView,
     MissingVariableView,
@@ -215,6 +216,27 @@ def _unit_effect_intervals_from_raw(raw: Any) -> list[tuple[float, float]] | Non
     if pairs is None:
         return None
     return [(float(lower), float(upper)) for lower, upper in pairs]
+
+
+def _counterfactual_contrasts_from_raw(raw: Any) -> tuple[CounterfactualContrastView, ...] | None:
+    """Native per-outcome contrast rows → views (``None`` for a single-outcome query)."""
+    rows = getattr(raw, "counterfactual_contrasts", None)
+    if rows is None:
+        return None
+    return tuple(
+        CounterfactualContrastView(
+            outcome=str(outcome),
+            mean_effect=float(mean),
+            standard_error=None if se is None else float(se),
+            unit_effects=[float(v) for v in effects],
+            unit_effect_intervals=None
+            if intervals is None
+            else [(float(lo), float(hi)) for lo, hi in intervals],
+            unit_extrapolative=None if flags is None else [bool(f) for f in flags],
+            unit_effects_homogeneous=bool(homogeneous),
+        )
+        for outcome, mean, se, effects, intervals, flags, homogeneous in rows
+    )
 
 
 def _distribution_atoms_from_raw(sec_estimate: Any) -> tuple[DistributionAtomView, ...] | None:
@@ -1549,6 +1571,7 @@ def _wrap_ate(
         unit_effect_intervals_level=getattr(raw, "unit_effect_intervals_level", None),
         unit_effect_intervals_method=getattr(raw, "unit_effect_intervals_method", None),
         unit_extrapolative=getattr(raw, "unit_extrapolative", None),
+        counterfactual_contrasts=_counterfactual_contrasts_from_raw(raw),
         assumptions=getattr(raw, "assumptions", None),
         support=getattr(raw, "support_diagnostics", None),
         mediation=mediation,

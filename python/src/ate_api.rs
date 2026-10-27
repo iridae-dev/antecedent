@@ -748,6 +748,25 @@ pub(crate) fn ate_result_from_analysis(
         );
     let effect = result.estimate().as_effect();
     let certificate_json = crate::identification_details::analysis_to_json(result, names)?;
+    // A single-outcome counterfactual answers with its own unit result; one with several
+    // outcomes or a joint baseline answers with contrasts, whose first outcome fills the
+    // same fields so the single-outcome surface reads identically.
+    let counterfactual_view = match (result.counterfactual(), result.counterfactual_contrasts()) {
+        (Some(cf), _) => Some((
+            &cf.unit_effects,
+            cf.unit_effect_intervals.as_ref(),
+            cf.unit_extrapolative.as_ref(),
+        )),
+        (None, Some(set)) => {
+            let primary = set.primary();
+            Some((
+                &primary.unit_effects,
+                primary.unit_effect_intervals.as_ref(),
+                primary.unit_extrapolative.as_ref(),
+            ))
+        }
+        (None, None) => None,
+    };
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
     let posterior_artifact =
         if include_posterior_artifact { posterior_artifact_from_result(result)? } else { None };
@@ -946,27 +965,44 @@ pub(crate) fn ate_result_from_analysis(
             .map(|r| format!("{:?}", r.assumption))
             .collect(),
         support_diagnostics: result.support_diagnostics().map(|d| d.message.to_string()).collect(),
-        unit_effects: result.counterfactual().map(|cf| cf.unit_effects.to_vec()),
-        unit_effect_intervals: result
-            .counterfactual()
+        unit_effects: counterfactual_view.as_ref().map(|view| view.0.to_vec()),
+        unit_effect_intervals: counterfactual_view
             .as_ref()
-            .and_then(|cf| cf.unit_effect_intervals.as_ref())
+            .and_then(|view| view.1)
             .map(|i| i.lower.iter().copied().zip(i.upper.iter().copied()).collect()),
-        unit_effect_intervals_level: result
-            .counterfactual()
+        unit_effect_intervals_level: counterfactual_view
             .as_ref()
-            .and_then(|cf| cf.unit_effect_intervals.as_ref())
+            .and_then(|view| view.1)
             .map(|i| i.level),
-        unit_effect_intervals_method: result
-            .counterfactual()
+        unit_effect_intervals_method: counterfactual_view
             .as_ref()
-            .and_then(|cf| cf.unit_effect_intervals.as_ref())
+            .and_then(|view| view.1)
             .map(|i| i.method.to_owned()),
-        unit_extrapolative: result
-            .counterfactual()
+        unit_extrapolative: counterfactual_view
             .as_ref()
-            .and_then(|cf| cf.unit_extrapolative.as_ref())
+            .and_then(|view| view.2)
             .map(|flags| flags.to_vec()),
+        counterfactual_contrasts: result.counterfactual_contrasts().map(|set| {
+            set.contrasts
+                .iter()
+                .map(|contrast| {
+                    (
+                        names
+                            .get(contrast.outcome.as_usize())
+                            .cloned()
+                            .unwrap_or_else(|| contrast.outcome.as_usize().to_string()),
+                        contrast.mean_ite,
+                        contrast.standard_error,
+                        contrast.unit_effects.to_vec(),
+                        contrast.unit_effect_intervals.as_ref().map(|i| {
+                            i.lower.iter().copied().zip(i.upper.iter().copied()).collect()
+                        }),
+                        contrast.unit_extrapolative.as_ref().map(|flags| flags.to_vec()),
+                        contrast.unit_effects_homogeneous,
+                    )
+                })
+                .collect()
+        }),
         mediation_total: result.mediation().and_then(|m| m.total),
         mediation_direct: result.mediation().and_then(|m| m.direct),
         mediation_mediated: result.mediation().and_then(|m| m.mediated),

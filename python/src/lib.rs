@@ -270,6 +270,10 @@ pub(crate) fn parse_within_tier(
 
 /// Posterior mean, standard deviation, interval and draws of a family contrast.
 type FamilyContrastPosterior = (f64, f64, (f64, f64), Arc<[f64]>);
+/// One outcome's counterfactual contrast: outcome name, mean, standard error, unit effects,
+/// unit intervals, unit extrapolation flags and whether the unit effects are homogeneous.
+type CounterfactualContrastRow =
+    (String, f64, Option<f64>, Vec<f64>, Option<Vec<(f64, f64)>>, Option<Vec<bool>>, bool);
 type MechanismWireEntry = (String, Option<f64>, Option<Vec<f64>>, Option<f64>);
 type ModelBundleSummary = (Vec<String>, Vec<(u32, u32)>, usize);
 
@@ -781,6 +785,10 @@ pub(crate) struct AteAnalysisResult {
     /// Per-unit extrapolation flags aligned with `unit_effects`.
     #[pyo3(get)]
     unit_extrapolative: Option<Vec<bool>>,
+    /// One contrast per outcome of a multi-outcome or joint-baseline counterfactual:
+    /// `(outcome, mean, standard_error, unit_effects, intervals, extrapolative, homogeneous)`.
+    #[pyo3(get)]
+    counterfactual_contrasts: Option<Vec<CounterfactualContrastRow>>,
     #[pyo3(get)]
     assumptions: Vec<String>,
     #[pyo3(get)]

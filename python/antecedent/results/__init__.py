@@ -11,6 +11,7 @@ from ._slots import ReasoningSlots, SlotView
 from ._views import (
     AnalysisResult,
     ConflictSummaryView,
+    CounterfactualContrastView,
     DistributionAtomView,
     DropReasonView,
     EffectEnvelope,
@@ -76,6 +77,7 @@ __all__ = [
     "MediationView",
     "TemporalMediationGridView",
     "TemporalMediationSliceView",
+    "CounterfactualContrastView",
     "EstimateView",
     "SamplingWeightsView",
     "ProbabilityIntervalView",
