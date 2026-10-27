@@ -42,6 +42,17 @@ unresolved DOI or title mismatch; explicit `--fetch` uses Crossref/DataCite.
   Default Python commands and `all` retain them as required assertions: no skip,
   xfail or fabricated attestation turns an unmeasured branch green.
   The audit inventories these assertions from their source markers.
+- Thirteen Rust measured-record consumers are classified by exact assertion in
+  the existing test registry. `rust-software` explicitly deselects them;
+  `rust-calibration-acceptance` retains the separate post-lockdown selection.
+  Default `rust` and `all` still require them. The shared report uses the same
+  classification, and the runner verifies each exact, non-ignored assertion in
+  its registered binary before applying a selection.
+- Six shared calibration-decision controls executed in 126 places each in the
+  recorded full run. Their complete assertion bodies now execute once in
+  `calibration_decision_contract`; all six pass. Every one of the 756 baseline
+  occurrences maps to its replacement in the disposition ledger. No integer
+  enumeration, family/domain/prefix case, budget or tolerance was removed.
 - The learner ATE 200-replicate/four-method coverage study is explicitly ignored
   by ordinary tests and registered in the calibration driver for Q08. Its
   replicate count, truth, bias/coverage bounds and influence assertions remain.

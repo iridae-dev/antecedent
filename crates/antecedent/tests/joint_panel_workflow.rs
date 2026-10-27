@@ -1286,9 +1286,12 @@ fn temporal_bayesian_frame_decomposes_on_reference_worlds_and_translates_experim
     // change the production defaults, and the fit keeps its own convergence verdict.
     let sampler = antecedent_estimate::joint_panel::PanelSamplingOptions {
         chains: 2,
-        warmup: 150,
-        draws: 150,
-        proposal_scale: 0.2,
+        warmup: 512,
+        draws: 512,
+        // This routing fixture must retain enough movement for both CDF-tail
+        // indicators. Keep the diagnostic thresholds, and increase effort
+        // rather than treating a zero tail ESS as converged.
+        proposal_scale: 0.01,
         max_rhat: 5.0,
         min_ess: 1.0,
     };
@@ -1301,8 +1304,14 @@ fn temporal_bayesian_frame_decomposes_on_reference_worlds_and_translates_experim
     let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
     let result = prepared.estimate(&ctx).unwrap();
     let JointPanelFit::Varying(fit) = &result.fit else { panic!("retained temporal program") };
-    assert_eq!(result.draws.len(), 300);
+    assert_eq!(result.draws.len(), 1024);
     assert!(fit.posterior_diagnostics.is_some());
+    assert_eq!(
+        fit.posterior_converged,
+        Some(true),
+        "experimental updating requires the declared diagnostics: {:?}",
+        fit.posterior_diagnostics
+    );
     assert!(!prepared.inspect().identification.is_identified_claim());
     exercise_reference_decomposition(&result, &ctx);
     exercise_temporal_reference_worlds(&result, &ctx);

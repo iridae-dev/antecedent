@@ -32,6 +32,8 @@ from evidence_kinds import (
 )
 from provenance_links import method_review_problems
 from test_evidence import (
+    registered_calibration_acceptance,
+    calibration_discovery_problems,
     python_test_markers,
     python_test_declarations,
     script_test_declaration_problems,
@@ -241,6 +243,10 @@ def claim_rows(root: Path) -> list[dict]:
         for name, markers in python_test_markers(path).items()
         if "requires_calibration" in markers
     }
+    calibration_acceptance.update(
+        (r["evidence_test"], r["evidence_assertion"])
+        for r in registered_calibration_acceptance(root)
+    )
     for claim in claims:
         if (
             claim.get("evidence_test"),
@@ -260,6 +266,10 @@ def build_report(root: Path) -> dict:
         for name, markers in python_test_markers(path).items()
         if "requires_calibration" in markers
     }
+    calibration_acceptance.update(
+        (r["evidence_test"], r["evidence_assertion"])
+        for r in registered_calibration_acceptance(root)
+    )
     fixture_paths = set(root.glob("conformance/**/expected.json"))
     for claim in claims:
         rel = claim.get("known_truth_fixture")
@@ -645,10 +655,26 @@ def scientific_rows(claims: list[dict]) -> list[dict]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("report", "run-scientific"))
+    parser.add_argument("command", choices=("report", "run-scientific", "rust-calibration-filter"))
+    parser.add_argument("--listing", type=Path, help="Verify classified assertions in a nextest JSON listing")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--strict", action="store_true")
     args = parser.parse_args()
+    if args.command == "rust-calibration-filter":
+        rows = registered_calibration_acceptance(REPO_ROOT)
+        if not rows:
+            raise ValueError("calibration acceptance selection is empty")
+        if args.listing:
+            problems = calibration_discovery_problems(rows, json.loads(args.listing.read_text(encoding="utf-8")))
+            if problems:
+                print("\n".join(problems), file=sys.stderr)
+                return 1
+        expressions = []
+        for row in rows:
+            target = "kind(lib)" if row["cargo_target"] == "lib" else f"binary(={row['cargo_target']})"
+            expressions.append(f"(package(={row['crate']}) and {target} and test(={row['libtest_name']}))")
+        print(" or ".join(expressions))
+        return 0
     report = build_report(REPO_ROOT)
     if args.command == "report":
         print(json.dumps(report, indent=2) if args.json else render(report), end="\n")

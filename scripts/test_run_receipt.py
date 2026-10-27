@@ -85,7 +85,7 @@ def main() -> int:
         "settings": {
             key: value for key, value in os.environ.items()
             if key.startswith("CARGO_PROFILE_TEST_") or key in {
-                "CARGO_BUILD_JOBS", "CARGO_TARGET_DIR", "RUSTFLAGS", "RUSTUP_TOOLCHAIN",
+                "CARGO_BUILD_JOBS", "CARGO_TARGET_DIR", "CARGO_INCREMENTAL", "RUSTFLAGS", "RUSTUP_TOOLCHAIN",
                 "NEXTEST_TEST_THREADS", "PYTEST_ADDOPTS", "ANTECEDENT_SKIP_NATIVE_BUILD",
             }
         },

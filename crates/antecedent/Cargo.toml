@@ -921,3 +921,7 @@ path = "tests/class_route_artifacts.rs"
 [[test]]
 name = "family_contract_conformance"
 path = "tests/family_contract_conformance.rs"
+
+[[test]]
+name = "calibration_decision_contract"
+path = "tests/calibration_decision_contract.rs"

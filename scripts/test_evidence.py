@@ -519,6 +519,60 @@ def resolve_rust_test(path: Path, name: str, cwd: Path = ROOT) -> tuple[str | No
     return full, problems
 
 
+def registered_calibration_acceptance(root: Path = ROOT) -> list[dict]:
+    """Exact Rust acceptance assertions from the existing source registry.
+
+    Classification does not grant a license or verify execution. The ordinary
+    full suite retains these assertions; an explicit software selection may
+    deselect them while the branch awaits calibration.
+    """
+    registry = root / "parity/v3_test_registry.toml"
+    rows = tomllib.loads(registry.read_text(encoding="utf-8")).get("test", [])
+    found = []
+    seen = set()
+    for row in rows:
+        names = row.get("calibration_acceptance_assertions", [])
+        if not isinstance(names, list) or any(not isinstance(n, str) for n in names):
+            raise ValueError(f"invalid calibration acceptance assertions: {row['path']}")
+        if not names:
+            continue
+        path = root / row["path"]
+        crate = root / "crates" / row["crate"]
+        manifest = tomllib.loads((crate / "Cargo.toml").read_text(encoding="utf-8"))
+        target = row["cargo_target"]
+        if target == "lib":
+            source = manifest.get("lib", {}).get("path", "src/lib.rs")
+        else:
+            entries = [t for t in manifest.get("test", []) if t["name"] == target]
+            source = entries[0].get("path", f"tests/{target}.rs") if entries else f"tests/{target}.rs"
+        target_source = crate / source
+        if path.resolve() not in target_files(target_source.resolve(), crate.resolve()):
+            raise ValueError(f"acceptance source is outside its registered target: {row['path']}")
+        for name in names:
+            key = (row["path"], name)
+            problems = rust_test_declaration_problems(path, name)
+            if key in seen or problems:
+                raise ValueError(f"invalid calibration acceptance assertion {key}: {problems or 'duplicate'}")
+            seen.add(key)
+            found.append({"evidence_test": row["path"], "evidence_assertion": name,
+                          "crate": row["crate"], "cargo_target": target,
+                          "libtest_name": libtest_name(path, name, target_source)})
+    return found
+
+
+def calibration_discovery_problems(rows: list[dict], listing: dict) -> list[str]:
+    """Require each classified assertion in its exact, non-ignored binary."""
+    problems = []
+    for row in rows:
+        target = row["cargo_target"]
+        identity = row["crate"] + ("" if target == "lib" else f"::{target}")
+        suite = listing.get("rust-suites", {}).get(identity, {})
+        case = suite.get("testcases", {}).get(row["libtest_name"])
+        if not case or case.get("ignored") or case.get("filter-match", {}).get("status", "matches") != "matches":
+            problems.append(f"missing, ignored or deselected acceptance assertion: {identity}::{row['libtest_name']}")
+    return problems
+
+
 _SKIP_ATTRS = {"skip", "skipif", "xfail"}
 
 

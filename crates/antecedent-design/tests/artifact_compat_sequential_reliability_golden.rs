@@ -244,8 +244,11 @@ fn historical_closure_snapshot_is_conservative_and_cannot_change_the_report() {
     let current =
         assess(&original.draws, original.validation.as_ref(), &original.request, &ctx()).unwrap();
     original.verify(&DecisionReliabilityExpectation::default(), &ctx()).unwrap();
-    // Newly earned licenses do not rewrite or open the historical report's refusals.
-    assert!(original.report.closed_routes.len() > current.closed_routes.len());
+    // Historical refusals remain conservative whether current calibration is
+    // pending or has earned additional licenses. No new license is assumed here.
+    for closed in &current.closed_routes {
+        assert!(original.report.closed_routes.iter().any(|old| old.route == closed.route));
+    }
     let consumed =
         consume_reliability(&bytes, &DecisionReliabilityExpectation::default(), &ctx()).unwrap();
     assert_eq!(consumed.digest, original.digest);

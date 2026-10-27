@@ -6,7 +6,7 @@ cd "$ROOT"
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/test.sh [dev|rust|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|all] [test arguments...]
+Usage: bash scripts/test.sh [dev|rust|rust-software|rust-calibration-acceptance|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|all] [test arguments...]
 
   dev     Run a focused Rust selection with cheap test compilation (opt-level 0).
           Supply a package/target selection; numerical package overrides remain.
@@ -14,6 +14,10 @@ Usage: bash scripts/test.sh [dev|rust|integration|scientific|scripts|docs|python
           With no arguments, select the whole workspace and CI calibration features.
           With arguments, forward the exact Cargo/nextest selection you supply.
   docs    Run Rust doctests, with the same workspace default as rust.
+  rust-software  Run ordinary workspace assertions, explicitly deselecting
+          registered measured-record acceptance assertions pending calibration.
+  rust-calibration-acceptance  Run those retained acceptance assertions only.
+          Use after branch lockdown and calibration; no calibration is performed.
   integration  Run Rust integration targets (excluding library unit tests).
   scientific   Run exact scientific assertions cited by the evidence registries.
                No calibration, replay or performance measurement is selected.
@@ -49,10 +53,10 @@ suite="${1:-rust}"
 if [[ $# -gt 0 ]]; then shift; fi
 case "$suite" in
   -h|--help) usage; exit 0 ;;
-  dev|rust|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|all) ;;
+  dev|rust|rust-software|rust-calibration-acceptance|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|all) ;;
   *) usage >&2; exit 2 ;;
 esac
-if [[ ( "$suite" == all || "$suite" == scientific ) && $# -gt 0 ]]; then
+if [[ ( "$suite" == all || "$suite" == scientific || "$suite" == rust-software || "$suite" == rust-calibration-acceptance ) && $# -gt 0 ]]; then
   echo "$suite does not accept extra arguments; use rust, docs or python for a focused run" >&2
   exit 2
 fi
@@ -113,6 +117,18 @@ case "$suite" in
   docs)
     if [[ $# -eq 0 ]]; then set -- "${workspace[@]}"; fi
     doctests "$@"
+    ;;
+  rust-software|rust-calibration-acceptance)
+    selection="$(python3 "$ROOT/scripts/evidence_audit.py" rust-calibration-filter)"
+    mkdir -p "$report_directory"
+    listing="$report_directory/calibration-acceptance-discovery.json"
+    cargo nextest list --locked "${workspace[@]}" --message-format json -E "$selection" > "$listing"
+    python3 "$ROOT/scripts/evidence_audit.py" rust-calibration-filter --listing "$listing" > /dev/null
+    if [[ "$suite" == rust-software ]]; then
+      selection="not ($selection)"
+      echo "Explicitly deselecting registered measured-record acceptance assertions; discovery: $listing"
+    fi
+    rust_tests "${workspace[@]}" -E "$selection"
     ;;
   integration)
     if [[ $# -eq 0 ]]; then set -- "${workspace[@]}"; fi

@@ -30,6 +30,36 @@ from reference_compare import values_close
 
 
 class Classification(unittest.TestCase):
+    def test_registered_rust_acceptance_requires_exact_live_discovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            crate = root / "crates/p"
+            (crate / "src").mkdir(parents=True)
+            (root / "parity").mkdir()
+            (crate / "Cargo.toml").write_text('[package]\nname="p"\nversion="0.1.0"\nautotests=false\n', encoding="utf-8")
+            source = crate / "src/lib.rs"
+            text = '#[cfg(test)] mod tests { #[test] fn truth() { assert_eq!(actual(), 2); } }'
+            source.write_text(text, encoding="utf-8")
+            registry = root / "parity/v3_test_registry.toml"
+            registry.write_text('[[test]]\npath="crates/p/src/lib.rs"\ncrate="p"\ncargo_target="lib"\ncalibration_acceptance_assertions=["truth"]\n', encoding="utf-8")
+            rows = evidence.registered_calibration_acceptance(root)
+            self.assertEqual(rows[0]["libtest_name"], "tests::truth")
+            (root / "parity/claim.toml").write_text('[[claim]]\nevidence_kind="internal_known_truth"\nevidence_test="crates/p/src/lib.rs"\nevidence_assertion="truth"\n', encoding="utf-8")
+            claim, = audit.claim_rows(root)
+            self.assertEqual(claim["evidence_activity"], "calibration_acceptance")
+            with self.assertRaisesRegex(ValueError, "empty"):
+                audit.scientific_rows([claim])
+            listing = {"rust-suites": {"p": {"testcases": {"tests::truth": {"ignored": False, "filter-match": {"status": "matches"}}}}}}
+            self.assertEqual(evidence.calibration_discovery_problems(rows, listing), [])
+            for mutation in ({}, {"rust-suites": {"wrong": listing["rust-suites"]["p"]}},
+                             {"rust-suites": {"p": {"testcases": {"tests::truth": {"ignored": True}}}}},
+                             {"rust-suites": {"p": {"testcases": {"tests::truth": {"ignored": False, "filter-match": {"status": "mismatch"}}}}}}):
+                self.assertTrue(evidence.calibration_discovery_problems(rows, mutation))
+            for changed in (text.replace("#[test]", "#[test] #[ignore]"), text.replace("fn truth", "fn removed")):
+                source.write_text(changed, encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    evidence.registered_calibration_acceptance(root)
+
     def test_script_runner_rejects_failed_skipped_and_missing_required_assertions(self):
         import contextlib
         import io
@@ -44,10 +74,15 @@ class Classification(unittest.TestCase):
         def skipped():
             raise unittest.SkipTest("injected required skip")
 
+        class ExpectedFailure(unittest.TestCase):
+            @unittest.expectedFailure
+            def runTest(self):
+                self.fail("a required assertion cannot be waived")
+
         with tempfile.TemporaryDirectory() as tmp:
             report = Path(tmp) / "receipt.json"
             def run(functions, *extra):
-                suite = unittest.TestSuite(unittest.FunctionTestCase(fn) for fn in functions)
+                suite = unittest.TestSuite(fn if isinstance(fn, unittest.TestCase) else unittest.FunctionTestCase(fn) for fn in functions)
                 with (
                     patch.object(sys, "argv", ["runner", "--report", str(report), *extra]),
                     patch.object(runner.unittest.defaultTestLoader, "discover", return_value=suite),
@@ -62,6 +97,9 @@ class Classification(unittest.TestCase):
             self.assertEqual(json.loads(report.read_text(encoding="utf-8"))["failures"], ["failing"])
             self.assertEqual(run([skipped]), 1)
             self.assertEqual(json.loads(report.read_text(encoding="utf-8"))["unexpected_skips"], ["skipped"])
+            expected = ExpectedFailure()
+            self.assertEqual(run([expected]), 1)
+            self.assertEqual(json.loads(report.read_text(encoding="utf-8"))["expected_failures"], [expected.id()])
             self.assertEqual(run([]), 1)
             self.assertEqual(run([passing], "--exclude-module", "passing"), 1)
             self.assertEqual(json.loads(report.read_text(encoding="utf-8"))["explicit_deselections"], ["passing"])
@@ -356,6 +394,7 @@ class Classification(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "parity").mkdir()
+            (root / "parity/v3_test_registry.toml").write_text("test = []\n", encoding="utf-8")
             (root / "python/tests").mkdir(parents=True)
             (root / "parity/example.toml").write_text(
                 '[[claim]]\nevidence_kind = "internal_known_truth"\n'

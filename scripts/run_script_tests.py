@@ -82,6 +82,7 @@ def main() -> int:
         "executed": result.testsRun,
         "failures": [test.id() for test, _ in result.failures],
         "errors": [test.id() for test, _ in result.errors],
+        "expected_failures": [test.id() for test, _ in result.expectedFailures],
         "skipped": [
             {
                 "assertion": test.id(),
@@ -105,8 +106,19 @@ def main() -> int:
         print("FAIL: script test discovery selected no tests")
     if unexpected:
         print(f"FAIL: required script assertions skipped: {unexpected}")
+    if result.expectedFailures:
+        print(
+            "FAIL: required script assertions must pass without expected-failure waivers"
+        )
     print(f"Script test execution receipt: {args.report}")
-    return 0 if discovered and result.wasSuccessful() and not unexpected else 1
+    return (
+        0
+        if discovered
+        and result.wasSuccessful()
+        and not unexpected
+        and not result.expectedFailures
+        else 1
+    )
 
 
 if __name__ == "__main__":
