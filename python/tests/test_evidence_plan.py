@@ -12,6 +12,8 @@ and the values from the two-point binomial bet written out by hand: prior ``thet
 
 from __future__ import annotations
 
+import antecedent as ant
+import numpy as np
 import pytest
 from antecedent import Admg, Dag, design, repair
 from antecedent import sensitivity_decision as sd
@@ -441,3 +443,91 @@ def test_the_plan_exports_and_replays_independently():
         design.consume_plan(bytes(damaged))
     with pytest.raises(CausalValueError):
         replayed.variable_unlocks()
+
+
+def test_a_candidate_may_name_only_variables_the_contract_declares():
+    contract = backdoor_contract()
+    assert set(contract.variable_names) >= {"t", "y", "z"}
+    assert "ghost" not in contract.variable_names
+    plan = design.evidence_plan(contract, [obs("registry with z", ["t", "y", "z"], 1)])
+    assert plan.best is not None and plan.best.labels == ("registry with z",)
+    with pytest.raises((CausalValueError, CausalUnsupportedError)):
+        design.evidence_plan(contract, [obs("ghost cohort", ["t", "y", "ghost"], 1)])
+
+
+# -- ranking through a prepared study's contract -------------------------------------------------
+
+
+def licensed_study():
+    n = 120
+    z = np.sin(np.arange(n) / 7.0)
+    t = (z + np.cos(np.arange(n) / 5.0) > 0).astype(float)
+    return ant.prepare(
+        {"t": t, "y": 1.0 + 2.0 * t + 0.5 * z, "z": z},
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=ant.AverageEffect("t", "y"),
+        refute="none",
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=3),
+    )
+
+
+def test_only_the_study_the_repair_search_verified_is_ranked_through_the_contract():
+    contract = backdoor_contract()
+    cohort = complete(template_measuring(contract, {"t", "y", "z"}), 3, label="cohort")
+    blind = obs("blind registry", ["t", "y"], 1)
+    prior = design.StructurePrior((1.0, 1.0), (True, False), (1, 2))
+    ranking = design.rank_studies(
+        licensed_study(), contract, [blind, cohort], prior, route="backdoor"
+    )
+    # The cohort measures z, the back-door set: it is verified, and its measured variable
+    # outside the observed base law is the unlock list. The blind registry only names t and y.
+    assert ranking.verified == (1,)
+    assert ranking.unlock == ("z",)
+    assert [(u.index, u.label) for u in ranking.unverified] == [(0, "blind registry")]
+    assert ranking.unverified[0].classification in {"insufficient", "not_certified"}
+    best = ranking.best
+    assert best is not None and (best.label, best.index, best.rank) == ("cohort", 1, 0)
+    # Unlocking z identifies the structure that was not: identified mass 1/2 -> 1.
+    assert best.score == pytest.approx(0.5, abs=1e-9)
+    assert [r.label for r in ranking.ranked] == ["cohort"]
+    assert [(v.id, v.index, v.constraint) for v in ranking.violations] == [
+        ("blind registry", 0, "unlicensed_candidate")
+    ]
+    assert ranking.calibration == "unmeasured"
+
+
+def test_without_a_verified_study_nothing_is_ranked_and_no_unlock_is_invented():
+    contract = backdoor_contract()
+    prior = design.StructurePrior((1.0, 1.0), (True, False), (1, 2))
+    ranking = design.rank_studies(
+        licensed_study(), contract, [obs("blind registry", ["t", "y"], 1)], prior, route="backdoor"
+    )
+    assert ranking.ranked == () and ranking.best is None
+    assert ranking.verified == () and ranking.unlock == ()
+    assert [u.label for u in ranking.unverified] == ["blind registry"]
+    assert [v.constraint for v in ranking.violations] == ["unlicensed_candidate"]
+
+
+def test_study_ranking_refuses_an_unknown_route_a_missing_study_and_bad_declarations():
+    contract = backdoor_contract()
+    cohort = complete(template_measuring(contract, {"t", "y", "z"}), 3, label="cohort")
+    prior = design.StructurePrior((1.0, 1.0), (True, False), (1, 2))
+    study = licensed_study()
+    with pytest.raises(CausalValueError, match="no theorem route"):
+        design.rank_studies(study, contract, [cohort], prior, route="not_a_route")
+    # A real route that the graph cannot satisfy is not an unknown route: the study stays
+    # unverified, with the route's own reason, and nothing is ranked.
+    on_instrument = design.rank_studies(study, contract, [cohort], prior, route="instrument")
+    assert on_instrument.ranked == () and on_instrument.verified == ()
+    assert [u.label for u in on_instrument.unverified] == ["cohort"]
+    assert any("no instrument" in reason for reason in on_instrument.unverified[0].reasons)
+    assert [v.constraint for v in on_instrument.violations] == ["unlicensed_candidate"]
+    with pytest.raises(CausalValueError, match="at least one"):
+        design.rank_studies(study, contract, [], prior, route="backdoor")
+    with pytest.raises(CausalTypeError, match="FailureContract"):
+        design.rank_studies(study, object(), [cohort], prior)  # type: ignore[arg-type]
+    with pytest.raises(CausalTypeError, match="prepared study"):
+        design.rank_studies(object(), contract, [cohort], prior, route="backdoor")
+    with pytest.raises(CausalValueError, match="objective"):
+        design.rank_studies(study, contract, [cohort], prior, route="backdoor", objective="x")  # type: ignore[arg-type]

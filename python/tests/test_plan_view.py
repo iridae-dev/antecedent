@@ -137,3 +137,73 @@ def test_bayesian_plan_view_states_its_posterior_plan() -> None:
     operation = outcome.study.plan_view().operation
     assert operation["kind"] == "bayesian_gcomp"
     assert operation["estimator"] == "bayesian.gcomp"
+
+
+def test_plan_view_states_the_backend_reuse_and_operations_by_layer() -> None:
+    view = _prepared().plan_view()
+    backend = view.physical.backend
+    assert backend is not None, "a prepared plan states the backend it chose"
+    assert isinstance(backend["selected"], str) and backend["selected"]
+    assert backend["selected_cost"] >= 0
+    assert backend["selected"] not in [item["alternative"] for item in backend["rejected"]]
+    assert view.physical.operators, "the physical plan lists its operators"
+    assert all(operator["effect"] for operator in view.physical.operators)
+
+    reuse = view.reuse
+    assert reuse is not None
+    assert reuse["installed_at_prepare"] is True
+    assert reuse["identification_retained"] is True
+
+    assert view.operations, "the route lists the operations it will run"
+    layers = {operation["layer"] for operation in view.operations}
+    assert layers <= {"statistical", "evidence", "physical"}
+    assert all(operation["name"] and "subject" in operation for operation in view.operations)
+    assert view.assumptions, "the assumptions the identification relies on are listed"
+    assert all(item["label"] for item in view.assumptions)
+
+
+def test_plan_view_states_cross_fitting_and_bootstrap_resampling() -> None:
+    prepared = _prepared(estimator="aipw", inference=ant.Frequentist(bootstrap=40))
+    statistical = prepared.plan_view().statistical
+    assert statistical.folds is not None and statistical.folds["folds"] >= 2
+    assert isinstance(statistical.folds["unit"], str)
+    assert statistical.resampling is not None
+    assert statistical.resampling["method"] == "bootstrap"
+    assert statistical.resampling["replicates"] == 40
+    roles = {model["role"] for model in statistical.models}
+    assert {"outcome", "propensity"} <= roles
+    assert prepared.plan_view().uncertainty.resampling is not None
+
+
+def test_a_graph_posterior_plan_states_its_atoms_and_unidentified_mass() -> None:
+    names = ["t", "a", "b", "y"]
+    directed = [("t", "a"), ("a", "b"), ("b", "y")]
+    hedge = ant.Admg.from_edges(
+        names, directed=directed, bidirected=[("t", "b"), ("t", "y"), ("a", "y")]
+    )
+    identified = ant.Admg.from_edges(names, directed=directed, bidirected=[])
+    posterior = ant.discovery.GraphPosterior.from_graphs(names, [0.3, 0.7], [hedge, identified])
+    rng = np.random.default_rng(91)
+    t = rng.integers(0, 2, size=160).astype(float)
+    a = t + rng.normal(size=160)
+    b = a + rng.normal(size=160)
+    rows = {"t": t, "a": a, "b": b, "y": b + rng.normal(size=160)}
+    prepared = ant.prepare(
+        ant.data.table(rows),
+        discovery=posterior,
+        query=ant.AverageEffect("t", "y"),
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=19, threads=1),
+        refute="none",
+    )
+    view = prepared.plan_view()
+    assert view.route == "GraphPosteriorAverageEffect"
+    mixture = view.mixture
+    assert mixture is not None
+    assert mixture.total_weight == pytest.approx(1.0)
+    atoms = sorted(mixture.atoms, key=lambda atom: atom["weight"])
+    assert [atom["weight"] for atom in atoms] == pytest.approx([0.3, 0.7])
+    assert mixture.identified_mass == pytest.approx(0.7)
+    assert mixture.unidentified_mass == pytest.approx(0.3)
+    assert atoms[1]["identified"] is True
+    assert atoms[0]["identified"] is not True, "the hedge atom is reported, never dropped"

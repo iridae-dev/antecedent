@@ -11,7 +11,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import preflight as pf
-from antecedent.errors import CausalUnsupportedError
+from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
@@ -330,3 +330,128 @@ def test_estimate_with_rank_drop_refuses_aliases_and_unlicensed_estimators() -> 
             data, treatment="t", outcome="y", adjustment=["a", "b", "c"], priority=["a"]
         )
     assert raised.value.reason_code == "rank_drop_not_licensed"
+
+
+def test_fit_diagnostics_of_a_confounded_design_match_an_independent_logistic_fit() -> None:
+    n = 500
+    z, w = _normals(n, 2, seed=21)
+    rng = np.random.default_rng(22)
+    t = (rng.random(n) < 1.0 / (1.0 + np.exp(-(0.2 + 0.8 * z - 0.5 * w)))).astype(np.float64)
+    data = _frame(t, t + z + rng.standard_normal(n), z=z, w=w)
+    fitted = pf.fit_diagnostics(data, treatment="t", outcome="y", adjustment=["z", "w"])
+    assert fitted.status == "fitted" and fitted.fit is not None
+    assert fitted.reason is None and fitted.numerical_rank is None
+    # Independent oracle: unpenalised logistic maximum likelihood by Newton steps in NumPy.
+    design = np.column_stack([np.ones(n), z, w])
+    beta = np.zeros(3)
+    for _ in range(60):
+        p = 1.0 / (1.0 + np.exp(-design @ beta))
+        beta += np.linalg.solve(design.T @ (design * (p * (1.0 - p))[:, None]), design.T @ (t - p))
+    p = 1.0 / (1.0 + np.exp(-design @ beta))
+    assert fitted.fit.converged and not fitted.fit.separated
+    assert fitted.fit.min == pytest.approx(p.min(), abs=1e-5)
+    assert fitted.fit.max == pytest.approx(p.max(), abs=1e-5)
+    assert sorted(arm.rows for arm in fitted.fit.arm_ess) == sorted(
+        [int((t == 0).sum()), int((t == 1).sum())]
+    )
+    assert all(0 < arm.ess <= arm.rows for arm in fitted.fit.arm_ess)
+
+
+_COST_TOML = """
+benchmark = "unit-bench"
+
+[machine]
+platform = "test-box"
+cpu_count = 8
+
+[coefficients."aipw"]
+a = 0.5
+b = 0.000001
+"""
+
+
+def _aipw_plan(**options):
+    data = _confounded()
+    return antecedent.prepare(
+        data,
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        estimator="aipw",
+        refute=False,
+        inference=antecedent.Frequentist(bootstrap=0),
+        **options,
+    )
+
+
+def test_a_declared_cost_model_backs_the_seconds_of_a_plan() -> None:
+    prepared = _aipw_plan()
+    model = pf.CostModel.from_toml(_COST_TOML)
+    assert (model.benchmark, model.platform, model.cpu_count) == ("unit-bench", "test-box", 8)
+    assert dict(model.coefficients) == {"aipw": (0.5, 1e-6)}
+    assert pf.CostModel("unit-bench", "test-box", 8, {"aipw": (0.5, 1e-6)}) == model
+
+    cost = pf.estimate_cost(prepared, cost_model=model)
+    # seconds per counted fit = a + b * rows * columns^2, times the 15 counted nuisance fits.
+    assert cost.nuisance_fits_upper_bound == 15
+    assert cost.rows == 500 and cost.design_columns is not None
+    assert cost.seconds == pytest.approx(15 * (0.5 + 1e-6 * 500 * cost.design_columns**2))
+    assert cost.seconds_basis == (
+        "planning hint from named local benchmark unit-bench, machine test-box (8 cpus)"
+    )
+    # The model is a value: the same declaration gives the same seconds and counts are unchanged.
+    again = pf.estimate_cost(prepared, cost_model=model)
+    assert again.seconds == cost.seconds
+    assert pf.estimate_cost(prepared).nuisance_fits_upper_bound == cost.nuisance_fits_upper_bound
+
+    other = pf.CostModel("unit-bench", "test-box", 8, {"linear.adjustment.ate": (0.1, 1e-7)})
+    uncovered = pf.estimate_cost(prepared, cost_model=other)
+    assert uncovered.seconds is None
+    assert "no coefficients for estimator aipw" in uncovered.seconds_basis
+
+
+def test_a_declared_cost_model_prices_every_plan_of_a_batch() -> None:
+    data = _confounded(seed=13)
+    graph = antecedent.Dag.from_edges(
+        ["t", "t2", "y", "z"],
+        [("z", "t"), ("z", "t2"), ("z", "y"), ("t", "y"), ("t2", "y")],
+    )
+    batch = antecedent.estimation.prepare_many(
+        data,
+        graph=graph,
+        queries=[
+            antecedent.AverageEffect(treatment="t", outcome="y"),
+            antecedent.AverageEffect(treatment="t2", outcome="y"),
+        ],
+        estimator="aipw",
+        refute="none",
+        inference=antecedent.Frequentist(bootstrap=0),
+    )
+    model = pf.CostModel.from_toml(_COST_TOML)
+    cost = pf.estimate_cost(batch, cost_model=model)
+    assert cost.claims == 2
+    for plan in cost.plans:
+        assert plan.rows is not None and plan.design_columns is not None
+        assert plan.nuisance_fits_upper_bound == 15
+        assert plan.seconds == pytest.approx(15 * (0.5 + 1e-6 * plan.rows * plan.design_columns**2))
+
+
+def test_a_malformed_or_non_monotone_cost_model_is_refused() -> None:
+    with pytest.raises(CausalValueError):
+        pf.CostModel("unit-bench", "test-box", 8, {"aipw": (-0.1, 1e-6)})
+    with pytest.raises(CausalValueError):
+        pf.CostModel("unit-bench", "test-box", 8, {"aipw": (0.1, float("nan"))})
+    with pytest.raises(CausalValueError):
+        pf.CostModel("unit-bench", "test-box", 8, {})
+    with pytest.raises(CausalValueError):
+        pf.CostModel("", "test-box", 8, {"aipw": (0.1, 1e-6)})
+    with pytest.raises(CausalValueError):
+        pf.CostModel("unit-bench", "test-box", 0, {"aipw": (0.1, 1e-6)})
+    with pytest.raises(CausalValueError, match="machine"):
+        pf.CostModel.from_toml('benchmark = "unit-bench"\n')
+    with pytest.raises(CausalValueError):
+        pf.CostModel.from_toml(
+            'benchmark = "b"\n[machine]\nplatform = "p"\ncpu_count = 2\n'
+            '[coefficients."aipw"]\na = 0.1\n'
+        )
+    with pytest.raises(CausalTypeError):
+        pf.estimate_cost(_aipw_plan(), cost_model="not a model")  # type: ignore[arg-type]

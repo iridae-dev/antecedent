@@ -8,6 +8,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import _native, design
+from antecedent.errors import CausalStateError, CausalValueError
 from antecedent.outcomes import require_success
 
 
@@ -578,3 +579,135 @@ def test_checked_prior_bridge_signature_and_identity_defaults():
     assert signature.parameters["candidate_observation_ids"].default == ()
     for required in ("sources", "state", "target_population", "prior_id"):
         assert signature.parameters[required].default is inspect.Parameter.empty
+
+
+def test_graph_evidence_is_versioned_and_listed_in_the_order_it_was_added():
+    state = antecedent.state.CausalState(cache_bytes=1 << 20)
+    assert state.graph_evidence() == []
+    v0 = state.version
+    v1 = state.add_graph_evidence("pc-run", 7, 128)
+    assert v1 > v0 and state.version == v1
+    assert state.graph_evidence() == [("pc-run", 7, 128)]
+    v2 = state.add_graph_evidence("ges-run", 9, 64)
+    assert v2 > v1
+    assert state.graph_evidence() == [("pc-run", 7, 128), ("ges-run", 9, 64)]
+    assert state.constraints() == [], "evidence is not a constraint"
+
+
+def _chain_columns(n: int = 60) -> list[np.ndarray]:
+    i = np.arange(n, dtype=np.float64)
+    x0 = np.sin(0.37 * i) + 0.1 * i / n
+    x1 = 2.0 * x0 + 0.3 * np.cos(1.9 * i)
+    x2 = x1 - 0.5 * x0 + 0.25 * np.sin(3.1 * i + 0.4)
+    return [x0, x1, x2]
+
+
+def _gaussian_bic(columns: list[np.ndarray], node: int, parents: tuple[int, ...]) -> float:
+    """-n/2 (1 + ln 2pi + ln sigma^2) - (k/2) ln n, sigma^2 = SSE/n of OLS on intercept+parents."""
+    y = columns[node]
+    n = len(y)
+    design = np.column_stack([np.ones(n), *[columns[p] for p in parents]])
+    beta, *_ = np.linalg.lstsq(design, y, rcond=None)
+    sigma2 = float(np.sum((y - design @ beta) ** 2)) / n
+    return -0.5 * n * (1.0 + math.log(2.0 * math.pi) + math.log(sigma2)) - (
+        0.5 * (len(parents) + 1) * math.log(n)
+    )
+
+
+def test_a_parent_set_change_rescores_one_node_and_matches_a_full_recomputation():
+    columns = _chain_columns()
+    cache = antecedent.state.GraphScoreCache(columns)
+    assert (cache.n_rows, cache.n_vars) == (60, 3)
+    empty = sum(_gaussian_bic(columns, j, ()) for j in range(3))
+    assert cache.score() == pytest.approx(empty, rel=1e-9)
+
+    delta, total = cache.set_parents(1, [0])
+    expected = _gaussian_bic(columns, 1, (0,)) - _gaussian_bic(columns, 1, ())
+    assert delta == pytest.approx(expected, rel=1e-7)
+    assert delta > 0, "x0 explains x1"
+    assert total == pytest.approx(empty + delta, rel=1e-9)
+    assert cache.parents_of(1) == [0] and cache.parents_of(0) == []
+
+    # Parents are stored sorted and deduplicated; the running total follows each change.
+    delta2, total2 = cache.set_parents(2, [1, 0, 1])
+    assert cache.parents_of(2) == [0, 1]
+    assert total2 == pytest.approx(total + delta2, rel=1e-9)
+    graph_score = (
+        _gaussian_bic(columns, 0, ())
+        + _gaussian_bic(columns, 1, (0,))
+        + _gaussian_bic(columns, 2, (0, 1))
+    )
+    assert total2 == pytest.approx(graph_score, rel=1e-7)
+    assert total2 == pytest.approx(cache.full_score({1: [0], 2: [0, 1]}), rel=1e-9)
+
+    # Removing the parents again returns to the score before the change.
+    delta3, total3 = cache.set_parents(2, [])
+    assert delta3 == pytest.approx(-delta2, rel=1e-7)
+    assert total3 == pytest.approx(total, rel=1e-9)
+    assert cache.retained_bytes > 0
+    cache.clear()
+    assert cache.parents_of(1) == [] and cache.retained_bytes == 0
+
+
+def test_a_graph_score_cache_refuses_self_parents_unknown_nodes_and_malformed_data():
+    columns = _chain_columns()
+    cache = antecedent.state.GraphScoreCache(columns)
+    with pytest.raises(CausalStateError, match="own parent"):
+        cache.set_parents(1, [1])
+    with pytest.raises(CausalStateError, match="out of range"):
+        cache.set_parents(7, [0])
+    assert cache.parents_of(1) == [], "a refused change leaves the parent sets alone"
+    with pytest.raises(CausalValueError, match="same number of rows"):
+        antecedent.state.GraphScoreCache([columns[0], columns[1][:-1]])
+    with pytest.raises(CausalValueError, match="finite"):
+        antecedent.state.GraphScoreCache([np.array([0.0, np.nan, 1.0]), np.array([0.0, 1.0, 2.0])])
+    with pytest.raises(CausalValueError, match="family"):
+        antecedent.state.GraphScoreCache(columns, family="no_such_family")
+    laplace = antecedent.state.GraphScoreCache(columns, family="laplace_bic")
+    delta, total = laplace.set_parents(1, [0])
+    assert total == pytest.approx(laplace.full_score({1: [0]}), rel=1e-6)
+    assert delta > 0
+
+
+def test_rolling_mechanism_diagnostics_fit_the_last_window_of_rows():
+    n, window = 30, 10
+    i = np.arange(n, dtype=np.float64)
+    design = np.column_stack([np.ones(n), i])
+    y = 1.5 + 0.25 * i + 0.1 * np.sin(1.7 * i)
+    diag = antecedent.state.RollingMechanismDiagnostics(2, window)
+    assert (diag.ncols, diag.window, diag.n, diag.beta) == (2, window, 0, [])
+    for row, response in zip(design[:20], y[:20], strict=True):
+        diag.append_row([float(v) for v in row], float(response))
+    rest = design[20:]
+    diag.append_batch([float(v) for v in rest.ravel()], [float(v) for v in y[20:]])
+    assert diag.n == window, "older rows left the window"
+    diag.refresh()
+
+    rows, ys = design[-window:], y[-window:]
+    beta, *_ = np.linalg.lstsq(rows, ys, rcond=None)
+    residuals = ys - rows @ beta
+    assert diag.beta == pytest.approx(list(beta), abs=1e-7)
+    assert diag.residual_sse == pytest.approx(float(np.sum(residuals**2)), abs=1e-9)
+    assert diag.residual_var == pytest.approx(float(np.sum(residuals**2)) / (window - 2), abs=1e-9)
+    assert diag.mean_abs_residual == pytest.approx(float(np.mean(np.abs(residuals))), abs=1e-9)
+    assert diag.max_abs_cusum is not None and diag.max_abs_cusum >= 0.0
+    assert 0 < diag.bytes <= diag.worst_case_bytes
+
+
+def test_rolling_mechanism_diagnostics_report_what_a_short_window_cannot_support():
+    diag = antecedent.state.RollingMechanismDiagnostics(1, 4)
+    with pytest.raises(CausalStateError):
+        diag.refresh()
+    diag.append_row([2.0], 4.0)
+    diag.refresh()
+    assert diag.beta == pytest.approx([2.0])
+    assert diag.residual_var is None, "one row cannot estimate a variance for one column"
+    assert diag.max_abs_cusum is None, "fewer than four residuals carry no CUSUM"
+    with pytest.raises(CausalStateError):
+        diag.append_row([1.0, 2.0], 1.0)
+    with pytest.raises(CausalStateError):
+        diag.append_row([1.0], float("nan"))
+    with pytest.raises(CausalStateError):
+        antecedent.state.RollingMechanismDiagnostics(0, 4)
+    with pytest.raises(CausalStateError):
+        antecedent.state.RollingMechanismDiagnostics(2, 0)

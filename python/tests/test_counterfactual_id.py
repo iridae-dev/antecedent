@@ -15,7 +15,7 @@ from antecedent.counterfactual_id import (
     consume_counterfactual_id_artifact,
     prepare_effect_on_treated,
 )
-from antecedent.errors import CausalError
+from antecedent.errors import CausalError, CausalTypeError
 from antecedent.graph import Admg, Cpdag
 
 LEVELS = {"x": [0.0, 1.0], "m": [0.0, 1.0], "y": [0.0, 1.0]}
@@ -104,6 +104,24 @@ def test_export_and_consume_replay_the_point_and_recompute_it_independently() ->
     again = consume_counterfactual_id_artifact(counted.artifact)
     assert again.probability == counted.probability
     assert again.independently_verified
+
+
+def test_a_consumer_holding_the_law_digest_refuses_an_artifact_computed_on_another_law() -> None:
+    effect = prepare().evaluate(probabilities=observational(frontdoor_model(0.1)))
+    other = prepare().evaluate(probabilities=observational(frontdoor_model(0.3)))
+    assert effect.data_digest != other.data_digest
+    bound = consume_counterfactual_id_artifact(
+        effect.artifact, expected_data_digest=effect.data_digest
+    )
+    assert bound.independently_verified
+    assert bound.probability == effect.probability
+    assert bound.data_digest == effect.data_digest
+    with pytest.raises(CausalError) as wrong_law:
+        consume_counterfactual_id_artifact(effect.artifact, expected_data_digest=other.data_digest)
+    assert wrong_law.value.reason_code == "invalid_argument"
+    assert "counterfactual_id.invalid_artifact" in str(wrong_law.value)
+    with pytest.raises(CausalTypeError):
+        consume_counterfactual_id_artifact(effect.artifact, expected_data_digest=7)  # type: ignore[arg-type]
 
 
 def test_a_mutated_artifact_is_refused_with_its_reason_code() -> None:

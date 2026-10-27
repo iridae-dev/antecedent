@@ -312,6 +312,78 @@ def test_missing_or_outside_support_and_schema_unit_population_contrast_are_refu
         cd.CohortBinding(snapshot_id="s", population="target", columns={"z": [1.0]}, row_ids=[17])
 
 
+def test_a_cohort_source_is_decided_under_a_support_policy_with_the_hand_calculated_utilities(
+    model,
+) -> None:
+    from antecedent import composition
+
+    source = model.decision_source(cohort=cohort(), outcome_units="mmHg")
+    expected_mean = float(np.dot(W, np.asarray(require_success(model.predict({"z": Z})).values)))
+
+    treat = source.decide(
+        affine_contract(source, 5.0, -2.0), composition.SupportPolicy.require_all()
+    )
+    by_id = {o.id: o for o in treat.outcomes}
+    assert by_id["treat"].expected_utility == pytest.approx(5.0 * expected_mean - 2.0, abs=1e-8)
+    assert by_id["wait"].expected_utility == pytest.approx(0.0, abs=1e-12)
+    assert by_id["treat"].standard_error is None
+    assert treat.verdict.kind == "uniquely_optimal" and treat.verdict.actions == ("treat",)
+    assert {d.id: d.status for d in treat.dispositions} == {
+        "treat": "evaluated",
+        "wait": "evaluated",
+    }
+    # The same decision as Contract.evaluate reaches by the mean-source route.
+    assert require_success(affine_contract(source, 5.0, -2.0).evaluate(source)).selected == (
+        "treat",
+    )
+    # A loss-making utility waits.
+    hold = source.decide(affine_contract(source, 1.0, -10.0))
+    assert hold.verdict.actions == ("wait",)
+    assert {o.id: o.expected_utility for o in hold.outcomes}["treat"] == pytest.approx(
+        expected_mean - 10.0, abs=1e-8
+    )
+
+    # A nonlinear utility is not answerable from a mean: unevaluated under comparison, a typed
+    # refusal under require_all, never an approximation.
+    nonlinear = decision.Contract(
+        actions=(
+            decision.Action(
+                "treat", inputs=(source.quantity,), utility=decision.x(0) * decision.x(0)
+            ),
+            decision.Action("wait", inputs=(source.quantity,), utility=decision.x(0) * 0.0),
+        ),
+        utility_units="utility",
+        criterion=decision.Criterion.expected_utility(),
+        target_population=source.quantity.population_id,
+    )
+    with pytest.raises(composition.CompositionRefusal):
+        source.decide(nonlinear, composition.SupportPolicy.require_all())
+    compared = source.decide(nonlinear)
+    assert {d.id: d.status for d in compared.dispositions}["treat"] == "unevaluated"
+    assert compared.verdict.kind == "only_one_evaluated"
+
+    # The support policy decides actions of an extrapolative (declared-shift) source.
+    shift = cd.CovariateShift("target", "clinic_b", ("z",))
+    shifted = model.decision_source(
+        cohort=cohort(population="clinic_b"), outcome_units="mmHg", shift=shift
+    )
+    contract = affine_contract(shifted, 5.0, -2.0)
+    with pytest.raises(cd.CohortDecisionRefusal) as unaccepted:
+        shifted.decide(contract)
+    assert unaccepted.value.detail == "cohort_decision.extrapolative_not_accepted"
+    accepted = shifted.accept_extrapolative()
+    strict = accepted.decide(contract)
+    assert strict.verdict.kind == "no_supported_action" and strict.outcomes == ()
+    assert {d.status for d in strict.dispositions} == {"unsupported"}
+    with pytest.raises(composition.SupportRefusal):
+        accepted.decide(contract, composition.SupportPolicy.require_all())
+    relaxed = accepted.decide(contract, composition.SupportPolicy(weakest_support="extrapolative"))
+    assert relaxed.verdict.actions == ("treat",)
+
+    with pytest.raises(CausalTypeError):
+        source.decide("not a contract")  # type: ignore[arg-type]
+
+
 def test_a_declared_shift_is_extrapolative_and_must_be_accepted(model) -> None:
     foreign = cohort(population="clinic_b")
     shift = cd.CovariateShift("target", "clinic_b", ("z",))
@@ -527,3 +599,55 @@ def test_a_declared_compact_export_is_point_only_with_its_own_detail() -> None:
         plain.interval()
     assert refused.value.reason_code == "cell_not_licensed"
     assert refused.value.detail == "cohort_decision.interval_requires_native_fit"
+
+
+def test_a_native_fit_is_the_declared_ols_with_hc3_covariance_and_refuses_bad_designs() -> None:
+    n = 400
+    rng = np.random.default_rng(23)
+    x = rng.uniform(-2.0, 2.0, n)
+    t = (np.arange(n) % 2).astype(float)
+    y = 2.0 + x + t * (1.0 + 0.5 * x) + rng.normal(0.0, 0.5, n)
+    fit = cd.fit_native_cohort_effect(
+        outcome=y,
+        treatment=t,
+        features={"x": x},
+        outcome_name="y",
+        treatment_name="t",
+        outcome_units="mmHg",
+        population="target",
+    )
+    # Independent OLS on the declared basis and its treatment interaction, with HC3.
+    design = np.column_stack([np.ones(n), x, t, t * x])
+    beta = np.linalg.lstsq(design, y, rcond=None)[0]
+    residual = y - design @ beta
+    bread = np.linalg.inv(design.T @ design)
+    leverage = np.einsum("ij,jk,ik->i", design, bread, design)
+    scaled = design * (residual / (1.0 - leverage))[:, None]
+    covariance = bread @ (scaled.T @ scaled) @ bread
+    assert (fit.rows, fit.width) == (n, 4)
+    # The fit reports the treatment block of the interaction model: [t, t * x].
+    assert list(fit.coefficients) == pytest.approx(list(beta[2:]), abs=1e-8)
+    assert list(fit.covariance) == pytest.approx(list(covariance[2:, 2:].ravel()), rel=1e-6)
+    # The cohort mean of the effect is the interaction model's contrast at the cohort's mean x.
+    binding = cd.CohortBinding(
+        snapshot_id="clinic",
+        population="target",
+        columns={"x": [0.0, 0.5]},
+        weights=[0.5, 0.5],
+    )
+    source = cd.decision_source_from_native_fit(fit, cohort=binding, outcome_units="mmHg")
+    assert source.mean_contrast == pytest.approx(beta[2] + beta[3] * 0.25, abs=1e-8)
+    # Mismatched columns and a design singular in the intercept are refused, not fitted.
+    for kwargs in (
+        {"outcome": y[:-1], "treatment": t, "features": {"x": x}},
+        {"outcome": y, "treatment": t, "features": {"x": np.ones(n)}},
+    ):
+        with pytest.raises(cd.CohortDecisionRefusal) as refused:
+            cd.fit_native_cohort_effect(
+                outcome_name="y",
+                treatment_name="t",
+                outcome_units="mmHg",
+                population="target",
+                **kwargs,  # type: ignore[arg-type]
+            )
+        assert refused.value.detail == "cohort_decision.native_fit_refused"

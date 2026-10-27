@@ -177,3 +177,28 @@ def test_interactive_class_envelope_reports_subsampled_out_mass_separately():
     assert any(
         "reported as subsampled_out_mass" in diagnostic for diagnostic in interactive.diagnostics
     )
+
+
+def test_hmc_requires_the_report_profile():
+    data, edges = confounded_scm(n=120, seed=9)
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+
+    def run(profile: str):
+        return require_success(
+            antecedent.analyze(
+                data,
+                graph=edges,
+                query=query,
+                inference=antecedent.Bayesian(n_draws=4000, backend="hmc", profile=profile),
+                refute=False,
+                execution=antecedent.Execution(seed=2),
+            )
+        )
+
+    for profile in ("interactive", "standard"):
+        with pytest.raises(antecedent.errors.CausalUnsupportedError, match="HMC requires"):
+            run(profile)
+    report = run("report")
+    assert report.posterior is not None
+    assert np.isfinite(report.posterior.effect_mean)
+    assert report.performance.latency_mode == "report"

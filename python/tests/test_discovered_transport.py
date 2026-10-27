@@ -295,6 +295,92 @@ def test_a_temporal_pag_enumerates_circles_and_its_members_disagree() -> None:
     assert all(reason == "circle_endpoint" for _, _, reason in envelope.unresolved)
 
 
+def _lagged_continuous_series(seed: int = 31, n: int = 1500) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    x = rng.normal(size=n)
+    z = np.zeros(n)
+    for t in range(1, n):
+        z[t] = 0.6 * z[t - 1] + rng.normal()
+    y = 0.3 * rng.normal(size=n)
+    y[1:] += 0.9 * x[:-1] + 0.9 * z[:-1]
+    return {"x": x, "y": y, "z": z}
+
+
+def test_a_discovered_temporal_class_is_transported_at_its_declared_horizon() -> None:
+    adapter = sd.SelectiveDiscovery("temporal")
+    adapter.run(sd.TemporalContract(variables=("x", "y", "z"), seed=1), _lagged_continuous_series())
+    envelope = discovered.transport_across_temporal_class(adapter, **TEMPORAL_QUERY)  # type: ignore[arg-type]
+    assert envelope.kind == "structural_envelope"
+    assert envelope.horizon_steps == 1
+    assert envelope.selection_targets == ("z",)
+    assert envelope.max_lag >= 1
+    assert envelope.members
+    # Strong lagged links are in the discovered structure, so every member carries them.
+    for member in envelope.members:
+        assert ("x", "y", 1) in member.directed_edges
+        assert ("z", "y", 1) in member.directed_edges
+
+    # A retained adapter that never ran has no temporal class to transport across.
+    with pytest.raises(discovered.DiscoveredTransportRefusal) as unrun:
+        discovered.transport_across_temporal_class(
+            sd.SelectiveDiscovery("temporal"),
+            **TEMPORAL_QUERY,  # type: ignore[arg-type]
+        )
+    assert unrun.value.detail == "selective_discovery.nothing_retained"
+    assert_registered_refusal(unrun.value)
+
+
+def _binary_lagged_series(steps: int, target: bool, seed: int) -> dict[str, np.ndarray]:
+    """``y_t ~ Bernoulli(p(x_{t-1}, z_{t-1}))`` with an autoregressive selected ``z``."""
+    rng = np.random.default_rng(seed)
+    x = np.zeros(steps)
+    y = np.zeros(steps)
+    z = np.zeros(steps)
+    for t in range(1, steps):
+        z_next = 0.6 - 0.4 * z[t - 1] if target else 0.2 + 0.5 * z[t - 1]
+        z[t] = float(rng.random() < z_next)
+        x[t] = float(rng.random() < 0.5)
+        y[t] = float(
+            rng.random() < 0.1 + 0.4 * x[t - 1] + 0.3 * z[t - 1] + 0.1 * x[t - 1] * z[t - 1]
+        )
+    return {"x": x, "y": y, "z": z}
+
+
+def test_a_temporal_estimate_recovers_the_stationary_target_response_of_a_discovered_class() -> (
+    None
+):
+    source = _binary_lagged_series(30_000, target=False, seed=41)
+    target = _binary_lagged_series(30_000, target=True, seed=42)
+    estimate = discovered.estimate_discovered_temporal_transport(
+        sd.TemporalContract(variables=("x", "y", "z"), seed=1),
+        source,
+        target,
+        outcome="y",
+        treatment="x",
+        grid=[0.0, 1.0],
+        selection_targets=["z"],
+        horizon_steps=1,
+        source_population="trial",
+        target_population="clinic",
+    )
+    assert estimate.answer.kind == "point"
+    # The target chain's stationary law solves pi = 0.6 - 0.4 pi, so by hand
+    # E[y | do(x = a)] = (1 - pi) p(a, 0) + pi p(a, 1) with p(a, z) = 0.1 + 0.4a + 0.3z + 0.1az.
+    pi = 0.6 / 1.4
+
+    def truth(a: float) -> float:
+        return (1.0 - pi) * (0.1 + 0.4 * a) + pi * (0.1 + 0.4 * a + 0.3 + 0.1 * a)
+
+    for (level, low, high), expected in zip(
+        estimate.answer.levels, (truth(0.0), truth(1.0)), strict=True
+    ):
+        assert low == pytest.approx(high)
+        assert low == pytest.approx(expected, abs=0.04), level
+    verified = discovered.verify_discovered_transport_estimate(bytes(estimate.export()))
+    assert verified.answer.kind == "point"
+    assert verified.report_identity == estimate.report_identity
+
+
 def test_a_temporal_query_outside_the_structure_is_refused() -> None:
     from antecedent.graph import TemporalDag
 
@@ -332,3 +418,96 @@ def test_a_temporal_estimate_over_columns_that_are_not_integer_codes_is_refused(
         )
     assert_registered_refusal(info.value)
     assert info.value.detail == "discovered_transport.evidence_invalid"
+
+
+def test_a_zero_member_bound_is_refused_and_keeps_the_discovery_that_ran() -> None:
+    with pytest.raises(discovered.DiscoveredTransportRefusal) as info:
+        discovered.discover_and_transport(
+            contract(),
+            chain(1),
+            member_bound=0,
+            **QUERY,  # type: ignore[arg-type]
+        )
+    assert_registered_refusal(info.value)
+    assert info.value.detail == "discovered_transport.member_bound_zero"
+    assert info.value.remedy and "member bound" in info.value.remedy
+    # Discovery is not discarded by the refusal of the transport request.
+    assert info.value.outcome is not None and info.value.outcome.structure_class == "cpdag"
+    assert info.value.report is not None
+    adapter = sd.SelectiveDiscovery("static")
+    adapter.run(contract(), chain(1))
+    with pytest.raises(discovered.DiscoveredTransportRefusal) as retained:
+        discovered.transport_across_class(adapter, member_bound=0, **QUERY)  # type: ignore[arg-type]
+    assert retained.value.detail == "discovered_transport.member_bound_zero"
+
+
+def binary_collider(rows: int, z_rate: float, seed: int) -> dict[str, np.ndarray]:
+    """``x -> y <- z`` with a randomized binary ``x`` and a ``z`` whose rate is the mechanism."""
+    rng = np.random.default_rng(seed)
+    x = (rng.random(rows) < 0.5).astype(np.float64)
+    z = (rng.random(rows) < z_rate).astype(np.float64)
+    y = (rng.random(rows) < 0.1 + 0.3 * x + 0.2 * z + 0.15 * x * z).astype(np.float64)
+    return {"x": x, "y": y, "z": z}
+
+
+def test_an_estimate_standardizes_the_source_response_over_the_target_mechanism_and_replays() -> (
+    None
+):
+    source = binary_collider(20_000, 0.3, 5)
+    target = binary_collider(20_000, 0.7, 6)
+    declared = contract(ci_test="gsquared")
+    estimate = discovered.estimate_discovered_transport(
+        declared,
+        source,
+        target,
+        outcome="y",
+        treatment="x",
+        grid=[0.0, 1.0],
+        selection_targets=["z"],
+        source_population="trial",
+        target_population="clinic",
+    )
+
+    def response(level: float, z_rate: float) -> float:
+        def p_y(z: float) -> float:
+            return 0.1 + 0.3 * level + 0.2 * z + 0.15 * level * z
+
+        return (1.0 - z_rate) * p_y(0.0) + z_rate * p_y(1.0)
+
+    # The structural truth in the target: sum over z of P*(z) P(y | do(x), z) = 0.24 and 0.645.
+    truth = [response(0.0, 0.7), response(1.0, 0.7)]
+    assert truth == pytest.approx([0.24, 0.645], abs=1e-12)
+    assert estimate.answer.kind == "point"
+    assert len(estimate.members) == 1 and estimate.members[0].status == "estimated"
+    assert estimate.answer.interval is None
+    for (level, low, high), expected in zip(estimate.answer.levels, truth, strict=True):
+        assert low == pytest.approx(expected, abs=0.03), level
+        assert high == pytest.approx(low, abs=1e-9)
+    assert estimate.answer.contrast == pytest.approx((truth[1] - truth[0],) * 2, abs=0.04)
+    # Another target mechanism is another answer: the source response is not the target's.
+    same_mechanism = discovered.estimate_discovered_transport(
+        declared,
+        source,
+        binary_collider(20_000, 0.3, 7),
+        outcome="y",
+        treatment="x",
+        grid=[0.0, 1.0],
+        selection_targets=["z"],
+        source_population="trial",
+        target_population="clinic",
+    )
+    assert same_mechanism.identity != estimate.identity
+    assert same_mechanism.answer.levels[0][1] == pytest.approx(response(0.0, 0.3), abs=0.03)
+
+    artifact = bytes(estimate.export())
+    verified = discovered.verify_discovered_transport_estimate(artifact)
+    assert verified.members == (0,)
+    assert verified.answer.kind == "point"
+    assert verified.answer.levels == estimate.answer.levels
+    assert verified.report_identity == estimate.report_identity
+    flipped = bytearray(artifact)
+    flipped[len(flipped) // 2] ^= 0xFF
+    with pytest.raises(CausalValueError):
+        discovered.verify_discovered_transport_estimate(bytes(flipped))
+    with pytest.raises(CausalValueError):
+        discovered.verify_discovered_transport_estimate(artifact[:-1])

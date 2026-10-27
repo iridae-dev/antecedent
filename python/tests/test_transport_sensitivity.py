@@ -11,9 +11,13 @@ three grid points is ``0, 0.25, 0.5``, so the range is ``[2, 2]``, ``[1.75, 2.25
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
+from antecedent import cohort_decision as cd
 from antecedent import sensitivity_decision as sd
 from antecedent import transported_response as tr
+from antecedent.compact_export import CompactExport, Intercept, Linear, Numeric, Quantity
 from antecedent.errors import CausalTypeError
 from antecedent.outcomes import require_success
 from antecedent.transport import sensitivity as ts
@@ -135,3 +139,51 @@ def test_only_a_transported_response_has_an_assumption_range() -> None:
             reference=effect(),
             reference_value=1.0,
         )
+
+
+def test_a_shifted_cohort_response_names_its_own_sensitivity_route() -> None:
+    # tau(z) = 2 + 0.5 z over the cohort z = (-1, 0.5, 1) with weights (0.2, 0.3, 0.5): the
+    # weighted mean is 0.2 * 1.5 + 0.3 * 2.25 + 0.5 * 2.5 = 2.225 in clinic_b.
+    export = CompactExport.build(
+        response=Quantity(
+            "y",
+            units="mmHg",
+            role="outcome",
+            regime="contrast:do(t=1)-do(t=0)",
+            functional="conditional_mean_difference",
+        ),
+        inputs=[Numeric("z", -1.0, 1.0, units="1")],
+        terms=[Intercept(), Linear("z")],
+        coefficients=[2.0, 0.5],
+        covariance=[[0.04, -0.01], [-0.01, 0.09]],
+    )
+    cohort = cd.decision_source_from_compact_export(
+        export,
+        cohort=cd.CohortBinding(
+            snapshot_id="clinic-2026-q1",
+            population="clinic_b",
+            columns={"z": [-1.0, 0.5, 1.0]},
+            weights=[0.2, 0.3, 0.5],
+        ),
+        outcome_units="mmHg",
+        shift=cd.CovariateShift("target", "clinic_b", ("z",)),
+    )
+    response = tr.TransportedResponse.from_shifted_cohort(cohort)
+    assert response.receipt.route == "shifted_cohort"
+    reference = dataclasses.replace(
+        response.coordinates[0], variable_id="keep", variable_name="keep"
+    )
+    # No route is named: the response's own route implies the cohort-decision premise.
+    result = ts.transport_sensitivity(
+        response,
+        family="additive_shift",
+        bound=0.5,
+        grid_points=3,
+        reference=reference,
+        reference_value=2.4,
+    )
+    assert result.route == "cohort_decision"
+    assert result.premise == "selection_diagram_invariance"
+    assert result.point_value == pytest.approx(2.225, abs=TOL)
+    assert result.range_at_bound == pytest.approx((1.725, 2.725), abs=TOL)
+    assert result.reference_reached_at == pytest.approx(0.175, abs=TOL)

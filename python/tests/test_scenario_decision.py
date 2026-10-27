@@ -524,6 +524,46 @@ def test_identified_utilities_are_the_envelope_of_the_identified_scenarios():
     assert_registered_refusal(unweighted.value)
 
 
+def test_a_weighted_scenario_set_reads_its_mixture_range_on_the_weighted_and_report_routes():
+    # Declared weights 1/2 and 1/2 account for all mass, so the mixture mean of y is the single
+    # value 0.5 * 0.35 + 0.5 * 0.56 = 0.455: treat = 0.255 and hold = 0.2275, not the envelope.
+    stage = two((0.5, 0.5))
+    mixture = 0.5 * STANDARDIZED + 0.5 * DIRECT
+    for route in ("weighted", "report"):
+        utilities = sd.identified_utilities_from_scenarios(
+            contract(0.2, "report_only"),
+            stage,
+            **utility_options(route=route, support=SUPPORTED),
+        )
+        ranges = utility_ranges(utilities)
+        near(ranges["treat"][0], 0.255)
+        near(ranges["treat"][1], 0.255)
+        near(ranges["hold"][0], 0.2275)
+        near(ranges["hold"][1], 0.2275)
+        near(ranges["treat"][0], mixture - 0.2)
+        assert all(u.support.overall == "supported" and not u.hard_exclusions for u in utilities)
+    # The envelope route still reads the spread of the identified scenarios, a different range.
+    envelope = utility_ranges(
+        sd.identified_utilities_from_scenarios(
+            contract(0.2, "report_only"), stage, **utility_options(route="envelope")
+        )
+    )
+    near(envelope["treat"][0], STANDARDIZED - 0.2)
+    near(envelope["treat"][1], DIRECT - 0.2)
+    # An action input that no bound outcome measures has no utility range on any route.
+    for route in ("envelope", "weighted"):
+        with pytest.raises(sd.ScenarioDecisionRefusal) as missing:
+            sd.identified_utilities_from_scenarios(
+                contract(0.2, "report_only"),
+                stage,
+                outcomes=[sd.OutcomeBinding("y", quantity("w"))],
+                causal_contract_id=CAUSAL,
+                route=route,
+            )
+        assert missing.value.detail == "decision_claims.missing_scenario_utility"
+        assert_registered_refusal(missing.value)
+
+
 def test_an_unresolved_scenario_blocks_an_envelope_reading():
     with pytest.raises(sd.ScenarioDecisionRefusal) as unresolved:
         sd.identified_utilities_from_scenarios(

@@ -343,3 +343,52 @@ def test_the_native_consume_entry_returns_a_summary_or_a_refusal_payload() -> No
     # Truncated bytes are a refusal payload, not a summary.
     summary, refusal = _native.joint_law_consume(data[: len(data) // 2], None, None)
     assert summary is None and refusal is not None
+
+
+def test_aligned_linear_never_pairs_foreign_or_marginal_columns() -> None:
+    _, dx, dy = _columns("snap-linear-pair")
+    _, _, foreign_y = _columns("snap-linear-other")
+    with pytest.raises(R) as error:
+        require_success(jl.aligned_linear("sum", (1.0, 1.0), dx, foreign_y))
+    assert error.value.reason_code == "joint_law_required"
+    assert error.value.detail == "joint_law_propagation.alignment_mismatch"
+    x, y = _rows()
+    marginals = _artifact("snap-linear-marginals", x, y, alignment="independent_marginals")
+    mx = jl.PropagationDraws.from_artifact_column("mx", marginals, 0)
+    my = jl.PropagationDraws.from_artifact_column("my", marginals, 1)
+    with pytest.raises(R) as error:
+        require_success(jl.aligned_linear("sum", (1.0, 1.0), mx, my))
+    assert error.value.reason_code == "joint_law_required"
+    assert error.value.detail == "joint_law_propagation.index_pairing_refused"
+    assert error.value.remedy
+    # The pairing was the refusal, not the operation: columns of one joint law still answer.
+    paired = require_success(jl.aligned_linear("sum", (1.0, 1.0), dx, dy))
+    assert paired.value("variance") == pytest.approx(0.81, abs=1e-12)
+
+
+def test_an_improper_correlation_range_is_refused_and_the_closed_range_is_the_extreme() -> None:
+    def declared(rho_lo: float, rho_hi: float):  # type: ignore[no-untyped-def]
+        return jl.correlation_range(
+            "sum",
+            ("x", "s1"),
+            ("y", "s2"),
+            x_mean=0.0,
+            x_sd=1.0,
+            y_mean=0.0,
+            y_sd=1.0,
+            rho_lo=rho_lo,
+            rho_hi=rho_hi,
+        )
+
+    for rho_lo, rho_hi in ((-1.1, 0.5), (-0.5, 1.1), (0.5, 0.5), (0.6, 0.2)):
+        with pytest.raises(R) as error:
+            require_success(declared(rho_lo, rho_hi))
+        assert error.value.reason_code == "invalid_argument"
+        assert error.value.detail == "joint_law_propagation.invalid_request"
+        assert error.value.offending == "correlation_range"
+        assert error.value.remedy
+    # Var(X + Y) = 2 + 2 rho for unit standard deviations: 0 at rho = -1 and 4 at rho = 1.
+    widest = require_success(declared(-1.0, 1.0))
+    assert widest.label == "assumption_range"
+    assert widest.value("linear_variance_lower") == pytest.approx(0.0, abs=1e-12)
+    assert widest.value("linear_variance_upper") == pytest.approx(4.0, abs=1e-12)

@@ -17,6 +17,7 @@ from antecedent.discovery import (
     PC,
     PCMCI,
     BootstrapStability,
+    CiScreenedPosterior,
     EquivalenceClassPosterior,
     ExactDagPosterior,
     LiNGAM,
@@ -334,3 +335,58 @@ def test_a_pag_sampler_runs_beyond_four_variables_and_finds_the_exact_top_class(
     exact = _native.discover_exact_pag_posterior(["a", "b", "c"], [a, b, c], seed=1)
     top = lambda post: post.adjacency[max(range(post.n_graphs), key=post.weights.__getitem__)]  # noqa: E731
     assert top(small) == top(exact)
+
+
+def test_a_ci_screened_posterior_samples_only_the_skeleton_the_screen_keeps():
+    # A chain x -> z -> y: x and y are dependent marginally and independent given z.
+    rng = np.random.default_rng(12)
+    n = 400
+    x = rng.uniform(-1.0, 1.0, size=n)
+    z = x + 0.5 * rng.uniform(-1.0, 1.0, size=n)
+    y = z + 0.5 * rng.uniform(-1.0, 1.0, size=n)
+    data = {"x": x, "y": y, "z": z}
+
+    sampler = CiScreenedPosterior(alpha=0.01, n_chains=2, n_warmup=300, n_draws=600)
+    post = sampler.run(data, seed=3)
+    assert post.names == ["x", "y", "z"] and post.n_vars == 3
+    matrix = post.edge_marginal_matrix()
+    ix, iy, iz = 0, 1, 2
+    # The screen removes x - y (independent given z): no sampled graph carries an edge between them.
+    assert matrix[ix][iy] == 0.0 and matrix[iy][ix] == 0.0
+    # Both remaining pairs are adjacent in essentially every sampled graph.
+    for source in (ix, iy):
+        assert matrix[source][iz] + matrix[iz][source] >= 0.95
+    # The skeleton x - z - y has three Markov-equivalent orientations (x -> z -> y, y -> z -> x
+    # and the fork z -> x, z -> y) with equal Gaussian BIC, and no collider is sampled: so each
+    # edge points toward z in exactly one of three equally weighted graphs.
+    assert post.n_graphs == 3
+    for source in (ix, iy):
+        assert matrix[source][iz] == pytest.approx(1.0 / 3.0, abs=0.08)
+        assert matrix[iz][source] == pytest.approx(2.0 / 3.0, abs=0.08)
+    # A fixed seed reproduces the sampled graphs; the schedule is part of the posterior.
+    again = sampler.run(data, seed=3)
+    assert again.adjacency == post.adjacency
+
+    with pytest.raises(CausalValueError, match="soft_weight"):
+        CiScreenedPosterior(soft_weight="bogus").run(data, seed=3)  # type: ignore[arg-type]
+
+
+def test_a_pcmci_run_reports_the_statistic_and_p_value_of_each_retained_link():
+    names, cols = _series_rows(seed=7, n=600)
+    series = dict(zip(names, cols, strict=True))
+    result = PCMCI(max_lag=1, alpha=0.01, fdr=False).run(series, seed=1)
+    links = {(k.source, k.source_lag, k.target, k.target_lag): k for k in result.links}
+    # y_t = 0.8 x_{t-1} + 0.2 e: the partial correlation of x_{t-1} with y_t given y's other
+    # parents is 0.8 / sqrt(0.8^2 + 0.2^2) = 0.9701 in the population.
+    truth = 0.8 / np.sqrt(0.8**2 + 0.2**2)
+    cross = links[("x", 1, "y", 0)]
+    assert cross.statistic == pytest.approx(truth, abs=0.02)
+    assert cross.p_value < 1e-12
+    assert cross.adjusted_p_value is None  # FDR did not run
+    # Every retained link passed the declared level, and x is white noise: nothing lagged feeds it.
+    assert all(link.p_value <= 0.01 for link in result.links)
+    assert not any(link.target == "x" for link in result.links)
+    # With FDR the adjusted p-values exist and never fall below the raw ones.
+    adjusted = PCMCI(max_lag=1, alpha=0.01, fdr=True).run(series, seed=1)
+    for link in adjusted.links:
+        assert link.adjusted_p_value is not None and link.adjusted_p_value >= link.p_value

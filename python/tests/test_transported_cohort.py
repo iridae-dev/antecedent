@@ -282,3 +282,63 @@ def test_interval_and_law_are_refused_with_the_licensing_evidence(model) -> None
     with pytest.raises(cd.CohortDecisionRefusal) as quantile:
         effect.refuse("quantile")
     assert quantile.value.reason_code == "decision_contract_unsatisfied"
+
+
+# ------------------------------------------------------------------------------ composition
+
+
+def test_the_transported_value_is_a_composition_node_that_follows_its_identity(model) -> None:
+    from antecedent import composition_verification as cv
+
+    base = transport(model)
+    node = base.composition_node("transported")
+    # the standing of a point the library carried: supported, no provider trust, no calibration
+    assert node.key == "transported" and node.kind == "transported_result"
+    assert node.trust == "not_applicable" and node.unsupported == ()
+    assert node.calibration == cv.Calibration.point_only()
+    assert node.transformation == base.receipt.route
+    assert node.assumptions == tuple(base.receipt.assumptions)
+    # a changed weight moves the value, so the node's identity; the target is unchanged, so the
+    # coordinate a calibration record would be checked at is not
+    reweighted = transport(model, cohort_=cohort(w=[0.5, 0.25, 0.25])).composition_node(
+        "transported"
+    )
+    assert reweighted.identity != node.identity and reweighted.coordinate == node.coordinate
+    # another target population is another coordinate
+    elsewhere = cd.transport_cohort_effect(
+        model,
+        cohort=cohort(population="clinic_c"),
+        source_population="clinic_a",
+        shift=shift(target="clinic_c"),
+        outcome_units="mmHg",
+    ).composition_node("transported")
+    assert elsewhere.coordinate != node.coordinate
+
+    downstream = cv.Node("decision", "decision", identity=cv.digest("decision"))
+    edges = [cv.Edge("decision", "transported", "evidence")]
+
+    def graph(*nodes):
+        return cv.CompositionGraph(nodes=[*nodes, downstream], edges=edges)
+
+    same = cv.verify_composition(graph(node), previous=graph(node))
+    assert same.classify("transported").klass == "still_valid"
+    moved = cv.verify_composition(graph(reweighted), previous=graph(node))
+    assert moved.classify("transported").klass == "recompute"
+    assert moved.classify("decision").klass == "recompute"
+
+    # a record established for one target is never carried to another
+    record = cv.digest("record")
+    held = cv.Calibration.held(record, node.coordinate)
+    before = graph(dataclasses.replace(node, calibration=held))
+    after = graph(dataclasses.replace(elsewhere, calibration=held))
+    retargeted = cv.verify_composition(after, previous=before)
+    assert retargeted.classify("transported").klass == "withdrawn"
+    assert retargeted.classify("transported").calibration.state == "lost"
+    with pytest.raises(cv.CompositionVerificationRefusal) as lost:
+        retargeted.require_valid("transported")
+    assert lost.value.reason_code == "cell_not_licensed"
+
+    with pytest.raises(CausalTypeError):
+        base.composition_node("")
+    forged = dataclasses.replace(base, identity="0" * 64)
+    assert forged.composition_node("transported").identity == node.identity

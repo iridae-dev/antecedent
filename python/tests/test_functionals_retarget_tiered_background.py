@@ -1217,3 +1217,26 @@ def test_batch_prepare_forwards_omitted_inference_and_refute(entry):
     params = inspect.signature(getattr(antecedent.estimation, entry)).parameters
     assert params["inference"].default is None
     assert params["refute"].default is None
+
+
+def test_a_cell_aipw_response_study_publishes_its_arm_and_tier_record():
+    data, background, q11, _ = _codetermined_pair_family()
+    prepared = antecedent.prepare(
+        data,
+        query=q11,
+        graph=background,
+        estimator="cell.aipw",
+        refute="none",
+        inference=antecedent.Frequentist(bootstrap=0),
+    )
+    outcome = antecedent.estimate(prepared)
+    require_success(outcome)
+    operation = outcome.study.plan_view().operation
+    assert operation["kind"] == "cell_aipw_response"
+    assert operation["origin"] == "Explicit", (
+        "the DAG-equivalent background was supplied, not accepted"
+    )
+    assert 0 <= operation["requested_arm"] < 4, "two binary treatments make four arms"
+    assert operation["adjustment_set"] == ["z"], "the earlier tier closes the back door"
+    assert "codetermined" in operation["within_tier"].lower()
+    assert operation["identifier"] and operation["estimator"] == "cell.aipw"

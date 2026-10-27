@@ -48,3 +48,35 @@ def test_a_malformed_declaration_is_refused():
             [1, 1], columns, evidence_id="e", alignment_id="a", operation="sum",
             coefficients=[1.0, 1.0],
         )  # fmt: skip
+
+
+def test_a_wrong_coefficient_count_is_refused_and_no_composed_quantity_is_returned():
+    columns = _coupled()
+    with pytest.raises(Exception, match="give one coefficient per horizon"):
+        compose_horizons(
+            [1, 2], columns, evidence_id="series", alignment_id="replicates:200",
+            operation="weighted_sum", coefficients=[1.0],
+        )  # fmt: skip
+
+
+def test_a_map_over_a_linear_operation_or_with_a_non_finite_value_is_refused():
+    columns = _coupled()
+    # A linear combination goes through coefficients, never an arbitrary map.
+    with pytest.raises(Exception, match="compose a linear combination of horizons"):
+        compose_horizons(
+            [1, 2], columns, evidence_id="series", alignment_id="replicates:200",
+            operation="sum", map=lambda values: values[0],
+        )  # fmt: skip
+    # A map that returns a non-finite value for a realization is refused, not averaged.
+    with pytest.raises(Exception, match="finite map"):
+        compose_horizons(
+            [1, 2], columns, evidence_id="series", alignment_id="replicates:200",
+            operation="nonlinear_functional", map=lambda values: float("nan"),
+        )  # fmt: skip
+    peak = compose_horizons(
+        [1, 2], columns, evidence_id="series", alignment_id="replicates:200",
+        operation="nonlinear_functional", map=lambda values: max(values),
+    )  # fmt: skip
+    assert peak.label == "uncalibrated_spread"
+    assert peak.route == "aligned_joint_law"
+    assert peak.coordinate.endswith("|horizons=1,2")

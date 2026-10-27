@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 from antecedent import composition_bundle as cb
 from antecedent import decision, external
-from antecedent.errors import CausalUnsupportedError
+from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.joint_distribution import (
     DistributionIdentity,
     JointDistributionArtifact,
@@ -487,3 +487,39 @@ def test_describe_reports_facts_read_from_the_decoded_artifact() -> None:
         cb.describe_artifact("distribution", claim)
     with pytest.raises(CausalUnsupportedError):
         cb.describe_artifact("decision_contract", b"junk")
+
+
+def test_consumer_bounds_refuse_a_bundle_beyond_them_before_any_node_is_verified() -> None:
+    bundle = _joint_bundle()
+    data = bytes(bundle.export())
+    # A bundle of three nodes and two edges consumes at exactly its own size.
+    fitted = require_success(
+        cb.consume_bundle(
+            data,
+            expected_identity=bundle.identity,
+            max_bundle_bytes=len(data),
+            max_nodes=3,
+            max_edges=2,
+        )
+    )
+    fitted.require_verified()
+    assert fitted.identity == bundle.identity
+    # One unit below any bound refuses as oversized with the registered code, and a
+    # refused bound never reports a partially verified bundle.
+    for bound in (
+        {"max_bundle_bytes": len(data) - 1},
+        {"max_nodes": 2},
+        {"max_edges": 1},
+        {"max_embedded_bytes": 1},
+    ):
+        with pytest.raises(cb.OversizedRefusal) as caught:
+            require_success(cb.consume_bundle(data, expected_identity=bundle.identity, **bound))
+        assert caught.value.bundle_stage == "oversized", bound
+        assert caught.value.detail == "composition_bundle.oversized"
+        assert_registered_refusal(caught.value)
+    with pytest.raises(CausalValueError):
+        cb.consume_bundle(data, expected_identity=bundle.identity, max_nodes=0)
+    with pytest.raises(CausalTypeError):
+        cb.consume_bundle(data, expected_identity=bundle.identity, max_edges=True)
+    with pytest.raises(CausalValueError):
+        cb.consume_bundle(data, expected_identity=bundle.identity, max_nodes=3, actual_claims={})

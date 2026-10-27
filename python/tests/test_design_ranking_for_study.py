@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 from antecedent import design as dr
 from antecedent.design import study_ranking as sr
-from antecedent.errors import CausalError
+from antecedent.errors import CausalError, CausalTypeError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
 
 TREATMENT = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
@@ -133,3 +133,80 @@ def test_a_store_the_admission_pool_cannot_hold_is_refused_before_anything_is_sc
         sr.evaluate_for_study(
             _study_of(), _bet(), [_study("study-a")], signal=_signal(), memory_bytes=64
         )
+
+
+# ------------------------------------------------------------------------------ the decision
+
+
+def test_a_study_compiles_for_a_terminal_decision_and_the_decision_is_part_of_the_program():
+    study = _study_of()
+    program = sr.compile_decision_for_study(study, _bet(), "parameter_posterior")
+    # layer four carries the decision: the carrier, the two actions, the utility's affine form
+    # (abstain 0, bet -0.5 + state), the unit and the contract identity
+    assert program.carrier == "parameter_posterior"
+    assert program.actions == 2 and program.constraints == 0
+    assert program.chance_threshold == 1.0
+    assert program.utility_unit == "utility" and program.contract_identity == "contract-bet"
+    assert program.utility_coefficients == ((0.0, 0.0), (-0.5, 1.0))
+    assert len(program.program_identity) == 64
+    # the decision is part of the lowered program, so the estimate-only program differs
+    assert program.estimate_program_identity != program.program_identity
+    # the same decision keeps its identity; a new utility, a new carrier and a new threshold change it
+    assert sr.compile_decision_for_study(study, _bet()).program_identity == program.program_identity
+    steeper = dr.DesignDecision(
+        contract="contract-bet",
+        actions=(dr.ActionUtility("abstain", 0.0, 0.0), dr.ActionUtility("bet", -0.5, 2.0)),
+        prior=dr.StatePrior.draws([0.25, 0.75]),
+        utility_units="utility",
+    )
+    moved = sr.compile_decision_for_study(study, steeper)
+    assert moved.program_identity != program.program_identity
+    assert moved.utility_coefficients == ((0.0, 0.0), (-0.5, 2.0))
+    assert moved.estimate_program_identity == program.estimate_program_identity
+    mean = sr.compile_decision_for_study(study, _bet(), "mean")
+    assert mean.carrier == "mean" and mean.program_identity != program.program_identity
+    assert (
+        sr.compile_decision_for_study(study, _bet(), chance_threshold=0.5).program_identity
+        != program.program_identity
+    )
+
+
+def test_a_carrier_the_realization_cannot_publish_is_refused_and_names_the_next_attempt():
+    frequentist = _study_of(posterior=False)
+    with pytest.raises(dr.DesignRankingRefusal) as posterior:
+        sr.compile_decision_for_study(frequentist, _bet(), "parameter_posterior")
+    refusal = posterior.value
+    assert refusal.reason_code == "distribution_meaning_mismatch"
+    assert refusal.detail == "decision_compile.carrier"
+    # a confidence interval is not a parameter posterior
+    assert refusal.offending == "frequentist"
+    assert refusal.fields["demanded"] == "parameter_posterior"
+    assert refusal.fields["missing_carrier"] == "parameter_posterior"
+    assert refusal.fields["next_attempt"] == "bayesian_realization"
+    assert "Bayesian" in (refusal.remedy or "")
+    # the weaker carrier an affine utility needs is supplied by the same study
+    assert sr.compile_decision_for_study(frequentist, _bet(), "mean").carrier == "mean"
+    # an outcome law is refused on both realizations of an average-effect route
+    for study in (frequentist, _study_of()):
+        with pytest.raises(dr.DesignRankingRefusal) as law:
+            sr.compile_decision_for_study(study, _bet(), "outcome_law")
+        assert law.value.fields["missing_carrier"] == "outcome_law"
+        assert law.value.fields["next_attempt"] == "interventional_law"
+
+
+def test_malformed_decisions_and_carriers_raise_before_any_compile():
+    study = _study_of()
+    with pytest.raises(CausalValueError):
+        sr.compile_decision_for_study(study, _bet(), "posterior")
+    with pytest.raises(CausalTypeError):
+        sr.compile_decision_for_study(study, "bet")  # type: ignore[arg-type]
+    with pytest.raises(CausalError):
+        sr.compile_decision_for_study(study, _bet(), chance_threshold=1.5)
+    empty = dr.DesignDecision(
+        contract="contract-empty",
+        actions=(),
+        prior=dr.StatePrior.draws([0.25, 0.75]),
+        utility_units="utility",
+    )
+    with pytest.raises(CausalError):
+        sr.compile_decision_for_study(study, empty)

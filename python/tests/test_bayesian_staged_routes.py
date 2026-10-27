@@ -238,6 +238,40 @@ def test_bayesian_mediation_mapped_prior_is_used():
     assert isotropic.effect == pytest.approx(kinds["direct"], abs=kinds["tolerance"])
 
 
+def test_bayesian_mediation_refuses_a_prior_source_that_is_not_a_posterior_artifact():
+    from antecedent.priors import PriorMapping
+
+    kinds = _load("conformance/estimate/staged_static_kinds/expected.json")
+    i = np.arange(200, dtype=float)
+    a = np.sin(i * 0.71)
+    m = 2 * a + np.cos(i * 1.13)
+    y = 3 * a + 4 * m + 0.1 * np.sin(i * 0.31)
+    dag = ac.Dag.from_edges(["a", "m", "y"], [("a", "m"), ("a", "y"), ("m", "y")])
+    with pytest.raises(ac.errors.CausalError):
+        require_success(
+            ac.analyze(
+                {"a": a, "m": m, "y": y},
+                graph=dag,
+                query=ac.MediationEffect(
+                    "a",
+                    "y",
+                    mediators=["m"],
+                    contrast="natural_direct",
+                    control_level=kinds["control"],
+                    active_level=kinds["active"],
+                ),
+                inference=ac.Bayesian(
+                    n_draws=64,
+                    backend="conjugate",
+                    prior_from=b"not a posterior artifact",
+                    mapping=PriorMapping.effect_functional("ate"),
+                ),
+                refute=False,
+                execution=ac.Execution(seed=1),
+            )
+        )
+
+
 def test_staged_native_signatures_match_type_stubs():
     from antecedent import _native
 

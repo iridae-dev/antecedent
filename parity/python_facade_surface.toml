@@ -380,14 +380,14 @@ reason = "builds observed effects from Rust-typed claim envelopes; Python states
 [[entry]]
 rust = "antecedent::analysis::composition_verification::freshness_effects"
 kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+status = "bound"
+python = "antecedent.composition_verification.freshness_effects"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::invalidation_effects"
 kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+status = "bound"
+python = "antecedent.composition_verification.invalidation_effects"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::ledger_effects"
@@ -398,20 +398,20 @@ python = "antecedent.composition_verification.ledger_effects"
 [[entry]]
 rust = "antecedent::analysis::composition_verification::library_transported_node"
 kind = "fn"
-status = "internal"
-reason = "node builder for the facade transported routes; Python builds composition_verification.Node directly"
+status = "bound"
+python = "antecedent.cohort_decision.TransportedCohortEffect.composition_node"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::library_transported_standing"
 kind = "fn"
-status = "internal"
-reason = "standing builder for the facade transported routes; Python states Calibration and Node directly"
+status = "bound"
+python = "antecedent.cohort_decision.TransportedCohortEffect.composition_node"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::query_revalidation"
 kind = "fn"
-status = "internal"
-reason = "reads the Rust invalidation log for one query; Python states the resulting effect with composition_verification.Effect"
+status = "bound"
+python = "antecedent.composition_verification.query_revalidation"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::registry_record_attests"
@@ -437,20 +437,20 @@ reason = "tested in python/tests/test_composition_verification.py"
 [[entry]]
 rust = "antecedent::analysis::composition_verification::stage_effects"
 kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+status = "bound"
+python = "antecedent.composition_verification.plan_declaration"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::stage_node"
 kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+status = "bound"
+python = "antecedent.composition_verification.plan_declaration"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::stage_node_with_standing"
 kind = "fn"
-status = "internal"
-reason = "node builder over a Rust RecalcPlan; Python builds composition_verification.Node directly"
+status = "bound"
+python = "antecedent.composition_verification.plan_declaration"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::unresolved_registry_calibrations"
@@ -686,12 +686,6 @@ status = "bound"
 python = "antecedent.discretized_composition.consume_discretized_composition"
 
 [[entry]]
-rust = "antecedent::analysis::evidence_plan::plan_for_failure"
-kind = "fn"
-status = "internal"
-reason = "composes failure_routes and plan_over_routes, the two steps FailureContract and design.evidence_plan take in Python; tested in python/tests/test_evidence_plan.py"
-
-[[entry]]
 rust = "antecedent::analysis::evidence_plan::plan_over_routes"
 kind = "fn"
 status = "bound"
@@ -714,12 +708,6 @@ rust = "antecedent::analysis::fallback::failure_capability_parts"
 kind = "fn"
 status = "bound"
 python = "antecedent.repair.FailureContract.capability_report"
-
-[[entry]]
-rust = "antecedent::analysis::fallback::failure_capability"
-kind = "fn"
-status = "internal"
-reason = "merges the failure's parts into a study's cheap inspection report; Python reads the parts through antecedent.repair.FailureContract.capability_report"
 
 [[entry]]
 rust = "antecedent::analysis::fallback::fallback_roles"
@@ -780,12 +768,6 @@ status = "bound"
 python = "antecedent.inverse_query.consume"
 
 [[entry]]
-rust = "antecedent::analysis::inverse_query::evaluate"
-kind = "fn"
-status = "bound"
-python = "antecedent.inverse_query.evaluate"
-
-[[entry]]
 rust = "antecedent::analysis::inverse_query::export"
 kind = "fn"
 status = "bound"
@@ -808,7 +790,7 @@ python = "native:python/src/forward_source_api.rs"
 rust = "antecedent::analysis::inverse_sources::composed_source"
 kind = "fn"
 status = "bound"
-python = "antecedent.inverse_sources.composed_forward_source"
+python = "antecedent.inverse_sources.derive_composed_source"
 reason = "the Python entry is named composed_forward_source"
 
 [[entry]]
@@ -1131,13 +1113,6 @@ python = "antecedent.provider_callbacks.CallbackDeclaration.predictive_law_sourc
 reason = "tested in python/tests/test_provider_callbacks.py"
 
 [[entry]]
-rust = "antecedent::analysis::proposal_arrival::execute"
-kind = "fn"
-status = "bound"
-python = "native:python/src/proposal_arrival_api.rs"
-reason = "antecedent.proposal_arrival.consume_arrival executes the checked formula on delivered counts; tested in python/tests/test_proposal_arrival.py"
-
-[[entry]]
 rust = "antecedent::analysis::provider_callbacks::refuse_identification_licence"
 kind = "fn"
 status = "bound"
@@ -1206,12 +1181,6 @@ status = "bound"
 python = "native:python/src/recalc_bayesian_api.rs"
 
 [[entry]]
-rust = "antecedent::analysis::recalc_cell::cell_request_reason_code"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
 rust = "antecedent::analysis::recalc_cell::execute_cell_with_receipt"
 kind = "fn"
 status = "bound"
@@ -1246,12 +1215,6 @@ rust = "antecedent::analysis::recalc_dr::execute_dr_with_receipt"
 kind = "fn"
 status = "bound"
 python = "native:python/src/recalc_dr_api.rs"
-
-[[entry]]
-rust = "antecedent::analysis::recalc_external::count_external_invocations"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
 rust = "antecedent::analysis::recalc_joint_bayesian::execute_joint_bayesian_with_receipt"
@@ -1312,13 +1275,6 @@ rust = "antecedent::analysis::repair::repair_contract"
 kind = "fn"
 status = "bound"
 python = "native:python/src/repair_api.rs"
-
-[[entry]]
-rust = "antecedent::analysis::repair::repair_with_artifact"
-kind = "fn"
-status = "bound"
-python = "native:python/src/repair_api.rs"
-reason = "repair runs repair_contract and RepairReportArtifact::build, the two steps of this entry; tested in python/tests/test_repair.py"
 
 [[entry]]
 rust = "antecedent::analysis::repair::unresolved_obligations"
@@ -1515,16 +1471,10 @@ status = "internal"
 reason = "certificate step behind antecedent.estimation.PreparedAnalysis.refute_target (the returned TargetRefutation carries the certificate identity) and behind every claim export; tested in python/tests/test_target_validation.py"
 
 [[entry]]
-rust = "antecedent::analysis::target_validation::refuse_scalar_refutations_for_result"
-kind = "fn"
-status = "internal"
-reason = "enforced by StudyResult::claim, so every Python claim and artifact export refuses a scalar average-effect refutation offered for another target"
-
-[[entry]]
 rust = "antecedent::analysis::target_validation::refute_prepared_target"
 kind = "fn"
 status = "bound"
-python = "antecedent.estimation.PreparedAnalysis.refute_target"
+python = "antecedent.validation.refute_target"
 reason = "study.refute_target(data, suite=...); tested in python/tests/test_target_validation.py"
 
 [[entry]]
@@ -1792,8 +1742,8 @@ python = "native:python/src/cross_world_api.rs"
 [[entry]]
 rust = "antecedent::design::preview_design_rank"
 kind = "fn"
-status = "internal"
-reason = "inspects ranking obligations against a prepared CausalContract that Python never holds as an object; the native rank_designs takes graph weights, not a prepared contract, and refuses incomplete or unlicensed inputs itself"
+status = "bound"
+python = "antecedent.design.preview_ranking"
 
 [[entry]]
 rust = "antecedent::design::rank_designs_bound"
@@ -1852,19 +1802,7 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
-rust = "antecedent::estimate::estimate_provenance_step"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
 rust = "antecedent::estimate::identification_status_acceptable"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::estimate::identify_provenance_step"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
@@ -1960,24 +1898,6 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
-rust = "antecedent::inference::hydrate_prior_from_posterior_bytes"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::inference::mapped_posterior_transfer"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::inference::resolve_bayesian_prior"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
 rust = "antecedent::inference::resolve_bayesian_prior_with_conflict"
 kind = "fn"
 status = "internal"
@@ -1995,12 +1915,6 @@ kind = "fn"
 status = "bound"
 python = "antecedent._native.encode_model_bundle"
 reason = "model bundle encoding"
-
-[[entry]]
-rust = "antecedent::io::prior_set_from_posterior_bytes"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
 rust = "antecedent::licensed_neighbors"
@@ -2036,7 +1950,7 @@ python = "antecedent.fallback.AnalysisWithFallback.report"
 rust = "antecedent::report::render_report"
 kind = "fn"
 status = "bound"
-python = "antecedent.estimation.PreparedAnalysis.report"
+python = "antecedent.prepared.PreparedAnalysis.report"
 
 [[entry]]
 rust = "antecedent::result::circular_block_dependence"
@@ -2324,7 +2238,7 @@ python = "antecedent.transport._smoothed_dose.PreparedSmoothedDose"
 rust = "antecedent::PreparedStudy"
 kind = "type"
 status = "bound"
-python = "antecedent.estimation.PreparedAnalysis"
+python = "antecedent.prepared.PreparedAnalysis"
 
 [[entry]]
 rust = "antecedent::PreparedTemporalTransport"
@@ -2348,7 +2262,7 @@ python = "antecedent._native.PreparedZTransportStage"
 rust = "antecedent::Study"
 kind = "type"
 status = "bound"
-python = "antecedent.estimation.PreparedAnalysis"
+python = "antecedent.prepared.PreparedAnalysis"
 
 [[entry]]
 rust = "antecedent::analysis::CallbackSession"
@@ -2529,7 +2443,7 @@ python = "antecedent.regimes.trajectory_survival_contrast"
 rust = "antecedent::analysis::repeated_measures_posterior_report::encode_repeated_measures_posterior_report"
 kind = "fn"
 status = "bound"
-python = "antecedent.adaptive_inference.RepeatedMeasuresProcedure.export_posterior"
+python = "antecedent.adaptive_inference.RepeatedMeasuresProcedure.export"
 
 [[entry]]
 rust = "antecedent::analysis::repeated_measures_posterior_report::load_repeated_measures_posterior_report"
@@ -2546,8 +2460,8 @@ reason = "Consumes the decision artifact of FlagshipWorkflow, a Rust-only worked
 [[entry]]
 rust = "antecedent::analysis::composition_verification::replay_decision"
 kind = "fn"
-status = "internal"
-reason = "Numerical replay of the decision artifact of FlagshipWorkflow, a Rust-only worked mixed workflow with no Python producer; a joint-law propagation artifact it also accepts is replayed in Python by antecedent.joint_law_propagation.consume_joint_law_propagation_artifact, and the replay grants no current decision authority."
+status = "bound"
+python = "antecedent.mixed_decision.replay_decision"
 
 [[entry]]
 rust = "antecedent::analysis::api::route_missing_support"
@@ -2566,12 +2480,6 @@ rust = "antecedent::accept_discovered_posterior"
 kind = "fn"
 status = "bound"
 python = "native:python/src/bayesian.rs"
-
-[[entry]]
-rust = "antecedent::analysis::confidence_interval_as_posterior"
-kind = "fn"
-status = "internal"
-reason = "Always refuses: a confidence interval is never offered as a parameter posterior. Python surfaces the same typed refusal when a posterior demand meets an interval answer, so there is no call to bind."
 
 [[entry]]
 rust = "antecedent::analysis::consume_propagation_chain"
@@ -2848,3 +2756,63 @@ rust = "antecedent::strategy_table::identify_static_query_in_context"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::PreparedIdentificationView"
+kind = "type"
+status = "bound"
+python = "antecedent.prepared.PreparedAnalysis.identification"
+
+[[entry]]
+rust = "antecedent::analysis::PreparedInspection"
+kind = "type"
+status = "bound"
+python = "antecedent.prepared.PreparedAnalysis.inspect"
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_confidence_set_against_within"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.trial_compatible.verify_trial_compatible_transport_confidence_set_against"
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_estimate_within"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.trial_compatible.verify_trial_compatible_transport_estimate"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::designs::replay_joint_design_artifact_with_limits"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_panel.replay_joint_design"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::designs::replay_native_joint_design_with_limits"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_panel.replay_native_joint_design"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::replay_population_reference_with_limits"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_panel.replay_population_reference"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::replay_reference_decomposition_with_limits"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_panel.replay_reference_decomposition"
+
+[[entry]]
+rust = "antecedent::analysis::proposal_arrival::execute_with_limits"
+kind = "fn"
+status = "bound"
+python = "antecedent.proposals.ProposalBundle.estimate_arrival"
+
+[[entry]]
+rust = "antecedent::inference::mapped_posterior_transfer_with"
+kind = "fn"
+status = "bound"
+python = "antecedent.priors.mapped_posterior_transfer"

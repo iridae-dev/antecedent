@@ -371,6 +371,16 @@ def test_an_exported_contract_round_trips_and_is_inspectable():
     assert error.detail == "interface_contract.identity_mismatch"
 
 
+def test_bytes_that_are_not_a_contract_artifact_are_refused_by_inspection_and_consumption():
+    for not_an_artifact in (b"not an artifact", b""):
+        with pytest.raises(InterfaceContractRefusal):
+            ic.inspect_interface_contract_artifact(not_an_artifact)
+        with pytest.raises(InterfaceContractRefusal):
+            ic.consume_interface_contract_artifact(not_an_artifact)
+    with pytest.raises(CausalTypeError):
+        ic.inspect_interface_contract_artifact("not bytes")  # type: ignore[arg-type]
+
+
 def test_the_clean_room_consumer_accepts_an_exported_artifact_and_rejects_mutations(tmp_path):
     exported = rich_contract().export("estimator-contract")
     path = tmp_path / "contract.artifact"

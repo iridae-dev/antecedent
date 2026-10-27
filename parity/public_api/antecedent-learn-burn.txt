@@ -2,8 +2,10 @@
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
 #[non_exhaustive] pub enum antecedent_learn_burn::admission::AdmissionRefusal
+#[non_exhaustive] pub enum antecedent_learn_burn::policy::AdapterError
 #[non_exhaustive] pub enum antecedent_learn_burn::policy::FallbackReason
 #[non_exhaustive] pub enum antecedent_learn_burn::policy::PolicyError
+#[non_exhaustive] pub enum antecedent_learn_burn::policy::PolicyParseError
 impl !core::marker::Freeze for antecedent_learn_burn::admission::FitAdmission [auto]
 impl antecedent_learn_burn::policy::DeviceProbe for antecedent_learn_burn::policy::SystemProbe
 impl core::clone::Clone for antecedent_learn_burn::LearnBurnError
@@ -35,6 +37,7 @@ impl core::clone::Clone for antecedent_learn_burn::device::RngLease
 impl core::clone::Clone for antecedent_learn_burn::device::RngLockScope
 impl core::clone::Clone for antecedent_learn_burn::device::RuntimeOwnership
 impl core::clone::Clone for antecedent_learn_burn::device::TransferStep
+impl core::clone::Clone for antecedent_learn_burn::policy::AdapterError
 impl core::clone::Clone for antecedent_learn_burn::policy::AdapterSummary
 impl core::clone::Clone for antecedent_learn_burn::policy::AutoPolicy
 impl core::clone::Clone for antecedent_learn_burn::policy::ComputePolicy
@@ -44,6 +47,7 @@ impl core::clone::Clone for antecedent_learn_burn::policy::FitRequest
 impl core::clone::Clone for antecedent_learn_burn::policy::OperatorKind
 impl core::clone::Clone for antecedent_learn_burn::policy::Plan
 impl core::clone::Clone for antecedent_learn_burn::policy::PolicyFit
+impl core::clone::Clone for antecedent_learn_burn::policy::PolicyParseError
 impl core::clone::Clone for antecedent_learn_burn::policy::Provenance
 impl core::clone::Clone for antecedent_learn_burn::policy::ReplayScope
 impl core::clone::Clone for antecedent_learn_burn::policy::Route
@@ -71,6 +75,7 @@ impl core::cmp::Eq for antecedent_learn_burn::device::RngLease
 impl core::cmp::Eq for antecedent_learn_burn::device::RngLockScope
 impl core::cmp::Eq for antecedent_learn_burn::device::RuntimeOwnership
 impl core::cmp::Eq for antecedent_learn_burn::device::TransferStep
+impl core::cmp::Eq for antecedent_learn_burn::policy::AdapterError
 impl core::cmp::Eq for antecedent_learn_burn::policy::AdapterSummary
 impl core::cmp::Eq for antecedent_learn_burn::policy::AutoPolicy
 impl core::cmp::Eq for antecedent_learn_burn::policy::ComputePolicy
@@ -79,6 +84,7 @@ impl core::cmp::Eq for antecedent_learn_burn::policy::FallbackReason
 impl core::cmp::Eq for antecedent_learn_burn::policy::FitRequest
 impl core::cmp::Eq for antecedent_learn_burn::policy::OperatorKind
 impl core::cmp::Eq for antecedent_learn_burn::policy::Plan
+impl core::cmp::Eq for antecedent_learn_burn::policy::PolicyParseError
 impl core::cmp::Eq for antecedent_learn_burn::policy::Provenance
 impl core::cmp::Eq for antecedent_learn_burn::policy::ReplayScope
 impl core::cmp::Eq for antecedent_learn_burn::policy::Route
@@ -102,6 +108,7 @@ impl core::cmp::PartialEq for antecedent_learn_burn::device::RngLease
 impl core::cmp::PartialEq for antecedent_learn_burn::device::RngLockScope
 impl core::cmp::PartialEq for antecedent_learn_burn::device::RuntimeOwnership
 impl core::cmp::PartialEq for antecedent_learn_burn::device::TransferStep
+impl core::cmp::PartialEq for antecedent_learn_burn::policy::AdapterError
 impl core::cmp::PartialEq for antecedent_learn_burn::policy::AdapterSummary
 impl core::cmp::PartialEq for antecedent_learn_burn::policy::AutoPolicy
 impl core::cmp::PartialEq for antecedent_learn_burn::policy::ComputePolicy
@@ -110,6 +117,7 @@ impl core::cmp::PartialEq for antecedent_learn_burn::policy::FallbackReason
 impl core::cmp::PartialEq for antecedent_learn_burn::policy::FitRequest
 impl core::cmp::PartialEq for antecedent_learn_burn::policy::OperatorKind
 impl core::cmp::PartialEq for antecedent_learn_burn::policy::Plan
+impl core::cmp::PartialEq for antecedent_learn_burn::policy::PolicyParseError
 impl core::cmp::PartialEq for antecedent_learn_burn::policy::Provenance
 impl core::cmp::PartialEq for antecedent_learn_burn::policy::ReplayScope
 impl core::cmp::PartialEq for antecedent_learn_burn::policy::Route
@@ -125,7 +133,9 @@ impl core::default::Default for antecedent_learn_burn::staged::StageTimings
 impl core::error::Error for antecedent_learn_burn::LearnBurnError
 impl core::error::Error for antecedent_learn_burn::admission::AdmissionRefusal
 impl core::error::Error for antecedent_learn_burn::device::DeviceError
+impl core::error::Error for antecedent_learn_burn::policy::AdapterError
 impl core::error::Error for antecedent_learn_burn::policy::PolicyError
+impl core::error::Error for antecedent_learn_burn::policy::PolicyParseError
 impl core::fmt::Debug for antecedent_learn_burn::LearnBurnError
 impl core::fmt::Debug for antecedent_learn_burn::MlpSpec
 impl core::fmt::Debug for antecedent_learn_burn::TrainedMlp
@@ -158,6 +168,7 @@ impl core::fmt::Debug for antecedent_learn_burn::device::RngLease
 impl core::fmt::Debug for antecedent_learn_burn::device::RngLockScope
 impl core::fmt::Debug for antecedent_learn_burn::device::RuntimeOwnership
 impl core::fmt::Debug for antecedent_learn_burn::device::TransferStep
+impl core::fmt::Debug for antecedent_learn_burn::policy::AdapterError
 impl core::fmt::Debug for antecedent_learn_burn::policy::AdapterSummary
 impl core::fmt::Debug for antecedent_learn_burn::policy::AutoPolicy
 impl core::fmt::Debug for antecedent_learn_burn::policy::ComputePolicy
@@ -168,6 +179,7 @@ impl core::fmt::Debug for antecedent_learn_burn::policy::OperatorKind
 impl core::fmt::Debug for antecedent_learn_burn::policy::Plan
 impl core::fmt::Debug for antecedent_learn_burn::policy::PolicyError
 impl core::fmt::Debug for antecedent_learn_burn::policy::PolicyFit
+impl core::fmt::Debug for antecedent_learn_burn::policy::PolicyParseError
 impl core::fmt::Debug for antecedent_learn_burn::policy::Provenance
 impl core::fmt::Debug for antecedent_learn_burn::policy::ReplayScope
 impl core::fmt::Debug for antecedent_learn_burn::policy::Route
@@ -180,9 +192,11 @@ impl core::fmt::Debug for antecedent_learn_burn::staged::WorkloadRun
 impl core::fmt::Display for antecedent_learn_burn::LearnBurnError
 impl core::fmt::Display for antecedent_learn_burn::admission::AdmissionRefusal
 impl core::fmt::Display for antecedent_learn_burn::device::DeviceError
+impl core::fmt::Display for antecedent_learn_burn::policy::AdapterError
 impl core::fmt::Display for antecedent_learn_burn::policy::Dtype
 impl core::fmt::Display for antecedent_learn_burn::policy::FallbackReason
 impl core::fmt::Display for antecedent_learn_burn::policy::PolicyError
+impl core::fmt::Display for antecedent_learn_burn::policy::PolicyParseError
 impl core::hash::Hash for antecedent_learn_burn::policy::ComputePolicy
 impl core::hash::Hash for antecedent_learn_burn::policy::Dtype
 impl core::hash::Hash for antecedent_learn_burn::policy::OperatorKind
@@ -247,6 +261,7 @@ impl core::marker::Freeze for antecedent_learn_burn::device::RngLease [auto]
 impl core::marker::Freeze for antecedent_learn_burn::device::RngLockScope [auto]
 impl core::marker::Freeze for antecedent_learn_burn::device::RuntimeOwnership [auto]
 impl core::marker::Freeze for antecedent_learn_burn::device::TransferStep [auto]
+impl core::marker::Freeze for antecedent_learn_burn::policy::AdapterError [auto]
 impl core::marker::Freeze for antecedent_learn_burn::policy::AdapterSummary [auto]
 impl core::marker::Freeze for antecedent_learn_burn::policy::AutoPolicy [auto]
 impl core::marker::Freeze for antecedent_learn_burn::policy::ComputePolicy [auto]
@@ -257,6 +272,7 @@ impl core::marker::Freeze for antecedent_learn_burn::policy::OperatorKind [auto]
 impl core::marker::Freeze for antecedent_learn_burn::policy::Plan [auto]
 impl core::marker::Freeze for antecedent_learn_burn::policy::PolicyError [auto]
 impl core::marker::Freeze for antecedent_learn_burn::policy::PolicyFit [auto]
+impl core::marker::Freeze for antecedent_learn_burn::policy::PolicyParseError [auto]
 impl core::marker::Freeze for antecedent_learn_burn::policy::Provenance [auto]
 impl core::marker::Freeze for antecedent_learn_burn::policy::ReplayScope [auto]
 impl core::marker::Freeze for antecedent_learn_burn::policy::Route [auto]
@@ -298,6 +314,7 @@ impl core::marker::Send for antecedent_learn_burn::device::RngLease [auto]
 impl core::marker::Send for antecedent_learn_burn::device::RngLockScope [auto]
 impl core::marker::Send for antecedent_learn_burn::device::RuntimeOwnership [auto]
 impl core::marker::Send for antecedent_learn_burn::device::TransferStep [auto]
+impl core::marker::Send for antecedent_learn_burn::policy::AdapterError [auto]
 impl core::marker::Send for antecedent_learn_burn::policy::AdapterSummary [auto]
 impl core::marker::Send for antecedent_learn_burn::policy::AutoPolicy [auto]
 impl core::marker::Send for antecedent_learn_burn::policy::ComputePolicy [auto]
@@ -308,6 +325,7 @@ impl core::marker::Send for antecedent_learn_burn::policy::OperatorKind [auto]
 impl core::marker::Send for antecedent_learn_burn::policy::Plan [auto]
 impl core::marker::Send for antecedent_learn_burn::policy::PolicyError [auto]
 impl core::marker::Send for antecedent_learn_burn::policy::PolicyFit [auto]
+impl core::marker::Send for antecedent_learn_burn::policy::PolicyParseError [auto]
 impl core::marker::Send for antecedent_learn_burn::policy::Provenance [auto]
 impl core::marker::Send for antecedent_learn_burn::policy::ReplayScope [auto]
 impl core::marker::Send for antecedent_learn_burn::policy::Route [auto]
@@ -336,6 +354,7 @@ impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::RngLea
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::RngLockScope
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::RuntimeOwnership
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::TransferStep
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::policy::AdapterError
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::policy::AdapterSummary
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::policy::AutoPolicy
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::policy::ComputePolicy
@@ -344,6 +363,7 @@ impl core::marker::StructuralPartialEq for antecedent_learn_burn::policy::Fallba
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::policy::FitRequest
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::policy::OperatorKind
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::policy::Plan
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::policy::PolicyParseError
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::policy::Provenance
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::policy::ReplayScope
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::policy::Route
@@ -381,6 +401,7 @@ impl core::marker::Sync for antecedent_learn_burn::device::RngLease [auto]
 impl core::marker::Sync for antecedent_learn_burn::device::RngLockScope [auto]
 impl core::marker::Sync for antecedent_learn_burn::device::RuntimeOwnership [auto]
 impl core::marker::Sync for antecedent_learn_burn::device::TransferStep [auto]
+impl core::marker::Sync for antecedent_learn_burn::policy::AdapterError [auto]
 impl core::marker::Sync for antecedent_learn_burn::policy::AdapterSummary [auto]
 impl core::marker::Sync for antecedent_learn_burn::policy::AutoPolicy [auto]
 impl core::marker::Sync for antecedent_learn_burn::policy::ComputePolicy [auto]
@@ -391,6 +412,7 @@ impl core::marker::Sync for antecedent_learn_burn::policy::OperatorKind [auto]
 impl core::marker::Sync for antecedent_learn_burn::policy::Plan [auto]
 impl core::marker::Sync for antecedent_learn_burn::policy::PolicyError [auto]
 impl core::marker::Sync for antecedent_learn_burn::policy::PolicyFit [auto]
+impl core::marker::Sync for antecedent_learn_burn::policy::PolicyParseError [auto]
 impl core::marker::Sync for antecedent_learn_burn::policy::Provenance [auto]
 impl core::marker::Sync for antecedent_learn_burn::policy::ReplayScope [auto]
 impl core::marker::Sync for antecedent_learn_burn::policy::Route [auto]
@@ -432,6 +454,7 @@ impl core::marker::Unpin for antecedent_learn_burn::device::RngLease [auto]
 impl core::marker::Unpin for antecedent_learn_burn::device::RngLockScope [auto]
 impl core::marker::Unpin for antecedent_learn_burn::device::RuntimeOwnership [auto]
 impl core::marker::Unpin for antecedent_learn_burn::device::TransferStep [auto]
+impl core::marker::Unpin for antecedent_learn_burn::policy::AdapterError [auto]
 impl core::marker::Unpin for antecedent_learn_burn::policy::AdapterSummary [auto]
 impl core::marker::Unpin for antecedent_learn_burn::policy::AutoPolicy [auto]
 impl core::marker::Unpin for antecedent_learn_burn::policy::ComputePolicy [auto]
@@ -442,6 +465,7 @@ impl core::marker::Unpin for antecedent_learn_burn::policy::OperatorKind [auto]
 impl core::marker::Unpin for antecedent_learn_burn::policy::Plan [auto]
 impl core::marker::Unpin for antecedent_learn_burn::policy::PolicyError [auto]
 impl core::marker::Unpin for antecedent_learn_burn::policy::PolicyFit [auto]
+impl core::marker::Unpin for antecedent_learn_burn::policy::PolicyParseError [auto]
 impl core::marker::Unpin for antecedent_learn_burn::policy::Provenance [auto]
 impl core::marker::Unpin for antecedent_learn_burn::policy::ReplayScope [auto]
 impl core::marker::Unpin for antecedent_learn_burn::policy::Route [auto]
@@ -483,6 +507,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::RngLockScope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::RuntimeOwnership [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::TransferStep [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::policy::AdapterError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::policy::AdapterSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::policy::AutoPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::policy::ComputePolicy [auto]
@@ -493,6 +518,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::policy::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::policy::Plan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::policy::PolicyError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::policy::PolicyFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::policy::PolicyParseError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::policy::Provenance [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::policy::ReplayScope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::policy::Route [auto]
@@ -534,6 +560,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::Rng
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::RngLockScope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::RuntimeOwnership [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::TransferStep [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::policy::AdapterError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::policy::AdapterSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::policy::AutoPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::policy::ComputePolicy [auto]
@@ -544,6 +571,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::policy::Ope
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::policy::Plan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::policy::PolicyError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::policy::PolicyFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::policy::PolicyParseError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::policy::Provenance [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::policy::ReplayScope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::policy::Route [auto]
@@ -724,7 +752,7 @@ pub fn <antecedent_learn_burn::TrainedMlp>::fn predict(&self, x_colmajor: &[f64]
 pub fn <antecedent_learn_burn::accelerator_probe::StageClocks>::const fn elapsed(self, stage: antecedent_learn_burn::accelerator_probe::ProbeStage) -> core::time::Duration
 pub fn <antecedent_learn_burn::admission::FitAdmission>::fn held_device_bytes(&self) -> u64
 pub fn <antecedent_learn_burn::admission::FitAdmission>::fn held_threads(&self) -> u32
-pub fn <antecedent_learn_burn::admission::FitAdmission>::fn observe_cancel(&mut self, token: &antecedent_core::execution::CancellationToken) -> bool
+pub fn <antecedent_learn_burn::admission::FitAdmission>::fn observe_cancel(&mut self, token: &antecedent_core::execution::cancel::CancellationToken) -> bool
 pub fn <antecedent_learn_burn::device::DeviceRuntime>::const fn cpu() -> Self
 pub fn <antecedent_learn_burn::device::DeviceRuntime>::fn cached_model(&mut self, key: antecedent_learn_burn::device::CacheKey, fit: impl core::ops::function::FnOnce() -> core::result::Result<antecedent_learn_burn::TrainedMlp, antecedent_learn_burn::LearnBurnError>) -> core::result::Result<antecedent_learn_burn::device::CachedFit, antecedent_learn_burn::device::DeviceError>
 pub fn <antecedent_learn_burn::device::DeviceRuntime>::fn invalidate(&mut self)
@@ -735,7 +763,7 @@ pub fn <antecedent_learn_burn::device::LeaseScheduler>::fn acquire(&mut self, fo
 pub fn <antecedent_learn_burn::device::LeaseScheduler>::fn release(&mut self, lease: antecedent_learn_burn::device::RngLease) -> core::result::Result<(), antecedent_learn_burn::device::DeviceError>
 pub fn <antecedent_learn_burn::device::PortableFit>::fn predict(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, out: &mut [f64]) -> core::result::Result<(), antecedent_learn_burn::LearnBurnError>
 pub fn <antecedent_learn_burn::policy::ComputePolicy>::const fn as_str(self) -> &'static str
-pub fn <antecedent_learn_burn::policy::ComputePolicy>::fn parse(text: &str) -> core::result::Result<Self, alloc::string::String>
+pub fn <antecedent_learn_burn::policy::ComputePolicy>::fn parse(text: &str) -> core::result::Result<Self, antecedent_learn_burn::policy::PolicyParseError>
 pub fn <antecedent_learn_burn::policy::FallbackReason>::const fn code(&self) -> &'static str
 pub fn <antecedent_learn_burn::policy::FitRequest>::const fn neural(policy: antecedent_learn_burn::policy::ComputePolicy, spec: &antecedent_learn_burn::MlpSpec, nrows: usize, ncols: usize) -> Self
 pub fn <antecedent_learn_burn::policy::FitRequest>::fn work(&self) -> u64
@@ -747,7 +775,7 @@ pub fn <antecedent_learn_burn::staged::Workload>::fn data(&self) -> (alloc::vec:
 pub fn <antecedent_learn_burn::staged::Workload>::fn flops(&self) -> u64
 pub fn antecedent_learn_burn::accelerator_probe::probe_cpu_workload(workload: &antecedent_learn_burn::staged::Workload) -> core::result::Result<antecedent_learn_burn::staged::WorkloadRun, antecedent_learn_burn::LearnBurnError>
 pub fn antecedent_learn_burn::accelerator_probe::probe_small_fold() -> core::result::Result<antecedent_learn_burn::accelerator_probe::SmallFoldProbe, antecedent_learn_burn::LearnBurnError>
-pub fn antecedent_learn_burn::admission::admit_fit(ctx: &antecedent_core::execution::ExecutionContext, device_pool: &antecedent_core::device_reservation::DeviceReservationPool, route: antecedent_learn_burn::policy::Route, footprint: &antecedent_learn_burn::admission::Footprint) -> core::result::Result<antecedent_learn_burn::admission::FitAdmission, antecedent_learn_burn::admission::AdmissionRefusal>
+pub fn antecedent_learn_burn::admission::admit_fit(ctx: &antecedent_core::execution::context::ExecutionContext, device_pool: &antecedent_core::device_reservation::DeviceReservationPool, route: antecedent_learn_burn::policy::Route, footprint: &antecedent_learn_burn::admission::Footprint) -> core::result::Result<antecedent_learn_burn::admission::FitAdmission, antecedent_learn_burn::admission::AdmissionRefusal>
 pub fn antecedent_learn_burn::admission::footprint(nrows: usize, ncols: usize, hidden: usize) -> core::result::Result<antecedent_learn_burn::admission::Footprint, antecedent_learn_burn::admission::AdmissionRefusal>
 pub fn antecedent_learn_burn::device::cache_key(fold: &antecedent_learn_burn::device::FoldSpec, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64]) -> antecedent_learn_burn::device::CacheKey
 pub fn antecedent_learn_burn::device::orchestrate_cpu(runtime: &mut antecedent_learn_burn::device::DeviceRuntime, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], folds: &[antecedent_learn_burn::device::FoldSpec]) -> core::result::Result<antecedent_learn_burn::device::Orchestration, antecedent_learn_burn::device::DeviceError>
@@ -803,7 +831,7 @@ pub struct antecedent_learn_burn::staged::StagedFit
 pub struct antecedent_learn_burn::staged::Workload
 pub struct antecedent_learn_burn::staged::WorkloadRun
 pub trait antecedent_learn_burn::policy::DeviceProbe
-pub trait fn fn antecedent_learn_burn::policy::DeviceProbe::adapter(&self) -> core::result::Result<antecedent_learn_burn::policy::AdapterSummary, alloc::string::String>
+pub trait fn fn antecedent_learn_burn::policy::DeviceProbe::adapter(&self) -> core::result::Result<antecedent_learn_burn::policy::AdapterSummary, antecedent_learn_burn::policy::AdapterError>
 pub trait fn fn antecedent_learn_burn::policy::DeviceProbe::compiled(&self) -> bool
 pub variant antecedent_learn_burn::LearnBurnError::Architecture
 pub variant antecedent_learn_burn::LearnBurnError::Bias(alloc::string::String)
@@ -813,7 +841,6 @@ pub variant antecedent_learn_burn::LearnBurnError::Device(alloc::string::String)
 pub variant antecedent_learn_burn::LearnBurnError::Diverged(f32)
 pub variant antecedent_learn_burn::LearnBurnError::EmptyDesign
 pub variant antecedent_learn_burn::LearnBurnError::LearningRate
-pub variant antecedent_learn_burn::LearnBurnError::LockPoisoned
 pub variant antecedent_learn_burn::LearnBurnError::Loss(alloc::string::String)
 pub variant antecedent_learn_burn::LearnBurnError::MissingBias
 pub variant antecedent_learn_burn::LearnBurnError::NonFiniteInput
@@ -854,12 +881,15 @@ pub variant antecedent_learn_burn::device::Measurement::NotMeasured
 pub variant antecedent_learn_burn::device::Measurement::Staged(antecedent_learn_burn::staged::StageTimings)
 pub variant antecedent_learn_burn::device::ModelOwner::HostPortable
 pub variant antecedent_learn_burn::device::ModelOwner::Vacant
-pub variant antecedent_learn_burn::device::RngLockScope::EntireFit
+pub variant antecedent_learn_burn::device::RngLockScope::HostSeeded
 pub variant antecedent_learn_burn::device::TransferStep::CacheReuse
 pub variant antecedent_learn_burn::device::TransferStep::DownloadLoss
 pub variant antecedent_learn_burn::device::TransferStep::DownloadWeights
 pub variant antecedent_learn_burn::device::TransferStep::UploadDesign
 pub variant antecedent_learn_burn::device::TransferStep::UploadTarget
+pub variant antecedent_learn_burn::policy::AdapterError::Disabled
+pub variant antecedent_learn_burn::policy::AdapterError::NotLinked
+pub variant antecedent_learn_burn::policy::AdapterError::Unavailable(alloc::string::String)
 pub variant antecedent_learn_burn::policy::ComputePolicy::Auto
 pub variant antecedent_learn_burn::policy::ComputePolicy::Cpu
 pub variant antecedent_learn_burn::policy::ComputePolicy::Gpu
@@ -877,6 +907,7 @@ pub variant antecedent_learn_burn::policy::OperatorKind::Regression
 pub variant antecedent_learn_burn::policy::PolicyError::Fit(antecedent_learn_burn::LearnBurnError)
 pub variant antecedent_learn_burn::policy::PolicyError::Footprint(antecedent_learn_burn::admission::AdmissionRefusal)
 pub variant antecedent_learn_burn::policy::PolicyError::Refused(antecedent_learn_burn::policy::FallbackReason)
+pub variant antecedent_learn_burn::policy::PolicyParseError::Unrecognized(alloc::string::String)
 pub variant antecedent_learn_burn::policy::ReplayScope::BitwiseOnHost
 pub variant antecedent_learn_burn::policy::ReplayScope::WithinToleranceOnDevice
 pub variant antecedent_learn_burn::policy::Route::Cpu

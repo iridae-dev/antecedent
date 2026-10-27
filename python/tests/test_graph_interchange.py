@@ -6,8 +6,12 @@ to dense-index strings (``"0"``, ``"1"``, ...) and breaks any code that
 later resolves nodes by name (e.g. restoring an ``AcceptedGraph``).
 """
 
+import json
+
 import antecedent
-from antecedent.graph import Admg, Cpdag, Dag, Pag
+import pytest
+from antecedent.errors import CausalTypeError, CausalValueError
+from antecedent.graph import Admg, Cpdag, Dag, Pag, pag_completions
 
 
 def test_dot_round_trip():
@@ -142,3 +146,38 @@ def test_pag_m_separation_is_a_statement_about_every_member():
     assert pag.m_separation_status("x", "y") == "connected"
     assert pag.m_separated("x", "y", ["b"]) is True
     assert pag.m_separation_status("x", "y", ["b"]) == "separated"
+
+
+def _marks(pag: Pag) -> set[tuple[str, str, str, str]]:
+    doc = json.loads(pag.to_json())
+    names = doc["variable_names"]
+    return {(names[e["a"]], names[e["b"]], e["at_a"], e["at_b"]) for e in doc["edges"]}
+
+
+def test_pag_completions_resolve_every_circle_and_keep_the_unshielded_collider():
+    # a o-> c <-o b with a, b non-adjacent: each circle is a tail or an arrowhead.
+    pag = Pag.from_marked_edges(
+        ["a", "b", "c"], [("a", "c", "circle", "arrow"), ("b", "c", "circle", "arrow")]
+    )
+    result = pag_completions(pag)
+    assert len(result.graphs) == 4 and not result.capped and not result.class_unproved
+    assert result.audit["circle_sites"] == 2 and result.audit["yielded"] == 4
+    seen = set()
+    for graph in result.graphs:
+        marks = _marks(graph)
+        assert all("circle" not in (at_a, at_b) for _, _, at_a, at_b in marks)
+        # The collider survives: the arrowheads at c, and a, b stay non-adjacent.
+        assert {(a, b) for a, b, _, _ in marks} == {("a", "c"), ("b", "c")}
+        assert all(at_b == "arrow" for _, _, _, at_b in marks)
+        assert {at_a for _, _, at_a, _ in marks} <= {"tail", "arrow"}
+        seen.add(frozenset(marks))
+    assert len(seen) == 4  # the four tail/arrow choices, each exactly once
+
+    capped = pag_completions(pag, max_completions=2)
+    assert len(capped.graphs) == 2 and capped.capped
+    assert capped.audit["represented_completions"] == 4
+
+    with pytest.raises(CausalValueError):
+        pag_completions(pag, max_completions=0)
+    with pytest.raises(CausalTypeError):
+        pag_completions("not a pag")  # type: ignore[arg-type]

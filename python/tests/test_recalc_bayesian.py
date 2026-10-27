@@ -11,10 +11,19 @@ from pathlib import Path
 import antecedent as ac
 import numpy as np
 import pytest
-from antecedent.errors import CausalValueError
+from antecedent import _native
+from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcReceipt, RecalcRefusal, ResumeContext, Utility
-from antecedent.recalc_bayesian import BayesianRequest, BayesianSession, PosteriorSummary
+from antecedent.recalc_bayesian import (
+    BayesianRequest,
+    BayesianSession,
+    JointBayesianRequest,
+    JointBayesianSession,
+    JointRecalcSource,
+    JointRecalcTarget,
+    PosteriorSummary,
+)
 from antecedent.recalc_capabilities import (
     Family,
     Operation,
@@ -22,6 +31,7 @@ from antecedent.recalc_capabilities import (
     require_adapter,
     retained_kind,
 )
+from antecedent.transport._joint_posterior import GaussianTransportPrior, JointTransportIdentity
 
 
 def request(model="gaussian"):
@@ -277,3 +287,139 @@ def test_bayesian_owned_prior_source_fresh_process_reexecutes_source_and_target(
     assert observed["fits"] == expected.receipt.totals.model_fits
     assert observed["fits"] >= 2 and observed["draws"] >= 4096
     assert observed["repeat"] == 0
+
+
+def joint_request():
+    """Two randomized sources (outcome 1 control, 3 treated, unit noise) and a 40-unit target."""
+
+    def source(name):
+        return JointRecalcSource(
+            name,
+            JointTransportIdentity(
+                f"snapshot-{name}", tuple(f"{name}-{row}" for row in range(128))
+            ),
+            [row % 2 == 1 for row in range(128)],
+            [3.0 if row % 2 == 1 else 1.0 for row in range(128)],
+            1.0,
+        )
+
+    return JointBayesianRequest(
+        names=("t", "y"),
+        edges=(("t", "y"),),
+        treatment="t",
+        outcome="y",
+        source_population="source",
+        target_population="target",
+        sources=(source("a"), source("b")),
+        target=JointRecalcTarget(
+            JointTransportIdentity("target", tuple(f"target-{row}" for row in range(40))), 40
+        ),
+        invariant=GaussianTransportPrior((0.0,), ((100.0,),)),
+        varying_prior=GaussianTransportPrior((0.0,), ((4.0,),)),
+        utility=Utility(1.0, 0.0),
+        draws=1024,
+        seed=19,
+    )
+
+
+JOINT_ENABLED = hasattr(_native, "JointBayesianSessionHandle")
+
+
+def assert_joint_route_frozen():
+    # An ordinary build omits the whole calibration-internal candidate family.
+    with pytest.raises(CausalUnsupportedError, match="calibration-internal") as error:
+        JointBayesianSession()
+    assert error.value.reason_code == "route_not_supported"
+
+
+def test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit():
+    if not JOINT_ENABLED:
+        assert_joint_route_frozen()
+        return
+    req = joint_request()
+    session = JointBayesianSession()
+    first = require_success(session.execute(req, seed=19))
+    # Independent conjugate algebra of the shared-block model: the invariant intercept sums the
+    # two sources (precision 128 + 128 + 0.01 for the prior), the shared varying block adds the
+    # cross term 128 and the treated-minus-control contrast is 2 in each unit.
+    a, b, c = 128.01, 128.0, 256.25
+    det = a * c - b * b
+    mean, variance = (c * 384.0 - b * 512.0) / det, c / det
+    assert first.target_effect_mean == pytest.approx(mean, abs=1e-12)
+    assert first.target_effect_variance == pytest.approx(variance, abs=1e-12)
+    assert first.effect_names[-1] == "effect.target"
+    assert first.effect_means[-1] == pytest.approx(mean, abs=1e-12)
+    # Three counted solves: the joint model and one disagreement solve per source.
+    assert first.receipt.totals.model_fits == 3
+    assert first.receipt.totals.posterior_draws == 1024
+    assert first.law.draws == 1024
+    # The law is a summary of the native draws of that posterior, not a calibrated interval.
+    assert first.law.mean == pytest.approx(mean, abs=5 * (variance / 1024) ** 0.5)
+    assert first.law.standard_deviation == pytest.approx(variance**0.5, rel=0.1)
+    assert first.decision.net_benefit == pytest.approx(first.law.mean, abs=1e-12)
+    assert session.is_live
+
+    changed = replace(req, summary=PosteriorSummary(0.1, 0.9, 2.0))
+    summary = require_success(session.execute(changed, seed=19))
+    assert summary.receipt.totals.model_fits == summary.receipt.totals.posterior_draws == 0
+    assert summary.receipt.totals.law_summaries == 1
+    assert summary.target_effect_mean == first.target_effect_mean
+    priced = require_success(session.execute(replace(changed, utility=Utility(3.0, 1.0)), seed=19))
+    assert priced.receipt.totals.total == priced.receipt.totals.decisions == 1
+    assert priced.decision.net_benefit == pytest.approx(3.0 * summary.law.mean - 1.0, abs=1e-12)
+    assert require_success(session.execute(changed, seed=19)).receipt.totals.total == 0
+
+    # A different posterior stream refits the joint model and redraws.
+    reseeded = require_success(session.execute(replace(changed, seed=20), seed=19))
+    assert reseeded.receipt.totals.model_fits > 0
+    assert reseeded.receipt.totals.posterior_draws == 1024
+    assert reseeded.target_effect_mean == pytest.approx(mean, abs=1e-12)
+
+    artifact = bytes(session.export())
+    assert artifact
+    assert JointBayesianSession().is_live is False
+
+
+def test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work():
+    if not JOINT_ENABLED:
+        assert_joint_route_frozen()
+        return
+    req = joint_request()
+    session = JointBayesianSession()
+    require_success(session.execute(req, seed=19))
+    used = replace(
+        req,
+        varying_prior=GaussianTransportPrior(
+            (0.0,),
+            ((4.0,),),
+            bank_id="used-bank",
+            consumed=(req.sources[0].identity,),
+        ),
+    )
+    # A prior bank built from the very units the likelihood consumes is refused before any work.
+    with pytest.raises(RecalcRefusal):
+        require_success(session.execute(used, seed=19))
+    assert require_success(session.execute(req, seed=19)).receipt.totals.total == 0
+    oversized = replace(
+        req,
+        varying_prior=GaussianTransportPrior(
+            (0.0,),
+            ((4.0,),),
+            bank_id="oversized-bank",
+            consumed=(req.sources[0].identity,) * 17,
+        ),
+    )
+    with pytest.raises(RecalcRefusal):
+        require_success(session.execute(oversized, seed=19))
+    # A source whose identity does not name each of its units once is an invalid declaration.
+    broken = JointRecalcSource(
+        "a",
+        JointTransportIdentity("snapshot-a", ("a-0", "a-1")),
+        [False, True, False],
+        [1.0, 3.0, 1.0],
+        1.0,
+    )
+    with pytest.raises(CausalValueError):
+        require_success(session.execute(replace(req, sources=(broken, req.sources[1])), seed=19))
+    with pytest.raises(CausalValueError):
+        require_success(session.execute(replace(req, treatment="missing"), seed=19))

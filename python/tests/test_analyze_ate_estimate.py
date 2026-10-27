@@ -81,6 +81,24 @@ def test_analyze_estimate_estimators_smoke(estimator):
     assert np.isfinite(result.ate)
 
 
+def test_bayesian_robust_ate_recovers_the_confounded_effect_of_a_binary_treatment():
+    data, edges = confounded_scm(n=800, seed=5)
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            estimator=antecedent.Estimator.BAYESIAN_ROBUST_ATE,
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=200),
+            refute=False,
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    assert result.estimate.estimator_id == "bayesian.robust_ate"
+    assert result.posterior is not None and result.posterior.n_draws == 200
+    assert abs(result.posterior.effect_mean - 2.0) < 0.5, result.posterior.effect_mean
+
+
 def test_analyze_iv_2sls_smoke():
     rng = random.Random(2)
     n = 800
@@ -151,6 +169,44 @@ def test_analyze_frontdoor_linear_two_stage_converges_to_its_own_limit():
     assert any("frontdoor.linear_path_product" in a for a in result.assumptions or [])
 
 
+def test_an_identifier_the_estimator_cannot_use_is_refused_by_the_pair_allowlist():
+    data, edges = confounded_scm(n=300, seed=5)
+    with pytest.raises(antecedent.errors.CausalError) as caught:
+        require_success(
+            antecedent.analyze(
+                data,
+                graph=edges,
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                identifier="frontdoor",
+                estimator="propensity.weighting",
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+                refute=False,
+            )
+        )
+    assert caught.value.reason_code == "strategy_incompatible"
+    assert "frontdoor" in str(caught.value) and "propensity.weighting" in str(caught.value)
+
+
+def test_a_frontdoor_identifier_over_a_direct_edge_is_refused_as_not_identified():
+    # The mediator does not intercept the direct treatment-outcome edge, so the front-door
+    # criterion fails and the estimator is never reached.
+    with pytest.raises(antecedent.errors.EffectNotIdentified) as caught:
+        require_success(
+            antecedent.analyze(
+                _frontdoor_interaction_table(),
+                graph=[("t", "m"), ("m", "y"), ("t", "y")],
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                identifier="frontdoor",
+                estimator=str(antecedent.Estimator.FRONTDOOR_FUNCTIONAL),
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+                refute=False,
+            )
+        )
+    assert caught.value.reason_code == "effect_not_identified"
+
+
 def test_lagged_prediction_is_labelled_conditional_not_interventional():
     # U_t drives X_t and Y_{t+1}; X has no effect on Y, so E[Y | do(X=1)] = 0 while the
     # association E[Y_t | X_{t-1}=1] = Var(U)/Var(X) = 0.8. The helper can only see the latter.
@@ -166,3 +222,25 @@ def test_lagged_prediction_is_labelled_conditional_not_interventional():
     assert not hasattr(model, "predict_intervened_summary")
     with pytest.raises(Exception, match="finite"):
         model.predict_conditional_summary(["x", "y"], [x, y], "y", "x", level=float("nan"))
+
+
+def test_a_propensity_weighting_study_publishes_its_adjustment_rows_and_uncertainty_plan():
+    data, edges = confounded_scm(n=800, seed=5)
+    prepared = antecedent.prepare(
+        data,
+        graph=edges,
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        identifier="backdoor.adjustment",
+        estimator="propensity.weighting",
+        inference=antecedent.Frequentist(bootstrap=10),
+        execution=antecedent.Execution(seed=1),
+    )
+    outcome = antecedent.estimate(prepared)
+    require_success(outcome)
+    operation = outcome.study.plan_view().operation
+    assert operation["kind"] == "propensity"
+    assert operation["estimator"] == "propensity.weighting"
+    assert operation["adjustment_set"] == ["z"], "z is the only back-door confounder"
+    assert operation["bootstrap_replicates"] == 10
+    assert operation["uncertainty"]
+    assert len(operation["source_rows"]) == 800, "every complete row is planned once"

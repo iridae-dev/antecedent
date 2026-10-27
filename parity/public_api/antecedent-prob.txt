@@ -1,6 +1,7 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[doc(hidden)] pub fn antecedent_prob::laplace::fit_laplace_glm_owned(likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, options: &antecedent_prob::BayesFitOptions) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
 #[non_exhaustive] pub enum antecedent_prob::CoefficientPrecision
 #[non_exhaustive] pub enum antecedent_prob::ProbError
 #[non_exhaustive] pub enum antecedent_prob::TransportError
@@ -813,7 +814,7 @@ pub fn <antecedent_prob::TransportPolicy>::fn parse(s: &str) -> core::result::Re
 pub fn <antecedent_prob::WeightedGraphSamples>::fn identified_mass(&self) -> f64
 pub fn <antecedent_prob::WeightedGraphSamples>::fn new(weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>, identified: impl core::convert::Into<alloc::sync::Arc<[antecedent_prob::GraphIdentFlag]>>, graph_keys: impl core::convert::Into<alloc::sync::Arc<[u64]>>) -> core::result::Result<Self, antecedent_prob::ProbError>
 pub fn <antecedent_prob::WeightedGraphSamples>::fn normalized(&self) -> core::result::Result<Self, antecedent_prob::ProbError>
-pub fn <antecedent_prob::WeightedGraphSamples>::fn stratified_interactive_subsample(&self, max_identified: usize, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_prob::GraphEnvelopeSubsample, antecedent_prob::ProbError>
+pub fn <antecedent_prob::WeightedGraphSamples>::fn stratified_interactive_subsample(&self, max_identified: usize, rng: &mut antecedent_core::execution::rng::CausalRng) -> core::result::Result<antecedent_prob::GraphEnvelopeSubsample, antecedent_prob::ProbError>
 pub fn <antecedent_prob::WeightedGraphSamples>::fn total_weight(&self) -> f64
 pub fn <antecedent_prob::WeightedGraphSamples>::fn unidentified_mass(&self) -> f64
 pub fn <antecedent_prob::finite_belief::AffineGaussianExperiment<'_>>::fn condition(&self, prior: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
@@ -835,8 +836,8 @@ pub fn antecedent_prob::mcmc_stats::mcmc_summary(samples: &[f64], n_chains: usiz
 pub fn antecedent_prob::mcmc_stats::min_bulk_ess(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> f64
 pub fn antecedent_prob::mcmc_stats::min_tail_ess(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> f64
 pub fn antecedent_prob::mcmc_stats::parameter_mcmc_diagnostics(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> alloc::vec::Vec<antecedent_prob::ParameterMcmcDiagnostics>
-pub fn antecedent_prob::metropolis::sample_metropolis<F>(initial: &[f64], options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::ExecutionContext, log_density: F) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError> where F: core::ops::function::Fn(&[f64]) -> f64
-pub fn antecedent_prob::metropolis::sample_metropolis_dispersed<F>(center: &[f64], spread: f64, options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::ExecutionContext, log_density: F) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError> where F: core::ops::function::Fn(&[f64]) -> f64
+pub fn antecedent_prob::metropolis::sample_metropolis<F>(initial: &[f64], options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::context::ExecutionContext, log_density: F) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError> where F: core::ops::function::Fn(&[f64]) -> f64
+pub fn antecedent_prob::metropolis::sample_metropolis_dispersed<F>(center: &[f64], spread: f64, options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::context::ExecutionContext, log_density: F) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError> where F: core::ops::function::Fn(&[f64]) -> f64
 pub mod antecedent_prob::backend
 pub mod antecedent_prob::conjugate
 pub mod antecedent_prob::conjugate_moment_match
@@ -895,7 +896,7 @@ pub struct antecedent_prob::fit_counts::BayesianWorkCounts
 pub struct antecedent_prob::metropolis::MetropolisDraws
 pub struct antecedent_prob::metropolis::MetropolisOptions
 pub trait antecedent_prob::InferenceBackend: core::marker::Send + core::marker::Sync
-pub trait fn fn antecedent_prob::InferenceBackend::fit(&self, likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, options: &antecedent_prob::BayesFitOptions, workspace: &mut antecedent_prob::LaplaceWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
+pub trait fn fn antecedent_prob::InferenceBackend::fit(&self, likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, options: &antecedent_prob::BayesFitOptions, workspace: &mut antecedent_prob::LaplaceWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
 pub use antecedent_prob::backend::BayesDesignRef = antecedent_prob::BayesDesignRef
 pub use antecedent_prob::backend::BayesFitOptions = antecedent_prob::BayesFitOptions
 pub use antecedent_prob::backend::BayesFitResult = antecedent_prob::BayesFitResult

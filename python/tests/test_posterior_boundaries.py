@@ -86,3 +86,14 @@ def test_credible_interval_always_refuses_and_names_the_missing_likelihood():
     with pytest.raises(CausalError) as invalid:
         trajectory_hazard_credible_interval(**{**data, "active": [False], "control": [False]})
     assert getattr(invalid.value, "reason_code", None) != "cell_not_licensed"
+
+
+def test_survival_contrast_and_bootstrap_refuse_trajectories_that_follow_no_one():
+    data, _, _ = _one_period()
+    nobody = {**data, "active": [False], "control": [False]}
+    with pytest.raises(CausalError) as contrast:
+        trajectory_survival_contrast(**nobody)
+    with pytest.raises(CausalError) as bootstrap:
+        trajectory_survival_bootstrap(**nobody, replicates=50, seed=1)
+    for error in (contrast.value, bootstrap.value):
+        assert getattr(error, "reason_code", None) != "cell_not_licensed"

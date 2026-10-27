@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 
 import pytest
-from antecedent import artifacts
+from antecedent import artifacts, model
 from antecedent._native import (
     CausalSerializationError,
     decode_causal_artifact,
     encode_causal_artifact,
 )
+from antecedent.errors import CausalError
 from antecedent.outcomes import require_success
 
 
@@ -928,3 +929,37 @@ def test_identified_set_interval_survives_export_and_reencode() -> None:
             variable_names=decoded.variable_names,
             artifact_id="corrupt",
         )
+
+
+def test_a_model_bundle_round_trips_its_names_edges_and_mechanism_slots() -> None:
+    mechanisms = [
+        ("constant", 1.5, None, None),
+        ("linear_gaussian", 0.5, [2.0], 0.3),
+    ]
+    encoded = bytes(model.encode_model_bundle(["x", "y"], [(0, 1)], mechanisms))
+    assert len(encoded) > 0
+    names, edges, slots = model.decode_model_bundle(encoded)
+    assert list(names) == ["x", "y"]
+    assert [tuple(edge) for edge in edges] == [(0, 1)]
+    assert slots == len(mechanisms)
+    # The same declaration encodes to the same bytes; another edge set is another artifact.
+    assert bytes(model.encode_model_bundle(["x", "y"], [(0, 1)], mechanisms)) == encoded
+    other = bytes(model.encode_model_bundle(["x", "y"], [], mechanisms))
+    assert other != encoded
+    assert [tuple(edge) for edge in model.decode_model_bundle(other)[1]] == []
+
+
+def test_a_model_bundle_refuses_a_bad_edge_and_bytes_that_are_not_a_bundle() -> None:
+    with pytest.raises(CausalError):
+        model.encode_model_bundle(["x", "y"], [(0, 5)], [("constant", 0.0, None, None)] * 2)
+    encoded = bytes(
+        model.encode_model_bundle(["x", "y"], [(0, 1)], [("constant", 0.0, None, None)] * 2)
+    )
+    with pytest.raises(CausalError):
+        model.decode_model_bundle(b"not a model bundle")
+    damaged = bytearray(encoded)
+    damaged[len(damaged) // 2] ^= 0x55
+    with pytest.raises(CausalError):
+        model.decode_model_bundle(bytes(damaged))
+    with pytest.raises(CausalError):
+        model.decode_model_bundle(encoded[:20])

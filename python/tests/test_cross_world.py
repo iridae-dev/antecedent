@@ -19,6 +19,7 @@ from antecedent.cross_world import (
 )
 from antecedent.errors import (
     CausalSerializationError,
+    CausalTypeError,
     CausalUnsupportedError,
     CausalValueError,
 )
@@ -292,3 +293,21 @@ def test_abduction_is_exact_inversion_and_no_consistency_claim_is_published(mech
     )
     assert "consistency" in result.witness["assumptions"]
     assert not hasattr(result, "consistency_residual")
+
+
+def test_consumption_can_require_the_artifact_to_be_computed_on_the_callers_data():
+    data = linear_data(120)
+    query = intervention([("x", "m"), ("m", "y")])
+    result = path_specific_effect(mediation_dag(), data, query)
+    consumed = consume_cross_world_artifact(
+        result.artifact, expected_data_digest=result.data_digest
+    )
+    assert consumed.point == result.point
+    assert consumed.data_digest == result.data_digest
+    other = {**data, "y": data["y"] + 1e-9 * np.arange(120)}
+    other_digest = path_specific_effect(mediation_dag(), other, query).data_digest
+    assert other_digest != result.data_digest
+    with pytest.raises(CausalSerializationError):
+        consume_cross_world_artifact(result.artifact, expected_data_digest=other_digest)
+    with pytest.raises(CausalTypeError):
+        consume_cross_world_artifact(result.artifact, expected_data_digest=3)  # type: ignore[arg-type]

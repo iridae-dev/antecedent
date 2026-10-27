@@ -777,3 +777,21 @@ def test_a_regression_redraw_spreads_around_the_declared_structural_equation():
             retained=[oq.RegressionData("Y", y, {"X": x})],
             observed_values={"M": 3.0},
         )
+
+
+def test_a_probability_outside_the_open_unit_interval_has_no_required_evidence():
+    for prior, level in ((0.0, 0.5), (1.0, 0.5), (0.2, 0.0), (0.2, 1.0)):
+        with pytest.raises(ObservationQueryRefusal) as refused:
+            oq.required_bayes_factor(prior, level)
+        assert refused.value.reason_code == "invalid_argument"
+        assert refused.value.detail == "observation_query.invalid_declaration"
+    with pytest.raises(ObservationQueryRefusal) as refused:
+        oq.required_observations_binary_signal(
+            0.2, 1.5, rate_given_hypothesis=0.8, rate_given_complement=0.2
+        )
+    assert refused.value.detail == "observation_query.invalid_declaration"
+    # A prior that already satisfies the request needs the neutral factor, not a refusal.
+    satisfied = oq.required_bayes_factor(0.8, 0.5)
+    assert satisfied.already_satisfied is True
+    assert satisfied.required_factor == pytest.approx(1.0, abs=1e-12)
+    assert oq.required_bayes_factor(0.8, 0.5, direction="lower").already_satisfied is False

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from antecedent import joint_panel
-from antecedent.errors import CausalResourceError
+from antecedent.errors import CausalResourceError, CausalSerializationError, CausalValueError
 from antecedent.intervention_programs import clip, minimum, var
 from antecedent.outcomes import require_success
 
@@ -343,6 +343,83 @@ def test_unsupported_certificate_expression_executes_actual_best_found_search():
     assert prepared.inspect()["fits_performed"] == 1
 
 
+def finite_search_controls(*, budgeted=True):
+    controls = []
+    for offset in range(24):
+        for name in ("a", "b", "c"):
+            fixed = name == "c"
+            controls.append(
+                {
+                    "channel": name,
+                    "offset": offset,
+                    "lower": 2.0 if fixed else 0.0,
+                    "upper": 2.0 if fixed else 4.0,
+                    "unit_cost": 1.0 if budgeted and not fixed else 0.0,
+                }
+            )
+    return controls
+
+
+def test_finite_program_search_ranks_compiled_worlds_with_concrete_exclusions():
+    groups, worlds = declarations()
+    prepared = request(groups, worlds)
+    result = require_success(prepared.estimate(seed=20261021))
+    terminal = [entry["means"][-1] for entry in result.report()["point"]]
+    assert abs(terminal[1] - terminal[0]) > 1e-9, (
+        "the worlds must differ for a ranking to mean anything"
+    )
+    controls = finite_search_controls()
+
+    ranked = result.search_declared_programs(
+        controls=controls, utility_offset=0.5, utility_scale=2.0, seed=20261021
+    )
+    rows = {row["id"]: row for row in ranked["rows"]}
+    assert sorted(rows) == ["baseline", "joint"]
+    # The objective is the declared affine utility of each world's own fitted terminal mean.
+    assert rows["baseline"]["value"] == pytest.approx(0.5 + 2.0 * terminal[0], abs=1e-9)
+    assert rows["joint"]["value"] == pytest.approx(0.5 + 2.0 * terminal[1], abs=1e-9)
+    assert ranked["best"] == [max(rows, key=lambda name: rows[name]["value"])]
+    # Scheduled cost is the linear unit-cost sum of the world's own channel levels.
+    assert rows["baseline"]["cost"] == pytest.approx(0.0, abs=1e-12)
+    assert rows["joint"]["cost"] == pytest.approx(24 * (4.0 + 4.0), abs=1e-9)
+    assert rows["joint"]["controls"][:3] == [4.0, 4.0, 2.0]
+    assert all(row["feasibility"] == {"kind": "feasible"} for row in rows.values())
+    assert ranked["exhaustive"] is True
+    assert ranked["global_certificate"] is False
+    assert ranked["continuous_gap"] is None
+    assert ranked["scope"] == "model_conditional"
+    assert ranked["selected_value_reliability"] == "unmeasured"
+
+    # A negative utility scale reverses the ranking; the same fitted response is reused.
+    flipped = result.search_declared_programs(controls=controls, utility_scale=-1.0, seed=20261021)
+    assert flipped["best"] == [min(rows, key=lambda name: rows[name]["value"])]
+    assert flipped["candidate_set_identity"] == ranked["candidate_set_identity"]
+
+    # A budget below the joint schedule's cost excludes it before any value is attempted.
+    budgeted = result.search_declared_programs(controls=controls, budget=100.0, seed=20261021)
+    by_id = {row["id"]: row for row in budgeted["rows"]}
+    assert by_id["joint"]["feasibility"] == {"kind": "operational", "reason": "budget"}
+    assert by_id["joint"]["value"] is None
+    assert budgeted["best"] == ["baseline"]
+
+    # A hard linear restriction names itself as the exclusion reason.
+    restriction = [0.0] * len(controls)
+    restriction[23 * 3] = 1.0
+    restricted = result.search_declared_programs(
+        controls=controls,
+        restrictions=[{"id": "late_a_cap", "coefficients": restriction, "bound": 3.0}],
+        seed=20261021,
+    )
+    by_id = {row["id"]: row for row in restricted["rows"]}
+    assert by_id["joint"]["feasibility"] == {"kind": "operational", "reason": "late_a_cap"}
+    assert restricted["best"] == ["baseline"]
+
+    # Controls must bind every actual channel at every schedule offset.
+    with pytest.raises(Exception, match="every actual channel"):
+        result.search_declared_programs(controls=controls[:-1], seed=20261021)
+    assert prepared.inspect()["fits_performed"] == 1
+
+
 def test_scheduled_contrast_assembles_on_the_shared_draws_and_refuses_separate_worlds():
     groups, worlds = declarations()
     separate = require_success(request(groups, worlds).estimate(seed=20261021))
@@ -386,9 +463,137 @@ def test_reference_decomposition_uses_joint_fit_and_preserves_failed_slots():
     assert decomposition["draws"] == [None] * 4
     assert decomposition["scope"] == "model_conditional_reference_decomposition"
     assert decomposition["grants_unique_causal_attribution"] is False
+    support = decomposition["hybrid_support"]
+    assert [entry["mask"] for entry in support] == list(range(16))
+    assert decomposition["identified_reference"] == all(
+        not entry["unresolved"] for entry in support
+    )
+    assert decomposition["identification_identity"]
     assert prepared.inspect()["fits_performed"] == 1
     with pytest.raises(CausalResourceError):
         result.decompose_reference(declaration, max_bytes=1)
+
+
+def reference_declaration():
+    return {
+        "before_world": 0,
+        "after_world": 1,
+        "before_population_weights": [0.25] * 4,
+        "after_population_weights": [0.25] * 4,
+        "time_weights": [0.0] * 23 + [1.0],
+        "order": ["exposure", "saturation", "population", "mechanism"],
+        "periods": {"before": [0] * 24, "after": [0] * 24},
+    }
+
+
+FALLBACK = {
+    "explanation": "mechanism",
+    "world": 1,
+    "reference_world": 0,
+    "before": (0, 5),
+    "after": (18, 23),
+}
+
+
+def window_change_of_differences(report):
+    """Independent oracle: (after - before) of the active world minus that of the reference."""
+
+    def average(world, window):
+        means = report["point"][world]["means"]
+        return sum(means[window[0] : window[1] + 1]) / (window[1] - window[0] + 1)
+
+    after, before = FALLBACK["after"], FALLBACK["before"]
+    return (average(1, after) - average(1, before)) - (average(0, after) - average(0, before))
+
+
+def test_coarser_explanation_executes_the_window_change_of_differences_on_the_fitted_law():
+    groups, worlds = declarations()
+    prepared = request(groups, worlds)
+    result = require_success(prepared.estimate(seed=20261021))
+    report = result.report()
+    attempt = result.attempt_explanation(**FALLBACK)
+    assert attempt["point"] == pytest.approx(window_change_of_differences(report), abs=1e-8)
+    # Failed law slots stay failed in the same positions; none is dropped or invented.
+    assert [d is None for d in attempt["draws"]] == [d is None for d in report["draws"]]
+    assert attempt["unique_refusal"]["explanation"] == "mechanism"
+    assert "unique" in attempt["unique_attribution_refusal"]
+    assert attempt["grants_unique_causal_attribution"] is False
+    assert attempt["scope"] == "model_conditional_coarser_contrast"
+    assert attempt["target"] != attempt["parent_target"]
+    # The derived response reuses the fitted law: no second fit.
+    assert prepared.inspect()["fits_performed"] == 1
+    for bad in (
+        {**FALLBACK, "reference_world": 1},
+        {**FALLBACK, "before": (0, 19)},
+        {**FALLBACK, "after": (18, 24)},
+        {**FALLBACK, "world": 7},
+    ):
+        with pytest.raises(CausalValueError, match="explanation"):
+            result.attempt_explanation(**bad)
+    with pytest.raises(CausalValueError, match="unknown variant"):
+        result.attempt_explanation(**{**FALLBACK, "explanation": "everything"})
+    with pytest.raises(CausalResourceError):
+        result.attempt_explanation(**FALLBACK, max_bytes=1)
+
+
+def test_identified_reference_attempt_retains_the_conditional_numbers_and_runs_the_fallback():
+    groups, worlds = declarations()
+    result = require_success(request(groups, worlds).estimate(seed=20261021))
+    declaration = reference_declaration()
+    attempt = result.attempt_identified_reference(declaration, fallback=FALLBACK)
+    requested = result.decompose_reference(declaration)
+    assert attempt["requested"]["point"] == requested["point"]
+    assert attempt["requested"]["identified_reference"] == requested["identified_reference"]
+    assert attempt["requested"]["grants_unique_causal_attribution"] is False
+    if attempt["requested"]["identified_reference"]:
+        assert attempt["route"] == "supported"
+        assert "executed" not in attempt
+    else:
+        assert attempt["route"] == "coarser"
+        assert attempt["executed"]["point"] == pytest.approx(
+            window_change_of_differences(result.report()), abs=1e-8
+        )
+        missing = [
+            h
+            for h in attempt["requested"]["hybrid_support"]
+            if h["unresolved"] and h["obligations"]
+        ]
+        assert missing, "an unidentified reference names its missing premises"
+    with pytest.raises(CausalValueError, match="absent compiled world"):
+        result.attempt_identified_reference({**declaration, "after_world": 9}, fallback=FALLBACK)
+
+
+def test_design_adaptive_reference_lists_identified_steps_and_the_designs_that_earn_the_rest():
+    groups, worlds = declarations()
+    result = require_success(request(groups, worlds).estimate(seed=20261021))
+    declaration = reference_declaration()
+    attempt = result.attempt_design_adaptive_reference(declaration, fallback=FALLBACK)
+    hybrids = attempt["requested"]["point"]["hybrids"]
+    for step in attempt["identified_steps"]:
+        bit = ["exposure", "saturation", "population", "mechanism"].index(step["component"])
+        assert not step["context_mask"] & (1 << bit)
+        assert step["point"] == pytest.approx(
+            hybrids[step["context_mask"] | (1 << bit)] - hybrids[step["context_mask"]], abs=1e-12
+        )
+    stepped = {step["component"] for step in attempt["identified_steps"]}
+    assert set(attempt["unidentified_components"]).isdisjoint(stepped)
+    assert len(stepped) + len(attempt["unidentified_components"]) == 4
+    missing = {
+        obligation
+        for hybrid in attempt["requested"]["hybrid_support"]
+        for obligation in hybrid["obligations"]
+    }
+    assert {step["obligation"] for step in attempt["next_designs"]} == missing
+    assert all(step["design"] and step["hybrids"] for step in attempt["next_designs"])
+    assert attempt["complete"] == attempt["requested"]["identified_reference"]
+    if attempt["complete"]:
+        assert attempt["coarser"] is None
+    else:
+        assert attempt["coarser"]["point"] == pytest.approx(
+            window_change_of_differences(result.report()), abs=1e-8
+        )
+        # Without a fallback the finer numbers and the next designs are all that is returned.
+        assert result.attempt_design_adaptive_reference(declaration)["coarser"] is None
 
 
 def family_request(groups, worlds, family, *, lag_order=2, inference=None):
@@ -552,3 +757,119 @@ def test_broader_family_posterior_uses_the_extra_priors():
     for draw in sampled:
         assert len(draw) == len(worlds)
         assert all(len(response["means"]) == 24 for response in draw)
+
+
+def whole_program_declarations():
+    """Four independent groups, one per whole-program arm, with an exogenous context."""
+    with (ROOT / "conformance/response/joint_panel/whole_program_interaction.csv").open() as source:
+        rows = list(csv.DictReader(source))
+    arms = [("reference", 0.0, 0.0), ("a", 4.0, 0.0), ("b", 0.0, 4.0), ("joint", 4.0, 4.0)]
+    groups = {}
+    scenarios = []
+    for group in range(4):
+        selected = [row for row in rows if int(row["group"]) == group]
+        data = {
+            "channel_a": [float(row["channel_a"]) for row in selected],
+            "channel_b": [float(row["channel_b"]) for row in selected],
+            "y": [float(row["outcome"]) if row["outcome"] else None for row in selected],
+            "z": [float(row["z"]) if row["z"] else None for row in selected],
+            "season": [float(row["season"]) for row in selected],
+        }
+        groups[group] = data
+        scenarios.append(
+            {
+                "group": group,
+                "history": {name: data[name][:2] for name in ("channel_a", "channel_b")},
+                "confounder": data["z"][2:],
+                "season": [int(value) for value in data["season"][2:]],
+            }
+        )
+    worlds = [
+        {
+            "id": name,
+            "reference": index == 0,
+            "channels": {"channel_a": [a] * 24, "channel_b": [b] * 24},
+            "scenarios": scenarios,
+        }
+        for index, (name, a, b) in enumerate(arms)
+    ]
+    assignment = {
+        "design": {"kind": "multi_arm"},
+        "outcome": 2,
+        "realized_assignment": [False, True, True, True],
+        "assignment_probabilities": [0.25] * 4,
+        "assignment_units": ["0", "1", "2", "3"],
+        "outcome_units": ["0", "1", "2", "3"],
+        "treatment_arms": ["reference", "a"],
+        "multi_arm_labels": [name for name, _, _ in arms],
+        "multi_arm_assignment": [0, 1, 2, 3],
+        "multi_arm_probabilities": [[0.25] * 4 for _ in range(4)],
+    }
+    return groups, worlds, assignment
+
+
+def whole_program_request(*, exogenous_context, functional=None):
+    groups, worlds, assignment = whole_program_declarations()
+    return joint_panel.prepare(
+        groups,
+        channels=["channel_a", "channel_b"],
+        outcome="y",
+        confounder="z",
+        season="season",
+        seasons=4,
+        interval_ns=604_800_000_000_000,
+        worlds=worlds,
+        interactions={"ab": var("channel_a") * var("channel_b")},
+        options={
+            "optimizer": {"max_iterations": 1, "gradient_tolerance": 1e-5},
+            "inference": {"kind": "frequentist", "draws": 0},
+            "initial": None,
+        },
+        functional=functional,
+        assignment=assignment,
+        exogenous_context=exogenous_context,
+        seed=20261021,
+    )
+
+
+def test_whole_program_assignment_is_identified_only_with_the_declared_exogenous_context():
+    contrast = {"terms": [(3, 1.0), (1, -1.0), (2, -1.0), (0, 1.0)], "reference": 0}
+    declared = whole_program_request(exogenous_context=True, functional=contrast).inspect()
+    undeclared = whole_program_request(exogenous_context=False, functional=contrast).inspect()
+    for inspection in (declared, undeclared):
+        assert inspection["fits_performed"] == 0
+        attempts = {attempt["id"]: attempt for attempt in inspection["attempts"]}
+        assert "randomized.multi_arm_itt.whole_program" in attempts
+    declared_attempt = {a["id"]: a for a in declared["attempts"]}[
+        "randomized.multi_arm_itt.whole_program"
+    ]
+    assert declared["identified"] is True
+    assert declared_attempt["outcome"] == "Identified"
+    assert declared_attempt["next_attempt"] is None
+    undeclared_attempt = {a["id"]: a for a in undeclared["attempts"]}[
+        "randomized.multi_arm_itt.whole_program"
+    ]
+    assert undeclared["identified"] is False
+    assert undeclared_attempt["outcome"] == "Rejected"
+    assert "preassignment/exogenous" in undeclared_attempt["detail"]
+    assert undeclared_attempt["next_attempt"] is not None
+
+
+def test_panel_target_refuses_contrasts_over_worlds_that_were_not_declared():
+    groups, worlds = declarations()
+    for terms in ([(1, 1.0), (7, -1.0)], [(1, 1.0), (0, 0.0)], []):
+        with pytest.raises(CausalValueError):
+            request(groups, worlds, functional={"terms": terms, "reference": 0})
+    with pytest.raises(CausalValueError):
+        request(groups, worlds, functional={"terms": [(1, 1.0), (0, -1.0)], "reference": 9})
+
+
+def test_historical_panel_consumers_refuse_malformed_artifacts():
+    for consume in (
+        joint_panel.consume,
+        joint_panel.consume_program_certificate,
+        joint_panel.consume_randomized_selection,
+        joint_panel.consume_instrumented_selection,
+    ):
+        with pytest.raises((CausalValueError, CausalSerializationError)):
+            consume(b"not a retained artifact")

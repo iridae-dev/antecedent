@@ -131,3 +131,136 @@ def test_population_only_change_and_missing_transport_premises():
         result.decompose_population_reference(**invalid)
     with pytest.raises(CausalResourceError):
         result.decompose_population_reference(**data["population_reference"], max_bytes=1)
+
+
+def test_population_attempt_returns_the_supported_worlds_or_the_explicit_coarser_components():
+    data = fixture()
+    result = require_success(
+        joint_panel.prepare_joint_design(data["target"], data["proof"]).execute("frequentist")
+    )
+    declaration = data["population_reference"]
+    fallback = {
+        "exposure": [0, 3],
+        "saturation": [1],
+        "mechanism": [2],
+        "hybrids": declaration["stratum_worlds"][0],
+    }
+    supported = result.attempt_population_reference(**declaration, fallback=fallback)
+    assert supported["route"] == "population_reference"
+    assert (
+        supported["decomposition"]
+        == result.decompose_population_reference(**declaration)["decomposition"]
+    )
+    # A latent common cause of the baseline root removes the transport theorem; the original
+    # refusal is retained and the explicit coarser component decomposition is what executes.
+    latent = copy.deepcopy(declaration)
+    latent["diagram"]["bidirected"] = [[3, 4]]
+    with pytest.raises(CausalValueError, match="latent"):
+        result.decompose_population_reference(**latent)
+    coarser = result.attempt_population_reference(**latent, fallback=fallback)
+    assert coarser["route"] == "coarser_components"
+    assert "latent" in coarser["refusal"]
+    expected = result.decompose_reference_components(
+        **fallback, order=declaration["order"], require_identified=True
+    )
+    assert coarser["executed"]["decomposition"] == expected["decomposition"]
+    assert coarser["executed"]["scope"] == "identified"
+    assert coarser["grants_unique_causal_attribution"] is False
+    point = coarser["executed"]["decomposition"]["point"]
+    assert sum(point["shapley"]) == pytest.approx(point["total"], abs=1e-12)
+    # Resource failures and invalid inputs are never converted into the fallback.
+    with pytest.raises(CausalResourceError):
+        result.attempt_population_reference(**latent, fallback=fallback, max_bytes=1)
+    overlapping = copy.deepcopy(declaration)
+    overlapping["saturation"].append(0)
+    with pytest.raises(CausalValueError, match="disjoint"):
+        result.attempt_population_reference(**overlapping, fallback=fallback)
+
+
+def test_joint_design_execution_replays_historically_and_is_consumed_only_by_the_same_design():
+    data = fixture()
+    prepared = joint_panel.prepare_joint_design(data["target"], data["proof"])
+    proof = prepared.proof()
+    assert proof["identified"] is True
+    assert proof["worlds"]
+    result = require_success(prepared.execute("frequentist"))
+    law = result.report()["law"]
+    artifact = bytes(result.export())
+    historical = joint_panel.replay_joint_design(artifact)
+    assert historical == law
+    current = prepared.consume_current(artifact)
+    assert current.report()["law"] == law
+    assert current.report()["dependency"] == result.report()["dependency"]
+    other_proof = copy.deepcopy(data["proof"])
+    other_proof["recipe"]["units"][0]["outcome"] += 0.25
+    other = joint_panel.prepare_joint_design(data["target"], other_proof)
+    assert other.proof()["dependency"] != proof["dependency"]
+    with pytest.raises(CausalValueError, match="caller-current"):
+        other.consume_current(artifact)
+
+
+def test_reference_components_are_an_efficient_attribution_and_refuse_overlapping_components():
+    data = fixture()
+    result = require_success(
+        joint_panel.prepare_joint_design(data["target"], data["proof"]).execute("frequentist")
+    )
+    declaration = data["population_reference"]
+    components = {
+        "exposure": [0, 3],
+        "saturation": [1],
+        "mechanism": [2],
+        "hybrids": declaration["stratum_worlds"][0],
+        "order": declaration["order"],
+        "require_identified": True,
+    }
+    report = result.decompose_reference_components(**components)
+    point = report["decomposition"]["point"]
+    assert len(point["hybrids"]) == 16
+    assert len(point["by_order"]) == len(point["orderings"]) == 24
+    assert sum(point["shapley"]) == pytest.approx(point["total"], abs=1e-12)
+    assert point["total"] == pytest.approx(point["hybrids"][15] - point["hybrids"][0], abs=1e-12)
+    assert report["scope"] == "identified"
+    overlapping = {**components, "saturation": [0]}
+    with pytest.raises(CausalValueError):
+        result.decompose_reference_components(**overlapping)
+    with pytest.raises(CausalResourceError):
+        result.decompose_reference_components(**components, max_bytes=1)
+
+
+def test_historical_replays_refuse_malformed_and_foreign_artifacts():
+    data = fixture()
+    result = require_success(
+        joint_panel.prepare_joint_design(data["target"], data["proof"]).execute("frequentist")
+    )
+    declaration = data["population_reference"]
+    execution = bytes(result.export())
+    population = bytes(result.export(quantity="population_reference", declaration=declaration))
+    for replay in (
+        joint_panel.replay_joint_design,
+        joint_panel.replay_population_reference,
+        joint_panel.replay_reference_decomposition,
+    ):
+        with pytest.raises(CausalValueError):
+            replay(b"not a retained artifact")
+    with pytest.raises(CausalValueError):
+        joint_panel.replay_population_reference(execution)
+    with pytest.raises(CausalValueError):
+        joint_panel.replay_joint_design(population)
+
+
+def test_joint_design_binds_each_target_world_by_semantic_identity_in_order():
+    data = fixture()
+    prepared = joint_panel.prepare_joint_design(data["target"], data["proof"])
+    bound = prepared.proof()["worlds"]
+    assert [w["target_identity"] for w in bound] == [
+        w["target_identity"] for w in data["proof"]["worlds"]
+    ]
+    assert len({w["target_identity"] for w in bound}) == len(bound) == 16
+    forged = copy.deepcopy(data["proof"])
+    forged["worlds"][0]["target_identity"] = forged["worlds"][1]["target_identity"]
+    with pytest.raises(CausalValueError, match="exact target world"):
+        joint_panel.prepare_joint_design(data["target"], forged)
+    reordered = copy.deepcopy(data["proof"])
+    reordered["worlds"][0], reordered["worlds"][1] = reordered["worlds"][1], reordered["worlds"][0]
+    with pytest.raises(CausalValueError, match="exact target world"):
+        joint_panel.prepare_joint_design(data["target"], reordered)

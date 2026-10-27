@@ -337,6 +337,29 @@ def test_inspect_does_not_evaluate_or_fit(monkeypatch):
     assert calls == []
 
 
+def test_exact_inspection_publishes_formula_scope_factors_and_bindings_without_evaluating():
+    from antecedent import prepare
+
+    identified, catalog, data = fixture()
+    prepared = prepare(data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0}))
+    report = prepared.inspect()
+    identification = report.identification.payload
+    assert identification["formula"] and identification["theorem_scope"]
+    assert identification["classical_family"] and identification["catalog_family"]
+    assert identification["rules"], "the consumed derivation rules are listed"
+    # Support is execution-specific: nothing is evaluated by inspecting, so none is claimed.
+    assert report.support.available is False
+    assert report.support.summary == "execution_specific"
+    factors = report.support.payload["required_factors"]
+    assert factors and all(f["population"] and "variables" in f for f in factors)
+    assert len(report.support.payload["bindings"]) == len(data.laws)
+    assert report.support.payload["factor_support"] == ()
+    # The identity layers are distinct hex digests of the program, the snapshot and the run.
+    ids = {report.program_id, report.data_snapshot_id, report.execution_id}
+    assert None not in ids and len(ids) == 3
+    assert prepared.inspect().execution_id == report.execution_id
+
+
 def test_causaleffect_standardize_formula_matches_enumerated_scm():
     graph = Admg.from_edges(["X", "Z", "Y"], [("Z", "Y"), ("X", "Y")])
     identified = transport.identify_classical(

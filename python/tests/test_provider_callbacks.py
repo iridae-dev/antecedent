@@ -688,6 +688,43 @@ def test_provider_objects_need_an_identity():
 # -- predictive law source and forecast law -----------------------------------------------------
 
 
+def gaussian_probes(**overrides):
+    """Independent probes of the reference Gaussian: provider values vs closed-form values."""
+    cdf_at_mean = 0.5 * (1 + math.erf(0.0))
+    tail = 0.5 * (1 + math.erf((MU + 12 * SD - MU) / (SD * math.sqrt(2))))
+    values = {
+        "known_truth": (cdf_at_mean, NormalDist(MU, SD).cdf(MU), 1e-12),
+        "normalization": (tail, 1.0, 1e-9),
+        "moments": (MU, NormalDist(MU, SD).mean, 1e-12),
+        "shape": (1.0, 1.0, 0.0),
+        "support": (0.0, 0.0, 0.0),
+        "seeded_behavior": (0.0, 0.0, 0.0),
+    }
+    values.update(overrides)
+    return [pc_probe(kind, *triple) for kind, triple in values.items()]
+
+
+def pc_probe(kind, observed, expected, tolerance):
+    from antecedent.external import VerificationProbe
+
+    return VerificationProbe(kind, observed, expected, tolerance)
+
+
+def test_verifying_a_callback_provider_issues_a_receipt_only_for_passing_independent_probes():
+    base = declaration()
+    receipt = base.verify(gaussian_probes())
+    assert len(receipt.digest) == 64
+    assert receipt.provider == "lab"
+    assert [request.query_family for request in receipt.requests] == ["gaussian"]
+    # The same probes verify the same object to the same receipt; another object differs.
+    assert base.verify(gaussian_probes()).digest == receipt.digest
+    # A probe outside its predeclared tolerance, and a missing required probe, are refused.
+    refusal_of(base.verify, gaussian_probes(moments=(MU + 0.5, MU, 1e-3)))
+    refusal_of(base.verify, [p for p in gaussian_probes() if p.kind != "normalization"])
+    with pytest.raises(CausalTypeError):
+        base.verify([("moments", 2.0, 2.0, 0.0)])
+
+
 def test_a_callback_declares_a_predictive_law_source_with_the_trust_it_earned():
     attested = declaration().predictive_law_source()
     assert attested.wire == {
@@ -701,11 +738,24 @@ def test_a_callback_declares_a_predictive_law_source_with_the_trust_it_earned():
         },
         "trust": "externally_attested",
     }
-    claimed = declaration(trust=pc.Trust.verified_extension("ab" * 32))
-    # The claim alone is not a verification: the host must confirm it.
+    # The claim alone is not a verification: a receipt for the exact provider object must back it.
+    receipt = declaration().verify(gaussian_probes())
+    claimed = declaration(trust=pc.Trust.verified_extension(receipt.digest))
     refusal_of(claimed.predictive_law_source)
-    confirmed = claimed.predictive_law_source(verification_confirmed=True)
+    confirmed = claimed.predictive_law_source(verification=receipt)
     assert confirmed.wire["trust"] == "verified_extension"
+    assert confirmed.wire["identity"] == attested.wire["identity"]
+    # A receipt the declaration does not name, or one issued for another provider object, does
+    # not confirm it.
+    wrong_digest = declaration(trust=pc.Trust.verified_extension("ab" * 32))
+    refusal_of(wrong_digest.predictive_law_source, verification=receipt)
+    other_version = declaration(provider=identity("2.0"))
+    other_receipt = other_version.verify(gaussian_probes())
+    assert other_receipt.digest != receipt.digest
+    refusal_of(
+        declaration(trust=pc.Trust.verified_extension(other_receipt.digest)).predictive_law_source,
+        verification=receipt,
+    )
     # No claim at all, and an opaque dependency set, are diagnostic only.
     refusal_of(declaration(trust=pc.Trust.unverified()).predictive_law_source)
     refusal_of(declaration(dependencies=pc.Dependencies.opaque()).predictive_law_source)
@@ -814,3 +864,97 @@ def test_a_callback_registers_in_the_ledger_with_its_inner_callback_and_supersed
     with pytest.raises(EvidenceLedgerRefusal) as caught:
         pc.supersede_callback_source(ledger, inner_source, replacement)
     assert_registered_refusal(caught.value)
+
+
+def test_only_a_result_of_this_session_is_exported_and_its_record_must_exist():
+    session, _, done, sealed = exported()
+    again = session.export(done, "callback-result-1")
+    assert again.data == sealed.data
+    assert again.expectation.identity == sealed.expectation.identity
+    # The same history record exported by index is the same sealed artifact.
+    by_index = session.export(done.history_index, "callback-result-1")
+    assert by_index.data == sealed.data
+    # A result of another session is not this session's record to seal.
+    foreign = refusal_of(pc.CallbackSession().export, done, "callback-result-1")
+    assert foreign.detail == "provider_callbacks.foreign_execution"
+    with pytest.raises(ValueError, match="history index out of range"):
+        session.export(10_000, "callback-result-1")
+
+
+# -- a callback executed for a consumer ----------------------------------------------------------
+
+
+def consumer(population="trial", port="law_in", operations=("mean",)):
+    from antecedent import interface_contract as ic
+
+    consumed = ic.ConsumedPort(
+        port,
+        quantity(population=population),
+        "estimand:outcome_law",
+        ic.SupportDomain.real(),
+        operations=operations,
+    )
+    return ic.InterfaceContract("downstream", consumes=[consumed])
+
+
+def test_a_callback_is_connected_to_its_consumer_before_the_provider_ever_runs():
+    decl = mean_only()
+    request = pc.Request(pc.Query.mean(), seed=3)
+    provider = gaussian()
+    session = pc.CallbackSession()
+    done = require_success(
+        session.execute_for_consumer(provider, decl, request, consumer(), "law_in")
+    )
+    assert done.execution.output.values == (MU,)
+    assert done.connection.producer == decl.component
+    assert done.connection.consumer == "downstream"
+    assert done.connection.consumed_port == "law_in"
+    assert done.connection.operations == ("mean",)
+    assert counted(provider) == ["mean"] and session.invocations == 1
+
+    # the connection is the interface contract's: another population is a scientific mismatch
+    # even though the shapes agree, and nothing was invoked for it
+    other = gaussian()
+    error = refusal_of(
+        session.execute_for_consumer, other, decl, request, consumer("elsewhere"), "law_in"
+    )
+    assert isinstance(error, pc.CallbackRefusal) and len(error.refusals) >= 1
+    assert not isinstance(error, pc.CallbackExecutionRefusal)
+    assert counted(other) == [] and session.invocations == 1
+    # an operation the callback does not declare, and a port the consumer does not declare
+    needs_cdf = consumer(operations=("mean", "draws"))
+    assert refusal_of(session.execute_for_consumer, other, decl, request, needs_cdf, "law_in")
+    assert refusal_of(session.execute_for_consumer, other, decl, request, consumer(), "no_port")
+    assert counted(other) == [] and session.invocations == 1
+
+    # an identical request already executed in this session is answered from the session's record
+    # without a new invocation, so an invocation bound of zero does not refuse it
+    replay = require_success(
+        session.execute_for_consumer(
+            gaussian(),
+            decl,
+            request,
+            consumer(),
+            "law_in",
+            policy=pc.ExecutionPolicy(max_invocations=0),
+        )
+    )
+    assert replay.execution.output.values == (MU,) and session.invocations == 1
+
+    # a connection that holds and an execution that is refused keeps its invocation counts
+    fresh = pc.CallbackSession()
+    never = gaussian()
+    refused = refusal_of(
+        fresh.execute_for_consumer,
+        never,
+        decl,
+        request,
+        consumer(),
+        "law_in",
+        policy=pc.ExecutionPolicy(max_invocations=0),
+    )
+    assert isinstance(refused, pc.CallbackExecutionRefusal) and refused.invocations == 0
+    assert fresh.invocations == 0 and counted(never) == []
+    assert session.invocations == 1
+    with pytest.raises(CausalTypeError):
+        session.execute_for_consumer(provider, decl, request, {"component": "x"}, "law_in")

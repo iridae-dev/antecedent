@@ -8,6 +8,7 @@
 #[non_exhaustive] pub enum antecedent_data::MissingnessAssumption
 #[non_exhaustive] pub enum antecedent_data::PermutationScheme
 #[non_exhaustive] pub enum antecedent_data::ReferencePointPolicy
+#[non_exhaustive] pub enum antecedent_data::ValidityFault
 #[non_exhaustive] pub enum antecedent_data::column_closure::ClosureError
 #[non_exhaustive] pub enum antecedent_data::file_source::FileSourceError
 #[non_exhaustive] pub enum antecedent_data::file_source::FileSourceErrorKind
@@ -144,6 +145,7 @@ impl core::clone::Clone for antecedent_data::UnitRun
 impl core::clone::Clone for antecedent_data::UnitSummary
 impl core::clone::Clone for antecedent_data::UnknownCategoryPolicy
 impl core::clone::Clone for antecedent_data::ValidityBitmap
+impl core::clone::Clone for antecedent_data::ValidityFault
 impl core::clone::Clone for antecedent_data::VectorVariableGroups
 impl core::clone::Clone for antecedent_data::arrow_adapter::EstimatorFrame
 impl core::clone::Clone for antecedent_data::arrow_adapter::FrozenArrowStudy
@@ -259,6 +261,7 @@ impl core::cmp::Eq for antecedent_data::UnitRun
 impl core::cmp::Eq for antecedent_data::UnitSummary
 impl core::cmp::Eq for antecedent_data::UnknownCategoryPolicy
 impl core::cmp::Eq for antecedent_data::ValidityBitmap
+impl core::cmp::Eq for antecedent_data::ValidityFault
 impl core::cmp::Eq for antecedent_data::VectorVariableGroups
 impl core::cmp::Eq for antecedent_data::backend_boundary::LazyBackendRefusal
 impl core::cmp::Eq for antecedent_data::backend_boundary::PreparationBackend
@@ -380,6 +383,7 @@ impl core::cmp::PartialEq for antecedent_data::UnitRun
 impl core::cmp::PartialEq for antecedent_data::UnitSummary
 impl core::cmp::PartialEq for antecedent_data::UnknownCategoryPolicy
 impl core::cmp::PartialEq for antecedent_data::ValidityBitmap
+impl core::cmp::PartialEq for antecedent_data::ValidityFault
 impl core::cmp::PartialEq for antecedent_data::VectorVariableGroups
 impl core::cmp::PartialEq for antecedent_data::backend_boundary::LazyBackendRefusal
 impl core::cmp::PartialEq for antecedent_data::backend_boundary::PreparationBackend
@@ -450,6 +454,7 @@ impl core::convert::From<alloc::sync::Arc<[f64]>> for antecedent_data::F64Buffer
 impl core::convert::From<alloc::sync::Arc<str>> for antecedent_data::column_closure::ColumnRole
 impl core::convert::From<alloc::vec::Vec<f64>> for antecedent_data::F64Buffer
 impl core::convert::From<antecedent_core::error::SchemaError> for antecedent_data::DataError
+impl core::convert::From<antecedent_core::row_mask::RowMask> for antecedent_data::ValidityBitmap
 impl core::convert::From<antecedent_data::DataError> for antecedent_data::file_source::FileSourceError
 impl core::convert::From<antecedent_data::PanelPreparationError> for antecedent_data::DataError
 impl core::convert::From<antecedent_data::column_closure::ClosureError> for antecedent_data::file_source::FileSourceError
@@ -555,6 +560,7 @@ impl core::fmt::Debug for antecedent_data::UnitRun
 impl core::fmt::Debug for antecedent_data::UnitSummary
 impl core::fmt::Debug for antecedent_data::UnknownCategoryPolicy
 impl core::fmt::Debug for antecedent_data::ValidityBitmap
+impl core::fmt::Debug for antecedent_data::ValidityFault
 impl core::fmt::Debug for antecedent_data::VectorVariableGroups
 impl core::fmt::Debug for antecedent_data::arrow_adapter::EstimatorFrame
 impl core::fmt::Debug for antecedent_data::arrow_adapter::FrozenArrowStudy
@@ -630,6 +636,7 @@ impl core::fmt::Display for antecedent_data::DataError
 impl core::fmt::Display for antecedent_data::GlobalIndexError
 impl core::fmt::Display for antecedent_data::PanelPreparationError
 impl core::fmt::Display for antecedent_data::PopulationUnit
+impl core::fmt::Display for antecedent_data::ValidityFault
 impl core::fmt::Display for antecedent_data::backend_boundary::LazyBackendRefusal
 impl core::fmt::Display for antecedent_data::column_closure::ClosureError
 impl core::fmt::Display for antecedent_data::column_closure::ColumnRole
@@ -660,6 +667,7 @@ impl core::hash::Hash for antecedent_data::ReferencePointPolicy
 impl core::hash::Hash for antecedent_data::TimeDummyEncoding
 impl core::hash::Hash for antecedent_data::TimeRange
 impl core::hash::Hash for antecedent_data::UnknownCategoryPolicy
+impl core::hash::Hash for antecedent_data::ValidityFault
 impl core::hash::Hash for antecedent_data::backend_boundary::PreparationBackend
 impl core::hash::Hash for antecedent_data::column_closure::ColumnDuty
 impl core::hash::Hash for antecedent_data::column_closure::ColumnRole
@@ -713,6 +721,7 @@ impl core::marker::Copy for antecedent_data::TimeDummyEncoding
 impl core::marker::Copy for antecedent_data::TimeRange
 impl core::marker::Copy for antecedent_data::UnitAccounting
 impl core::marker::Copy for antecedent_data::UnknownCategoryPolicy
+impl core::marker::Copy for antecedent_data::ValidityFault
 impl core::marker::Copy for antecedent_data::backend_boundary::LazyBackendRefusal
 impl core::marker::Copy for antecedent_data::backend_boundary::PreparationBackend
 impl core::marker::Copy for antecedent_data::column_closure::ColumnDuty
@@ -819,6 +828,7 @@ impl core::marker::Freeze for antecedent_data::UnitRun [auto]
 impl core::marker::Freeze for antecedent_data::UnitSummary [auto]
 impl core::marker::Freeze for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Freeze for antecedent_data::ValidityBitmap [auto]
+impl core::marker::Freeze for antecedent_data::ValidityFault [auto]
 impl core::marker::Freeze for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Freeze for antecedent_data::arrow_adapter::EstimatorFrame [auto]
 impl core::marker::Freeze for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
@@ -965,6 +975,7 @@ impl core::marker::Send for antecedent_data::UnitRun [auto]
 impl core::marker::Send for antecedent_data::UnitSummary [auto]
 impl core::marker::Send for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Send for antecedent_data::ValidityBitmap [auto]
+impl core::marker::Send for antecedent_data::ValidityFault [auto]
 impl core::marker::Send for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Send for antecedent_data::arrow_adapter::EstimatorFrame [auto]
 impl core::marker::Send for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
@@ -1091,6 +1102,8 @@ impl core::marker::StructuralPartialEq for antecedent_data::UnitAccounting
 impl core::marker::StructuralPartialEq for antecedent_data::UnitRun
 impl core::marker::StructuralPartialEq for antecedent_data::UnitSummary
 impl core::marker::StructuralPartialEq for antecedent_data::UnknownCategoryPolicy
+impl core::marker::StructuralPartialEq for antecedent_data::ValidityBitmap
+impl core::marker::StructuralPartialEq for antecedent_data::ValidityFault
 impl core::marker::StructuralPartialEq for antecedent_data::VectorVariableGroups
 impl core::marker::StructuralPartialEq for antecedent_data::backend_boundary::LazyBackendRefusal
 impl core::marker::StructuralPartialEq for antecedent_data::backend_boundary::PreparationBackend
@@ -1225,6 +1238,7 @@ impl core::marker::Sync for antecedent_data::UnitRun [auto]
 impl core::marker::Sync for antecedent_data::UnitSummary [auto]
 impl core::marker::Sync for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Sync for antecedent_data::ValidityBitmap [auto]
+impl core::marker::Sync for antecedent_data::ValidityFault [auto]
 impl core::marker::Sync for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Sync for antecedent_data::arrow_adapter::EstimatorFrame [auto]
 impl core::marker::Sync for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
@@ -1369,6 +1383,7 @@ impl core::marker::Unpin for antecedent_data::UnitRun [auto]
 impl core::marker::Unpin for antecedent_data::UnitSummary [auto]
 impl core::marker::Unpin for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Unpin for antecedent_data::ValidityBitmap [auto]
+impl core::marker::Unpin for antecedent_data::ValidityFault [auto]
 impl core::marker::Unpin for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Unpin for antecedent_data::arrow_adapter::EstimatorFrame [auto]
 impl core::marker::Unpin for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
@@ -1501,6 +1516,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::UnitRun [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::UnitSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ValidityBitmap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ValidityFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::VectorVariableGroups [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::arrow_ffi::ArrowCStream [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::backend_boundary::LazyBackendRefusal [auto]
@@ -1625,6 +1641,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::UnitRun [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::UnitSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ValidityBitmap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ValidityFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::VectorVariableGroups [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::arrow_ffi::ArrowCStream [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::backend_boundary::LazyBackendRefusal [auto]
@@ -1753,8 +1770,6 @@ pub const <antecedent_data::DiscreteColumn>::MISSING: u32
 pub const <antecedent_data::ImputationModel>::ALL: [Self; 2]
 pub const <antecedent_data::ImputationSpec>::DEFAULT_IMPUTATIONS: u32
 pub const <antecedent_data::ImputationSpec>::DEFAULT_ITERATIONS: u32
-pub const <antecedent_data::ImputationSpec>::MAX_IMPUTATIONS: u32
-pub const <antecedent_data::ImputationSpec>::MAX_ITERATIONS: u32
 pub const <antecedent_data::ImputationSpec>::MIN_IMPUTATIONS: u32
 pub const <antecedent_data::MissingPolicy>::NAMES: [&'static str; 7]
 pub const <antecedent_data::MissingnessAssumption>::ALL: [Self; 2]
@@ -2011,6 +2026,7 @@ pub fn <antecedent_data::ArrowFrameView>::fn freeze(&self) -> core::result::Resu
 pub fn <antecedent_data::ArrowFrameView>::fn from_c_columns(columns: alloc::vec::Vec<antecedent_data::ArrowCColumn>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowFrameView>::fn from_record_batches(batches: alloc::vec::Vec<arrow_array::record_batch::RecordBatch>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowFrameView>::fn from_stream(stream: antecedent_data::arrow_ffi::ArrowCStream) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ArrowFrameView>::fn from_stream_within(stream: antecedent_data::arrow_ffi::ArrowCStream, max_bytes: u64) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowFrameView>::fn n_chunks(&self) -> usize
 pub fn <antecedent_data::ArrowFrameView>::fn n_columns(&self) -> usize
 pub fn <antecedent_data::ArrowFrameView>::fn names(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str>
@@ -2035,6 +2051,8 @@ pub fn <antecedent_data::CategoryDomain>::fn len(&self) -> usize
 pub fn <antecedent_data::CategoryDomain>::fn try_new(id: antecedent_core::ids::CategoryDomainId, levels: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::CategoryLevel]>>, ordered: bool, reference: core::option::Option<antecedent_data::CategoryCode>, unknown_policy: antecedent_data::UnknownCategoryPolicy) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ChunkIndex>::const fn get(self) -> u32
 pub fn <antecedent_data::ChunkIndex>::const fn new(local: u32) -> Self
+pub fn <antecedent_data::ColumnView<'_>>::fn gather_rows(self, rows: &[usize]) -> core::result::Result<antecedent_data::OwnedColumn, antecedent_data::DataError>
+pub fn <antecedent_data::ColumnView<'_>>::fn share(self) -> antecedent_data::OwnedColumn
 pub fn <antecedent_data::ColumnView<'a>>::fn id(self) -> antecedent_core::ids::VariableId
 pub fn <antecedent_data::ColumnView<'a>>::fn is_empty(self) -> bool
 pub fn <antecedent_data::ColumnView<'a>>::fn len(self) -> usize
@@ -2051,6 +2069,7 @@ pub fn <antecedent_data::DropReason>::const fn name(self) -> &'static str
 pub fn <antecedent_data::EnvHoldoutSplit>::fn try_prefix(n_env: usize, n_discovery: usize) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::EventData>::const fn regularity(&self) -> antecedent_data::SamplingRegularity
 pub fn <antecedent_data::EventData>::fn align_to_grid(&self, interval_ns: u64) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
+pub fn <antecedent_data::EventData>::fn align_to_grid_in(&self, interval_ns: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
 pub fn <antecedent_data::EventData>::fn event_times_ns(&self) -> &[i64]
 pub fn <antecedent_data::EventData>::fn reject_integer_lag_planning(&self) -> core::result::Result<(), antecedent_data::DataError>
 pub fn <antecedent_data::EventData>::fn source(&self) -> antecedent_data::source::OwnedSource
@@ -2066,7 +2085,7 @@ pub fn <antecedent_data::F64Buffer>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::F64Buffer>::fn len(&self) -> usize
 pub fn <antecedent_data::F64Buffer>::fn nbytes(&self) -> u64
 pub fn <antecedent_data::F64Buffer>::fn owned(values: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> Self
-pub fn <antecedent_data::F64Buffer>::fn with_admission(self, lease: alloc::sync::Arc<antecedent_core::execution::AdmissionLease>) -> Self
+pub fn <antecedent_data::F64Buffer>::fn with_admission(self, lease: alloc::sync::Arc<antecedent_core::execution::admission::AdmissionLease>) -> Self
 pub fn <antecedent_data::FixedVectorColumn>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::FixedVectorColumn>::fn len(&self) -> usize
 pub fn <antecedent_data::FixedVectorColumn>::fn new(id: antecedent_core::ids::VariableId, dim: usize, values: impl core::convert::Into<alloc::sync::Arc<[f64]>>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
@@ -2112,14 +2131,14 @@ pub fn <antecedent_data::LaggedFrame>::fn append_constant_lag_columns(&self, col
 pub fn <antecedent_data::LaggedFrame>::fn column(&self, idx: usize) -> &[f64]
 pub fn <antecedent_data::LaggedFrame>::fn column_index(&self, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::option::Option<usize>
 pub fn <antecedent_data::LaggedFrame>::fn column_valid(&self, idx: usize) -> &antecedent_data::ValidityBitmap
-pub fn <antecedent_data::LaggedFrame>::fn from_panel(units: &[antecedent_data::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], max_lag: u32, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
-pub fn <antecedent_data::LaggedFrame>::fn from_series(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
-pub fn <antecedent_data::LaggedFrame>::fn from_series_with_options(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, reference: antecedent_data::ReferencePointPolicy, options: antecedent_data::LaggedFrameOptions, _policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
-pub fn <antecedent_data::LaggedFrame>::fn from_series_with_reference(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, reference: antecedent_data::ReferencePointPolicy, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn from_panel(units: &[antecedent_data::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], max_lag: u32, policy: &antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn from_series(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, policy: &antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn from_series_with_options(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, reference: antecedent_data::ReferencePointPolicy, options: antecedent_data::LaggedFrameOptions, _policy: &antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn from_series_with_reference(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, reference: antecedent_data::ReferencePointPolicy, policy: &antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::LaggedFrame>::fn is_fully_valid(&self) -> bool
-pub fn <antecedent_data::LaggedFrame>::fn keep_mask_for_columns(&self, cols: &[usize]) -> core::result::Result<alloc::vec::Vec<bool>, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn keep_mask_for_columns(&self, cols: &[usize]) -> core::result::Result<antecedent_data::ValidityBitmap, antecedent_data::DataError>
 pub fn <antecedent_data::LaggedFrame>::fn ncols(&self) -> usize
-pub fn <antecedent_data::LaggedFrame>::fn retain_effective(&self, keep: &[bool]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn retain_effective(&self, keep: &antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::LaggedFrame>::fn stack(frames: &[Self]) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::LaggedFrame>::fn values_bytes(&self) -> u64
 pub fn <antecedent_data::LaggedFrame>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
@@ -2130,9 +2149,9 @@ pub fn <antecedent_data::LaggedSamplePlan>::fn lag_map(&self) -> &antecedent_dat
 pub fn <antecedent_data::LaggedSamplePlan>::fn lag_map_arc(&self) -> &alloc::sync::Arc<antecedent_data::LagMap>
 pub fn <antecedent_data::LaggedSamplePlan>::fn n_effective(&self) -> usize
 pub fn <antecedent_data::LaggedSamplePlan>::fn new(series_len: usize, max_lag: u32, columns: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::LaggedColumn]>>) -> core::result::Result<Self, antecedent_data::DataError>
-pub fn <antecedent_data::LaggedSamplePlan>::fn prepare<'a>(self: &'a Self, data: &antecedent_data::TimeSeriesData, workspace: &'a mut antecedent_data::LaggedSampleWorkspace, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_data::LaggedPreparedSample<'a>, antecedent_data::DataError>
-pub fn <antecedent_data::LaggedSamplePlan>::fn prepare_complete_windows<'a>(self: &'a Self, data: &antecedent_data::TimeSeriesData, workspace: &'a mut antecedent_data::LaggedSampleWorkspace, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<(antecedent_data::LaggedPreparedSample<'a>, alloc::vec::Vec<bool>), antecedent_data::DataError>
-pub fn <antecedent_data::LaggedSamplePlan>::fn prepare_with_gaps<'a>(self: &'a Self, data: &antecedent_data::TimeSeriesData, workspace: &'a mut antecedent_data::LaggedSampleWorkspace, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_data::GappedSample<'a>, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedSamplePlan>::fn prepare<'a>(self: &'a Self, data: &antecedent_data::TimeSeriesData, workspace: &'a mut antecedent_data::LaggedSampleWorkspace, policy: &antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<antecedent_data::LaggedPreparedSample<'a>, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedSamplePlan>::fn prepare_complete_windows<'a>(self: &'a Self, data: &antecedent_data::TimeSeriesData, workspace: &'a mut antecedent_data::LaggedSampleWorkspace, policy: &antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<(antecedent_data::LaggedPreparedSample<'a>, alloc::vec::Vec<bool>), antecedent_data::DataError>
+pub fn <antecedent_data::LaggedSamplePlan>::fn prepare_with_gaps<'a>(self: &'a Self, data: &antecedent_data::TimeSeriesData, workspace: &'a mut antecedent_data::LaggedSampleWorkspace, policy: &antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<antecedent_data::GappedSample<'a>, antecedent_data::DataError>
 pub fn <antecedent_data::LaggedSamplePlan>::fn with_reference(series_len: usize, max_lag: u32, reference: antecedent_data::ReferencePointPolicy, columns: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::LaggedColumn]>>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::LaggedSamplePlan>::fn with_shared(lag_map: alloc::sync::Arc<antecedent_data::LagMap>, columns: alloc::sync::Arc<[antecedent_data::LaggedColumn]>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::LaggedSampleWorkspace>::const fn capacity_cols(&self) -> usize
@@ -2229,7 +2248,7 @@ pub fn <antecedent_data::ResamplingPlan>::const fn needs_clusters(self) -> bool
 pub fn <antecedent_data::ResamplingPlan>::const fn resampling_rule(self) -> antecedent_core::sampling_design::ResamplingRule
 pub fn <antecedent_data::RowAccounting>::fn complete_case<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::RowAccounting>::fn from_dropped(policy: antecedent_data::MissingPolicy, rows_total: usize, dropped_rows: alloc::vec::Vec<u64>, missing_by_variable: alloc::vec::Vec<(alloc::sync::Arc<str>, usize)>) -> Self
-pub fn <antecedent_data::RowAccounting>::fn from_selection<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, policy: antecedent_data::MissingPolicy, variables: &[antecedent_core::ids::VariableId], keep: &[bool]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::RowAccounting>::fn from_selection<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, policy: antecedent_data::MissingPolicy, variables: &[antecedent_core::ids::VariableId], keep: &antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::RowAccounting>::fn imputed<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, policy: antecedent_data::MissingPolicy, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::RowAccounting>::fn rows_dropped(&self) -> usize
 pub fn <antecedent_data::RowAccounting>::fn with_denominator(self, rows: usize) -> Self
@@ -2270,17 +2289,24 @@ pub fn <antecedent_data::TimeSeriesData>::fn with_weights(&self, weights: alloc:
 pub fn <antecedent_data::TimestampColumn>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::TimestampColumn>::fn len(&self) -> usize
 pub fn <antecedent_data::TimestampColumn>::fn new(id: antecedent_core::ids::VariableId, values_ns: impl core::convert::Into<alloc::sync::Arc<[i64]>>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ValidityBitmap>::const fn as_row_mask(&self) -> &antecedent_core::row_mask::RowMask
 pub fn <antecedent_data::ValidityBitmap>::const fn is_empty(&self) -> bool
 pub fn <antecedent_data::ValidityBitmap>::const fn len(&self) -> usize
 pub fn <antecedent_data::ValidityBitmap>::fn all_valid(len: usize) -> Self
 pub fn <antecedent_data::ValidityBitmap>::fn as_mask_view(&self) -> core::result::Result<antecedent_kernels::view::BitMaskView<'_>, antecedent_data::DataError>
-pub fn <antecedent_data::ValidityBitmap>::fn compact(&self, keep: &[bool]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ValidityBitmap>::fn compact(&self, keep: &Self) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ValidityBitmap>::fn concat(parts: &[&Self]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ValidityBitmap>::fn count_valid(&self) -> usize
+pub fn <antecedent_data::ValidityBitmap>::fn from_bools(flags: &[bool]) -> Self
 pub fn <antecedent_data::ValidityBitmap>::fn from_bytes(bytes: impl core::convert::Into<alloc::sync::Arc<[u8]>>, len: usize) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ValidityBitmap>::fn gather(&self, row_map: &[u32]) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ValidityBitmap>::fn gather_rows(&self, row_map: &[usize]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ValidityBitmap>::fn intersection(len: usize, parts: &[&Self]) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ValidityBitmap>::fn is_all_valid(&self) -> bool
 pub fn <antecedent_data::ValidityBitmap>::fn is_valid(&self, i: usize) -> bool
+pub fn <antecedent_data::ValidityBitmap>::fn iter_invalid(&self) -> impl core::iter::traits::iterator::Iterator<Item = usize> + '_
+pub fn <antecedent_data::ValidityBitmap>::fn iter_valid(&self) -> impl core::iter::traits::iterator::Iterator<Item = usize> + '_
+pub fn <antecedent_data::ValidityBitmap>::fn to_bools(&self) -> alloc::vec::Vec<bool>
 pub fn <antecedent_data::VectorVariableGroups>::fn empty() -> Self
 pub fn <antecedent_data::VectorVariableGroups>::fn filter_search_variables(&self, variables: &[antecedent_core::ids::VariableId]) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn <antecedent_data::VectorVariableGroups>::fn groups(&self) -> &[alloc::sync::Arc<[antecedent_core::ids::VariableId]>]
@@ -2293,6 +2319,7 @@ pub fn <antecedent_data::arrow_adapter::FrozenArrowStudy>::fn data(&self) -> &an
 pub fn <antecedent_data::arrow_adapter::FrozenArrowStudy>::fn row_count(&self) -> usize
 pub fn <antecedent_data::arrow_ffi::ArrowCStream>::fn from_reader(reader: alloc::boxed::Box<dyn arrow_array::record_batch::RecordBatchReader + core::marker::Send>) -> Self
 pub fn <antecedent_data::arrow_ffi::ArrowCStream>::fn into_batches(self) -> core::result::Result<(arrow_schema::schema::SchemaRef, alloc::vec::Vec<arrow_array::record_batch::RecordBatch>), antecedent_data::DataError>
+pub fn <antecedent_data::arrow_ffi::ArrowCStream>::fn into_batches_within(self, max_bytes: u64) -> core::result::Result<(arrow_schema::schema::SchemaRef, alloc::vec::Vec<arrow_array::record_batch::RecordBatch>), antecedent_data::DataError>
 pub fn <antecedent_data::arrow_ffi::ArrowCStream>::unsafe fn from_ffi(stream: arrow_array::ffi_stream::FFI_ArrowArrayStream) -> Self
 pub fn <antecedent_data::backend_boundary::PreparationBackend>::const fn accepted() -> Self
 pub fn <antecedent_data::backend_boundary::PreparationBackend>::const fn admit(self) -> core::result::Result<Self, antecedent_data::backend_boundary::LazyBackendRefusal>
@@ -2406,7 +2433,7 @@ pub fn <antecedent_data::file_source::TableFile>::const fn declared_rows(&self) 
 pub fn <antecedent_data::file_source::TableFile>::const fn format(&self) -> antecedent_data::file_source::TableFileFormat
 pub fn <antecedent_data::file_source::TableFile>::fn column(&self, name: &str) -> core::option::Option<&antecedent_data::file_source::FileColumn>
 pub fn <antecedent_data::file_source::TableFile>::fn columns(&self) -> &[antecedent_data::file_source::FileColumn]
-pub fn <antecedent_data::file_source::TableFile>::fn materialize(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_data::file_source::MaterializedTable, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn materialize(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_data::file_source::MaterializedTable, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableFile>::fn open(path: impl core::convert::AsRef<std::path::Path>) -> core::result::Result<Self, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableFile>::fn open_as(path: impl core::convert::AsRef<std::path::Path>, format: antecedent_data::file_source::TableFileFormat) -> core::result::Result<Self, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableFile>::fn paths(&self) -> &[std::path::PathBuf]
@@ -2414,8 +2441,8 @@ pub fn <antecedent_data::file_source::TableFile>::fn plan(&self, closure: &antec
 pub fn <antecedent_data::file_source::TableFile>::fn plan_all(&self, options: antecedent_data::file_source::ReadOptions) -> core::result::Result<antecedent_data::file_source::ReadPlan, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableFile>::fn plan_columns<S: core::convert::AsRef<str>>(&self, names: &[S], options: antecedent_data::file_source::ReadOptions) -> core::result::Result<antecedent_data::file_source::ReadPlan, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableFile>::fn quote(&self, plan: &antecedent_data::file_source::ReadPlan) -> core::result::Result<core::option::Option<antecedent_data::file_source::MaterializationQuote>, antecedent_data::file_source::FileSourceError>
-pub fn <antecedent_data::file_source::TableFile>::fn reader(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_data::file_source::TableChunkReader, antecedent_data::file_source::FileSourceError>
-pub fn <antecedent_data::file_source::TableFile>::fn scan_identity(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_data::file_source::ScanReceipt, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn reader(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_data::file_source::TableChunkReader, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn scan_identity(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_data::file_source::ScanReceipt, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableFileFormat>::const fn as_str(self) -> &'static str
 pub fn <antecedent_data::file_source::TableFileFormat>::const fn feature(self) -> &'static str
 pub fn <antecedent_data::file_source::TableFileFormat>::const fn is_compiled(self) -> bool
@@ -2424,7 +2451,7 @@ pub fn <antecedent_data::file_source::TableFileFormat>::fn from_path(path: &std:
 pub fn <antecedent_data::file_source::TableStream>::fn columns(&self) -> &[antecedent_data::file_source::FileColumn]
 pub fn <antecedent_data::file_source::TableStream>::fn new(stream: antecedent_data::arrow_ffi::ArrowCStream) -> core::result::Result<Self, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableStream>::fn plan(&self, closure: &antecedent_data::column_closure::ColumnClosure, options: antecedent_data::file_source::ReadOptions) -> core::result::Result<antecedent_data::file_source::ReadPlan, antecedent_data::file_source::FileSourceError>
-pub fn <antecedent_data::file_source::TableStream>::fn reader(self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_data::file_source::TableChunkReader, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableStream>::fn reader(self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_data::file_source::TableChunkReader, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::lazy_identity::FullContentIdentity>::const fn binding(&self) -> [u8; 32]
 pub fn <antecedent_data::lazy_identity::FullContentIdentity>::const fn digest(&self) -> [u8; 32]
 pub fn <antecedent_data::lazy_identity::FullContentIdentity>::const fn version(&self) -> u16
@@ -2441,8 +2468,8 @@ pub fn <antecedent_data::lazy_identity::LazyViewIdentity>::fn is_current_for(&se
 pub fn <antecedent_data::materialize::AdmissionRecord>::const fn materialized_bytes(self) -> core::option::Option<u64>
 pub fn <antecedent_data::materialize::PreparationBudget>::const fn bytes(self) -> u64
 pub fn <antecedent_data::materialize::PreparationBudget>::const fn new(bytes: u64) -> Self
-pub fn <antecedent_data::materialize::PreparationBudget>::fn from_lease(lease: &antecedent_core::execution::AdmissionLease) -> Self
-pub fn <antecedent_data::materialize::PreparationBudget>::fn from_limits(ctx: &antecedent_core::execution::ExecutionContext) -> Self
+pub fn <antecedent_data::materialize::PreparationBudget>::fn from_lease(lease: &antecedent_core::execution::admission::AdmissionLease) -> Self
+pub fn <antecedent_data::materialize::PreparationBudget>::fn from_limits(ctx: &antecedent_core::execution::context::ExecutionContext) -> Self
 pub fn <antecedent_data::materialize::PreparationControls>::const fn finite_resident() -> Self
 pub fn <antecedent_data::materialize::PreparationControls>::const fn finite_within(budget: antecedent_data::materialize::PreparationBudget) -> Self
 pub fn <antecedent_data::materialize::PreparationProduct>::fn into_materialized_from_scan(self) -> core::result::Result<Self, antecedent_data::DataError>
@@ -2510,30 +2537,31 @@ pub fn antecedent_data::categorical::expand_contrast(column: &antecedent_data::C
 pub fn antecedent_data::circular_block_length(structural_span: usize, n: usize) -> usize
 pub fn antecedent_data::column_blocks_for_frame(groups: &antecedent_data::VectorVariableGroups, frame: &antecedent_data::LaggedFrame) -> core::result::Result<alloc::sync::Arc<[alloc::sync::Arc<[usize]>]>, antecedent_data::DataError>
 pub fn antecedent_data::complete_float_columns(table: &antecedent_data::TabularData, replacements: &[(antecedent_core::ids::VariableId, alloc::sync::Arc<[f64]>)]) -> core::result::Result<antecedent_data::TabularData, antecedent_data::DataError>
-pub fn antecedent_data::complete_rows<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<alloc::vec::Vec<bool>, antecedent_data::DataError>
+pub fn antecedent_data::complete_rows<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_data::ValidityBitmap, antecedent_data::DataError>
 pub fn antecedent_data::dedupe_variable_ids(ids: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ids::VariableId>) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn antecedent_data::design_layout::classify_mask(keep: &[bool]) -> antecedent_data::design_layout::MaskSelection
 pub fn antecedent_data::design_layout::zeroed_shared(len: usize) -> alloc::sync::Arc<[f64]>
 pub fn antecedent_data::dropped_row_digest(rows_total: usize, dropped: &[u64]) -> alloc::string::String
 pub fn antecedent_data::file_source::chunk_local_index(chunk_start: antecedent_data::GlobalId, row: antecedent_data::GlobalId) -> core::result::Result<antecedent_data::ChunkIndex, antecedent_data::file_source::FileSourceError>
 pub fn antecedent_data::file_source::write_table_file(path: impl core::convert::AsRef<std::path::Path>, format: antecedent_data::file_source::TableFileFormat, data: &antecedent_data::TabularData, options: antecedent_data::file_source::WriteOptions) -> core::result::Result<antecedent_data::GlobalId, antecedent_data::file_source::FileSourceError>
-pub fn antecedent_data::fill_circular_block_indexes(n: usize, length: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut [usize]) -> core::result::Result<(), antecedent_data::DataError>
-pub fn antecedent_data::fill_declared_plan(declaration: antecedent_core::sampling_design::SamplingDesignDeclaration, plan: antecedent_data::ResamplingPlan, n: usize, cluster_ids: core::option::Option<&[u32]>, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
-pub fn antecedent_data::fill_resample_index_batch(plan: antecedent_data::ResamplingPlan, n: usize, n_replicates: usize, cluster_ids: core::option::Option<&[u32]>, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, out: &mut [antecedent_data::GlobalId]) -> core::result::Result<(), antecedent_data::DataError>
-pub fn antecedent_data::fill_resample_index_replicate(plan: antecedent_data::ResamplingPlan, n: usize, cluster_ids: core::option::Option<&[u32]>, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, replicate: u64, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
-pub fn antecedent_data::fill_resample_indexes(plan: antecedent_data::ResamplingPlan, n: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::fill_circular_block_indexes(n: usize, length: usize, rng: &mut antecedent_core::execution::rng::CausalRng, out: &mut [usize]) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::fill_declared_plan(declaration: antecedent_core::sampling_design::SamplingDesignDeclaration, plan: antecedent_data::ResamplingPlan, n: usize, cluster_ids: core::option::Option<&[u32]>, rng: &mut antecedent_core::execution::rng::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::fill_resample_index_batch(plan: antecedent_data::ResamplingPlan, n: usize, n_replicates: usize, cluster_ids: core::option::Option<&[u32]>, ctx: &antecedent_core::execution::context::ExecutionContext, stream_base: u64, out: &mut [antecedent_data::GlobalId]) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::fill_resample_index_replicate(plan: antecedent_data::ResamplingPlan, n: usize, cluster_ids: core::option::Option<&[u32]>, ctx: &antecedent_core::execution::context::ExecutionContext, stream_base: u64, replicate: u64, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::fill_resample_indexes(plan: antecedent_data::ResamplingPlan, n: usize, rng: &mut antecedent_core::execution::rng::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::first_missing_cell<T: antecedent_data::TableView>(table: &T, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<core::option::Option<antecedent_data::MissingCell>, antecedent_data::DataError>
 pub fn antecedent_data::materialize::deliver_stream(quote: &antecedent_data::materialize::StreamQuote, budget: antecedent_data::materialize::PreparationBudget, controls: antecedent_data::materialize::PreparationControls) -> core::result::Result<antecedent_data::materialize::StreamDelivery, antecedent_data::DataError>
 pub fn antecedent_data::materialize::finish_scan(schema: antecedent_data::materialize::SchemaConversion, categories: &[antecedent_data::categorical::CategoryConversion], missing: antecedent_data::missing::MissingConversion, chunk_rows: &[u64], scratch: u64, budget: u64) -> core::result::Result<antecedent_data::materialize::StreamingScan, antecedent_data::DataError>
 pub fn antecedent_data::materialize::prepare_table(table: &antecedent_data::TabularData, order: &[antecedent_core::ids::VariableId], missing: antecedent_data::MissingPolicy, categories: &[(antecedent_core::ids::VariableId, antecedent_data::Contrast)], controls: antecedent_data::materialize::PreparationControls) -> core::result::Result<antecedent_data::materialize::PreparationProduct, antecedent_data::DataError>
 pub fn antecedent_data::missing::policy_required_text(cell: &antecedent_data::MissingCell, route: &str, available: &[antecedent_data::MissingPolicy]) -> alloc::string::String
-pub fn antecedent_data::pool_multi_env_lagged_frame(data: &antecedent_data::MultiEnvironmentData, variables: &[antecedent_core::ids::VariableId], frame_depth: u32, dummies: antecedent_data::DummyOptions, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_data::PooledLaggedFrame, antecedent_data::DataError>
-pub fn antecedent_data::resample::fill_declared_resample(declaration: antecedent_core::sampling_design::SamplingDesignDeclaration, n: usize, cluster_ids: core::option::Option<&[u32]>, block_length: usize, embargo: u32, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
-pub fn antecedent_data::resample::fill_resample_weight_replicate(plan: antecedent_data::ResamplingPlan, n: usize, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, replicate: u64, out: &mut alloc::vec::Vec<f64>) -> core::result::Result<(), antecedent_data::DataError>
-pub fn antecedent_data::resample::resample_timeseries(data: &antecedent_data::TimeSeriesData, plan: antecedent_data::ResamplingPlan, rng: &mut antecedent_core::execution::CausalRng, index_scratch: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
+pub fn antecedent_data::pool_multi_env_lagged_frame(data: &antecedent_data::MultiEnvironmentData, variables: &[antecedent_core::ids::VariableId], frame_depth: u32, dummies: antecedent_data::DummyOptions, policy: &antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<antecedent_data::PooledLaggedFrame, antecedent_data::DataError>
+pub fn antecedent_data::pool_multi_env_lagged_frame_within(data: &antecedent_data::MultiEnvironmentData, variables: &[antecedent_core::ids::VariableId], frame_depth: u32, dummies: antecedent_data::DummyOptions, policy: &antecedent_core::execution::budget::KernelPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_data::PooledLaggedFrame, antecedent_data::DataError>
+pub fn antecedent_data::resample::fill_declared_resample(declaration: antecedent_core::sampling_design::SamplingDesignDeclaration, n: usize, cluster_ids: core::option::Option<&[u32]>, block_length: usize, embargo: u32, rng: &mut antecedent_core::execution::rng::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::resample::fill_resample_weight_replicate(plan: antecedent_data::ResamplingPlan, n: usize, ctx: &antecedent_core::execution::context::ExecutionContext, stream_base: u64, replicate: u64, out: &mut alloc::vec::Vec<f64>) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::resample::resample_timeseries(data: &antecedent_data::TimeSeriesData, plan: antecedent_data::ResamplingPlan, rng: &mut antecedent_core::execution::rng::CausalRng, index_scratch: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
 pub fn antecedent_data::source::schema_digest(schema: &antecedent_core::schema::CausalSchema) -> [u8; 32]
-pub fn antecedent_data::surrogate::surrogate_permute_columns(data: &antecedent_data::TimeSeriesData, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
-pub fn antecedent_data::surrogate::surrogate_phase_randomize(data: &antecedent_data::TimeSeriesData, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
+pub fn antecedent_data::surrogate::surrogate_permute_columns(data: &antecedent_data::TimeSeriesData, rng: &mut antecedent_core::execution::rng::CausalRng) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
+pub fn antecedent_data::surrogate::surrogate_phase_randomize(data: &antecedent_data::TimeSeriesData, rng: &mut antecedent_core::execution::rng::CausalRng) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
 pub mod antecedent_data::aligned_buffer
 pub mod antecedent_data::arrow_adapter
 pub mod antecedent_data::arrow_ffi
@@ -2784,6 +2812,7 @@ pub use antecedent_data::dataset::TabularData = antecedent_data::TabularData
 pub use antecedent_data::dataset::TimeSeriesData = antecedent_data::TimeSeriesData
 pub use antecedent_data::discrete::DiscreteColumn = antecedent_data::DiscreteColumn
 pub use antecedent_data::error::DataError = antecedent_data::DataError
+pub use antecedent_data::error::ValidityFault = antecedent_data::ValidityFault
 pub use antecedent_data::event::EventData = antecedent_data::EventData
 pub use antecedent_data::global_index::ChunkIndex = antecedent_data::ChunkIndex
 pub use antecedent_data::global_index::GlobalId = antecedent_data::GlobalId
@@ -2812,6 +2841,7 @@ pub use antecedent_data::pooled_frame::DummyOptions = antecedent_data::DummyOpti
 pub use antecedent_data::pooled_frame::PooledLaggedFrame = antecedent_data::PooledLaggedFrame
 pub use antecedent_data::pooled_frame::TimeDummyEncoding = antecedent_data::TimeDummyEncoding
 pub use antecedent_data::pooled_frame::pool_multi_env_lagged_frame = antecedent_data::pool_multi_env_lagged_frame
+pub use antecedent_data::pooled_frame::pool_multi_env_lagged_frame_within = antecedent_data::pool_multi_env_lagged_frame_within
 pub use antecedent_data::project::IdRemap = antecedent_data::IdRemap
 pub use antecedent_data::project::dedupe_variable_ids = antecedent_data::dedupe_variable_ids
 pub use antecedent_data::reference::ReferencePointPolicy = antecedent_data::ReferencePointPolicy
@@ -2880,17 +2910,34 @@ pub variant antecedent_data::Contrast::Helmert
 pub variant antecedent_data::Contrast::Polynomial
 pub variant antecedent_data::Contrast::SumToZero
 pub variant antecedent_data::Contrast::Treatment { reference: antecedent_data::CategoryCode }
+pub variant antecedent_data::DataError::Absent { what: &'static str, name: alloc::string::String }
+pub variant antecedent_data::DataError::BudgetRefused { what: &'static str, bytes: u64, budget: core::option::Option<u64> }
 pub variant antecedent_data::DataError::Cancelled
+pub variant antecedent_data::DataError::Duplicate { what: &'static str }
+pub variant antecedent_data::DataError::EmptyInput { what: &'static str }
 pub variant antecedent_data::DataError::EmptySelection { context: &'static str }
+pub variant antecedent_data::DataError::ExceedsLimit { what: &'static str, value: u64, limit: u64 }
+pub variant antecedent_data::DataError::External { library: &'static str, detail: alloc::string::String }
 pub variant antecedent_data::DataError::IncompleteSeries { id: core::option::Option<antecedent_core::ids::VariableId>, message: &'static str }
+pub variant antecedent_data::DataError::Internal { what: &'static str }
 pub variant antecedent_data::DataError::InvalidArgument { message: alloc::string::String }
-pub variant antecedent_data::DataError::InvalidValidity { message: &'static str }
+pub variant antecedent_data::DataError::InvalidColumn { id: antecedent_core::ids::VariableId, requirement: &'static str }
+pub variant antecedent_data::DataError::InvalidValidity { fault: antecedent_data::ValidityFault }
+pub variant antecedent_data::DataError::InvalidValue { what: &'static str, requirement: &'static str }
 pub variant antecedent_data::DataError::InvalidWeights { index: core::option::Option<usize>, reason: &'static str }
 pub variant antecedent_data::DataError::LengthMismatch { expected: usize, actual: usize, context: &'static str }
+pub variant antecedent_data::DataError::Mismatch { what: &'static str }
+pub variant antecedent_data::DataError::MissingPolicyRequired { route: &'static str, variable: alloc::sync::Arc<str>, row: usize, available: alloc::vec::Vec<&'static str> }
+pub variant antecedent_data::DataError::NotOrdered { what: &'static str }
+pub variant antecedent_data::DataError::OutOfRange { what: &'static str, index: usize, bound: usize }
+pub variant antecedent_data::DataError::Overflow { what: &'static str }
+pub variant antecedent_data::DataError::Panel(antecedent_data::PanelPreparationError)
+pub variant antecedent_data::DataError::Precondition { operation: &'static str, requirement: &'static str }
 pub variant antecedent_data::DataError::SamplingDesign(antecedent_core::sampling_design::SamplingDesignError)
-pub variant antecedent_data::DataError::Schema(alloc::string::String)
+pub variant antecedent_data::DataError::Schema(antecedent_core::error::SchemaError)
 pub variant antecedent_data::DataError::TypeMismatch { id: antecedent_core::ids::VariableId, expected: &'static str }
 pub variant antecedent_data::DataError::UnknownVariable { id: antecedent_core::ids::VariableId }
+pub variant antecedent_data::DataError::Unsupported { operation: &'static str, reason: alloc::borrow::Cow<'static, str> }
 pub variant antecedent_data::DropReason::AnalysisMask
 pub variant antecedent_data::DropReason::MissingValue
 pub variant antecedent_data::DropReason::UnitIncomplete
@@ -2935,6 +2982,9 @@ pub variant antecedent_data::TimeDummyEncoding::IntegerIndex
 pub variant antecedent_data::TimeDummyEncoding::OneHot
 pub variant antecedent_data::UnknownCategoryPolicy::Fail
 pub variant antecedent_data::UnknownCategoryPolicy::MapToOther { other: antecedent_data::CategoryCode }
+pub variant antecedent_data::ValidityFault::BufferTooShort
+pub variant antecedent_data::ValidityFault::MaskViewRejectedBuffer
+pub variant antecedent_data::ValidityFault::RowMapExceedsBitmap
 pub variant antecedent_data::arrow_adapter::EstimatorFrame::Finite { table: antecedent_data::TabularData, product: antecedent_data::materialize::PreparationProduct, diagnostics: antecedent_core::diagnostic::DiagnosticSet }
 pub variant antecedent_data::arrow_adapter::EstimatorFrame::Scan(antecedent_data::materialize::StreamingScan)
 pub variant antecedent_data::backend_boundary::PreparationBackend::DirectArrow

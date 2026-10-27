@@ -268,6 +268,27 @@ def test_changed_numbers_at_an_unchanged_shape_move_the_identity(source_gcm, tar
     assert again == base.receipt
 
 
+def test_a_transport_is_verified_only_against_the_identity_it_re_derives(
+    source_gcm, target_gcm
+) -> None:
+    source = source_composition(source_gcm)
+    declared = transport(refits=[refit_m(target_gcm)])
+    base = source.transport_to(declared)
+    assert (
+        require_success(source.verify_transport(declared, expected_identity=base.identity))
+        == base.receipt
+    )
+    # The identity of a different declaration is not the identity of this one.
+    other = source.transport_to(transport(into=()))
+    assert other.identity != base.identity
+    mismatch = refusal_of(
+        lambda: require_success(source.verify_transport(declared, expected_identity=other.identity))
+    )
+    assert mismatch.detail == "mechanism_transport.transport_identity_mismatch"
+    with pytest.raises(CausalTypeError):
+        source.verify_transport("not a transport", expected_identity=base.identity)  # type: ignore[arg-type]
+
+
 # ------------------------------------------------------------------------------ uncertainty
 
 

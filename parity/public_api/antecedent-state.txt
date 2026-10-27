@@ -2,6 +2,7 @@
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
 #[non_exhaustive] pub enum antecedent_state::GraphScoreFamily
+#[non_exhaustive] pub enum antecedent_state::InvalidationReason
 #[non_exhaustive] pub enum antecedent_state::StateError
 impl !core::marker::Freeze for antecedent_state::SpillRegistry [auto]
 impl antecedent_state::Spillable for antecedent_state::ConjugateBlockRefresh
@@ -31,6 +32,7 @@ impl core::clone::Clone for antecedent_state::GraphScoreFamily
 impl core::clone::Clone for antecedent_state::InterventionRecord
 impl core::clone::Clone for antecedent_state::InvalidationEntry
 impl core::clone::Clone for antecedent_state::InvalidationLog
+impl core::clone::Clone for antecedent_state::InvalidationReason
 impl core::clone::Clone for antecedent_state::InvalidationTarget
 impl core::clone::Clone for antecedent_state::LagIndexCacheEntry
 impl core::clone::Clone for antecedent_state::LagIndexCacheKey
@@ -82,6 +84,7 @@ impl core::cmp::Eq for antecedent_state::GraphScoreCacheKey
 impl core::cmp::Eq for antecedent_state::GraphScoreFamily
 impl core::cmp::Eq for antecedent_state::InterventionRecord
 impl core::cmp::Eq for antecedent_state::InvalidationEntry
+impl core::cmp::Eq for antecedent_state::InvalidationReason
 impl core::cmp::Eq for antecedent_state::InvalidationTarget
 impl core::cmp::Eq for antecedent_state::LagIndexCacheEntry
 impl core::cmp::Eq for antecedent_state::LagIndexCacheKey
@@ -119,6 +122,7 @@ impl core::cmp::PartialEq for antecedent_state::GraphScoreCacheKey
 impl core::cmp::PartialEq for antecedent_state::GraphScoreFamily
 impl core::cmp::PartialEq for antecedent_state::InterventionRecord
 impl core::cmp::PartialEq for antecedent_state::InvalidationEntry
+impl core::cmp::PartialEq for antecedent_state::InvalidationReason
 impl core::cmp::PartialEq for antecedent_state::InvalidationTarget
 impl core::cmp::PartialEq for antecedent_state::LagIndexCacheEntry
 impl core::cmp::PartialEq for antecedent_state::LagIndexCacheKey
@@ -188,6 +192,7 @@ impl core::fmt::Debug for antecedent_state::GraphScoreFamily
 impl core::fmt::Debug for antecedent_state::InterventionRecord
 impl core::fmt::Debug for antecedent_state::InvalidationEntry
 impl core::fmt::Debug for antecedent_state::InvalidationLog
+impl core::fmt::Debug for antecedent_state::InvalidationReason
 impl core::fmt::Debug for antecedent_state::InvalidationTarget
 impl core::fmt::Debug for antecedent_state::LagIndexCacheEntry
 impl core::fmt::Debug for antecedent_state::LagIndexCacheKey
@@ -231,6 +236,7 @@ impl core::fmt::Debug for antecedent_state::disk_retention::SpillEncoder
 impl core::fmt::Debug for antecedent_state::retention::RetainedOperation
 impl core::fmt::Debug for antecedent_state::retention::RetentionMode
 impl core::fmt::Debug for antecedent_state::retention::RetentionRefusal
+impl core::fmt::Display for antecedent_state::InvalidationReason
 impl core::fmt::Display for antecedent_state::StateError
 impl core::fmt::Display for antecedent_state::retention::RetainedOperation
 impl core::fmt::Display for antecedent_state::retention::RetentionMode
@@ -240,6 +246,7 @@ impl core::hash::Hash for antecedent_state::DataBatchRef
 impl core::hash::Hash for antecedent_state::DataVersion
 impl core::hash::Hash for antecedent_state::GraphScoreCacheKey
 impl core::hash::Hash for antecedent_state::GraphScoreFamily
+impl core::hash::Hash for antecedent_state::InvalidationReason
 impl core::hash::Hash for antecedent_state::LagIndexCacheKey
 impl core::hash::Hash for antecedent_state::RefreshChange
 impl core::hash::Hash for antecedent_state::RefreshRoute
@@ -250,6 +257,7 @@ impl core::hash::Hash for antecedent_state::retention::RetentionRefusal
 impl core::marker::Copy for antecedent_state::ChangedInput
 impl core::marker::Copy for antecedent_state::DataVersion
 impl core::marker::Copy for antecedent_state::GraphScoreFamily
+impl core::marker::Copy for antecedent_state::InvalidationReason
 impl core::marker::Copy for antecedent_state::LgssmParams
 impl core::marker::Copy for antecedent_state::OlsLedgerState
 impl core::marker::Copy for antecedent_state::PublishedLineage
@@ -289,6 +297,7 @@ impl core::marker::Freeze for antecedent_state::GraphScoreFamily [auto]
 impl core::marker::Freeze for antecedent_state::InterventionRecord [auto]
 impl core::marker::Freeze for antecedent_state::InvalidationEntry [auto]
 impl core::marker::Freeze for antecedent_state::InvalidationLog [auto]
+impl core::marker::Freeze for antecedent_state::InvalidationReason [auto]
 impl core::marker::Freeze for antecedent_state::InvalidationTarget [auto]
 impl core::marker::Freeze for antecedent_state::LagIndexCacheEntry [auto]
 impl core::marker::Freeze for antecedent_state::LagIndexCacheKey [auto]
@@ -354,6 +363,7 @@ impl core::marker::Send for antecedent_state::GraphScoreFamily [auto]
 impl core::marker::Send for antecedent_state::InterventionRecord [auto]
 impl core::marker::Send for antecedent_state::InvalidationEntry [auto]
 impl core::marker::Send for antecedent_state::InvalidationLog [auto]
+impl core::marker::Send for antecedent_state::InvalidationReason [auto]
 impl core::marker::Send for antecedent_state::InvalidationTarget [auto]
 impl core::marker::Send for antecedent_state::LagIndexCacheEntry [auto]
 impl core::marker::Send for antecedent_state::LagIndexCacheKey [auto]
@@ -411,6 +421,7 @@ impl core::marker::StructuralPartialEq for antecedent_state::GraphScoreCacheKey
 impl core::marker::StructuralPartialEq for antecedent_state::GraphScoreFamily
 impl core::marker::StructuralPartialEq for antecedent_state::InterventionRecord
 impl core::marker::StructuralPartialEq for antecedent_state::InvalidationEntry
+impl core::marker::StructuralPartialEq for antecedent_state::InvalidationReason
 impl core::marker::StructuralPartialEq for antecedent_state::InvalidationTarget
 impl core::marker::StructuralPartialEq for antecedent_state::LagIndexCacheEntry
 impl core::marker::StructuralPartialEq for antecedent_state::LagIndexCacheKey
@@ -461,6 +472,7 @@ impl core::marker::Sync for antecedent_state::GraphScoreFamily [auto]
 impl core::marker::Sync for antecedent_state::InterventionRecord [auto]
 impl core::marker::Sync for antecedent_state::InvalidationEntry [auto]
 impl core::marker::Sync for antecedent_state::InvalidationLog [auto]
+impl core::marker::Sync for antecedent_state::InvalidationReason [auto]
 impl core::marker::Sync for antecedent_state::InvalidationTarget [auto]
 impl core::marker::Sync for antecedent_state::LagIndexCacheEntry [auto]
 impl core::marker::Sync for antecedent_state::LagIndexCacheKey [auto]
@@ -527,6 +539,7 @@ impl core::marker::Unpin for antecedent_state::GraphScoreFamily [auto]
 impl core::marker::Unpin for antecedent_state::InterventionRecord [auto]
 impl core::marker::Unpin for antecedent_state::InvalidationEntry [auto]
 impl core::marker::Unpin for antecedent_state::InvalidationLog [auto]
+impl core::marker::Unpin for antecedent_state::InvalidationReason [auto]
 impl core::marker::Unpin for antecedent_state::InvalidationTarget [auto]
 impl core::marker::Unpin for antecedent_state::LagIndexCacheEntry [auto]
 impl core::marker::Unpin for antecedent_state::LagIndexCacheKey [auto]
@@ -594,6 +607,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::GraphScoreFam
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::InterventionRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::InvalidationEntry [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::InvalidationLog [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::InvalidationReason [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::InvalidationTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::LagIndexCacheEntry [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::LagIndexCacheKey [auto]
@@ -660,6 +674,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_state::GraphScoreFamily
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::InterventionRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::InvalidationEntry [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::InvalidationLog [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::InvalidationReason [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::InvalidationTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::LagIndexCacheEntry [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::LagIndexCacheKey [auto]
@@ -724,9 +739,11 @@ pub const <antecedent_state::RefreshRoute>::ALL: [Self; 6]
 pub const <antecedent_state::TemporalProduct>::ALL: [Self; 5]
 pub const <antecedent_state::retention::RetainedOperation>::ALL: [Self; 8]
 pub const <antecedent_state::retention::RetentionMode>::ALL: [Self; 3]
+pub const antecedent_state::DEFAULT_LOCAL_SCORE_CACHE_BYTES: u64
+pub const antecedent_state::DEFAULT_PARTICLE_BYTE_BUDGET: u64
 pub const antecedent_state::MERGE_ABS_TOL: f64
 pub const antecedent_state::MERGE_REL_TOL: f64
-pub const antecedent_state::particle_filter::MAX_PARTICLES: usize
+pub const antecedent_state::PARTICLE_BYTES: u64
 pub const fn antecedent_state::merge_within_tolerance(left: f64, right: f64) -> bool
 pub const fn antecedent_state::refresh_contract::route_contract(route: antecedent_state::RefreshRoute, change: antecedent_state::RefreshChange) -> antecedent_state::RefreshDisposition
 pub enum antecedent_state::InvalidationTarget
@@ -747,7 +764,7 @@ pub field antecedent_state::CachedResult::computed_at: antecedent_core::ids::Sta
 pub field antecedent_state::CachedResult::fingerprint: u64
 pub field antecedent_state::CachedResult::query: antecedent_core::ids::QueryId
 pub field antecedent_state::CausalState::assumptions: antecedent_core::assumption::AssumptionSet
-pub field antecedent_state::CausalState::cache_budget: antecedent_core::execution::CacheBudget
+pub field antecedent_state::CausalState::cache_budget: antecedent_core::execution::budget::CacheBudget
 pub field antecedent_state::CausalState::cached_results: antecedent_state::ResultStore
 pub field antecedent_state::CausalState::data_catalog: antecedent_state::DataCatalog
 pub field antecedent_state::CausalState::graph_evidence: antecedent_state::GraphEvidenceStore
@@ -823,10 +840,7 @@ pub field antecedent_state::OlsSnapshot::source_digest: alloc::string::String
 pub field antecedent_state::OlsSnapshot::xtx: alloc::vec::Vec<f64>
 pub field antecedent_state::OlsSnapshot::xty: alloc::vec::Vec<f64>
 pub field antecedent_state::OlsSnapshot::yty: f64
-pub field antecedent_state::ParticleFilterState::log_weights: alloc::vec::Vec<f64>
 pub field antecedent_state::ParticleFilterState::n_obs: u64
-pub field antecedent_state::ParticleFilterState::n_particles: usize
-pub field antecedent_state::ParticleFilterState::particles: alloc::vec::Vec<f64>
 pub field antecedent_state::PublishedLineage::data_snapshot: antecedent_core::identity::SemanticDigest
 pub field antecedent_state::PublishedLineage::data_version: antecedent_state::DataVersion
 pub field antecedent_state::PublishedLineage::identities: core::option::Option<antecedent_core::identity::ContractIdentities>
@@ -834,7 +848,7 @@ pub field antecedent_state::PublishedLineage::lineage: antecedent_core::identity
 pub field antecedent_state::QueryRecord::id: antecedent_core::ids::QueryId
 pub field antecedent_state::QueryRecord::last_published: core::option::Option<antecedent_state::PublishedLineage>
 pub field antecedent_state::QueryRecord::pending_inputs: alloc::vec::Vec<antecedent_state::ChangedInput>
-pub field antecedent_state::QueryRecord::query: antecedent_core::query::CausalQuery
+pub field antecedent_state::QueryRecord::query: antecedent_core::query::variants::CausalQuery
 pub field antecedent_state::QueryRecord::result_valid_at: core::option::Option<antecedent_core::ids::StateVersion>
 pub field antecedent_state::QueryStore::queries: std::collections::hash::map::HashMap<antecedent_core::ids::QueryId, antecedent_state::QueryRecord>
 pub field antecedent_state::RefreshRow::count: u32
@@ -877,11 +891,6 @@ pub field antecedent_state::TemporalDisposition::retained: alloc::collections::b
 pub field antecedent_state::WeightedLedger::live_rows: u64
 pub field antecedent_state::WeightedLedger::rows: u64
 pub field antecedent_state::WeightedLedger::total_weight: f64
-pub field antecedent_state::WeightedRow::id: u64
-pub field antecedent_state::WeightedRow::masked: bool
-pub field antecedent_state::WeightedRow::weight: f64
-pub field antecedent_state::WeightedRow::x: alloc::vec::Vec<f64>
-pub field antecedent_state::WeightedRow::y: f64
 pub field antecedent_state::WeightedSnapshot::beta: core::option::Option<alloc::vec::Vec<f64>>
 pub field antecedent_state::WeightedSnapshot::beta_se: core::option::Option<alloc::vec::Vec<f64>>
 pub field antecedent_state::WeightedSnapshot::effective_sample_size: f64
@@ -897,7 +906,7 @@ pub fn <antecedent_state::CausalState>::fn apply(&mut self, event: antecedent_st
 pub fn <antecedent_state::CausalState>::fn data_version(&self) -> antecedent_state::DataVersion
 pub fn <antecedent_state::CausalState>::fn input_identities(&self) -> antecedent_core::recalc::StageIdentities
 pub fn <antecedent_state::CausalState>::fn is_stale(&self, query: antecedent_core::ids::QueryId) -> bool
-pub fn <antecedent_state::CausalState>::fn new(cache_budget: antecedent_core::execution::CacheBudget) -> Self
+pub fn <antecedent_state::CausalState>::fn new(cache_budget: antecedent_core::execution::budget::CacheBudget) -> Self
 pub fn <antecedent_state::CausalState>::fn publish_results(&mut self, updates: &[antecedent_state::ResultPublication]) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::CausalState>::fn publish_results_at(&mut self, expected: antecedent_core::ids::StateVersion, updates: &[antecedent_state::ResultPublication]) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::CausalState>::fn refresh_results(&mut self, updates: &[(antecedent_core::ids::QueryId, u64, u64)]) -> core::result::Result<(), antecedent_state::StateError>
@@ -915,6 +924,7 @@ pub fn <antecedent_state::ConjugateBlockRefresh>::fn check_against_fresh(&self) 
 pub fn <antecedent_state::ConjugateBlockRefresh>::fn evict_row(&mut self, label: &str, id: u64) -> core::result::Result<antecedent_state::RefreshOutcome, antecedent_state::StateError>
 pub fn <antecedent_state::ConjugateBlockRefresh>::fn extend_block(&mut self, label: &str, source: &str, rows: &[antecedent_state::RefreshRow]) -> core::result::Result<antecedent_state::RefreshOutcome, antecedent_state::StateError>
 pub fn <antecedent_state::ConjugateBlockRefresh>::fn fresh_identity(&self) -> core::result::Result<alloc::string::String, antecedent_state::StateError>
+pub fn <antecedent_state::ConjugateBlockRefresh>::fn fresh_summary(&self) -> core::result::Result<antecedent_state::ConjugateOlsSummary, antecedent_state::StateError>
 pub fn <antecedent_state::ConjugateBlockRefresh>::fn identity(&self) -> alloc::string::String
 pub fn <antecedent_state::ConjugateBlockRefresh>::fn into_summary_only(self) -> Self
 pub fn <antecedent_state::ConjugateBlockRefresh>::fn labels(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str>
@@ -973,6 +983,7 @@ pub fn <antecedent_state::InvalidationLog>::fn push_temporal_change(&mut self, a
 pub fn <antecedent_state::InvalidationLog>::fn query_stale_since(&self, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> bool
 pub fn <antecedent_state::InvalidationLog>::fn revalidation_since(&self, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_state::InvalidationLog>::fn temporal_product_reusable_since(&self, product: antecedent_state::TemporalProduct, since: antecedent_core::ids::StateVersion) -> bool
+pub fn <antecedent_state::InvalidationReason>::const fn as_str(self) -> &'static str
 pub fn <antecedent_state::LinearOlsSuffStats>::const fn is_invalidated(&self) -> bool
 pub fn <antecedent_state::LinearOlsSuffStats>::const fn n(&self) -> u64
 pub fn <antecedent_state::LinearOlsSuffStats>::const fn ncols(&self) -> usize
@@ -986,12 +997,14 @@ pub fn <antecedent_state::LinearOlsSuffStats>::fn residual_variance(&self, beta:
 pub fn <antecedent_state::LinearOlsSuffStats>::fn solve_beta(&self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_state::StateError>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn xtx(&self) -> &[f64]
 pub fn <antecedent_state::LinearOlsSuffStats>::fn xty(&self) -> &[f64]
+pub fn <antecedent_state::LocalScoreCache>::const fn retained_bytes(&self) -> u64
 pub fn <antecedent_state::LocalScoreCache>::fn clear(&mut self)
 pub fn <antecedent_state::LocalScoreCache>::fn delta_score(&mut self, data: &antecedent_state::GraphScoreData, op: antecedent_state::ParentSetOp) -> core::result::Result<(f64, f64), antecedent_state::StateError>
 pub fn <antecedent_state::LocalScoreCache>::fn local_score(&mut self, data: &antecedent_state::GraphScoreData, node: u32, parents: &alloc::sync::Arc<[u32]>) -> core::result::Result<f64, antecedent_state::StateError>
 pub fn <antecedent_state::LocalScoreCache>::fn new(key: antecedent_state::GraphScoreCacheKey) -> Self
 pub fn <antecedent_state::LocalScoreCache>::fn parents_of(&self, node: u32) -> alloc::sync::Arc<[u32]>
 pub fn <antecedent_state::LocalScoreCache>::fn score_graph(&mut self, data: &antecedent_state::GraphScoreData) -> core::result::Result<f64, antecedent_state::StateError>
+pub fn <antecedent_state::LocalScoreCache>::fn with_byte_budget(self, bytes: u64) -> Self
 pub fn <antecedent_state::ModelStore>::fn register(&mut self, fingerprint: u64, bytes: u64) -> antecedent_core::ids::ModelId
 pub fn <antecedent_state::OlsRefresh>::const fn ledger(&self) -> antecedent_state::OlsLedgerState
 pub fn <antecedent_state::OlsRefresh>::const fn recomputes(&self) -> u64
@@ -1015,16 +1028,22 @@ pub fn <antecedent_state::OlsRefresh>::fn set_weight(&mut self, id: u64, weight:
 pub fn <antecedent_state::OlsRefresh>::fn snapshot(&self) -> antecedent_state::OlsSnapshot
 pub fn <antecedent_state::OlsRefresh>::fn source(&self) -> &str
 pub fn <antecedent_state::OlsRefresh>::fn spill(&self, registry: &alloc::sync::Arc<antecedent_state::SpillRegistry>, key: &str) -> core::result::Result<antecedent_state::SpillHandle, antecedent_state::StateError>
+pub fn <antecedent_state::ParticleFilterState>::const fn n_particles(&self) -> usize
 pub fn <antecedent_state::ParticleFilterState>::fn ess(&self) -> f64
 pub fn <antecedent_state::ParticleFilterState>::fn init(n_particles: usize, params: antecedent_state::LgssmParams, data_version: u64, seed: u64) -> core::result::Result<Self, antecedent_state::StateError>
+pub fn <antecedent_state::ParticleFilterState>::fn init_within_budget(n_particles: usize, params: antecedent_state::LgssmParams, data_version: u64, seed: u64, max_bytes: u64) -> core::result::Result<Self, antecedent_state::StateError>
+pub fn <antecedent_state::ParticleFilterState>::fn log_weights(&self) -> &[f64]
+pub fn <antecedent_state::ParticleFilterState>::fn particles(&self) -> &[f64]
 pub fn <antecedent_state::ParticleFilterState>::fn run_batch(observations: &[f64], n_particles: usize, params: antecedent_state::LgssmParams, data_version: u64, seed: u64) -> core::result::Result<Self, antecedent_state::StateError>
 pub fn <antecedent_state::ParticleFilterState>::fn step(&mut self, y: f64) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::ParticleFilterState>::fn try_ess(&self) -> core::result::Result<f64, antecedent_state::StateError>
+pub fn <antecedent_state::ParticleFilterState>::fn try_weighted_mean(&self) -> core::result::Result<f64, antecedent_state::StateError>
 pub fn <antecedent_state::ParticleFilterState>::fn weighted_mean(&self) -> f64
-pub fn <antecedent_state::QueryStore>::fn register(&mut self, query: antecedent_core::query::CausalQuery) -> antecedent_core::ids::QueryId
+pub fn <antecedent_state::QueryStore>::fn register(&mut self, query: antecedent_core::query::variants::CausalQuery) -> antecedent_core::ids::QueryId
 pub fn <antecedent_state::RefreshRow>::const fn new(id: u64, x: alloc::vec::Vec<f64>, y: f64) -> Self
-pub fn <antecedent_state::ResultStore>::fn clear(&mut self, budget: &mut antecedent_core::execution::CacheBudget)
-pub fn <antecedent_state::ResultStore>::fn insert(&mut self, result: antecedent_state::CachedResult, budget: &mut antecedent_core::execution::CacheBudget) -> core::result::Result<(), antecedent_state::StateError>
-pub fn <antecedent_state::ResultStore>::fn remove(&mut self, query: antecedent_core::ids::QueryId, budget: &mut antecedent_core::execution::CacheBudget)
+pub fn <antecedent_state::ResultStore>::fn clear(&mut self, budget: &mut antecedent_core::execution::budget::CacheBudget)
+pub fn <antecedent_state::ResultStore>::fn insert(&mut self, result: antecedent_state::CachedResult, budget: &mut antecedent_core::execution::budget::CacheBudget) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::ResultStore>::fn remove(&mut self, query: antecedent_core::ids::QueryId, budget: &mut antecedent_core::execution::budget::CacheBudget)
 pub fn <antecedent_state::RetentionPolicy>::const fn max_retained_rows(self) -> core::option::Option<u64>
 pub fn <antecedent_state::RetentionPolicy>::const fn no_longer_serves(self) -> &'static [antecedent_state::retention::RetainedOperation]
 pub fn <antecedent_state::RetentionPolicy>::const fn require(self, operation: antecedent_state::retention::RetainedOperation) -> core::result::Result<(), antecedent_state::retention::RetentionRefusal>
@@ -1089,8 +1108,14 @@ pub fn <antecedent_state::WeightedOlsRefresh>::fn set_weight(&mut self, id: u64,
 pub fn <antecedent_state::WeightedOlsRefresh>::fn snapshot(&self) -> antecedent_state::WeightedSnapshot
 pub fn <antecedent_state::WeightedOlsRefresh>::fn source(&self) -> &str
 pub fn <antecedent_state::WeightedOlsRefresh>::fn spill(&self, registry: &alloc::sync::Arc<antecedent_state::SpillRegistry>, key: &str) -> core::result::Result<antecedent_state::SpillHandle, antecedent_state::StateError>
+pub fn <antecedent_state::WeightedRow>::const fn id(&self) -> u64
+pub fn <antecedent_state::WeightedRow>::const fn is_masked(&self) -> bool
 pub fn <antecedent_state::WeightedRow>::const fn new(id: u64, x: alloc::vec::Vec<f64>, y: f64) -> Self
+pub fn <antecedent_state::WeightedRow>::const fn weight(&self) -> f64
 pub fn <antecedent_state::WeightedRow>::const fn weighted(id: u64, x: alloc::vec::Vec<f64>, y: f64, weight: f64) -> Self
+pub fn <antecedent_state::WeightedRow>::const fn y(&self) -> f64
+pub fn <antecedent_state::WeightedRow>::fn with_masked(self, masked: bool) -> Self
+pub fn <antecedent_state::WeightedRow>::fn x(&self) -> &[f64]
 pub fn <antecedent_state::disk_retention::SpillDecoder<'a>>::const fn new(bytes: &'a [u8]) -> Self
 pub fn <antecedent_state::disk_retention::SpillDecoder<'a>>::fn count(&mut self, unit: usize) -> core::result::Result<usize, antecedent_state::StateError>
 pub fn <antecedent_state::disk_retention::SpillDecoder<'a>>::fn finish(&self) -> core::result::Result<(), antecedent_state::StateError>
@@ -1115,9 +1140,9 @@ pub fn <antecedent_state::retention::RetentionMode>::const fn serves(self, opera
 pub fn <antecedent_state::retention::RetentionRefusal>::const fn mode(self) -> antecedent_state::retention::RetentionMode
 pub fn <antecedent_state::retention::RetentionRefusal>::const fn no_longer_serves(self) -> &'static [antecedent_state::retention::RetainedOperation]
 pub fn <antecedent_state::retention::RetentionRefusal>::const fn operation(self) -> antecedent_state::retention::RetainedOperation
-pub fn antecedent_state::evict_mechanism_diag(map: &mut std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::RollingMechanismDiagnostics>, key: &str, budget: &mut antecedent_core::execution::CacheBudget) -> core::option::Option<antecedent_state::RollingMechanismDiagnostics>
+pub fn antecedent_state::evict_mechanism_diag(map: &mut std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::RollingMechanismDiagnostics>, key: &str, budget: &mut antecedent_core::execution::budget::CacheBudget) -> core::option::Option<antecedent_state::RollingMechanismDiagnostics>
 pub fn antecedent_state::full_graph_score(data: &antecedent_state::GraphScoreData, family: antecedent_state::GraphScoreFamily, parents: &std::collections::hash::map::HashMap<u32, alloc::sync::Arc<[u32]>>) -> core::result::Result<f64, antecedent_state::StateError>
-pub fn antecedent_state::insert_mechanism_diag(map: &mut std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::RollingMechanismDiagnostics>, key: alloc::sync::Arc<str>, diag: antecedent_state::RollingMechanismDiagnostics, budget: &mut antecedent_core::execution::CacheBudget) -> core::result::Result<(), antecedent_state::StateError>
+pub fn antecedent_state::insert_mechanism_diag(map: &mut std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::RollingMechanismDiagnostics>, key: alloc::sync::Arc<str>, diag: antecedent_state::RollingMechanismDiagnostics, budget: &mut antecedent_core::execution::budget::CacheBudget) -> core::result::Result<(), antecedent_state::StateError>
 pub mod antecedent_state::conjugate_block_refresh
 pub mod antecedent_state::conjugate_refresh
 pub mod antecedent_state::covariance_refresh
@@ -1203,6 +1228,7 @@ pub struct antecedent_state::WeightedLedger
 pub struct antecedent_state::WeightedOlsRefresh
 pub struct antecedent_state::WeightedOlsRefresh has private fields
 pub struct antecedent_state::WeightedRow
+pub struct antecedent_state::WeightedRow has private fields
 pub struct antecedent_state::WeightedSnapshot
 pub struct antecedent_state::disk_retention::SpillDecoder has private fields
 pub struct antecedent_state::disk_retention::SpillDecoder<'a>
@@ -1227,6 +1253,7 @@ pub use antecedent_state::disk_retention::SpillStats = antecedent_state::SpillSt
 pub use antecedent_state::disk_retention::Spillable = antecedent_state::Spillable
 pub use antecedent_state::error::StateError = antecedent_state::StateError
 pub use antecedent_state::event::StateEvent = antecedent_state::StateEvent
+pub use antecedent_state::graph_score::DEFAULT_LOCAL_SCORE_CACHE_BYTES = antecedent_state::DEFAULT_LOCAL_SCORE_CACHE_BYTES
 pub use antecedent_state::graph_score::GraphScoreCacheKey = antecedent_state::GraphScoreCacheKey
 pub use antecedent_state::graph_score::GraphScoreData = antecedent_state::GraphScoreData
 pub use antecedent_state::graph_score::GraphScoreFamily = antecedent_state::GraphScoreFamily
@@ -1236,6 +1263,7 @@ pub use antecedent_state::graph_score::full_graph_score = antecedent_state::full
 pub use antecedent_state::invalidation::ChangedInput = antecedent_state::ChangedInput
 pub use antecedent_state::invalidation::InvalidationEntry = antecedent_state::InvalidationEntry
 pub use antecedent_state::invalidation::InvalidationLog = antecedent_state::InvalidationLog
+pub use antecedent_state::invalidation::InvalidationReason = antecedent_state::InvalidationReason
 pub use antecedent_state::invalidation::InvalidationTarget = antecedent_state::InvalidationTarget
 pub use antecedent_state::invalidation::TemporalDisposition = antecedent_state::TemporalDisposition
 pub use antecedent_state::invalidation::TemporalFactor = antecedent_state::TemporalFactor
@@ -1248,7 +1276,9 @@ pub use antecedent_state::ols_refresh::OlsRefresh = antecedent_state::OlsRefresh
 pub use antecedent_state::ols_refresh::OlsSnapshot = antecedent_state::OlsSnapshot
 pub use antecedent_state::ols_refresh::RefreshOutcome = antecedent_state::RefreshOutcome
 pub use antecedent_state::ols_refresh::RefreshRow = antecedent_state::RefreshRow
+pub use antecedent_state::particle_filter::DEFAULT_PARTICLE_BYTE_BUDGET = antecedent_state::DEFAULT_PARTICLE_BYTE_BUDGET
 pub use antecedent_state::particle_filter::LgssmParams = antecedent_state::LgssmParams
+pub use antecedent_state::particle_filter::PARTICLE_BYTES = antecedent_state::PARTICLE_BYTES
 pub use antecedent_state::particle_filter::ParticleFilterState = antecedent_state::ParticleFilterState
 pub use antecedent_state::refresh_contract::RefreshChange = antecedent_state::RefreshChange
 pub use antecedent_state::refresh_contract::RefreshDisposition = antecedent_state::RefreshDisposition
@@ -1287,6 +1317,13 @@ pub use antecedent_state::weighted_refresh::WeightedRow = antecedent_state::Weig
 pub use antecedent_state::weighted_refresh::WeightedSnapshot = antecedent_state::WeightedSnapshot
 pub variant antecedent_state::GraphScoreFamily::GaussianBic
 pub variant antecedent_state::GraphScoreFamily::LaplaceBic
+pub variant antecedent_state::InvalidationReason::AddConstraint
+pub variant antecedent_state::InvalidationReason::AddGraphEvidence
+pub variant antecedent_state::InvalidationReason::AppendData
+pub variant antecedent_state::InvalidationReason::RecordIntervention
+pub variant antecedent_state::InvalidationReason::RemoveConstraint
+pub variant antecedent_state::InvalidationReason::ReplaceData
+pub variant antecedent_state::InvalidationReason::UpdateAssumption
 pub variant antecedent_state::InvalidationTarget::AllResults
 pub variant antecedent_state::InvalidationTarget::GraphScores
 pub variant antecedent_state::InvalidationTarget::LagIndexes
@@ -1330,6 +1367,7 @@ pub variant antecedent_state::RetentionPolicy::BoundedWindow { max_rows: u64 }
 pub variant antecedent_state::RetentionPolicy::RawHistory
 pub variant antecedent_state::RetentionPolicy::SufficientStatisticsOnly
 pub variant antecedent_state::StateError::CacheBudget { need: u64, remaining: u64 }
+pub variant antecedent_state::StateError::DegenerateScore(alloc::string::String)
 pub variant antecedent_state::StateError::InvalidEvent(alloc::string::String)
 pub variant antecedent_state::StateError::Numerical(alloc::string::String)
 pub variant antecedent_state::StateError::Shape(alloc::string::String)
@@ -1339,7 +1377,7 @@ pub variant antecedent_state::StateEvent::AddConstraint(antecedent_state::GraphC
 pub variant antecedent_state::StateEvent::AddGraphEvidence(antecedent_state::GraphEvidenceRecord)
 pub variant antecedent_state::StateEvent::AppendData(antecedent_state::DataBatchRef)
 pub variant antecedent_state::StateEvent::RecordIntervention(antecedent_state::InterventionRecord)
-pub variant antecedent_state::StateEvent::RegisterQuery(antecedent_core::query::CausalQuery)
+pub variant antecedent_state::StateEvent::RegisterQuery(antecedent_core::query::variants::CausalQuery)
 pub variant antecedent_state::StateEvent::RemoveConstraint(antecedent_state::ConstraintId)
 pub variant antecedent_state::StateEvent::ReplaceData(antecedent_state::DataVersion)
 pub variant antecedent_state::StateEvent::UpdateAssumption(antecedent_core::assumption::AssumptionRecord)

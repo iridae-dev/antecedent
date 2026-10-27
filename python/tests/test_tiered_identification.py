@@ -153,3 +153,32 @@ def test_tiered_identification_resolves_an_explicit_schema_and_refuses_unknown_n
     assert identified.certificate["names"] == ("y", "peer", "t", "z")
     with pytest.raises((CausalValueError, CausalDataError), match="unknown"):
         ant.identify(graph=_background(), query=ant.AverageEffect("absent", "y"))
+
+
+def test_an_unknown_tier_study_publishes_its_two_scenario_plan():
+    rng = np.random.default_rng(23)
+    n = 4000
+    era = rng.normal(size=n)
+    t = 0.8 * era + rng.normal(size=n)
+    m = t + 0.2 * era + 0.5 * rng.normal(size=n)
+    y = -t + 2.0 * m + 0.2 * era + rng.normal(size=n)
+    background = TieredBackground(
+        tiers=[["era"], ["t", "m"], ["y"]], within_tier=WithinTier.UNKNOWN
+    )
+    prepared = ant.prepare(
+        {"era": era, "t": t, "m": m, "y": y},
+        graph=background,
+        query=ant.AverageEffect("t", "y"),
+        inference=ant.Frequentist(bootstrap=0),
+        refute="none",
+        execution=ant.Execution(seed=23),
+    )
+    outcome = ant.estimate(prepared)
+    require_success(outcome)
+    operation = outcome.study.plan_view().operation
+    assert operation["kind"] == "unknown_tiered_average"
+    assert (operation["treatment"], operation["outcome"]) == ("t", "y")
+    assert (operation["tier_count"], operation["scenario_count"]) == (3, 2)
+    assert operation["identifier"] == "generalized.adjustment"
+    assert operation["estimator"] == "linear.adjustment.ate"
+    assert operation["plan_id"]

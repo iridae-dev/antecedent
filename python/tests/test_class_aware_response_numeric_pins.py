@@ -237,3 +237,33 @@ def test_class_aware_bayesian_intervention_pins(accepted: bool, class_name: str)
     contrast = float(_values(high)[0]) - float(_values(low)[0])
     assert contrast == pytest.approx(expected, abs=bayes["contrast_tolerance"])
     assert float(_values(click)[0]) == pytest.approx(float(_values(high)[0]), abs=1e-12)
+
+
+def test_class_response_strategy_options_are_checked_and_the_class_pair_runs() -> None:
+    data = _continuous_linear(_PIN)
+    options = dict(
+        graph=_cpdag(accepted=False),
+        query=_curve(),
+        refute=False,
+        inference=antecedent.Frequentist(bootstrap=0),
+        execution=antecedent.Execution(seed=1),
+    )
+    accepted = require_success(
+        antecedent.analyze(
+            data,
+            identifier="generalized.adjustment",
+            estimator="response.kennedy_dr",
+            **options,
+        )
+    )
+    plan = accepted.study.plan_view().statistical
+    assert plan.identifier == "generalized.adjustment"
+    assert plan.estimator == "response.kennedy_dr"
+    expected = _PIN["cpdag"]["curve"]["mean"]
+    tolerance = _PIN["cpdag"]["curve"]["absolute_tolerance"]
+    assert list(_values(accepted)) == pytest.approx(expected, abs=tolerance)
+    refused = (ValueError, antecedent.errors.CausalUnsupportedError)
+    with pytest.raises(refused, match="requires identifier"):
+        require_success(antecedent.analyze(data, identifier="backdoor.adjustment", **options))
+    with pytest.raises(refused, match="requires estimator"):
+        require_success(antecedent.analyze(data, estimator="aipw", **options))

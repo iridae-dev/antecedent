@@ -450,6 +450,16 @@ def test_every_probed_refusal_carries_a_registered_reason_code(
         assert report.code == error.reason_code
 
 
+@pytest.mark.parametrize("field", ["estimator", "identifier"])
+def test_an_unknown_strategy_name_is_refused_with_its_accepted_names(field: str) -> None:
+    data = _static(0, 400)
+    query = ant.AverageEffect("treatment", "outcome")
+    with pytest.raises(ant.errors.CausalError) as caught:
+        require_success(ant.analyze(data, graph=GRAPH, query=query, **{field: "bogus"}))
+    assert caught.value.reason_code == "unknown_strategy"
+    assert "bogus" in str(caught.value) and "expected one of" in str(caught.value)
+
+
 def test_refusal_report_code_falls_back_when_the_attribute_is_none() -> None:
     from antecedent._api import describe_refusal
 

@@ -114,6 +114,7 @@ impl core::clone::Clone for antecedent_discovery::Pc
 impl core::clone::Clone for antecedent_discovery::Pcmci
 impl core::clone::Clone for antecedent_discovery::PcmciEngine
 impl core::clone::Clone for antecedent_discovery::PcmciPlus
+impl core::clone::Clone for antecedent_discovery::PdPathBudget
 impl core::clone::Clone for antecedent_discovery::PossibleDSepBudget
 impl core::clone::Clone for antecedent_discovery::RegimeAssignment
 impl core::clone::Clone for antecedent_discovery::RegimeGraphCollection
@@ -187,12 +188,12 @@ impl core::cmp::Eq for antecedent_discovery::KnowledgeFault
 impl core::cmp::Eq for antecedent_discovery::KnowledgeScope
 impl core::cmp::Eq for antecedent_discovery::LaggedLink
 impl core::cmp::Eq for antecedent_discovery::OrientationError
+impl core::cmp::Eq for antecedent_discovery::PdPathBudget
 impl core::cmp::Eq for antecedent_discovery::PossibleDSepBudget
 impl core::cmp::Eq for antecedent_discovery::RegimeAssignment
 impl core::cmp::Eq for antecedent_discovery::SpaceDummyCiMode
 impl core::cmp::Eq for antecedent_discovery::TemporalAdmgAtom
 impl core::cmp::Eq for antecedent_discovery::TimeDummyCiMode
-impl core::cmp::Eq for antecedent_discovery::conflict_resolution::ConflictResolution
 impl core::cmp::Eq for antecedent_discovery::conflict_resolution::IncidentOrientation
 impl core::cmp::Eq for antecedent_discovery::cyclic_fci::CyclicFciPremises
 impl core::cmp::Eq for antecedent_discovery::cyclic_fci::CyclicPagConclusion
@@ -243,6 +244,7 @@ impl core::cmp::PartialEq for antecedent_discovery::KnowledgeScope
 impl core::cmp::PartialEq for antecedent_discovery::LaggedLink
 impl core::cmp::PartialEq for antecedent_discovery::MarkSelection
 impl core::cmp::PartialEq for antecedent_discovery::OrientationError
+impl core::cmp::PartialEq for antecedent_discovery::PdPathBudget
 impl core::cmp::PartialEq for antecedent_discovery::PossibleDSepBudget
 impl core::cmp::PartialEq for antecedent_discovery::RegimeAssignment
 impl core::cmp::PartialEq for antecedent_discovery::ScoredLink
@@ -288,6 +290,8 @@ impl core::cmp::PartialOrd for antecedent_discovery::selective::Mark
 impl core::cmp::PartialOrd for antecedent_discovery::selective::StructureClass
 impl core::cmp::PartialOrd for antecedent_discovery::selective::StructureEdge
 impl core::cmp::PartialOrd for antecedent_discovery::selective::StructureNode
+impl core::convert::From<&antecedent_discovery::AdjacencyMask> for antecedent_discovery::AdjacencyMask
+impl core::convert::From<&u64> for antecedent_discovery::AdjacencyMask
 impl core::convert::From<antecedent_data::error::DataError> for antecedent_discovery::DiscoveryError
 impl core::convert::From<antecedent_discovery::DiscoveryError> for antecedent_discovery::selective::SelectiveDiscoveryError
 impl core::convert::From<antecedent_discovery::OrientationError> for antecedent_discovery::DiscoveryError
@@ -331,10 +335,12 @@ impl core::default::Default for antecedent_discovery::OrderMcmc
 impl core::default::Default for antecedent_discovery::OrientCollider
 impl core::default::Default for antecedent_discovery::OrientationQueue
 impl core::default::Default for antecedent_discovery::OrientationState
+impl core::default::Default for antecedent_discovery::PagMcmcSchedule
 impl core::default::Default for antecedent_discovery::Pc
 impl core::default::Default for antecedent_discovery::Pcmci
 impl core::default::Default for antecedent_discovery::PcmciEngine
 impl core::default::Default for antecedent_discovery::PcmciPlus
+impl core::default::Default for antecedent_discovery::PdPathBudget
 impl core::default::Default for antecedent_discovery::Rfci
 impl core::default::Default for antecedent_discovery::Rpcmci
 impl core::default::Default for antecedent_discovery::RuleDelta
@@ -410,6 +416,7 @@ impl core::fmt::Debug for antecedent_discovery::Pc
 impl core::fmt::Debug for antecedent_discovery::Pcmci
 impl core::fmt::Debug for antecedent_discovery::PcmciEngine
 impl core::fmt::Debug for antecedent_discovery::PcmciPlus
+impl core::fmt::Debug for antecedent_discovery::PdPathBudget
 impl core::fmt::Debug for antecedent_discovery::PossibleDSepBudget
 impl core::fmt::Debug for antecedent_discovery::RegimeAssignment
 impl core::fmt::Debug for antecedent_discovery::RegimeGraphCollection
@@ -496,7 +503,6 @@ impl core::hash::Hash for antecedent_discovery::selective::StructureClass
 impl core::hash::Hash for antecedent_discovery::selective::StructureEdge
 impl core::hash::Hash for antecedent_discovery::selective::StructureNode
 impl core::hash::Hash for antecedent_discovery::selective::TemporalAlgorithm
-impl core::marker::Copy for antecedent_discovery::AdjacencyMask
 impl core::marker::Copy for antecedent_discovery::CiMaskType
 impl core::marker::Copy for antecedent_discovery::CiSoftWeight
 impl core::marker::Copy for antecedent_discovery::ContextKind
@@ -516,10 +522,10 @@ impl core::marker::Copy for antecedent_discovery::MeekR3
 impl core::marker::Copy for antecedent_discovery::MeekR4
 impl core::marker::Copy for antecedent_discovery::OrientCollider
 impl core::marker::Copy for antecedent_discovery::PagMcmcSchedule
+impl core::marker::Copy for antecedent_discovery::PdPathBudget
 impl core::marker::Copy for antecedent_discovery::PossibleDSepBudget
 impl core::marker::Copy for antecedent_discovery::ScoredLink
 impl core::marker::Copy for antecedent_discovery::SpaceDummyCiMode
-impl core::marker::Copy for antecedent_discovery::TemporalAdmgAtom
 impl core::marker::Copy for antecedent_discovery::TimeDummyCiMode
 impl core::marker::Copy for antecedent_discovery::cyclic_fci::CyclicFciPremises
 impl core::marker::Copy for antecedent_discovery::graph_posterior::GraphMcmcRun
@@ -591,6 +597,7 @@ impl core::marker::Freeze for antecedent_discovery::Pc [auto]
 impl core::marker::Freeze for antecedent_discovery::Pcmci [auto]
 impl core::marker::Freeze for antecedent_discovery::PcmciEngine [auto]
 impl core::marker::Freeze for antecedent_discovery::PcmciPlus [auto]
+impl core::marker::Freeze for antecedent_discovery::PdPathBudget [auto]
 impl core::marker::Freeze for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::marker::Freeze for antecedent_discovery::RegimeAssignment [auto]
 impl core::marker::Freeze for antecedent_discovery::RegimeGraphCollection [auto]
@@ -705,6 +712,7 @@ impl core::marker::Send for antecedent_discovery::Pc [auto]
 impl core::marker::Send for antecedent_discovery::Pcmci [auto]
 impl core::marker::Send for antecedent_discovery::PcmciEngine [auto]
 impl core::marker::Send for antecedent_discovery::PcmciPlus [auto]
+impl core::marker::Send for antecedent_discovery::PdPathBudget [auto]
 impl core::marker::Send for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::marker::Send for antecedent_discovery::RegimeAssignment [auto]
 impl core::marker::Send for antecedent_discovery::RegimeGraphCollection [auto]
@@ -788,6 +796,7 @@ impl core::marker::StructuralPartialEq for antecedent_discovery::KnowledgeScope
 impl core::marker::StructuralPartialEq for antecedent_discovery::LaggedLink
 impl core::marker::StructuralPartialEq for antecedent_discovery::MarkSelection
 impl core::marker::StructuralPartialEq for antecedent_discovery::OrientationError
+impl core::marker::StructuralPartialEq for antecedent_discovery::PdPathBudget
 impl core::marker::StructuralPartialEq for antecedent_discovery::PossibleDSepBudget
 impl core::marker::StructuralPartialEq for antecedent_discovery::RegimeAssignment
 impl core::marker::StructuralPartialEq for antecedent_discovery::ScoredLink
@@ -881,6 +890,7 @@ impl core::marker::Sync for antecedent_discovery::Pc [auto]
 impl core::marker::Sync for antecedent_discovery::Pcmci [auto]
 impl core::marker::Sync for antecedent_discovery::PcmciEngine [auto]
 impl core::marker::Sync for antecedent_discovery::PcmciPlus [auto]
+impl core::marker::Sync for antecedent_discovery::PdPathBudget [auto]
 impl core::marker::Sync for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::marker::Sync for antecedent_discovery::RegimeAssignment [auto]
 impl core::marker::Sync for antecedent_discovery::RegimeGraphCollection [auto]
@@ -1001,6 +1011,7 @@ impl core::marker::Unpin for antecedent_discovery::Pc [auto]
 impl core::marker::Unpin for antecedent_discovery::Pcmci [auto]
 impl core::marker::Unpin for antecedent_discovery::PcmciEngine [auto]
 impl core::marker::Unpin for antecedent_discovery::PcmciPlus [auto]
+impl core::marker::Unpin for antecedent_discovery::PdPathBudget [auto]
 impl core::marker::Unpin for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::marker::Unpin for antecedent_discovery::RegimeAssignment [auto]
 impl core::marker::Unpin for antecedent_discovery::RegimeGraphCollection [auto]
@@ -1112,6 +1123,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::Orientati
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::OrientationQueue [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::OrientationState [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::PagMcmcSchedule [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::PdPathBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::RegimeAssignment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::RegimeGraphCollection [auto]
@@ -1216,6 +1228,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::OrientationE
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::OrientationQueue [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::OrientationState [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::PagMcmcSchedule [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::PdPathBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::RegimeAssignment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::RegimeGraphCollection [auto]
@@ -1309,9 +1322,9 @@ pub const <antecedent_discovery::selective::Mark>::ALL: [Self; 4]
 pub const <antecedent_discovery::selective::StructureClass>::ALL: [Self; 5]
 pub const antecedent_discovery::EXACT_ENUM_MAX_NODES: usize
 pub const antecedent_discovery::EXACT_MARGINAL_MAX_NODES: usize
-pub const antecedent_discovery::MAX_POSTERIOR_NODES: usize
 pub const antecedent_discovery::PAG_ENUM_MAX_NODES: usize
 pub const antecedent_discovery::PAG_MCMC_MAX_NODES: usize
+pub const antecedent_discovery::PAG_MCMC_WORK_BUDGET: u128
 pub const antecedent_discovery::conflict_resolution::MAX_IMPLICATED_COLLIDERS: usize
 pub const antecedent_discovery::graph_mcmc::DEFAULT_TEMPERATURES: [f64; 4]
 pub const antecedent_discovery::selective::DEFAULT_STORE_CAPACITY: usize
@@ -1400,6 +1413,7 @@ pub field antecedent_discovery::DiscoveryWorkspace::keep_cache: std::collections
 pub field antecedent_discovery::DiscoveryWorkspace::others: alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)>
 pub field antecedent_discovery::DiscoveryWorkspace::parents: alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)>
 pub field antecedent_discovery::DiscoveryWorkspace::prepared_ci: core::option::Option<antecedent_stats::ci::types::PreparedCiTest>
+pub field antecedent_discovery::DiscoveryWorkspace::queries: alloc::vec::Vec<antecedent_stats::ci::types::CiQuery>
 pub field antecedent_discovery::DiscoveryWorkspace::removed: alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)>
 pub field antecedent_discovery::DiscoveryWorkspace::sepsets: antecedent_discovery::PcSepsets
 pub field antecedent_discovery::DiscoveryWorkspace::z_flat: alloc::vec::Vec<usize>
@@ -1421,6 +1435,7 @@ pub field antecedent_discovery::ExactDagMarginals::edge_marginals: alloc::sync::
 pub field antecedent_discovery::ExactDagMarginals::log_evidence: f64
 pub field antecedent_discovery::ExactDagMarginals::n_vars: usize
 pub field antecedent_discovery::ExactDagPosterior::max_nodes: usize
+pub field antecedent_discovery::ExactDagPosterior::route_larger: bool
 pub field antecedent_discovery::Fci::ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>
 pub field antecedent_discovery::Fci::constraints: antecedent_discovery::DiscoveryConstraints
 pub field antecedent_discovery::Fci::discriminating_path_budget: antecedent_discovery::DiscriminatingPathBudget
@@ -1430,34 +1445,12 @@ pub field antecedent_discovery::Ges::ci: alloc::sync::Arc<dyn antecedent_stats::
 pub field antecedent_discovery::Ges::constraints: antecedent_discovery::DiscoveryConstraints
 pub field antecedent_discovery::Ges::fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>
 pub field antecedent_discovery::Ges::max_subset: core::option::Option<usize>
+pub field antecedent_discovery::Ges::score_family: antecedent_state::graph_score::GraphScoreFamily
 pub field antecedent_discovery::Ges::screen_pc: bool
 pub field antecedent_discovery::GraphEvidence::edge_evidence: alloc::sync::Arc<[antecedent_discovery::EdgeEvidence]>
 pub field antecedent_discovery::GraphEvidence::graph: G
 pub field antecedent_discovery::GraphEvidence::links: alloc::sync::Arc<[antecedent_discovery::ScoredLink]>
 pub field antecedent_discovery::GraphEvidence::source: antecedent_discovery::EvidenceSource
-pub field antecedent_discovery::GraphPosterior::adjacency: alloc::sync::Arc<[u64]>
-pub field antecedent_discovery::GraphPosterior::algorithm: core::option::Option<alloc::sync::Arc<str>>
-pub field antecedent_discovery::GraphPosterior::atom_kind: antecedent_discovery::GraphPosteriorAtomKind
-pub field antecedent_discovery::GraphPosterior::atoms: alloc::sync::Arc<[antecedent_discovery::AdjacencyMask]>
-pub field antecedent_discovery::GraphPosterior::diagnostics: antecedent_prob::diagnostics::InferenceDiagnostics
-pub field antecedent_discovery::GraphPosterior::edge_ess: core::option::Option<alloc::sync::Arc<[f64]>>
-pub field antecedent_discovery::GraphPosterior::edge_marginals: alloc::sync::Arc<[f64]>
-pub field antecedent_discovery::GraphPosterior::edge_mcse: core::option::Option<alloc::sync::Arc<[f64]>>
-pub field antecedent_discovery::GraphPosterior::edge_rhat: core::option::Option<alloc::sync::Arc<[f64]>>
-pub field antecedent_discovery::GraphPosterior::ess: f64
-pub field antecedent_discovery::GraphPosterior::graph_keys: alloc::sync::Arc<[u64]>
-pub field antecedent_discovery::GraphPosterior::lag_bidirected_masks: core::option::Option<alloc::sync::Arc<[u64]>>
-pub field antecedent_discovery::GraphPosterior::lag_masks: core::option::Option<alloc::sync::Arc<[u64]>>
-pub field antecedent_discovery::GraphPosterior::lagged_edge_marginals: core::option::Option<alloc::sync::Arc<[f64]>>
-pub field antecedent_discovery::GraphPosterior::lagged_edge_mcse: core::option::Option<alloc::sync::Arc<[f64]>>
-pub field antecedent_discovery::GraphPosterior::mark_atoms: core::option::Option<alloc::sync::Arc<[antecedent_discovery::AdjacencyMask]>>
-pub field antecedent_discovery::GraphPosterior::mark_masks: core::option::Option<alloc::sync::Arc<[u64]>>
-pub field antecedent_discovery::GraphPosterior::max_lag: core::option::Option<u32>
-pub field antecedent_discovery::GraphPosterior::n_graphs: usize
-pub field antecedent_discovery::GraphPosterior::n_vars: usize
-pub field antecedent_discovery::GraphPosterior::orientation_marginals: alloc::sync::Arc<[f64]>
-pub field antecedent_discovery::GraphPosterior::rejected_invalid: u64
-pub field antecedent_discovery::GraphPosterior::weights: alloc::sync::Arc<[f64]>
 pub field antecedent_discovery::GraphPrior::constraints: antecedent_discovery::DiscoveryConstraints
 pub field antecedent_discovery::GraphPrior::edge_inclusion: core::option::Option<f64>
 pub field antecedent_discovery::JpcmciPlus::fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>
@@ -1505,6 +1498,7 @@ pub field antecedent_discovery::OrientationState::conflict_edges: std::collectio
 pub field antecedent_discovery::OrientationState::conflicts: u32
 pub field antecedent_discovery::OrientationState::discriminating_budget: antecedent_discovery::DiscriminatingPathBudget
 pub field antecedent_discovery::OrientationState::discriminating_skipped: std::collections::hash::set::HashSet<(u32, u32)>
+pub field antecedent_discovery::OrientationState::pd_path_budget: antecedent_discovery::PdPathBudget
 pub field antecedent_discovery::OrientationState::pd_path_skipped: std::collections::hash::set::HashSet<(u32, u32)>
 pub field antecedent_discovery::OrientationState::sepsets: std::collections::hash::map::HashMap<(u32, u32), alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>>
 pub field antecedent_discovery::OrientationState::weakly_minimal: std::collections::hash::set::HashSet<(u32, u32)>
@@ -1520,6 +1514,7 @@ pub field antecedent_discovery::PcmciEngine::ci: alloc::sync::Arc<dyn antecedent
 pub field antecedent_discovery::PcmciEngine::column_blocks: alloc::sync::Arc<[alloc::sync::Arc<[usize]>]>
 pub field antecedent_discovery::PcmciEngine::constraints: antecedent_discovery::DiscoveryConstraints
 pub field antecedent_discovery::PcmciPlus::fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>
+pub field antecedent_discovery::PdPathBudget::max_expansions: usize
 pub field antecedent_discovery::PossibleDSepBudget::max_nodes: usize
 pub field antecedent_discovery::RegimeAssignment::regimes: alloc::sync::Arc<[antecedent_core::ids::RegimeId]>
 pub field antecedent_discovery::RegimeGraphCollection::graphs: alloc::sync::Arc<[(antecedent_core::ids::RegimeId, antecedent_graph::cpdag::TemporalCpdag)]>
@@ -1568,8 +1563,8 @@ pub field antecedent_discovery::StructureStability::requested: u32
 pub field antecedent_discovery::StructureStability::structures: alloc::vec::Vec<antecedent_discovery::StructureSelection>
 pub field antecedent_discovery::StructureStability::succeeded: u32
 pub field antecedent_discovery::TemporalAdmgAtom::contemporaneous: antecedent_discovery::AdjacencyMask
-pub field antecedent_discovery::TemporalAdmgAtom::lagged_bidirected: u64
-pub field antecedent_discovery::TemporalAdmgAtom::lagged_directed: u64
+pub field antecedent_discovery::TemporalAdmgAtom::lagged_bidirected: antecedent_discovery::LagMask
+pub field antecedent_discovery::TemporalAdmgAtom::lagged_directed: antecedent_discovery::LagMask
 pub field antecedent_discovery::TemporalAdmgPosterior::max_lag: u32
 pub field antecedent_discovery::TemporalConstraints::max_lag: antecedent_core::ids::Lag
 pub field antecedent_discovery::TemporalConstraints::min_lag: antecedent_core::ids::Lag
@@ -1725,16 +1720,24 @@ pub field antecedent_discovery::selective::reuse::SplitWeights::discovery: antec
 pub field antecedent_discovery::selective::reuse::SplitWeights::discovery_effective_sample_size: f64
 pub field antecedent_discovery::selective::reuse::SplitWeights::source: antecedent_discovery::selective::Digest
 pub fn <antecedent_discovery::AdjacencyMask>::const fn from_word(word: u64) -> Self
-pub fn <antecedent_discovery::AdjacencyMask>::const fn from_words(words: [u64; 4]) -> Self
-pub fn <antecedent_discovery::AdjacencyMask>::const fn words(self) -> [u64; 4]
-pub fn <antecedent_discovery::AdjacencyMask>::fn bit(self, bit: u32) -> bool
-pub fn <antecedent_discovery::AdjacencyMask>::fn contains_all(self, other: Self) -> bool
-pub fn <antecedent_discovery::AdjacencyMask>::fn from_le_bytes(bytes: [u8; 32]) -> Self
-pub fn <antecedent_discovery::AdjacencyMask>::fn intersects(self, other: Self) -> bool
-pub fn <antecedent_discovery::AdjacencyMask>::fn key(self) -> u64
-pub fn <antecedent_discovery::AdjacencyMask>::fn to_le_bytes(self) -> [u8; 32]
-pub fn <antecedent_discovery::AdjacencyMask>::fn to_word(self) -> core::option::Option<u64>
+pub fn <antecedent_discovery::AdjacencyMask>::fn bit(&self, bit: u32) -> bool
+pub fn <antecedent_discovery::AdjacencyMask>::fn contains_all(&self, other: &Self) -> bool
+pub fn <antecedent_discovery::AdjacencyMask>::fn count_ones(&self) -> usize
+pub fn <antecedent_discovery::AdjacencyMask>::fn difference(&self, other: &Self) -> Self
+pub fn <antecedent_discovery::AdjacencyMask>::fn from_le_bytes(bytes: &[u8]) -> Self
+pub fn <antecedent_discovery::AdjacencyMask>::fn from_words(words: &[u64]) -> Self
+pub fn <antecedent_discovery::AdjacencyMask>::fn has_edge(&self, n: usize, from: usize, to: usize) -> bool
+pub fn <antecedent_discovery::AdjacencyMask>::fn intersects(&self, other: &Self) -> bool
+pub fn <antecedent_discovery::AdjacencyMask>::fn is_empty(&self) -> bool
+pub fn <antecedent_discovery::AdjacencyMask>::fn key(&self) -> u64
+pub fn <antecedent_discovery::AdjacencyMask>::fn set_bit(&mut self, bit: u32, present: bool)
+pub fn <antecedent_discovery::AdjacencyMask>::fn set_bits(&self) -> impl core::iter::traits::iterator::Iterator<Item = u32> + '_
+pub fn <antecedent_discovery::AdjacencyMask>::fn set_edge(&mut self, n: usize, from: usize, to: usize, present: bool)
+pub fn <antecedent_discovery::AdjacencyMask>::fn to_le_bytes(&self) -> alloc::vec::Vec<u8>
+pub fn <antecedent_discovery::AdjacencyMask>::fn to_word(&self) -> core::option::Option<u64>
+pub fn <antecedent_discovery::AdjacencyMask>::fn union(&self, other: &Self) -> Self
 pub fn <antecedent_discovery::AdjacencyMask>::fn with_bit(self, bit: u32, present: bool) -> Self
+pub fn <antecedent_discovery::AdjacencyMask>::fn words(&self) -> &[u64]
 pub fn <antecedent_discovery::BackgroundKnowledge>::fn apply_to(&self, constraints: &mut antecedent_discovery::DiscoveryConstraints)
 pub fn <antecedent_discovery::BackgroundKnowledge>::fn identity(&self) -> [u8; 32]
 pub fn <antecedent_discovery::BackgroundKnowledge>::fn is_empty(&self) -> bool
@@ -1747,7 +1750,7 @@ pub fn <antecedent_discovery::CiMaskType>::const fn includes_y(self) -> bool
 pub fn <antecedent_discovery::CiMaskType>::const fn includes_z(self) -> bool
 pub fn <antecedent_discovery::CiMaskType>::fn parse(tag: &str) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::CiScreenedPosterior>::fn new() -> Self
-pub fn <antecedent_discovery::CiScreenedPosterior>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::CiScreenedPosterior>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::CiScreenedPosterior>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::CiScreenedPosterior>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::CiScreenedPosterior>::fn with_mcmc(self, mcmc: antecedent_discovery::StructureMcmc) -> Self
@@ -1755,12 +1758,12 @@ pub fn <antecedent_discovery::CiScreenedPosterior>::fn with_soft_weight(self, so
 pub fn <antecedent_discovery::CompiledConstraints>::fn allows(&self, link: antecedent_discovery::LaggedLink) -> bool
 pub fn <antecedent_discovery::CompiledConstraints>::fn requires(&self, link: antecedent_discovery::LaggedLink) -> bool
 pub fn <antecedent_discovery::DbnPosterior>::fn new(max_lag: u32) -> Self
-pub fn <antecedent_discovery::DbnPosterior>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
-pub fn <antecedent_discovery::DbnPosterior>::fn run_panel(&self, units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::DbnPosterior>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::DbnPosterior>::fn run_panel(&self, units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::DbnPosterior>::fn with_force_mcmc(self, force: bool) -> Self
 pub fn <antecedent_discovery::DbnPosterior>::fn with_mcmc_schedule(self, n_chains: u32, n_warmup: u32, n_draws: u32) -> Self
 pub fn <antecedent_discovery::DirectLingam>::fn new() -> Self
-pub fn <antecedent_discovery::DirectLingam>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], _workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::StaticDagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::DirectLingam>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], _workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::StaticDagDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::DirectLingam>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::DirectLingam>::fn with_prune_threshold(self, threshold: f64) -> Self
 pub fn <antecedent_discovery::DiscoveryConstraints>::fn candidate_sources(&self, variables: &[antecedent_core::ids::VariableId], target: antecedent_core::ids::VariableId) -> alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)>
@@ -1778,38 +1781,65 @@ pub fn <antecedent_discovery::DiscoveryError>::fn data_msg(message: impl core::c
 pub fn <antecedent_discovery::DiscoveryError>::fn stats_msg(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_discovery::EdgeEvidence>::fn from_scored(link: antecedent_discovery::ScoredLink, sepset: core::option::Option<alloc::sync::Arc<[antecedent_discovery::LaggedParent]>>) -> Self
 pub fn <antecedent_discovery::ExactDagPosterior>::fn new() -> Self
-pub fn <antecedent_discovery::ExactDagPosterior>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, _workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::ExactDagPosterior>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::ExactDagPosterior>::fn with_max_nodes(self, max_nodes: usize) -> Self
+pub fn <antecedent_discovery::ExactDagPosterior>::fn with_route_larger(self, route_larger: bool) -> Self
 pub fn <antecedent_discovery::Fci>::fn new() -> Self
-pub fn <antecedent_discovery::Fci>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::StaticPagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::Fci>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::StaticPagDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::Fci>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::Fci>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::Fci>::fn with_fdr(self, fdr: bool) -> Self
 pub fn <antecedent_discovery::Fci>::fn with_fdr_adjustment(self, fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>) -> Self
 pub fn <antecedent_discovery::Ges>::fn new() -> Self
-pub fn <antecedent_discovery::Ges>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::StaticCpdagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::Ges>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::StaticCpdagDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::Ges>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::Ges>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::Ges>::fn with_fdr(self, fdr: bool) -> Self
 pub fn <antecedent_discovery::Ges>::fn with_fdr_adjustment(self, fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>) -> Self
 pub fn <antecedent_discovery::Ges>::fn with_max_subset(self, max_subset: core::option::Option<usize>) -> Self
 pub fn <antecedent_discovery::Ges>::fn with_pc_screening(self, screen: bool) -> Self
+pub fn <antecedent_discovery::Ges>::fn with_score_family(self, family: antecedent_state::graph_score::GraphScoreFamily) -> Self
+pub fn <antecedent_discovery::GraphPosterior>::fn adjacency_words(&self) -> core::option::Option<alloc::vec::Vec<u64>>
+pub fn <antecedent_discovery::GraphPosterior>::fn algorithm(&self) -> core::option::Option<&alloc::sync::Arc<str>>
+pub fn <antecedent_discovery::GraphPosterior>::fn atom_kind(&self) -> antecedent_discovery::GraphPosteriorAtomKind
+pub fn <antecedent_discovery::GraphPosterior>::fn atoms(&self) -> &alloc::sync::Arc<[antecedent_discovery::AdjacencyMask]>
+pub fn <antecedent_discovery::GraphPosterior>::fn diagnostics(&self) -> &antecedent_prob::diagnostics::InferenceDiagnostics
+pub fn <antecedent_discovery::GraphPosterior>::fn edge_ess(&self) -> core::option::Option<&alloc::sync::Arc<[f64]>>
+pub fn <antecedent_discovery::GraphPosterior>::fn edge_marginals(&self) -> &alloc::sync::Arc<[f64]>
+pub fn <antecedent_discovery::GraphPosterior>::fn edge_mcse(&self) -> core::option::Option<&alloc::sync::Arc<[f64]>>
+pub fn <antecedent_discovery::GraphPosterior>::fn edge_rhat(&self) -> core::option::Option<&alloc::sync::Arc<[f64]>>
+pub fn <antecedent_discovery::GraphPosterior>::fn ess(&self) -> f64
 pub fn <antecedent_discovery::GraphPosterior>::fn from_atoms(n_vars: usize, weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>, atoms: impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<antecedent_discovery::AdjacencyMask>>, edge_marginals: impl core::convert::Into<alloc::sync::Arc<[f64]>>, orientation_marginals: impl core::convert::Into<alloc::sync::Arc<[f64]>>, sampling: antecedent_discovery::SamplingSummary) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::GraphPosterior>::fn graph_keys(&self) -> &alloc::sync::Arc<[u64]>
 pub fn <antecedent_discovery::GraphPosterior>::fn is_lagged_temporal_admg(&self) -> bool
+pub fn <antecedent_discovery::GraphPosterior>::fn lag_bidirected_masks(&self) -> core::option::Option<&alloc::sync::Arc<[antecedent_discovery::LagMask]>>
+pub fn <antecedent_discovery::GraphPosterior>::fn lag_masks(&self) -> core::option::Option<&alloc::sync::Arc<[antecedent_discovery::LagMask]>>
+pub fn <antecedent_discovery::GraphPosterior>::fn lagged_edge_marginals(&self) -> core::option::Option<&alloc::sync::Arc<[f64]>>
+pub fn <antecedent_discovery::GraphPosterior>::fn lagged_edge_mcse(&self) -> core::option::Option<&alloc::sync::Arc<[f64]>>
+pub fn <antecedent_discovery::GraphPosterior>::fn mark_atom(&self, index: usize) -> antecedent_discovery::AdjacencyMask
+pub fn <antecedent_discovery::GraphPosterior>::fn mark_atoms(&self) -> core::option::Option<&alloc::sync::Arc<[antecedent_discovery::AdjacencyMask]>>
+pub fn <antecedent_discovery::GraphPosterior>::fn mark_words(&self) -> core::option::Option<alloc::vec::Vec<u64>>
+pub fn <antecedent_discovery::GraphPosterior>::fn max_lag(&self) -> core::option::Option<u32>
+pub fn <antecedent_discovery::GraphPosterior>::fn n_graphs(&self) -> usize
+pub fn <antecedent_discovery::GraphPosterior>::fn n_vars(&self) -> usize
 pub fn <antecedent_discovery::GraphPosterior>::fn new(n_vars: usize, weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>, adjacency: impl core::convert::Into<alloc::sync::Arc<[u64]>>, edge_marginals: impl core::convert::Into<alloc::sync::Arc<[f64]>>, orientation_marginals: impl core::convert::Into<alloc::sync::Arc<[f64]>>, sampling: antecedent_discovery::SamplingSummary) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::GraphPosterior>::fn orientation_marginals(&self) -> &alloc::sync::Arc<[f64]>
+pub fn <antecedent_discovery::GraphPosterior>::fn rejected_invalid(&self) -> u64
 pub fn <antecedent_discovery::GraphPosterior>::fn temporal_admg_atom(&self, index: usize) -> core::option::Option<antecedent_discovery::TemporalAdmgAtom>
 pub fn <antecedent_discovery::GraphPosterior>::fn to_equivalence_classes(&self) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn to_weighted_samples(&self) -> core::result::Result<antecedent_prob::graph_samples::WeightedGraphSamples, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::GraphPosterior>::fn weights(&self) -> &alloc::sync::Arc<[f64]>
 pub fn <antecedent_discovery::GraphPosterior>::fn with_algorithm(self, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_discovery::GraphPosterior>::fn with_atom_kind(self, kind: antecedent_discovery::GraphPosteriorAtomKind) -> Self
 pub fn <antecedent_discovery::GraphPosterior>::fn with_edge_chain_diagnostics(self, rhat: alloc::vec::Vec<f64>, ess: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn with_edge_mcse(self, mcse: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
-pub fn <antecedent_discovery::GraphPosterior>::fn with_lag_bidirected_masks(self, masks: impl core::convert::Into<alloc::sync::Arc<[u64]>>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
-pub fn <antecedent_discovery::GraphPosterior>::fn with_lag_masks(self, masks: impl core::convert::Into<alloc::sync::Arc<[u64]>>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::GraphPosterior>::fn with_lag_bidirected_masks(self, masks: impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<antecedent_discovery::LagMask>>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::GraphPosterior>::fn with_lag_masks(self, masks: impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<antecedent_discovery::LagMask>>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn with_lagged_edge_mcse(self, mcse: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn with_lagged_marginals(self, max_lag: u32, lagged: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn with_mark_atoms(self, marks: impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<antecedent_discovery::AdjacencyMask>>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn with_mark_masks(self, masks: impl core::convert::Into<alloc::sync::Arc<[u64]>>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::GraphPosterior>::fn without_lag_template(self) -> Self
 pub fn <antecedent_discovery::GraphPosteriorAtomKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_discovery::GraphPrior>::fn bernoulli_edges(p: f64) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPrior>::fn uniform() -> Self
@@ -1820,7 +1850,7 @@ pub fn <antecedent_discovery::JpcmciNodeRole>::const fn is_exogenous(self) -> bo
 pub fn <antecedent_discovery::JpcmciNodeRole>::const fn is_observed_context(self) -> bool
 pub fn <antecedent_discovery::JpcmciPlus>::fn engine(&self) -> &antecedent_discovery::PcmciEngine
 pub fn <antecedent_discovery::JpcmciPlus>::fn new() -> Self
-pub fn <antecedent_discovery::JpcmciPlus>::fn run(&self, data: &antecedent_data::multi_env::MultiEnvironmentData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::CpdagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::JpcmciPlus>::fn run(&self, data: &antecedent_data::multi_env::MultiEnvironmentData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::CpdagDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::JpcmciPlus>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::JpcmciPlus>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::JpcmciPlus>::fn with_fdr(self, fdr: bool) -> Self
@@ -1829,8 +1859,8 @@ pub fn <antecedent_discovery::KnowledgeFault>::fn message(&self) -> &str
 pub fn <antecedent_discovery::KnowledgeFault>::fn reason_code(&self) -> &'static str
 pub fn <antecedent_discovery::Lpcmci>::fn engine(&self) -> &antecedent_discovery::PcmciEngine
 pub fn <antecedent_discovery::Lpcmci>::fn new() -> Self
-pub fn <antecedent_discovery::Lpcmci>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::PagDiscoveryResult, antecedent_discovery::DiscoveryError>
-pub fn <antecedent_discovery::Lpcmci>::fn run_panel(&self, units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::PagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::Lpcmci>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::PagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::Lpcmci>::fn run_panel(&self, units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::PagDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::Lpcmci>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::Lpcmci>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::Lpcmci>::fn with_fdr(self, fdr: bool) -> Self
@@ -1842,7 +1872,7 @@ pub fn <antecedent_discovery::MultiDatasetConstraints>::fn is_context(&self, v: 
 pub fn <antecedent_discovery::MultiDatasetConstraints>::fn is_dummy(&self, v: antecedent_core::ids::VariableId) -> bool
 pub fn <antecedent_discovery::MultiDatasetConstraints>::fn role_of(&self, v: antecedent_core::ids::VariableId) -> antecedent_discovery::JpcmciNodeRole
 pub fn <antecedent_discovery::Notears>::fn new() -> Self
-pub fn <antecedent_discovery::Notears>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], _workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::NotearsDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::Notears>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], _workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::NotearsDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::Notears>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::Notears>::fn with_lambda(self, lambda: f64) -> Self
 pub fn <antecedent_discovery::Notears>::fn with_max_iter(self, max_iter: u32) -> Self
@@ -1850,7 +1880,7 @@ pub fn <antecedent_discovery::Notears>::fn with_missing(self, policy: antecedent
 pub fn <antecedent_discovery::Notears>::fn with_standardize(self, standardize: bool) -> Self
 pub fn <antecedent_discovery::Notears>::fn with_threshold(self, threshold: f64) -> Self
 pub fn <antecedent_discovery::OrderMcmc>::fn new() -> Self
-pub fn <antecedent_discovery::OrderMcmc>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, _workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::OrderMcmc>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::OrderMcmc>::fn with_diagnostics_gate(self, require: bool) -> Self
 pub fn <antecedent_discovery::OrderMcmc>::fn with_schedule(self, n_chains: u32, n_warmup: u32, n_draws: u32, thin: u32) -> Self
 pub fn <antecedent_discovery::OrderMcmc>::fn with_temperatures(self, temperatures: impl core::convert::Into<alloc::vec::Vec<f64>>) -> Self
@@ -1868,33 +1898,33 @@ pub fn <antecedent_discovery::OrientationState>::fn record_conflict(&mut self, d
 pub fn <antecedent_discovery::OrientationState>::fn sepset(&self, a: antecedent_graph::types::DenseNodeId, b: antecedent_graph::types::DenseNodeId) -> core::option::Option<&[antecedent_graph::types::DenseNodeId]>
 pub fn <antecedent_discovery::OrientationState>::fn set_sepset(&mut self, a: antecedent_graph::types::DenseNodeId, b: antecedent_graph::types::DenseNodeId, sep: alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>)
 pub fn <antecedent_discovery::Pc>::fn new() -> Self
-pub fn <antecedent_discovery::Pc>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::StaticCpdagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::Pc>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::StaticCpdagDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::Pc>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::Pc>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::Pc>::fn with_fdr(self, fdr: bool) -> Self
 pub fn <antecedent_discovery::Pc>::fn with_fdr_adjustment(self, fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>) -> Self
 pub fn <antecedent_discovery::Pcmci>::fn engine(&self) -> &antecedent_discovery::PcmciEngine
 pub fn <antecedent_discovery::Pcmci>::fn new() -> Self
-pub fn <antecedent_discovery::Pcmci>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::DagDiscoveryResult, antecedent_discovery::DiscoveryError>
-pub fn <antecedent_discovery::Pcmci>::fn run_panel(&self, units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::DagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::Pcmci>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::DagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::Pcmci>::fn run_panel(&self, units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::DagDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::Pcmci>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::Pcmci>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::Pcmci>::fn with_fdr(self, fdr: bool) -> Self
 pub fn <antecedent_discovery::Pcmci>::fn with_fdr_adjustment(self, fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>) -> Self
-pub fn <antecedent_discovery::PcmciEngine>::fn mci_test(&self, frame: &antecedent_data::lagged_frame::LaggedFrame, link: antecedent_discovery::LaggedLink, parents_target: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], parents_source: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_discovery::ScoredLink, u64), antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::PcmciEngine>::fn mci_test(&self, frame: &antecedent_data::lagged_frame::LaggedFrame, link: antecedent_discovery::LaggedLink, parents_target: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], parents_source: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_discovery::ScoredLink, u64), antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::PcmciEngine>::fn new() -> Self
-pub fn <antecedent_discovery::PcmciEngine>::fn run_pc_mci(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::DagDiscoveryResult, antecedent_discovery::DiscoveryError>
-pub fn <antecedent_discovery::PcmciEngine>::fn run_pc_mci_on_frame(&self, frame: &antecedent_data::lagged_frame::LaggedFrame, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::DagDiscoveryResult, antecedent_discovery::DiscoveryError>
-pub fn <antecedent_discovery::PcmciEngine>::fn run_pc_mci_panel(&self, units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::DagDiscoveryResult, antecedent_discovery::DiscoveryError>
-pub fn <antecedent_discovery::PcmciEngine>::fn select_parents(&self, frame: &antecedent_data::lagged_frame::LaggedFrame, target: antecedent_core::ids::VariableId, variables: &[antecedent_core::ids::VariableId], compiled: &antecedent_discovery::CompiledConstraints, workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)>, u64), antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::PcmciEngine>::fn run_pc_mci(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::DagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::PcmciEngine>::fn run_pc_mci_on_frame(&self, frame: &antecedent_data::lagged_frame::LaggedFrame, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::DagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::PcmciEngine>::fn run_pc_mci_panel(&self, units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::DagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::PcmciEngine>::fn select_parents(&self, frame: &antecedent_data::lagged_frame::LaggedFrame, target: antecedent_core::ids::VariableId, variables: &[antecedent_core::ids::VariableId], compiled: &antecedent_discovery::CompiledConstraints, workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)>, u64), antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::PcmciEngine>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::PcmciEngine>::fn with_column_blocks(self, column_blocks: alloc::sync::Arc<[alloc::sync::Arc<[usize]>]>) -> Self
 pub fn <antecedent_discovery::PcmciEngine>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::PcmciPlus>::fn engine(&self) -> &antecedent_discovery::PcmciEngine
 pub fn <antecedent_discovery::PcmciPlus>::fn new() -> Self
-pub fn <antecedent_discovery::PcmciPlus>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::CpdagDiscoveryResult, antecedent_discovery::DiscoveryError>
-pub fn <antecedent_discovery::PcmciPlus>::fn run_on_frame(&self, frame: &antecedent_data::lagged_frame::LaggedFrame, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::CpdagDiscoveryResult, antecedent_discovery::DiscoveryError>
-pub fn <antecedent_discovery::PcmciPlus>::fn run_panel(&self, units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::CpdagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::PcmciPlus>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::CpdagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::PcmciPlus>::fn run_on_frame(&self, frame: &antecedent_data::lagged_frame::LaggedFrame, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::CpdagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::PcmciPlus>::fn run_panel(&self, units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::CpdagDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::PcmciPlus>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::PcmciPlus>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::PcmciPlus>::fn with_fdr(self, fdr: bool) -> Self
@@ -1907,20 +1937,22 @@ pub fn <antecedent_discovery::RegimeAssignment>::fn try_new(regimes: impl core::
 pub fn <antecedent_discovery::RegimeAssignment>::fn unique_regimes(&self) -> alloc::vec::Vec<antecedent_core::ids::RegimeId>
 pub fn <antecedent_discovery::RegimeGraphCollection>::fn get(&self, regime: antecedent_core::ids::RegimeId) -> core::option::Option<&antecedent_graph::cpdag::TemporalCpdag>
 pub fn <antecedent_discovery::Rfci>::fn new() -> Self
-pub fn <antecedent_discovery::Rfci>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::StaticPagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::Rfci>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::StaticPagDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::Rfci>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::Rfci>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::Rfci>::fn with_fdr(self, fdr: bool) -> Self
 pub fn <antecedent_discovery::Rfci>::fn with_fdr_adjustment(self, fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>) -> Self
 pub fn <antecedent_discovery::Rpcmci>::fn new() -> Self
-pub fn <antecedent_discovery::Rpcmci>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], assignments: &antecedent_discovery::RegimeAssignment, workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::RpcmciDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::Rpcmci>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], assignments: &antecedent_discovery::RegimeAssignment, workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::RpcmciDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::Rpcmci>::fn with_alternating_iters(self, alternating_iters: usize) -> Self
 pub fn <antecedent_discovery::Rpcmci>::fn with_assignment(self, assignment: antecedent_discovery::RegimeAssignment) -> Self
 pub fn <antecedent_discovery::Rpcmci>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::Rpcmci>::fn with_min_regime_len(self, min_regime_len: usize) -> Self
 pub fn <antecedent_discovery::Rpcmci>::fn with_pcmci_plus(self, pcmci_plus: antecedent_discovery::PcmciPlus) -> Self
+pub fn <antecedent_discovery::ScoredLink>::const fn untested(link: antecedent_discovery::LaggedLink) -> Self
+pub fn <antecedent_discovery::ScoredLink>::fn is_tested(&self) -> bool
 pub fn <antecedent_discovery::StructureMcmc>::fn new() -> Self
-pub fn <antecedent_discovery::StructureMcmc>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, _workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::StructureMcmc>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, _workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::StructureMcmc>::fn with_candidate_pairs(self, pairs: impl core::convert::Into<alloc::sync::Arc<[(u32, u32)]>>) -> Self
 pub fn <antecedent_discovery::StructureMcmc>::fn with_diagnostics_gate(self, require: bool) -> Self
 pub fn <antecedent_discovery::StructureMcmc>::fn with_pair_move_probability(self, probability: f64) -> Self
@@ -1930,7 +1962,7 @@ pub fn <antecedent_discovery::StructureStability>::fn adjacency_frequency(&self,
 pub fn <antecedent_discovery::StructureStability>::fn tabulate(reference: antecedent_discovery::selective::DiscoveredStructure, resamples: &[antecedent_discovery::selective::DiscoveredStructure], requested: u32) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::TemporalAdmgAtom>::fn to_template(&self, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::temporal_admg::TemporalAdmg, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::TemporalAdmgPosterior>::fn new(max_lag: u32) -> Self
-pub fn <antecedent_discovery::TemporalAdmgPosterior>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], candidates: &[antecedent_discovery::TemporalAdmgAtom], log_prior: core::option::Option<&[f64]>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::TemporalAdmgPosterior>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], candidates: &[antecedent_discovery::TemporalAdmgAtom], log_prior: core::option::Option<&[f64]>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::cyclic_fci::SigmaCiOracle>::fn new(graph: antecedent_graph::cyclic::CyclicMixedGraph, column_nodes: alloc::vec::Vec<antecedent_graph::types::DenseNodeId>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::selective::CiTestSpec>::fn declared(identity: impl core::convert::Into<alloc::string::String>, test: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::selective::CiTestSpec>::fn named(name: impl core::convert::Into<alloc::string::String>) -> Self
@@ -1982,17 +2014,17 @@ pub fn <antecedent_discovery::selective::StageInputs>::fn new(route: &'static st
 pub fn <antecedent_discovery::selective::StaticAlgorithm>::const fn route(self) -> &'static str
 pub fn <antecedent_discovery::selective::StaticDiscoveryContract>::fn identity(&self) -> core::result::Result<antecedent_discovery::selective::Digest, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StaticDiscoveryContract>::fn new(algorithm: antecedent_discovery::selective::StaticAlgorithm, variables: alloc::vec::Vec<antecedent_core::ids::VariableId>, ci_test: antecedent_discovery::selective::CiTestSpec, rng_seed: u64) -> Self
-pub fn <antecedent_discovery::selective::StaticDiscoveryContract>::fn stage_inputs(&self, data: &antecedent_discovery::selective::DataIdentity, kernel: antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_discovery::selective::StageInputs, antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::StaticDiscoveryContract>::fn stage_inputs(&self, data: &antecedent_discovery::selective::DataIdentity, kernel: antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<antecedent_discovery::selective::StageInputs, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StaticDiscoveryContract>::fn validate(&self) -> core::result::Result<(), antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::const fn new() -> Self
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn data_identity(&self) -> core::option::Option<&antecedent_discovery::selective::DataIdentity>
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn export_state(&self) -> core::result::Result<antecedent_discovery::selective::PortableDiscoveryState, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn inputs(&self) -> core::option::Option<&antecedent_discovery::selective::StageInputs>
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn outcome(&self) -> core::option::Option<&antecedent_discovery::selective::DiscoveryOutcome>
-pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn plan(&self, contract: &antecedent_discovery::selective::StaticDiscoveryContract, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::DiscoveryPlan, antecedent_discovery::selective::SelectiveDiscoveryError>
-pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn resume(contract: &antecedent_discovery::selective::StaticDiscoveryContract, data: core::option::Option<&antecedent_data::dataset::TabularData>, state: &antecedent_discovery::selective::PortableDiscoveryState, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(Self, antecedent_discovery::selective::SelectiveRunReport), antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn plan(&self, contract: &antecedent_discovery::selective::StaticDiscoveryContract, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::DiscoveryPlan, antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn resume(contract: &antecedent_discovery::selective::StaticDiscoveryContract, data: core::option::Option<&antecedent_data::dataset::TabularData>, state: &antecedent_discovery::selective::PortableDiscoveryState, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent_discovery::selective::SelectiveRunReport), antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn retained_statistics(&self) -> usize
-pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn run(&mut self, contract: &antecedent_discovery::selective::StaticDiscoveryContract, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::SelectiveRunReport, antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn run(&mut self, contract: &antecedent_discovery::selective::StaticDiscoveryContract, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::SelectiveRunReport, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StatisticReceipt>::fn is_valid(&self) -> bool
 pub fn <antecedent_discovery::selective::StatisticStore>::const fn mode(&self) -> antecedent_discovery::selective::StoreMode
 pub fn <antecedent_discovery::selective::StatisticStore>::fn counters(&self) -> antecedent_discovery::selective::StoreCounters
@@ -2018,22 +2050,22 @@ pub fn <antecedent_discovery::selective::StructureNode>::fn label(self) -> alloc
 pub fn <antecedent_discovery::selective::TemporalAlgorithm>::const fn route(self) -> &'static str
 pub fn <antecedent_discovery::selective::TemporalDiscoveryContract>::fn identity(&self) -> core::result::Result<antecedent_discovery::selective::Digest, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::TemporalDiscoveryContract>::fn new(algorithm: antecedent_discovery::selective::TemporalAlgorithm, variables: alloc::vec::Vec<antecedent_core::ids::VariableId>, ci_test: antecedent_discovery::selective::CiTestSpec, rng_seed: u64) -> Self
-pub fn <antecedent_discovery::selective::TemporalDiscoveryContract>::fn stage_inputs(&self, data: &antecedent_discovery::selective::DataIdentity, kernel: antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_discovery::selective::StageInputs, antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::TemporalDiscoveryContract>::fn stage_inputs(&self, data: &antecedent_discovery::selective::DataIdentity, kernel: antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<antecedent_discovery::selective::StageInputs, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::TemporalDiscoveryContract>::fn validate(&self) -> core::result::Result<(), antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::const fn new() -> Self
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn data_identity(&self) -> core::option::Option<&antecedent_discovery::selective::DataIdentity>
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn export_state(&self) -> core::result::Result<antecedent_discovery::selective::PortableDiscoveryState, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn inputs(&self) -> core::option::Option<&antecedent_discovery::selective::StageInputs>
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn outcome(&self) -> core::option::Option<&antecedent_discovery::selective::DiscoveryOutcome>
-pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn plan(&self, contract: &antecedent_discovery::selective::TemporalDiscoveryContract, data: &antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::DiscoveryPlan, antecedent_discovery::selective::SelectiveDiscoveryError>
-pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn resume(contract: &antecedent_discovery::selective::TemporalDiscoveryContract, data: core::option::Option<&antecedent_data::dataset::TimeSeriesData>, state: &antecedent_discovery::selective::PortableDiscoveryState, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(Self, antecedent_discovery::selective::SelectiveRunReport), antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn plan(&self, contract: &antecedent_discovery::selective::TemporalDiscoveryContract, data: &antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::DiscoveryPlan, antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn resume(contract: &antecedent_discovery::selective::TemporalDiscoveryContract, data: core::option::Option<&antecedent_data::dataset::TimeSeriesData>, state: &antecedent_discovery::selective::PortableDiscoveryState, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent_discovery::selective::SelectiveRunReport), antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn retained_statistics(&self) -> usize
-pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn run(&mut self, contract: &antecedent_discovery::selective::TemporalDiscoveryContract, data: &antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::SelectiveRunReport, antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn run(&mut self, contract: &antecedent_discovery::selective::TemporalDiscoveryContract, data: &antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::SelectiveRunReport, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::WorkUnits>::const fn is_pure_reuse(&self) -> bool
 pub fn <antecedent_discovery::selective::populations::PerPopulationDiscovery>::const fn report(&self) -> core::option::Option<&antecedent_discovery::selective::populations::PerPopulationReport>
 pub fn <antecedent_discovery::selective::populations::PerPopulationDiscovery>::fn adapter(&self, population: &str) -> core::option::Option<&antecedent_discovery::selective::StaticSelectiveDiscovery>
 pub fn <antecedent_discovery::selective::populations::PerPopulationDiscovery>::fn new() -> Self
-pub fn <antecedent_discovery::selective::populations::PerPopulationDiscovery>::fn run(&mut self, contract: &antecedent_discovery::selective::StaticDiscoveryContract, populations: &[antecedent_discovery::selective::populations::PopulationRows<'_>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<&antecedent_discovery::selective::populations::PerPopulationReport, antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::populations::PerPopulationDiscovery>::fn run(&mut self, contract: &antecedent_discovery::selective::StaticDiscoveryContract, populations: &[antecedent_discovery::selective::populations::PopulationRows<'_>], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<&antecedent_discovery::selective::populations::PerPopulationReport, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::populations::PerPopulationReport>::fn differing_edges(&self) -> alloc::vec::Vec<&antecedent_discovery::selective::populations::PopulationEdgeComparison>
 pub fn <antecedent_discovery::selective::populations::PopulationEdgeComparison>::fn agrees(&self) -> bool
 pub fn <antecedent_discovery::selective::reuse::SampleSplitReceipt>::fn assigned_rows(&self) -> core::result::Result<(alloc::vec::Vec<usize>, alloc::vec::Vec<usize>), antecedent_discovery::selective::SelectiveDiscoveryError>
@@ -2052,6 +2084,7 @@ pub fn antecedent_discovery::adjacency_mask::adjacency_masks_from_pag(pag: &ante
 pub fn antecedent_discovery::adjacency_mask::admg_from_adjacency_mask(mask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, n_vars: usize) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::adjacency_mask::cpdag_from_adjacency_mask(mask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, n_vars: usize) -> core::result::Result<antecedent_graph::cpdag::Cpdag, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::adjacency_mask::dag_from_adjacency_mask(mask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, n_vars: usize) -> core::result::Result<antecedent_graph::dag::Dag, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::adjacency_mask::edge_bits_fit(n: usize) -> bool
 pub fn antecedent_discovery::adjacency_mask::has_edge(mask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, n: usize, from: usize, to: usize) -> bool
 pub fn antecedent_discovery::adjacency_mask::mask_is_dag(mask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, n: usize) -> bool
 pub fn antecedent_discovery::adjacency_mask::pag_from_adjacency_mask(mask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, mark_mask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, n_vars: usize) -> core::result::Result<antecedent_graph::pag::Pag, antecedent_discovery::DiscoveryError>
@@ -2064,20 +2097,20 @@ pub fn antecedent_discovery::admg_from_adjacency_mask(mask: u64, n_vars: usize) 
 pub fn antecedent_discovery::combinations::combinations(items: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], k: usize) -> alloc::vec::Vec<alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)>>
 pub fn antecedent_discovery::conflict_resolution::resolve_incident_orientation(graph: &antecedent_graph::cpdag::Cpdag, sepsets: &antecedent_discovery::PcSepsets, constraints: &antecedent_discovery::DiscoveryConstraints, variables: &[antecedent_core::ids::VariableId], node: antecedent_core::ids::VariableId, max_implicated: usize) -> core::result::Result<antecedent_discovery::conflict_resolution::ConflictResolution, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::cpdag_from_adjacency_mask(mask: u64, n_vars: usize) -> core::result::Result<antecedent_graph::cpdag::Cpdag, antecedent_discovery::DiscoveryError>
-pub fn antecedent_discovery::cyclic_fci::cyclic_pag_conclusions(pag: &antecedent_graph::pag::Pag, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_discovery::cyclic_fci::CyclicPagConclusion>, antecedent_discovery::DiscoveryError>
-pub fn antecedent_discovery::cyclic_fci::discover_cyclic_fci(engine: &antecedent_discovery::Fci, premises: antecedent_discovery::cyclic_fci::CyclicFciPremises, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::cyclic_fci::CyclicFciResult, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::cyclic_fci::cyclic_pag_conclusions(pag: &antecedent_graph::pag::Pag, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_discovery::cyclic_fci::CyclicPagConclusion>, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::cyclic_fci::discover_cyclic_fci(engine: &antecedent_discovery::Fci, premises: antecedent_discovery::cyclic_fci::CyclicFciPremises, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::cyclic_fci::CyclicFciResult, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::dag_from_adjacency_mask(mask: u64, n_vars: usize) -> core::result::Result<antecedent_graph::dag::Dag, antecedent_discovery::DiscoveryError>
-pub fn antecedent_discovery::dbn_posterior::temporal_cpdag_from_dbn_atoms(cmask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, lmask: u64, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::cpdag::TemporalCpdag, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::dbn_posterior::temporal_cpdag_from_dbn_atoms(cmask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, lmask: impl core::convert::Into<antecedent_discovery::LagMask>, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::cpdag::TemporalCpdag, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::dbn_posterior::temporal_cpdag_from_dbn_masks(cmask: u64, lmask: u64, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::cpdag::TemporalCpdag, antecedent_discovery::DiscoveryError>
-pub fn antecedent_discovery::dbn_posterior::temporal_dag_from_dbn_atoms(cmask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, lmask: u64, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::temporal::TemporalDag, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::dbn_posterior::temporal_dag_from_dbn_atoms(cmask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, lmask: impl core::convert::Into<antecedent_discovery::LagMask>, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::temporal::TemporalDag, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::dbn_posterior::temporal_dag_from_dbn_masks(cmask: u64, lmask: u64, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::temporal::TemporalDag, antecedent_discovery::DiscoveryError>
-pub fn antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_atoms(cmask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, lmask: u64, mark_mask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::temporal_pag::TemporalPag, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_atoms(cmask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, lmask: impl core::convert::Into<antecedent_discovery::LagMask>, mark_mask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::temporal_pag::TemporalPag, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_masks(cmask: u64, lmask: u64, mark_mask: u64, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::temporal_pag::TemporalPag, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::edge_bit(n: usize, from: usize, to: usize) -> u32
 pub fn antecedent_discovery::evidence::threshold_scored_links(scored: alloc::vec::Vec<antecedent_discovery::ScoredLink>, fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>, alpha: f64) -> alloc::vec::Vec<antecedent_discovery::ScoredLink>
-pub fn antecedent_discovery::exact_dag_marginals(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::ExactDagMarginals, antecedent_discovery::DiscoveryError>
-pub fn antecedent_discovery::exact_pag_posterior(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
-pub fn antecedent_discovery::exact_pag_posterior::pag_posterior_mcmc(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], schedule: antecedent_discovery::PagMcmcSchedule, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::exact_dag_marginals(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::ExactDagMarginals, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::exact_pag_posterior(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::exact_pag_posterior::pag_posterior_mcmc(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], schedule: antecedent_discovery::PagMcmcSchedule, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::graph_posterior::has_edge(mask: u64, n: usize, from: usize, to: usize) -> bool
 pub fn antecedent_discovery::graph_posterior::lagged_link(variables: &[antecedent_core::ids::VariableId], from: usize, lag: u32, to: usize) -> antecedent_discovery::LaggedLink
 pub fn antecedent_discovery::graph_posterior::mask_is_dag(mask: u64, n: usize) -> bool
@@ -2086,10 +2119,10 @@ pub fn antecedent_discovery::graph_posterior::normalize_log_weights(log_w: &[f64
 pub fn antecedent_discovery::graph_posterior::pag_from_adjacency_mask(mask: u64, mark_mask: u64, n_vars: usize) -> core::result::Result<antecedent_graph::pag::Pag, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::graph_posterior::parents_of(mask: u64, n: usize, node: usize) -> alloc::vec::Vec<u32>
 pub fn antecedent_discovery::graph_posterior::set_edge(mask: u64, n: usize, from: usize, to: usize, present: bool) -> u64
-pub fn antecedent_discovery::has_lagged_edge(word: u64, n_vars: usize, lag: u32, from: usize, to: usize) -> bool
+pub fn antecedent_discovery::has_lagged_edge(mask: &antecedent_discovery::LagMask, n_vars: usize, lag: u32, from: usize, to: usize) -> bool
 pub fn antecedent_discovery::lagged_edge_bit(n_vars: usize, lag: u32, from: usize, to: usize) -> u32
 pub fn antecedent_discovery::lpcmci_phases::init_complete_pag(variables: &[antecedent_core::ids::VariableId], max_lag: u32) -> core::result::Result<(antecedent_graph::temporal_pag::TemporalPag, std::collections::hash::map::HashMap<(u32, u32), antecedent_graph::types::DenseNodeId>), antecedent_discovery::DiscoveryError>
-pub fn antecedent_discovery::lpcmci_phases::run_lpcmci_algorithm(engine: &antecedent_discovery::PcmciEngine, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext, fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>, n_preliminary: u32) -> core::result::Result<antecedent_discovery::PagDiscoveryResult, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::lpcmci_phases::run_lpcmci_algorithm(engine: &antecedent_discovery::PcmciEngine, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>, n_preliminary: u32) -> core::result::Result<antecedent_discovery::PagDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::orientation::run_orientation_to_fixed_point<G: antecedent_discovery::orientation::CpdagOps>(graph: &mut G, rules: &[&dyn antecedent_discovery::OrientationRule<G>], state: &mut antecedent_discovery::OrientationState) -> core::result::Result<antecedent_discovery::RuleDelta, antecedent_discovery::OrientationError>
 pub fn antecedent_discovery::possible_d_sep<G: antecedent_discovery::PagOps>(graph: &G, from: antecedent_graph::types::DenseNodeId, wrt: antecedent_graph::types::DenseNodeId, max_nodes: usize) -> core::result::Result<alloc::vec::Vec<antecedent_graph::types::DenseNodeId>, antecedent_discovery::PossibleDSepBudget>
 pub fn antecedent_discovery::rpcmci::two_regime_half_split(series_len: usize) -> antecedent_discovery::RegimeAssignment
@@ -2107,9 +2140,9 @@ pub fn antecedent_discovery::selective::identity::temporal_data_identity(data: &
 pub fn antecedent_discovery::selective::observe_orientation<T>(f: impl core::ops::function::FnOnce() -> T) -> (T, antecedent_discovery::selective::OrientationWork)
 pub fn antecedent_discovery::selective::request_selection_diagram(outcome: &antecedent_discovery::selective::DiscoveryOutcome, selection_targets: &[antecedent_core::ids::VariableId]) -> core::result::Result<core::convert::Infallible, antecedent_discovery::selective::DiscoveredStructureRefusal>
 pub fn antecedent_discovery::selective::reuse::split_rows(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], rule: antecedent_discovery::selective::reuse::SplitRule) -> core::result::Result<antecedent_discovery::selective::reuse::SplitRows, antecedent_discovery::selective::SelectiveDiscoveryError>
-pub fn antecedent_discovery::temporal_admg_atoms::temporal_admg_from_lagged_atoms(contemporaneous: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, lagged_directed: u64, lagged_bidirected: u64, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::temporal_admg::TemporalAdmg, antecedent_discovery::DiscoveryError>
-pub fn antecedent_discovery::temporal_admg_atoms::with_lagged_edge(word: u64, n_vars: usize, lag: u32, from: usize, to: usize, present: bool) -> core::result::Result<u64, antecedent_discovery::DiscoveryError>
-pub fn antecedent_discovery::weakly_minimal::make_sepset_weakly_minimal(engine: &antecedent_discovery::PcmciEngine, frame: &antecedent_data::lagged_frame::LaggedFrame, link: antecedent_discovery::LaggedLink, z: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], ancs: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)>, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::temporal_admg_atoms::temporal_admg_from_lagged_atoms(contemporaneous: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, lagged_directed: impl core::convert::Into<antecedent_discovery::LagMask>, lagged_bidirected: impl core::convert::Into<antecedent_discovery::LagMask>, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::temporal_admg::TemporalAdmg, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::temporal_admg_atoms::with_lagged_edge(mask: impl core::convert::Into<antecedent_discovery::LagMask>, n_vars: usize, lag: u32, from: usize, to: usize, present: bool) -> core::result::Result<antecedent_discovery::LagMask, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::weakly_minimal::make_sepset_weakly_minimal(engine: &antecedent_discovery::PcmciEngine, frame: &antecedent_data::lagged_frame::LaggedFrame, link: antecedent_discovery::LaggedLink, z: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], ancs: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)>, antecedent_discovery::DiscoveryError>
 pub mod antecedent_discovery::adjacency_mask
 pub mod antecedent_discovery::ci
 pub mod antecedent_discovery::ci_screened_posterior
@@ -2184,6 +2217,7 @@ pub struct antecedent_discovery::DiscoveryIteration
 pub struct antecedent_discovery::DiscoveryPerformanceRecord
 pub struct antecedent_discovery::DiscoveryResult<G, R>
 pub struct antecedent_discovery::DiscoveryWorkspace
+pub struct antecedent_discovery::DiscoveryWorkspace has private fields
 pub struct antecedent_discovery::DiscriminatingPathBudget
 pub struct antecedent_discovery::EdgeEvidence
 pub struct antecedent_discovery::EdgeSelection
@@ -2193,6 +2227,7 @@ pub struct antecedent_discovery::Fci
 pub struct antecedent_discovery::Ges
 pub struct antecedent_discovery::GraphEvidence<G>
 pub struct antecedent_discovery::GraphPosterior
+pub struct antecedent_discovery::GraphPosterior has private fields
 pub struct antecedent_discovery::GraphPrior
 pub struct antecedent_discovery::JpcmciPlus
 pub struct antecedent_discovery::JpcmciPlus has private fields
@@ -2222,6 +2257,7 @@ pub struct antecedent_discovery::Pcmci has private fields
 pub struct antecedent_discovery::PcmciEngine
 pub struct antecedent_discovery::PcmciPlus
 pub struct antecedent_discovery::PcmciPlus has private fields
+pub struct antecedent_discovery::PdPathBudget
 pub struct antecedent_discovery::PossibleDSepBudget
 pub struct antecedent_discovery::RegimeAssignment
 pub struct antecedent_discovery::RegimeGraphCollection
@@ -2288,7 +2324,7 @@ pub trait antecedent_discovery::LpcmciOrientationRule
 pub trait antecedent_discovery::OrientationRule<G: antecedent_discovery::orientation::CpdagOps>
 pub trait antecedent_discovery::PagOps
 pub trait antecedent_discovery::orientation::CpdagOps
-pub trait fn fn antecedent_discovery::GraphPosteriorEngine::infer_graphs(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
+pub trait fn fn antecedent_discovery::GraphPosteriorEngine::infer_graphs(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub trait fn fn antecedent_discovery::LpcmciOrientationRule::apply(&self, graph: &mut antecedent_graph::temporal_pag::TemporalPag, state: &mut antecedent_discovery::OrientationState, queue: &mut antecedent_discovery::OrientationQueue) -> core::result::Result<antecedent_discovery::RuleDelta, antecedent_discovery::OrientationError>
 pub trait fn fn antecedent_discovery::LpcmciOrientationRule::id(&self) -> &'static str
 pub trait fn fn antecedent_discovery::OrientationRule::apply(&self, graph: &mut G, state: &mut antecedent_discovery::OrientationState, queue: &mut antecedent_discovery::OrientationQueue) -> core::result::Result<antecedent_discovery::RuleDelta, antecedent_discovery::OrientationError>
@@ -2311,6 +2347,7 @@ pub trait fn fn antecedent_discovery::orientation::CpdagOps::parents(&self, id: 
 pub trait fn fn antecedent_discovery::orientation::CpdagOps::undirected_neighbors(&self, id: antecedent_graph::types::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::types::DenseNodeId>
 pub type antecedent_discovery::CpdagDiscoveryResult = antecedent_discovery::DiscoveryResult<antecedent_graph::cpdag::TemporalCpdag, antecedent_graph::unfold::TemporalCpdagReview>
 pub type antecedent_discovery::DagDiscoveryResult = antecedent_discovery::DiscoveryResult<antecedent_graph::temporal::TemporalDag, antecedent_graph::unfold::TemporalGraphReview>
+pub type antecedent_discovery::LagMask = antecedent_discovery::AdjacencyMask
 pub type antecedent_discovery::LaggedParent = (antecedent_core::ids::VariableId, antecedent_core::ids::Lag)
 pub type antecedent_discovery::PagDiscoveryResult = antecedent_discovery::DiscoveryResult<antecedent_graph::temporal_pag::TemporalPag, antecedent_graph::temporal_pag::TemporalPagReview>
 pub type antecedent_discovery::PcSepsets = std::collections::hash::map::HashMap<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag, antecedent_core::ids::VariableId, antecedent_core::ids::Lag), alloc::sync::Arc<[antecedent_discovery::LaggedParent]>>
@@ -2333,7 +2370,7 @@ pub use antecedent_discovery::PartialCorrelation = ci::PartialCorrelation
 pub use antecedent_discovery::PreparedCiTest = ci::PreparedCiTest
 pub use antecedent_discovery::SignificanceMethod = ci::SignificanceMethod
 pub use antecedent_discovery::adjacency_mask::AdjacencyMask = antecedent_discovery::AdjacencyMask
-pub use antecedent_discovery::adjacency_mask::MAX_POSTERIOR_NODES = antecedent_discovery::MAX_POSTERIOR_NODES
+pub use antecedent_discovery::adjacency_mask::LagMask = antecedent_discovery::LagMask
 pub use antecedent_discovery::ci::CiBatchRequest = antecedent_stats::CiBatchRequest
 pub use antecedent_discovery::ci::CiBatchResult = antecedent_stats::CiBatchResult
 pub use antecedent_discovery::ci::CiPreparationPlan = antecedent_stats::CiPreparationPlan
@@ -2366,6 +2403,7 @@ pub use antecedent_discovery::constraints::TemporalConstraints = antecedent_disc
 pub use antecedent_discovery::constraints::TimeDummyCiMode = antecedent_discovery::TimeDummyCiMode
 pub use antecedent_discovery::dbn_posterior::DbnPosterior = antecedent_discovery::DbnPosterior
 pub use antecedent_discovery::discriminating_paths::DiscriminatingPathBudget = antecedent_discovery::DiscriminatingPathBudget
+pub use antecedent_discovery::edge_bits_fit = antecedent_discovery::adjacency_mask::edge_bits_fit
 pub use antecedent_discovery::engine::DiscoveryWorkspace = antecedent_discovery::DiscoveryWorkspace
 pub use antecedent_discovery::engine::PcmciEngine = antecedent_discovery::PcmciEngine
 pub use antecedent_discovery::error::DiscoveryError = antecedent_discovery::DiscoveryError
@@ -2375,6 +2413,7 @@ pub use antecedent_discovery::exact_marginals::ExactDagMarginals = antecedent_di
 pub use antecedent_discovery::exact_marginals::exact_dag_marginals = antecedent_discovery::exact_dag_marginals
 pub use antecedent_discovery::exact_pag_posterior::PAG_ENUM_MAX_NODES = antecedent_discovery::PAG_ENUM_MAX_NODES
 pub use antecedent_discovery::exact_pag_posterior::PAG_MCMC_MAX_NODES = antecedent_discovery::PAG_MCMC_MAX_NODES
+pub use antecedent_discovery::exact_pag_posterior::PAG_MCMC_WORK_BUDGET = antecedent_discovery::PAG_MCMC_WORK_BUDGET
 pub use antecedent_discovery::exact_pag_posterior::PagMcmcSchedule = antecedent_discovery::PagMcmcSchedule
 pub use antecedent_discovery::exact_pag_posterior::exact_pag_posterior = antecedent_discovery::exact_pag_posterior
 pub use antecedent_discovery::fci::Fci = antecedent_discovery::Fci
@@ -2516,6 +2555,7 @@ pub use antecedent_discovery::temporal_dag_from_dbn_masks = antecedent_discovery
 pub use antecedent_discovery::temporal_pag_from_dbn_masks = antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_masks
 pub use antecedent_discovery::threshold_scored_links = antecedent_discovery::evidence::threshold_scored_links
 pub use antecedent_discovery::two_regime_half_split = antecedent_discovery::rpcmci::two_regime_half_split
+pub use antecedent_discovery::uncovered_paths::PdPathBudget = antecedent_discovery::PdPathBudget
 pub use antecedent_discovery::with_lagged_edge = antecedent_discovery::temporal_admg_atoms::with_lagged_edge
 pub variant antecedent_discovery::CiMaskType::X
 pub variant antecedent_discovery::CiMaskType::Xz
@@ -2569,7 +2609,7 @@ pub variant antecedent_discovery::SpaceDummyCiMode::MultivariateBlock
 pub variant antecedent_discovery::SpaceDummyCiMode::ScalarOneHot
 pub variant antecedent_discovery::TimeDummyCiMode::MultivariateBlock
 pub variant antecedent_discovery::TimeDummyCiMode::ScalarOneHot
-pub variant antecedent_discovery::conflict_resolution::ConflictResolution::BudgetExceeded { implicated: usize, budget: usize }
+pub variant antecedent_discovery::conflict_resolution::ConflictResolution::BudgetExceeded { implicated: usize, budget: usize, coverage: f64 }
 pub variant antecedent_discovery::conflict_resolution::ConflictResolution::Invariant(antecedent_discovery::conflict_resolution::IncidentOrientation)
 pub variant antecedent_discovery::conflict_resolution::ConflictResolution::Unresolvable
 pub variant antecedent_discovery::conflict_resolution::ConflictResolution::Varies

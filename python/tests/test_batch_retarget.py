@@ -458,3 +458,36 @@ def test_the_tidy_export_carries_identity_provenance_and_failed_members():
     original = ok["value"]
     rows[0]["value"] = 0.0
     assert report.to_rows()[0]["value"] == original != 0.0
+
+
+def test_a_retarget_cost_counts_the_reads_of_the_retained_scores_without_retargeting():
+    data = frame()
+    batch = prepare(data)
+    plus, minus = weights(batch, data, 1.0), weights(batch, data, -1.0)
+    rows = batch.retarget_rows()
+    assert rows is not None
+    claims = [
+        RetargetClaim("a", Q_T1_Y1, plus, depends_on=["z"]),
+        RetargetClaim("b", 0, minus, depends_on=["z"]),
+        RetargetClaim("c", Q_T2_Y1, plus, depends_on=["z"]),
+    ]
+    contrasts = [RetargetContrast("d", {"a": 1.0, "b": -1.0})]
+    cost = batch.retarget_cost(claims, contrasts)
+    n, k = len(rows), 3
+    assert cost.planning_hint is True
+    assert (cost.claims, cost.contrasts, cost.snapshot_rows) == (k, 1, n)
+    assert cost.nuisance_fits == 0, "a retarget reuses the scores and refits nothing"
+    assert cost.weighted_score_reads == k * n
+    assert cost.covariance_products == k * (k + 1) // 2 * n
+    assert cost.seconds is None and cost.seconds_basis
+    # One claim reads the snapshot once and forms one product per row.
+    single = batch.retarget_cost(claims[:1])
+    assert (single.claims, single.contrasts) == (1, 0)
+    assert single.weighted_score_reads == n and single.covariance_products == n
+    # The count is the declared family's: costing does not retarget or change the snapshot.
+    assert batch.retarget_rows() == rows
+    report = require_success(batch.retarget(claims, contrasts))
+    assert len(report.claims) == cost.claims and len(report.contrasts) == cost.contrasts
+    # An undeclared depends_on column is refused as in the retarget itself.
+    with pytest.raises(CausalValueError):
+        batch.retarget_cost([RetargetClaim("a", 0, plus, depends_on=["no_such_column"])])

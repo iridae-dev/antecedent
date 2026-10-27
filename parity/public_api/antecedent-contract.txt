@@ -5159,8 +5159,6 @@ pub const <antecedent_contract::summary_observation::SummaryUse>::ALL: [Self; 2]
 pub const antecedent_contract::ASSUMPTION_RANGE_LABEL: &str
 pub const antecedent_contract::IDENTIFICATION_NOT_CLAIMED: &str
 pub const antecedent_contract::JOINT_LAW_STAGE: &str
-pub const antecedent_contract::MAX_CHAIN_LINKS: usize
-pub const antecedent_contract::MAX_DECLARED_MECHANISMS: usize
 pub const antecedent_contract::MAX_OBLIGATION_COORDINATES: usize
 pub const antecedent_contract::MEASURED_INTERVAL_LABEL: &str
 pub const antecedent_contract::MECHANISM_COMPOSITION_STAGE: &str
@@ -5173,16 +5171,12 @@ pub const antecedent_contract::UNCALIBRATED_SPREAD_LABEL: &str
 pub const antecedent_contract::VERSION: &str
 pub const antecedent_contract::adaptive_design::ADAPTIVE_DESIGN_VERSION: u64
 pub const antecedent_contract::adaptive_design::INTERIM_REUSE_STAGE: &str
-pub const antecedent_contract::adaptive_design::MAX_CONTRACT_ARMS: usize
-pub const antecedent_contract::adaptive_design::MAX_CONTRACT_LOOKS: usize
 pub const antecedent_contract::adaptive_design::MAX_CONTRACT_UNITS: usize
-pub const antecedent_contract::adaptive_design::MAX_UNIT_MEASUREMENTS: usize
 pub const antecedent_contract::bridge::BRIDGE_CLAIM_IDENTITY_VERSION: u64
 pub const antecedent_contract::bridge::BRIDGE_IDENTITY_VERSION: u64
 pub const antecedent_contract::bridge::BRIDGE_SOURCE_PORT: &str
 pub const antecedent_contract::bridge::BRIDGE_TARGET_PORT: &str
 pub const antecedent_contract::bridge::MAX_BRIDGE_ASSUMPTIONS: usize
-pub const antecedent_contract::bridge::MAX_BRIDGE_TEXT_BYTES: usize
 pub const antecedent_contract::bridge::MAX_VALIDATION_TRIALS: usize
 pub const antecedent_contract::bridge::MIN_VALIDATION_TRIALS: u32
 pub const antecedent_contract::bridge::POINT_PROPAGATION_CALIBRATION: &str
@@ -5200,16 +5194,12 @@ pub const antecedent_contract::composition_verification::MAX_ITEMS_PER_NODE: usi
 pub const antecedent_contract::composition_verification::MAX_NODES: usize
 pub const antecedent_contract::composition_verification::MAX_OVERLAP_CHECKS: usize
 pub const antecedent_contract::composition_verification::MAX_TEXT_BYTES: usize
-pub const antecedent_contract::dependence::MAX_FACTORS_PER_SOURCE: usize
 pub const antecedent_contract::evidence_ledger::LEDGER_IDENTITY_VERSION: u64
 pub const antecedent_contract::evidence_ledger::MAX_COMBINATION_SOURCES: usize
 pub const antecedent_contract::evidence_ledger::MAX_OBSERVATIONS_PER_SOURCE: usize
 pub const antecedent_contract::evidence_ledger::MAX_OPERATIONS: usize
-pub const antecedent_contract::evidence_ledger::MAX_RESULTS: usize
 pub const antecedent_contract::evidence_ledger::MAX_SOURCES: usize
 pub const antecedent_contract::evidence_ledger::MAX_TEXT_BYTES: usize
-pub const antecedent_contract::evidence_ledger::MAX_TOTAL_OBSERVATIONS: usize
-pub const antecedent_contract::evidence_ledger::MAX_TRANSPORT_ITEMS: usize
 pub const antecedent_contract::interface_contract::INTERFACE_CONTRACT_VERSION: u64
 pub const antecedent_contract::interface_contract::MAX_COMPOSITION_COMPONENTS: usize
 pub const antecedent_contract::interface_contract::MAX_COMPOSITION_CONNECTIONS: usize
@@ -5229,7 +5219,7 @@ pub const antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS: antece
 pub const antecedent_contract::propagation_chain::DROP_DUPLICATED_SOURCE: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::propagation_chain::MATCH_LAW_MEANING: antecedent_core::refusal::NextAttempt
-pub const antecedent_contract::propagation_chain::MAX_CHAIN_NODES: usize
+pub const antecedent_contract::propagation_chain::MAX_CHAIN_ANCESTRY_CELLS: usize
 pub const antecedent_contract::propagation_chain::MEASURE_COMPOSED_COVERAGE: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::propagation_chain::NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 16]
 pub const antecedent_contract::propagation_chain::POOL_WITH_JOINT_COVARIANCE: antecedent_core::refusal::NextAttempt
@@ -5246,11 +5236,11 @@ pub const antecedent_contract::propagation_chain::SUPPLY_DRAWS_FOR_INTERVAL: ant
 pub const antecedent_contract::propagation_chain::SUPPLY_JOINT_DRAWS: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::propagation_chain::SUPPLY_POSTERIOR_DRAWS: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::propagation_chain::USE_ENCLOSURE_READING: antecedent_core::refusal::NextAttempt
-pub const antecedent_contract::provider_transport::MAX_PROVIDER_TRANSPORT_ITEMS: usize
-pub const antecedent_contract::provider_transport::MAX_PROVIDER_TRANSPORT_TEXT_BYTES: usize
 pub const antecedent_contract::provider_transport::PROVIDER_SOURCE_PORT: &str
 pub const antecedent_contract::provider_transport::PROVIDER_TRANSPORT_VERSION: u64
 pub const antecedent_contract::provider_transport::TRANSPORT_SOURCE_PORT: &str
+pub const antecedent_contract::reasoning::IDENTIFICATION_MONOTONE_SLACK: f64
+pub const antecedent_contract::reasoning::IDENTIFICATION_PARTITION_TOLERANCE: f64
 pub const antecedent_contract::rewrite_legality::NAME_PRESERVED_IDENTITY: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::rewrite_legality::NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 7]
 pub const antecedent_contract::rewrite_legality::RETAIN_DEPENDENCE: antecedent_core::refusal::NextAttempt
@@ -5264,7 +5254,6 @@ pub const antecedent_contract::rewrite_legality::UNDECLARED_SAMPLING_LAW: &str
 pub const antecedent_contract::rewrite_legality::UNDECLARED_UNCERTAINTY: &str
 pub const antecedent_contract::summary_observation::ADAPT_ESTIMATE_COVARIANCE: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::summary_observation::FREQUENTIST_SUMMARY_TAG: &str
-pub const antecedent_contract::summary_observation::MAX_COVARIANCE_DIMENSION: usize
 pub const antecedent_contract::summary_observation::NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 4]
 pub const antecedent_contract::summary_observation::REPORT_AS_FREQUENTIST_INTERVAL: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::summary_observation::SUMMARY_OBSERVATION_TAG: &str
@@ -7261,7 +7250,7 @@ pub fn antecedent_contract::callback_protocol::refusal::too_many_items(what: &st
 pub fn antecedent_contract::callback_protocol::refusal::trust_incomplete() -> antecedent_contract::callback_protocol::CallbackRefusal
 pub fn antecedent_contract::callback_protocol::refusal::update_declaration_mismatch() -> antecedent_contract::callback_protocol::CallbackRefusal
 pub fn antecedent_contract::callback_protocol::refusal::wall_limit_exceeded(limit_ms: u64, observed_ms: u128) -> antecedent_contract::callback_protocol::CallbackRefusal
-pub fn antecedent_contract::callback_protocol::semantic_stream(master_seed: u64, stream_id: &str) -> antecedent_core::execution::CausalRng
+pub fn antecedent_contract::callback_protocol::semantic_stream(master_seed: u64, stream_id: &str) -> antecedent_core::execution::rng::CausalRng
 pub fn antecedent_contract::callback_protocol::standing_label(declaration: &antecedent_contract::callback_protocol::CallbackDeclaration, verification_confirmed: bool) -> antecedent_contract::callback_protocol::ResultStanding
 pub fn antecedent_contract::callback_protocol::standing_of(declaration: &antecedent_contract::callback_protocol::CallbackDeclaration, verification_confirmed: bool) -> core::result::Result<antecedent_contract::callback_protocol::ResultStanding, antecedent_contract::callback_protocol::CallbackRefusal>
 pub fn antecedent_contract::callback_protocol::validate_output(query: &antecedent_contract::callback_protocol::CallbackQuery, output: antecedent_contract::callback_protocol::CallbackOutput, support: &antecedent_contract::interface_contract::SupportDomain, max_values: usize) -> core::result::Result<antecedent_contract::callback_protocol::ValidatedOutput, antecedent_contract::callback_protocol::CallbackRefusal>
@@ -7284,7 +7273,7 @@ pub fn antecedent_contract::claim::compose_claims(parents: &[&antecedent_contrac
 pub fn antecedent_contract::composition_refusal(kind_tag: &str, detail: &str, subject: &str, expected: core::option::Option<&str>, supplied: core::option::Option<&str>, remedy: &'static str) -> antecedent_contract::ExternalRefusal
 pub fn antecedent_contract::composition_verification::ledger_effects(ledger: &antecedent_contract::evidence_ledger::EvidenceLedger, bindings: &[(&str, antecedent_contract::evidence_ledger::ResultId)]) -> core::result::Result<alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::ObservedEffect>, antecedent_contract::composition_verification::GraphError>
 pub fn antecedent_contract::composition_verification::revalidate(previous: &antecedent_contract::composition_verification::CompositionGraph, current: &antecedent_contract::composition_verification::CompositionGraph, effects: &alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::ObservedEffect>) -> core::result::Result<antecedent_contract::composition_verification::GraphRevalidation, antecedent_contract::composition_verification::GraphError>
-pub fn antecedent_contract::composition_verification::shared_data_relations(graph: &antecedent_contract::composition_verification::CompositionGraph, ledger: &antecedent_contract::evidence_ledger::EvidenceLedger, cancel: &antecedent_core::execution::CancellationToken) -> core::result::Result<alloc::vec::Vec<antecedent_contract::composition_verification::SharedDataRelation>, antecedent_contract::composition_verification::ViewError>
+pub fn antecedent_contract::composition_verification::shared_data_relations(graph: &antecedent_contract::composition_verification::CompositionGraph, ledger: &antecedent_contract::evidence_ledger::EvidenceLedger, cancel: &antecedent_core::execution::cancel::CancellationToken) -> core::result::Result<alloc::vec::Vec<antecedent_contract::composition_verification::SharedDataRelation>, antecedent_contract::composition_verification::ViewError>
 pub fn antecedent_contract::dose_label(value: f64) -> alloc::string::String
 pub fn antecedent_contract::evidence_ledger::parse_digest_hex(text: &str) -> core::option::Option<antecedent_core::identity::SemanticDigest>
 pub fn antecedent_contract::evidence_obligation::unresolved_assumption_obligations(records: &[antecedent_contract::ObligationRecord]) -> alloc::vec::Vec<antecedent_contract::EvidenceObligation>
@@ -7693,7 +7682,6 @@ pub use antecedent_contract::claim_compatibility = antecedent_contract::claim::c
 pub use antecedent_contract::compose_claims = antecedent_contract::claim::compose_claims
 pub use antecedent_contract::composition_provenance::CompositionLink = antecedent_contract::CompositionLink
 pub use antecedent_contract::composition_provenance::CompositionStage = antecedent_contract::CompositionStage
-pub use antecedent_contract::composition_provenance::MAX_CHAIN_LINKS = antecedent_contract::MAX_CHAIN_LINKS
 pub use antecedent_contract::composition_provenance::ProvenanceChain = antecedent_contract::ProvenanceChain
 pub use antecedent_contract::composition_provenance::ProvenanceChainError = antecedent_contract::ProvenanceChainError
 pub use antecedent_contract::composition_verification::Revalidation = crate::evidence_ledger::Revalidation
@@ -7813,7 +7801,6 @@ pub use antecedent_contract::mechanism_composition::AdmissionBasis = antecedent_
 pub use antecedent_contract::mechanism_composition::AdmissionCoordinate = antecedent_contract::AdmissionCoordinate
 pub use antecedent_contract::mechanism_composition::DependenceDeclaration = antecedent_contract::DependenceDeclaration
 pub use antecedent_contract::mechanism_composition::LatentCauseDeclaration = antecedent_contract::LatentCauseDeclaration
-pub use antecedent_contract::mechanism_composition::MAX_DECLARED_MECHANISMS = antecedent_contract::MAX_DECLARED_MECHANISMS
 pub use antecedent_contract::mechanism_composition::MECHANISM_COMPOSITION_STAGE = antecedent_contract::MECHANISM_COMPOSITION_STAGE
 pub use antecedent_contract::mechanism_composition::MECHANISM_OUTPUT_PORT = antecedent_contract::MECHANISM_OUTPUT_PORT
 pub use antecedent_contract::mechanism_composition::MECHANISM_VALUE_FUNCTIONAL = antecedent_contract::MECHANISM_VALUE_FUNCTIONAL

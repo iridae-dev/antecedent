@@ -14,16 +14,19 @@ impl core::clone::Clone for antecedent_counterfactual::CounterfactualResult
 impl core::clone::Clone for antecedent_counterfactual::CounterfactualWorld
 impl core::clone::Clone for antecedent_counterfactual::ExogenousPosterior
 impl core::clone::Clone for antecedent_counterfactual::NoiseInferenceKind
+impl core::clone::Clone for antecedent_counterfactual::OutcomeMean
 impl core::clone::Clone for antecedent_counterfactual::cross_world::CrossWorldEvaluation
 impl core::clone::Clone for antecedent_counterfactual::selective::CapabilityStatus
 impl core::clone::Clone for antecedent_counterfactual::selective::ConditioningKind
 impl core::clone::Clone for antecedent_counterfactual::selective::CouplingKind
 impl core::clone::Clone for antecedent_counterfactual::selective::CrossWorldExecutionError
 impl core::clone::Clone for antecedent_counterfactual::selective::CrossWorldRefusal
+impl core::clone::Clone for antecedent_counterfactual::selective::EliminationReceipt
 impl core::clone::Clone for antecedent_counterfactual::selective::EvidenceKind
 impl core::clone::Clone for antecedent_counterfactual::selective::ExecutionReceipt
 impl core::clone::Clone for antecedent_counterfactual::selective::ExecutionStage
 impl core::clone::Clone for antecedent_counterfactual::selective::ExogenousInference
+impl core::clone::Clone for antecedent_counterfactual::selective::ExogenousMethod
 impl core::clone::Clone for antecedent_counterfactual::selective::ExogenousVariable
 impl core::clone::Clone for antecedent_counterfactual::selective::FactualUnit
 impl core::clone::Clone for antecedent_counterfactual::selective::FiniteExecutionRequest
@@ -32,6 +35,7 @@ impl core::clone::Clone for antecedent_counterfactual::selective::FiniteQuantity
 impl core::clone::Clone for antecedent_counterfactual::selective::FiniteScm
 impl core::clone::Clone for antecedent_counterfactual::selective::FiniteVariable
 impl core::clone::Clone for antecedent_counterfactual::selective::FiniteWorld
+impl core::clone::Clone for antecedent_counterfactual::selective::GeneralTemporalExecution
 impl core::clone::Clone for antecedent_counterfactual::selective::HistoryKind
 impl core::clone::Clone for antecedent_counterfactual::selective::InterventionKind
 impl core::clone::Clone for antecedent_counterfactual::selective::MatrixRefusal
@@ -74,6 +78,14 @@ impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::Tem
 impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual
 impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest
 impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual
 impl core::clone::Clone for antecedent_counterfactual::transported_gate::PopulationRole
 impl core::clone::Clone for antecedent_counterfactual::transported_gate::RegimeFactorKey
 impl core::clone::Clone for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
@@ -101,10 +113,12 @@ impl core::cmp::Eq for antecedent_counterfactual::selective::ConditioningKind
 impl core::cmp::Eq for antecedent_counterfactual::selective::CouplingKind
 impl core::cmp::Eq for antecedent_counterfactual::selective::CrossWorldExecutionError
 impl core::cmp::Eq for antecedent_counterfactual::selective::CrossWorldRefusal
+impl core::cmp::Eq for antecedent_counterfactual::selective::EliminationReceipt
 impl core::cmp::Eq for antecedent_counterfactual::selective::EvidenceKind
 impl core::cmp::Eq for antecedent_counterfactual::selective::ExecutionReceipt
 impl core::cmp::Eq for antecedent_counterfactual::selective::ExecutionStage
 impl core::cmp::Eq for antecedent_counterfactual::selective::ExogenousInference
+impl core::cmp::Eq for antecedent_counterfactual::selective::ExogenousMethod
 impl core::cmp::Eq for antecedent_counterfactual::selective::FactualUnit
 impl core::cmp::Eq for antecedent_counterfactual::selective::FiniteQuantity
 impl core::cmp::Eq for antecedent_counterfactual::selective::FiniteVariable
@@ -131,6 +145,7 @@ impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::Temporal
 impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::TemporalNode
 impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest
 impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt
 impl core::cmp::Eq for antecedent_counterfactual::transported_gate::PopulationRole
 impl core::cmp::Eq for antecedent_counterfactual::transported_gate::RegimeFactorKey
 impl core::cmp::Eq for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
@@ -162,15 +177,18 @@ impl core::cmp::Ord for antecedent_counterfactual::transported_gate::Transported
 impl core::cmp::PartialEq for antecedent_counterfactual::AbductionMissingPolicy
 impl core::cmp::PartialEq for antecedent_counterfactual::CounterfactualError
 impl core::cmp::PartialEq for antecedent_counterfactual::NoiseInferenceKind
+impl core::cmp::PartialEq for antecedent_counterfactual::OutcomeMean
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::CapabilityStatus
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::ConditioningKind
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::CouplingKind
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::CrossWorldExecutionError
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::CrossWorldRefusal
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::EliminationReceipt
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::EvidenceKind
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExecutionReceipt
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExecutionStage
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExogenousInference
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExogenousMethod
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExogenousVariable
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::FactualUnit
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteExecutionRequest
@@ -179,6 +197,7 @@ impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteQuanti
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteScm
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteVariable
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteWorld
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::GeneralTemporalExecution
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::HistoryKind
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::InterventionKind
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::MatrixRefusal
@@ -219,6 +238,14 @@ impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::T
 impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual
 impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest
 impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual
 impl core::cmp::PartialEq for antecedent_counterfactual::transported_gate::PopulationRole
 impl core::cmp::PartialEq for antecedent_counterfactual::transported_gate::RegimeFactorKey
 impl core::cmp::PartialEq for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
@@ -260,6 +287,7 @@ impl core::convert::From<antecedent_model::error::ModelError> for antecedent_cou
 impl core::convert::From<antecedent_model::mechanism::NoiseInferenceMode> for antecedent_counterfactual::NoiseInferenceKind
 impl core::convert::From<bool> for antecedent_counterfactual::AbductionMissingPolicy
 impl core::default::Default for antecedent_counterfactual::selective::FiniteScmExecutor
+impl core::default::Default for antecedent_counterfactual::selective::GeneralTemporalExecutor
 impl core::default::Default for antecedent_counterfactual::selective::TemporalExecutor
 impl core::default::Default for antecedent_counterfactual::selective::WorkCounters
 impl core::default::Default for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites
@@ -279,16 +307,19 @@ impl core::fmt::Debug for antecedent_counterfactual::CounterfactualResult
 impl core::fmt::Debug for antecedent_counterfactual::CounterfactualWorld
 impl core::fmt::Debug for antecedent_counterfactual::ExogenousPosterior
 impl core::fmt::Debug for antecedent_counterfactual::NoiseInferenceKind
+impl core::fmt::Debug for antecedent_counterfactual::OutcomeMean
 impl core::fmt::Debug for antecedent_counterfactual::cross_world::CrossWorldEvaluation
 impl core::fmt::Debug for antecedent_counterfactual::selective::CapabilityStatus
 impl core::fmt::Debug for antecedent_counterfactual::selective::ConditioningKind
 impl core::fmt::Debug for antecedent_counterfactual::selective::CouplingKind
 impl core::fmt::Debug for antecedent_counterfactual::selective::CrossWorldExecutionError
 impl core::fmt::Debug for antecedent_counterfactual::selective::CrossWorldRefusal
+impl core::fmt::Debug for antecedent_counterfactual::selective::EliminationReceipt
 impl core::fmt::Debug for antecedent_counterfactual::selective::EvidenceKind
 impl core::fmt::Debug for antecedent_counterfactual::selective::ExecutionReceipt
 impl core::fmt::Debug for antecedent_counterfactual::selective::ExecutionStage
 impl core::fmt::Debug for antecedent_counterfactual::selective::ExogenousInference
+impl core::fmt::Debug for antecedent_counterfactual::selective::ExogenousMethod
 impl core::fmt::Debug for antecedent_counterfactual::selective::ExogenousVariable
 impl core::fmt::Debug for antecedent_counterfactual::selective::FactualUnit
 impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteExecutionRequest
@@ -298,6 +329,8 @@ impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteScm
 impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteScmExecutor
 impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteVariable
 impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteWorld
+impl core::fmt::Debug for antecedent_counterfactual::selective::GeneralTemporalExecution
+impl core::fmt::Debug for antecedent_counterfactual::selective::GeneralTemporalExecutor
 impl core::fmt::Debug for antecedent_counterfactual::selective::HistoryKind
 impl core::fmt::Debug for antecedent_counterfactual::selective::InterventionKind
 impl core::fmt::Debug for antecedent_counterfactual::selective::MatrixRefusal
@@ -341,6 +374,14 @@ impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::Tempo
 impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual
 impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest
 impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual
 impl core::fmt::Debug for antecedent_counterfactual::transported_gate::PopulationRole
 impl core::fmt::Debug for antecedent_counterfactual::transported_gate::RegimeFactorKey
 impl core::fmt::Debug for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
@@ -385,12 +426,14 @@ impl core::hash::Hash for antecedent_counterfactual::transported_gate::RegimeFac
 impl core::hash::Hash for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
 impl core::marker::Copy for antecedent_counterfactual::AbductionMissingPolicy
 impl core::marker::Copy for antecedent_counterfactual::NoiseInferenceKind
+impl core::marker::Copy for antecedent_counterfactual::OutcomeMean
 impl core::marker::Copy for antecedent_counterfactual::selective::CapabilityStatus
 impl core::marker::Copy for antecedent_counterfactual::selective::ConditioningKind
 impl core::marker::Copy for antecedent_counterfactual::selective::CouplingKind
 impl core::marker::Copy for antecedent_counterfactual::selective::EvidenceKind
 impl core::marker::Copy for antecedent_counterfactual::selective::ExecutionStage
 impl core::marker::Copy for antecedent_counterfactual::selective::ExogenousInference
+impl core::marker::Copy for antecedent_counterfactual::selective::ExogenousMethod
 impl core::marker::Copy for antecedent_counterfactual::selective::HistoryKind
 impl core::marker::Copy for antecedent_counterfactual::selective::InterventionKind
 impl core::marker::Copy for antecedent_counterfactual::selective::MatrixRequest
@@ -420,16 +463,19 @@ impl core::marker::Freeze for antecedent_counterfactual::CounterfactualResult [a
 impl core::marker::Freeze for antecedent_counterfactual::CounterfactualWorld [auto]
 impl core::marker::Freeze for antecedent_counterfactual::ExogenousPosterior [auto]
 impl core::marker::Freeze for antecedent_counterfactual::NoiseInferenceKind [auto]
+impl core::marker::Freeze for antecedent_counterfactual::OutcomeMean [auto]
 impl core::marker::Freeze for antecedent_counterfactual::cross_world::CrossWorldEvaluation [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::CapabilityStatus [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::ConditioningKind [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::CouplingKind [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::EliminationReceipt [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::EvidenceKind [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::ExecutionReceipt [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::ExecutionStage [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::ExogenousInference [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::ExogenousMethod [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::ExogenousVariable [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::FactualUnit [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
@@ -439,6 +485,8 @@ impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteScm [a
 impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteScmExecutor [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteVariable [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteWorld [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::GeneralTemporalExecution [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::GeneralTemporalExecutor [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::HistoryKind [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::InterventionKind [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::MatrixRefusal [auto]
@@ -482,6 +530,14 @@ impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::T
 impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual [auto]
 impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest [auto]
 impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::UnitId [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual [auto]
 impl core::marker::Freeze for antecedent_counterfactual::transported_gate::PopulationRole [auto]
 impl core::marker::Freeze for antecedent_counterfactual::transported_gate::RegimeFactorKey [auto]
 impl core::marker::Freeze for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate [auto]
@@ -509,16 +565,19 @@ impl core::marker::Send for antecedent_counterfactual::CounterfactualResult [aut
 impl core::marker::Send for antecedent_counterfactual::CounterfactualWorld [auto]
 impl core::marker::Send for antecedent_counterfactual::ExogenousPosterior [auto]
 impl core::marker::Send for antecedent_counterfactual::NoiseInferenceKind [auto]
+impl core::marker::Send for antecedent_counterfactual::OutcomeMean [auto]
 impl core::marker::Send for antecedent_counterfactual::cross_world::CrossWorldEvaluation [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::CapabilityStatus [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::ConditioningKind [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::CouplingKind [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::EliminationReceipt [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::EvidenceKind [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::ExecutionReceipt [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::ExecutionStage [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::ExogenousInference [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::ExogenousMethod [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::ExogenousVariable [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::FactualUnit [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
@@ -528,6 +587,8 @@ impl core::marker::Send for antecedent_counterfactual::selective::FiniteScm [aut
 impl core::marker::Send for antecedent_counterfactual::selective::FiniteScmExecutor [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::FiniteVariable [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::FiniteWorld [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::GeneralTemporalExecution [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::GeneralTemporalExecutor [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::HistoryKind [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::InterventionKind [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::MatrixRefusal [auto]
@@ -571,6 +632,14 @@ impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::Tem
 impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual [auto]
 impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest [auto]
 impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::UnitId [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual [auto]
 impl core::marker::Send for antecedent_counterfactual::transported_gate::PopulationRole [auto]
 impl core::marker::Send for antecedent_counterfactual::transported_gate::RegimeFactorKey [auto]
 impl core::marker::Send for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate [auto]
@@ -593,15 +662,18 @@ impl core::marker::Send for antecedent_counterfactual::transported_path_specific
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::AbductionMissingPolicy
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::CounterfactualError
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::NoiseInferenceKind
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::OutcomeMean
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::CapabilityStatus
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ConditioningKind
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::CouplingKind
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::CrossWorldExecutionError
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::CrossWorldRefusal
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::EliminationReceipt
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::EvidenceKind
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExecutionReceipt
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExecutionStage
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExogenousInference
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExogenousMethod
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExogenousVariable
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FactualUnit
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteExecutionRequest
@@ -610,6 +682,7 @@ impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective:
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteScm
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteVariable
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteWorld
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::GeneralTemporalExecution
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::HistoryKind
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::InterventionKind
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::MatrixRefusal
@@ -650,6 +723,14 @@ impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_c
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_gate::PopulationRole
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_gate::RegimeFactorKey
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
@@ -677,16 +758,19 @@ impl core::marker::Sync for antecedent_counterfactual::CounterfactualResult [aut
 impl core::marker::Sync for antecedent_counterfactual::CounterfactualWorld [auto]
 impl core::marker::Sync for antecedent_counterfactual::ExogenousPosterior [auto]
 impl core::marker::Sync for antecedent_counterfactual::NoiseInferenceKind [auto]
+impl core::marker::Sync for antecedent_counterfactual::OutcomeMean [auto]
 impl core::marker::Sync for antecedent_counterfactual::cross_world::CrossWorldEvaluation [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::CapabilityStatus [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::ConditioningKind [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::CouplingKind [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::EliminationReceipt [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::EvidenceKind [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::ExecutionReceipt [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::ExecutionStage [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::ExogenousInference [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::ExogenousMethod [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::ExogenousVariable [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::FactualUnit [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
@@ -696,6 +780,8 @@ impl core::marker::Sync for antecedent_counterfactual::selective::FiniteScm [aut
 impl core::marker::Sync for antecedent_counterfactual::selective::FiniteScmExecutor [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::FiniteVariable [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::FiniteWorld [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::GeneralTemporalExecution [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::GeneralTemporalExecutor [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::HistoryKind [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::InterventionKind [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::MatrixRefusal [auto]
@@ -739,6 +825,14 @@ impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::Tem
 impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual [auto]
 impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest [auto]
 impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::UnitId [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual [auto]
 impl core::marker::Sync for antecedent_counterfactual::transported_gate::PopulationRole [auto]
 impl core::marker::Sync for antecedent_counterfactual::transported_gate::RegimeFactorKey [auto]
 impl core::marker::Sync for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate [auto]
@@ -766,16 +860,19 @@ impl core::marker::Unpin for antecedent_counterfactual::CounterfactualResult [au
 impl core::marker::Unpin for antecedent_counterfactual::CounterfactualWorld [auto]
 impl core::marker::Unpin for antecedent_counterfactual::ExogenousPosterior [auto]
 impl core::marker::Unpin for antecedent_counterfactual::NoiseInferenceKind [auto]
+impl core::marker::Unpin for antecedent_counterfactual::OutcomeMean [auto]
 impl core::marker::Unpin for antecedent_counterfactual::cross_world::CrossWorldEvaluation [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::CapabilityStatus [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::ConditioningKind [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::CouplingKind [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::EliminationReceipt [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::EvidenceKind [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::ExecutionReceipt [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::ExecutionStage [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::ExogenousInference [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::ExogenousMethod [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::ExogenousVariable [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::FactualUnit [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
@@ -785,6 +882,8 @@ impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteScm [au
 impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteScmExecutor [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteVariable [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteWorld [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::GeneralTemporalExecution [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::GeneralTemporalExecutor [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::HistoryKind [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::InterventionKind [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::MatrixRefusal [auto]
@@ -828,6 +927,14 @@ impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::Te
 impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual [auto]
 impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest [auto]
 impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::UnitId [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual [auto]
 impl core::marker::Unpin for antecedent_counterfactual::transported_gate::PopulationRole [auto]
 impl core::marker::Unpin for antecedent_counterfactual::transported_gate::RegimeFactorKey [auto]
 impl core::marker::Unpin for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate [auto]
@@ -854,16 +961,19 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::Coun
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::CounterfactualWorld [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::ExogenousPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::NoiseInferenceKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::OutcomeMean [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::cross_world::CrossWorldEvaluation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::CapabilityStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ConditioningKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::CouplingKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::EliminationReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::EvidenceKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExecutionReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExecutionStage [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExogenousInference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExogenousMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExogenousVariable [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FactualUnit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
@@ -873,6 +983,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::sele
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteScmExecutor [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteVariable [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteWorld [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::GeneralTemporalExecution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::GeneralTemporalExecutor [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::HistoryKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::InterventionKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::MatrixRefusal [auto]
@@ -916,6 +1028,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temp
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::UnitId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_gate::PopulationRole [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_gate::RegimeFactorKey [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate [auto]
@@ -942,16 +1062,19 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::Counter
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::CounterfactualWorld [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::ExogenousPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::NoiseInferenceKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::OutcomeMean [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::cross_world::CrossWorldEvaluation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::CapabilityStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ConditioningKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::CouplingKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::EliminationReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::EvidenceKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExecutionReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExecutionStage [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExogenousInference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExogenousMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExogenousVariable [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FactualUnit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
@@ -961,6 +1084,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selecti
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteScmExecutor [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteVariable [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteWorld [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::GeneralTemporalExecution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::GeneralTemporalExecutor [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::HistoryKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::InterventionKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::MatrixRefusal [auto]
@@ -1004,6 +1129,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::tempora
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::UnitId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_gate::PopulationRole [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_gate::RegimeFactorKey [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate [auto]
@@ -1053,12 +1186,17 @@ pub const <antecedent_counterfactual::selective::whole_path_uncertainty::Uncerta
 pub const <antecedent_counterfactual::temporal_cross_world::TemporalNode>::ALL: [antecedent_counterfactual::temporal_cross_world::TemporalNode; 5]
 pub const antecedent_counterfactual::RANK_PRESERVING_ASSUMPTION: &str
 pub const antecedent_counterfactual::VERSION: &str
+pub const antecedent_counterfactual::selective::factorized::MAX_ELIMINATION_NODES: usize
+pub const antecedent_counterfactual::selective::factorized::MAX_ELIMINATION_TABLE_ENTRIES: usize
+pub const antecedent_counterfactual::selective::factorized::MAX_ELIMINATION_WORK: u64
 pub const antecedent_counterfactual::selective::finite_executor::INFERENCE_LABEL: &str
 pub const antecedent_counterfactual::selective::finite_executor::MAX_RETAINED: usize
 pub const antecedent_counterfactual::selective::finite_scm::MAX_ABDUCTION_WORK: usize
+pub const antecedent_counterfactual::selective::finite_scm::MAX_EVALUATION_WORK: usize
 pub const antecedent_counterfactual::selective::finite_scm::MAX_EXOGENOUS_STATES: usize
 pub const antecedent_counterfactual::selective::finite_scm::MAX_JOINT_STATES: usize
 pub const antecedent_counterfactual::selective::finite_scm::MAX_LEVELS: usize
+pub const antecedent_counterfactual::selective::finite_scm::MAX_TABLE_ENTRIES: usize
 pub const antecedent_counterfactual::selective::finite_scm::MAX_UNITS: usize
 pub const antecedent_counterfactual::selective::finite_scm::MAX_VARIABLES: usize
 pub const antecedent_counterfactual::selective::finite_scm::MAX_WORLDS: usize
@@ -1069,7 +1207,12 @@ pub const antecedent_counterfactual::temporal_cross_world::MAX_HORIZON: usize
 pub const antecedent_counterfactual::temporal_cross_world::MAX_UNITS: usize
 pub const antecedent_counterfactual::temporal_cross_world::MAX_WORLDS: usize
 pub const antecedent_counterfactual::temporal_cross_world::MECHANISM_CLASS: &str
+pub const antecedent_counterfactual::temporal_cross_world::general::MAX_WORK: u64
 pub const antecedent_counterfactual::temporal_cross_world::staged::MAX_RETAINED: usize
+pub const fn antecedent_counterfactual::temporal_cross_world::general::action_node(slice: usize) -> usize
+pub const fn antecedent_counterfactual::temporal_cross_world::general::covariate_node(slice: usize) -> usize
+pub const fn antecedent_counterfactual::temporal_cross_world::general::node_count(horizon: usize) -> usize
+pub const fn antecedent_counterfactual::temporal_cross_world::general::outcome_node(horizon: usize) -> usize
 pub enum antecedent_counterfactual::AbductionMissingPolicy
 pub enum antecedent_counterfactual::NoiseInferenceKind
 pub enum antecedent_counterfactual::selective::CapabilityStatus
@@ -1078,6 +1221,7 @@ pub enum antecedent_counterfactual::selective::CouplingKind
 pub enum antecedent_counterfactual::selective::EvidenceKind
 pub enum antecedent_counterfactual::selective::ExecutionStage
 pub enum antecedent_counterfactual::selective::ExogenousInference
+pub enum antecedent_counterfactual::selective::ExogenousMethod
 pub enum antecedent_counterfactual::selective::FiniteQuantity
 pub enum antecedent_counterfactual::selective::HistoryKind
 pub enum antecedent_counterfactual::selective::InterventionKind
@@ -1095,14 +1239,10 @@ pub enum antecedent_counterfactual::transported_gate::TransportedCounterfactualG
 pub field antecedent_counterfactual::CompiledCounterfactualPlan::node_order: alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>
 pub field antecedent_counterfactual::CounterfactualEngine::compiled: antecedent_counterfactual::CompiledCounterfactualPlan
 pub field antecedent_counterfactual::CounterfactualEngine::model: alloc::sync::Arc<antecedent_model::compile::CompiledCausalModel>
-pub field antecedent_counterfactual::CounterfactualResult::n_nodes: usize
-pub field antecedent_counterfactual::CounterfactualResult::n_units: usize
 pub field antecedent_counterfactual::CounterfactualResult::n_worlds: usize
 pub field antecedent_counterfactual::CounterfactualResult::noise_kind: antecedent_counterfactual::NoiseInferenceKind
 pub field antecedent_counterfactual::CounterfactualResult::notes: alloc::vec::Vec<alloc::sync::Arc<str>>
 pub field antecedent_counterfactual::CounterfactualResult::outcomes: alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>
-pub field antecedent_counterfactual::CounterfactualResult::retained_nodes: core::option::Option<alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>>
-pub field antecedent_counterfactual::CounterfactualResult::values: alloc::sync::Arc<[f64]>
 pub field antecedent_counterfactual::CounterfactualWorld::interventions: alloc::sync::Arc<[antecedent_core::intervention::Intervention]>
 pub field antecedent_counterfactual::CounterfactualWorld::unit_rows: core::option::Option<alloc::sync::Arc<[usize]>>
 pub field antecedent_counterfactual::ExogenousPosterior::assumed_columns: alloc::sync::Arc<[bool]>
@@ -1114,11 +1254,20 @@ pub field antecedent_counterfactual::NestedSpec::frozen: &'a [antecedent_core::i
 pub field antecedent_counterfactual::NestedSpec::inner: &'a [antecedent_core::intervention::Intervention]
 pub field antecedent_counterfactual::NestedSpec::outcome: antecedent_core::ids::VariableId
 pub field antecedent_counterfactual::NestedSpec::outer: &'a [antecedent_core::intervention::Intervention]
+pub field antecedent_counterfactual::OutcomeMean::mean: f64
+pub field antecedent_counterfactual::OutcomeMean::n_units: usize
+pub field antecedent_counterfactual::OutcomeMean::n_used: usize
 pub field antecedent_counterfactual::cross_world::CrossWorldEvaluation::minus: alloc::sync::Arc<[f64]>
 pub field antecedent_counterfactual::cross_world::CrossWorldEvaluation::noise: antecedent_counterfactual::NoiseInferenceKind
 pub field antecedent_counterfactual::cross_world::CrossWorldEvaluation::plus: alloc::sync::Arc<[f64]>
 pub field antecedent_counterfactual::selective::CrossWorldRefusal::missing: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_counterfactual::selective::CrossWorldRefusal::refusal: antecedent_contract::external_refusal::StructuredRefusal
+pub field antecedent_counterfactual::selective::EliminationReceipt::max_factors: u64
+pub field antecedent_counterfactual::selective::EliminationReceipt::max_nodes: u64
+pub field antecedent_counterfactual::selective::EliminationReceipt::multiplications: u64
+pub field antecedent_counterfactual::selective::EliminationReceipt::peak_table_entries: u64
+pub field antecedent_counterfactual::selective::EliminationReceipt::plan_digest: alloc::string::String
+pub field antecedent_counterfactual::selective::EliminationReceipt::units: u64
 pub field antecedent_counterfactual::selective::ExecutionReceipt::abduction_digest: alloc::string::String
 pub field antecedent_counterfactual::selective::ExecutionReceipt::coupling: alloc::string::String
 pub field antecedent_counterfactual::selective::ExecutionReceipt::digest: alloc::string::String
@@ -1140,8 +1289,10 @@ pub field antecedent_counterfactual::selective::FiniteExecutionRequest::scm: ant
 pub field antecedent_counterfactual::selective::FiniteExecutionRequest::target_population: core::option::Option<alloc::string::String>
 pub field antecedent_counterfactual::selective::FiniteExecutionRequest::units: alloc::vec::Vec<antecedent_counterfactual::selective::FactualUnit>
 pub field antecedent_counterfactual::selective::FiniteExecutionRequest::worlds: alloc::vec::Vec<antecedent_counterfactual::selective::FiniteWorld>
+pub field antecedent_counterfactual::selective::FiniteExecutionResult::elimination: core::option::Option<antecedent_counterfactual::selective::EliminationReceipt>
 pub field antecedent_counterfactual::selective::FiniteExecutionResult::label: &'static str
 pub field antecedent_counterfactual::selective::FiniteExecutionResult::matrix_row: &'static str
+pub field antecedent_counterfactual::selective::FiniteExecutionResult::method: antecedent_counterfactual::selective::ExogenousMethod
 pub field antecedent_counterfactual::selective::FiniteExecutionResult::receipt: antecedent_counterfactual::selective::ExecutionReceipt
 pub field antecedent_counterfactual::selective::FiniteExecutionResult::stages: alloc::vec::Vec<antecedent_counterfactual::selective::StageReceipt>
 pub field antecedent_counterfactual::selective::FiniteExecutionResult::units: alloc::vec::Vec<antecedent_counterfactual::selective::UnitAnswer>
@@ -1159,6 +1310,9 @@ pub field antecedent_counterfactual::selective::FiniteVariable::table: alloc::ve
 pub field antecedent_counterfactual::selective::FiniteWorld::interventions: alloc::vec::Vec<(usize, u8)>
 pub field antecedent_counterfactual::selective::FiniteWorld::name: alloc::string::String
 pub field antecedent_counterfactual::selective::FiniteWorld::routes: alloc::vec::Vec<antecedent_counterfactual::selective::WorldRoute>
+pub field antecedent_counterfactual::selective::GeneralTemporalExecution::result: antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult
+pub field antecedent_counterfactual::selective::GeneralTemporalExecution::stages: alloc::vec::Vec<antecedent_counterfactual::selective::StageReceipt>
+pub field antecedent_counterfactual::selective::GeneralTemporalExecution::work: antecedent_counterfactual::selective::WorkCounters
 pub field antecedent_counterfactual::selective::MatrixRefusal::code: &'static str
 pub field antecedent_counterfactual::selective::MatrixRefusal::detail: &'static str
 pub field antecedent_counterfactual::selective::MatrixRefusal::missing: alloc::vec::Vec<alloc::string::String>
@@ -1291,6 +1445,46 @@ pub field antecedent_counterfactual::temporal_cross_world::UnitCounterfactual::u
 pub field antecedent_counterfactual::temporal_cross_world::UnitDrawDigest::digest: alloc::string::String
 pub field antecedent_counterfactual::temporal_cross_world::UnitDrawDigest::history: antecedent_counterfactual::temporal_cross_world::HistoryId
 pub field antecedent_counterfactual::temporal_cross_world::UnitDrawDigest::unit: antecedent_counterfactual::temporal_cross_world::UnitId
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt::digest: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt::exogenous_digest: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt::factual_digest: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt::fit_digest: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt::horizon: usize
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt::n_units: usize
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt::n_worlds: usize
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt::shared_by_all_worlds: bool
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt::snapshot: antecedent_counterfactual::temporal_cross_world::SnapshotId
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt::unit_draws: alloc::vec::Vec<antecedent_counterfactual::temporal_cross_world::UnitDrawDigest>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt::world_digests: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory::actions: alloc::vec::Vec<f64>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory::name: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory::times: alloc::vec::Vec<u32>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory::units: alloc::vec::Vec<antecedent_counterfactual::temporal_cross_world::UnitId>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory::history: antecedent_counterfactual::temporal_cross_world::HistoryId
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory::times: alloc::vec::Vec<u32>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory::unit: antecedent_counterfactual::temporal_cross_world::UnitId
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory::values: alloc::vec::Vec<f64>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit::fit_id: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit::mechanisms: alloc::vec::Vec<antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism::intercept: f64
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism::node: usize
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism::noise_halfwidth: core::option::Option<f64>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism::parent_coefficients: alloc::vec::Vec<(usize, f64)>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult::mechanism_class: &'static str
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult::receipt: antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult::units: alloc::vec::Vec<antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult::world_means: alloc::vec::Vec<f64>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult::world_names: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec::factual: alloc::vec::Vec<antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec::fit: antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec::horizon: usize
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec::latent_confounding: bool
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec::snapshot: antecedent_counterfactual::temporal_cross_world::SnapshotId
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec::worlds: alloc::vec::Vec<antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual::factual_outcome: f64
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual::history: antecedent_counterfactual::temporal_cross_world::HistoryId
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual::outcomes: alloc::vec::Vec<f64>
+pub field antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual::unit: antecedent_counterfactual::temporal_cross_world::UnitId
 pub field antecedent_counterfactual::transported_gate::RegimeFactorKey::regime: alloc::string::String
 pub field antecedent_counterfactual::transported_gate::RegimeFactorKey::role: antecedent_counterfactual::transported_gate::PopulationRole
 pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites::cross_population_assumptions: bool
@@ -1351,22 +1545,29 @@ pub field antecedent_counterfactual::transported_path_specific::UnitContrast::co
 pub field antecedent_counterfactual::transported_path_specific::UnitContrast::point: alloc::collections::btree::map::BTreeMap<alloc::string::String, f64>
 pub field antecedent_counterfactual::transported_path_specific::UnitContrast::target_weight: f64
 pub fn <antecedent_counterfactual::AbductionMissingPolicy>::const fn allows_missing(self) -> bool
-pub fn <antecedent_counterfactual::CounterfactualEngine>::fn abduct(&self, data: &antecedent_data::dataset::TabularData, missing: antecedent_counterfactual::AbductionMissingPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::ExogenousPosterior, antecedent_counterfactual::CounterfactualError>
-pub fn <antecedent_counterfactual::CounterfactualEngine>::fn abduct_with_rng(&self, data: &antecedent_data::dataset::TabularData, missing: antecedent_counterfactual::AbductionMissingPolicy, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_counterfactual::ExogenousPosterior, antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn abduct(&self, data: &antecedent_data::dataset::TabularData, missing: antecedent_counterfactual::AbductionMissingPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::ExogenousPosterior, antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn abduct_with_rng(&self, data: &antecedent_data::dataset::TabularData, missing: antecedent_counterfactual::AbductionMissingPolicy, rng: &mut antecedent_core::execution::rng::CausalRng) -> core::result::Result<antecedent_counterfactual::ExogenousPosterior, antecedent_counterfactual::CounterfactualError>
 pub fn <antecedent_counterfactual::CounterfactualEngine>::fn from_ref(model: &antecedent_model::compile::CompiledCausalModel) -> Self
-pub fn <antecedent_counterfactual::CounterfactualEngine>::fn individual_treatment_effect(&self, exo: &antecedent_counterfactual::ExogenousPosterior, outcome: antecedent_core::ids::VariableId, active: antecedent_core::intervention::Intervention, control: antecedent_core::intervention::Intervention, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::sync::Arc<[f64]>, antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn individual_treatment_effect(&self, exo: &antecedent_counterfactual::ExogenousPosterior, outcome: antecedent_core::ids::VariableId, active: antecedent_core::intervention::Intervention, control: antecedent_core::intervention::Intervention, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::sync::Arc<[f64]>, antecedent_counterfactual::CounterfactualError>
 pub fn <antecedent_counterfactual::CounterfactualEngine>::fn new(model: antecedent_model::compile::CompiledCausalModel) -> Self
-pub fn <antecedent_counterfactual::CounterfactualEngine>::fn predict(&self, exo: &antecedent_counterfactual::ExogenousPosterior, worlds: &[antecedent_counterfactual::CounterfactualWorld], outcomes: &[antecedent_core::ids::VariableId], allow_nested: bool, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::CounterfactualResult, antecedent_counterfactual::CounterfactualError>
-pub fn <antecedent_counterfactual::CounterfactualEngine>::fn predict_retaining_outcomes(&self, exo: &antecedent_counterfactual::ExogenousPosterior, worlds: &[antecedent_counterfactual::CounterfactualWorld], outcomes: &[antecedent_core::ids::VariableId], allow_nested: bool, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::CounterfactualResult, antecedent_counterfactual::CounterfactualError>
-pub fn <antecedent_counterfactual::CounterfactualEngine>::fn predict_temporal(&self, exo_steps: &[antecedent_counterfactual::ExogenousPosterior], plan: &antecedent_model::temporal_rollout::TemporalPlan<'_>, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::temporal_rollout::TemporalPath, antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn predict(&self, exo: &antecedent_counterfactual::ExogenousPosterior, worlds: &[antecedent_counterfactual::CounterfactualWorld], outcomes: &[antecedent_core::ids::VariableId], allow_nested: bool, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::CounterfactualResult, antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn predict_retaining_outcomes(&self, exo: &antecedent_counterfactual::ExogenousPosterior, worlds: &[antecedent_counterfactual::CounterfactualWorld], outcomes: &[antecedent_core::ids::VariableId], allow_nested: bool, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::CounterfactualResult, antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn predict_temporal(&self, exo_steps: &[antecedent_counterfactual::ExogenousPosterior], plan: &antecedent_model::temporal_rollout::TemporalPlan<'_>, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::temporal_rollout::TemporalPath, antecedent_counterfactual::CounterfactualError>
 pub fn <antecedent_counterfactual::CounterfactualEngine>::fn shared(model: alloc::sync::Arc<antecedent_model::compile::CompiledCausalModel>) -> Self
 pub fn <antecedent_counterfactual::CounterfactualError>::fn model_msg(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_counterfactual::CounterfactualResult>::fn finite_outcome_count(&self, world: usize, outcome: antecedent_graph::types::DenseNodeId) -> usize
 pub fn <antecedent_counterfactual::CounterfactualResult>::fn get(&self, world: usize, node: antecedent_graph::types::DenseNodeId, unit: usize) -> f64
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn n_nodes(&self) -> usize
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn n_units(&self) -> usize
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn new(values: alloc::sync::Arc<[f64]>, n_worlds: usize, n_units: usize, n_nodes: usize, retained_nodes: core::option::Option<alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>>, outcomes: alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>, noise_kind: antecedent_counterfactual::NoiseInferenceKind, notes: alloc::vec::Vec<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_counterfactual::CounterfactualError>
 pub fn <antecedent_counterfactual::CounterfactualResult>::fn outcome_column(&self, world: usize, outcome: antecedent_graph::types::DenseNodeId) -> core::result::Result<&[f64], antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn outcome_mean(&self, world: usize, outcome: antecedent_graph::types::DenseNodeId) -> antecedent_counterfactual::OutcomeMean
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn retained_nodes(&self) -> core::option::Option<&[antecedent_graph::types::DenseNodeId]>
 pub fn <antecedent_counterfactual::CounterfactualResult>::fn slot_of(&self, node: antecedent_graph::types::DenseNodeId) -> core::option::Option<usize>
 pub fn <antecedent_counterfactual::CounterfactualResult>::fn stored_width(&self) -> usize
 pub fn <antecedent_counterfactual::CounterfactualResult>::fn streaming_outcome_mean(&self, world: usize, outcome: antecedent_graph::types::DenseNodeId) -> f64
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn try_get(&self, world: usize, node: antecedent_graph::types::DenseNodeId, unit: usize) -> core::option::Option<f64>
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn values(&self) -> &[f64]
 pub fn <antecedent_counterfactual::cross_world::CrossWorldEvaluation>::fn n_units(&self) -> usize
 pub fn <antecedent_counterfactual::cross_world::CrossWorldEvaluation>::fn point(&self) -> f64
 pub fn <antecedent_counterfactual::cross_world::CrossWorldEvaluation>::fn unit_effects(&self) -> alloc::vec::Vec<f64>
@@ -1378,21 +1579,28 @@ pub fn <antecedent_counterfactual::selective::CrossWorldExecutionError>::fn refu
 pub fn <antecedent_counterfactual::selective::EvidenceKind>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::selective::ExecutionStage>::const fn dependencies(self) -> &'static [&'static str]
 pub fn <antecedent_counterfactual::selective::ExecutionStage>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::ExogenousMethod>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::selective::FactualUnit>::fn digest(&self) -> alloc::string::String
+pub fn <antecedent_counterfactual::selective::FiniteQuantity>::fn at_lookup(&self, level_of: impl core::ops::function::Fn(usize, usize) -> u8) -> f64
 pub fn <antecedent_counterfactual::selective::FiniteQuantity>::fn at_state(&self, values: &[alloc::vec::Vec<u8>]) -> f64
 pub fn <antecedent_counterfactual::selective::FiniteQuantity>::fn digest(&self) -> alloc::string::String
 pub fn <antecedent_counterfactual::selective::FiniteQuantity>::fn involved_worlds(&self, worlds: &[antecedent_counterfactual::selective::FiniteWorld]) -> alloc::vec::Vec<usize>
 pub fn <antecedent_counterfactual::selective::FiniteQuantity>::fn validate(&self, scm: &antecedent_counterfactual::selective::FiniteScm, n_worlds: usize) -> core::result::Result<(), antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn <antecedent_counterfactual::selective::FiniteScm>::fn compile(&self) -> core::result::Result<antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>, antecedent_counterfactual::selective::CrossWorldExecutionError>
+pub fn <antecedent_counterfactual::selective::FiniteScm>::fn compile_layout(&self) -> core::result::Result<antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>, antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn <antecedent_counterfactual::selective::FiniteScm>::fn digest(&self) -> alloc::string::String
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn clear(&mut self)
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn counters(&self) -> antecedent_counterfactual::selective::WorkCounters
-pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn execute(&mut self, request: &antecedent_counterfactual::selective::FiniteExecutionRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::FiniteExecutionResult, antecedent_counterfactual::selective::CrossWorldExecutionError>
+pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn execute(&mut self, request: &antecedent_counterfactual::selective::FiniteExecutionRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::FiniteExecutionResult, antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn new() -> Self
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn retained(&self, identity: &str) -> core::option::Option<&antecedent_counterfactual::selective::RetainedAbduction>
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn retained_all(&self) -> impl core::iter::traits::iterator::Iterator<Item = &antecedent_counterfactual::selective::RetainedAbduction>
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn retained_len(&self) -> usize
 pub fn <antecedent_counterfactual::selective::FiniteWorld>::fn digest(&self) -> alloc::string::String
+pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::fn counters(&self) -> antecedent_counterfactual::selective::WorkCounters
+pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::fn execute(&mut self, spec: &antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::GeneralTemporalExecution, antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>
+pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::fn new() -> Self
+pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::fn retained_len(&self) -> usize
 pub fn <antecedent_counterfactual::selective::HistoryKind>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::selective::MatrixRow>::const fn needs_shared_exogenous(&self) -> bool
 pub fn <antecedent_counterfactual::selective::ModelClass>::const fn name(self) -> &'static str
@@ -1400,11 +1608,12 @@ pub fn <antecedent_counterfactual::selective::NoiseCoupling>::const fn name(self
 pub fn <antecedent_counterfactual::selective::PopulationKind>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::selective::QuantityClass>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn counters(&self) -> antecedent_counterfactual::selective::WorkCounters
-pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn execute(&mut self, spec: &antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::TemporalExecution, antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>
+pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn execute(&mut self, spec: &antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::TemporalExecution, antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>
 pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn new() -> Self
 pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn retained_len(&self) -> usize
 pub fn <antecedent_counterfactual::selective::WorkCounters>::fn since(self, earlier: Self) -> Self
 pub fn <antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>>::fn decode(&self, joint: usize) -> alloc::vec::Vec<usize>
+pub fn <antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>>::fn enumerable(&self) -> bool
 pub fn <antecedent_counterfactual::selective::finite_scm::WorldPlan>::fn new(scm: &antecedent_counterfactual::selective::FiniteScm, worlds: &[antecedent_counterfactual::selective::FiniteWorld], index: usize) -> Self
 pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling>::const fn name(self) -> &'static str
@@ -1424,34 +1633,39 @@ pub fn <antecedent_counterfactual::temporal_cross_world::TemporalNode>::const fn
 pub fn <antecedent_counterfactual::temporal_cross_world::TemporalNode>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::temporal_cross_world::UnitId>::fn as_str(&self) -> &str
 pub fn <antecedent_counterfactual::temporal_cross_world::UnitId>::fn new(id: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt>::fn is_self_consistent(&self) -> bool
+pub fn <antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt>::fn recompute_digest(&self) -> alloc::string::String
+pub fn <antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult>::fn mean_contrast(&self, plus: usize, minus: usize) -> core::option::Option<f64>
 pub fn <antecedent_counterfactual::transported_gate::RegimeFactorKey>::fn label(&self) -> alloc::string::String
 pub fn <antecedent_counterfactual::transported_gate::TransportedCounterfactualGate>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites>::fn missing_gates(&self) -> alloc::vec::Vec<antecedent_counterfactual::transported_gate::TransportedCounterfactualGate>
 pub fn <antecedent_counterfactual::transported_path_specific::Affine>::fn constant(value: f64) -> Self
 pub fn <antecedent_counterfactual::transported_path_specific::EdgeAssignment>::fn all_control() -> Self
 pub fn <antecedent_counterfactual::transported_path_specific::EdgeAssignment>::fn treated_on<I, S>(children: I) -> Self where I: core::iter::traits::collect::IntoIterator<Item = S>, S: core::convert::Into<alloc::string::String>
-pub fn antecedent_counterfactual::cross_world::evaluate_cross_world(engine: &antecedent_counterfactual::CounterfactualEngine, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::cross_world::CrossWorldQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::cross_world::CrossWorldEvaluation, antecedent_counterfactual::CounterfactualError>
+pub fn antecedent_counterfactual::cross_world::evaluate_cross_world(engine: &antecedent_counterfactual::CounterfactualEngine, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::cross_world::CrossWorldQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::cross_world::CrossWorldEvaluation, antecedent_counterfactual::CounterfactualError>
 pub fn antecedent_counterfactual::engine::admit_counterfactual(intervention: &antecedent_core::intervention::Intervention, temporal: core::option::Option<&antecedent_core::intervention::TemporalPolicy>) -> core::result::Result<antecedent_core::intervention::InterventionOperation, antecedent_counterfactual::CounterfactualError>
 pub fn antecedent_counterfactual::engine::admit_counterfactual_initial_state(law_name: &str, level: f64) -> core::result::Result<(), antecedent_counterfactual::CounterfactualError>
-pub fn antecedent_counterfactual::engine::nested_counterfactual(engine: &antecedent_counterfactual::CounterfactualEngine, data: &antecedent_data::dataset::TabularData, spec: &antecedent_counterfactual::NestedSpec<'_>, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<f64, antecedent_counterfactual::CounterfactualError>
-pub fn antecedent_counterfactual::engine::nested_counterfactual_with_exo(engine: &antecedent_counterfactual::CounterfactualEngine, exo: &antecedent_counterfactual::ExogenousPosterior, spec: &antecedent_counterfactual::NestedSpec<'_>, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<f64, antecedent_counterfactual::CounterfactualError>
-pub fn antecedent_counterfactual::engine::nested_hard_counterfactual(engine: &antecedent_counterfactual::CounterfactualEngine, data: &antecedent_data::dataset::TabularData, spec: &antecedent_counterfactual::NestedSpec<'_>, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<f64, antecedent_counterfactual::CounterfactualError>
-pub fn antecedent_counterfactual::engine::simultaneous_hard_counterfactual(engine: &antecedent_counterfactual::CounterfactualEngine, data: &antecedent_data::dataset::TabularData, outer: &[antecedent_core::intervention::Intervention], inner: &[antecedent_core::intervention::Intervention], outcome: antecedent_core::ids::VariableId, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<f64, antecedent_counterfactual::CounterfactualError>
+pub fn antecedent_counterfactual::engine::nested_counterfactual(engine: &antecedent_counterfactual::CounterfactualEngine, data: &antecedent_data::dataset::TabularData, spec: &antecedent_counterfactual::NestedSpec<'_>, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<f64, antecedent_counterfactual::CounterfactualError>
+pub fn antecedent_counterfactual::engine::nested_counterfactual_with_exo(engine: &antecedent_counterfactual::CounterfactualEngine, exo: &antecedent_counterfactual::ExogenousPosterior, spec: &antecedent_counterfactual::NestedSpec<'_>, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<f64, antecedent_counterfactual::CounterfactualError>
+pub fn antecedent_counterfactual::engine::nested_hard_counterfactual(engine: &antecedent_counterfactual::CounterfactualEngine, data: &antecedent_data::dataset::TabularData, spec: &antecedent_counterfactual::NestedSpec<'_>, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<f64, antecedent_counterfactual::CounterfactualError>
+pub fn antecedent_counterfactual::engine::simultaneous_hard_counterfactual(engine: &antecedent_counterfactual::CounterfactualEngine, data: &antecedent_data::dataset::TabularData, outer: &[antecedent_core::intervention::Intervention], inner: &[antecedent_core::intervention::Intervention], outcome: antecedent_core::ids::VariableId, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<f64, antecedent_counterfactual::CounterfactualError>
 pub fn antecedent_counterfactual::selective::decide(request: &antecedent_counterfactual::selective::MatrixRequest) -> antecedent_counterfactual::selective::MatrixDecision
-pub fn antecedent_counterfactual::selective::finite_scm::abduct_unit(compiled: &antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>, unit: &antecedent_counterfactual::selective::FactualUnit, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::finite_scm::Posterior, antecedent_counterfactual::selective::CrossWorldExecutionError>
+pub fn antecedent_counterfactual::selective::finite_scm::abduct_unit(compiled: &antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>, unit: &antecedent_counterfactual::selective::FactualUnit, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::finite_scm::Posterior, antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn antecedent_counterfactual::selective::finite_scm::evaluate_worlds(compiled: &antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>, plans: &[antecedent_counterfactual::selective::finite_scm::WorldPlan], joint: usize, out: &mut [alloc::vec::Vec<u8>])
 pub fn antecedent_counterfactual::selective::finite_scm::validate_units(scm: &antecedent_counterfactual::selective::FiniteScm, units: &[antecedent_counterfactual::selective::FactualUnit]) -> core::result::Result<alloc::vec::Vec<antecedent_counterfactual::selective::FactualUnit>, antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn antecedent_counterfactual::selective::finite_scm::validate_worlds(scm: &antecedent_counterfactual::selective::FiniteScm, worlds: &[antecedent_counterfactual::selective::FiniteWorld]) -> core::result::Result<(), antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn antecedent_counterfactual::selective::matrix::rows() -> &'static [antecedent_counterfactual::selective::MatrixRow]
 pub fn antecedent_counterfactual::selective::stages::stream_identity(unit: &str, node: &str, purpose: &str) -> alloc::string::String
-pub fn antecedent_counterfactual::selective::whole_path_uncertainty::derive_whole_path_uncertainty(request: &antecedent_counterfactual::selective::FiniteExecutionRequest, result: &antecedent_counterfactual::selective::FiniteExecutionResult, unit_sampling: antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty, antecedent_counterfactual::selective::CrossWorldExecutionError>
-pub fn antecedent_counterfactual::temporal_cross_world::evaluate_temporal_counterfactual(spec: &antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult, antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>
+pub fn antecedent_counterfactual::selective::whole_path_uncertainty::derive_whole_path_uncertainty(request: &antecedent_counterfactual::selective::FiniteExecutionRequest, result: &antecedent_counterfactual::selective::FiniteExecutionResult, unit_sampling: antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty, antecedent_counterfactual::selective::CrossWorldExecutionError>
+pub fn antecedent_counterfactual::temporal_cross_world::evaluate_temporal_counterfactual(spec: &antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult, antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>
+pub fn antecedent_counterfactual::temporal_cross_world::general::evaluate_general_temporal_counterfactual(spec: &antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult, antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>
 pub fn antecedent_counterfactual::transported_gate::refuse_transported_counterfactual(prerequisites: &antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites, required_factors: &[antecedent_counterfactual::transported_gate::RegimeFactorKey], supplied: &alloc::collections::btree::map::BTreeMap<antecedent_counterfactual::transported_gate::RegimeFactorKey, alloc::string::String>) -> antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal
 pub fn antecedent_counterfactual::transported_path_specific::evaluate_transported_path_specific(input: &antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'_>) -> core::result::Result<antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult, alloc::boxed::Box<antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal>>
 pub mod antecedent_counterfactual::cross_world
 pub mod antecedent_counterfactual::engine
 pub mod antecedent_counterfactual::error
 pub mod antecedent_counterfactual::selective
+pub mod antecedent_counterfactual::selective::factorized
 pub mod antecedent_counterfactual::selective::finite_executor
 pub mod antecedent_counterfactual::selective::finite_scm
 pub mod antecedent_counterfactual::selective::matrix
@@ -1459,6 +1673,7 @@ pub mod antecedent_counterfactual::selective::refusal
 pub mod antecedent_counterfactual::selective::stages
 pub mod antecedent_counterfactual::selective::whole_path_uncertainty
 pub mod antecedent_counterfactual::temporal_cross_world
+pub mod antecedent_counterfactual::temporal_cross_world::general
 pub mod antecedent_counterfactual::temporal_cross_world::staged
 pub mod antecedent_counterfactual::transported_gate
 pub mod antecedent_counterfactual::transported_path_specific
@@ -1466,11 +1681,14 @@ pub static antecedent_counterfactual::selective::matrix::ROWS: [antecedent_count
 pub struct antecedent_counterfactual::CompiledCounterfactualPlan
 pub struct antecedent_counterfactual::CounterfactualEngine
 pub struct antecedent_counterfactual::CounterfactualResult
+pub struct antecedent_counterfactual::CounterfactualResult has private fields
 pub struct antecedent_counterfactual::CounterfactualWorld
 pub struct antecedent_counterfactual::ExogenousPosterior
 pub struct antecedent_counterfactual::NestedSpec<'a>
+pub struct antecedent_counterfactual::OutcomeMean
 pub struct antecedent_counterfactual::cross_world::CrossWorldEvaluation
 pub struct antecedent_counterfactual::selective::CrossWorldRefusal
+pub struct antecedent_counterfactual::selective::EliminationReceipt
 pub struct antecedent_counterfactual::selective::ExecutionReceipt
 pub struct antecedent_counterfactual::selective::ExogenousVariable
 pub struct antecedent_counterfactual::selective::FactualUnit
@@ -1481,6 +1699,9 @@ pub struct antecedent_counterfactual::selective::FiniteScmExecutor
 pub struct antecedent_counterfactual::selective::FiniteScmExecutor has private fields
 pub struct antecedent_counterfactual::selective::FiniteVariable
 pub struct antecedent_counterfactual::selective::FiniteWorld
+pub struct antecedent_counterfactual::selective::GeneralTemporalExecution
+pub struct antecedent_counterfactual::selective::GeneralTemporalExecutor
+pub struct antecedent_counterfactual::selective::GeneralTemporalExecutor has private fields
 pub struct antecedent_counterfactual::selective::MatrixRefusal
 pub struct antecedent_counterfactual::selective::MatrixRequest
 pub struct antecedent_counterfactual::selective::MatrixRow
@@ -1519,6 +1740,14 @@ pub struct antecedent_counterfactual::temporal_cross_world::UnitCounterfactual
 pub struct antecedent_counterfactual::temporal_cross_world::UnitDrawDigest
 pub struct antecedent_counterfactual::temporal_cross_world::UnitId
 pub struct antecedent_counterfactual::temporal_cross_world::UnitId has private fields
+pub struct antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt
+pub struct antecedent_counterfactual::temporal_cross_world::general::GeneralActionHistory
+pub struct antecedent_counterfactual::temporal_cross_world::general::GeneralFactualHistory
+pub struct antecedent_counterfactual::temporal_cross_world::general::GeneralMechanismFit
+pub struct antecedent_counterfactual::temporal_cross_world::general::GeneralNodeMechanism
+pub struct antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalResult
+pub struct antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec
+pub struct antecedent_counterfactual::temporal_cross_world::general::GeneralUnitCounterfactual
 pub struct antecedent_counterfactual::transported_gate::RegimeFactorKey
 pub struct antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites
 pub struct antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal
@@ -1546,13 +1775,16 @@ pub use antecedent_counterfactual::engine::CounterfactualWorld = antecedent_coun
 pub use antecedent_counterfactual::engine::ExogenousPosterior = antecedent_counterfactual::ExogenousPosterior
 pub use antecedent_counterfactual::engine::NestedSpec = antecedent_counterfactual::NestedSpec
 pub use antecedent_counterfactual::engine::NoiseInferenceKind = antecedent_counterfactual::NoiseInferenceKind
+pub use antecedent_counterfactual::engine::OutcomeMean = antecedent_counterfactual::OutcomeMean
 pub use antecedent_counterfactual::engine::RANK_PRESERVING_ASSUMPTION = antecedent_counterfactual::RANK_PRESERVING_ASSUMPTION
 pub use antecedent_counterfactual::error::CounterfactualError = antecedent_counterfactual::CounterfactualError
 pub use antecedent_counterfactual::nested_counterfactual = antecedent_counterfactual::engine::nested_counterfactual
 pub use antecedent_counterfactual::nested_counterfactual_with_exo = antecedent_counterfactual::engine::nested_counterfactual_with_exo
 pub use antecedent_counterfactual::nested_hard_counterfactual = antecedent_counterfactual::engine::nested_hard_counterfactual
+pub use antecedent_counterfactual::selective::finite_executor::EliminationReceipt = antecedent_counterfactual::selective::EliminationReceipt
 pub use antecedent_counterfactual::selective::finite_executor::ExecutionReceipt = antecedent_counterfactual::selective::ExecutionReceipt
 pub use antecedent_counterfactual::selective::finite_executor::ExogenousInference = antecedent_counterfactual::selective::ExogenousInference
+pub use antecedent_counterfactual::selective::finite_executor::ExogenousMethod = antecedent_counterfactual::selective::ExogenousMethod
 pub use antecedent_counterfactual::selective::finite_executor::FiniteExecutionRequest = antecedent_counterfactual::selective::FiniteExecutionRequest
 pub use antecedent_counterfactual::selective::finite_executor::FiniteExecutionResult = antecedent_counterfactual::selective::FiniteExecutionResult
 pub use antecedent_counterfactual::selective::finite_executor::FiniteScmExecutor = antecedent_counterfactual::selective::FiniteScmExecutor
@@ -1590,6 +1822,8 @@ pub use antecedent_counterfactual::selective::stages::StageStatus = antecedent_c
 pub use antecedent_counterfactual::selective::stages::WorkCounters = antecedent_counterfactual::selective::WorkCounters
 pub use antecedent_counterfactual::selective::stream_identity = antecedent_counterfactual::selective::stages::stream_identity
 pub use antecedent_counterfactual::simultaneous_hard_counterfactual = antecedent_counterfactual::engine::simultaneous_hard_counterfactual
+pub use antecedent_counterfactual::temporal_cross_world::staged::GeneralTemporalExecution = antecedent_counterfactual::selective::GeneralTemporalExecution
+pub use antecedent_counterfactual::temporal_cross_world::staged::GeneralTemporalExecutor = antecedent_counterfactual::selective::GeneralTemporalExecutor
 pub use antecedent_counterfactual::temporal_cross_world::staged::TemporalExecution = antecedent_counterfactual::selective::TemporalExecution
 pub use antecedent_counterfactual::temporal_cross_world::staged::TemporalExecutor = antecedent_counterfactual::selective::TemporalExecutor
 pub variant antecedent_counterfactual::AbductionMissingPolicy::Error
@@ -1622,6 +1856,8 @@ pub variant antecedent_counterfactual::selective::ExecutionStage::MechanismFitti
 pub variant antecedent_counterfactual::selective::ExecutionStage::SummaryDecision
 pub variant antecedent_counterfactual::selective::ExogenousInference::ExactEnumeration
 pub variant antecedent_counterfactual::selective::ExogenousInference::PosteriorSampling
+pub variant antecedent_counterfactual::selective::ExogenousMethod::JointEnumeration
+pub variant antecedent_counterfactual::selective::ExogenousMethod::VariableElimination
 pub variant antecedent_counterfactual::selective::FiniteQuantity::JointProbability(alloc::vec::Vec<antecedent_counterfactual::selective::WorldAtom>)
 pub variant antecedent_counterfactual::selective::FiniteQuantity::MeanContrast { plus: (usize, usize), minus: (usize, usize) }
 pub variant antecedent_counterfactual::selective::FiniteQuantity::Probability(antecedent_counterfactual::selective::WorldAtom)

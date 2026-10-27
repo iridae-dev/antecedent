@@ -268,6 +268,35 @@ def test_discover_requires_explicit_native_review_acceptance():
     assert set(accepted.graph.nodes()) == set(data)
 
 
+def test_temporal_discoveries_are_accepted_only_through_their_review_gate():
+    data = _lag1_series()
+    pcmci = antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False)
+    with pytest.raises(antecedent.errors.ReviewRequired):
+        antecedent.discovery.discover(data, method=pcmci, execution=antecedent.Execution(seed=1))
+    accepted = antecedent.discovery.discover(
+        data, method=pcmci, execution=antecedent.Execution(seed=1), accept_discovered=True
+    )
+    assert "pcmci" in accepted.algorithm_id
+
+    rng = np.random.default_rng(4)
+    envs = []
+    for _ in range(2):
+        x = rng.normal(size=80)
+        y = np.empty(80)
+        y[0] = rng.normal()
+        for t in range(1, 80):
+            y[t] = 0.55 * x[t - 1] + 0.2 * rng.normal()
+        envs.append({"x": x, "y": y})
+    envs = antecedent.data.multi_env(envs)
+    jpcmci = antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False)
+    with pytest.raises(antecedent.errors.ReviewRequired):
+        antecedent.discovery.discover(envs, method=jpcmci, execution=antecedent.Execution(seed=1))
+    accepted_class = antecedent.discovery.discover(
+        envs, method=jpcmci, execution=antecedent.Execution(seed=1), accept_discovered=True
+    )
+    assert "pcmci" in accepted_class.algorithm_id
+
+
 def test_discover_rejects_untyped_execution_and_inapplicable_regimes():
     method = antecedent.discovery.PC()
     with pytest.raises(antecedent.errors.CausalTypeError, match="Execution"):

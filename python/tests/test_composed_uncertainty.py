@@ -370,3 +370,24 @@ def test_transported_spread_from_aligned_pieces_matches_the_row_sums() -> None:
                 functional,
             )
         )
+
+
+def test_a_spread_claim_names_its_composed_coordinate_from_its_sealed_artifact() -> None:
+    x, y = _pair("snap-enum")
+    contrast = require_success(jl.aligned_linear_spread("contrast", (1.0, -1.0), x, y))
+    total = require_success(jl.aligned_linear_spread("sum", (1.0, 1.0), x, y))
+    # The coordinate is rebuilt from the retained artifact bytes: operation, route and roles.
+    assert contrast.coordinate_id() == "contrast|aligned_joint_law|estimate,estimate"
+    assert total.coordinate_id() == "sum|aligned_joint_law|estimate,estimate"
+    assert contrast.coordinate_id() == contrast.coordinate_id()
+    # An envelope declares no licensed dependence, so it has no composed coordinate.
+    env = require_success(
+        jl.dependence_envelope(
+            "sum",
+            jl.EnvelopeQuery.sum_cdf(1.0),
+            jl.PropagationDraws.independent_marginal("x", [0.0, 1.0], evidence_id="s1"),
+            jl.PropagationDraws.independent_marginal("y", [0.0, 1.0], evidence_id="s2"),
+        )
+    )
+    with pytest.raises(R):
+        env.coordinate_id()

@@ -142,3 +142,20 @@ def test_list_returning_methods_record_their_route():
     scores = fitted.anomaly_attribution(["y"], max_units=0)
     assert scores
     assert fitted.last_route.contract["query_kind"] == "Attribute"
+
+
+def test_a_compiled_discovery_is_accepted_through_its_review_gate_with_its_provenance():
+    names, cols = _static_rows()
+    result = _native.discover_lingam(names, cols, seed=1)
+    route = result.route
+    graph, provenance = route.accepted_graph(accept_discovered=True)
+    assert graph is not None and provenance is not None
+    assert provenance["method"] == "direct_lingam"
+    assert provenance["inference"] == "frequentist"
+    # The accepted structure names the exact program and claim it was discovered under.
+    assert provenance["program"] == route.program_identity
+    assert provenance["claim"] == result.claim["claim_id"]
+    assert provenance["review"] in {"accepted", "accepted_after_review"}
+    # Declining to accept pending marks refuses at the review gate instead of guessing.
+    with pytest.raises(antecedent.errors.CausalReviewError):
+        route.accepted_graph(accept_discovered=False)

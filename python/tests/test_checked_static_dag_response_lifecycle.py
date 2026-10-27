@@ -7,6 +7,8 @@ import math
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent import joint_panel
+from antecedent.errors import CausalValueError
 from antecedent.outcomes import require_success
 
 
@@ -95,3 +97,106 @@ def test_checked_static_dag_response_python_lifecycle(accepted: bool, kind: str)
         assert repeated.response.values == first.response.values
     else:
         assert repeated.effect == first.effect
+
+
+def _noisy_table(n: int = 240) -> dict[str, np.ndarray]:
+    table = _table(n)
+    table["y"] = table["y"] + 0.1 * np.array([math.sin(i / 3.7) for i in range(n)])
+    return table
+
+
+def _worlds(*levels: float) -> list[dict[str, object]]:
+    return [
+        {"id": index, "reference": index == 0, "levels": {"t": level}}
+        for index, level in enumerate(levels)
+    ]
+
+
+def test_joint_response_worlds_share_one_fit_and_carry_their_joint_covariance() -> None:
+    data = _noisy_table()
+    study = ant.prepare(
+        data,
+        graph=_EDGES,
+        query=ant.InterventionResponse("y", intervention=ant.intervention.Set("t", 0.25)),
+        estimator="response.intervention_gcomp",
+        refute="none",
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=4),
+    )
+    # Independent oracle: ordinary least squares of y on [1, t, z]; a world's mean is the
+    # fitted response at its level with every observed covariate row kept.
+    design = np.column_stack([np.ones(len(data["t"])), data["t"], data["z"]])
+    beta, *_ = np.linalg.lstsq(design, data["y"], rcond=None)
+
+    def truth(level: float) -> float:
+        return float(beta[0] + beta[1] * level + beta[2] * np.mean(data["z"]))
+
+    levels = (-0.5, 0.0, 0.5)
+    coefficients = [-2.0, 1.0, 1.0]
+    compiled = require_success(
+        joint_panel.compile_joint_response(
+            study,
+            outcome="y",
+            worlds=_worlds(*levels),
+            contrast={
+                "kind": "linear",
+                "terms": [[i, c] for i, c in enumerate(coefficients)],
+                "reference": 0,
+            },
+        )
+    )
+    before = compiled.inspect()
+    assert before["world_ids"] == [0, 1, 2]
+    assert before["contrast_coefficients"] == coefficients
+    assert before["fitted"] is False
+    assert before["calibration"] == "unmeasured"
+
+    law = require_success(compiled.execute(seed=7))
+    assert law.world_ids == (0, 1, 2)
+    for got, level in zip(law.means, levels, strict=True):
+        assert got == pytest.approx(truth(level), abs=1e-8)
+    assert compiled.inspect()["fitted"] is True
+    assert law.calibration == "unmeasured"
+    assert law.uncertainty == "sampling_covariance"
+    # One coefficient covariance gives every cross-world term: symmetric and positive.
+    cov = np.asarray(law.covariance)
+    assert cov.shape == (3, 3)
+    np.testing.assert_allclose(cov, cov.T, atol=1e-14)
+    assert np.all(np.diag(cov) > 0.0)
+    assert np.all(np.linalg.eigvalsh(cov) > -1e-12)
+    # The assembled contrast is the same linear functional of the same joint law.
+    value, se = law.contrast
+    assert value == pytest.approx(
+        sum(c * truth(x) for c, x in zip(coefficients, levels, strict=True)), abs=1e-8
+    )
+    c = np.asarray(coefficients)
+    assert se**2 == pytest.approx(float(c @ cov @ c), rel=1e-9, abs=1e-14)
+    assert require_success(compiled.execute(seed=7)).means == law.means
+
+    # Retargeting reuses the source, prior and fit and moves only the world projections.
+    other = require_success(compiled.retarget(outcome="y", worlds=_worlds(0.0, 0.25)))
+    again = require_success(other.execute(seed=7))
+    assert again.means == pytest.approx((truth(0.0), truth(0.25)), abs=1e-8)
+    assert again.source_digest == law.source_digest
+    assert again.target != law.target
+
+    artifact = bytes(law.export())
+    replayed = require_success(compiled.consume_current(artifact))
+    assert replayed.means == law.means
+    assert replayed.identification == law.identification
+    with pytest.raises(CausalValueError):
+        require_success(other.consume_current(artifact))
+
+    # A world outside the observed range of its intervention coordinate is never extrapolated.
+    with pytest.raises(ant.CausalError, match="observed marginal support"):
+        require_success(
+            joint_panel.compile_joint_response(study, outcome="y", worlds=_worlds(0.0, 25.0))
+        )
+    with pytest.raises(ant.CausalError):
+        require_success(
+            joint_panel.compile_joint_response(
+                study,
+                outcome="y",
+                worlds=[{"id": 0, "reference": True, "levels": {"z": 0.0}}],
+            )
+        )

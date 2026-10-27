@@ -1102,7 +1102,7 @@ pub fn <antecedent_learn::BasisRegressionPosterior>::fn draw(&self, draw: usize,
 pub fn <antecedent_learn::BasisRegressionPosterior>::fn n_coefficients(&self) -> usize
 pub fn <antecedent_learn::BayesianBasisGComputation>::const fn estimator_id(&self) -> &'static str
 pub fn <antecedent_learn::BayesianBasisGComputation>::const fn task(&self) -> antecedent_learn::PredictionTask
-pub fn <antecedent_learn::BayesianBasisGComputation>::fn fit(&self, data: &antecedent_learn::BasisData<'_>, population: antecedent_learn::BasisTargetPopulation, spec: antecedent_learn::BayesianBasisSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::BayesianBasisEffect, antecedent_learn::LearnError>
+pub fn <antecedent_learn::BayesianBasisGComputation>::fn fit(&self, data: &antecedent_learn::BasisData<'_>, population: antecedent_learn::BasisTargetPopulation, spec: antecedent_learn::BayesianBasisSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_learn::BayesianBasisEffect, antecedent_learn::LearnError>
 pub fn <antecedent_learn::DenseDesign<'a>>::const fn cols(self) -> usize
 pub fn <antecedent_learn::DenseDesign<'a>>::const fn layout(self) -> antecedent_learn::Layout
 pub fn <antecedent_learn::DenseDesign<'a>>::const fn rows(self) -> usize
@@ -1122,14 +1122,14 @@ pub fn <antecedent_learn::DesignView<'a>>::fn with_rows(self, rows: antecedent_l
 pub fn <antecedent_learn::DevicePolicy>::const fn is_cpu(&self) -> bool
 pub fn <antecedent_learn::EffectSupport>::fn from_rows(columns: &[&[f64]], rows: core::option::Option<&[usize]>) -> core::option::Option<Self>
 pub fn <antecedent_learn::FiniteJoint>::fn counts(&self) -> &[u64]
-pub fn <antecedent_learn::FiniteJoint>::fn fit(columns: &[alloc::vec::Vec<usize>], cardinalities: &[usize], learner: antecedent_learn::LearnerSpec, max_cells: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_learn::LearnError>
-pub fn <antecedent_learn::FiniteJoint>::fn probabilities(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_learn::LearnError>
+pub fn <antecedent_learn::FiniteJoint>::fn fit(columns: &[alloc::vec::Vec<usize>], cardinalities: &[usize], learner: antecedent_learn::LearnerSpec, max_cells: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::FiniteJoint>::fn probabilities(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_learn::LearnError>
 pub fn <antecedent_learn::FittedEffect>::fn check_support(&self, columns: &[&[f64]], nrows: usize) -> core::result::Result<core::option::Option<antecedent_learn::SupportReport>, antecedent_learn::FittedEffectError>
-pub fn <antecedent_learn::FittedEffect>::fn predict(&self, features: &[antecedent_core::ids::VariableId], columns: &[&[f64]], nrows: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_learn::FittedEffectError>
+pub fn <antecedent_learn::FittedEffect>::fn predict(&self, features: &[antecedent_core::ids::VariableId], columns: &[&[f64]], nrows: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_learn::FittedEffectError>
 pub fn <antecedent_learn::FittedEffect>::fn validate(&self) -> core::result::Result<(), antecedent_learn::FittedEffectError>
 pub fn <antecedent_learn::ForestSpec>::const fn resolved_min_samples_leaf(self, task: antecedent_learn::PredictionTask) -> u32
 pub fn <antecedent_learn::KnownVarianceBasisRegression>::const fn estimator_id(&self) -> &'static str
-pub fn <antecedent_learn::KnownVarianceBasisRegression>::fn fit(&self, design: antecedent_learn::BasisDesign<'_>, spec: &antecedent_learn::KnownVarianceBasisSpec<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::BasisRegressionPosterior, antecedent_learn::LearnError>
+pub fn <antecedent_learn::KnownVarianceBasisRegression>::fn fit(&self, design: antecedent_learn::BasisDesign<'_>, spec: &antecedent_learn::KnownVarianceBasisSpec<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_learn::BasisRegressionPosterior, antecedent_learn::LearnError>
 pub fn <antecedent_learn::LassoLogisticLearner>::fn new(lambda: f64) -> core::result::Result<Self, antecedent_learn::LearnError>
 pub fn <antecedent_learn::LearnerCapabilities>::const fn none() -> Self
 pub fn <antecedent_learn::LearnerSpec>::const fn for_task(self, task: antecedent_learn::PredictionTask) -> Self
@@ -1216,7 +1216,7 @@ pub fn <antecedent_learn::recipes::execution::RecipeRun<'a>>::fn posterior_mean_
 pub fn <antecedent_learn::recipes::execution::RecipeRun<'a>>::fn solve_estimating_equations(&self, model: &dyn antecedent_learn::recipes::execution::EstimatingEquationModel, start: &[f64], options: antecedent_learn::recipes::execution::SolveOptions) -> core::result::Result<antecedent_learn::recipes::execution::EquationSolution, antecedent_learn::recipes::execution::ExecutionError>
 pub fn <antecedent_learn::recipes::execution::RecipeRun<'a>>::fn update(&self, model: &dyn antecedent_learn::recipes::execution::UpdatingModel, support: &[alloc::vec::Vec<f64>]) -> core::result::Result<antecedent_learn::recipes::execution::Posterior, antecedent_learn::recipes::execution::ExecutionError>
 pub fn <antecedent_learn::recipes::execution::RecipeRun<'a>>::fn verify_score_gradient<M>(&self, model: &M, parameter: &[f64], tolerance: f64) -> core::result::Result<(), antecedent_learn::recipes::execution::ExecutionError> where M: antecedent_learn::recipes::execution::LogDensityModel + antecedent_learn::recipes::execution::EstimatingEquationModel
-pub fn <antecedent_learn::recipes::execution::RecipeRun<'a>>::fn with_cancellation(self, token: &'a antecedent_core::execution::CancellationToken) -> Self
+pub fn <antecedent_learn::recipes::execution::RecipeRun<'a>>::fn with_cancellation(self, token: &'a antecedent_core::execution::cancel::CancellationToken) -> Self
 pub fn <antecedent_learn::recipes::execution::ScoreEstimate>::const fn estimate(&self) -> f64
 pub fn <antecedent_learn::recipes::execution::ScoreEstimate>::const fn rows(&self) -> u64
 pub fn <antecedent_learn::recipes::execution::ScoreEstimate>::const fn standard_error(&self) -> f64
@@ -1230,20 +1230,21 @@ pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn infer
 pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn interval_refusal(&self) -> antecedent_learn::transported_effect::TransportRefusal
 pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn law_refusal(&self) -> antecedent_learn::transported_effect::TransportRefusal
 pub fn <antecedent_learn::transported_effect::TransportedRequest>::fn refusal(self) -> antecedent_learn::transported_effect::TransportRefusal
-pub fn antecedent_learn::assign_folds(n_rows: usize, folds: usize, rng: &mut antecedent_core::execution::CausalRng, strata: core::option::Option<&[u32]>) -> core::result::Result<alloc::vec::Vec<u16>, antecedent_learn::LearnError>
+pub fn antecedent_learn::assign_folds(n_rows: usize, folds: usize, rng: &mut antecedent_core::execution::rng::CausalRng, strata: core::option::Option<&[u32]>) -> core::result::Result<alloc::vec::Vec<u16>, antecedent_learn::LearnError>
 pub fn antecedent_learn::bayesian_basis_regression::information_rank(design: &antecedent_learn::BasisDesign<'_>) -> core::result::Result<antecedent_learn::InformationRank, antecedent_learn::LearnError>
-pub fn antecedent_learn::cross_fit_selected(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, fold_assignment: &[u16], eligible: &[bool], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
-pub fn antecedent_learn::cross_fit_with_folds(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, fold_assignment: alloc::vec::Vec<u16>, ctx: &antecedent_core::execution::ExecutionContext, transformer: core::option::Option<&dyn antecedent_learn::TransformerFactory>) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
-pub fn antecedent_learn::cross_fit_with_folds_weighted(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, weights: core::option::Option<&[f64]>, fold_assignment: alloc::vec::Vec<u16>, ctx: &antecedent_core::execution::ExecutionContext, transformer: core::option::Option<&dyn antecedent_learn::TransformerFactory>) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
+pub fn antecedent_learn::cross_fit_selected(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, fold_assignment: &[u16], eligible: &[bool], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
+pub fn antecedent_learn::cross_fit_with_folds(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, fold_assignment: alloc::vec::Vec<u16>, ctx: &antecedent_core::execution::context::ExecutionContext, transformer: core::option::Option<&dyn antecedent_learn::TransformerFactory>) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
+pub fn antecedent_learn::cross_fit_with_folds_weighted(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, weights: core::option::Option<&[f64]>, fold_assignment: alloc::vec::Vec<u16>, ctx: &antecedent_core::execution::context::ExecutionContext, transformer: core::option::Option<&dyn antecedent_learn::TransformerFactory>) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
 pub fn antecedent_learn::crossfit::diagnose(task: antecedent_learn::PredictionTask, y: &[f64], pred: &[f64]) -> antecedent_learn::NuisanceDiagnostics
+pub fn antecedent_learn::crossfit::try_diagnose(task: antecedent_learn::PredictionTask, y: &[f64], pred: &[f64]) -> core::result::Result<antecedent_learn::NuisanceDiagnostics, antecedent_learn::LearnError>
 pub fn antecedent_learn::fit_counts::count_resolved_fits<T>(operation: impl core::ops::function::FnOnce() -> T) -> (T, u64)
 pub fn antecedent_learn::fit_counts::observe_resolved_fits<T>(operation: impl core::ops::function::FnOnce() -> T) -> (T, u64)
-pub fn antecedent_learn::nested_markov_bayesian::fit(counts: &[u64; 16], prior: &antecedent_learn::nested_markov_bayesian::Prior, options: &antecedent_learn::nested_markov_bayesian::Options, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::nested_markov_bayesian::Posterior, antecedent_learn::nested_markov_bayesian::BayesianRefusal>
+pub fn antecedent_learn::nested_markov_bayesian::fit(counts: &[u64; 16], prior: &antecedent_learn::nested_markov_bayesian::Prior, options: &antecedent_learn::nested_markov_bayesian::Options, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_learn::nested_markov_bayesian::Posterior, antecedent_learn::nested_markov_bayesian::BayesianRefusal>
 pub fn antecedent_learn::nested_markov_bayesian::probabilities(p: &[f64; 11]) -> core::option::Option<[f64; 16]>
 pub fn antecedent_learn::resolve(spec: antecedent_learn::LearnerSpec) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::LearnerFactory>, antecedent_learn::LearnError>
 pub fn antecedent_learn::resolve_for(spec: antecedent_learn::LearnerSpec, task: antecedent_learn::PredictionTask) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::LearnerFactory>, antecedent_learn::LearnError>
 pub fn antecedent_learn::transported_effect::assess_overlap(support: &antecedent_learn::EffectSupport, feature_names: &[alloc::string::String], columns: &[&[f64]], weights: &[f64]) -> core::result::Result<antecedent_learn::transported_effect::OverlapAssessment, antecedent_learn::transported_effect::TransportRefusal>
-pub fn antecedent_learn::transported_effect::transport_cohort_effect(effect: &antecedent_learn::FittedEffect, feature_names: &[alloc::string::String], model_identity: &str, model_population: &str, cohort: &antecedent_learn::transported_effect::TargetCohort, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::transported_effect::TransportedCohortEffect, antecedent_learn::transported_effect::TransportRefusal>
+pub fn antecedent_learn::transported_effect::transport_cohort_effect(effect: &antecedent_learn::FittedEffect, feature_names: &[alloc::string::String], model_identity: &str, model_population: &str, cohort: &antecedent_learn::transported_effect::TargetCohort, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_learn::transported_effect::TransportedCohortEffect, antecedent_learn::transported_effect::TransportRefusal>
 pub mod antecedent_learn::auto
 pub mod antecedent_learn::bayesian_basis
 pub mod antecedent_learn::bayesian_basis_regression
@@ -1361,13 +1362,13 @@ pub trait antecedent_learn::recipes::execution::PredictiveModel: antecedent_lear
 pub trait antecedent_learn::recipes::execution::RecipeProvider
 pub trait antecedent_learn::recipes::execution::UpdatingModel: antecedent_learn::recipes::execution::LogDensityModel
 pub trait fn fn antecedent_learn::FittedPredictor::portable(&self) -> core::result::Result<antecedent_learn::PortablePredictor, antecedent_learn::LearnError> {default}
-pub trait fn fn antecedent_learn::FittedPredictor::predict(&self, x: antecedent_learn::DesignView<'_>, out: &mut [f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_learn::LearnError>
+pub trait fn fn antecedent_learn::FittedPredictor::predict(&self, x: antecedent_learn::DesignView<'_>, out: &mut [f64], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_learn::LearnError>
 pub trait fn fn antecedent_learn::FittedPredictor::provenance(&self) -> antecedent_learn::LearnerProvenance
-pub trait fn fn antecedent_learn::FittedTransformer::transform(&self, x: antecedent_learn::DesignView<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(alloc::vec::Vec<f64>, usize, usize), antecedent_learn::LearnError>
+pub trait fn fn antecedent_learn::FittedTransformer::transform(&self, x: antecedent_learn::DesignView<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(alloc::vec::Vec<f64>, usize, usize), antecedent_learn::LearnError>
 pub trait fn fn antecedent_learn::LearnerFactory::capabilities(&self) -> antecedent_learn::LearnerCapabilities
-pub trait fn fn antecedent_learn::LearnerFactory::fit(&self, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, weights: core::option::Option<&[f64]>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::FittedPredictor>, antecedent_learn::LearnError>
+pub trait fn fn antecedent_learn::LearnerFactory::fit(&self, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, weights: core::option::Option<&[f64]>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::FittedPredictor>, antecedent_learn::LearnError>
 pub trait fn fn antecedent_learn::LearnerFactory::task(&self) -> antecedent_learn::PredictionTask
-pub trait fn fn antecedent_learn::TransformerFactory::fit(&self, x: antecedent_learn::DesignView<'_>, rows: antecedent_learn::RowSelection<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::FittedTransformer>, antecedent_learn::LearnError>
+pub trait fn fn antecedent_learn::TransformerFactory::fit(&self, x: antecedent_learn::DesignView<'_>, rows: antecedent_learn::RowSelection<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::FittedTransformer>, antecedent_learn::LearnError>
 pub trait fn fn antecedent_learn::recipes::execution::EstimatingEquationModel::parameter_len(&self) -> usize
 pub trait fn fn antecedent_learn::recipes::execution::EstimatingEquationModel::score(&self, parameter: &[f64], row: u64, out: &mut [f64]) -> core::result::Result<(), antecedent_learn::recipes::execution::ProviderCallError>
 pub trait fn fn antecedent_learn::recipes::execution::ExactIntegrationModel::probability(&self, index: u64) -> core::result::Result<f64, antecedent_learn::recipes::execution::ProviderCallError>
@@ -1433,6 +1434,7 @@ pub use antecedent_learn::spec::resolve_for = antecedent_learn::resolve_for
 pub use antecedent_learn::transform::FittedTransformer = antecedent_learn::FittedTransformer
 pub use antecedent_learn::transform::Identity = antecedent_learn::Identity
 pub use antecedent_learn::transform::TransformerFactory = antecedent_learn::TransformerFactory
+pub use antecedent_learn::try_diagnose = antecedent_learn::crossfit::try_diagnose
 pub variant antecedent_learn::BasisTargetPopulation::AllObserved
 pub variant antecedent_learn::BasisTargetPopulation::Other
 pub variant antecedent_learn::DevicePolicy::Auto
@@ -1444,6 +1446,7 @@ pub variant antecedent_learn::Layout::ColumnMajor
 pub variant antecedent_learn::Layout::RowMajor
 pub variant antecedent_learn::LearnError::Backend(alloc::string::String)
 pub variant antecedent_learn::LearnError::Cancelled
+pub variant antecedent_learn::LearnError::NonFinite { message: &'static str }
 pub variant antecedent_learn::LearnError::Probability(antecedent_prob::error::ProbError)
 pub variant antecedent_learn::LearnError::ProviderUnavailable { spec: &'static str, required: antecedent_learn::LearnerCapabilities }
 pub variant antecedent_learn::LearnError::Shape { message: &'static str }

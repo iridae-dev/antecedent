@@ -82,3 +82,31 @@ def test_invisible_mag_has_no_adjustment_certificate(conditional):
     assert not result
     assert result.status == "NotIdentified"
     assert not any(case["adjustment_coordinates"] for case in result.certificate["cases"])
+
+
+def test_a_dag_only_identifier_on_a_pag_is_refused_and_the_class_identifier_runs():
+    data, graph = _case()
+    query = ant.AverageEffect("t", "y")
+    with pytest.raises((ant.errors.CausalError, ValueError), match="generalized.adjustment"):
+        require_success(
+            ant.analyze(
+                data,
+                graph=graph,
+                query=query,
+                identifier="backdoor.adjustment",
+                refute=False,
+                execution=ant.Execution(seed=1),
+            )
+        )
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=graph,
+            query=query,
+            identifier="generalized.adjustment",
+            refute=False,
+            execution=ant.Execution(seed=1),
+        )
+    )
+    assert result.plan.identifier == "generalized.adjustment"
+    assert result.effect == pytest.approx(2.0, abs=0.05)

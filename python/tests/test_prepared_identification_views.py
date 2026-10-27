@@ -53,11 +53,12 @@ def _temporal_data() -> dict[str, np.ndarray]:
     return {"t": t, "y": y}
 
 
-def _prepare(family: str, *, curve: bool = False) -> Any:
+def _prepare(family: str, *, curve: bool = False, **overrides: Any) -> Any:
     options: dict[str, Any] = {
         "inference": ant.Frequentist(bootstrap=0),
         "execution": ant.Execution(seed=19, threads=1),
         "refute": "none",
+        **overrides,
     }
     if family in {"temporal", "temporal_class", "dbn_posterior", "temporal_class_posterior"}:
         temporal_class = family in {"temporal_class", "temporal_class_posterior"}
@@ -426,3 +427,61 @@ def test_inspection_then_explicit_execution_retains_known_effect(family):
     result = require_success(ant.estimate(study))
     np.testing.assert_allclose(result.estimate.ate, 2.0, atol=1e-8, rtol=0)
     assert json.loads(view.materialize_json()) == before
+
+
+_OPERATION_RECORDS = {
+    ("pag", False): ("static_class_effect", "Pag"),
+    ("cpdag", False): ("static_class_effect", "Cpdag"),
+    ("temporal_class", False): ("temporal_class_effect", "TemporalCpdag"),
+    ("temporal_class", True): ("temporal_class_response", "TemporalCpdag"),
+    ("graph_posterior", False): ("graph_posterior_effect", None),
+    ("dbn_posterior", False): ("temporal_graph_posterior_effect", None),
+    ("dbn_posterior", True): ("temporal_graph_posterior_response", None),
+}
+
+
+@pytest.mark.parametrize(("family", "curve"), list(_OPERATION_RECORDS))
+def test_the_sealed_route_publishes_its_inspection_record(family, curve):
+    kind, graph_class = _OPERATION_RECORDS[(family, curve)]
+    study = _prepare(family, curve=curve)
+    outcome = ant.estimate(study)
+    require_success(outcome)
+    operation = outcome.study.plan_view().operation
+    assert operation["kind"] == kind
+    assert operation["estimator"] and operation["validation"] == "none"
+    if graph_class is not None:
+        # A class graph reports the completions it was proved over and where the mass went.
+        assert operation["graph_class"] == graph_class
+        assert operation["completion_count"] >= 1
+        unresolved = operation.get("unresolved_mass", operation.get("unidentified_mass"))
+        assert operation["identified_mass"] + unresolved == pytest.approx(1.0)
+    else:
+        # A graph posterior reports its frozen atoms: the declared 0.7 / 0.3 masses.
+        assert operation["weights"] == pytest.approx([0.7, 0.3])
+        assert len(operation["graph_keys"]) == len(operation["identified"]) == 2
+    if curve:
+        assert operation["horizons"] == [1, 2]
+
+
+@pytest.mark.parametrize(
+    ("family", "kind"),
+    [
+        ("graph_posterior", "bayesian_graph_posterior_ate"),
+        ("temporal", "bayesian_temporal_dag_effect"),
+        ("temporal_class", "bayesian_temporal_class_effect"),
+    ],
+)
+def test_a_bayesian_route_publishes_its_draws_and_proof_in_its_inspection_record(family, kind):
+    study = _prepare(family, inference=ant.Bayesian(backend="conjugate", n_draws=64))
+    outcome = ant.estimate(study)
+    require_success(outcome)
+    operation = outcome.study.plan_view().operation
+    assert operation["kind"] == kind
+    if family == "graph_posterior":
+        assert operation["weights"] == pytest.approx([0.7, 0.3])
+        assert operation["inference"]
+    else:
+        assert operation["posterior_draws"] == 64
+    if family == "temporal_class":
+        assert operation["completion_count"] >= 1
+        assert operation["identified_mass"] + operation["unidentified_mass"] == pytest.approx(1.0)

@@ -709,6 +709,31 @@ def test_the_monitoring_contract_round_trips_and_a_fresh_reader_sees_rule_and_pa
     assert again.identity == consumed.identity
 
 
+def test_a_monitoring_contract_is_refused_under_another_identity_and_when_damaged():
+    session = prepare(group_sequential_design())
+    artifact = bytes(session.export(paradigm="frequentist_group_sequential"))
+    consumed = require_success(ai.consume_adaptive_monitoring_contract_artifact(artifact))
+    # A consumer that retained another experiment's identity refuses this consistent artifact.
+    error = refused(
+        lambda: require_success(
+            ai.consume_adaptive_monitoring_contract_artifact(artifact, "0" * 64)
+        )
+    )
+    assert error.reason_code == "route_not_supported"
+    assert error.detail == "adaptive_inference.wrong_contract"
+    assert consumed.identity != "0" * 64
+    damaged = bytearray(artifact)
+    damaged[len(damaged) // 2] ^= 0xFF
+    refused(
+        lambda: require_success(ai.consume_adaptive_monitoring_contract_artifact(bytes(damaged)))
+    )
+    refused(
+        lambda: require_success(
+            ai.consume_adaptive_monitoring_contract_artifact(artifact[: len(artifact) // 2])
+        )
+    )
+
+
 def test_a_paradigm_the_design_may_not_use_cannot_be_exported():
     session = prepare(group_sequential_design())
     error = refused(lambda: bytes(session.export(paradigm="frequentist_fixed_sample")))

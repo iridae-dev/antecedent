@@ -10,8 +10,10 @@ honestly fail.
 from __future__ import annotations
 
 import antecedent
+import numpy as np
 import pytest
 from antecedent.errors import CausalError
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -101,3 +103,21 @@ def test_projected_adjustment_names_follow_receiving_schema() -> None:
     result = antecedent.identify(graph=graph, query=QUERY)
     assert bool(result)
     assert result.adjustment_set == tuple(["Z"])
+
+
+def test_an_unidentifiable_admg_refuses_analysis_before_any_estimate() -> None:
+    admg = _confounded_dag().latent_project(["T", "Y"])
+    rng = np.random.default_rng(3)
+    t = rng.normal(size=80)
+    data = {"T": t, "Y": t + rng.normal(size=80)}
+    with pytest.raises(CausalError) as caught:
+        require_success(
+            antecedent.analyze(
+                data,
+                graph=admg,
+                query=QUERY,
+                refute=False,
+                execution=antecedent.Execution(seed=1),
+            )
+        )
+    assert_registered_refusal(caught.value)

@@ -578,6 +578,10 @@ def test_transport_catalog_survives_prepared_execution_and_export() -> None:
             refute="none",
         )
     )
+    operation = result.study.plan_view().operation
+    assert operation["kind"] == "transport_trial"
+    assert operation["rule"] and operation["plan_id"] and operation["identifier"]
+    assert operation["posterior_draws"] is None, "a frequentist transport draws no posterior"
     loaded = require_success(ant.load(bytes(result.export())))
     restored_catalog = loaded.decoded_artifact.to_dict()["payload"]["query"]["transport"]["catalog"]
     assert [r["label"] for r in restored_catalog["regimes"]] == ["randomized-a", "target-x"]

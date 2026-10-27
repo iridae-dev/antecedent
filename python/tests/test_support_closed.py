@@ -5,7 +5,10 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.estimators import CausalForest
 from antecedent.outcomes import require_success
+
+from _scm import confounded_scm
 
 
 def _two_node_table(n: int = 48, seed: int = 3):
@@ -244,3 +247,26 @@ def test_distribution_full_refute_runs_native_suite():
 
     assert result.ate == pytest.approx(1.0)
     assert len(result.validation.reports) == 3
+
+
+def test_a_licensed_cell_is_not_inherited_by_an_estimator_without_calibration_evidence():
+    data, edges = confounded_scm(n=600, seed=9)
+
+    def run(estimator):
+        return require_success(
+            antecedent.analyze(
+                data,
+                graph=edges,
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                estimator=estimator,
+                inference=antecedent.Frequentist(bootstrap=0),
+                refute=False,
+                execution=antecedent.Execution(seed=1),
+            )
+        )
+
+    assert run("aipw").evidence_status == "licensed"
+    assert run("propensity.weighting").evidence_status == "licensed"
+    assert run("distance.matching").evidence_status != "licensed"
+    forest = CausalForest(n_trees=40, min_leaf=8, max_depth=4)
+    assert run(forest).evidence_status != "licensed"

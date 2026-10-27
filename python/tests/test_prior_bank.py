@@ -858,3 +858,133 @@ def test_posterior_round_trip_preserves_named_schema_and_source_contrast(contras
             )
             estimates.append(result.effect)
         assert estimates[0] == estimates[1]
+
+
+# -- mapped posterior transfer ----------------------------------------------------------------
+
+
+def _coefficient(name: str, *, units: str = "dimensionless", functional: str = "coefficient"):
+    return antecedent.artifacts.ScientificQuantity(
+        variable_id=name,
+        variable_name=name.split(":")[1],
+        role="covariate",
+        units=units,
+        population_id="population-1",
+        regime_id="observed",
+        horizon=0,
+        functional_id=functional,
+    )
+
+
+def _exact_gaussian_draws(mean, covariance, sigma2, n=400, seed=3):
+    """Finite draws whose population mean and covariance are exactly ``mean``/``covariance``."""
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=(n, len(mean)))
+    z -= z.mean(axis=0)
+    z = z @ np.linalg.inv(np.linalg.cholesky(z.T @ z / n)).T
+    coefficients = np.asarray(mean) + z @ np.linalg.cholesky(covariance).T
+    return np.column_stack([coefficients, np.full(n, sigma2)])
+
+
+def _source_identity(semantic="parameter_posterior", snapshot="batch-a-snapshot"):
+    return antecedent.artifacts.DistributionIdentity(
+        semantic=semantic,
+        quantities=(
+            _coefficient("source:x"),
+            _coefficient("source:y"),
+            _coefficient("source:sigma2", functional="residual_variance"),
+        ),
+        alignment="joint",
+        source_id="batch-a",
+        provider_id="conjugate-gaussian",
+        rng_id="deterministic-exact-quadrature",
+        snapshot_id=snapshot,
+        causal_contract_id="fixed-gaussian-contract",
+    )
+
+
+def _transfer(data, expected, **overrides):
+    arguments = {
+        "expected_source": expected,
+        "source_to_target": {"source:x": "target:x", "source:y": "target:y"},
+        "target_quantities": (_coefficient("target:y"), _coefficient("target:x")),
+        "target_snapshot_id": "batch-b-snapshot",
+        "target_contract_id": "fixed-gaussian-contract",
+        "known_residual_variance": 1.0,
+    }
+    arguments.update(overrides)
+    return antecedent.priors.mapped_posterior_transfer(data, **arguments)
+
+
+def test_mapped_posterior_transfer_permutes_the_exact_conjugate_posterior_into_the_target_order():
+    # Batch A: one row x = (1, 2), y = 1, prior N(0, I), sigma^2 = 1. The exact conjugate
+    # posterior is Sigma = (I + x'x)^-1 = [[5, -2], [-2, 2]] / 6 and mean Sigma x' y = (1/6, 1/3).
+    x = np.array([1.0, 2.0])
+    sigma = np.linalg.inv(np.eye(2) + np.outer(x, x))
+    mean = sigma @ x
+    np.testing.assert_allclose(mean, [1 / 6, 1 / 3], atol=1e-15)
+    expected = _source_identity()
+    source = antecedent.artifacts.JointDistributionArtifact(
+        expected, _exact_gaussian_draws(mean, sigma, 1.0)
+    )
+    data = bytes(source.export("batch-a-posterior"))
+    prior = _transfer(data, expected)
+    # The target lists (y, x): means and the full covariance follow the stable-id bijection.
+    assert prior.target_ids == ("target:y", "target:x")
+    swap = [1, 0]
+    np.testing.assert_allclose(prior.mean, mean[swap], atol=1e-10)
+    np.testing.assert_allclose(prior.covariance, sigma[np.ix_(swap, swap)], atol=1e-10)
+    assert prior.known_residual_variance == 1.0
+    assert prior.correlation is not None
+    assert prior.correlation[0][1] == pytest.approx(
+        sigma[0, 1] / math.sqrt(sigma[0, 0] * sigma[1, 1]), abs=1e-10
+    )
+    (receipt,) = [text for name, text in prior.assumptions if name == "mapped_posterior_transfer"]
+    assert "batch-a-snapshot" in receipt and "batch-b-snapshot" in receipt
+    # The covariance scales with the known residual variance of the target's baseline: a source
+    # whose residual-variance coordinate is 4 transfers to a prior with sigma^2 = 4 and V0 = Sigma.
+    scaled = antecedent.artifacts.JointDistributionArtifact(
+        expected, _exact_gaussian_draws(mean, 4.0 * sigma, 4.0)
+    )
+    scaled_prior = _transfer(
+        bytes(scaled.export("batch-a-scaled")), expected, known_residual_variance=4.0
+    )
+    np.testing.assert_allclose(scaled_prior.covariance, 4.0 * sigma[np.ix_(swap, swap)], atol=1e-9)
+    np.testing.assert_allclose(scaled_prior.scale_variance, np.diag(sigma)[swap], atol=1e-9)
+
+
+def test_mapped_posterior_transfer_refuses_identity_meaning_map_scale_and_coordinates():
+    sigma = np.array([[5.0, -2.0], [-2.0, 2.0]]) / 6.0
+    expected = _source_identity()
+    draws = _exact_gaussian_draws([1 / 6, 1 / 3], sigma, 1.0)
+    data = bytes(antecedent.artifacts.JointDistributionArtifact(expected, draws).export("a"))
+    assert _transfer(data, expected).mean[0] == pytest.approx(1 / 3, abs=1e-10)
+    errors = antecedent.errors
+    # The identity is the consumer's, not the artifact's.
+    with pytest.raises(errors.CausalError, match="identity"):
+        _transfer(data, _source_identity(snapshot="other"))
+    # Only complete joint parameter-posterior draws transfer.
+    boot = _source_identity(semantic="bootstrap")
+    boot_data = bytes(antecedent.artifacts.JointDistributionArtifact(boot, draws).export("b"))
+    with pytest.raises(errors.CausalError, match="parameter_posterior") as meaning:
+        _transfer(boot_data, boot)
+    assert meaning.value.reason_code == "distribution_meaning_mismatch"
+    # The map must be a complete bijection with unique stable ids and identical coordinates.
+    reused = {"source:x": "target:x", "source:y": "target:x"}
+    partial = {"source:x": "target:x"}
+    for bad_map in (reused, partial):
+        with pytest.raises(errors.CausalError, match="coefficient_map") as mapped:
+            _transfer(data, expected, source_to_target=bad_map)
+        assert mapped.value.reason_code == "quantity_semantics_mismatch"
+    with pytest.raises(errors.CausalError, match="coefficient_map"):
+        _transfer(
+            data,
+            expected,
+            target_quantities=(_coefficient("target:y", units="meters"), _coefficient("target:x")),
+        )
+    with pytest.raises(errors.CausalError, match="snapshot"):
+        _transfer(data, expected, target_snapshot_id="")
+    # The source's residual variance must equal the target's known variance.
+    with pytest.raises(errors.CausalError, match="residual_variance") as scale:
+        _transfer(data, expected, known_residual_variance=2.0)
+    assert scale.value.reason_code == "prior_transfer_not_hydrated"

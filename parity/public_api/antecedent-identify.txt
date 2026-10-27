@@ -2,17 +2,18 @@
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
 #[doc(hidden)] pub fn antecedent_identify::admg_conditional_refusal(error: &antecedent_identify::IdentificationError) -> core::option::Option<(&'static str, &'static str)>
-#[doc(hidden)] pub fn antecedent_identify::counterfactual_id::evaluate_counterfactual_functional(problem: &antecedent_identify::counterfactual_id::CounterfactualIdProblem, derivation: &antecedent_identify::counterfactual_id::CounterfactualIdDerivation, law: &antecedent_expr::exact::ExactDiscreteLaw, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::counterfactual_id::CounterfactualIdPoint, antecedent_identify::counterfactual_id::CounterfactualIdRefusal>
+#[doc(hidden)] pub fn antecedent_identify::counterfactual_id::evaluate_counterfactual_functional(problem: &antecedent_identify::counterfactual_id::CounterfactualIdProblem, derivation: &antecedent_identify::counterfactual_id::CounterfactualIdDerivation, law: &antecedent_expr::exact::ExactDiscreteLaw, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::counterfactual_id::CounterfactualIdPoint, antecedent_identify::counterfactual_id::CounterfactualIdRefusal>
 #[doc(hidden)] pub fn antecedent_identify::counterfactual_transport_refusal(error: &antecedent_identify::IdentificationError) -> core::option::Option<(&'static str, &'static str)>
 #[doc(hidden)] pub fn antecedent_identify::cross_world::check_cross_world_edges(node_count: usize, edges: &[(u32, u32)], query: &antecedent_core::query::cross_world::CrossWorldQuery) -> core::result::Result<antecedent_identify::cross_world::CrossWorldWitness, antecedent_identify::cross_world::CrossWorldRefusal>
 #[doc(hidden)] pub fn antecedent_identify::mixed_source_rule_names() -> alloc::vec::Vec<&'static str>
 #[doc(hidden)] pub fn antecedent_identify::mz_transport_refusal(error: &antecedent_identify::IdentificationError) -> core::option::Option<(&'static str, &'static str)>
 #[doc(hidden)] pub fn antecedent_identify::recovery::m_graph_signature(graph: &antecedent_graph::admg::Admg) -> alloc::string::String
 #[doc(hidden)] pub fn antecedent_identify::render_quantity(quantity: &antecedent_identify::MixedQuantity, names: &[alloc::string::String]) -> alloc::string::String
-#[doc(hidden)] pub fn antecedent_identify::replay_counterfactual_transport(problem: &antecedent_identify::CounterfactualTransportProblem, query: &antecedent_identify::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, record: &antecedent_identify::CounterfactualTransportSearchRecord, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CounterfactualTransportDecision, antecedent_identify::IdentificationError>
+#[doc(hidden)] pub fn antecedent_identify::replay_counterfactual_transport(problem: &antecedent_identify::CounterfactualTransportProblem, query: &antecedent_identify::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, record: &antecedent_identify::CounterfactualTransportSearchRecord, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::CounterfactualTransportDecision, antecedent_identify::IdentificationError>
 #[doc(hidden)] pub fn antecedent_identify::sid::scenarios::mass_sum(values: impl core::iter::traits::collect::IntoIterator<Item = f64>) -> f64
 #[doc(hidden)] pub fn antecedent_identify::sid::scenarios::unaccounted_after(identified: f64) -> f64
 #[doc(hidden)] pub fn antecedent_identify::sid::validate_mz_transport_query(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MzTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<antecedent_identify::ValidatedMzTransportQuery, antecedent_identify::IdentificationError>
+#[non_exhaustive] pub enum antecedent_identify::EstimandSelectionError
 #[non_exhaustive] pub enum antecedent_identify::IdentificationBudget
 #[non_exhaustive] pub enum antecedent_identify::IdentificationError
 #[non_exhaustive] pub enum antecedent_identify::ProductRefusal
@@ -94,10 +95,12 @@ impl core::clone::Clone for antecedent_identify::CounterfactualFunctional
 impl core::clone::Clone for antecedent_identify::CounterfactualItem
 impl core::clone::Clone for antecedent_identify::CounterfactualItemSource
 impl core::clone::Clone for antecedent_identify::CounterfactualLevel
+impl core::clone::Clone for antecedent_identify::CounterfactualLevelIndex
 impl core::clone::Clone for antecedent_identify::CounterfactualMissingRegime
 impl core::clone::Clone for antecedent_identify::CounterfactualMovedAtom
 impl core::clone::Clone for antecedent_identify::CounterfactualSum
 impl core::clone::Clone for antecedent_identify::CounterfactualSymbol
+impl core::clone::Clone for antecedent_identify::CounterfactualSymbolId
 impl core::clone::Clone for antecedent_identify::CounterfactualTransportDecision
 impl core::clone::Clone for antecedent_identify::CounterfactualTransportDerivation
 impl core::clone::Clone for antecedent_identify::CounterfactualTransportInspection
@@ -110,6 +113,7 @@ impl core::clone::Clone for antecedent_identify::CounterfactualTransportSource
 impl core::clone::Clone for antecedent_identify::CounterfactualTransportUnsupported
 impl core::clone::Clone for antecedent_identify::CounterfactualTransportWitness
 impl core::clone::Clone for antecedent_identify::CounterfactualTransportWitnessCheck
+impl core::clone::Clone for antecedent_identify::CounterfactualVariableIndex
 impl core::clone::Clone for antecedent_identify::DeclaredClampExperiment
 impl core::clone::Clone for antecedent_identify::DeclaredEquationRank
 impl core::clone::Clone for antecedent_identify::DeclaredNoiseLaw
@@ -120,6 +124,7 @@ impl core::clone::Clone for antecedent_identify::DesignFault
 impl core::clone::Clone for antecedent_identify::DirectCoefficient
 impl core::clone::Clone for antecedent_identify::EfficientBackdoorIdentifier
 impl core::clone::Clone for antecedent_identify::EstimandClaim
+impl core::clone::Clone for antecedent_identify::EstimandSelectionError
 impl core::clone::Clone for antecedent_identify::ExperimentDesign
 impl core::clone::Clone for antecedent_identify::ExperimentRegime
 impl core::clone::Clone for antecedent_identify::ExperimentalRecoveryDecision
@@ -399,10 +404,12 @@ impl core::cmp::Eq for antecedent_identify::CounterfactualFunctional
 impl core::cmp::Eq for antecedent_identify::CounterfactualItem
 impl core::cmp::Eq for antecedent_identify::CounterfactualItemSource
 impl core::cmp::Eq for antecedent_identify::CounterfactualLevel
+impl core::cmp::Eq for antecedent_identify::CounterfactualLevelIndex
 impl core::cmp::Eq for antecedent_identify::CounterfactualMissingRegime
 impl core::cmp::Eq for antecedent_identify::CounterfactualMovedAtom
 impl core::cmp::Eq for antecedent_identify::CounterfactualSum
 impl core::cmp::Eq for antecedent_identify::CounterfactualSymbol
+impl core::cmp::Eq for antecedent_identify::CounterfactualSymbolId
 impl core::cmp::Eq for antecedent_identify::CounterfactualTransportInspection
 impl core::cmp::Eq for antecedent_identify::CounterfactualTransportMissing
 impl core::cmp::Eq for antecedent_identify::CounterfactualTransportProblem
@@ -411,6 +418,7 @@ impl core::cmp::Eq for antecedent_identify::CounterfactualTransportSource
 impl core::cmp::Eq for antecedent_identify::CounterfactualTransportUnsupported
 impl core::cmp::Eq for antecedent_identify::CounterfactualTransportWitness
 impl core::cmp::Eq for antecedent_identify::CounterfactualTransportWitnessCheck
+impl core::cmp::Eq for antecedent_identify::CounterfactualVariableIndex
 impl core::cmp::Eq for antecedent_identify::DeclaredClampExperiment
 impl core::cmp::Eq for antecedent_identify::DeclaredEquationRank
 impl core::cmp::Eq for antecedent_identify::DeclaredNoiseLaw
@@ -420,6 +428,7 @@ impl core::cmp::Eq for antecedent_identify::DerivationTrace
 impl core::cmp::Eq for antecedent_identify::DesignFault
 impl core::cmp::Eq for antecedent_identify::DirectCoefficient
 impl core::cmp::Eq for antecedent_identify::EstimandClaim
+impl core::cmp::Eq for antecedent_identify::EstimandSelectionError
 impl core::cmp::Eq for antecedent_identify::ExperimentDesign
 impl core::cmp::Eq for antecedent_identify::ExperimentRegime
 impl core::cmp::Eq for antecedent_identify::ExperimentalRecoveryDecision
@@ -559,7 +568,10 @@ impl core::cmp::Eq for antecedent_identify::sid::temporal_sequence::TemporalRefu
 impl core::cmp::Eq for antecedent_identify::sid::temporal_sequence::TemporalSlots
 impl core::cmp::Eq for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
 impl core::cmp::Ord for antecedent_identify::CounterfactualLevel
+impl core::cmp::Ord for antecedent_identify::CounterfactualLevelIndex
 impl core::cmp::Ord for antecedent_identify::CounterfactualSymbol
+impl core::cmp::Ord for antecedent_identify::CounterfactualSymbolId
+impl core::cmp::Ord for antecedent_identify::CounterfactualVariableIndex
 impl core::cmp::Ord for antecedent_identify::DirectCoefficient
 impl core::cmp::Ord for antecedent_identify::PopulationId
 impl core::cmp::Ord for antecedent_identify::SourceIdentity
@@ -598,10 +610,12 @@ impl core::cmp::PartialEq for antecedent_identify::CounterfactualFunctional
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualItem
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualItemSource
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualLevel
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualLevelIndex
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualMissingRegime
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualMovedAtom
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualSum
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualSymbol
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualSymbolId
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportInspection
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportMissing
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportProblem
@@ -611,6 +625,7 @@ impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportSource
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportUnsupported
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportWitness
 impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportWitnessCheck
+impl core::cmp::PartialEq for antecedent_identify::CounterfactualVariableIndex
 impl core::cmp::PartialEq for antecedent_identify::DeclaredClampExperiment
 impl core::cmp::PartialEq for antecedent_identify::DeclaredEquationRank
 impl core::cmp::PartialEq for antecedent_identify::DeclaredNoiseLaw
@@ -620,6 +635,7 @@ impl core::cmp::PartialEq for antecedent_identify::DerivationTrace
 impl core::cmp::PartialEq for antecedent_identify::DesignFault
 impl core::cmp::PartialEq for antecedent_identify::DirectCoefficient
 impl core::cmp::PartialEq for antecedent_identify::EstimandClaim
+impl core::cmp::PartialEq for antecedent_identify::EstimandSelectionError
 impl core::cmp::PartialEq for antecedent_identify::ExperimentDesign
 impl core::cmp::PartialEq for antecedent_identify::ExperimentRegime
 impl core::cmp::PartialEq for antecedent_identify::ExperimentalRecoveryDecision
@@ -804,7 +820,10 @@ impl core::cmp::PartialEq for antecedent_identify::sid::temporal_sequence::Tempo
 impl core::cmp::PartialEq for antecedent_identify::sid::temporal_sequence::TemporalSlots
 impl core::cmp::PartialEq for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
 impl core::cmp::PartialOrd for antecedent_identify::CounterfactualLevel
+impl core::cmp::PartialOrd for antecedent_identify::CounterfactualLevelIndex
 impl core::cmp::PartialOrd for antecedent_identify::CounterfactualSymbol
+impl core::cmp::PartialOrd for antecedent_identify::CounterfactualSymbolId
+impl core::cmp::PartialOrd for antecedent_identify::CounterfactualVariableIndex
 impl core::cmp::PartialOrd for antecedent_identify::DirectCoefficient
 impl core::cmp::PartialOrd for antecedent_identify::PopulationId
 impl core::cmp::PartialOrd for antecedent_identify::SourceIdentity
@@ -824,6 +843,9 @@ impl core::convert::From<antecedent_identify::sid::scenarios::ScenarioSetRefusal
 impl core::convert::From<antecedent_identify::sid::scenarios::ScenarioSetRefusal> for antecedent_identify::sid::cpdag_completion::CpdagScenarioError
 impl core::convert::From<antecedent_identify::sid::temporal_sequence::TemporalRefusal> for antecedent_identify::IdentificationError
 impl core::convert::From<antecedent_identify::sid::temporal_sequence::TemporalRefusal> for antecedent_identify::sid::temporal_sequence::TemporalSequenceError
+impl core::convert::From<usize> for antecedent_identify::CounterfactualLevelIndex
+impl core::convert::From<usize> for antecedent_identify::CounterfactualSymbolId
+impl core::convert::From<usize> for antecedent_identify::CounterfactualVariableIndex
 impl core::default::Default for antecedent_identify::AdjustmentSearchConfig
 impl core::default::Default for antecedent_identify::AutoIdentifier
 impl core::default::Default for antecedent_identify::BackdoorIdentifier
@@ -914,10 +936,12 @@ impl core::fmt::Debug for antecedent_identify::CounterfactualFunctional
 impl core::fmt::Debug for antecedent_identify::CounterfactualItem
 impl core::fmt::Debug for antecedent_identify::CounterfactualItemSource
 impl core::fmt::Debug for antecedent_identify::CounterfactualLevel
+impl core::fmt::Debug for antecedent_identify::CounterfactualLevelIndex
 impl core::fmt::Debug for antecedent_identify::CounterfactualMissingRegime
 impl core::fmt::Debug for antecedent_identify::CounterfactualMovedAtom
 impl core::fmt::Debug for antecedent_identify::CounterfactualSum
 impl core::fmt::Debug for antecedent_identify::CounterfactualSymbol
+impl core::fmt::Debug for antecedent_identify::CounterfactualSymbolId
 impl core::fmt::Debug for antecedent_identify::CounterfactualTransportDecision
 impl core::fmt::Debug for antecedent_identify::CounterfactualTransportDerivation
 impl core::fmt::Debug for antecedent_identify::CounterfactualTransportInspection
@@ -930,6 +954,7 @@ impl core::fmt::Debug for antecedent_identify::CounterfactualTransportSource
 impl core::fmt::Debug for antecedent_identify::CounterfactualTransportUnsupported
 impl core::fmt::Debug for antecedent_identify::CounterfactualTransportWitness
 impl core::fmt::Debug for antecedent_identify::CounterfactualTransportWitnessCheck
+impl core::fmt::Debug for antecedent_identify::CounterfactualVariableIndex
 impl core::fmt::Debug for antecedent_identify::DeclaredClampExperiment
 impl core::fmt::Debug for antecedent_identify::DeclaredEquationRank
 impl core::fmt::Debug for antecedent_identify::DeclaredNoiseLaw
@@ -940,6 +965,7 @@ impl core::fmt::Debug for antecedent_identify::DesignFault
 impl core::fmt::Debug for antecedent_identify::DirectCoefficient
 impl core::fmt::Debug for antecedent_identify::EfficientBackdoorIdentifier
 impl core::fmt::Debug for antecedent_identify::EstimandClaim
+impl core::fmt::Debug for antecedent_identify::EstimandSelectionError
 impl core::fmt::Debug for antecedent_identify::ExperimentDesign
 impl core::fmt::Debug for antecedent_identify::ExperimentRegime
 impl core::fmt::Debug for antecedent_identify::ExperimentalRecoveryDecision
@@ -1221,7 +1247,10 @@ impl core::hash::Hash for antecedent_identify::ChainPartial
 impl core::hash::Hash for antecedent_identify::ChainRecoveryDetail
 impl core::hash::Hash for antecedent_identify::ClampExogeneity
 impl core::hash::Hash for antecedent_identify::CounterfactualLevel
+impl core::hash::Hash for antecedent_identify::CounterfactualLevelIndex
 impl core::hash::Hash for antecedent_identify::CounterfactualSymbol
+impl core::hash::Hash for antecedent_identify::CounterfactualSymbolId
+impl core::hash::Hash for antecedent_identify::CounterfactualVariableIndex
 impl core::hash::Hash for antecedent_identify::DeclaredNoiseLaw
 impl core::hash::Hash for antecedent_identify::DependencePremise
 impl core::hash::Hash for antecedent_identify::DesignFault
@@ -1265,8 +1294,11 @@ impl core::marker::Copy for antecedent_identify::ComponentFactorization
 impl core::marker::Copy for antecedent_identify::CounterfactualItem
 impl core::marker::Copy for antecedent_identify::CounterfactualItemSource
 impl core::marker::Copy for antecedent_identify::CounterfactualLevel
+impl core::marker::Copy for antecedent_identify::CounterfactualLevelIndex
 impl core::marker::Copy for antecedent_identify::CounterfactualMovedAtom
 impl core::marker::Copy for antecedent_identify::CounterfactualSymbol
+impl core::marker::Copy for antecedent_identify::CounterfactualSymbolId
+impl core::marker::Copy for antecedent_identify::CounterfactualVariableIndex
 impl core::marker::Copy for antecedent_identify::DeclaredNoiseLaw
 impl core::marker::Copy for antecedent_identify::DependencePremise
 impl core::marker::Copy for antecedent_identify::DesignFault
@@ -1369,10 +1401,12 @@ impl core::marker::Freeze for antecedent_identify::CounterfactualFunctional [aut
 impl core::marker::Freeze for antecedent_identify::CounterfactualItem [auto]
 impl core::marker::Freeze for antecedent_identify::CounterfactualItemSource [auto]
 impl core::marker::Freeze for antecedent_identify::CounterfactualLevel [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualLevelIndex [auto]
 impl core::marker::Freeze for antecedent_identify::CounterfactualMissingRegime [auto]
 impl core::marker::Freeze for antecedent_identify::CounterfactualMovedAtom [auto]
 impl core::marker::Freeze for antecedent_identify::CounterfactualSum [auto]
 impl core::marker::Freeze for antecedent_identify::CounterfactualSymbol [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualSymbolId [auto]
 impl core::marker::Freeze for antecedent_identify::CounterfactualTransportDecision [auto]
 impl core::marker::Freeze for antecedent_identify::CounterfactualTransportDerivation [auto]
 impl core::marker::Freeze for antecedent_identify::CounterfactualTransportInspection [auto]
@@ -1385,6 +1419,7 @@ impl core::marker::Freeze for antecedent_identify::CounterfactualTransportSource
 impl core::marker::Freeze for antecedent_identify::CounterfactualTransportUnsupported [auto]
 impl core::marker::Freeze for antecedent_identify::CounterfactualTransportWitness [auto]
 impl core::marker::Freeze for antecedent_identify::CounterfactualTransportWitnessCheck [auto]
+impl core::marker::Freeze for antecedent_identify::CounterfactualVariableIndex [auto]
 impl core::marker::Freeze for antecedent_identify::DeclaredClampExperiment [auto]
 impl core::marker::Freeze for antecedent_identify::DeclaredEquationRank [auto]
 impl core::marker::Freeze for antecedent_identify::DeclaredNoiseLaw [auto]
@@ -1395,6 +1430,7 @@ impl core::marker::Freeze for antecedent_identify::DesignFault [auto]
 impl core::marker::Freeze for antecedent_identify::DirectCoefficient [auto]
 impl core::marker::Freeze for antecedent_identify::EfficientBackdoorIdentifier [auto]
 impl core::marker::Freeze for antecedent_identify::EstimandClaim [auto]
+impl core::marker::Freeze for antecedent_identify::EstimandSelectionError [auto]
 impl core::marker::Freeze for antecedent_identify::ExperimentDesign [auto]
 impl core::marker::Freeze for antecedent_identify::ExperimentRegime [auto]
 impl core::marker::Freeze for antecedent_identify::ExperimentalRecoveryDecision [auto]
@@ -1701,10 +1737,12 @@ impl core::marker::Send for antecedent_identify::CounterfactualFunctional [auto]
 impl core::marker::Send for antecedent_identify::CounterfactualItem [auto]
 impl core::marker::Send for antecedent_identify::CounterfactualItemSource [auto]
 impl core::marker::Send for antecedent_identify::CounterfactualLevel [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualLevelIndex [auto]
 impl core::marker::Send for antecedent_identify::CounterfactualMissingRegime [auto]
 impl core::marker::Send for antecedent_identify::CounterfactualMovedAtom [auto]
 impl core::marker::Send for antecedent_identify::CounterfactualSum [auto]
 impl core::marker::Send for antecedent_identify::CounterfactualSymbol [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualSymbolId [auto]
 impl core::marker::Send for antecedent_identify::CounterfactualTransportDecision [auto]
 impl core::marker::Send for antecedent_identify::CounterfactualTransportDerivation [auto]
 impl core::marker::Send for antecedent_identify::CounterfactualTransportInspection [auto]
@@ -1717,6 +1755,7 @@ impl core::marker::Send for antecedent_identify::CounterfactualTransportSource [
 impl core::marker::Send for antecedent_identify::CounterfactualTransportUnsupported [auto]
 impl core::marker::Send for antecedent_identify::CounterfactualTransportWitness [auto]
 impl core::marker::Send for antecedent_identify::CounterfactualTransportWitnessCheck [auto]
+impl core::marker::Send for antecedent_identify::CounterfactualVariableIndex [auto]
 impl core::marker::Send for antecedent_identify::DeclaredClampExperiment [auto]
 impl core::marker::Send for antecedent_identify::DeclaredEquationRank [auto]
 impl core::marker::Send for antecedent_identify::DeclaredNoiseLaw [auto]
@@ -1727,6 +1766,7 @@ impl core::marker::Send for antecedent_identify::DesignFault [auto]
 impl core::marker::Send for antecedent_identify::DirectCoefficient [auto]
 impl core::marker::Send for antecedent_identify::EfficientBackdoorIdentifier [auto]
 impl core::marker::Send for antecedent_identify::EstimandClaim [auto]
+impl core::marker::Send for antecedent_identify::EstimandSelectionError [auto]
 impl core::marker::Send for antecedent_identify::ExperimentDesign [auto]
 impl core::marker::Send for antecedent_identify::ExperimentRegime [auto]
 impl core::marker::Send for antecedent_identify::ExperimentalRecoveryDecision [auto]
@@ -2012,10 +2052,12 @@ impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualFu
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualItem
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualItemSource
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualLevel
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualLevelIndex
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualMissingRegime
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualMovedAtom
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualSum
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualSymbol
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualSymbolId
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportInspection
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportMissing
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportProblem
@@ -2025,6 +2067,7 @@ impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTr
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportUnsupported
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportWitness
 impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTransportWitnessCheck
+impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualVariableIndex
 impl core::marker::StructuralPartialEq for antecedent_identify::DeclaredClampExperiment
 impl core::marker::StructuralPartialEq for antecedent_identify::DeclaredEquationRank
 impl core::marker::StructuralPartialEq for antecedent_identify::DeclaredNoiseLaw
@@ -2034,6 +2077,7 @@ impl core::marker::StructuralPartialEq for antecedent_identify::DerivationTrace
 impl core::marker::StructuralPartialEq for antecedent_identify::DesignFault
 impl core::marker::StructuralPartialEq for antecedent_identify::DirectCoefficient
 impl core::marker::StructuralPartialEq for antecedent_identify::EstimandClaim
+impl core::marker::StructuralPartialEq for antecedent_identify::EstimandSelectionError
 impl core::marker::StructuralPartialEq for antecedent_identify::ExperimentDesign
 impl core::marker::StructuralPartialEq for antecedent_identify::ExperimentRegime
 impl core::marker::StructuralPartialEq for antecedent_identify::ExperimentalRecoveryDecision
@@ -2263,10 +2307,12 @@ impl core::marker::Sync for antecedent_identify::CounterfactualFunctional [auto]
 impl core::marker::Sync for antecedent_identify::CounterfactualItem [auto]
 impl core::marker::Sync for antecedent_identify::CounterfactualItemSource [auto]
 impl core::marker::Sync for antecedent_identify::CounterfactualLevel [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualLevelIndex [auto]
 impl core::marker::Sync for antecedent_identify::CounterfactualMissingRegime [auto]
 impl core::marker::Sync for antecedent_identify::CounterfactualMovedAtom [auto]
 impl core::marker::Sync for antecedent_identify::CounterfactualSum [auto]
 impl core::marker::Sync for antecedent_identify::CounterfactualSymbol [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualSymbolId [auto]
 impl core::marker::Sync for antecedent_identify::CounterfactualTransportDecision [auto]
 impl core::marker::Sync for antecedent_identify::CounterfactualTransportDerivation [auto]
 impl core::marker::Sync for antecedent_identify::CounterfactualTransportInspection [auto]
@@ -2279,6 +2325,7 @@ impl core::marker::Sync for antecedent_identify::CounterfactualTransportSource [
 impl core::marker::Sync for antecedent_identify::CounterfactualTransportUnsupported [auto]
 impl core::marker::Sync for antecedent_identify::CounterfactualTransportWitness [auto]
 impl core::marker::Sync for antecedent_identify::CounterfactualTransportWitnessCheck [auto]
+impl core::marker::Sync for antecedent_identify::CounterfactualVariableIndex [auto]
 impl core::marker::Sync for antecedent_identify::DeclaredClampExperiment [auto]
 impl core::marker::Sync for antecedent_identify::DeclaredEquationRank [auto]
 impl core::marker::Sync for antecedent_identify::DeclaredNoiseLaw [auto]
@@ -2289,6 +2336,7 @@ impl core::marker::Sync for antecedent_identify::DesignFault [auto]
 impl core::marker::Sync for antecedent_identify::DirectCoefficient [auto]
 impl core::marker::Sync for antecedent_identify::EfficientBackdoorIdentifier [auto]
 impl core::marker::Sync for antecedent_identify::EstimandClaim [auto]
+impl core::marker::Sync for antecedent_identify::EstimandSelectionError [auto]
 impl core::marker::Sync for antecedent_identify::ExperimentDesign [auto]
 impl core::marker::Sync for antecedent_identify::ExperimentRegime [auto]
 impl core::marker::Sync for antecedent_identify::ExperimentalRecoveryDecision [auto]
@@ -2595,10 +2643,12 @@ impl core::marker::Unpin for antecedent_identify::CounterfactualFunctional [auto
 impl core::marker::Unpin for antecedent_identify::CounterfactualItem [auto]
 impl core::marker::Unpin for antecedent_identify::CounterfactualItemSource [auto]
 impl core::marker::Unpin for antecedent_identify::CounterfactualLevel [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualLevelIndex [auto]
 impl core::marker::Unpin for antecedent_identify::CounterfactualMissingRegime [auto]
 impl core::marker::Unpin for antecedent_identify::CounterfactualMovedAtom [auto]
 impl core::marker::Unpin for antecedent_identify::CounterfactualSum [auto]
 impl core::marker::Unpin for antecedent_identify::CounterfactualSymbol [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualSymbolId [auto]
 impl core::marker::Unpin for antecedent_identify::CounterfactualTransportDecision [auto]
 impl core::marker::Unpin for antecedent_identify::CounterfactualTransportDerivation [auto]
 impl core::marker::Unpin for antecedent_identify::CounterfactualTransportInspection [auto]
@@ -2611,6 +2661,7 @@ impl core::marker::Unpin for antecedent_identify::CounterfactualTransportSource 
 impl core::marker::Unpin for antecedent_identify::CounterfactualTransportUnsupported [auto]
 impl core::marker::Unpin for antecedent_identify::CounterfactualTransportWitness [auto]
 impl core::marker::Unpin for antecedent_identify::CounterfactualTransportWitnessCheck [auto]
+impl core::marker::Unpin for antecedent_identify::CounterfactualVariableIndex [auto]
 impl core::marker::Unpin for antecedent_identify::DeclaredClampExperiment [auto]
 impl core::marker::Unpin for antecedent_identify::DeclaredEquationRank [auto]
 impl core::marker::Unpin for antecedent_identify::DeclaredNoiseLaw [auto]
@@ -2621,6 +2672,7 @@ impl core::marker::Unpin for antecedent_identify::DesignFault [auto]
 impl core::marker::Unpin for antecedent_identify::DirectCoefficient [auto]
 impl core::marker::Unpin for antecedent_identify::EfficientBackdoorIdentifier [auto]
 impl core::marker::Unpin for antecedent_identify::EstimandClaim [auto]
+impl core::marker::Unpin for antecedent_identify::EstimandSelectionError [auto]
 impl core::marker::Unpin for antecedent_identify::ExperimentDesign [auto]
 impl core::marker::Unpin for antecedent_identify::ExperimentRegime [auto]
 impl core::marker::Unpin for antecedent_identify::ExperimentalRecoveryDecision [auto]
@@ -2924,10 +2976,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::Counterfac
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualItem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualItemSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualLevel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualLevelIndex [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualMissingRegime [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualMovedAtom [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualSum [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualSymbol [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualSymbolId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportDerivation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportInspection [auto]
@@ -2940,6 +2994,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::Counterfac
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportUnsupported [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportWitness [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualTransportWitnessCheck [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::CounterfactualVariableIndex [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DeclaredClampExperiment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DeclaredEquationRank [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DeclaredNoiseLaw [auto]
@@ -2949,6 +3004,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::Derivation
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DesignFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DirectCoefficient [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::EstimandClaim [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::EstimandSelectionError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ExperimentDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ExperimentRegime [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ExperimentalRecoveryDecision [auto]
@@ -3247,10 +3303,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::Counterfactua
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualItem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualItemSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualLevel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualLevelIndex [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualMissingRegime [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualMovedAtom [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualSum [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualSymbol [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualSymbolId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportDerivation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportInspection [auto]
@@ -3263,6 +3321,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::Counterfactua
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportUnsupported [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportWitness [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualTransportWitnessCheck [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::CounterfactualVariableIndex [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DeclaredClampExperiment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DeclaredEquationRank [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DeclaredNoiseLaw [auto]
@@ -3272,6 +3331,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DerivationTra
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DesignFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DirectCoefficient [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::EstimandClaim [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::EstimandSelectionError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ExperimentDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ExperimentRegime [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ExperimentalRecoveryDecision [auto]
@@ -3713,6 +3773,16 @@ impl<G> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::Identif
 impl<G> core::panic::unwind_safe::UnwindSafe for antecedent_identify::ClassTransportEnvelope<G> where G: core::panic::unwind_safe::UnwindSafe [auto]
 impl<G> core::panic::unwind_safe::UnwindSafe for antecedent_identify::GraphIdentificationCase<G> where G: core::panic::unwind_safe::UnwindSafe [auto]
 impl<G> core::panic::unwind_safe::UnwindSafe for antecedent_identify::IdentificationEnvelope<G> where G: core::panic::unwind_safe::UnwindSafe [auto]
+impl<T: core::clone::Clone> core::clone::Clone for antecedent_identify::FrontDoorSearch<T>
+impl<T: core::cmp::PartialEq> core::cmp::PartialEq for antecedent_identify::FrontDoorSearch<T>
+impl<T: core::fmt::Debug> core::fmt::Debug for antecedent_identify::FrontDoorSearch<T>
+impl<T> core::marker::Freeze for antecedent_identify::FrontDoorSearch<T> where T: core::marker::Freeze [auto]
+impl<T> core::marker::Send for antecedent_identify::FrontDoorSearch<T> where T: core::marker::Send [auto]
+impl<T> core::marker::StructuralPartialEq for antecedent_identify::FrontDoorSearch<T>
+impl<T> core::marker::Sync for antecedent_identify::FrontDoorSearch<T> where T: core::marker::Sync [auto]
+impl<T> core::marker::Unpin for antecedent_identify::FrontDoorSearch<T> where T: core::marker::Unpin [auto]
+impl<T> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::FrontDoorSearch<T> where T: core::panic::unwind_safe::RefUnwindSafe [auto]
+impl<T> core::panic::unwind_safe::UnwindSafe for antecedent_identify::FrontDoorSearch<T> where T: core::panic::unwind_safe::UnwindSafe [auto]
 pub const <antecedent_identify::MixedRule>::ALL: [Self; 10]
 pub const antecedent_identify::ADMG_CONDITIONAL_DEFAULT_LIMITS: antecedent_core::search::SearchLimits
 pub const antecedent_identify::ADMG_CONDITIONAL_MAX_CONDITIONED: usize
@@ -3728,16 +3798,14 @@ pub const antecedent_identify::CLASS_TRANSPORT_METHOD: &str
 pub const antecedent_identify::CONDITIONAL_WITNESS_MAX_LATENT_LEVELS: usize
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_CONTRACT: &str
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS: antecedent_core::search::SearchLimits
+pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES: usize
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_ATOMS: usize
-pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_CELLS: usize
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE: usize
-pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_LEVELS: usize
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_LIMITS: antecedent_core::search::SearchLimits
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_NODES: usize
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_REGIMES: usize
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_SOURCES: usize
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS: usize
-pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES: usize
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_WORLDS: usize
 pub const antecedent_identify::COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES: u64
 pub const antecedent_identify::JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str
@@ -3761,9 +3829,7 @@ pub const antecedent_identify::PAG_TRANSPORT_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &st
 pub const antecedent_identify::PARENT_ADJUSTMENT_RULE: &str
 pub const antecedent_identify::PRIOR_REGULARIZATION_ATTEMPT: &str
 pub const antecedent_identify::RECOVERY_DEFAULT_LIMITS: antecedent_identify::RecoveryLimits
-pub const antecedent_identify::RECOVERY_MAX_FULLY_OBSERVED: usize
 pub const antecedent_identify::RECOVERY_MAX_OBSERVED_CELLS: usize
-pub const antecedent_identify::RECOVERY_MAX_PARTIALLY_OBSERVED: usize
 pub const antecedent_identify::RECOVERY_RULE_VERSION: &str
 pub const antecedent_identify::REPAIR_MASK_OR_PREMISE: &str
 pub const antecedent_identify::REPAIR_MASK_OR_PREMISE_ATTEMPT: antecedent_core::refusal::NextAttempt
@@ -3805,7 +3871,6 @@ pub const antecedent_identify::sid::temporal_initial_shift::INITIAL_SHIFT_SOURCE
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_BOUNDS_EXCEEDED: &str
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_CHECKED_OBSTRUCTION: &str
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_HISTORY_BUDGET: &str
-pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_HORIZON: usize
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_HORIZON_DETAIL: &str
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_INVALID_SEQUENCE: &str
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_INVALID_SPEC: &str
@@ -3815,6 +3880,7 @@ pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_MAX_OBSERVED: us
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_MISSING_EVIDENCE: &str
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_SEARCH_INCOMPLETE: &str
 pub const antecedent_identify::temporal_iv::TEMPORAL_IV_METHOD: &str
+pub const fn antecedent_identify::admg_adjustment::default_front_door_limits() -> antecedent_core::search::SearchLimits
 pub const fn antecedent_identify::carries_identified_mass(status: antecedent_core::identification::IdentificationStatus) -> bool
 pub const fn antecedent_identify::experimental_recovery::recover_declared_coefficients(equation_rank: core::option::Option<&antecedent_identify::DeclaredEquationRank>, weak_stability: antecedent_identify::WeakStability) -> antecedent_identify::experimental_recovery::DeclarationRecovery
 pub enum antecedent_identify::CatalogTransportResult
@@ -3832,6 +3898,7 @@ pub enum antecedent_identify::DeclaredNoiseLaw
 pub enum antecedent_identify::DependencePremise
 pub enum antecedent_identify::DesignFault
 pub enum antecedent_identify::ExperimentalRecoveryDecision
+pub enum antecedent_identify::FrontDoorSearch<T>
 pub enum antecedent_identify::IdentificationClaimClass
 pub enum antecedent_identify::IdentificationOutcome
 pub enum antecedent_identify::MixedRule
@@ -3896,7 +3963,7 @@ pub enum antecedent_identify::sid::scenarios::ScenarioQuestion
 pub enum antecedent_identify::sid::temporal_sequence::MechanismAssumption
 pub enum antecedent_identify::sid::temporal_sequence::TemporalOutcome
 pub enum antecedent_identify::sid::temporal_sequence::TemporalSequenceError
-pub field antecedent_identify::AdjustmentSearchConfig::context: core::option::Option<antecedent_core::execution::ExecutionContext>
+pub field antecedent_identify::AdjustmentSearchConfig::context: core::option::Option<antecedent_core::execution::context::ExecutionContext>
 pub field antecedent_identify::AdjustmentSearchConfig::forbidden: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub field antecedent_identify::AdjustmentSearchConfig::history_lags: alloc::sync::Arc<[(antecedent_core::ids::VariableId, u32)]>
 pub field antecedent_identify::AdjustmentSearchConfig::max_candidates: usize
@@ -4005,20 +4072,20 @@ pub field antecedent_identify::CounterfactualCitedRegime::interventions: alloc::
 pub field antecedent_identify::CounterfactualCitedRegime::population: alloc::sync::Arc<str>
 pub field antecedent_identify::CounterfactualCitedRegime::regime: antecedent_core::ids::RegimeId
 pub field antecedent_identify::CounterfactualFactor::item: usize
-pub field antecedent_identify::CounterfactualFactor::outputs: alloc::vec::Vec<(usize, antecedent_identify::CounterfactualLevel)>
-pub field antecedent_identify::CounterfactualFactor::parents: alloc::vec::Vec<(usize, antecedent_identify::CounterfactualLevel)>
+pub field antecedent_identify::CounterfactualFactor::outputs: alloc::vec::Vec<(antecedent_identify::CounterfactualVariableIndex, antecedent_identify::CounterfactualLevel)>
+pub field antecedent_identify::CounterfactualFactor::parents: alloc::vec::Vec<(antecedent_identify::CounterfactualVariableIndex, antecedent_identify::CounterfactualLevel)>
 pub field antecedent_identify::CounterfactualItem::population: usize
 pub field antecedent_identify::CounterfactualItem::source: antecedent_identify::CounterfactualItemSource
 pub field antecedent_identify::CounterfactualItem::variables: u32
 pub field antecedent_identify::CounterfactualMissingRegime::interventions: alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub field antecedent_identify::CounterfactualMissingRegime::population: alloc::sync::Arc<str>
-pub field antecedent_identify::CounterfactualMovedAtom::level: usize
-pub field antecedent_identify::CounterfactualMovedAtom::variable: usize
+pub field antecedent_identify::CounterfactualMovedAtom::level: antecedent_identify::CounterfactualLevelIndex
+pub field antecedent_identify::CounterfactualMovedAtom::variable: antecedent_identify::CounterfactualVariableIndex
 pub field antecedent_identify::CounterfactualMovedAtom::world: usize
 pub field antecedent_identify::CounterfactualSum::factors: alloc::vec::Vec<antecedent_identify::CounterfactualFactor>
 pub field antecedent_identify::CounterfactualSum::symbols: alloc::vec::Vec<antecedent_identify::CounterfactualSymbol>
-pub field antecedent_identify::CounterfactualSymbol::id: usize
-pub field antecedent_identify::CounterfactualSymbol::variable: usize
+pub field antecedent_identify::CounterfactualSymbol::id: antecedent_identify::CounterfactualSymbolId
+pub field antecedent_identify::CounterfactualSymbol::variable: antecedent_identify::CounterfactualVariableIndex
 pub field antecedent_identify::CounterfactualTransportDerivation::catalog: antecedent_core::query::transport_catalog::EvidenceCatalog
 pub field antecedent_identify::CounterfactualTransportDerivation::cited: alloc::vec::Vec<antecedent_identify::CounterfactualCitedRegime>
 pub field antecedent_identify::CounterfactualTransportDerivation::conditioning_mass_checked: bool
@@ -4095,7 +4162,7 @@ pub field antecedent_identify::FrontDoorIdentifier::config: antecedent_identify:
 pub field antecedent_identify::FrontDoorSearchConfig::max_mediator_set_size: usize
 pub field antecedent_identify::FrontDoorSearchConfig::max_results: usize
 pub field antecedent_identify::GeneralizedAdjustmentConfig::completion_operations: usize
-pub field antecedent_identify::GeneralizedAdjustmentConfig::context: core::option::Option<antecedent_core::execution::ExecutionContext>
+pub field antecedent_identify::GeneralizedAdjustmentConfig::context: core::option::Option<antecedent_core::execution::context::ExecutionContext>
 pub field antecedent_identify::GeneralizedAdjustmentConfig::max_candidates: usize
 pub field antecedent_identify::GeneralizedAdjustmentConfig::max_completions: usize
 pub field antecedent_identify::GeneralizedAdjustmentConfig::max_examinations: u64
@@ -4133,7 +4200,7 @@ pub field antecedent_identify::IdentificationResult::estimand_claims: alloc::vec
 pub field antecedent_identify::IdentificationResult::estimands: alloc::vec::Vec<antecedent_expr::estimand::IdentifiedEstimand>
 pub field antecedent_identify::IdentificationResult::hedge: core::option::Option<antecedent_identify::HedgeCertificate>
 pub field antecedent_identify::IdentificationResult::performance: antecedent_identify::IdentificationPerformanceRecord
-pub field antecedent_identify::IdentificationResult::query: antecedent_core::query::CausalQuery
+pub field antecedent_identify::IdentificationResult::query: antecedent_core::query::variants::CausalQuery
 pub field antecedent_identify::IdentificationResult::required_assumptions: antecedent_core::assumption::AssumptionSet
 pub field antecedent_identify::IdentificationResult::status: antecedent_core::identification::IdentificationStatus
 pub field antecedent_identify::IdentificationResultParts::arena: antecedent_expr::CausalExprArena
@@ -4142,7 +4209,7 @@ pub field antecedent_identify::IdentificationResultParts::diagnostics: alloc::ve
 pub field antecedent_identify::IdentificationResultParts::estimands: alloc::vec::Vec<antecedent_expr::estimand::IdentifiedEstimand>
 pub field antecedent_identify::IdentificationResultParts::hedge: core::option::Option<antecedent_identify::HedgeCertificate>
 pub field antecedent_identify::IdentificationResultParts::performance: antecedent_identify::IdentificationPerformanceRecord
-pub field antecedent_identify::IdentificationResultParts::query: antecedent_core::query::CausalQuery
+pub field antecedent_identify::IdentificationResultParts::query: antecedent_core::query::variants::CausalQuery
 pub field antecedent_identify::IdentificationResultParts::required_assumptions: antecedent_core::assumption::AssumptionSet
 pub field antecedent_identify::IdentificationResultParts::status: antecedent_core::identification::IdentificationStatus
 pub field antecedent_identify::IdentificationWorkspace::dsep: antecedent_graph::dsep::DSeparationWorkspace
@@ -4767,9 +4834,9 @@ pub field antecedent_identify::sid::temporal_sequence::TemporalSequenceDecision:
 pub field antecedent_identify::sid::temporal_sequence::TemporalSequenceDecision::sequence: alloc::sync::Arc<[antecedent_core::value::Value]>
 pub field antecedent_identify::sid::temporal_sequence::TemporalSequenceDecision::spec: antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec
 pub field antecedent_identify::sid::temporal_sequence::TemporalSequenceDecision::time_varying_confounders: alloc::vec::Vec<antecedent_core::ids::VariableId>
-pub field antecedent_identify::sid::temporal_sequence::TemporalSlots::actions: [antecedent_core::ids::VariableId; 2]
+pub field antecedent_identify::sid::temporal_sequence::TemporalSlots::actions: alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub field antecedent_identify::sid::temporal_sequence::TemporalSlots::baseline: alloc::vec::Vec<antecedent_core::ids::VariableId>
-pub field antecedent_identify::sid::temporal_sequence::TemporalSlots::covariates: [alloc::vec::Vec<antecedent_core::ids::VariableId>; 2]
+pub field antecedent_identify::sid::temporal_sequence::TemporalSlots::covariates: alloc::vec::Vec<alloc::vec::Vec<antecedent_core::ids::VariableId>>
 pub field antecedent_identify::sid::temporal_sequence::TemporalSlots::outcome: antecedent_core::ids::VariableId
 pub field antecedent_identify::sid::temporal_sequence::UnrolledSequence::admg: antecedent_graph::admg::Admg
 pub field antecedent_identify::sid::temporal_sequence::UnrolledSequence::slots: antecedent_identify::sid::temporal_sequence::TemporalSlots
@@ -4789,16 +4856,19 @@ pub fn <antecedent_identify::AcceptedRegimeContract>::const fn mask(&self) -> &a
 pub fn <antecedent_identify::AcceptedRegimeContract>::fn passive_units(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent_identify::AcceptedRegimeContract>::fn regimes(&self) -> &[antecedent_identify::ExperimentRegime]
 pub fn <antecedent_identify::AdjustmentSearchConfig>::fn exceeds_history_lag(&self, id: antecedent_core::ids::VariableId) -> bool
-pub fn <antecedent_identify::AutoIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedAutoGraph, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::AdjustmentSearchConfig>::fn validate(&self) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::AdjustmentSearchConfig>::fn with_history_lags(self, max_history_lag: core::option::Option<u32>, lags: impl core::convert::Into<alloc::sync::Arc<[(antecedent_core::ids::VariableId, u32)]>>) -> Self
+pub fn <antecedent_identify::AdjustmentSearchConfig>::fn with_measurement_costs(self, costs: impl core::convert::Into<alloc::sync::Arc<[(antecedent_core::ids::VariableId, f64)]>>) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::AutoIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedAutoGraph, query: &antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::AutoIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::AutoIdentifier>::fn prepare(&self, graph: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_identify::PreparedAutoGraph, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::AutoIdentifier>::fn prepare_with_assumptions(&self, graph: &antecedent_graph::dag::Dag, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_identify::PreparedAutoGraph, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::AutoIdentifier>::fn with_rd(self, config: antecedent_identify::SharpRdConfig) -> Self
-pub fn <antecedent_identify::BackdoorIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedIdentificationGraph, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::BackdoorIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedIdentificationGraph, query: &antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::BackdoorIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::BackdoorIdentifier>::fn prepare(&self, graph: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_identify::PreparedIdentificationGraph, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::BackdoorIdentifier>::fn prepare_with_assumptions(&self, graph: &antecedent_graph::dag::Dag, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_identify::PreparedIdentificationGraph, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::BackdoorIdentifier>::fn with_context(self, context: antecedent_core::execution::ExecutionContext) -> Self
+pub fn <antecedent_identify::BackdoorIdentifier>::fn with_context(self, context: antecedent_core::execution::context::ExecutionContext) -> Self
 pub fn <antecedent_identify::BackdoorIdentifier>::fn with_max_candidates(self, max_candidates: usize) -> Self
 pub fn <antecedent_identify::BinaryIvLaw>::fn validate(&self) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::BoundConditionalTransportFunctional>::const fn catalog(&self) -> &antecedent_core::query::transport_catalog::EvidenceCatalog
@@ -4838,11 +4908,11 @@ pub fn <antecedent_identify::ClassicalTransportDerivation>::const fn arena(&self
 pub fn <antecedent_identify::ClassicalTransportDerivation>::const fn query(&self) -> &antecedent_identify::ClassicalTransportQuery
 pub fn <antecedent_identify::ClassicalTransportDerivation>::const fn root(&self) -> antecedent_expr::ExprId
 pub fn <antecedent_identify::ClassicalTransportDerivation>::fn bind_catalog(&self, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<antecedent_identify::BoundTransportFunctional, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::ClassicalTransportDerivation>::fn bind_catalog_with_context(&self, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::BoundTransportFunctional, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::ClassicalTransportDerivation>::fn bind_catalog_with_context(&self, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::BoundTransportFunctional, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ClassicalTransportDerivation>::fn evidence_setting(&self) -> &'static str
-pub fn <antecedent_identify::ClassicalTransportDerivation>::fn from_record_checked(record: antecedent_identify::sid::SidDerivationRecord, arena: antecedent_expr::CausalExprArena, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::ClassicalTransportDerivation>::fn from_record_checked(record: antecedent_identify::sid::SidDerivationRecord, arena: antecedent_expr::CausalExprArena, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ClassicalTransportDerivation>::fn rules(&self) -> alloc::vec::Vec<&'static str>
-pub fn <antecedent_identify::ClassicalTransportDerivation>::fn search_catalog(&self, diagram: &antecedent_graph::selection::SelectionDiagram, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::ClassicalTransportDerivation>::fn search_catalog(&self, diagram: &antecedent_graph::selection::SelectionDiagram, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ClassicalTransportDerivation>::fn sources(&self) -> &[antecedent_identify::MetaSource]
 pub fn <antecedent_identify::ClassicalTransportDerivation>::fn theorem_scope(&self) -> antecedent_core::query::transport_contract::TheoremScope
 pub fn <antecedent_identify::ClassicalTransportDerivation>::fn to_record(&self) -> antecedent_identify::sid::SidDerivationRecord
@@ -4876,17 +4946,17 @@ pub fn <antecedent_identify::ConditionalNonTransportabilityProof>::const fn cand
 pub fn <antecedent_identify::ConditionalNonTransportabilityProof>::const fn check(&self) -> &antecedent_identify::ConditionalWitnessCheck
 pub fn <antecedent_identify::ConditionalNonTransportabilityProof>::const fn query(&self) -> &antecedent_identify::ConditionalTransportQuery
 pub fn <antecedent_identify::ConditionalNonTransportabilityProof>::const fn witness(&self) -> &antecedent_identify::ConditionalWitnessRecord
-pub fn <antecedent_identify::ConditionalNonTransportabilityProof>::fn from_record_checked(record: antecedent_identify::ConditionalNonTransportabilityRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::ConditionalNonTransportabilityProof>::fn from_record_checked(record: antecedent_identify::ConditionalNonTransportabilityRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ConditionalNonTransportabilityProof>::fn moves(&self) -> &[antecedent_core::ids::VariableId]
-pub fn <antecedent_identify::ConditionalNonTransportabilityProof>::fn recheck(&self, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::ConditionalNonTransportabilityProof>::fn recheck(&self, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ConditionalNonTransportabilityProof>::fn remaining(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent_identify::ConditionalNonTransportabilityProof>::fn to_record(&self) -> antecedent_identify::ConditionalNonTransportabilityRecord
 pub fn <antecedent_identify::ConditionalObstructionCandidate>::const fn query(&self) -> &antecedent_identify::ConditionalTransportQuery
 pub fn <antecedent_identify::ConditionalObstructionCandidate>::const fn reduced_query(&self) -> &antecedent_identify::ClassicalTransportQuery
 pub fn <antecedent_identify::ConditionalObstructionCandidate>::const fn s_hedge(&self) -> &antecedent_identify::sid::SHedgeCertificate
-pub fn <antecedent_identify::ConditionalObstructionCandidate>::fn from_record_checked(record: antecedent_identify::ConditionalObstructionRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::ConditionalObstructionCandidate>::fn from_record_checked(record: antecedent_identify::ConditionalObstructionRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ConditionalObstructionCandidate>::fn moves(&self) -> &[antecedent_core::ids::VariableId]
-pub fn <antecedent_identify::ConditionalObstructionCandidate>::fn recheck(&self, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::ConditionalObstructionCandidate>::fn recheck(&self, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ConditionalObstructionCandidate>::fn remaining(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent_identify::ConditionalObstructionCandidate>::fn to_record(&self) -> antecedent_identify::ConditionalObstructionRecord
 pub fn <antecedent_identify::ConditionalTransportDecision>::const fn detail_code(&self) -> core::option::Option<&'static str>
@@ -4898,17 +4968,21 @@ pub fn <antecedent_identify::ConditionalTransportDerivation>::const fn query(&se
 pub fn <antecedent_identify::ConditionalTransportDerivation>::const fn reduced_query(&self) -> &antecedent_identify::ClassicalTransportQuery
 pub fn <antecedent_identify::ConditionalTransportDerivation>::const fn root(&self) -> antecedent_expr::ExprId
 pub fn <antecedent_identify::ConditionalTransportDerivation>::fn bind_catalog(&self, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<antecedent_identify::BoundConditionalTransportFunctional, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::ConditionalTransportDerivation>::fn from_record_checked(record: antecedent_identify::ConditionalTransportRecord, joint_arena: antecedent_expr::CausalExprArena, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::ConditionalTransportDerivation>::fn from_record_checked(record: antecedent_identify::ConditionalTransportRecord, joint_arena: antecedent_expr::CausalExprArena, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ConditionalTransportDerivation>::fn moves(&self) -> &[antecedent_core::ids::VariableId]
-pub fn <antecedent_identify::ConditionalTransportDerivation>::fn recheck(&self, diagram: &antecedent_graph::selection::SelectionDiagram, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::ConditionalTransportDerivation>::fn recheck(&self, diagram: &antecedent_graph::selection::SelectionDiagram, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ConditionalTransportDerivation>::fn remaining(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent_identify::ConditionalTransportDerivation>::fn to_record(&self) -> antecedent_identify::ConditionalTransportRecord
+pub fn <antecedent_identify::CounterfactualLevelIndex>::const fn get(self) -> usize
+pub fn <antecedent_identify::CounterfactualLevelIndex>::const fn new(index: usize) -> Self
+pub fn <antecedent_identify::CounterfactualSymbolId>::const fn get(self) -> usize
+pub fn <antecedent_identify::CounterfactualSymbolId>::const fn new(index: usize) -> Self
 pub fn <antecedent_identify::CounterfactualTransportDecision>::const fn identification_status(&self) -> antecedent_core::query::transport_contract::TransportOutcomeKind
 pub fn <antecedent_identify::CounterfactualTransportDecision>::const fn reason_code(&self) -> core::option::Option<&'static str>
 pub fn <antecedent_identify::CounterfactualTransportDecision>::fn derivation(&self) -> core::option::Option<&antecedent_identify::CounterfactualTransportDerivation>
 pub fn <antecedent_identify::CounterfactualTransportDecision>::fn detail_code(&self) -> core::option::Option<&'static str>
 pub fn <antecedent_identify::CounterfactualTransportDerivation>::fn canonical_text(&self) -> alloc::string::String
-pub fn <antecedent_identify::CounterfactualTransportDerivation>::fn replay_checked(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::CounterfactualTransportDerivation>::fn replay_checked(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::CounterfactualTransportObstruction>::fn verify(&self) -> core::result::Result<antecedent_identify::CounterfactualTransportWitnessCheck, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn bidirected(&self) -> &[(usize, usize)]
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn canonical_text(&self) -> alloc::string::String
@@ -4924,33 +4998,36 @@ pub fn <antecedent_identify::CounterfactualTransportProblem>::fn variables(&self
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn variables_of_mask(&self, mask: u32) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn <antecedent_identify::CounterfactualTransportQuery>::fn canonical(&self) -> Self
 pub fn <antecedent_identify::CounterfactualTransportQuery>::fn canonical_text(&self) -> alloc::string::String
+pub fn <antecedent_identify::CounterfactualVariableIndex>::const fn get(self) -> usize
+pub fn <antecedent_identify::CounterfactualVariableIndex>::const fn new(index: usize) -> Self
 pub fn <antecedent_identify::DerivationTrace>::fn push(&mut self, rule: impl core::convert::Into<alloc::sync::Arc<str>>, detail: impl core::convert::Into<alloc::sync::Arc<str>>)
-pub fn <antecedent_identify::EfficientBackdoorIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedIdentificationGraph, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::EfficientBackdoorIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedIdentificationGraph, query: &antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::EfficientBackdoorIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::EfficientBackdoorIdentifier>::fn prepare(&self, graph: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_identify::PreparedIdentificationGraph, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::EfficientBackdoorIdentifier>::fn prepare_with_assumptions(&self, graph: &antecedent_graph::dag::Dag, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_identify::PreparedIdentificationGraph, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::EfficientBackdoorIdentifier>::fn with_context(self, context: antecedent_core::execution::ExecutionContext) -> Self
+pub fn <antecedent_identify::EfficientBackdoorIdentifier>::fn with_context(self, context: antecedent_core::execution::context::ExecutionContext) -> Self
 pub fn <antecedent_identify::EfficientBackdoorIdentifier>::fn with_max_candidates(self, max_candidates: usize) -> Self
 pub fn <antecedent_identify::ExperimentalRecoveryDecision>::const fn coefficient_recovery(&self) -> core::option::Option<&antecedent_identify::CoefficientRecovery>
 pub fn <antecedent_identify::ExperimentalRecoveryDecision>::fn goal_closed(&self) -> bool
-pub fn <antecedent_identify::FrontDoorIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedIdentificationGraph, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::FrontDoorIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedIdentificationGraph, query: &antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::FrontDoorIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::FrontDoorIdentifier>::fn prepare(&self, graph: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_identify::PreparedIdentificationGraph, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::FrontDoorIdentifier>::fn prepare_with_assumptions(&self, graph: &antecedent_graph::dag::Dag, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_identify::PreparedIdentificationGraph, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::FrontDoorSearch<T>>::fn found(self) -> core::option::Option<T>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn admg_candidates_of_mag(&self, mag: &antecedent_graph::pag::Pag) -> core::result::Result<antecedent_identify::AdmgCandidates, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_derivative_pairs(&self, cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_distribution_envelope(&self, cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_distribution_envelope(&self, cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::variants::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_envelope(&self, cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_path_specific_envelope(&self, cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_path_specific_envelope(&self, cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::variants::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_response_envelope(&self, graph: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_response_general(&self, cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_cpdag_transport_envelope(&self, cpdag: &antecedent_graph::cpdag::Cpdag, selection_targets: &[antecedent_core::ids::VariableId], query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::ClassTransportEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_joint_admg_response(&self, graph: &antecedent_graph::admg::Admg, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_joint_dag_response(&self, dag: &antecedent_graph::dag::Dag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_derivative_pairs(&self, pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_distribution_envelope(&self, pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_distribution_envelope(&self, pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::variants::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_envelope(&self, pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_path_specific_envelope(&self, pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_path_specific_envelope(&self, pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::variants::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_response_envelope(&self, graph: &antecedent_graph::pag::Pag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_response_general(&self, pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::GeneralizedAdjustmentIdentifier>::fn identify_pag_transport_envelope(&self, pag: &antecedent_graph::pag::Pag, selection_targets: &[antecedent_core::ids::VariableId], query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::ClassTransportEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
@@ -4964,14 +5041,14 @@ pub fn <antecedent_identify::HedgeCertificate>::fn verify_carried(&self) -> core
 pub fn <antecedent_identify::HedgeCertificate>::fn with_problem(self, problem: antecedent_identify::HedgeProblem) -> Self
 pub fn <antecedent_identify::HedgeProblem>::fn capture(prepared: &antecedent_identify::PreparedAdmg, x: &antecedent_graph::workspace::BitSet, y: &antecedent_graph::workspace::BitSet) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::HedgeProblem>::fn prepare(&self) -> core::result::Result<antecedent_identify::PreparedAdmg, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::IdIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedAdmg, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::IdIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedAdmg, query: &antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::IdIdentifier>::fn identify_ate(&self, prepared: &antecedent_identify::PreparedAdmg, query: &antecedent_core::query::average::AverageEffectQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::IdIdentifier>::fn identify_schedule_contrast(&self, prepared: &antecedent_identify::PreparedAdmg, outcome: antecedent_core::ids::VariableId, contrast: &antecedent_identify::ScheduleContrast<'_>, query: antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::IdIdentifier>::fn identify_schedule_contrast(&self, prepared: &antecedent_identify::PreparedAdmg, outcome: antecedent_core::ids::VariableId, contrast: &antecedent_identify::ScheduleContrast<'_>, query: antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::IdIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::IdIdentifier>::fn prepare(&self, graph: &antecedent_graph::admg::Admg) -> core::result::Result<antecedent_identify::PreparedAdmg, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::IdIdentifier>::fn prepare_dag(&self, graph: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_identify::PreparedAdmg, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::IdIdentifier>::fn prepare_with_assumptions(&self, graph: &antecedent_graph::admg::Admg, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_identify::PreparedAdmg, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::IdcIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedAdmg, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::IdcIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedAdmg, query: &antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::IdcIdentifier>::fn identify_conditional(&self, prepared: &antecedent_identify::PreparedAdmg, outcomes: &[antecedent_core::ids::VariableId], interventions: &[antecedent_core::intervention::Intervention], conditioning: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::IdcIdentifier>::fn identify_conditional_at_levels(&self, prepared: &antecedent_identify::PreparedAdmg, outcomes: &[antecedent_core::ids::VariableId], interventions: &[antecedent_core::intervention::Intervention], conditioning: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::IdcIdentifier>::fn new() -> Self
@@ -4986,22 +5063,26 @@ pub fn <antecedent_identify::IdentificationEnvelope<G>>::fn truncated_weight(&se
 pub fn <antecedent_identify::IdentificationError>::const fn budget(budget: antecedent_identify::IdentificationBudget) -> Self
 pub fn <antecedent_identify::IdentificationError>::const fn invalid_derivation(code: &'static str) -> Self
 pub fn <antecedent_identify::IdentificationError>::const fn is_budget_or_cancel(&self) -> bool
+pub fn <antecedent_identify::IdentificationError>::const fn out_of_range(what: &'static str) -> Self
 pub fn <antecedent_identify::IdentificationError>::const fn transport_outcome_kind(&self) -> antecedent_core::query::transport_contract::TransportOutcomeKind
 pub fn <antecedent_identify::IdentificationError>::const fn unsupported(message: &'static str) -> Self
+pub fn <antecedent_identify::IdentificationError>::fn construction(error: impl core::fmt::Display) -> Self
+pub fn <antecedent_identify::IdentificationError>::fn expression(error: impl core::fmt::Display) -> Self
 pub fn <antecedent_identify::IdentificationError>::fn invalid_catalog(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_identify::IdentificationError>::fn invalid_input(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_identify::IdentificationError>::fn missing_evidence(code: &'static str, detail: impl core::convert::Into<alloc::string::String>) -> Self
-pub fn <antecedent_identify::IdentificationError>::fn msg(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_identify::IdentificationResult>::fn average_effect(&self) -> core::option::Option<&antecedent_core::query::average::AverageEffectQuery>
 pub fn <antecedent_identify::IdentificationResult>::fn claim(&self, index: usize) -> core::option::Option<antecedent_identify::EstimandClaim>
 pub fn <antecedent_identify::IdentificationResult>::fn from_parts(parts: antecedent_identify::IdentificationResultParts) -> Self
-pub fn <antecedent_identify::IdentificationResult>::fn identified(query: antecedent_core::query::CausalQuery, estimands: alloc::vec::Vec<antecedent_expr::estimand::IdentifiedEstimand>, arena: antecedent_expr::CausalExprArena, derivation: antecedent_identify::DerivationTrace, required_assumptions: antecedent_core::assumption::AssumptionSet, performance: antecedent_identify::IdentificationPerformanceRecord) -> Self
-pub fn <antecedent_identify::IdentificationResult>::fn identified_under_parametric_restrictions(query: antecedent_core::query::CausalQuery, estimands: alloc::vec::Vec<antecedent_expr::estimand::IdentifiedEstimand>, arena: antecedent_expr::CausalExprArena, derivation: antecedent_identify::DerivationTrace, required_assumptions: antecedent_core::assumption::AssumptionSet, performance: antecedent_identify::IdentificationPerformanceRecord) -> Self
+pub fn <antecedent_identify::IdentificationResult>::fn identified(query: antecedent_core::query::variants::CausalQuery, estimands: alloc::vec::Vec<antecedent_expr::estimand::IdentifiedEstimand>, arena: antecedent_expr::CausalExprArena, derivation: antecedent_identify::DerivationTrace, required_assumptions: antecedent_core::assumption::AssumptionSet, performance: antecedent_identify::IdentificationPerformanceRecord) -> Self
+pub fn <antecedent_identify::IdentificationResult>::fn identified_under_parametric_restrictions(query: antecedent_core::query::variants::CausalQuery, estimands: alloc::vec::Vec<antecedent_expr::estimand::IdentifiedEstimand>, arena: antecedent_expr::CausalExprArena, derivation: antecedent_identify::DerivationTrace, required_assumptions: antecedent_core::assumption::AssumptionSet, performance: antecedent_identify::IdentificationPerformanceRecord) -> Self
 pub fn <antecedent_identify::IdentificationResult>::fn narrowed_to(&self, index: usize) -> core::option::Option<Self>
-pub fn <antecedent_identify::IdentificationResult>::fn not_identified(query: antecedent_core::query::CausalQuery, derivation: antecedent_identify::DerivationTrace, required_assumptions: antecedent_core::assumption::AssumptionSet, performance: antecedent_identify::IdentificationPerformanceRecord) -> Self
-pub fn <antecedent_identify::IdentificationResult>::fn not_identified_hedge(query: antecedent_core::query::CausalQuery, derivation: antecedent_identify::DerivationTrace, required_assumptions: antecedent_core::assumption::AssumptionSet, performance: antecedent_identify::IdentificationPerformanceRecord, hedge: antecedent_identify::HedgeCertificate, diagnostics: alloc::vec::Vec<antecedent_core::diagnostic::Diagnostic>) -> Self
+pub fn <antecedent_identify::IdentificationResult>::fn not_identified(query: antecedent_core::query::variants::CausalQuery, derivation: antecedent_identify::DerivationTrace, required_assumptions: antecedent_core::assumption::AssumptionSet, performance: antecedent_identify::IdentificationPerformanceRecord) -> Self
+pub fn <antecedent_identify::IdentificationResult>::fn not_identified_hedge(query: antecedent_core::query::variants::CausalQuery, derivation: antecedent_identify::DerivationTrace, required_assumptions: antecedent_core::assumption::AssumptionSet, performance: antecedent_identify::IdentificationPerformanceRecord, hedge: antecedent_identify::HedgeCertificate, diagnostics: alloc::vec::Vec<antecedent_core::diagnostic::Diagnostic>) -> Self
+pub fn <antecedent_identify::IdentificationResult>::fn restrict_claim(&mut self, restriction: &antecedent_core::assumption::AssumptionRecord)
+pub fn <antecedent_identify::IdentificationResult>::fn select_estimand_index(&self, compatible: impl core::ops::function::Fn(&antecedent_expr::estimand::IdentifiedEstimand) -> bool) -> core::result::Result<usize, antecedent_identify::EstimandSelectionError>
 pub fn <antecedent_identify::IdentificationResult>::fn with_estimand_claims(self, claims: alloc::vec::Vec<antecedent_identify::EstimandClaim>) -> Self
-pub fn <antecedent_identify::InstrumentalVariableIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedIdentificationGraph, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::InstrumentalVariableIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedIdentificationGraph, query: &antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::InstrumentalVariableIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::InstrumentalVariableIdentifier>::fn prepare(&self, graph: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_identify::PreparedIdentificationGraph, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::InstrumentalVariableIdentifier>::fn prepare_with_assumptions(&self, graph: &antecedent_graph::dag::Dag, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_identify::PreparedIdentificationGraph, antecedent_identify::IdentificationError>
@@ -5017,7 +5098,7 @@ pub fn <antecedent_identify::MixedSourceDerivation>::const fn root_step(&self) -
 pub fn <antecedent_identify::MixedSourceDerivation>::const fn rule_set(&self) -> &'static str
 pub fn <antecedent_identify::MixedSourceDerivation>::const fn summary(&self) -> antecedent_identify::MixedSearchSummary
 pub fn <antecedent_identify::MixedSourceDerivation>::fn cited_regimes(&self) -> alloc::vec::Vec<antecedent_core::ids::RegimeId>
-pub fn <antecedent_identify::MixedSourceDerivation>::fn from_record_checked(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MixedSourceQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, record: &antecedent_identify::MixedSourceDerivationRecord, arena: &antecedent_expr::CausalExprArena, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::MixedSourceDerivation>::fn from_record_checked(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MixedSourceQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, record: &antecedent_identify::MixedSourceDerivationRecord, arena: &antecedent_expr::CausalExprArena, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::MixedSourceDerivation>::fn graph_signature(&self) -> &str
 pub fn <antecedent_identify::MixedSourceDerivation>::fn leaves(&self) -> alloc::vec::Vec<(usize, &antecedent_identify::MixedSourceLeaf)>
 pub fn <antecedent_identify::MixedSourceDerivation>::fn proof_graph(&self, names: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
@@ -5034,7 +5115,7 @@ pub fn <antecedent_identify::MzTransportDerivation>::const fn query(&self) -> &a
 pub fn <antecedent_identify::MzTransportDerivation>::const fn root(&self) -> antecedent_expr::ExprId
 pub fn <antecedent_identify::MzTransportDerivation>::const fn route(&self) -> &antecedent_identify::MzTransportRoute
 pub fn <antecedent_identify::MzTransportDerivation>::const fn search_record(&self) -> &antecedent_identify::MzSearchRecord
-pub fn <antecedent_identify::MzTransportDerivation>::fn from_record_checked(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MzTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, record: &antecedent_identify::MzTransportDerivationRecord, arena: &antecedent_expr::CausalExprArena, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::MzTransportDerivation>::fn from_record_checked(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MzTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, record: &antecedent_identify::MzTransportDerivationRecord, arena: &antecedent_expr::CausalExprArena, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::MzTransportDerivation>::fn graph_signature(&self) -> &str
 pub fn <antecedent_identify::MzTransportDerivation>::fn rules(&self) -> &[alloc::string::String]
 pub fn <antecedent_identify::MzTransportDerivation>::fn single_source(&self) -> core::option::Option<&antecedent_identify::ZTransportDerivation>
@@ -5049,7 +5130,7 @@ pub fn <antecedent_identify::NotThisRecipe>::const fn name(self) -> &'static str
 pub fn <antecedent_identify::ObservationRecoveryQuery>::fn canonical(&self) -> Self
 pub fn <antecedent_identify::ObservationRecoveryQuery>::fn observed(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn <antecedent_identify::ObservationRecoveryQuery>::fn substantive(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
-pub fn <antecedent_identify::PathSpecificIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedAdmg, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::PathSpecificIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedAdmg, query: &antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::PathSpecificIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::PathSpecificIdentifier>::fn prepare(&self, graph: &antecedent_graph::admg::Admg) -> core::result::Result<antecedent_identify::PreparedAdmg, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::PathSpecificIdentifier>::fn prepare_dag(&self, graph: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_identify::PreparedAdmg, antecedent_identify::IdentificationError>
@@ -5094,20 +5175,20 @@ pub fn <antecedent_identify::RegimeContractDecision>::const fn accepted(&self) -
 pub fn <antecedent_identify::RequiredFactor>::fn name(&self) -> &str
 pub fn <antecedent_identify::RequiredFactor>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>, variables: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::VariableId]>>) -> Self
 pub fn <antecedent_identify::RequiredFactor>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
-pub fn <antecedent_identify::ResponseIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedIdentificationGraph, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::ResponseIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedIdentificationGraph, query: &antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ResponseIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::ResponseIdentifier>::fn prepare_with_assumptions(&self, graph: &antecedent_graph::dag::Dag, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_identify::PreparedIdentificationGraph, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::SharpRdConfig>::const fn new(running_variable: antecedent_core::ids::VariableId, cutoff: f64, bandwidth: f64) -> Self
 pub fn <antecedent_identify::SharpRdConfig>::fn target_population(&self) -> antecedent_core::query::target::TargetPopulation
 pub fn <antecedent_identify::SharpRdIdentifier>::const fn new(config: antecedent_identify::SharpRdConfig) -> Self
-pub fn <antecedent_identify::SharpRdIdentifier>::fn identify(&self, query: antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::SharpRdIdentifier>::fn identify_on(&self, graph: &antecedent_graph::dag::Dag, query: antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::SharpRdIdentifier>::fn identify(&self, query: antecedent_core::query::variants::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::SharpRdIdentifier>::fn identify_on(&self, graph: &antecedent_graph::dag::Dag, query: antecedent_core::query::variants::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::SourceIdentity>::const fn from_raw(raw: u64) -> Self
 pub fn <antecedent_identify::SourceIdentity>::const fn raw(self) -> u64
 pub fn <antecedent_identify::StudyPlan>::const fn receipt(&self) -> core::option::Option<&antecedent_core::search::SearchReceipt>
 pub fn <antecedent_identify::StudyPlan>::fn status(&self) -> core::option::Option<(&'static str, &'static str)>
 pub fn <antecedent_identify::StudyPlanLimits>::const fn for_route(route: &antecedent_identify::StudyPlanRoute) -> Self
-pub fn <antecedent_identify::StudyPlanLimits>::fn check_bounds(&self, route: &antecedent_identify::StudyPlanRoute, regimes_per_candidate: &[usize]) -> core::result::Result<(), antecedent_identify::StudyPlanRefusal>
+pub fn <antecedent_identify::StudyPlanLimits>::fn check_bounds(&self, route: &antecedent_identify::StudyPlanRoute, _regimes_per_candidate: &[usize]) -> core::result::Result<(), antecedent_identify::StudyPlanRefusal>
 pub fn <antecedent_identify::StudyPlanRefusal>::fn bounds_exceeded(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_identify::StudyPlanRefusal>::fn invalid_candidate(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_identify::StudyPlanRoute>::const fn decision_operations(&self) -> usize
@@ -5135,7 +5216,7 @@ pub fn <antecedent_identify::TemporalMediationIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::TransportIdentification>::fn outcome(&self) -> antecedent_core::query::transport_contract::TransportOutcome
 pub fn <antecedent_identify::TransportIdentifier>::const fn new() -> Self
 pub fn <antecedent_identify::TransportIdentifier>::fn identify(&self, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::TransportIdentification, antecedent_identify::IdentificationError>
-pub fn <antecedent_identify::TransportIdentifier>::fn identify_with_context(&self, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_core::query::transport::TransportQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::TransportIdentification, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::TransportIdentifier>::fn identify_with_context(&self, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_core::query::transport::TransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::TransportIdentification, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::TwoSourceZTransportDecision>::const fn identification_status(&self) -> antecedent_core::query::transport_contract::TransportOutcomeKind
 pub fn <antecedent_identify::UnresolvedObligation>::fn code(&self) -> &str
 pub fn <antecedent_identify::UnresolvedObligation>::fn detail(&self) -> &str
@@ -5148,11 +5229,11 @@ pub fn <antecedent_identify::ZTransportDerivation>::const fn root(&self) -> ante
 pub fn <antecedent_identify::ZTransportDerivation>::const fn surrogate(&self) -> core::option::Option<antecedent_core::ids::VariableId>
 pub fn <antecedent_identify::ZTransportDerivation>::fn check_inputs(&self, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ZTransportDerivation>::fn experiment_assignment(&self) -> &[antecedent_core::query::transport_catalog::InterventionAssignment]
-pub fn <antecedent_identify::ZTransportDerivation>::fn from_record_checked(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, record: &antecedent_identify::ZTransportDerivationRecord, arena: antecedent_expr::CausalExprArena, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::ZTransportDerivation>::fn from_record_checked(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, record: &antecedent_identify::ZTransportDerivationRecord, arena: antecedent_expr::CausalExprArena, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ZTransportDerivation>::fn inspect_proof(&self, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> antecedent_identify::ZTransportProofInspection
 pub fn <antecedent_identify::ZTransportDerivation>::fn to_record(&self) -> antecedent_identify::ZTransportDerivationRecord
 pub fn <antecedent_identify::ZTransportObstruction>::const fn query(&self) -> &antecedent_identify::ZTransportQuery
-pub fn <antecedent_identify::ZTransportObstruction>::fn from_record_checked(record: antecedent_identify::ZTransportObstructionRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::ZTransportObstruction>::fn from_record_checked(record: antecedent_identify::ZTransportObstructionRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::ZTransportObstruction>::fn to_record(&self) -> antecedent_identify::ZTransportObstructionRecord
 pub fn <antecedent_identify::ZTransportResult>::const fn identification_status(&self) -> antecedent_core::query::transport_contract::TransportOutcomeKind
 pub fn <antecedent_identify::backdoor::CheckedJointAdjustment>::const fn outcome(&self) -> antecedent_core::ids::VariableId
@@ -5230,7 +5311,7 @@ pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertai
 pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty>::fn total_mass(&self) -> f64
 pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty>::fn try_collapse(&self) -> core::result::Result<antecedent_identify::experimental_recovery::RecoveredCoefficientPoint, antecedent_identify::experimental_recovery::PointCollapseRefusal>
 pub fn <antecedent_identify::experimental_recovery::RecoveryWarning>::const fn design_fault(self) -> antecedent_identify::DesignFault
-pub fn <antecedent_identify::sid::SHedgeCertificate>::fn from_record_checked(record: antecedent_identify::sid::SHedgeRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::sid::SHedgeCertificate>::fn from_record_checked(record: antecedent_identify::sid::SHedgeRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::sid::SHedgeCertificate>::fn to_record(&self) -> antecedent_identify::sid::SHedgeRecord
 pub fn <antecedent_identify::sid::cpdag_completion::CpdagCompletionDecision>::const fn is_exportable(&self) -> bool
 pub fn <antecedent_identify::sid::cpdag_completion::CpdagCompletionDecision>::fn total(&self) -> usize
@@ -5292,8 +5373,9 @@ pub fn <antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec>::fn s
 pub fn <antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec>::fn selection_slices(&self) -> alloc::vec::Vec<(antecedent_core::ids::VariableId, u8)>
 pub fn <antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec>::fn try_new(horizon: usize, slots: antecedent_identify::sid::temporal_sequence::TemporalSlots, diagram: antecedent_graph::selection::SelectionDiagram, coordinates: impl core::convert::Into<alloc::sync::Arc<[antecedent_identify::sid::scenarios::ScenarioCoordinate]>>) -> core::result::Result<Self, antecedent_identify::sid::temporal_sequence::TemporalRefusal>
 pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn history_coordinates(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn horizon(&self) -> usize
 pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn initial_state(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
-pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn position(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<u8>
+pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn position(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<usize>
 pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn slice(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<u8>
 pub fn <antecedent_identify::sid::temporal_sequence::TemporalSlots>::fn variables(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn <antecedent_identify::sid::temporal_sequence::UnrolledSequence>::fn coordinate(&self, variable: antecedent_core::ids::VariableId, period: usize) -> antecedent_core::ids::VariableId
@@ -5303,6 +5385,7 @@ pub fn antecedent_identify::admg_adjustment::identify_cpdag_derivative_pairs(cpd
 pub fn antecedent_identify::admg_adjustment::identify_pag_derivative_pairs(pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::admg_adjustment::identify_temporal_admg_front_door_derivative(template: &antecedent_graph::temporal_admg::TemporalAdmg, probe: &antecedent_core::query::temporal::TemporalEffectQuery, query: &antecedent_core::query::response::ResponseQuery, variable_count: u32) -> core::result::Result<core::option::Option<antecedent_identify::TemporalAdmgAdjustment>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::admg_adjustment::identify_temporal_admg_response_adjustment(template: &antecedent_graph::temporal_admg::TemporalAdmg, probe: &antecedent_core::query::temporal::TemporalEffectQuery, query: &antecedent_core::query::response::ResponseQuery, variable_count: u32) -> core::result::Result<antecedent_identify::TemporalAdmgAdjustment, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::admg_adjustment::search_admg_front_door_derivative(admg: &antecedent_graph::admg::Admg, query: &antecedent_core::query::response::ResponseQuery, limits: antecedent_core::search::SearchLimits) -> core::result::Result<antecedent_identify::FrontDoorSearch<antecedent_identify::IdentificationResult>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::admg_adjustment::upgrade_id_only_derivative_cases(envelope: &mut antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::backdoor::check_joint_adjustment(graph: &antecedent_graph::dag::Dag, treatments: &[antecedent_core::ids::VariableId], outcome: antecedent_core::ids::VariableId, adjustment: &[antecedent_core::ids::VariableId]) -> core::result::Result<core::option::Option<antecedent_identify::backdoor::CheckedJointAdjustment>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::binary_iv_ate_bounds(law: antecedent_identify::BinaryIvLaw) -> core::result::Result<antecedent_core::response::IdentifiedSet<f64>, antecedent_identify::IdentificationError>
@@ -5310,28 +5393,28 @@ pub fn antecedent_identify::bind_mixed_source_catalog(graph: &antecedent_graph::
 pub fn antecedent_identify::bind_mz_transport_catalog(graph: &antecedent_graph::admg::Admg, derivation: &antecedent_identify::MzTransportDerivation, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<antecedent_identify::BoundMzTransportFunctional, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::bind_transport_derivation(arena: &mut antecedent_expr::CausalExprArena, root: antecedent_expr::ExprId, certificate: &antecedent_identify::TransportCertificate, note: impl core::convert::Into<alloc::sync::Arc<str>>)
 pub fn antecedent_identify::bind_z_transport_catalog(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, derivation: &antecedent_identify::ZTransportDerivation, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<antecedent_identify::BoundZTransportFunctional, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::counterfactual_id::decide_counterfactual_id(problem: &antecedent_identify::counterfactual_id::CounterfactualIdProblem, query: &antecedent_core::query::counterfactual_event::CounterfactualEventQuery, limits: antecedent_core::search::SearchLimits, memory_limit_bytes: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::counterfactual_id::CounterfactualIdDerivation, antecedent_identify::counterfactual_id::CounterfactualIdRefusal>
+pub fn antecedent_identify::counterfactual_id::decide_counterfactual_id(problem: &antecedent_identify::counterfactual_id::CounterfactualIdProblem, query: &antecedent_core::query::counterfactual_event::CounterfactualEventQuery, limits: antecedent_core::search::SearchLimits, memory_limit_bytes: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::counterfactual_id::CounterfactualIdDerivation, antecedent_identify::counterfactual_id::CounterfactualIdRefusal>
 pub fn antecedent_identify::cross_world::check_cross_world(graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::cross_world::CrossWorldQuery) -> core::result::Result<antecedent_identify::cross_world::CrossWorldWitness, antecedent_identify::cross_world::CrossWorldRefusal>
-pub fn antecedent_identify::cyclic_calculus::apply_cyclic_calculus(graph: &antecedent_graph::cyclic::CyclicMixedGraph, rule: antecedent_identify::cyclic_calculus::CyclicCalculusRule, x: &[usize], y: &[usize], z: &[usize], w: &[usize], io_scm: bool, standard_measurable_spaces: bool, max_checks: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::cyclic_calculus::CyclicCalculusApplication, antecedent_identify::cyclic_id::CyclicIdError>
+pub fn antecedent_identify::cyclic_calculus::apply_cyclic_calculus(graph: &antecedent_graph::cyclic::CyclicMixedGraph, rule: antecedent_identify::cyclic_calculus::CyclicCalculusRule, x: &[usize], y: &[usize], z: &[usize], w: &[usize], io_scm: bool, standard_measurable_spaces: bool, max_checks: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::cyclic_calculus::CyclicCalculusApplication, antecedent_identify::cyclic_id::CyclicIdError>
 pub fn antecedent_identify::cyclic_calculus::identify_cyclic_adjustment(graph: &antecedent_graph::cyclic::CyclicMixedGraph, outcomes: &[usize], treatments: &[usize], adjustment: &[usize], continuous: bool, premises: antecedent_identify::cyclic_id::CyclicIdPremises) -> core::result::Result<core::option::Option<antecedent_expr::program::FunctionalProgram>, antecedent_identify::cyclic_id::CyclicIdError>
 pub fn antecedent_identify::cyclic_id::cyclic_backdoor_valid(graph: &antecedent_graph::cyclic::CyclicMixedGraph, outcomes: &[usize], treatments: &[usize], adjustment: &[usize], premises: antecedent_identify::cyclic_id::CyclicIdPremises) -> core::result::Result<bool, antecedent_identify::cyclic_id::CyclicIdError>
-pub fn antecedent_identify::cyclic_id::identify_cyclic(graph: &antecedent_graph::cyclic::CyclicMixedGraph, outcomes: &[usize], treatments: &[usize], premises: antecedent_identify::cyclic_id::CyclicIdPremises, continuous: bool, max_steps: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::cyclic_id::CyclicIdentification, antecedent_identify::cyclic_id::CyclicIdError>
+pub fn antecedent_identify::cyclic_id::identify_cyclic(graph: &antecedent_graph::cyclic::CyclicMixedGraph, outcomes: &[usize], treatments: &[usize], premises: antecedent_identify::cyclic_id::CyclicIdPremises, continuous: bool, max_steps: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::cyclic_id::CyclicIdentification, antecedent_identify::cyclic_id::CyclicIdError>
 pub fn antecedent_identify::dag_to_admg(dag: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::decide_admg_conditional_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ConditionalTransportDecision, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::decide_chain_recovery(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ChainRecoveryQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ChainRecoveryDecision, antecedent_identify::ChainRecoveryError>
+pub fn antecedent_identify::decide_admg_conditional_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ConditionalTransportDecision, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::decide_chain_recovery(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ChainRecoveryQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ChainRecoveryDecision, antecedent_identify::ChainRecoveryError>
 pub fn antecedent_identify::decide_experimental_recovery(design: &antecedent_identify::ExperimentDesign) -> antecedent_identify::ExperimentalRecoveryDecision
-pub fn antecedent_identify::decide_mixed_source(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MixedSourceQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::MixedSourceDecision, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::decide_mz_transport(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MzTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::MzTransportDecision, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::decide_observation_recovery(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ObservationRecoveryQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, effect: core::option::Option<&antecedent_identify::RecoveredEffectQuery>, limits: antecedent_identify::RecoveryLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::RecoveryDecision, antecedent_identify::RecoveryError>
-pub fn antecedent_identify::decide_two_source_z_transport(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::TwoSourceZTransportQuery, catalogs: [&antecedent_core::query::transport_catalog::EvidenceCatalog; 2], limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::TwoSourceZTransportDecision, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::decide_z_transport_inspecting(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ZTransportOutcome, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::decide_z_transport_with_catalog(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ZTransportDecision, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::decide_mixed_source(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MixedSourceQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::MixedSourceDecision, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::decide_mz_transport(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MzTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::MzTransportDecision, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::decide_observation_recovery(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ObservationRecoveryQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, effect: core::option::Option<&antecedent_identify::RecoveredEffectQuery>, limits: antecedent_identify::RecoveryLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::RecoveryDecision, antecedent_identify::RecoveryError>
+pub fn antecedent_identify::decide_two_source_z_transport(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::TwoSourceZTransportQuery, catalogs: [&antecedent_core::query::transport_catalog::EvidenceCatalog; 2], limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::TwoSourceZTransportDecision, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::decide_z_transport_inspecting(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ZTransportOutcome, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::decide_z_transport_with_catalog(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ZTransportDecision, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::discovered_transport::ancestral_subgraph(admg: &antecedent_graph::admg::Admg, seeds: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_graph::error::GraphError>
 pub fn antecedent_identify::discovered_transport::refuse_pag_transport(unresolved: alloc::vec::Vec<antecedent_identify::discovered_transport::UnresolvedPair>, exhausted_search_bounds: usize) -> antecedent_identify::discovered_transport::DiscoveredTransportError
 pub fn antecedent_identify::discovered_transport::transport_across_class(request: &antecedent_identify::discovered_transport::DiscoveredTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
-pub fn antecedent_identify::discovered_transport::transport_across_class_with_context(request: &antecedent_identify::discovered_transport::DiscoveredTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
+pub fn antecedent_identify::discovered_transport::transport_across_class_with_context(request: &antecedent_identify::discovered_transport::DiscoveredTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent_identify::discovered_transport::transport_across_pag(request: &antecedent_identify::discovered_transport::PagTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
-pub fn antecedent_identify::discovered_transport::transport_across_pag_with_context(request: &antecedent_identify::discovered_transport::PagTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
+pub fn antecedent_identify::discovered_transport::transport_across_pag_with_context(request: &antecedent_identify::discovered_transport::PagTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent_identify::discovered_transport_temporal::transport_across_temporal_class(request: &antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent_identify::envelope::search_truncated(result: &antecedent_identify::IdentificationResult) -> bool
 pub fn antecedent_identify::execution_counts::count_checked_identifications<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
@@ -5346,55 +5429,55 @@ pub fn antecedent_identify::experimental_recovery::recover_assembled_coefficient
 pub fn antecedent_identify::experimental_recovery::regime_is_identified(decision: &antecedent_identify::ExperimentalRecoveryDecision, design: &[antecedent_identify::DeclaredClampExperiment], regime: &antecedent_identify::DeclaredClampExperiment) -> bool
 pub fn antecedent_identify::generalized::invisible_directed_edges(mag: &antecedent_graph::pag::Pag) -> alloc::vec::Vec<(antecedent_graph::types::DenseNodeId, antecedent_graph::types::DenseNodeId)>
 pub fn antecedent_identify::generalized::mag_to_confounded_admg(mag: &antecedent_graph::pag::Pag) -> core::option::Option<antecedent_graph::admg::Admg>
-pub fn antecedent_identify::identify_catalog_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::identify_catalog_transport_selection_standardization_first(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::identify_catalog_transport_standardization_first(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::identify_classical_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ClassicalTransportResult, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::identify_counterfactual_transport(problem: &antecedent_identify::CounterfactualTransportProblem, query: &antecedent_identify::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CounterfactualTransportDecision, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::identify_catalog_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::identify_catalog_transport_selection_standardization_first(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::identify_catalog_transport_standardization_first(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::identify_classical_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ClassicalTransportResult, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::identify_counterfactual_transport(problem: &antecedent_identify::CounterfactualTransportProblem, query: &antecedent_identify::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::CounterfactualTransportDecision, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_cpdag_response_general(cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::identify_meta_catalog(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::identify_meta_transport(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ClassicalTransportResult, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::identify_meta_catalog(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::identify_meta_transport(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ClassicalTransportResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_pag_response_general(pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_tiered(background: &antecedent_graph::tiered::TieredBackground, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_tiered_joint(background: &antecedent_graph::tiered::TieredBackground, schema: &antecedent_core::schema::CausalSchema, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_tiered_joint_on(background: &antecedent_graph::tiered::TieredBackground, admg: &antecedent_graph::admg::Admg, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_tiered_on(background: &antecedent_graph::tiered::TieredBackground, admg: &antecedent_graph::admg::Admg, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::identify_z_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ZTransportResult, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::identify_z_transport_reporting(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext, receipt: &mut core::option::Option<antecedent_identify::ZTransportLimitsReceipt>) -> core::result::Result<antecedent_identify::ZTransportResult, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::identify_z_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ZTransportResult, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::identify_z_transport_reporting(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext, receipt: &mut core::option::Option<antecedent_identify::ZTransportLimitsReceipt>) -> core::result::Result<antecedent_identify::ZTransportResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::intervention_ancestral_treatments(graph: &antecedent_graph::admg::Admg, mutilated: &antecedent_graph::admg::Admg, treatments: &[antecedent_core::ids::VariableId], outcomes: &[antecedent_core::ids::VariableId]) -> core::result::Result<alloc::vec::Vec<antecedent_core::ids::VariableId>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::intervention_levels_conflict(earlier: &[alloc::vec::Vec<antecedent_core::query::transport_catalog::InterventionAssignment>], current: &[antecedent_core::query::transport_catalog::InterventionAssignment]) -> bool
 pub fn antecedent_identify::intervention_mutilated_admg(graph: &antecedent_graph::admg::Admg, treatments: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::lower_transport_formula(arena: &mut antecedent_expr::CausalExprArena, formula: &antecedent_identify::TransportFormula) -> antecedent_expr::ExprId
 pub fn antecedent_identify::lower_transport_mean(arena: &mut antecedent_expr::CausalExprArena, formula: &antecedent_identify::TransportFormula, outcome: antecedent_core::ids::VariableId) -> antecedent_expr::ExprId
-pub fn antecedent_identify::plan_study_additions(graph: &antecedent_graph::admg::Admg, route: &antecedent_identify::StudyPlanRoute, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, candidates: &[antecedent_identify::StudyPlanCandidate], limits: antecedent_identify::StudyPlanLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::StudyPlan, antecedent_identify::StudyPlanRefusal>
-pub fn antecedent_identify::recovery::verify_observation_recovery(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ObservationRecoveryQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, effect: core::option::Option<&antecedent_identify::RecoveredEffectQuery>, stored: &antecedent_identify::StoredRecovery<'_>, max: antecedent_identify::RecoveryLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::RecoveryDerivation, antecedent_identify::RecoveryError>
+pub fn antecedent_identify::plan_study_additions(graph: &antecedent_graph::admg::Admg, route: &antecedent_identify::StudyPlanRoute, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, candidates: &[antecedent_identify::StudyPlanCandidate], limits: antecedent_identify::StudyPlanLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::StudyPlan, antecedent_identify::StudyPlanRefusal>
+pub fn antecedent_identify::recovery::verify_observation_recovery(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ObservationRecoveryQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, effect: core::option::Option<&antecedent_identify::RecoveredEffectQuery>, stored: &antecedent_identify::StoredRecovery<'_>, max: antecedent_identify::RecoveryLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::RecoveryDerivation, antecedent_identify::RecoveryError>
 pub fn antecedent_identify::recovery::verify_recovery_witness(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ObservationRecoveryQuery, witness: &antecedent_identify::RecoveryWitness) -> core::result::Result<antecedent_identify::WitnessCheck, antecedent_identify::RecoveryError>
-pub fn antecedent_identify::recovery_chain::verify_chain_witness(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ChainRecoveryQuery, witness: &antecedent_identify::ChainRecoveryWitness, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ChainWitnessCheck, antecedent_identify::ChainRecoveryError>
+pub fn antecedent_identify::recovery_chain::verify_chain_witness(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ChainRecoveryQuery, witness: &antecedent_identify::ChainRecoveryWitness, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ChainWitnessCheck, antecedent_identify::ChainRecoveryError>
 pub fn antecedent_identify::response::append_observation_assumptions(response: &antecedent_core::query::response::ResponseQuery, assumptions: &mut antecedent_core::assumption::AssumptionSet)
-pub fn antecedent_identify::search_conditional_witness(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, charge: &mut dyn core::ops::function::FnMut(u64) -> core::result::Result<(), antecedent_identify::IdentificationError>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::WitnessSearch, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::search_conditional_witness_within(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, meter: &mut dyn antecedent_identify::WitnessMeter, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::WitnessSearch, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::cpdag_completion::decide_cpdag_completions(input: &antecedent_identify::sid::cpdag_completion::CpdagCompletionInput, coordinates: &alloc::sync::Arc<[antecedent_identify::sid::scenarios::ScenarioCoordinate]>, query: &antecedent_identify::ClassicalTransportQuery, evidence: &antecedent_identify::sid::cpdag_completion::CpdagEvidence, budget: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::sid::cpdag_completion::CpdagCompletionDecision, antecedent_identify::sid::cpdag_completion::CpdagScenarioError>
-pub fn antecedent_identify::sid::cpdag_completion::enumerate_cpdag_completions(input: &antecedent_identify::sid::cpdag_completion::CpdagCompletionInput, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::sid::cpdag_completion::CpdagEnumeration, antecedent_identify::sid::scenarios::ScenarioSetRefusal>
+pub fn antecedent_identify::search_conditional_witness(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, charge: &mut dyn core::ops::function::FnMut(u64) -> core::result::Result<(), antecedent_identify::IdentificationError>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::WitnessSearch, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::search_conditional_witness_within(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, meter: &mut dyn antecedent_identify::WitnessMeter, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::WitnessSearch, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::cpdag_completion::decide_cpdag_completions(input: &antecedent_identify::sid::cpdag_completion::CpdagCompletionInput, coordinates: &alloc::sync::Arc<[antecedent_identify::sid::scenarios::ScenarioCoordinate]>, query: &antecedent_identify::ClassicalTransportQuery, evidence: &antecedent_identify::sid::cpdag_completion::CpdagEvidence, budget: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::sid::cpdag_completion::CpdagCompletionDecision, antecedent_identify::sid::cpdag_completion::CpdagScenarioError>
+pub fn antecedent_identify::sid::cpdag_completion::enumerate_cpdag_completions(input: &antecedent_identify::sid::cpdag_completion::CpdagCompletionInput, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::sid::cpdag_completion::CpdagEnumeration, antecedent_identify::sid::scenarios::ScenarioSetRefusal>
 pub fn antecedent_identify::sid::scenario_invariance::invariance_report(scenario: &antecedent_identify::sid::scenarios::TransportScenario, outcome: &antecedent_identify::sid::scenarios::ScenarioOutcome) -> core::result::Result<antecedent_identify::sid::scenario_invariance::InvarianceReport, antecedent_identify::sid::scenario_invariance::InvarianceReportError>
-pub fn antecedent_identify::sid::scenarios::decide_conditional_transport_scenarios(set: &antecedent_identify::sid::scenarios::TransportScenarioSet, query: &antecedent_identify::ConditionalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, budget: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::sid::scenarios::ScenarioSetDecision, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::scenarios::decide_scenario_question(set: &antecedent_identify::sid::scenarios::TransportScenarioSet, question: &antecedent_identify::sid::scenarios::ScenarioQuestion, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, budget: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::sid::scenarios::ScenarioSetDecision, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::scenarios::decide_transport_scenarios(set: &antecedent_identify::sid::scenarios::TransportScenarioSet, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, budget: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::sid::scenarios::ScenarioSetDecision, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::temporal_initial_shift::identify_initial_shift_source(spec: &antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::sid::temporal_initial_shift::CheckedInitialShiftSource, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::temporal_sequence::decide_temporal_transport_sequence(spec: &antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec, sequence: &[antecedent_core::value::Value], source: &str, target: &str, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, budget: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::sid::temporal_sequence::TemporalSequenceDecision, antecedent_identify::sid::temporal_sequence::TemporalSequenceError>
+pub fn antecedent_identify::sid::scenarios::decide_conditional_transport_scenarios(set: &antecedent_identify::sid::scenarios::TransportScenarioSet, query: &antecedent_identify::ConditionalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, budget: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::sid::scenarios::ScenarioSetDecision, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::scenarios::decide_scenario_question(set: &antecedent_identify::sid::scenarios::TransportScenarioSet, question: &antecedent_identify::sid::scenarios::ScenarioQuestion, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, budget: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::sid::scenarios::ScenarioSetDecision, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::scenarios::decide_transport_scenarios(set: &antecedent_identify::sid::scenarios::TransportScenarioSet, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, budget: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::sid::scenarios::ScenarioSetDecision, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::temporal_initial_shift::identify_initial_shift_source(spec: &antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::sid::temporal_initial_shift::CheckedInitialShiftSource, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::temporal_sequence::decide_temporal_transport_sequence(spec: &antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec, sequence: &[antecedent_core::value::Value], source: &str, target: &str, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, budget: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::sid::temporal_sequence::TemporalSequenceDecision, antecedent_identify::sid::temporal_sequence::TemporalSequenceError>
 pub fn antecedent_identify::sid::temporal_sequence::unroll_two_slice(template: &antecedent_graph::temporal::TemporalDag, roles: &antecedent_identify::sid::temporal_sequence::TemplateRoles, baseline: usize, baseline_effects: &[(usize, antecedent_core::ids::VariableId)]) -> core::result::Result<antecedent_identify::sid::temporal_sequence::UnrolledSequence, antecedent_identify::sid::temporal_sequence::TemporalRefusal>
 pub fn antecedent_identify::sid::validate_mixed_source_query(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MixedSourceQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<antecedent_identify::ValidatedMixedSourceQuery, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::validate_z_experiment_family(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<alloc::vec::Vec<antecedent_core::ids::RegimeId>, antecedent_identify::ZExperimentFamilyError>
 pub fn antecedent_identify::sid::validate_z_transport_query(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery) -> core::result::Result<(), antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::verify_classical_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, derivation: &antecedent_identify::ClassicalTransportDerivation, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::verify_conditional_witness(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, record: &antecedent_identify::ConditionalWitnessRecord, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ConditionalWitnessCheck, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::verify_conditional_witness_within(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, record: &antecedent_identify::ConditionalWitnessRecord, operations: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ConditionalWitnessCheck, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::verify_classical_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, derivation: &antecedent_identify::ClassicalTransportDerivation, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::verify_conditional_witness(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, record: &antecedent_identify::ConditionalWitnessRecord, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ConditionalWitnessCheck, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::verify_conditional_witness_within(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, record: &antecedent_identify::ConditionalWitnessRecord, operations: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ConditionalWitnessCheck, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_counterfactual_transport_witness(problem: &antecedent_identify::CounterfactualTransportProblem, query: &antecedent_identify::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, witness: &antecedent_identify::CounterfactualTransportWitness) -> core::result::Result<antecedent_identify::CounterfactualTransportWitnessCheck, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::verify_meta_s_hedge(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, witness: &antecedent_identify::sid::SHedgeCertificate, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::verify_meta_transport(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, proof: &antecedent_identify::ClassicalTransportDerivation, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::verify_meta_s_hedge(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, witness: &antecedent_identify::sid::SHedgeCertificate, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::verify_meta_transport(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MetaTransportQuery, proof: &antecedent_identify::ClassicalTransportDerivation, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_mixed_source_derivation(graph: &antecedent_graph::admg::Admg, derivation: &antecedent_identify::MixedSourceDerivation, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<(), antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::verify_mz_transport_obstruction(graph: &antecedent_graph::admg::Admg, obstruction: &antecedent_identify::MzTransportObstruction, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::verify_s_hedge(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, witness: &antecedent_identify::sid::SHedgeCertificate, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
-pub fn antecedent_identify::sid::verify_z_transport_derivation(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, derivation: &antecedent_identify::ZTransportDerivation, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::verify_mz_transport_obstruction(graph: &antecedent_graph::admg::Admg, obstruction: &antecedent_identify::MzTransportObstruction, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::verify_s_hedge(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, witness: &antecedent_identify::sid::SHedgeCertificate, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn antecedent_identify::sid::verify_z_transport_derivation(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, derivation: &antecedent_identify::ZTransportDerivation, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::temporal_admg::identify_temporal_admg_contrast(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::temporal_admg::TemporalAdmgIdentification, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::temporal_admg::identify_temporal_admg_contrast_over(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery, variable_count: u32) -> core::result::Result<antecedent_identify::temporal_admg::TemporalAdmgIdentification, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::temporal_admg::plan_temporal_admg_window(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::temporal_admg::TemporalAdmgWindowPlan, antecedent_identify::IdentificationError>
@@ -5495,10 +5578,14 @@ pub struct antecedent_identify::ConditionalWitnessRecord
 pub struct antecedent_identify::CounterfactualCitedRegime
 pub struct antecedent_identify::CounterfactualFactor
 pub struct antecedent_identify::CounterfactualItem
+pub struct antecedent_identify::CounterfactualLevelIndex
+pub struct antecedent_identify::CounterfactualLevelIndex has private fields
 pub struct antecedent_identify::CounterfactualMissingRegime
 pub struct antecedent_identify::CounterfactualMovedAtom
 pub struct antecedent_identify::CounterfactualSum
 pub struct antecedent_identify::CounterfactualSymbol
+pub struct antecedent_identify::CounterfactualSymbolId
+pub struct antecedent_identify::CounterfactualSymbolId has private fields
 pub struct antecedent_identify::CounterfactualTransportDerivation
 pub struct antecedent_identify::CounterfactualTransportInspection
 pub struct antecedent_identify::CounterfactualTransportMissing
@@ -5511,6 +5598,8 @@ pub struct antecedent_identify::CounterfactualTransportSource
 pub struct antecedent_identify::CounterfactualTransportUnsupported
 pub struct antecedent_identify::CounterfactualTransportWitness
 pub struct antecedent_identify::CounterfactualTransportWitnessCheck
+pub struct antecedent_identify::CounterfactualVariableIndex
+pub struct antecedent_identify::CounterfactualVariableIndex has private fields
 pub struct antecedent_identify::DeclaredClampExperiment
 pub struct antecedent_identify::DeclaredEquationRank
 pub struct antecedent_identify::DerivationStep
@@ -5745,13 +5834,14 @@ pub struct antecedent_identify::temporal_admg::TemporalAdmgIdentification
 pub struct antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
 pub trait antecedent_identify::Identifier<G>: sealed::Sealed
 pub trait antecedent_identify::WitnessMeter
-pub trait fn fn antecedent_identify::Identifier::identify(&self, prepared: &<Self as antecedent_identify::Identifier>::Prepared, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub trait fn fn antecedent_identify::Identifier::identify(&self, prepared: &<Self as antecedent_identify::Identifier>::Prepared, query: &antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub trait fn fn antecedent_identify::Identifier::prepare(&self, graph: &G, assumptions: &antecedent_core::assumption::AssumptionSet) -> core::result::Result<<Self as antecedent_identify::Identifier>::Prepared, antecedent_identify::IdentificationError>
 pub trait fn fn antecedent_identify::WitnessMeter::charge(&mut self, bytes: u64) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub trait fn fn antecedent_identify::WitnessMeter::operations_remaining(&self) -> u64
 pub trait type antecedent_identify::Identifier::Prepared
 pub use antecedent_identify::IdentificationStatus = result::IdentificationStatus
 pub use antecedent_identify::IdentifiedEstimand = result::IdentifiedEstimand
+pub use antecedent_identify::admg_adjustment::FrontDoorSearch = antecedent_identify::FrontDoorSearch
 pub use antecedent_identify::admg_adjustment::TemporalAdmgAdjustment = antecedent_identify::TemporalAdmgAdjustment
 pub use antecedent_identify::auto::AutoIdentifier = antecedent_identify::AutoIdentifier
 pub use antecedent_identify::auto::PreparedAutoGraph = antecedent_identify::PreparedAutoGraph
@@ -5767,6 +5857,7 @@ pub use antecedent_identify::compiled_product::IdentificationOutcome = anteceden
 pub use antecedent_identify::compiled_product::ProductRefusal = antecedent_identify::ProductRefusal
 pub use antecedent_identify::compiled_product::RequiredFactor = antecedent_identify::RequiredFactor
 pub use antecedent_identify::compiled_product::UnresolvedObligation = antecedent_identify::UnresolvedObligation
+pub use antecedent_identify::default_front_door_limits = antecedent_identify::admg_adjustment::default_front_door_limits
 pub use antecedent_identify::efficient::EfficientBackdoorIdentifier = antecedent_identify::EfficientBackdoorIdentifier
 pub use antecedent_identify::envelope::GraphFeature = antecedent_identify::GraphFeature
 pub use antecedent_identify::envelope::GraphIdentificationCase = antecedent_identify::GraphIdentificationCase
@@ -5843,9 +5934,7 @@ pub use antecedent_identify::rd::SharpRdIdentifier = antecedent_identify::SharpR
 pub use antecedent_identify::recovery::ObservationRecoveryQuery = antecedent_identify::ObservationRecoveryQuery
 pub use antecedent_identify::recovery::PartiallyObserved = antecedent_identify::PartiallyObserved
 pub use antecedent_identify::recovery::RECOVERY_DEFAULT_LIMITS = antecedent_identify::RECOVERY_DEFAULT_LIMITS
-pub use antecedent_identify::recovery::RECOVERY_MAX_FULLY_OBSERVED = antecedent_identify::RECOVERY_MAX_FULLY_OBSERVED
 pub use antecedent_identify::recovery::RECOVERY_MAX_OBSERVED_CELLS = antecedent_identify::RECOVERY_MAX_OBSERVED_CELLS
-pub use antecedent_identify::recovery::RECOVERY_MAX_PARTIALLY_OBSERVED = antecedent_identify::RECOVERY_MAX_PARTIALLY_OBSERVED
 pub use antecedent_identify::recovery::RECOVERY_RULE_VERSION = antecedent_identify::RECOVERY_RULE_VERSION
 pub use antecedent_identify::recovery::RecoveredEffect = antecedent_identify::RecoveredEffect
 pub use antecedent_identify::recovery::RecoveredEffectQuery = antecedent_identify::RecoveredEffectQuery
@@ -5880,11 +5969,13 @@ pub use antecedent_identify::response::ResponseIdentifier = antecedent_identify:
 pub use antecedent_identify::result::DerivationStep = antecedent_identify::DerivationStep
 pub use antecedent_identify::result::DerivationTrace = antecedent_identify::DerivationTrace
 pub use antecedent_identify::result::EstimandClaim = antecedent_identify::EstimandClaim
+pub use antecedent_identify::result::EstimandSelectionError = antecedent_identify::EstimandSelectionError
 pub use antecedent_identify::result::IdentificationPerformanceRecord = antecedent_identify::IdentificationPerformanceRecord
 pub use antecedent_identify::result::IdentificationResult = antecedent_identify::IdentificationResult
 pub use antecedent_identify::result::IdentificationResultParts = antecedent_identify::IdentificationResultParts
 pub use antecedent_identify::result::IdentificationStatus = antecedent_core::IdentificationStatus
 pub use antecedent_identify::result::IdentifiedEstimand = antecedent_expr::IdentifiedEstimand
+pub use antecedent_identify::search_admg_front_door_derivative = antecedent_identify::admg_adjustment::search_admg_front_door_derivative
 pub use antecedent_identify::search_truncated = antecedent_identify::envelope::search_truncated
 pub use antecedent_identify::sid::ADMG_CONDITIONAL_DEFAULT_LIMITS = antecedent_identify::ADMG_CONDITIONAL_DEFAULT_LIMITS
 pub use antecedent_identify::sid::ADMG_CONDITIONAL_MAX_CONDITIONED = antecedent_identify::ADMG_CONDITIONAL_MAX_CONDITIONED
@@ -5898,16 +5989,14 @@ pub use antecedent_identify::sid::BoundZTransportFunctional = antecedent_identif
 pub use antecedent_identify::sid::CONDITIONAL_WITNESS_MAX_LATENT_LEVELS = antecedent_identify::CONDITIONAL_WITNESS_MAX_LATENT_LEVELS
 pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_CONTRACT = antecedent_identify::COUNTERFACTUAL_TRANSPORT_CONTRACT
 pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS
+pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES
 pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_ATOMS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_ATOMS
-pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_CELLS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_CELLS
 pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE
-pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_LEVELS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_LEVELS
 pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_LIMITS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_LIMITS
 pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_NODES = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_NODES
 pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_REGIMES = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_REGIMES
 pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_SOURCES = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_SOURCES
 pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS
-pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES
 pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MAX_WORLDS = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MAX_WORLDS
 pub use antecedent_identify::sid::COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES = antecedent_identify::COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES
 pub use antecedent_identify::sid::CatalogTransportResult = antecedent_identify::CatalogTransportResult
@@ -5933,10 +6022,12 @@ pub use antecedent_identify::sid::CounterfactualFunctional = antecedent_identify
 pub use antecedent_identify::sid::CounterfactualItem = antecedent_identify::CounterfactualItem
 pub use antecedent_identify::sid::CounterfactualItemSource = antecedent_identify::CounterfactualItemSource
 pub use antecedent_identify::sid::CounterfactualLevel = antecedent_identify::CounterfactualLevel
+pub use antecedent_identify::sid::CounterfactualLevelIndex = antecedent_identify::CounterfactualLevelIndex
 pub use antecedent_identify::sid::CounterfactualMissingRegime = antecedent_identify::CounterfactualMissingRegime
 pub use antecedent_identify::sid::CounterfactualMovedAtom = antecedent_identify::CounterfactualMovedAtom
 pub use antecedent_identify::sid::CounterfactualSum = antecedent_identify::CounterfactualSum
 pub use antecedent_identify::sid::CounterfactualSymbol = antecedent_identify::CounterfactualSymbol
+pub use antecedent_identify::sid::CounterfactualSymbolId = antecedent_identify::CounterfactualSymbolId
 pub use antecedent_identify::sid::CounterfactualTransportDecision = antecedent_identify::CounterfactualTransportDecision
 pub use antecedent_identify::sid::CounterfactualTransportDerivation = antecedent_identify::CounterfactualTransportDerivation
 pub use antecedent_identify::sid::CounterfactualTransportInspection = antecedent_identify::CounterfactualTransportInspection
@@ -5949,6 +6040,7 @@ pub use antecedent_identify::sid::CounterfactualTransportSource = antecedent_ide
 pub use antecedent_identify::sid::CounterfactualTransportUnsupported = antecedent_identify::CounterfactualTransportUnsupported
 pub use antecedent_identify::sid::CounterfactualTransportWitness = antecedent_identify::CounterfactualTransportWitness
 pub use antecedent_identify::sid::CounterfactualTransportWitnessCheck = antecedent_identify::CounterfactualTransportWitnessCheck
+pub use antecedent_identify::sid::CounterfactualVariableIndex = antecedent_identify::CounterfactualVariableIndex
 pub use antecedent_identify::sid::MIXED_SOURCE_DEFAULT_LIMITS = antecedent_identify::MIXED_SOURCE_DEFAULT_LIMITS
 pub use antecedent_identify::sid::MIXED_SOURCE_MAX_DISTRIBUTIONS = antecedent_identify::MIXED_SOURCE_MAX_DISTRIBUTIONS
 pub use antecedent_identify::sid::MIXED_SOURCE_MAX_DO = antecedent_identify::MIXED_SOURCE_MAX_DO
@@ -6134,15 +6226,15 @@ pub variant antecedent_identify::ConditionalTransportDecision::Identified(alloc:
 pub variant antecedent_identify::ConditionalTransportDecision::MissingEvidence { derivation: alloc::boxed::Box<antecedent_identify::ConditionalTransportDerivation>, obligations: alloc::sync::Arc<[alloc::sync::Arc<str>]> }
 pub variant antecedent_identify::ConditionalTransportDecision::NotCertified(antecedent_identify::ConditionalTransportInspection)
 pub variant antecedent_identify::ConditionalTransportDecision::ProvenNonTransportable(alloc::boxed::Box<antecedent_identify::ConditionalNonTransportabilityProof>)
-pub variant antecedent_identify::CounterfactualFunctional::Complement { variable: usize, whole: alloc::boxed::Box<antecedent_identify::CounterfactualFunctional>, flipped: alloc::boxed::Box<antecedent_identify::CounterfactualFunctional> }
+pub variant antecedent_identify::CounterfactualFunctional::Complement { variable: antecedent_identify::CounterfactualVariableIndex, whole: alloc::boxed::Box<antecedent_identify::CounterfactualFunctional>, flipped: alloc::boxed::Box<antecedent_identify::CounterfactualFunctional> }
 pub variant antecedent_identify::CounterfactualFunctional::Sum(antecedent_identify::CounterfactualSum)
 pub variant antecedent_identify::CounterfactualFunctional::Zero
 pub variant antecedent_identify::CounterfactualItemSource::Extract { from: usize }
 pub variant antecedent_identify::CounterfactualItemSource::Marginal { from: usize }
 pub variant antecedent_identify::CounterfactualItemSource::Regime { regime: antecedent_core::ids::RegimeId, intervened: u32 }
 pub variant antecedent_identify::CounterfactualItemSource::Transfer { from: usize }
-pub variant antecedent_identify::CounterfactualLevel::Fixed(usize)
-pub variant antecedent_identify::CounterfactualLevel::Symbol(usize)
+pub variant antecedent_identify::CounterfactualLevel::Fixed(antecedent_identify::CounterfactualLevelIndex)
+pub variant antecedent_identify::CounterfactualLevel::Symbol(antecedent_identify::CounterfactualSymbolId)
 pub variant antecedent_identify::CounterfactualTransportDecision::Exhausted(antecedent_core::search::SearchReceipt)
 pub variant antecedent_identify::CounterfactualTransportDecision::Identified(alloc::boxed::Box<antecedent_identify::CounterfactualTransportDerivation>)
 pub variant antecedent_identify::CounterfactualTransportDecision::MissingEvidence(alloc::boxed::Box<antecedent_identify::CounterfactualTransportMissing>)
@@ -6169,10 +6261,15 @@ pub variant antecedent_identify::DesignFault::NullspaceWidthMismatch
 pub variant antecedent_identify::DesignFault::RankAboveWidth
 pub variant antecedent_identify::DesignFault::RankDeclarationOnUncoveredTarget
 pub variant antecedent_identify::DesignFault::RankTargetUnknown
+pub variant antecedent_identify::EstimandSelectionError::Ambiguous { methods: alloc::vec::Vec<alloc::sync::Arc<str>>, matched: usize }
+pub variant antecedent_identify::EstimandSelectionError::NoEstimand
 pub variant antecedent_identify::ExperimentalRecoveryDecision::NotThisRecipe(antecedent_identify::NotThisRecipe)
 pub variant antecedent_identify::ExperimentalRecoveryDecision::Partial(antecedent_identify::CoefficientRecovery)
 pub variant antecedent_identify::ExperimentalRecoveryDecision::Recovered(antecedent_identify::CoefficientRecovery)
 pub variant antecedent_identify::ExperimentalRecoveryDecision::Refused(antecedent_identify::RecipeRefusal)
+pub variant antecedent_identify::FrontDoorSearch::Absent
+pub variant antecedent_identify::FrontDoorSearch::Found(T)
+pub variant antecedent_identify::FrontDoorSearch::NotCertified { examined: u64 }
 pub variant antecedent_identify::IdentificationBudget::Binding
 pub variant antecedent_identify::IdentificationBudget::BindingMemory
 pub variant antecedent_identify::IdentificationBudget::Memory
@@ -6183,20 +6280,28 @@ pub variant antecedent_identify::IdentificationClaimClass::ModelConditional
 pub variant antecedent_identify::IdentificationClaimClass::UnsupportedExtrapolation
 pub variant antecedent_identify::IdentificationError::Budget { budget: antecedent_identify::IdentificationBudget }
 pub variant antecedent_identify::IdentificationError::Cancelled
+pub variant antecedent_identify::IdentificationError::Construction { message: alloc::string::String }
+pub variant antecedent_identify::IdentificationError::EmptyTreatmentSchedule
+pub variant antecedent_identify::IdentificationError::ExpectedStaticNode
+pub variant antecedent_identify::IdentificationError::Expression { message: alloc::string::String }
 pub variant antecedent_identify::IdentificationError::Graph(antecedent_graph::error::GraphError)
 pub variant antecedent_identify::IdentificationError::InvalidCatalog { message: alloc::string::String }
 pub variant antecedent_identify::IdentificationError::InvalidDerivation { code: &'static str }
 pub variant antecedent_identify::IdentificationError::InvalidInput { message: alloc::string::String }
 pub variant antecedent_identify::IdentificationError::InvalidQuery { message: alloc::string::String }
 pub variant antecedent_identify::IdentificationError::InvariantViolated { message: &'static str }
-pub variant antecedent_identify::IdentificationError::Message(alloc::string::String)
 pub variant antecedent_identify::IdentificationError::MissingEvidence { code: &'static str, detail: alloc::string::String }
+pub variant antecedent_identify::IdentificationError::MissingHedgeGraph
+pub variant antecedent_identify::IdentificationError::NotAHedge { what: alloc::string::String }
 pub variant antecedent_identify::IdentificationError::NotCertified { message: &'static str }
+pub variant antecedent_identify::IdentificationError::OutOfRange { what: &'static str }
 pub variant antecedent_identify::IdentificationError::ResultLimitExceeded { limit: usize }
 pub variant antecedent_identify::IdentificationError::SustainedPolicyUnsupported
+pub variant antecedent_identify::IdentificationError::UnknownDenseNode { id: u32 }
 pub variant antecedent_identify::IdentificationError::UnknownVariable { id: antecedent_core::ids::VariableId }
 pub variant antecedent_identify::IdentificationError::UnsupportedInput { code: &'static str }
 pub variant antecedent_identify::IdentificationError::UnsupportedQuery { message: &'static str }
+pub variant antecedent_identify::IdentificationError::VariableOutsideSchema { variable: u32, count: u32 }
 pub variant antecedent_identify::IdentificationOutcome::Identified
 pub variant antecedent_identify::IdentificationOutcome::NumericallyInfeasible
 pub variant antecedent_identify::IdentificationOutcome::TimedOut
@@ -6389,6 +6494,7 @@ pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::Budg
 pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::ColumnLength { regime: usize }
 pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::DegenerateIntervention { regime: usize }
 pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::DroppedUnitNotClamped { unit: antecedent_core::ids::VariableId }
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::IllConditionedIntervention { regime: usize, condition_exponent: u32 }
 pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::InadequateInterventionCoverage { missing: alloc::vec::Vec<antecedent_identify::experiment_moments::MissingPair> }
 pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::InconsistentRegime(antecedent_identify::experiment_moments::RegimeInconsistency)
 pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::NonFiniteMoment { regime: usize }

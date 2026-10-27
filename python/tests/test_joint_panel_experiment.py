@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from antecedent import decision
 from antecedent import joint_panel as jp
 from antecedent import scientific_bridge as sb
+from antecedent.errors import CausalValueError
 from antecedent.evidence_ledger import EvidenceLedger, SourceDeclaration, SourceRevision
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.outcomes import require_success
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.parametrize("local", [False, True])
@@ -245,6 +250,19 @@ def test_native_target_experiment_update_decision_next_study_and_current_replay(
     )
     artifact = bytes(updated.export(ledger))
     updated.verify_current(artifact, ledger)
+    # Historical replay re-executes the original design and likelihood update from the bytes
+    # alone: it needs no ledger and so can grant no current scientific authority.
+    historical = jp.replay_native_experiment(artifact)
+    assert historical.grants_current_authority is False
+    assert historical.replays_original_design is True
+    assert historical.draws == 512
+    assert historical.posterior_weights == pytest.approx(report["posterior_weights"], abs=1e-12)
+    assert historical.posterior_means == pytest.approx(report["posterior_means"], abs=1e-12)
+    assert math.fsum(historical.posterior_weights) == pytest.approx(1.0, abs=1e-12)
+    with pytest.raises(CausalValueError):
+        jp.replay_native_experiment(artifact[: len(artifact) // 2])
+    with pytest.raises(CausalValueError):
+        jp.replay_design_experiment(artifact)
     prepared.consume_current(bytes(result.export()))
     require_success(
         ledger.revise_source(
@@ -253,6 +271,119 @@ def test_native_target_experiment_update_decision_next_study_and_current_replay(
     )
     with pytest.raises(ValueError, match="withdrawn|missing|superseded"):
         updated.verify_current(artifact, ledger)
+
+
+def test_population_design_contrast_experiment_conditions_replays_and_refuses_withdrawal():
+    fixture = json.loads(
+        (ROOT / "conformance/response/joint_panel/population_reference.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    coefficients = [-1.0] + [1.0 / 15.0] * 15
+    contrast = {
+        "kind": "linear",
+        "terms": [[world, c] for world, c in enumerate(coefficients)],
+        "reference": 0,
+    }
+    target = jp.target_contrast(fixture["target"], contrast)
+    assert target["target"]["kind"] == "linear"
+    assert target["identity"] != fixture["target"]["identity"]
+    # The reference must be exactly the flagged baseline world.
+    with pytest.raises(CausalValueError):
+        jp.target_contrast(fixture["target"], {**contrast, "reference": 1})
+
+    prepared = jp.prepare_joint_design(target, fixture["proof"])
+    result = require_success(prepared.execute(fixture["bayesian"]))
+    prior = result.report()
+    draws = prior["law"]["Bayesian"]["draws"]
+    values = [math.fsum(v * c for v, c in zip(row, coefficients, strict=True)) for row in draws]
+    quantity = result.experiment_quantity("terminal_mean")
+    setting = sb.ExposureSetting(
+        quantity.population_id,
+        "native_summary:0",
+        "native_summary:0",
+        1.0,
+        "native_projection",
+        1.0,
+        "native_summary_window",
+        quantity.regime_id,
+    )
+    bridge = sb.BridgeContract(
+        "parameter_intervention_response",
+        replace(quantity, functional_id="experimental_sample_mean"),
+        "model_parameter",
+        quantity,
+        "intervention_response",
+        sb.Scope(quantity.population_id, quantity.regime_id),
+        sb.AffineMapping(0.0, 1.0),
+        assumptions=(
+            sb.Assumption(
+                "likelihood_model",
+                "parameter_interpretation",
+                "independent Gaussian sample mean maps to this exact design contrast",
+                "declared_experiment",
+            ),
+        ),
+        mapping_uncertainty=sb.MappingUncertainty("fixed_mapping", 0.0, 0.0, 0.0),
+        source_dependence=sb.SourceDependence("slope_covariance", "retained_slots", 0.0),
+        estimand_bridge=sb.EstimandBridge(
+            "exact_translation",
+            "declared_experiment",
+            setting,
+            setting,
+            0.0,
+            "native_window",
+            0.0,
+            "native_projection",
+        ),
+    )
+    ledger = EvidenceLedger()
+    dependency = prior["dependency"]
+    model = ledger.add_source(SourceDeclaration(dependency, "fitted_model", [("model", "rows")]))
+    experiment = ledger.add_source(
+        SourceDeclaration("new_experiment", "experiment", [("new", "rows")])
+    )
+    mapping = ledger.add_source(SourceDeclaration("mapping", "fitted_model", [("mapping", "rows")]))
+    observed = math.fsum(values) / len(values) + 0.3
+    updated = result.condition_experiment(
+        bridge=bridge,
+        ledger=ledger,
+        observed_mean=observed,
+        observation_variance=0.2,
+        sample_size=4,
+        mapping_dependency=dependency,
+        intercepts=[0.0] * len(values),
+        slopes=[1.0] * len(values),
+        model=model,
+        experiment=experiment,
+        mapping=mapping,
+    )
+    report = updated.report(ledger)
+    anchor = min(values, key=lambda v: abs(observed - v))
+    raw = [math.exp((v - anchor) * (2 * observed - v - anchor) / (2 * 0.2 / 4)) for v in values]
+    norm = math.fsum(raw)
+    expected = [v / norm for v in raw]
+    assert report["posterior_weights"] == pytest.approx(expected, abs=1e-12)
+    artifact = bytes(updated.export(ledger))
+    updated.verify_current(artifact, ledger)
+
+    historical = jp.replay_design_experiment(artifact)
+    assert historical.grants_current_authority is False
+    assert historical.draws == len(values)
+    assert historical.posterior_weights == pytest.approx(expected, abs=1e-12)
+    assert historical.posterior_means == pytest.approx(report["posterior_means"], abs=1e-12)
+    with pytest.raises(CausalValueError):
+        jp.replay_design_experiment(artifact[: len(artifact) // 2])
+
+    # Withdrawing the experiment removes caller-current authority, never the historical replay.
+    require_success(
+        ledger.revise_source(
+            require_success(SourceRevision.withdraw(experiment, "withdrawn experiment"))
+        )
+    )
+    with pytest.raises(ValueError, match="withdrawn|missing|superseded"):
+        updated.verify_current(artifact, ledger)
+    assert jp.replay_design_experiment(artifact).posterior_weights == historical.posterior_weights
 
 
 def test_generated_acceptance_matrix_keeps_all_advertised_design_rows():
@@ -269,3 +400,51 @@ def test_generated_acceptance_matrix_keeps_all_advertised_design_rows():
         "retained_panel_model_conditional",
     }
     assert len({r["id"] for r in matrix["rows"]}) == 510
+
+
+def _randomized_native_recipe(shift=0.0):
+    return {
+        "kind": "randomized",
+        "design": {
+            "worlds": ["reference", "active"],
+            "sampling_unit": "independent_cluster",
+            "population": "declared_cluster_population",
+            "consistency": "keys denote exact complete assigned programs",
+            "between_unit_isolation": "independent randomized clusters without spillover",
+        },
+        "units": [
+            {
+                "id": f"unit:{i}",
+                "arm": i % 2,
+                "probabilities": [0.5, 0.5],
+                "outcome": (1.0 if i % 2 == 0 else 2.0) + (0.1 if i % 4 < 2 else -0.1) + shift,
+                "population_weight": 1.0,
+            }
+            for i in range(32)
+        ],
+    }
+
+
+def test_native_design_replays_historically_and_is_consumed_only_by_the_same_current_design():
+    inference = {
+        "inference": "randomized_gaussian",
+        "prior": {
+            "mean": [0.0, 0.0],
+            "variance": [4.0, 4.0],
+            "outcome_variance": [1.0] * 32,
+            "draws": 64,
+            "seed": 91,
+        },
+    }
+    prepared = jp.prepare_native_joint_design(_randomized_native_recipe())
+    assert prepared.identification()
+    result = require_success(prepared.execute(inference))
+    report = result.report()
+    artifact = bytes(result.export())
+    assert jp.replay_native_joint_design(artifact) == report["law"]
+    with pytest.raises(CausalValueError):
+        jp.replay_native_joint_design(b"not a retained artifact")
+    assert prepared.consume_current(artifact).report()["law"] == report["law"]
+    changed = jp.prepare_native_joint_design(_randomized_native_recipe(shift=0.5))
+    with pytest.raises(CausalValueError):
+        changed.consume_current(artifact)

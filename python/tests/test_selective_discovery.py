@@ -361,6 +361,46 @@ def test_a_discovered_structure_never_supplies_a_selection_diagram() -> None:
     assert refused.value.detail == "selective_discovery.unaccepted_discovery"
 
 
+def test_graph_acceptance_needs_a_declared_completion_for_an_equivalence_class() -> None:
+    chain = sd.StaticContract(("a", "b", "c"), algorithm="pc", alpha=0.01, seed=0)
+    adapter, _, outcome = run_full(chain, chain_sample(4000, 5))
+    assert len(outcome.unresolved_edges) == 2
+    with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
+        adapter.accepted_graph_stage_identity("reviewer")
+    err = refused.value
+    assert err.reason_code == "discovered_structure_unresolved"
+    assert err.detail == "selective_discovery.unresolved_structure"
+    assert len(err.unresolved_edges) == 2  # type: ignore[attr-defined]
+    assert err.offending is not None and err.offending.count(";") == 1
+    assert_registered_refusal(err)
+
+    first = adapter.accepted_graph_stage_identity("reviewer", completion=("a->b->c", "01" * 32))
+    assert len(first) == 64 and int(first, 16) >= 0
+    assert first == adapter.accepted_graph_stage_identity(
+        "reviewer", completion=("a->b->c", "01" * 32)
+    )
+    # The declaring party, the completion label and the completion identity are each identity.
+    assert first != adapter.accepted_graph_stage_identity(
+        "someone else", completion=("a->b->c", "01" * 32)
+    )
+    assert first != adapter.accepted_graph_stage_identity(
+        "reviewer", completion=("c->b->a", "01" * 32)
+    )
+    assert first != adapter.accepted_graph_stage_identity(
+        "reviewer", completion=("a->b->c", "02" * 32)
+    )
+    with pytest.raises(CausalValueError):
+        adapter.accepted_graph_stage_identity("reviewer", completion=("a->b->c", "xyz"))
+
+    resolved, _, resolved_outcome = run_full(contract(), DATA)
+    assert resolved_outcome.fully_directed and not resolved_outcome.unresolved_edges
+    accepted = resolved.accepted_graph_stage_identity("reviewer")
+    assert len(accepted) == 64
+    assert accepted != first
+    with pytest.raises(CausalValueError):
+        sd.SelectiveDiscovery("static").accepted_graph_stage_identity("reviewer")
+
+
 # -- portable state, fresh process ------------------------------------------------------------------
 
 
@@ -640,3 +680,96 @@ def test_discovery_rows_and_the_discovered_graph_are_declared_as_ledger_sources(
         sd.discovery_data_source("rows", snapshot, range(0, 10, 2))
     with pytest.raises(CausalValueError):
         sd.discovered_graph_source("graph", ["not-an-id"])
+
+
+def test_discovery_rows_source_declares_a_row_set_and_refuses_negative_or_fractional_rows() -> None:
+    from antecedent import evidence_ledger as el
+
+    snapshot = b"table-v2"
+    ledger = el.EvidenceLedger()
+    scattered = ledger.add_source(sd.discovery_rows_source("scattered", snapshot, [0, 5, 90]))
+    overlapping = ledger.add_source(sd.discovery_rows_source("overlapping", snapshot, [5, 90, 91]))
+    disjoint = ledger.add_source(sd.discovery_rows_source("disjoint", snapshot, [200, 300]))
+    pair = ledger.account_observations([scattered, overlapping]).pairs[0]
+    assert (pair.overlap, pair.shared) == ("shared_observations", 2)
+    assert ledger.account_observations([scattered, disjoint]).pairs[0].overlap == "independent"
+    other_snapshot = ledger.add_source(sd.discovery_rows_source("other", b"another", [0, 5, 90]))
+    assert (
+        ledger.account_observations([scattered, other_snapshot]).pairs[0].overlap == "independent"
+    )
+    with pytest.raises((CausalValueError, CausalTypeError)):
+        sd.discovery_rows_source("negative", snapshot, [-1])
+    with pytest.raises((CausalValueError, CausalTypeError)):
+        sd.discovery_rows_source("fractional", snapshot, [1.5])  # type: ignore[list-item]
+
+
+def _discovered_on(seed: int) -> sd.SelectiveDiscovery:
+    rng = np.random.default_rng(seed)
+    n = 2000
+    a, b = rng.normal(size=n), rng.normal(size=n)
+    c = 0.8 * a + 0.8 * b + 0.6 * rng.normal(size=n)
+    contract = sd.StaticContract(variables=("a", "b", "c"), alpha=0.001, fdr=None, seed=4)
+    discovery = sd.SelectiveDiscovery("static")
+    discovery.run(contract, {"a": a, "b": b, "c": c})
+    return discovery
+
+
+def test_revalidating_after_discovery_recomputes_what_rests_on_the_moved_nodes() -> None:
+    from antecedent import composition_verification as cv
+
+    def with_claims(discovery: sd.SelectiveDiscovery) -> cv.CompositionGraph:
+        claims = discovery.add_claims(None, "disc")
+        effect = cv.Node("effect", "claim", identity=cv.digest("effect"))
+        other = cv.Node("unrelated", "claim", identity=cv.digest("unrelated"))
+        return cv.CompositionGraph(
+            nodes=(*claims.graph.nodes, effect, other),
+            edges=(
+                *claims.graph.edges,
+                cv.Edge("effect", claims.keys.downstream_anchor, "evidence"),
+            ),
+        )
+
+    previous = with_claims(_discovered_on(3))
+    unchanged = sd.revalidate_after_discovery(previous, with_claims(_discovered_on(3)))
+    assert unchanged.keys_of("recompute") == () and unchanged.keys_of("withdrawn") == ()
+    assert unchanged.keys_of("still_valid") == tuple(sorted(n.key for n in previous.nodes))
+    assert unchanged.previous_identity == unchanged.current_identity
+
+    # new data: the data node moves, so the statistics, the discovered structure and the claim
+    # derived from it recompute; the claim that rests on none of them stays valid
+    moved = sd.revalidate_after_discovery(previous, with_claims(_discovered_on(5)))
+    assert moved.classify("disc.data").klass == "recompute"
+    for key in ("disc.statistics", "disc.graph", "effect"):
+        assert moved.classify(key).klass == "recompute", key
+    assert moved.classify("unrelated").klass == "still_valid"
+    assert moved.classify("effect").authority_retained is False
+    assert moved.previous_identity != moved.current_identity
+    assert moved.identity != unchanged.identity
+
+    # a claim that left the graph is reported removed
+    smaller = cv.CompositionGraph(
+        nodes=tuple(n for n in previous.nodes if n.key != "unrelated"), edges=previous.edges
+    )
+    dropped = sd.revalidate_after_discovery(previous, smaller)
+    assert dropped.removed == ("unrelated",)
+    with pytest.raises(CausalValueError):
+        moved.classify("no such claim")
+
+
+def test_revalidating_after_discovery_refuses_an_invalid_graph_and_a_foreign_object() -> None:
+    from antecedent import composition_verification as cv
+
+    graph = cv.CompositionGraph(nodes=(cv.Node("a", "claim", identity=cv.digest("a")),))
+    duplicate = cv.CompositionGraph(
+        nodes=(
+            cv.Node("a", "claim", identity=cv.digest("a")),
+            cv.Node("a", "claim", identity=cv.digest("b")),
+        )
+    )
+    for previous, current in ((graph, duplicate), (duplicate, graph)):
+        with pytest.raises(cv.CompositionVerificationRefusal) as info:
+            sd.revalidate_after_discovery(previous, current)
+        assert_registered_refusal(info.value)
+        assert info.value.detail == "composition_verification.graph_invalid"
+    with pytest.raises(CausalTypeError):
+        sd.revalidate_after_discovery(graph, {"nodes": []})  # type: ignore[arg-type]

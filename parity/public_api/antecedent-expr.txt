@@ -789,8 +789,8 @@ pub fn <antecedent_expr::ExactDistribution>::fn mean(&self, outcome: antecedent_
 pub fn <antecedent_expr::ExactDistribution>::fn mean_difference(&self, reference: &Self, outcome: antecedent_core::ids::VariableId) -> core::result::Result<f64, antecedent_expr::EvalError>
 pub fn <antecedent_expr::ExactEvaluationPlan>::const fn arena(&self) -> &antecedent_expr::CausalExprArena
 pub fn <antecedent_expr::ExactEvaluationPlan>::const fn root(&self) -> antecedent_expr::ExprId
-pub fn <antecedent_expr::ExactEvaluationPlan>::fn compile(spec: antecedent_expr::ExactEvaluationSpec<'_>, data: antecedent_expr::ExactTransportData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_expr::EvalError>
-pub fn <antecedent_expr::ExactEvaluationPlan>::fn evaluate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_expr::ExactDistribution, antecedent_expr::EvalError>
+pub fn <antecedent_expr::ExactEvaluationPlan>::fn compile(spec: antecedent_expr::ExactEvaluationSpec<'_>, data: antecedent_expr::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_expr::EvalError>
+pub fn <antecedent_expr::ExactEvaluationPlan>::fn evaluate(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_expr::ExactDistribution, antecedent_expr::EvalError>
 pub fn <antecedent_expr::ExactLawError>::const fn is_missing_provider(&self) -> bool
 pub fn <antecedent_expr::ExactLawError>::fn is_null_conditioning_event(&self) -> bool
 pub fn <antecedent_expr::ExactTransportData>::const fn max_support_rows(&self) -> usize

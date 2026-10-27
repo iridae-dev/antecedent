@@ -280,6 +280,30 @@ def test_period_replace_re_evaluates_and_a_stale_interval_never_survives():
     assert refreshed.result.fixed.value == pytest.approx(0.56, abs=1e-12)
 
 
+def test_period_refresh_names_exactly_the_products_that_read_the_changed_window_factors():
+    prior = held()
+    assert prior.invalidated_products == ()
+    # Same units, new period: only the period moved. Identification reads none of the
+    # period, population, cadence or regime factors, so it is reused; the design, the
+    # (period-bound) model, the evidence and the next-period prior are invalidated.
+    same_units = make_panel("snap_new", first_unit=0, start=1000, lift=1)
+    refreshed = temporal_new_period_refresh(prior, same_units, window=window((1000, 2000)))
+    assert set(refreshed.result.invalidated_products) == {
+        "design",
+        "model",
+        "evidence",
+        "prior_refresh",
+    }
+    assert "identification" not in refreshed.result.invalidated_products
+    assert len(refreshed.result.invalidated_products) == 4
+    assert refreshed.result.value == pytest.approx(0.521, abs=1e-12)
+    # A new population on top of the period invalidates the same prepared products.
+    moved = temporal_new_period_refresh(prior, new_panel(), window=window((1000, 2000)))
+    assert set(moved.result.invalidated_products) == set(refreshed.result.invalidated_products)
+    # The invalidations belong to the refreshed result; the held one is untouched.
+    assert prior.invalidated_products == ()
+
+
 def test_period_replace_without_a_prior_interval_records_none():
     refreshed = temporal_new_period_refresh(held(), new_panel(), window=window((1000, 2000)))
     assert refreshed.interval_invalidated is False

@@ -230,3 +230,63 @@ def test_operation_status_follows_applicability_then_readiness():
 def test_the_schema_lists_the_statuses_the_rule_returns():
     statuses = set(host.schema()["$defs"]["host_status"]["enum"])
     assert statuses == {"supported", "partial", "unsupported"}
+
+
+def test_a_refusal_code_is_reported_only_when_it_is_registered():
+    coded = errors.CausalUnsupportedError(
+        "the attestation cannot be re-verified", reason_code="attested_not_reverifiable"
+    )
+    assert host.refusal_code(coded) == "attested_not_reverifiable"
+    assert coded.reason_code in host.refusal_codes()
+    assert host.refusal_code(errors.CausalResourceError("scratch budget exceeded")) is None
+    forged = ValueError("forged code")
+    forged.reason_code = "no_such_code_" + "anywhere"  # type: ignore[attr-defined]
+    assert host.refusal_code(forged) is None
+    assert host.refusal_record(forged)["reason_code"] is None
+    forged.reason_code = "attested_not_reverifiable"  # type: ignore[attr-defined]
+    assert host.refusal_code(forged) == "attested_not_reverifiable"
+
+
+def test_a_claim_record_carries_wire_digests_and_a_refusal_claim_is_unsupported():
+    domains = {"identification": "identified", "support": "supported", "evaluated": "evaluated"}
+    digest = bytes(range(32))
+    point = {"kind": "point", "claim_id": list(digest), "execution": digest, "domains": domains}
+    record = host.claim_record(point)
+    assert record == {
+        "claim_id": digest.hex(),
+        "kind": "point",
+        "causal": True,
+        "domains": domains,
+        "execution": digest.hex(),
+        "status": "supported",
+    }
+    textual = host.claim_record({"kind": "point", "claim_id": "ab" * 32, "domains": domains})
+    assert textual["claim_id"] == "ab" * 32 and textual["execution"] is None
+    refusal = {
+        "kind": "refusal",
+        "domains": {"identification": "unknown", "support": "unknown", "evaluated": "unknown"},
+    }
+    assert host.claim_record(refusal)["claim_id"] is None
+    assert host.claim_record(refusal)["status"] == "unsupported"
+    assert host.claim_response(point) == {"status": "supported", "claim": record}
+    refused = host.claim_response(refusal)
+    assert refused["status"] == refused["claim"]["status"] == "unsupported"
+    assert refused["claim"]["kind"] == "refusal"
+    required = host.schema()["$defs"]["claim_envelope"]["required"]
+    assert all(key in record for key in required)
+
+
+def test_a_failed_call_is_an_unsupported_response_that_names_its_family_and_code():
+    refusal = errors.CausalUnsupportedError(
+        "the attestation cannot be re-verified", reason_code="attested_not_reverifiable"
+    )
+    response = host.error_response(refusal)
+    assert response == {"status": "unsupported", "refusal": host.refusal_record(refusal)}
+    assert response["refusal"]["family"] == "unsupported"
+    assert response["refusal"]["reason_code"] == "attested_not_reverifiable"
+    required = host.schema()["$defs"]["refusal"]["required"]
+    assert all(key in response["refusal"] for key in required)
+    resource = host.error_response(errors.CausalResourceError("scratch budget exceeded"))
+    assert resource["status"] == "unsupported"
+    assert resource["refusal"]["family"] == "resource"
+    assert resource["refusal"]["reason_code"] is None

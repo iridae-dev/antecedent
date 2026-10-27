@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 from antecedent import decision
 from antecedent import inverse_query as iq
-from antecedent.errors import CausalTypeError, CausalUnsupportedError
+from antecedent.errors import CausalError, CausalTypeError, CausalUnsupportedError
 from antecedent.joint_distribution import (
     DistributionIdentity,
     JointDistributionArtifact,
@@ -436,6 +436,18 @@ def test_result_is_exported_replayed_and_refuses_a_resealed_mutation():
         require_success(iq.consume(bytes(corrupted)))
     with pytest.raises(CausalTypeError):
         require_success(iq.consume("not bytes"))  # type: ignore[arg-type]
+
+
+def test_an_artifact_needs_a_named_identity_and_is_deterministic():
+    result = require_success(_query(iq.target_quantile(0.5, 1.0)).evaluate(_law()))
+    first = bytes(result.export(artifact_id="inverse-1"))
+    assert first == bytes(result.export(artifact_id="inverse-1"))
+    consumed = require_success(iq.consume(first, expected_identity=result.identity))
+    assert consumed.identity == result.identity
+    with pytest.raises(CausalError):
+        result.export(artifact_id="")
+    with pytest.raises(CausalError):
+        result.export(artifact_id="   ")
 
 
 def test_a_continuous_sample_artifact_stays_a_witness_not_a_global_claim():

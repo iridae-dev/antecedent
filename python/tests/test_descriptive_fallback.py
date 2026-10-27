@@ -353,6 +353,58 @@ def test_the_host_record_shows_both_statuses_and_satisfies_the_schema():
     assert all(key in record for key in required)
 
 
+def test_an_unavailable_part_is_a_typed_host_record_that_satisfies_the_schema():
+    unavailable = fallback_roles(ant.PulseEffect("t", "y"), None, ["t", "y"])
+    assert isinstance(unavailable, FallbackUnavailable)
+    record = unavailable.to_dict()
+    assert record == {
+        "available": False,
+        "part": "associational",
+        "reason_code": "route_not_supported",
+        "detail": "fallback.no_association_form",
+        "message": unavailable.message,
+    }
+    schema = host.schema()["$defs"]["fallback_unavailable"]
+    assert set(record) == set(schema["required"]) == set(schema["properties"])
+    assert record["part"] in schema["properties"]["part"]["enum"]
+    assert record["reason_code"] in host.refusal_codes()
+    assert "Next attempt" in record["message"]
+    missing = fallback_roles(ant.AverageEffect("t", "nope"), None, ["t", "y"])
+    assert isinstance(missing, FallbackUnavailable)
+    assert missing.to_dict()["reason_code"] == "invalid_argument"
+    assert missing.to_dict()["detail"] == "fallback.variable_not_measured"
+
+
+def test_each_obligation_record_carries_the_schema_fields_of_its_obligation():
+    primary = ant.analyze(
+        _confounded_data(),
+        graph=_confounded_graph(),
+        query=ant.AverageEffect("t", "y"),
+        on_refusal="describe",
+    )
+    outcome = _describe(primary)
+    needs = outcome.evidence_plan
+    assert isinstance(needs, EvidenceNeeds)
+    rows = host.fallback_response(primary)["evidence_plan"]["obligations"]
+    assert len(rows) == len(needs.obligations) > 0
+    schema = host.schema()["$defs"]["evidence_obligation"]
+    for row, owed in zip(rows, needs.obligations, strict=True):
+        assert set(row) == set(schema["properties"])
+        assert set(schema["required"]) <= set(row)
+        assert row == {
+            "id": owed.id,
+            "kind": owed.kind,
+            "scope": owed.scope,
+            "variables": list(owed.variables),
+            "reason": owed.reason,
+            "family": owed.family,
+            "proof_step": owed.proof_step,
+            "satisfiable_by_study": owed.satisfiable_by_study,
+        }
+        if owed.kind == "establish_assumption":
+            assert row["satisfiable_by_study"] is False
+
+
 def test_a_bayesian_study_is_described_with_its_posterior():
     outcome = _describe(
         ant.analyze(

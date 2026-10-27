@@ -277,3 +277,12 @@ def test_fixed_anomaly_reference_rejects_invalid_scale(scale):
         ant.errors.CausalValueError, match="finite center and a finite positive scale"
     ):
         ant.AnomalyReference(center=0.0, scale=scale)
+
+
+def test_a_change_attribution_study_publishes_its_graph_and_identification_record():
+    result = require_success(ant.analyze(_two_period_chain(), graph=_dag(), query=_change_query()))
+    operation = result.study.plan_view().operation
+    assert operation["kind"] == "attribution"
+    assert operation["graph_edges"] == [[0, 1]], "x -> y by column position"
+    assert operation["identifier"] and operation["estimator"]
+    assert operation["identification_status"] and operation["query"]

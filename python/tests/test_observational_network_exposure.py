@@ -168,3 +168,13 @@ def test_known_exposure_probabilities_publish_retained_cluster_interval():
 def test_observational_network_refuses_incoherent_exposure_probabilities():
     with pytest.raises(ValueError, match="summing above one"):
         _estimate(propensity_from=[0.7] * 4, propensity_to=[0.7] * 4)
+
+
+def test_a_network_exposure_study_publishes_its_fixed_network_record():
+    data, clusters, edges, _ = _fixture()
+    result = require_success(ant.analyze(data, graph=[], query=_query()))
+    operation = result.study.plan_view().operation
+    assert operation["kind"] == "interference"
+    assert operation["unit_count"] == len(clusters)
+    assert operation["network_edge_count"] == len(edges), "directed edges are counted once each"
+    assert operation["identifier"] and operation["estimator"] and operation["query"]
