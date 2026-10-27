@@ -131,6 +131,8 @@ struct AipwInputs<'a> {
     /// Fold id of each kept row, in the order the mask keeps them.
     fold_ids: Vec<u32>,
     clip: Option<f64>,
+    /// A declared overlap clip or trim governs rows at the boundary, so they are admitted.
+    admit_saturation: bool,
 }
 
 impl AipwInputs<'_> {
@@ -415,6 +417,7 @@ impl AipwAte {
             at_control,
             fold_ids,
             clip,
+            admit_saturation: crate::streamed_propensity::admits_saturation(self.overlap),
         };
         inputs.require_populated_folds(folds)?;
         Ok(inputs)
@@ -447,17 +450,19 @@ impl AipwAte {
             facts,
         )?;
         facts.passes += 1;
-        let mut saturated = false;
+        let (mut saturated, mut margin) = (0_u64, f64::INFINITY);
         inputs.for_each_row(|place, row| {
             if fold_ids[place] != fold_id {
                 let e = fitted_propensity(row.design, &gamma);
-                saturated |= e <= BOUNDARY || e >= 1.0 - BOUNDARY;
+                if e <= BOUNDARY || e >= 1.0 - BOUNDARY {
+                    saturated += 1;
+                    margin = margin.min(e.min(1.0 - e));
+                }
             }
         });
-        if saturated {
-            return Err(EstimationError::data_msg(
-                "GLM fitted probabilities lie within 1e-8 of 0 or 1 (extreme scores, not \
-                 necessarily separation); refuse propensity/outcome scores",
+        if saturated > 0 && !inputs.admit_saturation {
+            return Err(crate::streamed_propensity::boundary_saturated_refusal(
+                "aipw", saturated, margin,
             ));
         }
         // The arm outcome regressions on the training rows.
@@ -676,5 +681,53 @@ mod tests {
         // A treatment row at neither declared level is not silently dropped.
         let (stray, estimand, query) = fixture(600, true);
         assert!(estimator.estimate_streamed(&stray, &estimand, &query, 1, 64, 1 << 20).is_err());
+    }
+
+    /// 400 rows, `x` uniform on `[-3, 3]`, treated iff `x > 0` except eight flips next to 0:
+    /// the logistic fit converges and is not separated, yet saturates far from the flips.
+    fn saturated_fixture() -> (TabularData, IdentifiedEstimand, AverageEffectQuery) {
+        let x: Vec<f64> = (0..400).map(|i| -3.0 + 6.0 * (i as f64 + 0.5) / 400.0).collect();
+        let flips = [190, 193, 196, 198, 201, 203, 206, 209];
+        let t: Vec<f64> = (0..400).map(|i| f64::from((x[i] > 0.0) != flips.contains(&i))).collect();
+        let y: Vec<f64> =
+            (0..400).map(|i| 1.0 + 2.0 * t[i] + 0.5 * x[i] + 0.4 * noise(i, 4)).collect();
+        let data = TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        (data, estimand, query)
+    }
+
+    fn assert_positivity_refusal(error: &EstimationError) {
+        assert_eq!(error.reason_code(), Some(antecedent_core::reason_code!("positivity_violated")));
+        let fields = error.refusal_fields().expect("structured fields");
+        assert_eq!(fields.reason.as_deref(), Some("boundary_saturated"));
+        assert!(fields.boundary_count.is_some_and(|count| count > 0));
+        assert!(fields.remedy.as_deref().is_some_and(|remedy| remedy.contains("overlap")));
+    }
+
+    #[test]
+    fn a_saturated_streamed_cross_fit_refuses_as_positivity_unless_a_declared_clip_governs_it() {
+        let (data, estimand, query) = saturated_fixture();
+        let undeclared = AipwAte::new().with_bootstrap_replicates(0);
+        let error = undeclared
+            .estimate_streamed(&data, &estimand, &query, 1, 64, 1 << 20)
+            .expect_err("an undeclared default refuses a saturated fit");
+        assert_positivity_refusal(&error);
+        let declared = AipwAte::new()
+            .with_bootstrap_replicates(0)
+            .with_overlap(OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: None });
+        declared
+            .estimate_streamed(&data, &estimand, &query, 1, 64, 1 << 20)
+            .expect("a declared clip governs the saturated rows");
     }
 }

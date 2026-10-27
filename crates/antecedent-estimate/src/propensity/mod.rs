@@ -90,9 +90,10 @@ pub use prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, default_propensity_overlap,
 };
 pub(crate) use prepare::{
-    clamp_scores, clip_of, gather, gather_into, prepare_propensity_problem_with_levels,
-    prepare_propensity_problem_with_registry, propensity_fit_error, propensity_glm_options,
-    require_interior_propensities, split_by_treatment, trim_of, trim_retained_rows,
+    admits_boundary_saturation, clamp_scores, clip_of, gather, gather_into,
+    prepare_propensity_problem_with_levels, prepare_propensity_problem_with_registry,
+    propensity_fit_error, propensity_glm_options, require_interior_propensities,
+    split_by_treatment, trim_of, trim_retained_rows,
 };
 pub use stratification::PropensityStratification;
 pub use weighting::{BalancedWeightingInterval, PopulationLinearVariance, PropensityWeighting};

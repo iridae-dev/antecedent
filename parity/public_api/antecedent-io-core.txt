@@ -10436,6 +10436,7 @@ pub const antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_VERSION: u32
 pub const antecedent_io_core::OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION: u32
 pub const antecedent_io_core::OBSERVATION_QUERY_GENERAL_FEATURE: &str
+pub const antecedent_io_core::OVERLAP_LIMITED_DIAGNOSTIC: &str
 pub const antecedent_io_core::PARAMETER_DRAWS_READING: &str
 pub const antecedent_io_core::POSTERIOR_ROW_CALIBRATION: &str
 pub const antecedent_io_core::POSTERIOR_ROW_UNCERTAINTY: &str
@@ -12036,6 +12037,7 @@ pub field antecedent_io_core::SplitIdentityWire::gap: u64
 pub field antecedent_io_core::SplitIdentityWire::series_len: u64
 pub field antecedent_io_core::StaticResultWire::active_level: f64
 pub field antecedent_io_core::StaticResultWire::assumptions: alloc::vec::Vec<antecedent_io_core::AssumptionRecordWire>
+pub field antecedent_io_core::StaticResultWire::contrasts: alloc::vec::Vec<antecedent_io_core::OutcomeContrastWire>
 pub field antecedent_io_core::StaticResultWire::control_level: f64
 pub field antecedent_io_core::StaticResultWire::diagnostics: alloc::vec::Vec<antecedent_io_core::DiagnosticWire>
 pub field antecedent_io_core::StaticResultWire::estimate: f64
@@ -15299,7 +15301,7 @@ pub fn antecedent_io_core::contract_section::identification_not_claimed(section:
 pub fn antecedent_io_core::contract_section::project_claim_host(consumed: &antecedent_io_core::AnalysisResultConsumption) -> antecedent_io_core::ClaimHostProjection
 pub fn antecedent_io_core::contract_section::project_lossy_scalar(consumed: &antecedent_io_core::AnalysisResultConsumption) -> (antecedent_io_core::ClaimHostProjection, antecedent_contract::claim::HandoffReceipt)
 pub fn antecedent_io_core::contract_section::result_digest(body: &antecedent_io_core::AnalysisResultWire) -> core::result::Result<[u8; 32], antecedent_io_core::IoError>
-pub fn antecedent_io_core::contract_section::support_empirical(refutations: &[antecedent_io_core::RefutationReportWire]) -> core::option::Option<alloc::string::String>
+pub fn antecedent_io_core::contract_section::support_empirical(refutations: &[antecedent_io_core::RefutationReportWire], diagnostics: &[antecedent_io_core::DiagnosticWire]) -> core::option::Option<alloc::string::String>
 pub fn antecedent_io_core::contract_section::validate_contract_section(contract: &antecedent_io_core::AnalysisResultContractWire) -> core::result::Result<(), antecedent_io_core::IoError>
 pub fn antecedent_io_core::contract_section::validate_mixture_masses(identified: f64, unidentified: f64, unevaluable: f64, incomplete_search: f64) -> core::result::Result<(), antecedent_io_core::IoError>
 pub fn antecedent_io_core::contract_section::verify_contract_against_body(header: &antecedent_io_core::AnalysisResultHeader, body: &antecedent_io_core::AnalysisResultWire, contract: &antecedent_io_core::AnalysisResultContractWire) -> alloc::vec::Vec<alloc::sync::Arc<str>>
@@ -16471,6 +16473,7 @@ pub use antecedent_io_core::contract_section::ClaimSectionWire = antecedent_io_c
 pub use antecedent_io_core::contract_section::ContractIdentitiesWire = antecedent_io_core::ContractIdentitiesWire
 pub use antecedent_io_core::contract_section::ContractReason = antecedent_io_core::ContractReason
 pub use antecedent_io_core::contract_section::IdentificationSlotWire = antecedent_io_core::IdentificationSlotWire
+pub use antecedent_io_core::contract_section::OVERLAP_LIMITED_DIAGNOSTIC = antecedent_io_core::OVERLAP_LIMITED_DIAGNOSTIC
 pub use antecedent_io_core::contract_section::ObligationSectionWire = antecedent_io_core::ObligationSectionWire
 pub use antecedent_io_core::contract_section::ReasoningSectionWire = antecedent_io_core::ReasoningSectionWire
 pub use antecedent_io_core::contract_section::SlotSectionWire = antecedent_io_core::SlotSectionWire

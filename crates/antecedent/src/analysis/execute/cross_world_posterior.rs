@@ -64,8 +64,8 @@ use super::{
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, Instant, OverlapPolicy,
     PathSpecificMixedSource, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, Strategy,
     StudyResult, TabularData, TimeSeriesData, WeightedGraphSamples, effect_from_posterior,
-    elapsed_ns, mass_fields, mix_atom_refutation_reports, overlap_diagnostic, provenance_ids,
-    resolve_posterior_status,
+    elapsed_ns, mass_fields, mix_atom_refutation_reports, overlap_diagnostic,
+    overlap_limit_diagnostic, provenance_ids, resolve_posterior_status,
 };
 use crate::analysis::identification_cache::CachedGraphPosteriorAtomIdentification;
 use crate::analysis::proof_support::graph_posterior_withheld_diagnostic;
@@ -868,6 +868,8 @@ impl super::Study {
             )),
         );
         diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
+        diagnostics
+            .extend(overlap_limit_diagnostic(mixed.estimate.diagnostics.overlap_report.as_ref()));
 
         diagnostics
     }

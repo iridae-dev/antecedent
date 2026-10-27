@@ -92,8 +92,9 @@ pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
 pub(super) use super::helpers::{
     AssembleArgs, RefutationRun, assemble_result, credible_scalar_uncertainty,
     effect_from_posterior, evaluate_bayesian_prior_sensitivity, overlap_diagnostic,
-    project_for_ate_estimate, projection_diagnostic, provenance_pair, push_conflict_diagnostics,
-    validator_not_applicable_diagnostic, validator_not_applicable_diagnostics,
+    overlap_limit_diagnostic, project_for_ate_estimate, projection_diagnostic, provenance_pair,
+    push_conflict_diagnostics, validator_not_applicable_diagnostic,
+    validator_not_applicable_diagnostics,
 };
 
 /// Build-time declarations no click rebinds.

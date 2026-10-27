@@ -13,8 +13,10 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.estimators import (
+    DML,
     Aipw,
     DistanceMatching,
+    DRLearner,
     Overlap,
     PropensityMatching,
     PropensityStratification,
@@ -153,3 +155,12 @@ def test_a_declared_overlap_policy_governs_saturated_propensities(
 ) -> None:
     result = require_success(_saturated_outcome(estimator(bootstrap=0, overlap=overlap)))
     assert np.isfinite(result.answer.value)
+
+
+@pytest.mark.parametrize("estimator", [DML, DRLearner])
+def test_cross_fitted_learners_follow_the_same_overlap_rule(estimator: Any) -> None:
+    refused = _saturated_outcome(estimator())
+    assert refused.refusal is not None
+    assert refused.refusal.code == "positivity_violated"
+    governed = require_success(_saturated_outcome(estimator(overlap=Overlap(trim=0.01))))
+    assert np.isfinite(governed.answer.value)

@@ -88,9 +88,11 @@ pub(crate) fn learner_bundle_key(
     folds: usize,
     seed: u64,
     fold_ids: &[u16],
+    admit_boundary_saturation: bool,
 ) -> Option<NuisanceCacheKey> {
     let realized: Vec<u32> = fold_ids.iter().map(|&fold| u32::from(fold)).collect();
     let options = NuisanceOptions::new("learner_bundle")
+        .word("admit_boundary_saturation", u64::from(admit_boundary_saturation))
         .text("outcome_learner", &outcome.identity())
         .text("treatment_learner", &treatment.identity())
         .word("folds", folds as u64)

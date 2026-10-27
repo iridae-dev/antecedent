@@ -454,10 +454,22 @@ class Overlap:
     effect describes. ``None`` turns that operation off. Each bound lies in
     ``(0, 0.5)``.
 
-    ``Overlap()`` is the default policy, so passing it changes nothing. Any other
-    policy is a different interval construction: its calibration binds only to
-    coverage records measured under that policy, and otherwise reports
-    ``scope_not_assessed``.
+    Declaring a policy is a scientific choice about positivity. Without one,
+    the default clip applies to ordinary scores, but a propensity within 1e-8
+    of 0 or 1 refuses as ``positivity_violated``: some rows then have
+    essentially no chance of the other treatment, and Antecedent does not
+    decide that question for you. ``Overlap()`` declares the default bounds
+    explicitly and so lets the clip govern those rows; ``Overlap(trim=...)``
+    estimates on the common-support rows instead. Whenever the applied clip or
+    trim binds (it moves a saturated score or at least 5% of the rows, or the
+    trim excludes any row), the estimate records
+    ``estimate.overlap_excluded_fraction`` and the claim's support domain is
+    ``limited``, so its host status is ``partial``.
+
+    ``Overlap()`` computes exactly as the default and shares its calibration
+    and identity. Any other policy is a different interval construction: its
+    calibration binds only to coverage records measured under that policy, and
+    otherwise reports ``scope_not_assessed``.
     """
 
     clip: float | None = OMITTED["overlap_clip"]

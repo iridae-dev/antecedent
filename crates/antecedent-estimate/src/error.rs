@@ -677,6 +677,44 @@ impl EstimationError {
         }
     }
 
+    /// The registered runtime reason code this refusal carries, when it is a scientific
+    /// refusal that has one: a coded refusal's own code, or the code derived from the variant
+    /// and its [`RefusalFields`] for a refusal built without one (a rank-deficient design, a
+    /// refused GLM fit, too few clusters, a failed overlap or support gate, a retarget
+    /// refusal). Never changes a rendered message; `None` for every other error.
+    ///
+    /// A stats-layer GLM refusal cannot say whether the fit was a propensity gate, so every
+    /// separated, saturated or non-converged fit maps to `glm_fit_refused`; the propensity
+    /// route that wants `positivity_violated` converts its fit error first.
+    #[must_use]
+    pub fn reason_code(&self) -> Option<&'static str> {
+        use antecedent_core::reason_code;
+        match self {
+            Self::Refused { code, .. } | Self::RefusedWithFields { code, .. } => Some(code),
+            Self::OverlapWithFields { .. } => Some(reason_code!("positivity_violated")),
+            Self::UnsupportedWithFields { fields, .. } => {
+                if fields.stage.as_deref() != Some("retarget") {
+                    return None;
+                }
+                Some(match fields.reason.as_deref() {
+                    Some(
+                        "weights_depend_on_treatment_or_descendant"
+                        | "weights_outside_adjustment_set"
+                        | "descendant_closure_unavailable"
+                        | "undeclared_nonconstant_weights",
+                    ) => reason_code!("target_weights_not_licensed"),
+                    _ => reason_code!("positivity_violated"),
+                })
+            }
+            Self::Stats(StatsError::RankDeficient { .. }) => {
+                Some(reason_code!("design_rank_deficient"))
+            }
+            Self::Stats(StatsError::GlmRefused { .. }) => Some(reason_code!("glm_fit_refused")),
+            Self::Stats(StatsError::FewClusters { .. }) => Some(reason_code!("too_few_clusters")),
+            _ => None,
+        }
+    }
+
     /// Structured diagnostics of a refusal that carries them: one built with
     /// [`Self::refused_with_fields`] or [`Self::UnsupportedWithFields`], or a stats-layer
     /// refusal whose own record holds them (a refused GLM fit, a rank-deficient design, too
@@ -726,11 +764,13 @@ fn stats_refusal_fields(error: &StatsError) -> Option<RefusalFields> {
                 ),
                 GlmRefusalKind::Separated => (
                     "separated",
-                    "drop or coarsen the separating columns, or use a penalized nuisance",
+                    "drop or coarsen the separating columns, or (AIPW only) declare a penalized propensity \
+                     (propensity_penalty)",
                 ),
                 GlmRefusalKind::BoundarySaturated => (
                     "boundary_saturated",
-                    "drop or coarsen the near-deterministic columns, or use a penalized nuisance",
+                    "drop or coarsen the near-deterministic columns, or (AIPW only) declare a penalized \
+                     propensity (propensity_penalty)",
                 ),
             };
             Some(RefusalFields {

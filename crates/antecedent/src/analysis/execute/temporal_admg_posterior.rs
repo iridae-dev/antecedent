@@ -38,7 +38,8 @@ use super::{
     IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedKeyWeights, IdentifierId, Instant, PhysicalExecutionPlan, PosteriorMassSummary,
     RefuteSuite, Strategy, StudyResult, TabularData, TimeSeriesData, elapsed_ns, mass_fields,
-    overlap_diagnostic, provenance_ids, resolve_posterior_status, run_functional,
+    overlap_diagnostic, overlap_limit_diagnostic, provenance_ids, resolve_posterior_status,
+    run_functional,
 };
 use crate::analysis::identification_cache::{
     CachedGraphPosteriorAtomIdentification, CachedGraphPosteriorIdentification,
@@ -536,6 +537,8 @@ impl super::Study {
         diagnostics.push(window_disclosure(atoms, &lengths, unidentified_mass));
         diagnostics.push(structural_aggregation_diagnostic(mixed));
         diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
+        diagnostics
+            .extend(overlap_limit_diagnostic(mixed.estimate.diagnostics.overlap_report.as_ref()));
         diagnostics
     }
 

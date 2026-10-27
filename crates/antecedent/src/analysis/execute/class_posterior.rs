@@ -17,7 +17,8 @@ use super::{
     StaticEstimateWorkspaces, Strategy, Study, StudyResult, TabularData, bayesian_gcomp,
     effect_from_posterior, elapsed_ns, envelope_se_omission_diagnostic, estimate_static_effect,
     mass_fields, mix_static_envelope_se, mix_weighted_analytic_se, mixed_static_influence,
-    overlap_diagnostic, provenance_ids, resolve_posterior_status, static_aligned_influence,
+    overlap_diagnostic, overlap_limit_diagnostic, provenance_ids, resolve_posterior_status,
+    static_aligned_influence,
 };
 use crate::analysis::prepared::{
     CachedClassPosteriorAtomIdentification, CachedGraphPosteriorIdentification,
@@ -187,6 +188,8 @@ impl super::Study {
             )),
         );
         diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
+        diagnostics
+            .extend(overlap_limit_diagnostic(mixed.estimate.diagnostics.overlap_report.as_ref()));
         let n_contributing = evals
             .iter()
             .filter(|eval| eval.estimate.as_ref().is_some_and(|estimate| estimate.ate.is_finite()))

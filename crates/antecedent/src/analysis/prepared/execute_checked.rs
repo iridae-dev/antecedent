@@ -13,8 +13,8 @@ use crate::analysis::checked_propensity::{
     CheckedPropensityOperation, CheckedPropensityProcedure, CheckedPropensityUncertainty,
 };
 use crate::analysis::helpers::{
-    AssembleArgs, RefutationRun, assemble_result, overlap_diagnostic, provenance_pair,
-    stamp_result_context,
+    AssembleArgs, RefutationRun, assemble_result, overlap_diagnostic, overlap_limit_diagnostic,
+    provenance_pair, stamp_result_context,
 };
 use crate::analysis::missing_data::MissingRoute;
 use crate::analysis::stage::elapsed_ns;
@@ -551,6 +551,7 @@ impl PreparedStudy {
             };
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
         diagnostics.push(crate::analysis::execute::identify_cached_checked_operation_diagnostic());
         diagnostics.append(&mut extra_diagnostics);
         let identifier_id = self.plan.binding().identifier_or(RouteDefaults::STATIC_ATE)?;
@@ -650,6 +651,7 @@ impl PreparedStudy {
             };
         let mut diagnostics = metadata.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
         if metadata.identifier != crate::strategy_table::IdentifierId::RdSharp {
             diagnostics
                 .push(crate::analysis::execute::identify_cached_checked_operation_diagnostic());

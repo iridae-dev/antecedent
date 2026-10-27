@@ -172,7 +172,9 @@ fn domains(
 
 #[test]
 fn claim_status_separates_supported_partial_and_unsupported() {
-    use DomainStatus::{Contradicted, Evaluated, Identified, OutsideScope, Supported, Unknown};
+    use DomainStatus::{
+        Contradicted, Evaluated, Identified, Limited, OutsideScope, Supported, Unknown,
+    };
     let full = domains(Identified, Supported, Evaluated);
     assert_eq!(HostStatus::of_claim_parts(ClaimKind::Point, &full), HostStatus::Supported);
     assert_eq!(HostStatus::of_claim_parts(ClaimKind::Response, &full), HostStatus::Supported);
@@ -183,6 +185,11 @@ fn claim_status_separates_supported_partial_and_unsupported() {
     assert_eq!(
         HostStatus::of_claim_parts(ClaimKind::Point, &domains(Identified, Unknown, Evaluated)),
         HostStatus::Supported
+    );
+    // Support limited by a binding overlap policy is partial: the host relays the limit.
+    assert_eq!(
+        HostStatus::of_claim_parts(ClaimKind::Point, &domains(Identified, Limited, Evaluated)),
+        HostStatus::Partial
     );
     // An unidentified or unevaluated claim is partial.
     assert_eq!(

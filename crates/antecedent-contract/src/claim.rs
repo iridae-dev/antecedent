@@ -77,6 +77,10 @@ pub enum DomainStatus {
     Contradicted,
     /// Unknown; not a failed support and not an executable guarantee.
     Unknown,
+    /// Supported only under a declared adjustment that changed what the answer covers or how
+    /// it weights the data: an overlap clip that binds, or a trim that excluded rows. The
+    /// claim holds for that adjusted target; a host relays the limit with the answer.
+    Limited,
     /// Identification is not claimed: the claim is noncausal by construction,
     /// so there is nothing to identify. Not a failed or missing identification.
     NotClaimed,
@@ -90,6 +94,7 @@ named_variants! {
         OutsideScope => "outside_scope",
         Contradicted => "contradicted",
         Unknown => "unknown",
+        Limited => "limited",
         NotClaimed => "not_claimed",
     }
 }

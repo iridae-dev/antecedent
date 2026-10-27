@@ -1306,14 +1306,30 @@ fn resealed_domains_kind_and_support_are_rederived() {
 }
 
 #[test]
-fn support_empirical_distinguishes_pass_failure_and_absence() {
-    assert_eq!(support_empirical(&[refutation("placebo.treatment.permute", false)]), None);
+fn support_empirical_distinguishes_pass_failure_limit_and_absence() {
+    assert_eq!(support_empirical(&[refutation("placebo.treatment.permute", false)], &[]), None);
     assert_eq!(
-        support_empirical(&[refutation("overlap.assessment", true)]).as_deref(),
+        support_empirical(&[refutation("overlap.assessment", true)], &[]).as_deref(),
         Some("supported")
     );
     let failed = [refutation("overlap.assessment", true), refutation("overlap.rule", false)];
-    assert_eq!(support_empirical(&failed).as_deref(), Some("failed:overlap.rule"));
+    assert_eq!(support_empirical(&failed, &[]).as_deref(), Some("failed:overlap.rule"));
+    let limited = [crate::DiagnosticWire {
+        code: crate::OVERLAP_LIMITED_DIAGNOSTIC.into(),
+        kind: "support".into(),
+        severity: "warning".into(),
+        message: "the overlap policy changed the answer".into(),
+        artifact_id: None,
+        fields: Vec::new(),
+    }];
+    // A binding overlap policy limits support with or without a passing check, and a failed
+    // check still wins.
+    assert_eq!(support_empirical(&[], &limited).as_deref(), Some("limited:overlap"));
+    assert_eq!(
+        support_empirical(&[refutation("overlap.assessment", true)], &limited).as_deref(),
+        Some("limited:overlap")
+    );
+    assert_eq!(support_empirical(&failed, &limited).as_deref(), Some("failed:overlap.rule"));
     let support = |empirical: &str| SupportSlotWire {
         matrix_status: "licensed".into(),
         matrix_coordinate: None,
@@ -1321,6 +1337,7 @@ fn support_empirical_distinguishes_pass_failure_and_absence() {
     };
     assert_eq!(claim_domains(Some(&support("supported")), None).support, "supported");
     assert_eq!(claim_domains(Some(&support("failed:overlap.rule")), None).support, "contradicted");
+    assert_eq!(claim_domains(Some(&support("limited:overlap")), None).support, "limited");
     assert_eq!(claim_domains(Some(&support("unavailable:not_evaluated")), None).support, "unknown");
 }
 

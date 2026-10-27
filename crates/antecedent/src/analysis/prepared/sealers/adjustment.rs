@@ -505,7 +505,7 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
                 && cx.binding.estimator.is(EstimatorId::Aipw) =>
             {
                 let fitter = checked_aipw_fitter(analysis);
-                if matches!(fitter.overlap, OverlapPolicy::RequireDiagnostics { .. }) {
+                if matches!(fitter.overlap.canonical(), OverlapPolicy::RequireDiagnostics { .. }) {
                     let preparation = match rebound_checked_aipw(cx, &fitter, data, cache, query) {
                         Some(rebound) => rebound,
                         None => fitter.prepare_checked(data, &cache.identification, 0)?,

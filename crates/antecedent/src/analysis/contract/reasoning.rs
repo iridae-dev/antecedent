@@ -431,12 +431,13 @@ pub(super) fn result_reasoning(
     };
     let mut support = prepared.support.clone();
     if let SlotAvailability::Available(slot) = &mut support {
-        // Only overlap / positivity checks speak to support, and only a pass
-        // supports it: a failed check is recorded as `failed:<refuter>`.
-        slot.empirical = antecedent_io::support_empirical(&body.refutations).map_or_else(
-            || SlotAvailability::unavailable("not_evaluated"),
-            |label| SlotAvailability::Available(Arc::from(label)),
-        );
+        // Only overlap / positivity checks and a binding overlap policy speak to support:
+        // a failed check is `failed:<refuter>`, a binding policy `limited:overlap`.
+        slot.empirical = antecedent_io::support_empirical(&body.refutations, &body.diagnostics)
+            .map_or_else(
+                || SlotAvailability::unavailable("not_evaluated"),
+                |label| SlotAvailability::Available(Arc::from(label)),
+            );
     }
     Ok(ReasoningView::new(
         SlotAvailability::Available(identification),

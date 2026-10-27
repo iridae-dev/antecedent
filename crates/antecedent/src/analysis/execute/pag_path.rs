@@ -15,8 +15,8 @@ use super::{
     identification_from_cache_or, identification_status_ok_for_case, identify_admg,
     identify_admg_query, identify_cached_diagnostic, mix_static_envelope_se,
     mix_weighted_analytic_se, mixed_static_influence, nonidentified_with_prior, overlap_diagnostic,
-    provenance_ids, report_identify_compute, select_estimand, static_aligned_influence,
-    support_from_functional_eval,
+    overlap_limit_diagnostic, provenance_ids, report_identify_compute, select_estimand,
+    static_aligned_influence, support_from_functional_eval,
 };
 use crate::planner::RouteDefaults;
 
@@ -889,6 +889,8 @@ impl super::Study {
         diagnostics.extend(na_diagnostics);
 
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
         diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic()));
         // A partially identified envelope carries its identified set and the
         // per-completion values it spans; a point-identified one stays a point.

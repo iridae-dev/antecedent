@@ -29,7 +29,7 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_io_core::capacity_account::CapacityOptions;
 
 use crate::adjustment::EffectEstimate;
-use crate::error::EstimationError;
+use crate::error::{EstimationError, ExactF64, RefusalFields};
 use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport, clip_propensity};
 use crate::prepare::treatment_contrast;
 use crate::propensity::{DeclaredTreatmentLevels, OtherLevels, PropensityWeighting};
@@ -92,6 +92,8 @@ struct StreamedInputs<'a> {
     at_active: u64,
     at_control: u64,
     clip: Option<f64>,
+    /// A declared overlap clip or trim governs rows at the boundary, so they are admitted.
+    admit_saturation: bool,
 }
 
 impl StreamedInputs<'_> {
@@ -314,6 +316,7 @@ impl PropensityWeighting {
             at_active,
             at_control,
             clip,
+            admit_saturation: admits_saturation(self.overlap),
         })
     }
 
@@ -346,6 +349,42 @@ impl PropensityWeighting {
     }
 }
 
+/// Whether `overlap` declares a clip or trim, which governs propensities at the boundary: an
+/// undeclared default does not decide a positivity question.
+pub(crate) fn admits_saturation(overlap: OverlapPolicy) -> bool {
+    overlap.is_declared() && (clip_of(overlap).is_some() || trim_of(overlap).is_some())
+}
+
+/// The refusal of a converged fit whose propensities reach within `1e-8` of 0 or 1 when no
+/// declared overlap clip or trim governs them: those rows have essentially no chance of the
+/// other treatment, a positivity problem in the data.
+pub(crate) fn boundary_saturated_refusal(route: &str, count: u64, margin: f64) -> EstimationError {
+    let rows = format!("{count} row{}", if count == 1 { "" } else { "s" });
+    EstimationError::refused_detail_with_fields(
+        antecedent_core::reason_code!("positivity_violated"),
+        format!("{route}.boundary_saturated"),
+        format!(
+            "the propensity model gives {rows} a probability of treatment within 1e-8 of 0 or 1, \
+             so those rows have essentially no chance of the other treatment and an \
+             inverse-probability weight is unsupported there. Declare an overlap trim or clip, \
+             or restrict the population to where both treatments occur"
+        ),
+        RefusalFields {
+            stage: Some("glm_fit".to_owned()),
+            reason: Some("boundary_saturated".to_owned()),
+            remedy: Some(
+                "declare an overlap clip that bounds the weights (an overlap trim needs the \
+                 resident estimator), restrict the population or covariates to where both \
+                 treatments occur, or obtain data or a design that produces both treatments there"
+                    .to_owned(),
+            ),
+            boundary_margin: margin.is_finite().then_some(ExactF64(margin)),
+            boundary_count: Some(count),
+            ..RefusalFields::default()
+        },
+    )
+}
+
 /// Pass A: arm sums of the Hájek means, the overlap accumulators, the boundary check.
 fn arm_pass(
     inputs: &StreamedInputs<'_>,
@@ -359,6 +398,7 @@ fn arm_pass(
     let (mut sw1, mut sw0, mut sy1, mut sy0) = (0.0, 0.0, 0.0, 0.0);
     let (mut min_p, mut max_p) = (f64::INFINITY, f64::NEG_INFINITY);
     let (mut in_support, mut boundary, mut used) = (0_u64, 0_u64, 0_u64);
+    let mut margin = f64::INFINITY;
     let support_lo = clip.unwrap_or(0.0);
     let support_hi = 1.0 - support_lo;
     inputs.for_each_row(|row| {
@@ -370,6 +410,7 @@ fn arm_pass(
         }
         if raw <= BOUNDARY || raw >= 1.0 - BOUNDARY {
             boundary += 1;
+            margin = margin.min(raw.min(1.0 - raw));
         }
         let t = if row.treated { 1.0 } else { 0.0 };
         let weight = inputs.weight(target, row.treated, raw);
@@ -388,11 +429,8 @@ fn arm_pass(
             sums.push(target.weight(t, clip_propensity(raw, threshold)), row.treated);
         }
     });
-    if boundary > 0 {
-        return Err(EstimationError::data_msg(
-            "GLM fitted probabilities lie within 1e-8 of 0 or 1 (extreme scores, not \
-             necessarily separation); refuse propensity/outcome scores",
-        ));
+    if boundary > 0 && !inputs.admit_saturation {
+        return Err(boundary_saturated_refusal("propensity", boundary, margin));
     }
     if sw1 <= 0.0 || sw0 <= 0.0 {
         return Err(EstimationError::data_msg(
@@ -628,5 +666,53 @@ mod tests {
         let (stray, estimand, query) = fixture(600, true);
         let refused = estimator.estimate_streamed(&stray, &estimand, &query, 64, 1 << 20);
         assert!(refused.is_err(), "a row at level 2 is refused");
+    }
+
+    /// 400 rows, `x` uniform on `[-3, 3]`, treated iff `x > 0` except eight flips next to 0:
+    /// the logistic fit converges and is not separated, yet saturates far from the flips.
+    fn saturated_fixture() -> (TabularData, IdentifiedEstimand, AverageEffectQuery) {
+        let x: Vec<f64> = (0..400).map(|i| -3.0 + 6.0 * (i as f64 + 0.5) / 400.0).collect();
+        let flips = [190, 193, 196, 198, 201, 203, 206, 209];
+        let t: Vec<f64> = (0..400).map(|i| f64::from((x[i] > 0.0) != flips.contains(&i))).collect();
+        let y: Vec<f64> =
+            (0..400).map(|i| 1.0 + 2.0 * t[i] + 0.5 * x[i] + 0.4 * noise(i, 4)).collect();
+        let data = TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        (data, estimand, query)
+    }
+
+    fn assert_positivity_refusal(error: &EstimationError) {
+        assert_eq!(error.reason_code(), Some(antecedent_core::reason_code!("positivity_violated")));
+        let fields = error.refusal_fields().expect("structured fields");
+        assert_eq!(fields.reason.as_deref(), Some("boundary_saturated"));
+        assert!(fields.boundary_count.is_some_and(|count| count > 0));
+        assert!(fields.remedy.as_deref().is_some_and(|remedy| remedy.contains("overlap")));
+    }
+
+    #[test]
+    fn a_saturated_streamed_fit_refuses_as_positivity_unless_a_declared_clip_governs_it() {
+        let (data, estimand, query) = saturated_fixture();
+        let undeclared = PropensityWeighting::new().with_bootstrap_replicates(0);
+        let error = undeclared
+            .estimate_streamed(&data, &estimand, &query, 64, 1 << 20)
+            .expect_err("an undeclared default refuses a saturated fit");
+        assert_positivity_refusal(&error);
+        let declared = PropensityWeighting::new()
+            .with_bootstrap_replicates(0)
+            .with_overlap(OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: None });
+        declared
+            .estimate_streamed(&data, &estimand, &query, 64, 1 << 20)
+            .expect("a declared clip governs the saturated rows");
     }
 }

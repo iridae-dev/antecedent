@@ -1100,8 +1100,10 @@ impl Study {
         if let Some(overlap) = self.declared.overlap_policy {
             est.overlap = overlap;
         }
-        if matches!(est.overlap, OverlapPolicy::RequireDiagnostics { trim: Some(_), .. })
-            || est.inference.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
+        if matches!(
+            est.overlap.canonical(),
+            OverlapPolicy::RequireDiagnostics { trim: Some(_), .. }
+        ) || est.inference.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
         {
             // Frozen cross-fitted scores are untrimmed iid influence
             // values. A mean estimate under trimming or a non-iid SE is

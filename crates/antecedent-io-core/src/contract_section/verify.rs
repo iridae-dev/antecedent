@@ -1033,7 +1033,7 @@ pub(in crate::contract_section) fn note_published_claim(
         }
         let support = contract.reasoning.support.value.as_ref();
         if let Some(slot) = support {
-            let empirical = support_empirical(&body.refutations)
+            let empirical = support_empirical(&body.refutations, &body.diagnostics)
                 .unwrap_or_else(|| "unavailable:not_evaluated".into());
             if slot.empirical != empirical {
                 unresolved.push(ContractReason::ReasoningSupportEmpirical);

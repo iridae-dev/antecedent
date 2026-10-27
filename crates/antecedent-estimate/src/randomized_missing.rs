@@ -231,7 +231,8 @@ fn observation_probabilities(
         covariates_colmajor,
         ncov,
         OBSERVATION_PROBABILITY_FLOOR,
-    )?;
+    )
+    .map_err(crate::observation::observation_fit_error)?;
     let at_floor = (0..n).any(|i| {
         observed[i] && fit.probabilities[i] <= OBSERVATION_PROBABILITY_FLOOR * (1.0 + 1e-9)
     });

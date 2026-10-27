@@ -335,12 +335,29 @@ pub fn resolve_for(
     spec: LearnerSpec,
     task: PredictionTask,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
-    resolve_uninstrumented(spec, task).map(crate::fit_counts::instrument)
+    resolve_uninstrumented(spec, task, false).map(crate::fit_counts::instrument)
+}
+
+/// [`resolve_for`] for a propensity nuisance whose declared overlap policy governs scores at
+/// the boundary: a logistic learner then accepts a converged, unseparated fit whose
+/// probabilities reach within `1e-8` of 0 or 1, and the caller's clip or trim applies. Every
+/// other learner resolves exactly as [`resolve_for`].
+///
+/// # Errors
+///
+/// Task mismatch, or [`LearnError::ProviderUnavailable`].
+pub fn resolve_propensity_for(
+    spec: LearnerSpec,
+    task: PredictionTask,
+    admit_boundary_saturation: bool,
+) -> Result<Box<dyn LearnerFactory>, LearnError> {
+    resolve_uninstrumented(spec, task, admit_boundary_saturation).map(crate::fit_counts::instrument)
 }
 
 fn resolve_uninstrumented(
     spec: LearnerSpec,
     task: PredictionTask,
+    admit_boundary_saturation: bool,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
     spec.validate()?;
     match spec {
@@ -355,9 +372,12 @@ fn resolve_uninstrumented(
         LearnerSpec::Logistic(logistic) => {
             require_resolved_task(task, PredictionTask::BinaryProbability)?;
             if logistic.ridge_lambda > 0.0 {
-                Ok(Box::new(RidgeLogisticLearner::new(logistic.ridge_lambda)?))
+                Ok(Box::new(
+                    RidgeLogisticLearner::new(logistic.ridge_lambda)?
+                        .admitting_boundary_saturation(admit_boundary_saturation),
+                ))
             } else {
-                Ok(Box::new(LogisticLearner))
+                Ok(Box::new(LogisticLearner { admit_boundary_saturation }))
             }
         }
         LearnerSpec::ElasticNet(elastic) => {

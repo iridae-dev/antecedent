@@ -21,10 +21,10 @@ use super::{
     bayesian_gcomp, bayesian_temporal_gcomp, completion_fit_seed, effect_from_posterior,
     elapsed_ns, envelope_se_omission_diagnostic, envelope_se_omits_between_atom_variance,
     identification_status_ok_for_case, identify_cached_diagnostic, mass_fields,
-    mix_weighted_analytic_se, overlap_diagnostic, provenance_ids, resolve_posterior_status,
-    select_estimand, sequential_linear_sem_assumption, shared_block_mixture_message,
-    shared_circular_block_mixture_se, short_series_warning, temporal_class_block_span,
-    temporal_refuter_average,
+    mix_weighted_analytic_se, overlap_diagnostic, overlap_limit_diagnostic, provenance_ids,
+    resolve_posterior_status, select_estimand, sequential_linear_sem_assumption,
+    shared_block_mixture_message, shared_circular_block_mixture_se, short_series_warning,
+    temporal_class_block_span, temporal_refuter_average,
 };
 use crate::analysis::prepared::{
     CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
@@ -176,6 +176,7 @@ impl super::Study {
             .with_fields(mass_fields(Some(mixture.identified_mass), mixture.unidentified_mass)),
         );
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
         if let Some(block) = shared_block {
             diagnostics.push(
                 Diagnostic::new(

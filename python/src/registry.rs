@@ -280,11 +280,8 @@ fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
     )?;
     dict.set_item("prior_scale", BayesianConfig::laplace().prior_scale)?;
     // Propensity overlap default shared by every propensity-score estimator.
-    let (clip, trim) = match antecedent_estimate::default_propensity_overlap() {
-        antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip, trim } => (clip, trim),
-        antecedent_estimate::OverlapPolicy::ExplicitOverride => {
-            return Err(value_err("the default propensity overlap policy requires diagnostics"));
-        }
+    let Some((clip, trim)) = antecedent_estimate::default_propensity_overlap().bounds() else {
+        return Err(value_err("the default propensity overlap policy requires diagnostics"));
     };
     dict.set_item("overlap_clip", clip)?;
     dict.set_item("overlap_trim", trim)?;

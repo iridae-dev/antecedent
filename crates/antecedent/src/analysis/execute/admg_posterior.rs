@@ -16,7 +16,7 @@ use super::{
     IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedKeyWeights, IdentifierId, Instant, PhysicalExecutionPlan, PosteriorMassSummary,
     RefuteSuite, Strategy, Study, StudyResult, TabularData, elapsed_ns, mass_fields,
-    overlap_diagnostic, provenance_ids, resolve_posterior_status,
+    overlap_diagnostic, overlap_limit_diagnostic, provenance_ids, resolve_posterior_status,
 };
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
 use crate::analysis::proof_support::graph_posterior_withheld_diagnostic;
@@ -240,6 +240,8 @@ impl super::Study {
             )),
         );
         diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
+        diagnostics
+            .extend(overlap_limit_diagnostic(mixed.estimate.diagnostics.overlap_report.as_ref()));
         diagnostics
     }
 }

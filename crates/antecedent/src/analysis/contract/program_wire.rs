@@ -166,7 +166,7 @@ fn aipw_lowering(
         se_kind: lowering.se_kind.as_str().into(),
         se_lag: se_lag(lowering.se_kind),
         bootstrap_replicates: lowering.bootstrap_replicates,
-        trim_bits: match lowering.overlap {
+        trim_bits: match lowering.overlap.canonical() {
             antecedent_estimate::OverlapPolicy::RequireDiagnostics { trim: Some(trim), .. } => {
                 Some(trim.to_bits())
             }

@@ -107,7 +107,7 @@ fn the_aipw_refusal_at_rank_174_of_175_carries_rank_and_column_count() {
         "{error:?}"
     );
     assert_eq!(error.to_string(), "rank deficient: rank=174 ncols=175");
-    assert_eq!(error.reason_code(), None);
+    assert_eq!(error.reason_code(), Some("design_rank_deficient"));
 
     let fields = error.refusal_fields().expect("the AIPW refusal carries structured fields");
     assert_eq!(fields.stage.as_deref(), Some("design_rank"));
@@ -142,7 +142,11 @@ fn the_aipw_refusal_under_joint_separation_carries_the_fit_facts() {
         matches!(error.peeled(), CausalError::Estimate(EstimationError::Stats(_))),
         "{error:?}"
     );
-    assert_eq!(error.reason_code(), None);
+    let expected_code = match error.refusal_fields().and_then(|f| f.stage.clone()).as_deref() {
+        Some("design_rank") => "design_rank_deficient",
+        _ => "glm_fit_refused",
+    };
+    assert_eq!(error.reason_code(), Some(expected_code));
 
     let fields = error.refusal_fields().expect("the AIPW refusal carries structured fields");
     assert!(fields.remedy.is_some());
@@ -216,7 +220,7 @@ fn a_retarget_onto_unsupported_rows_reports_arm_sizes_and_the_propensity_range()
         error.to_string(),
         "refused: retarget refused: weighted overlap failed under the declared target weights"
     );
-    assert_eq!(error.reason_code(), None);
+    assert_eq!(error.reason_code(), Some("positivity_violated"));
     assert!(error.blocker_id().is_some(), "the classification is that of the wrapped refusal");
 
     let fields = error.refusal_fields().expect("the support refusal carries structured fields");
@@ -276,6 +280,7 @@ fn a_dependence_refusal_before_any_support_is_computed_has_no_numbers() {
         error.peeled(),
         CausalError::Estimate(EstimationError::UnsupportedWithFields { .. })
     ));
+    assert_eq!(error.reason_code(), Some("target_weights_not_licensed"));
     let fields = error.refusal_fields().unwrap();
     assert_eq!(fields.stage.as_deref(), Some("retarget"));
     assert_eq!(fields.subject.as_deref(), Some("effect(t -> y)"));
@@ -513,7 +518,7 @@ fn a_linear_adjustment_rank_refusal_names_the_effect_and_the_dependent_column() 
             matches!(error.peeled(), CausalError::Estimate(EstimationError::Stats(_))),
             "{error:?}"
         );
-        assert_eq!(error.reason_code(), None);
+        assert_eq!(error.reason_code(), Some("design_rank_deficient"));
         let fields = error.refusal_fields().expect("the refusal carries fields");
         assert_eq!(fields.stage.as_deref(), Some("design_rank"));
         assert_eq!(fields.subject.as_deref(), Some("effect(t -> y)"));

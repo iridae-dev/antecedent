@@ -1509,7 +1509,7 @@ def _wrap_ate(
             method=sec_estimate.method,
             overlap_ess=sec_estimate.overlap_ess,
             overlap_propensity_min=sec_estimate.overlap_propensity_min,
-            overlap_excluded_fraction=sec_estimate.overlap_excluded_fraction,
+            overlap_excluded_fraction=getattr(sec_estimate, "overlap_excluded_fraction", None),
             mediation=mediation,
             functional_means=tuple(functional_means)
             if (functional_means := getattr(sec_estimate, "functional_means", None)) is not None

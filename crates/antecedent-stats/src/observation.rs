@@ -71,6 +71,34 @@ pub fn fit_observation_logistic(
     ncols: usize,
     probability_floor: f64,
 ) -> Result<ObservationProbabilityFit, StatsError> {
+    fit_observation_logistic_admitting(
+        indicator,
+        covariates_colmajor,
+        ncols,
+        probability_floor,
+        false,
+    )
+}
+
+/// [`fit_observation_logistic`], optionally admitting a converged, unseparated fit whose
+/// probabilities reach within `1e-8` of 0 or 1.
+///
+/// With `admit_saturation` the declared `probability_floor` governs those rows (the clamp to
+/// `[floor, 1 - floor]` is what the caller asked for). Without it such a fit refuses as
+/// [`crate::GlmRefusalKind::BoundarySaturated`], which the estimate layer codes as
+/// `positivity_violated`. Separation and non-convergence refuse either way.
+///
+/// # Errors
+///
+/// As [`fit_observation_logistic`].
+#[allow(clippy::float_cmp, reason = "selection indicators must be exactly the coded values 0 or 1")]
+pub fn fit_observation_logistic_admitting(
+    indicator: &[f64],
+    covariates_colmajor: &[f64],
+    ncols: usize,
+    probability_floor: f64,
+    admit_saturation: bool,
+) -> Result<ObservationProbabilityFit, StatsError> {
     let n = indicator.len();
     if n < 3 || covariates_colmajor.len() != n * ncols {
         return Err(StatsError::Shape { message: "observation logistic design shape mismatch" });
@@ -109,7 +137,9 @@ pub fn fit_observation_logistic(
                 .into(),
         ));
     }
-    fit.require_ok()?;
+    if !(admit_saturation && fit.converged && !fit.separated) {
+        fit.require_ok()?;
+    }
     let probabilities = (0..n)
         .map(|row| {
             let eta = fit
@@ -507,6 +537,35 @@ mod tests {
         let r: Vec<f64> = x.iter().map(|&v| f64::from(u8::from(v >= 10.0))).collect();
         let err = fit_observation_logistic(&r, &x, 1, 0.01).unwrap_err();
         assert!(err.to_string().contains("separation"), "{err}");
+    }
+
+    /// 400 rows, observed iff `x > 0` except a few flips at the boundary: converged,
+    /// unseparated, and saturated far from the flips.
+    fn saturated_indicators() -> (Vec<f64>, Vec<f64>) {
+        let x: Vec<f64> = (0..400).map(|i| -3.0 + 6.0 * (f64::from(i) + 0.5) / 400.0).collect();
+        let flips = [190, 193, 196, 198, 201, 203, 206, 209];
+        let r = x
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| f64::from(u8::from((v > 0.0) != flips.contains(&i))))
+            .collect();
+        (x, r)
+    }
+
+    #[test]
+    fn a_saturated_observation_fit_refuses_unless_a_floor_is_declared_to_govern_it() {
+        let (x, r) = saturated_indicators();
+        let err = fit_observation_logistic(&r, &x, 1, 0.01).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                StatsError::GlmRefused { kind: crate::GlmRefusalKind::BoundarySaturated, .. }
+            ),
+            "{err}"
+        );
+        let fit = fit_observation_logistic_admitting(&r, &x, 1, 0.01, true).unwrap();
+        assert!(fit.probabilities.iter().all(|&p| (0.01..=0.99).contains(&p)));
+        assert!(fit.probabilities.iter().any(|&p| p == 0.01 || p == 0.99));
     }
 
     #[test]

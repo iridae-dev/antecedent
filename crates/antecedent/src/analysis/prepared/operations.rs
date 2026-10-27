@@ -6,8 +6,8 @@ use crate::accepted::GraphClass;
 use crate::analysis::builder::RefuteSuite;
 use crate::analysis::execute::CheckedStaticCommon;
 use crate::analysis::helpers::{
-    AssembleArgs, RefutationRun, assemble_result, overlap_diagnostic, project_for_ate_estimate,
-    provenance_pair, stamp_result_context,
+    AssembleArgs, RefutationRun, assemble_result, overlap_diagnostic, overlap_limit_diagnostic,
+    project_for_ate_estimate, provenance_pair, stamp_result_context,
 };
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::proof_supplies;
@@ -125,6 +125,7 @@ impl CheckedPathSpecificEffectOperation {
         )?;
         let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
         diagnostics.push(crate::analysis::execute::identify_cached_diagnostic());
         if let Some(diagnostic) = crate::analysis::execute::free_variables_averaged(
             &self.cache.identification,
@@ -222,6 +223,7 @@ impl CheckedFunctionalEffectOperation {
         )?;
         let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
         diagnostics.push(crate::analysis::execute::identify_cached_diagnostic());
         if let Some(diagnostic) = crate::analysis::execute::free_variables_averaged(
             &self.cache.identification,
@@ -934,7 +936,7 @@ impl CheckedAipwOperation {
                     | RefuteSuite::Full
             )
             && self.custom_validator_names.is_empty()
-            && matches!(self.fitter.overlap, OverlapPolicy::RequireDiagnostics { .. })
+            && matches!(self.fitter.overlap.canonical(), OverlapPolicy::RequireDiagnostics { .. })
             && self.preparation.lowering().overlap == self.fitter.overlap
             && self.preparation.lowering().procedure
                 == antecedent_estimate::CheckedAipwProcedure::for_overlap(self.fitter.overlap)
@@ -1172,6 +1174,7 @@ impl CheckedAipwOperation {
     ) -> Vec<antecedent_core::Diagnostic> {
         let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
         diagnostics.push(crate::analysis::execute::identify_cached_diagnostic());
         diagnostics.push(if estimate.scores.table.is_some() {
             antecedent_core::Diagnostic::new(
@@ -1472,6 +1475,7 @@ impl CheckedLinearOperation {
             self.validate_stage(data, &estimate, cancelled, &mut clock, &mut workspace, ctx)?;
         let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
         diagnostics.push(crate::analysis::execute::identify_cached_diagnostic());
         diagnostics.append(&mut extra_diagnostics);
         let (identify_artifact, identify_operation) =
@@ -1992,6 +1996,7 @@ impl CheckedDistributionOperation {
     ) -> Vec<antecedent_core::Diagnostic> {
         let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
         diagnostics.extend(distribution_interval_diagnostics_for_prepared(distribution));
         if let Some(diagnostic) = crate::analysis::execute::free_variables_averaged(
             &self.cache.identification,

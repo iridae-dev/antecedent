@@ -91,7 +91,9 @@ impl HostStatus {
         {
             return Self::Unsupported;
         }
-        if matches!(kind, ClaimKind::Incomplete | ClaimKind::Bounds) {
+        if matches!(kind, ClaimKind::Incomplete | ClaimKind::Bounds)
+            || matches!(domains.support, DomainStatus::Limited)
+        {
             return Self::Partial;
         }
         if matches!(kind, ClaimKind::Associational) {

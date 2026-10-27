@@ -863,11 +863,11 @@ trait CanonicalIdentity {
 
 impl CanonicalIdentity for antecedent_estimate::OverlapPolicy {
     fn write_identity(&self, out: &mut IdentityBytes) {
-        match *self {
-            Self::ExplicitOverride => {
+        match self.bounds() {
+            None => {
                 out.tag(0);
             }
-            Self::RequireDiagnostics { clip, trim } => {
+            Some((clip, trim)) => {
                 out.tag(1).opt_f64(clip).opt_f64(trim);
             }
         }

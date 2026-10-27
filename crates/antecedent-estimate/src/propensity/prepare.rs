@@ -239,11 +239,18 @@ pub(crate) fn clamp_linear_predictor(eta: f64, clip: Option<f64>) -> f64 {
 }
 
 /// GLM options for a propensity fit under `overlap`: a declared clip or trim governs rows
-/// whose probability reaches the boundary, so such a fit is admitted
+/// whose probability reaches the boundary, so such a fit is admitted; an undeclared default
+/// does not, and the fit refuses as `positivity_violated`
 /// ([`GlmOptions::admit_boundary_saturation`]) and the policy applies to those rows.
 pub(crate) fn propensity_glm_options(options: &GlmOptions, overlap: OverlapPolicy) -> GlmOptions {
+    options.admitting_boundary_saturation(admits_boundary_saturation(overlap))
+}
+
+/// Whether `overlap` governs propensities at the boundary: a declared policy with a clip or
+/// a trim. An undeclared default does not.
+pub(crate) fn admits_boundary_saturation(overlap: OverlapPolicy) -> bool {
     let (clip, trim) = overlap_clip_trim(overlap);
-    options.admitting_boundary_saturation(clip.is_some() || trim.is_some())
+    overlap.is_declared() && (clip.is_some() || trim.is_some())
 }
 
 /// The refusal of a failed propensity fit. A converged fit whose probabilities reach within
@@ -400,14 +407,12 @@ pub(crate) fn feature_key(values: &[f64]) -> u64 {
     hash.finish()
 }
 
-/// Default overlap policy for all propensity estimators: diagnostics mandatory,
-/// propensities clipped into `[0.01, 0.99]`, no trimming.
+/// Default overlap policy for all propensity estimators when the caller declares none:
+/// diagnostics mandatory, propensities clipped into `[0.01, 0.99]`, no trimming, and
+/// saturated propensities refused ([`OverlapPolicy::Default`]).
 #[must_use]
 pub const fn default_propensity_overlap() -> OverlapPolicy {
-    OverlapPolicy::RequireDiagnostics {
-        clip: Some(crate::overlap::DEFAULT_PROPENSITY_CLIP),
-        trim: None,
-    }
+    OverlapPolicy::Default
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -698,9 +703,9 @@ pub(crate) fn gather_optional_multiway(
 }
 
 pub(crate) fn overlap_clip_trim(overlap: OverlapPolicy) -> (Option<f64>, Option<f64>) {
-    match overlap {
+    match overlap.canonical() {
         OverlapPolicy::RequireDiagnostics { clip, trim, .. } => (clip, trim),
-        OverlapPolicy::ExplicitOverride => (None, None),
+        OverlapPolicy::ExplicitOverride | OverlapPolicy::Default => (None, None),
     }
 }
 

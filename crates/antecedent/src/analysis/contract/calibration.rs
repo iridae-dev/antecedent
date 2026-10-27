@@ -272,7 +272,6 @@ pub(super) fn functional_label(query: &CausalQuery) -> String {
 /// functional label and binds only to records measured under it. `None` at the
 /// default policy and for estimators that fit no propensity model.
 pub(super) fn overlap_label(study: &Study, resolved_estimator: Option<&str>) -> Option<String> {
-    use antecedent_estimate::OverlapPolicy;
     let configured = study
         .declared
         .estimator_spec
@@ -294,12 +293,13 @@ pub(super) fn overlap_label(study: &Study, resolved_estimator: Option<&str>) -> 
         }
         study.declared.overlap_policy?
     };
-    if policy == antecedent_estimate::default_propensity_overlap() {
+    let policy = policy.canonical();
+    if policy == antecedent_estimate::default_propensity_overlap().canonical() {
         return None;
     }
-    Some(match policy {
-        OverlapPolicy::ExplicitOverride => "overlap=explicit_override".into(),
-        OverlapPolicy::RequireDiagnostics { clip, trim } => {
+    Some(match policy.bounds() {
+        None => "overlap=explicit_override".into(),
+        Some((clip, trim)) => {
             let bound = |value: Option<f64>| value.map_or_else(|| "none".into(), |v| v.to_string());
             format!("overlap=clip:{},trim:{}", bound(clip), bound(trim))
         }
@@ -401,9 +401,9 @@ pub(super) fn calibration_wire(view: &CalibrationView) -> CalibrationSlotWire {
 }
 
 pub(super) fn overlap_policy_tag(policy: antecedent_estimate::OverlapPolicy) -> String {
-    match policy {
-        antecedent_estimate::OverlapPolicy::ExplicitOverride => "explicit_override".into(),
-        antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip, trim } => {
+    match policy.bounds() {
+        None => "explicit_override".into(),
+        Some((clip, trim)) => {
             format!(
                 "require_diagnostics:clip={}:trim={}",
                 clip.map_or_else(|| "none".into(), ordered_float_bits),

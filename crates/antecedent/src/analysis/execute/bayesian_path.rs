@@ -31,12 +31,13 @@ use super::{
     mediation_mechanism_seed, merge_posterior_notes, mix_graph_posterior_identified_atoms,
     mix_prior_sensitivity_summaries, mix_static_envelope_se, mix_weighted_analytic_se,
     mixed_static_influence, most_conservative_identification_status, nan_effect,
-    overlap_diagnostic, project_for_ate_estimate, projection_diagnostic, provenance_ids,
-    push_conflict_diagnostics, push_graph_posterior_structural_aggregation_diagnostic,
-    report_subsampled_out_mass, require_identified, resolve_bayesian_prior_with_conflict,
-    resolve_envelope_prior_anchor, resolve_posterior_status, resolve_structural_aggregation,
-    retain_envelope_assumptions, run_envelope_bayesian_full_validation, select_claim,
-    select_estimand, sequential_linear_sem_assumption, shared_block_mixture_message,
+    overlap_diagnostic, overlap_limit_diagnostic, project_for_ate_estimate, projection_diagnostic,
+    provenance_ids, push_conflict_diagnostics,
+    push_graph_posterior_structural_aggregation_diagnostic, report_subsampled_out_mass,
+    require_identified, resolve_bayesian_prior_with_conflict, resolve_envelope_prior_anchor,
+    resolve_posterior_status, resolve_structural_aggregation, retain_envelope_assumptions,
+    run_envelope_bayesian_full_validation, select_claim, select_estimand,
+    sequential_linear_sem_assumption, shared_block_mixture_message,
     shared_circular_block_mixture_se, short_series_warning, static_aligned_influence,
     temporal_refuter_average, validator_not_applicable_diagnostics, with_conflict_summary,
     with_prior_sensitivity,
@@ -236,6 +237,7 @@ fn pag_envelope_diagnostics(
     });
     diagnostics.extend(subsample_notes);
     diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+    diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
     diagnostics.push(envelope_mass_diagnostic(format!("estimate.{class_tag}.envelope"), posterior));
     if let Some(cs) = posterior.conflict_summary.as_ref() {
         push_conflict_diagnostics(&mut diagnostics, cs);
@@ -393,6 +395,7 @@ fn graph_posterior_bayesian_diagnostics(
         .with_fields(mass_fields(Some(mix.mixed.mixture.identified_mass), mix.unidentified_mass)),
     );
     diagnostics.push(overlap_diagnostic(mix.estimate.provenance.overlap));
+    diagnostics.extend(overlap_limit_diagnostic(mix.estimate.diagnostics.overlap_report.as_ref()));
     diagnostics.push(envelope_mass_diagnostic("estimate.graph_posterior.envelope", &mix.posterior));
     if let Some(cs) = mix.posterior.conflict_summary.as_ref() {
         push_conflict_diagnostics(&mut diagnostics, cs);
@@ -695,6 +698,7 @@ fn graph_posterior_frequentist_diagnostics(
         .with_fields(mass_fields(Some(mixed.mixture.identified_mass), unidentified_mass)),
     );
     diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+    diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
     diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic()));
     if joint && estimate.se_analytic().is_finite() {
         diagnostics.push(Diagnostic::new(
@@ -1012,6 +1016,7 @@ fn dbn_bayesian_diagnostics(
     let mut diagnostics = identification.diagnostics.clone();
     diagnostics.extend(subsample_notes);
     diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+    diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
     diagnostics.push(envelope_mass_diagnostic("estimate.dbn_posterior.envelope", posterior));
     diagnostics.push(Diagnostic::new(
         "estimate.dbn_posterior.atom_demotion",
@@ -4074,6 +4079,7 @@ fn dbn_mediation_diagnostics(
     let mut diagnostics = identification.diagnostics.clone();
     diagnostics.extend(subsample_notes);
     diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+    diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
     diagnostics.push(envelope_mass_diagnostic("estimate.dbn_posterior.envelope", posterior));
     let estimate_demoted = prepare_demoted + fit_demoted + draws_demoted;
     let mut demotion_summary =

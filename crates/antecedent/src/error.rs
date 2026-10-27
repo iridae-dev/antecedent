@@ -832,12 +832,16 @@ impl CausalError {
             Self::NotIdentified { .. } => return Some("effect_not_identified"),
             Self::Compile { message } => message.as_str(),
             Self::Rejected(failure) => failure.message(),
+            // A retarget whose weighted support gate failed is a positivity refusal; the
+            // facade carries it as a matrix refusal with the estimator's fixed message.
+            Self::Support { message, .. }
+                if *message == antecedent_estimate::RetargetRefusal::WeightedOverlap.as_str() =>
+            {
+                return Some(antecedent_core::reason_code!("positivity_violated"));
+            }
             Self::Unsupported { message } | Self::Support { message, .. } => message,
-            Self::Estimate(
-                EstimationError::Refused { code, .. }
-                | EstimationError::RefusedWithFields { code, .. },
-            )
-            | Self::Serialization(IoError::Refused { code, .. })
+            Self::Estimate(error) => return error.reason_code(),
+            Self::Serialization(IoError::Refused { code, .. })
             | Self::Discovery(DiscoveryError::Refused { code, .. }) => return Some(code),
             // The multi-source limited-experiment route's frozen (code, detail) pairs.
             Self::Identify(error) => {

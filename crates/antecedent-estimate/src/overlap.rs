@@ -31,16 +31,54 @@ pub(crate) fn clip_propensity(score: f64, clip: f64) -> f64 {
 pub enum OverlapPolicy {
     /// Explicitly skip propensity-based overlap (linear adjustment path).
     ExplicitOverride,
-    /// Require propensity diagnostics; optional clip/trim thresholds in `(0, 0.5)`.
+    /// Require propensity diagnostics; optional clip/trim thresholds in `(0, 0.5)`, declared
+    /// by the caller.
     RequireDiagnostics {
         /// Clip propensities into `[clip, 1 - clip]` when `Some`.
         clip: Option<f64>,
         /// Drop units outside `[trim, 1 - trim]` when `Some`.
         trim: Option<f64>,
     },
+    /// The estimator's default when the caller declares no overlap policy: diagnostics
+    /// required and propensities clipped into `[0.01, 0.99]`, exactly as the equivalent
+    /// declared policy ([`Self::canonical`]). It differs in one respect: an undeclared default
+    /// does not decide a positivity question, so propensities that reach within `1e-8` of 0
+    /// or 1 refuse as `positivity_violated` instead of being clipped.
+    Default,
 }
 
 impl OverlapPolicy {
+    /// The declared policy this one computes as: [`Self::Default`] becomes the declared
+    /// default clip, every other policy is itself. Identity, wire forms and calibration
+    /// bindings read this, so an undeclared default and the same bounds declared explicitly
+    /// name one analysis.
+    #[must_use]
+    pub const fn canonical(self) -> Self {
+        match self {
+            Self::Default => {
+                Self::RequireDiagnostics { clip: Some(DEFAULT_PROPENSITY_CLIP), trim: None }
+            }
+            other => other,
+        }
+    }
+
+    /// The clip and trim bounds this policy applies, or `None` for [`Self::ExplicitOverride`]
+    /// (no propensity-based overlap). [`Self::Default`] reports the default clip.
+    #[must_use]
+    pub const fn bounds(self) -> Option<(Option<f64>, Option<f64>)> {
+        match self {
+            Self::ExplicitOverride => None,
+            Self::RequireDiagnostics { clip, trim } => Some((clip, trim)),
+            Self::Default => Some((Some(DEFAULT_PROPENSITY_CLIP), None)),
+        }
+    }
+
+    /// Whether the caller declared this policy rather than receiving the default.
+    #[must_use]
+    pub const fn is_declared(self) -> bool {
+        !matches!(self, Self::Default)
+    }
+
     /// Require diagnostics with no clipping or trimming.
     #[must_use]
     pub const fn require_diagnostics() -> Self {
@@ -56,7 +94,7 @@ impl OverlapPolicy {
     ///
     /// A threshold outside `(0, 0.5)` or not finite.
     pub fn validate(self) -> Result<(), EstimationError> {
-        if let Self::RequireDiagnostics { clip, trim } = self {
+        if let Self::RequireDiagnostics { clip, trim } = self.canonical() {
             for (name, bound) in [("clip", clip), ("trim", trim)] {
                 if let Some(v) = bound {
                     if !(v.is_finite() && v > 0.0 && v < 0.5) {
@@ -249,9 +287,9 @@ impl OverlapReport {
         target: Option<IpwTarget>,
         observation_weights: Option<&[f64]>,
     ) -> Self {
-        let (clip, trim) = match policy {
-            OverlapPolicy::ExplicitOverride => (None, None),
+        let (clip, trim) = match policy.canonical() {
             OverlapPolicy::RequireDiagnostics { clip, trim } => (clip, trim),
+            OverlapPolicy::ExplicitOverride | OverlapPolicy::Default => (None, None),
         };
         let mut min_p = f64::INFINITY;
         let mut max_p = f64::NEG_INFINITY;

@@ -9925,6 +9925,7 @@ pub use antecedent_io::NestedCounterfactualFitWire = antecedent_io_core::NestedC
 pub use antecedent_io::NetworkXAdjacency = antecedent_io_core::NetworkXAdjacency
 pub use antecedent_io::NetworkXNodeLink = antecedent_io_core::NetworkXNodeLink
 pub use antecedent_io::NotCertifiedCertificateWire = transport_interference_wire::NotCertifiedCertificateWire
+pub use antecedent_io::OVERLAP_LIMITED_DIAGNOSTIC = antecedent_io_core::OVERLAP_LIMITED_DIAGNOSTIC
 pub use antecedent_io::ObligationSectionWire = antecedent_io_core::ObligationSectionWire
 pub use antecedent_io::ObservationAssumptionWire = antecedent_io_core::ObservationAssumptionWire
 pub use antecedent_io::ObservationIdentityWire = antecedent_io_core::ObservationIdentityWire

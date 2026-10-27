@@ -1147,6 +1147,7 @@ pub fn <antecedent_learn::PortablePredictor>::fn predict_trees_with(&self, n_row
 pub fn <antecedent_learn::PortablePredictor>::fn validate(&self) -> core::result::Result<(), antecedent_learn::LearnError>
 pub fn <antecedent_learn::PosteriorPrediction>::fn draw_target(&self, draw: usize, target: usize) -> core::result::Result<&[f64], antecedent_learn::LearnError>
 pub fn <antecedent_learn::PosteriorPrediction>::fn new(draw_count: usize, target_names: alloc::vec::Vec<alloc::sync::Arc<str>>, row_ids: alloc::vec::Vec<u64>, fold_ids: core::option::Option<alloc::vec::Vec<u16>>, values: alloc::vec::Vec<f64>, provenance: antecedent_learn::PosteriorPredictionProvenance) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::RidgeLogisticLearner>::const fn admitting_boundary_saturation(self, admit: bool) -> Self
 pub fn <antecedent_learn::RidgeLogisticLearner>::fn new(lambda: f64) -> core::result::Result<Self, antecedent_learn::LearnError>
 pub fn <antecedent_learn::RowSelection<'a>>::const fn indices(self) -> &'a [u64]
 pub fn <antecedent_learn::RowSelection<'a>>::const fn is_empty(self) -> bool
@@ -1243,6 +1244,7 @@ pub fn antecedent_learn::nested_markov_bayesian::fit(counts: &[u64; 16], prior: 
 pub fn antecedent_learn::nested_markov_bayesian::probabilities(p: &[f64; 11]) -> core::option::Option<[f64; 16]>
 pub fn antecedent_learn::resolve(spec: antecedent_learn::LearnerSpec) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::LearnerFactory>, antecedent_learn::LearnError>
 pub fn antecedent_learn::resolve_for(spec: antecedent_learn::LearnerSpec, task: antecedent_learn::PredictionTask) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::LearnerFactory>, antecedent_learn::LearnError>
+pub fn antecedent_learn::resolve_propensity_for(spec: antecedent_learn::LearnerSpec, task: antecedent_learn::PredictionTask, admit_boundary_saturation: bool) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::LearnerFactory>, antecedent_learn::LearnError>
 pub fn antecedent_learn::transported_effect::assess_overlap(support: &antecedent_learn::EffectSupport, feature_names: &[alloc::string::String], columns: &[&[f64]], weights: &[f64]) -> core::result::Result<antecedent_learn::transported_effect::OverlapAssessment, antecedent_learn::transported_effect::TransportRefusal>
 pub fn antecedent_learn::transported_effect::transport_cohort_effect(effect: &antecedent_learn::FittedEffect, feature_names: &[alloc::string::String], model_identity: &str, model_population: &str, cohort: &antecedent_learn::transported_effect::TargetCohort, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_learn::transported_effect::TransportedCohortEffect, antecedent_learn::transported_effect::TransportRefusal>
 pub mod antecedent_learn::auto
@@ -1431,6 +1433,7 @@ pub use antecedent_learn::spec::NeuralSpec = antecedent_learn::NeuralSpec
 pub use antecedent_learn::spec::RidgeSpec = antecedent_learn::RidgeSpec
 pub use antecedent_learn::spec::resolve = antecedent_learn::resolve
 pub use antecedent_learn::spec::resolve_for = antecedent_learn::resolve_for
+pub use antecedent_learn::spec::resolve_propensity_for = antecedent_learn::resolve_propensity_for
 pub use antecedent_learn::transform::FittedTransformer = antecedent_learn::FittedTransformer
 pub use antecedent_learn::transform::Identity = antecedent_learn::Identity
 pub use antecedent_learn::transform::TransformerFactory = antecedent_learn::TransformerFactory

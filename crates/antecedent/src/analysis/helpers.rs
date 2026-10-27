@@ -381,16 +381,62 @@ pub(crate) fn credible_pointwise_uncertainty(
     })
 }
 
+/// Share of rows whose raw propensity a clip moves above which the clip is said to bind.
+const CLIP_BINDING_FRACTION: f64 = 0.05;
+/// Distance from 0 or 1 within which a raw propensity is saturated.
+const SATURATION_MARGIN: f64 = 1e-8;
+
+/// Diagnostic recording that the applied overlap policy changed the answer's target or
+/// weights, which limits its empirical support ([`antecedent_io::OVERLAP_LIMITED_DIAGNOSTIC`]).
+///
+/// A clip binds when it moves a saturated propensity (within `1e-8` of 0 or 1) or at least
+/// 5% of the rows; a trim binds when it excludes any row. `None` when no report exists or the
+/// policy did not bind.
+pub(crate) fn overlap_limit_diagnostic(
+    report: Option<&antecedent_estimate::OverlapReport>,
+) -> Option<Diagnostic> {
+    let report = report?;
+    let clipped = report.clip.map_or(0.0, |_| 1.0 - report.target_population_support);
+    let saturated = report.propensity_min <= SATURATION_MARGIN
+        || report.propensity_max >= 1.0 - SATURATION_MARGIN;
+    let clip_binds = report.clip.is_some() && (saturated || clipped >= CLIP_BINDING_FRACTION);
+    let trim_binds = report.trim.is_some() && report.excluded_fraction > 0.0;
+    if !(clip_binds || trim_binds) {
+        return None;
+    }
+    let message = format!(
+        "the overlap policy changed the answer: the clip moved {:.1}% of propensities{}; the trim \
+         excluded {:.1}% of rows. The estimate holds for the clipped weights or the retained \
+         common-support rows, not the full declared population",
+        100.0 * clipped,
+        if saturated { ", including scores within 1e-8 of 0 or 1" } else { "" },
+        100.0 * report.excluded_fraction,
+    );
+    Some(
+        Diagnostic::new(
+            antecedent_io::OVERLAP_LIMITED_DIAGNOSTIC,
+            DiagnosticKind::Support,
+            DiagnosticSeverity::Warning,
+            message,
+        )
+        .with_fields([
+            ("clipped_fraction", clipped.to_string()),
+            ("excluded_fraction", report.excluded_fraction.to_string()),
+            ("saturated", saturated.to_string()),
+        ]),
+    )
+}
+
 /// Diagnostic recording which overlap policy an estimator applied.
 pub(crate) fn overlap_diagnostic(overlap: OverlapPolicy) -> Diagnostic {
-    match overlap {
-        OverlapPolicy::ExplicitOverride => Diagnostic::new(
+    match overlap.bounds() {
+        None => Diagnostic::new(
             "estimate.overlap.explicit_override",
             DiagnosticKind::Support,
             DiagnosticSeverity::Info,
             "estimator used ExplicitOverride for positivity (not a propensity-based method)",
         ),
-        OverlapPolicy::RequireDiagnostics { .. } => Diagnostic::new(
+        Some(_) => Diagnostic::new(
             "estimate.overlap.require_diagnostics",
             DiagnosticKind::Support,
             DiagnosticSeverity::Info,
@@ -599,8 +645,10 @@ pub(crate) fn attach_average_functional_grid(
         config.overlap = overlap;
     }
     if !matches!(query.outcome_functional, OutcomeFunctional::Mean)
-        && (matches!(config.overlap, OverlapPolicy::RequireDiagnostics { trim: Some(_), .. })
-            || config.inference.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic)
+        && (matches!(
+            config.overlap.canonical(),
+            OverlapPolicy::RequireDiagnostics { trim: Some(_), .. }
+        ) || config.inference.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic)
     {
         return Err(CausalError::Unsupported {
             message: "cross-fitted functional scores require iid inference without propensity trimming",

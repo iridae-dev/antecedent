@@ -230,11 +230,15 @@ def outcome_from_error(error: BaseException, *, operation: str | None = None) ->
             if not key.startswith("_") and key not in {"study", "report", "fields", "fallback"}
         }
     )
+    # A native refusal carries its structured diagnostics only in `refusal_fields`; read stage
+    # and detail from there when the error has no attribute of its own.
+    native = getattr(error, "refusal_fields", None)
+    native = native if isinstance(native, Mapping) else {}
     refusal = Refusal(
         code=getattr(error, "reason_code", None) or type(error).__name__,
         message=getattr(error, "message", None) or str(error),
-        detail=getattr(error, "detail", None),
-        stage=getattr(error, "stage", None),
+        detail=getattr(error, "detail", None) or native.get("reason"),
+        stage=getattr(error, "stage", None) or native.get("stage"),
         remedy=getattr(error, "remedy", None),
         offending=getattr(error, "offending", None),
         fields=fields,

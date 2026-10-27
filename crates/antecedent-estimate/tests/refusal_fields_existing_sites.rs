@@ -355,5 +355,36 @@ fn field_carrying_variants_render_as_their_plain_counterparts() {
     assert_eq!(plain.to_string(), rich.to_string());
     assert!(plain.refusal_fields().is_none() && rich.refusal_fields().is_some());
     assert_eq!(rich.remedy(), None);
+    // Without a retarget stage a field-carrying unsupported refusal has no derived code.
+    assert_eq!(rich.reason_code(), None);
+    let stats = |error| EstimationError::Stats(error).reason_code();
+    assert_eq!(
+        stats(antecedent_stats::StatsError::RankDeficient { rank: 1, ncols: 2 }),
+        Some("design_rank_deficient")
+    );
+    assert_eq!(
+        stats(antecedent_stats::StatsError::FewClusters {
+            clusters: 2,
+            minimum: 10,
+            rendered: "x"
+        }),
+        Some("too_few_clusters")
+    );
+    for kind in [
+        antecedent_stats::GlmRefusalKind::NonConverged,
+        antecedent_stats::GlmRefusalKind::Separated,
+        antecedent_stats::GlmRefusalKind::BoundarySaturated,
+    ] {
+        let glm = antecedent_stats::StatsError::GlmRefused {
+            kind,
+            message: "x",
+            iterations: 1,
+            boundary_margin_bits: None,
+            boundary_count: None,
+        };
+        assert_eq!(stats(glm), Some("glm_fit_refused"));
+    }
+    let overlap = EstimationError::OverlapWithFields { message: "x", fields: Box::default() };
+    assert_eq!(overlap.reason_code(), Some("positivity_violated"));
     assert!(rich.refusal_fields().unwrap().remedy.is_none());
 }

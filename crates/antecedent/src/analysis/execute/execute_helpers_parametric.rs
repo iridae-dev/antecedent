@@ -847,6 +847,8 @@ fn finish_identified_execute_with_context(
     } else {
         let mut diagnostics = args.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(args.estimate.provenance.overlap));
+        diagnostics
+            .extend(overlap_limit_diagnostic(args.estimate.diagnostics.overlap_report.as_ref()));
         diagnostics.extend(args.extra_diagnostics);
         diagnostics
     };

@@ -42,6 +42,7 @@ use super::{
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
     PhysicalExecutionPlan, Strategy, StudyResult, TabularData, VariableId, elapsed_ns,
     envelope_to_identification_result_for, identification_status_ok_for_case, overlap_diagnostic,
+    overlap_limit_diagnostic,
 };
 use crate::analysis::IdentificationCache;
 use crate::analysis::prepared::{CachedCpdagIdentification, CachedPagIdentification};
@@ -383,6 +384,7 @@ impl super::Study {
         }
         diagnostics.push(estimator_diagnostic);
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
 
         let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(

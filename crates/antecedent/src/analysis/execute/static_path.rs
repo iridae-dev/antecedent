@@ -14,9 +14,9 @@ use super::{
     envelope_se_omission_diagnostic, envelope_to_identification_result_for, estimate_static_effect,
     identification_from_cache_or, identification_status_ok_for_case, identify_static_query,
     identify_static_query_in_context, mix_static_envelope_se, mix_weighted_analytic_se,
-    mixed_static_influence, overlap_diagnostic, project_for_ate_estimate, projection_diagnostic,
-    report_identify_compute, require_identified, scalar_identified_set, select_claim,
-    select_estimand, static_aligned_influence,
+    mixed_static_influence, overlap_diagnostic, overlap_limit_diagnostic, project_for_ate_estimate,
+    projection_diagnostic, report_identify_compute, require_identified, scalar_identified_set,
+    select_claim, select_estimand, static_aligned_influence,
 };
 use crate::analysis::lowering::scan::STREAMED_BATCH_ROWS;
 use crate::estimator_spec::EstimatorSpec;
@@ -1850,6 +1850,7 @@ impl super::Study {
         .run(&refute_atoms, &mut refute_ws, ctx)?;
         diagnostics.extend(na_diagnostics);
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
         diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic()));
         // Completions that disagree publish their identified set, exactly as the
         // class ATE arm does; a point-identified envelope stays a point.

@@ -280,6 +280,7 @@ DomainStatusesName = Literal[
     "outside_scope",
     "contradicted",
     "unknown",
+    "limited",
     "not_claimed",
 ]
 

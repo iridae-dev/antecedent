@@ -16854,6 +16854,7 @@ pub fn <antecedent_estimate::EstimationError>::fn coded_refusal(&self) -> core::
 pub fn <antecedent_estimate::EstimationError>::fn data_msg(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_estimate::EstimationError>::fn field_remedy(&self) -> core::option::Option<&str>
 pub fn <antecedent_estimate::EstimationError>::fn not_certified(stage: &str, reason: &str, message: &str) -> Self
+pub fn <antecedent_estimate::EstimationError>::fn reason_code(&self) -> core::option::Option<&'static str>
 pub fn <antecedent_estimate::EstimationError>::fn refusal_fields(&self) -> core::option::Option<alloc::borrow::Cow<'_, antecedent_estimate::RefusalFields>>
 pub fn <antecedent_estimate::EstimationError>::fn refused(code: &'static str, message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_estimate::EstimationError>::fn refused_detail(code: &'static str, detail: impl core::convert::AsRef<str>, explanation: impl core::convert::AsRef<str>) -> Self
@@ -17000,6 +17001,9 @@ pub fn <antecedent_estimate::ObservationMechanismEstimator>::fn estimate_mean_cu
 pub fn <antecedent_estimate::ObservationMechanismEstimator>::fn gaussian_log_likelihood(&self, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::response::ResponseQuery, means: &[f64], sigma: f64) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ObservationMechanismEstimator>::fn observation_row_lag(&self, query: &antecedent_core::query::response::ResponseQuery, outcome_regressors: &[antecedent_core::temporal::TemporalNodeKey]) -> core::result::Result<usize, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::OutcomeKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_estimate::OverlapPolicy>::const fn bounds(self) -> core::option::Option<(core::option::Option<f64>, core::option::Option<f64>)>
+pub fn <antecedent_estimate::OverlapPolicy>::const fn canonical(self) -> Self
+pub fn <antecedent_estimate::OverlapPolicy>::const fn is_declared(self) -> bool
 pub fn <antecedent_estimate::OverlapPolicy>::const fn require_diagnostics() -> Self
 pub fn <antecedent_estimate::OverlapPolicy>::fn validate(self) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::OverlapReport>::fn from_propensities(propensities: &[f64], weights: core::option::Option<&[f64]>, policy: antecedent_estimate::OverlapPolicy, treatment: core::option::Option<&[f64]>, target: core::option::Option<antecedent_estimate::IpwTarget>, observation_weights: core::option::Option<&[f64]>) -> Self
@@ -20090,6 +20094,7 @@ pub variant antecedent_estimate::OtherLevels::Refuse
 pub variant antecedent_estimate::OutcomeKind::Binary
 pub variant antecedent_estimate::OutcomeKind::Continuous
 pub variant antecedent_estimate::OutcomeKind::Count
+pub variant antecedent_estimate::OverlapPolicy::Default
 pub variant antecedent_estimate::OverlapPolicy::ExplicitOverride
 pub variant antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip: core::option::Option<f64>, trim: core::option::Option<f64> }
 pub variant antecedent_estimate::ProbabilityInterval::Bounded { level: f64, lower: f64, upper: f64 }

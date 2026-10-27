@@ -5128,7 +5128,7 @@ pub const <antecedent_contract::ChainReading>::ALL: [Self; 5]
 pub const <antecedent_contract::ClaimKind>::ALL: [Self; 8]
 pub const <antecedent_contract::ColumnClaim>::DTYPE: &'static str
 pub const <antecedent_contract::CompositionStage>::ALL: [Self; 10]
-pub const <antecedent_contract::DomainStatus>::ALL: [Self; 7]
+pub const <antecedent_contract::DomainStatus>::ALL: [Self; 8]
 pub const <antecedent_contract::EvidenceObligationKind>::ALL: [Self; 9]
 pub const <antecedent_contract::EvidencePort>::ALL: [Self; 10]
 pub const <antecedent_contract::InputRole>::ALL: [Self; 5]
@@ -8034,6 +8034,7 @@ pub variant antecedent_contract::DistributionMeaning::PosteriorPredictive
 pub variant antecedent_contract::DomainStatus::Contradicted
 pub variant antecedent_contract::DomainStatus::Evaluated
 pub variant antecedent_contract::DomainStatus::Identified
+pub variant antecedent_contract::DomainStatus::Limited
 pub variant antecedent_contract::DomainStatus::NotClaimed
 pub variant antecedent_contract::DomainStatus::OutsideScope
 pub variant antecedent_contract::DomainStatus::Supported

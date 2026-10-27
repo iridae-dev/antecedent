@@ -15,7 +15,11 @@ use crate::learner::{FittedPredictor, LearnerCapabilities, LearnerFactory, Predi
 
 /// Logistic regression via [`fit_glm`] (`BinomialLogit`).
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct LogisticLearner;
+pub(crate) struct LogisticLearner {
+    /// Accept a converged, unseparated fit whose probabilities reach within `1e-8` of 0 or 1;
+    /// set only for a propensity nuisance whose declared overlap policy governs those rows.
+    pub(crate) admit_boundary_saturation: bool,
+}
 
 /// Ridge-penalized logistic regression via [`fit_glm_ridge`]: the probability-task form of
 /// a ridge learner. The penalty applies to every non-intercept coefficient; a constant
@@ -23,6 +27,7 @@ pub(crate) struct LogisticLearner;
 #[derive(Clone, Copy, Debug)]
 pub struct RidgeLogisticLearner {
     lambda: f64,
+    admit_boundary_saturation: bool,
 }
 
 impl RidgeLogisticLearner {
@@ -33,10 +38,17 @@ impl RidgeLogisticLearner {
     /// [`LearnError::Shape`] for a non-finite or non-positive penalty.
     pub fn new(lambda: f64) -> Result<Self, LearnError> {
         if lambda.is_finite() && lambda > 0.0 {
-            Ok(Self { lambda })
+            Ok(Self { lambda, admit_boundary_saturation: false })
         } else {
             Err(LearnError::Shape { message: "logistic ridge penalty must be finite and > 0" })
         }
+    }
+
+    /// This factory admitting a boundary-saturated fit when `admit` holds (see
+    /// [`antecedent_stats::GlmOptions::admit_boundary_saturation`]).
+    #[must_use]
+    pub const fn admitting_boundary_saturation(self, admit: bool) -> Self {
+        Self { admit_boundary_saturation: admit, ..self }
     }
 }
 
@@ -49,7 +61,7 @@ impl LogisticLearner {
     #[cfg(test)]
     pub fn for_task(task: PredictionTask) -> Result<Self, LearnError> {
         match task {
-            PredictionTask::BinaryProbability => Ok(Self),
+            PredictionTask::BinaryProbability => Ok(Self::default()),
             PredictionTask::Regression => Err(LearnError::TaskMismatch {
                 requested: PredictionTask::Regression,
                 supported: PredictionTask::BinaryProbability,
@@ -72,6 +84,7 @@ fn fit_logistic(
     y: TargetView<'_>,
     weights: Option<&[f64]>,
     ridge: Option<f64>,
+    admit_boundary_saturation: bool,
 ) -> Result<GlmFit, LearnError> {
     let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
     if y.len() != x.physical_nrows() {
@@ -128,7 +141,9 @@ fn fit_logistic(
             lambda,
         )?,
     };
-    fit.require_ok()?;
+    if !(admit_boundary_saturation && fit.converged && !fit.separated) {
+        fit.require_ok()?;
+    }
     Ok(fit)
 }
 
@@ -148,7 +163,7 @@ impl LearnerFactory for LogisticLearner {
         weights: Option<&[f64]>,
         _ctx: &ExecutionContext,
     ) -> Result<Box<dyn FittedPredictor>, LearnError> {
-        let fit = fit_logistic(x, y, weights, None)?;
+        let fit = fit_logistic(x, y, weights, None, self.admit_boundary_saturation)?;
         Ok(Box::new(crate::coefficient::CoefficientPredictor::new(
             fit.coefficients,
             true,
@@ -175,7 +190,7 @@ impl LearnerFactory for RidgeLogisticLearner {
         weights: Option<&[f64]>,
         _ctx: &ExecutionContext,
     ) -> Result<Box<dyn FittedPredictor>, LearnError> {
-        let fit = fit_logistic(x, y, weights, Some(self.lambda))?;
+        let fit = fit_logistic(x, y, weights, Some(self.lambda), self.admit_boundary_saturation)?;
         Ok(Box::new(crate::coefficient::CoefficientPredictor::new(
             fit.coefficients,
             true,

@@ -381,13 +381,9 @@ pub struct FirstStageDiagnosticsWire {
 /// Encode effect estimate.
 #[must_use]
 pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
-    let (overlap_policy, overlap_clip, overlap_trim) = match e.provenance.overlap {
-        OverlapPolicy::ExplicitOverride => {
-            (EstimateOverlapPolicyWire::ExplicitOverride, None, None)
-        }
-        OverlapPolicy::RequireDiagnostics { clip, trim } => {
-            (EstimateOverlapPolicyWire::RequireDiagnostics, clip, trim)
-        }
+    let (overlap_policy, overlap_clip, overlap_trim) = match e.provenance.overlap.bounds() {
+        None => (EstimateOverlapPolicyWire::ExplicitOverride, None, None),
+        Some((clip, trim)) => (EstimateOverlapPolicyWire::RequireDiagnostics, clip, trim),
     };
     EffectEstimateWire {
         ate: e.ate,

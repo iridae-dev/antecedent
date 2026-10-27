@@ -135,8 +135,8 @@ pub use matching::{MatchingDistance, MatchingIndex, nearest_euclidean_scalar};
 pub use matching_boxtree::BoxTreeIndex;
 pub use observation::{
     GaussianObservation, KaplanMeierIpcw, ObservationProbabilityFit, censoring_tail_restriction,
-    fit_observation_logistic, gaussian_observation_log_likelihood, kaplan_meier_ipcw,
-    selected_outcome_pseudo_values,
+    fit_observation_logistic, fit_observation_logistic_admitting,
+    gaussian_observation_log_likelihood, kaplan_meier_ipcw, selected_outcome_pseudo_values,
 };
 pub use propagation_chain::{
     ChainError, Coefficient, ColumnSummary, Combine, Decision, Enclosure, Evaluated, ExprTerm,

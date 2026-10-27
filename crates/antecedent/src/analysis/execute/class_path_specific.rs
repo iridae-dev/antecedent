@@ -27,7 +27,7 @@ use super::{
     IdentifierId, Instant, OverlapPolicy, PathSpecificMixedSource, PhysicalExecutionPlan, Strategy,
     StudyResult, TableView, TabularData, elapsed_ns, envelope_se_omission_diagnostic,
     envelope_to_identification_result_for, identification_status_ok_for_case, overlap_diagnostic,
-    report_identify_compute, select_estimand,
+    overlap_limit_diagnostic, report_identify_compute, select_estimand,
 };
 use crate::planner::RouteDefaults;
 
@@ -378,6 +378,7 @@ impl super::Study {
             (pooled, None)
         };
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
 
         // Completions that identify different functionals list one estimand each in the combined
         // identification; the result names the first evaluated completion's functional, the

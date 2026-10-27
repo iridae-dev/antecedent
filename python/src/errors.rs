@@ -395,6 +395,11 @@ pub(crate) fn reason_code_of(error: &RustCausalError) -> Option<String> {
         }) => Some(reason_code!("route_not_supported")),
         RustCausalError::Unsupported { .. } => Some(reason_code!("route_not_supported")),
         // A matrix refusal without a finer registered code carries the code of its cell verdict.
+        RustCausalError::Support { .. }
+            if error.reason_code() == Some(reason_code!("positivity_violated")) =>
+        {
+            Some(reason_code!("positivity_violated"))
+        }
         RustCausalError::Support { id, .. } => Some(if id.as_str() == "not_applicable" {
             reason_code!("cell_not_applicable")
         } else {
@@ -402,6 +407,9 @@ pub(crate) fn reason_code_of(error: &RustCausalError) -> Option<String> {
         }),
         RustCausalError::Missing { .. } => Some(reason_code!("required_option_missing")),
         RustCausalError::Conflict { .. } => Some(reason_code!("invalid_argument")),
+        // The estimator layer derives the code of a refusal built without one (a rank-deficient
+        // design, a refused GLM fit, too few clusters, a failed overlap or retarget gate).
+        RustCausalError::Estimate(e) => e.reason_code(),
         _ => None,
     };
     named.or_else(|| default.map(str::to_string))

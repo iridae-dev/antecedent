@@ -359,9 +359,9 @@ fn other_levels_key(policy: antecedent_estimate::OtherLevels) -> Option<String> 
 }
 
 pub(crate) fn overlap_policy(policy: OverlapPolicy) -> OverlapPolicyWire {
-    match policy {
-        OverlapPolicy::ExplicitOverride => OverlapPolicyWire::ExplicitOverride,
-        OverlapPolicy::RequireDiagnostics { clip, trim } => OverlapPolicyWire::RequireDiagnostics {
+    match policy.bounds() {
+        None => OverlapPolicyWire::ExplicitOverride,
+        Some((clip, trim)) => OverlapPolicyWire::RequireDiagnostics {
             clip_bits: clip.map(f64::to_bits),
             trim_bits: trim.map(f64::to_bits),
         },

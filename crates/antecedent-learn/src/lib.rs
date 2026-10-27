@@ -81,7 +81,7 @@ pub(crate) use ridge::RidgeLearner;
 pub(crate) use spec::FOREST_PROBABILITY_MIN_LEAF;
 pub use spec::{
     DevicePolicy, ElasticNetSpec, ForestSpec, GbtSpec, LearnerSpec, LinearSpec, LogisticSpec,
-    NeuralSpec, RidgeSpec, resolve, resolve_for,
+    NeuralSpec, RidgeSpec, resolve, resolve_for, resolve_propensity_for,
 };
 pub use transform::{FittedTransformer, Identity, TransformerFactory};
 
@@ -146,7 +146,7 @@ mod tests {
         let y = [0.2, 0.8];
         let ctx = ExecutionContext::for_tests(1);
         let view = DesignView::from_column_major(&x, 2, 2).unwrap();
-        let err = match LogisticLearner.fit(view, TargetView::new(&y), None, &ctx) {
+        let err = match LogisticLearner::default().fit(view, TargetView::new(&y), None, &ctx) {
             Ok(_) => panic!("non-binary labels should fail"),
             Err(error) => error,
         };
@@ -267,7 +267,7 @@ mod tests {
         }
         let ctx = ExecutionContext::for_tests(1);
         let view = DesignView::from_column_major(&x, n, 2).unwrap();
-        let fitted = LogisticLearner.fit(view, TargetView::new(&y), None, &ctx).unwrap();
+        let fitted = LogisticLearner::default().fit(view, TargetView::new(&y), None, &ctx).unwrap();
         assert_eq!(fitted.provenance().spec, "logistic");
         let mut out = vec![0.0; n];
         fitted.predict(view, &mut out, &ctx).unwrap();
@@ -297,7 +297,7 @@ mod tests {
         assert_eq!(mapped, LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 1.0 }));
         assert_ne!(mapped.identity(), LearnerSpec::Logistic(LogisticSpec::default()).identity());
 
-        assert!(LogisticLearner.fit(view, TargetView::new(&y), None, &ctx).is_err());
+        assert!(LogisticLearner::default().fit(view, TargetView::new(&y), None, &ctx).is_err());
         let factory = resolve_for(mapped, PredictionTask::BinaryProbability).unwrap();
         let fitted = factory.fit(view, TargetView::new(&y), None, &ctx).unwrap();
         assert_eq!(fitted.provenance().implementation, "faer_ridge");

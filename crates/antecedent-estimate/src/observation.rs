@@ -39,6 +39,46 @@ pub enum SelectedOutcomeCorrection {
     Aipw,
 }
 
+/// The refusal of a failed observation-model fit. A converged fit whose observation
+/// probabilities reach within `1e-8` of 0 or 1 means some rows have essentially no chance of
+/// being observed (or of being missing): a positivity problem in the data, so it refuses as
+/// `positivity_violated`, keeping the fit's diagnostics. Every other failure keeps its own
+/// refusal.
+pub(crate) fn observation_fit_error(error: antecedent_stats::StatsError) -> EstimationError {
+    let saturated = matches!(
+        error,
+        antecedent_stats::StatsError::GlmRefused {
+            kind: antecedent_stats::GlmRefusalKind::BoundarySaturated,
+            ..
+        }
+    );
+    let refused = EstimationError::from(error);
+    if !saturated {
+        return refused;
+    }
+    let mut fields = refused.refusal_fields().map(std::borrow::Cow::into_owned).unwrap_or_default();
+    let rows = fields.boundary_count.map_or_else(
+        || "some rows".to_owned(),
+        |count| format!("{count} row{}", if count == 1 { "" } else { "s" }),
+    );
+    fields.remedy = Some(
+        "restrict the population or covariates to where both observed and unobserved rows \
+         occur, or obtain data or a design that observes those rows"
+            .to_owned(),
+    );
+    EstimationError::refused_detail_with_fields(
+        antecedent_core::reason_code!("positivity_violated"),
+        "observation.boundary_saturated",
+        format!(
+            "the observation model gives {rows} a probability of being observed within 1e-8 of \
+             0 or 1, so those rows have essentially no chance of the other observation status \
+             and an inverse-probability weight is unsupported there. Restrict the population to \
+             where both occur"
+        ),
+        fields,
+    )
+}
+
 /// Numerical choices for observation-mechanism estimation.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ObservationEstimatorOptions {
@@ -998,7 +1038,8 @@ impl ObservationMechanismEstimator {
                     covariates,
                     n_cov,
                     self.options.observation_probability_floor,
-                )?;
+                )
+                .map_err(observation_fit_error)?;
                 (fit.probabilities, None)
             }
             // The augmented path is where sample splitting earns its keep: the AIPW
@@ -1091,7 +1132,16 @@ impl ObservationMechanismEstimator {
                 ncols,
                 self.options.observation_probability_floor,
             )
-            .map_err(|_| {
+            .map_err(|error| {
+                if matches!(
+                    error,
+                    antecedent_stats::StatsError::GlmRefused {
+                        kind: antecedent_stats::GlmRefusalKind::BoundarySaturated,
+                        ..
+                    }
+                ) {
+                    return observation_fit_error(error);
+                }
                 EstimationError::unsupported(
                     "a cross-fitting fold cannot support the observation model; reduce crossfit_folds or supply more rows covering both observed and unobserved outcomes",
                 )

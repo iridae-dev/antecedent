@@ -9,6 +9,9 @@ produced). Entries the failing step did not compute are ``None`` or empty, never
 
 from __future__ import annotations
 
+import tomllib
+from pathlib import Path
+
 import antecedent as ant
 import numpy as np
 import pytest
@@ -65,9 +68,28 @@ def _aipw_outcome(data, p: int):
     return ant.estimate(study)
 
 
+_REGISTRY = tomllib.loads(
+    (Path(__file__).resolve().parents[2] / "parity" / "reason_codes.toml").read_text(
+        encoding="utf-8"
+    )
+)
+RUNTIME_REFUSAL_CODES = frozenset(
+    entry["id"] for entry in _REGISTRY["code"] if "runtime_refusal" in entry["applies_to"]
+)
+
+
 def _refusal_error(outcome, error_type):
-    """Assert a scientific refusal, then expose its unchanged native error."""
+    """Assert a scientific refusal, then expose its unchanged native error.
+
+    Every refusal the fixtures in this file produce carries a registered runtime-refusal code
+    (read from ``parity/reason_codes.toml``), never an exception class name, and its stage is
+    filled from the native structured fields.
+    """
     assert outcome.refusal is not None
+    refusal = outcome.refusal
+    assert refusal.code in RUNTIME_REFUSAL_CODES, (refusal.code, refusal.message)
+    assert refusal.code != type(refusal._error).__name__
+    assert refusal.stage is not None and refusal.detail is not None, refusal
     with pytest.raises(error_type) as raised:
         require_success(outcome)
     return raised.value
@@ -98,7 +120,7 @@ def test_a_retarget_onto_unsupported_rows_reports_arm_sizes_and_propensity_range
     assert str(error) == (
         "refused: retarget refused: weighted overlap failed under the declared target weights"
     )
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "positivity_violated"
     assert_registered_refusal(error)
     fields = error.refusal_fields
     assert set(fields) == FIELD_KEYS
@@ -153,6 +175,8 @@ def test_a_retarget_dependence_refusal_has_stage_reason_and_remedy_but_no_number
     refused = completed.study.retarget(weights, depends_on=["t"])
     error = _refusal_error(refused, CausalError)
     assert "must not include the treatment" in str(error)
+    assert error.reason_code == "target_weights_not_licensed"
+    assert refused.refusal.code == "target_weights_not_licensed"
     fields = error.refusal_fields
     assert fields["stage"] == "retarget"
     assert fields["subject"] == "effect(t -> y)"
@@ -184,6 +208,7 @@ def test_the_real_aipw_refusal_at_rank_174_of_175_carries_rank_and_columns():
     refused = _aipw_outcome(data, p)
     error = _refusal_error(refused, CausalEstimateError)
     assert "rank deficient: rank=174 ncols=175" in str(error)
+    assert error.reason_code == "design_rank_deficient"
     fields = error.refusal_fields
     assert set(fields) == FIELD_KEYS
     assert fields["stage"] == "design_rank"
@@ -209,6 +234,9 @@ def test_the_real_aipw_refusal_under_joint_separation_carries_the_fit_facts():
     fields = error.refusal_fields
     assert set(fields) == FIELD_KEYS
     assert fields["remedy"]
+    assert error.reason_code == (
+        "glm_fit_refused" if fields["stage"] == "glm_fit" else "design_rank_deficient"
+    )
     if fields["stage"] == "glm_fit":
         assert fields["reason"] in GLM_REASONS
         assert fields["glm_iterations"] >= 1

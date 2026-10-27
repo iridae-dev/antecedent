@@ -195,20 +195,18 @@ pub(crate) fn cross_fit_aipw_nuisances(
     (folds, fold_ids): (usize, Vec<u16>),
     ctx: &ExecutionContext,
     weights: Option<&[f64]>,
+    admit_boundary_saturation: bool,
 ) -> Result<AipwPredictions, EstimationError> {
     let AipwLearners { outcome, treatment } = learners;
     let NuisanceDesign { values: design, nrows, ncols } = design;
     let (outcome_factory, _) =
         resolve_nuisance(outcome, PredictionTask::Regression, design, nrows, ncols, y, ctx)?;
-    let (treat_factory, _) = resolve_nuisance(
+    let treat_factory = antecedent_learn::resolve_propensity_for(
         treatment,
         PredictionTask::BinaryProbability,
-        design,
-        nrows,
-        ncols,
-        t,
-        ctx,
-    )?;
+        admit_boundary_saturation,
+    )
+    .map_err(learn_err)?;
     if weights.is_some() {
         require_weight_capable(outcome_factory.as_ref(), outcome)?;
         require_weight_capable(treat_factory.as_ref(), treatment)?;
@@ -462,6 +460,21 @@ fn require_populated_arms(treatment: &[f64]) -> Result<(), EstimationError> {
 /// identical request (even from another prepared problem of the same cache scope) reads the
 /// retained bundle. Retention is charged to the pool of `ctx`, or to the pool of the cache the
 /// problem shares; when it cannot be retained the bundle is fit for this caller alone.
+/// A boundary-saturated GLM refusal from an AIPW nuisance is the propensity's: the outcome
+/// nuisance resolves for regression, where no logistic learner is admitted. It refuses as
+/// `positivity_violated`; every other error is unchanged.
+fn propensity_nuisance_error(error: EstimationError) -> EstimationError {
+    match error {
+        EstimationError::Learner(antecedent_learn::LearnError::Stats(
+            stats @ antecedent_stats::StatsError::GlmRefused {
+                kind: antecedent_stats::GlmRefusalKind::BoundarySaturated,
+                ..
+            },
+        )) => crate::propensity::propensity_fit_error(stats),
+        other => other,
+    }
+}
+
 pub(crate) fn cached_aipw_nuisances(
     problem: &crate::propensity::PreparedPropensityProblem,
     outcome: LearnerSpec,
@@ -477,6 +490,9 @@ pub(crate) fn cached_aipw_nuisances(
     let fold_ids = retained_fold_ids(problem, folds, ctx)?;
     // Four f64 vectors of one value per row, the fold ids, and the per-fold provenance.
     let payload = (problem.nrows as u64).saturating_mul(4 * 8 + 2).saturating_add(4096);
+    // A declared overlap clip or trim governs propensities at the boundary; without one a
+    // saturated propensity nuisance refuses as `positivity_violated`.
+    let admit = crate::propensity::admits_boundary_saturation(problem.overlap);
     let key = crate::nuisance_keys::learner_bundle_key(
         problem,
         outcome,
@@ -484,6 +500,7 @@ pub(crate) fn cached_aipw_nuisances(
         folds,
         ctx.rng.master_seed(),
         &fold_ids,
+        admit,
     );
     let compute = || {
         check_cancel()?;
@@ -495,7 +512,9 @@ pub(crate) fn cached_aipw_nuisances(
             (folds, fold_ids.clone()),
             ctx,
             problem.sampling_weights.as_ref().map(|s| &*s.weights),
+            admit,
         )
+        .map_err(propensity_nuisance_error)
     };
     let Some(key) = key else {
         return compute().map(std::sync::Arc::new);

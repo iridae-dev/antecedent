@@ -239,19 +239,31 @@ pub(in crate::contract_section) fn is_support_refuter(refuter: &str) -> bool {
     refuter.starts_with("overlap.") || refuter == "positivity"
 }
 
-/// Empirical support label from executed refutations.
+/// Diagnostic code an estimate records when its overlap policy binds (see
+/// [`support_empirical`]).
+pub const OVERLAP_LIMITED_DIAGNOSTIC: &str = "estimate.overlap.limited";
+
+/// Empirical support label from executed refutations and the estimate's diagnostics.
 ///
-/// `None` when no support check ran; `supported` when every support check
-/// passed; `failed:<refuter>` naming the first failed check otherwise. Other
-/// refuters (placebo, sensitivity, ...) do not speak to support.
+/// `failed:<refuter>` naming the first failed overlap / positivity check; otherwise
+/// `limited:overlap` when the estimate records a binding overlap policy
+/// ([`OVERLAP_LIMITED_DIAGNOSTIC`]); otherwise `supported` when every support check passed;
+/// `None` when no support check ran and nothing limits support. Other refuters (placebo,
+/// sensitivity, ...) do not speak to support.
 #[must_use]
-pub fn support_empirical(refutations: &[RefutationReportWire]) -> Option<String> {
-    let mut checks = refutations.iter().filter(|report| is_support_refuter(&report.refuter));
-    let first = checks.next()?;
-    std::iter::once(first).chain(checks).find(|report| !report.passed).map_or_else(
-        || Some("supported".into()),
-        |failed| Some(format!("failed:{}", failed.refuter)),
-    )
+pub fn support_empirical(
+    refutations: &[RefutationReportWire],
+    diagnostics: &[crate::DiagnosticWire],
+) -> Option<String> {
+    let mut checks =
+        refutations.iter().filter(|report| is_support_refuter(&report.refuter)).peekable();
+    if let Some(failed) = checks.clone().find(|report| !report.passed) {
+        return Some(format!("failed:{}", failed.refuter));
+    }
+    if diagnostics.iter().any(|diagnostic| diagnostic.code == OVERLAP_LIMITED_DIAGNOSTIC) {
+        return Some("limited:overlap".into());
+    }
+    checks.peek().map(|_| "supported".into())
 }
 
 /// Identification / support / evaluated domain statuses of a claim.
@@ -304,6 +316,7 @@ pub fn claim_domain_statuses(
             DomainStatus::OutsideScope
         }
         Some(slot) if slot.empirical.starts_with("failed:") => DomainStatus::Contradicted,
+        Some(slot) if slot.empirical.starts_with("limited:") => DomainStatus::Limited,
         Some(slot) if slot.matrix_status == "licensed" && slot.empirical == "supported" => {
             DomainStatus::Supported
         }
