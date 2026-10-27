@@ -217,6 +217,13 @@ def finite_refusal_helpers(path: Path, *, in_crate: bool = True) -> tuple[list[L
         r"\s*(?P<fields>fields\s*,\s*)?\)\s*",
         re.DOTALL,
     )
+    structured_body_pattern = re.compile(
+        r"\s*EstimationError::(?P<constructor>refused_detail|refused_detail_with_fields)\s*\(\s*"
+        r'antecedent_core::reason_code!\(\s*"(?P<code>[a-z][a-z0-9_]+)"\s*\)\s*,\s*'
+        r'format!\(\s*"(?P<namespace>[a-z][a-z0-9_]*)\.\{detail\}"\s*\)\s*,\s*message\s*,'
+        r"\s*(?P<fields>fields\s*,\s*)?\)\s*",
+        re.DOTALL,
+    )
     for item in items:
         if item.kind != "fn" or not skel[item.start : item.body[0]].strip():
             continue
@@ -236,9 +243,9 @@ def finite_refusal_helpers(path: Path, *, in_crate: bool = True) -> tuple[list[L
         # The parser's body range includes braces; no extra work or delegation
         # is admitted in this narrowly recognized formatter.
         body = code[item.body[0] : item.body[1]].strip().removeprefix("{").removesuffix("}")
-        matched = body_pattern.fullmatch(body)
+        matched = body_pattern.fullmatch(body) or structured_body_pattern.fullmatch(body)
         if not matched or (
-            (matched["constructor"] == "refused_with_fields") != bool(matched["fields"])
+            (matched["constructor"] in {"refused_with_fields", "refused_detail_with_fields"}) != bool(matched["fields"])
         ):
             continue
         if ("fields" in header) != bool(matched["fields"]):
@@ -273,7 +280,10 @@ def finite_refusal_helpers(path: Path, *, in_crate: bool = True) -> tuple[list[L
             proven_lines.update(
                 lit.line
                 for lit in literals
-                if lit.value == matched["namespace"] + ".{detail}: {message}"
+                if lit.value == matched["namespace"] + (
+                    ".{detail}" if matched["constructor"].startswith("refused_detail")
+                    else ".{detail}: {message}"
+                )
                 and code.count("\n", 0, item.body[0]) + 1
                 <= lit.line
                 <= code.count("\n", 0, item.body[1]) + 1
@@ -358,7 +368,29 @@ def _sectioned_error_macro_is_proven() -> bool:
         'format!("{contract}.report_replay_mismatch",contract=$contract),'
         'format!("the stored {what} does not replay"),))}else{None}}_=>None,}}'
     )
-    return header == expected_header and body == expected_body
+    structured_body = (
+        "{matchself{Self::Refused{code,detail,explanation}=>{Some((*code,detail.clone(),explanation.clone()))}"
+        'Self::IdentityMismatch{field}=>{Some(antecedent_core::refusal::changed_identity(&format!("{contract}.wrong_contract",contract=$contract),field,))}'
+        'Self::ResultMismatch(what)=>{if$report{Some(antecedent_core::refusal::replay_mismatch(&format!("{contract}.report_replay_mismatch",contract=$contract),format!("the stored {what} does not replay"),))}else{None}}_=>None,}}'
+    )
+    if header != expected_header:
+        return False
+    if body == expected_body:
+        return True
+    if body != structured_body:
+        return False
+    helper_path = macro_path.parents[2] / "antecedent-core/src/refusal.rs"
+    helper_code, _ = nontest_pair(helper_path)
+    _, helper_items = rust_items(helper_path)
+    helpers = {
+        method.name: _compact_rust_tokens(helper_code[method.body[0]:method.body[1]])
+        for method in helper_items
+        if method.kind == "fn" and method.name in {"changed_identity", "replay_mismatch"}
+    }
+    return helpers == {
+        "changed_identity": '{(crate::reason_code!("route_not_supported"),detail.to_owned(),format!("{field} changed"))}',
+        "replay_mismatch": '{(crate::reason_code!("invalid_argument"),detail.to_owned(),explanation)}',
+    }
 
 
 def sectioned_artifact_refusals(path: Path, *, in_crate: bool = True) -> list[Lit]:
@@ -557,9 +589,12 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
         )
         if re.search(r"\bauthorize\s+as\b", skeleton):
             return ["defensive factory proof cannot permit an escaped authority helper alias"]
-        code = re.sub(r"\buse\b[^;]+;", lambda m: " " * len(m[0]), code)
-        for call in re.finditer(r"\bauthorize\b", code):
-            if re.search(r"\bfn\s*$", code[: call.start()]):
+        for imported in reversed(list(re.finditer(r"\buse\b[^;]+;", skeleton))):
+            lo, hi = imported.span()
+            code = code[:lo] + " " * (hi - lo) + code[hi:]
+            skeleton = skeleton[:lo] + " " * (hi - lo) + skeleton[hi:]
+        for call in re.finditer(r"\bauthorize\b", skeleton):
+            if re.search(r"\bfn\s*$", skeleton[: call.start()]):
                 continue
             argument = re.match(r'\s*\(\s*"([a-z_]+)"\s*,', code[call.end() :])
             if not argument or argument[1] not in expected:
@@ -739,8 +774,17 @@ def typed_input_exception_problems(entry: dict, root: Path) -> list[str]:
     # The registered helper may change; prove the actual current mapping rather
     # than equating arbitrary functions with ValueError by their spelling.
     if pair[0] == "CausalValueError":
-        lib, _ = nontest_pair(root / "python/src/lib.rs")
-        _, items = rust_items(root / "python/src/lib.rs")
+        error_source = root / "python/src/lib.rs"
+        lib, lib_skeleton = nontest_pair(error_source)
+        _, items = rust_items(error_source)
+        if not any(item.kind == "fn" and item.name == "value_err" for item in items):
+            if not re.search(r"\bmod\s+errors\s*;", lib_skeleton) or not re.search(
+                r"\bpub\(crate\)\s+use\s+errors::\*\s*;", lib_skeleton
+            ):
+                return ["value_err helper module lacks its checked crate reexport"]
+            error_source = root / "python/src/errors.rs"
+            lib, _ = nontest_pair(error_source)
+            _, items = rust_items(error_source)
         bodies = [
             lib[i.body[0] : i.body[1]] for i in items if i.kind == "fn" and i.name == "value_err"
         ]
@@ -753,8 +797,6 @@ def typed_input_exception_problems(entry: dict, root: Path) -> list[str]:
             return [
                 "value_err no longer proves registered value-error mapping without a reason code"
             ]
-        lib, _ = nontest_pair(root / "python/src/lib.rs")
-        _, items = rust_items(root / "python/src/lib.rs")
         value_errors = [
             lib[item.body[0] : item.body[1]]
             for item in items

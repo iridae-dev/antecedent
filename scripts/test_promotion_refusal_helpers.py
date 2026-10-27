@@ -134,8 +134,9 @@ class FiniteRefusalTests(unittest.TestCase):
             if path_arg.name == "artifact_codec.rs":
                 old_detail = '"{contract}.wrong_contract"'
                 changed_detail = '"{contract}.wrong _contract"'
-                old_spacing = "let (detail, text)"
-                changed_spacing = "let(detail, text)"
+                old_spacing = "contract = $contract"
+                changed_spacing = "contract= $contract"
+                self.assertIn(old_spacing, code)
                 self.assertEqual(len(changed_detail), len(old_detail) + 1)
                 self.assertEqual(len(changed_spacing), len(old_spacing) - 1)
                 code = code.replace(old_detail, changed_detail, 1).replace(
@@ -163,7 +164,8 @@ class FiniteRefusalTests(unittest.TestCase):
 
             def changed_definition(path_arg, before=before, after=after, **kwargs):
                 code, skel = original_pair(path_arg, **kwargs)
-                if path_arg.name == "artifact_codec.rs":
+                if path_arg.name == ("refusal.rs" if "reason_code!" in before else "artifact_codec.rs"):
+                    self.assertIn(before, code)
                     code = code.replace(before, after)
                 return code, skel
 
@@ -214,6 +216,19 @@ class FiniteRefusalTests(unittest.TestCase):
             )
             names = {item.name for item in rust_pub_items(path, in_crate=False)}
             self.assertEqual(names, {"PublicAlias", "hidden"})
+
+
+    def test_generated_macro_requires_exact_transitive_core_mapping(self):
+        original = nontest_pair
+        def changed(path, **kwargs):
+            code, skeleton = original(path, **kwargs)
+            if path.name == "refusal.rs":
+                code = code.replace('reason_code!("route_not_supported")', 'reason_code!("invalid_argument")')
+            return code, skeleton
+        with patch("promotion_source.nontest_pair", side_effect=changed):
+            self.assertEqual(sectioned_artifact_refusals(
+                REPO_ROOT / "crates/antecedent-io/src/nonlinear_mediation_artifact.rs"
+            ), [])
 
 
 class SharedNamespaceTests(unittest.TestCase):
@@ -280,7 +295,7 @@ class SharedNamespaceTests(unittest.TestCase):
 
         def uncoded_value_error(path, **kwargs):
             code, skel = original_pair(path, **kwargs)
-            if path == root / "python/src/lib.rs":
+            if path == root / "python/src/errors.rs":
                 code = code.replace(
                     "attach_reason_from_message(value_error_of(message), message)",
                     "value_error_of(message)",
@@ -292,7 +307,7 @@ class SharedNamespaceTests(unittest.TestCase):
 
         def forced_code_value_error(path, **kwargs):
             code, skel = original_pair(path, **kwargs)
-            if path == root / "python/src/lib.rs":
+            if path == root / "python/src/errors.rs":
                 code = code.replace(
                     "attach_reason_from_message(value_error_of(message), message)",
                     'with_reason_code(attach_reason_from_message(value_error_of(message), message), "invalid_argument")',
