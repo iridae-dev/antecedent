@@ -83,6 +83,8 @@ pub(crate) fn fit_with_absolute_scale_resolved(
     let Some(indices) = prior.absolute_coefficient_scale() else {
         return fit(prior);
     };
+    // The plug-in reads the design before the delegated fit can validate it.
+    validate_design(BayesLikelihood::GaussianIdentity, design)?;
     let (sigma2, source) = match prior.known_residual_variance() {
         Some(v) => (v, "known residual variance"),
         None => (ols_residual_variance(design)?, "target OLS residual variance, df n-p"),
@@ -1373,6 +1375,42 @@ mod tests {
         let plain = fit(&coef_prior([0.25; 2], ig, false));
         assert_eq!(marked.map, plain.map);
         assert!(plug_in_sigma2(&marked).is_none());
+    }
+
+    #[test]
+    fn absolute_scale_plug_in_rejects_malformed_design_before_reading_it() {
+        let (x, y) = noisy_design(4, 1.0);
+        let short = [1.0];
+        let valid = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let malformed = [
+            ("predictors", BayesDesignRef { x_colmajor: &short, ..valid }),
+            ("outcomes", BayesDesignRef { y: &short, ..valid }),
+            ("weights", BayesDesignRef { weights: Some(&short), ..valid }),
+            ("offsets", BayesDesignRef { offsets: Some(&short), ..valid }),
+        ];
+        for residual in [
+            PriorSpec::ResidualInvGamma(InvGammaPrior::weakly_informative()),
+            PriorSpec::KnownResidualVariance(1.0),
+        ] {
+            let marked = coef_prior([1.0; 2], residual, true);
+            for (field, design) in malformed {
+                let err = fit_conjugate_gaussian(
+                    design,
+                    &marked,
+                    &BayesFitOptions { n_draws: 2, ..BayesFitOptions::default() },
+                    &mut LaplaceWorkspace::default(),
+                )
+                .expect_err(field);
+                assert!(matches!(err, ProbError::Shape { .. }), "{field}: {err:?}");
+            }
+        }
     }
 
     #[test]

@@ -5,7 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-implementation_deviations = []
+implementation_deviations = [
+ "Coefficient covariance uses the conjugate scale convention beta|sigma2 ~ N(m0, sigma2 V0), including dense correlated V0 priors; the supplied coefficient variances are V0, not unconditional beta variances.",
+ "Nonnegative weights enter the Gaussian log likelihood as powers: the NIG shape increment is sum(weights)/2. This is not automatically a calibrated sampling-variance treatment for arbitrary survey or precision weights.",
+ "An absolute coefficient-scale marker is converted to V0 using known residual variance when supplied, otherwise a target-data weighted least-squares residual-variance plug-in with positive-row-count minus coefficient-count degrees of freedom. The latter makes the prior data-dependent; ordinary conjugate formulas conditional on the plug-in do not account for its uncertainty.",
+ "Posterior precision is solved after power-of-two diagonal equilibration; publication uses a condition lower bound for that equilibrated system. Raw-moment-only residual sums of squares carry a rounding-resolution diagnostic; design-backed fits recompute residuals directly.",
+]
 
 papers = [
  { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Normal–Inv-Gamma conjugate linear regression"] },
@@ -16,4 +21,7 @@ upstream_implementations_observed = []
 test_sources = [
  "closed-form OLS recovery on noiseless linear design",
  "conformance/bayesian/conjugate_gaussian",
+ "crates/antecedent-prob/src/conjugate.rs::tests::absolute_scale_plug_in_rejects_malformed_design_before_reading_it (software shape refusal, not posterior accuracy)",
+ "crates/antecedent-prob/src/conjugate.rs::tests::absolute_scale_plug_in_yields_the_stated_absolute_prior_width (conversion consistency and bounded synthetic scale check)",
+ "crates/antecedent-prob/src/conjugate.rs::tests::absolute_scale_plug_in_uses_a_known_residual_variance_exactly (conversion consistency)",
 ]
