@@ -337,10 +337,11 @@ def type_members(items: dict[str, dict[str, str]], type_name: str) -> set[str]:
     for key, value in items.items():
         if key.startswith("export:"):
             continue
-        if key == type_name or key.startswith(type_name + "#"):
-            members.add(key)
-        elif value["kind"] == "method" and (
-            key.startswith(f"<{type_name}>::") or key.startswith(f"<{type_name}<")
+        if (
+            key == type_name
+            or key.startswith(type_name + "#")
+            or value["kind"] == "method"
+            and (key.startswith(f"<{type_name}>::") or key.startswith(f"<{type_name}<"))
         ):
             members.add(key)
     return members

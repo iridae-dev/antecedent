@@ -393,15 +393,15 @@ impl AttributeQuery {
             AttributeTarget::Paths { outcome, .. }
             | AttributeTarget::FeatureRelevance { outcome, .. } => Ok(*outcome),
             AttributeTarget::UnitChange(query) => Ok(query.outcome),
-            AttributeTarget::Anomaly(query) => {
-                query.targets.first().copied().ok_or_else(|| {
-                    QueryError::InvalidAttribute(AttributeFault::AnomalyWithoutTarget)
-                })
-            }
+            AttributeTarget::Anomaly(query) => query
+                .targets
+                .first()
+                .copied()
+                .ok_or(QueryError::InvalidAttribute(AttributeFault::AnomalyWithoutTarget)),
             AttributeTarget::MechanismChange { query, .. } => {
-                query.targets.first().copied().ok_or_else(|| {
-                    QueryError::InvalidAttribute(AttributeFault::MechanismChangeWithoutTarget)
-                })
+                query.targets.first().copied().ok_or(QueryError::InvalidAttribute(
+                    AttributeFault::MechanismChangeWithoutTarget,
+                ))
             }
         }
     }

@@ -79,17 +79,17 @@ mod tests {
     fn signature_scan_ignores_runtime_format_strings_and_reads_multiline_attributes() {
         let source = r#"
             format!("ModelEvaluation(alpha={})", alpha);
-            #[pyo3(signature = (alpha=0.05, seed=1))]
+            #[pyo3(signature = (alpha=0.05))]
             fn first() {}
             #[pyo3(
-                signature = (alpha=None, seed=0)
+                signature = (alpha=None)
             )]
             fn second() {}
         "#;
         let attributes = signature_attributes(source);
         assert_eq!(attributes.len(), 2);
         assert!(attributes[0].contains("alpha=0.05"));
-        assert!(attributes[1].contains("seed=0"));
+        assert!(attributes[1].contains("alpha=None"));
         assert!(attributes.iter().all(|attribute| !attribute.contains("ModelEvaluation")));
     }
 

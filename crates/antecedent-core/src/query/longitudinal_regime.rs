@@ -174,9 +174,9 @@ impl LongitudinalRegimeQuery {
             ));
         }
         let n = self.subject_ids.len();
-        let cells = n.checked_mul(self.periods).ok_or_else(|| {
-            QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::DimensionsOverflow)
-        })?;
+        let cells = n.checked_mul(self.periods).ok_or(QueryError::InvalidLongitudinalRegime(
+            LongitudinalRegimeFault::DimensionsOverflow,
+        ))?;
         if n < 2
             || self.periods == 0
             || self.treatment_history.len() != cells

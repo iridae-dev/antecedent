@@ -957,8 +957,8 @@ impl ResponseQuery {
                     // The contract bounds the cell count only by what `usize`
                     // can address; the execution memory budget bounds
                     // materialization.
-                    treatment.grid.point_count().checked_mul(temporal.horizons.len()).ok_or_else(
-                        || QueryError::InvalidResponse(ResponseFault::DoseHorizonCellOverflow),
+                    treatment.grid.point_count().checked_mul(temporal.horizons.len()).ok_or(
+                        QueryError::InvalidResponse(ResponseFault::DoseHorizonCellOverflow),
                     )?;
                 }
                 ResponseFunctional::InterventionResponse { .. }

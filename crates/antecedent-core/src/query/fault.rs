@@ -76,7 +76,7 @@ pub enum PolicyValueFault {
         "fixed dose rules must name every observed baseline group exactly once with finite targets"
     )]
     FixedDoseGroupCoverage,
-    /// Refused: continuous-dose response requires distinct columns, aligned non-empty baseline groups, finite targets, positive bandwidth, local support of at least two, and known or externally_estimated density provenance
+    /// Refused: continuous-dose response requires distinct columns, aligned non-empty baseline groups, finite targets, positive bandwidth, local support of at least two, and known or `externally_estimated` density provenance
     #[error(
         "continuous-dose response requires distinct columns, aligned non-empty baseline groups, finite targets, positive bandwidth, local support of at least two, and known or externally_estimated density provenance"
     )]
@@ -215,25 +215,25 @@ pub enum InterventionFault {
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum PanelDesignFault {
-    /// Refused: DiD requires at least four aligned rows and metadata vectors
+    /// Refused: `DiD` requires at least four aligned rows and metadata vectors
     #[error("DiD requires at least four aligned rows and metadata vectors")]
     DidRows,
     /// Refused: subject and cluster labels must be non-empty
     #[error("subject and cluster labels must be non-empty")]
     BlankLabels,
-    /// Refused: augmented panel DiD requires nuisance columns
+    /// Refused: augmented panel `DiD` requires nuisance columns
     #[error("augmented panel DiD requires nuisance columns")]
     AugmentedNeedsNuisance,
-    /// Refused: augmented panel DiD requires distinct columns and one unique subject per row
+    /// Refused: augmented panel `DiD` requires distinct columns and one unique subject per row
     #[error("augmented panel DiD requires distinct columns and one unique subject per row")]
     AugmentedColumns,
-    /// Refused: nuisance columns require augmented panel DiD
+    /// Refused: nuisance columns require augmented panel `DiD`
     #[error("nuisance columns require augmented panel DiD")]
     NuisanceNeedsAugmented,
-    /// Refused: staggered DiD requires a selected cohort and period
+    /// Refused: staggered `DiD` requires a selected cohort and period
     #[error("staggered DiD requires a selected cohort and period")]
     StaggeredTarget,
-    /// Refused: staggered DiD requires aligned positive periods, nonnegative cohorts, and a post-adoption target with an observed pre-period
+    /// Refused: staggered `DiD` requires aligned positive periods, nonnegative cohorts, and a post-adoption target with an observed pre-period
     #[error(
         "staggered DiD requires aligned positive periods, nonnegative cohorts, and a post-adoption target with an observed pre-period"
     )]
@@ -254,7 +254,7 @@ pub enum PanelDesignFault {
     /// Refused: rollout covariates must be distinct baseline columns other than the outcome
     #[error("rollout covariates must be distinct baseline columns other than the outcome")]
     RolloutCovariates,
-    /// Refused: a covariate-adjusted two-period DiD needs at least one covariate, the 2x2 estimator and no anticipation
+    /// Refused: a covariate-adjusted two-period `DiD` needs at least one covariate, the 2x2 estimator and no anticipation
     #[error(
         "a covariate-adjusted two-period DiD needs at least one covariate, the 2x2 estimator and no anticipation"
     )]
@@ -272,7 +272,7 @@ pub enum PanelDesignFault {
     /// Refused: augmented synthetic control requires a finite positive ridge penalty
     #[error("augmented synthetic control requires a finite positive ridge penalty")]
     AugmentedRidge,
-    /// Refused: augmented synthetic control cannot be combined with synthetic DiD
+    /// Refused: augmented synthetic control cannot be combined with synthetic `DiD`
     #[error("augmented synthetic control cannot be combined with synthetic DiD")]
     AugmentedWithDid,
     /// Refused: a finite sharp-null effect requires declared uniform single-unit randomization
@@ -288,7 +288,7 @@ pub enum PanelDesignFault {
         "synthetic intervals cannot be combined with a unit-randomization test or a ridge augmentation"
     )]
     IntervalWithRandomizationTest,
-    /// Refused: conformal synthetic intervals take one treated unit and the simplex synthetic control; use placebo variance for several units or synthetic DiD
+    /// Refused: conformal synthetic intervals take one treated unit and the simplex synthetic control; use placebo variance for several units or synthetic `DiD`
     #[error(
         "conformal synthetic intervals take one treated unit and the simplex synthetic control; use placebo variance for several units or synthetic DiD"
     )]
@@ -329,7 +329,7 @@ pub enum InterferenceFault {
     /// Refused: cluster randomization requires clusters and at least one treated cluster
     #[error("cluster randomization requires clusters and at least one treated cluster")]
     ClusterTreatedClusters,
-    /// Refused: two-stage saturation requires aligned clusters, 0 < low < high < 1, and high_clusters > 0
+    /// Refused: two-stage saturation requires aligned clusters, 0 < low < high < 1, and `high_clusters` > 0
     #[error(
         "two-stage saturation requires aligned clusters, 0 < low < high < 1, and high_clusters > 0"
     )]
@@ -339,7 +339,7 @@ pub enum InterferenceFault {
         "observational exposure requires aligned positive propensities and an explicit network exchangeability assumption"
     )]
     ObservedExposure,
-    /// Refused: exposure levels must be finite/distinct and probability_draws must be positive
+    /// Refused: exposure levels must be finite/distinct and `probability_draws` must be positive
     #[error("exposure levels must be finite/distinct and probability_draws must be positive")]
     ExposureLevels,
 }
@@ -399,7 +399,7 @@ pub enum LongitudinalRegimeFault {
         "method requires aligned finite predictions, observation history, and subject-owned folds"
     )]
     MethodPredictions,
-    /// Refused: known fixed outcome predictions require g_formula
+    /// Refused: known fixed outcome predictions require `g_formula`
     #[error("known fixed outcome predictions require g_formula")]
     FixedPredictionsNeedGFormula,
     /// Refused: sequential DR fields require the sequential doubly robust method
@@ -493,7 +493,7 @@ pub enum ResponseFault {
     /// Refused: temporal response dose-by-horizon cell count overflow
     #[error("temporal response dose-by-horizon cell count overflow")]
     DoseHorizonCellOverflow,
-    /// Refused: temporal response policy must be pulse or sustained; Dynamic is a TemporalEffect spelling, not a ResponseCurve cell
+    /// Refused: temporal response policy must be pulse or sustained; Dynamic is a `TemporalEffect` spelling, not a `ResponseCurve` cell
     #[error(
         "temporal response policy must be pulse or sustained; Dynamic is a TemporalEffect spelling, not a ResponseCurve cell"
     )]
@@ -529,7 +529,7 @@ pub enum SequentialContrastFault {
     /// Refused: cross-fitting needs at least two folds and a fold in range for every row
     #[error("cross-fitting needs at least two folds and a fold in range for every row")]
     CrossFitting,
-    /// Refused: min_probability must be in (0, 0.5]
+    /// Refused: `min_probability` must be in (0, 0.5]
     #[error("min_probability must be in (0, 0.5]")]
     MinProbability,
 }
@@ -549,7 +549,7 @@ pub enum SurvivalFault {
     /// Refused: target cause must be a positive event code
     #[error("target cause must be a positive event code")]
     TargetCause,
-    /// Refused: combined delayed entry and known censoring requires marginal IndependentGiven(())
+    /// Refused: combined delayed entry and known censoring requires marginal `IndependentGiven`(())
     #[error("combined delayed entry and known censoring requires marginal IndependentGiven(())")]
     EntryWithKnownCensoring,
     /// Refused: known censoring requires aligned columns, increasing times from zero through tau, and a positive probability floor
@@ -557,7 +557,7 @@ pub enum SurvivalFault {
         "known censoring requires aligned columns, increasing times from zero through tau, and a positive probability floor"
     )]
     KnownCensoring,
-    /// Refused: randomized survival requires IndependentGiven; conditional censoring also requires known censoring survival
+    /// Refused: randomized survival requires `IndependentGiven`; conditional censoring also requires known censoring survival
     #[error(
         "randomized survival requires IndependentGiven; conditional censoring also requires known censoring survival"
     )]
@@ -570,7 +570,7 @@ pub enum SurvivalFault {
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum TransportFault {
-    /// Refused: source_experiments disagree with the evidence catalog
+    /// Refused: `source_experiments` disagree with the evidence catalog
     #[error("source_experiments disagree with the evidence catalog")]
     SourceExperimentsDisagree,
     /// Refused: source and target population keys must be non-empty and distinct
@@ -710,7 +710,7 @@ pub enum AssociationFault {
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum DiscoverFault {
-    /// Refused: the LiNGAM prune threshold must be finite and non-negative
+    /// Refused: the `LiNGAM` prune threshold must be finite and non-negative
     #[error("the LiNGAM prune threshold must be finite and non-negative")]
     LingamPruneThreshold,
     /// Refused: the NOTEARS penalty and threshold must be finite and non-negative
@@ -727,7 +727,7 @@ pub enum DiscoverFault {
     /// Refused: a stability search draws at least 2 resamples
     #[error("a stability search draws at least 2 resamples")]
     StabilityResamples,
-    /// Refused: a stability search re-runs PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, PCMCI+, LPCMCI, J-PCMCI+ or regime PCMCI; a posterior has its own sampling error
+    /// Refused: a stability search re-runs PC, FCI, RFCI, GES, `LiNGAM`, NOTEARS, PCMCI, PCMCI+, LPCMCI, J-PCMCI+ or regime PCMCI; a posterior has its own sampling error
     #[error(
         "a stability search re-runs PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, PCMCI+, LPCMCI, J-PCMCI+ or regime PCMCI; a posterior has its own sampling error"
     )]
@@ -741,7 +741,7 @@ pub enum DiscoverFault {
     /// Refused: the significance level must be in (0, 1)
     #[error("the significance level must be in (0, 1)")]
     SignificanceLevel,
-    /// Refused: a static search takes no lag; set max_lag to 0
+    /// Refused: a static search takes no lag; set `max_lag` to 0
     #[error("a static search takes no lag; set max_lag to 0")]
     StaticSearchLag,
     /// Refused: an MCMC schedule needs at least one chain, draw and thin
@@ -770,7 +770,7 @@ pub enum SimulateFault {
     /// Refused: a noise sample needs at least one draw
     #[error("a noise sample needs at least one draw")]
     NoiseSampleDraws,
-    /// Refused: replayed noise needs n_rows > 0 values for each variable
+    /// Refused: replayed noise needs `n_rows` > 0 values for each variable
     #[error("replayed noise needs n_rows > 0 values for each variable")]
     ReplayedNoiseShape,
     /// Refused: replayed noise must be finite
@@ -779,16 +779,16 @@ pub enum SimulateFault {
     /// Refused: a rollout needs at least one row and one step
     #[error("a rollout needs at least one row and one step")]
     RolloutShape,
-    /// Refused: rollout history needs n_rows values per variable and step
+    /// Refused: rollout history needs `n_rows` values per variable and step
     #[error("rollout history needs n_rows values per variable and step")]
     RolloutHistoryShape,
     /// Refused: a panel replay needs at least one unit and one step
     #[error("a panel replay needs at least one unit and one step")]
     PanelReplayShape,
-    /// Refused: the panel needs n_rows values per variable at every step
+    /// Refused: the panel needs `n_rows` values per variable at every step
     #[error("the panel needs n_rows values per variable at every step")]
     PanelValuesShape,
-    /// Refused: panel history needs n_rows values per variable and step
+    /// Refused: panel history needs `n_rows` values per variable and step
     #[error("panel history needs n_rows values per variable and step")]
     PanelHistoryShape,
     /// Refused: the panel and its history must be finite
@@ -821,7 +821,7 @@ pub enum TemporalDesignFault {
     /// Refused: each (unit, period) must appear on exactly one row
     #[error("each (unit, period) must appear on exactly one row")]
     DuplicateUnitPeriod,
-    /// Refused: min_probability must be in (0, 0.5]
+    /// Refused: `min_probability` must be in (0, 0.5]
     #[error("min_probability must be in (0, 0.5]")]
     MinProbability,
     /// Refused: an outcome misclassification correction applies to the mean of an arm design

@@ -86,7 +86,7 @@ pub enum RandomizedEffectFault {
     /// Refused: complete assignment must match the declared treated count.
     #[error("complete assignment must match the declared treated count")]
     CompleteTreatedCount,
-    /// Refused: complete assignment probabilities must equal treated_units / n.
+    /// Refused: complete assignment probabilities must equal `treated_units / n`.
     #[error("complete assignment probabilities must equal treated_units / n")]
     CompleteProbability,
     /// Refused: assignment and probability must be constant within each randomized cluster.

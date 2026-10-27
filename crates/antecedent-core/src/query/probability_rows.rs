@@ -90,6 +90,7 @@ impl ProbabilityRows {
     }
 
     /// Rows in order; a malformed table yields `len()` empty rows.
+    #[must_use]
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &[f64]> + '_ {
         (0..self.rows).map(|i| self.row(i).unwrap_or(&[]))
     }
