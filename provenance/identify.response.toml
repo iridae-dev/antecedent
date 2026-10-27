@@ -6,9 +6,10 @@ copied_comments = false
 copied_tests = false
 
 implementation_deviations = [
-  "Returns pairwise back-door AverageEffect witnesses for treatment-outcome pairs rather than identifying the requested joint response functional.",
-  "Vector treatments and outcomes are handled independently, so joint-intervention interactions and compatibility of pairwise adjustment sets are not represented.",
-  "Only hard binary-style active/control Set contrasts are emitted.",
+  "A single-treatment response functional (mean curve, average or point derivative, a one-treatment Jacobian or directional derivative, a one-intervention response) is identified pairwise per outcome: back-door adjustment first, then Shpitser-Pearl ID on the DAG-as-ADMG when no adjustment set exists. The binary contrast built for each pair is an identification witness, not a claim that a continuous response is a binary ATE.",
+  "A Jacobian or directional derivative over two or more treatments, and a multi-treatment intervention response, is identified only by one common joint back-door set per outcome (generalized adjustment over all treatments). When no such set exists the query is reported not identified; general ID is not attempted for a joint response, so a joint response that ID could identify in a graph without a joint adjustment set is refused rather than answered. Pairwise sets are never substituted, because they identify single-treatment effects that include paths through the other treatments, not the partial derivative of the joint response.",
+  "Only hard binary-style active/control Set contrasts are emitted as witnesses; the joint route certifies the adjustment set for the response surface and carries no particular treatment levels.",
+  "Joint identification requires complete observation of static data; an incomplete observation process on a multi-treatment query is refused.",
 ]
 
 papers = [
@@ -18,5 +19,28 @@ papers = [
 upstream_implementations_observed = []
 
 test_sources = [
-  "crates/antecedent-identify/src/response.rs",
+  "crates/antecedent-identify/src/response.rs (chain_jacobian_is_the_joint_response_not_the_total_effect, independent_treatments_get_one_joint_estimand_per_outcome, pairwise_sets_do_not_identify_a_joint_derivative_they_cannot_certify_together, jacobian_keeps_every_pair_when_one_needs_general_id)",
+  "crates/antecedent-identify/src/joint_response.rs (joint_and_response_delegation_share_context_without_changing_the_claim and the joint adjustment tests)",
+  "crates/antecedent/tests/refusal_remedy.rs (three independent treatments through the prepared workflow)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ResponseIdentifier::identify in crates/antecedent-identify/src/response.rs for static, completely observed response queries on a known DAG, and specifically the routing of a Jacobian or directional derivative over two or more treatments to joint adjustment (GeneralizedAdjustmentIdentifier::identify_joint_dag_response) instead of per-pair back-door sets. Not a review of the joint adjustment criterion's own proof, of ID, of the response estimators, or of the CPDAG/PAG/ADMG response routes (admg_adjustment.rs), which are separately recorded."
+assumptions = ["Known DAG whose directed edges are complete; unmeasured confounding appears only as explicit nodes.", "The partial derivative of E[Y | do(t_1..t_k)] in one coordinate is a functional of the joint response surface, so identifying it needs the joint interventional mean, not the single-treatment mean E[Y | do(T_j)] that a pairwise back-door set identifies (the latter includes effects through the other treatments).", "A common set Z of non-descendants of the treatments that separates each treatment from the outcome in that treatment's back-door graph, with the other treatments conditioned on, gives E[Y | do(x)] = sum_z E[Y | x, z] P(z) for all treatments at once (generalized back-door criterion, as implemented in joint_response.rs).", "Failure to find such a set is a refusal of the joint route, not a proof that the joint response is unidentified by other means."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and built its counterexamples by hand from the graph definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The tests are repository-authored under MIT OR Apache-2.0. Primary paper is linked by DOI, not redistributed."
+limitations = "The primary paper was not re-read in this review; the section citations are inherited from the earlier record and the joint criterion is taken from joint_response.rs, whose own tests are bound here. Verified on a handful of small hand-built DAGs (a chain, independent treatments, a graph where a treatment is an ancestor of a confounder of another), not exhaustively. Joint response is refused where only general ID could identify it (a joint adjustment set absent); general ID of a multi-treatment interventional distribution is not wired. The ADMG, CPDAG, PAG and temporal response routes still derive per-pair sets (response_pairs) and are not changed by this review. No claim about estimator behavior or calibration."
+sources = ["https://doi.org/10.1093/biomet/82.4.669"]
+findings_resolved = ["Defect found and fixed: a Jacobian or directional derivative over two or more treatments was identified by one back-door set per treatment/outcome pair and labelled nonparametrically identified, which identifies each single-treatment effect rather than the partial derivative of the joint response (for T1 -> T2 -> Y it reported the total effect of T1 where the joint partial is the direct effect). Such queries now take the joint adjustment route, with one estimand per outcome, or are reported not identified.", "Executing tests: the chain graph yields a single joint mean estimand (not per-pair contrasts) for both Jacobian and directional derivative; independent treatments yield one empty-set joint estimand per outcome; a graph in which pairwise sets exist but no common joint set does (T1 -> U -> T2, U -> Y, T2 -> Y) is reported not identified while the single-treatment derivative of T2 is still identified with {U}; the three-independent-treatment derivative workflow still passes.", "Rewrote the stale deviation text, which claimed pairwise witnesses only and no fallback, to describe the back-door, general-ID and joint routes actually taken."]
+record_sha256 = "27c5d46f23a2a0a5de4853be0f7099c75205168a8f231cad74c7b928921d0310"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/response.rs"
+sha256 = "51247f2ae2a7b69540faef4402006b750b126e0d4529fe712db2835d82f04189"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/src/joint_response.rs"
+sha256 = "72c03e50f0feb597f6d3be0498599ec34bc49c3fa1be122d48c24c06b9082f7e"
