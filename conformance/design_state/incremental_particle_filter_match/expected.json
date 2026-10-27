@@ -7,5 +7,17 @@
   "process_std": 0.3,
   "obs_std": 0.5,
   "stable_float_tol": 1e-10,
-  "notes": "Stepwise ParticleFilterState matches run_batch under CRN."
+  "notes": "Stepwise ParticleFilterState matches run_batch under CRN.",
+  "evidence_kind": "internal_cross_check",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_source": "crates/antecedent/tests/design_state.rs::incremental_particle_filter_match_conformance",
+  "evidence_proposition": "With the declared observations, particle count and streams, stepwise and run_batch execution agree in weighted mean and ESS within 1e-10, and consume all thirty observations.",
+  "limitations": "Both paths use the same product particle-filter implementation and RNG. This is interface/stream consistency, not independent filter accuracy, Kalman equivalence, posterior calibration or model validity. Historical authorship/exposure cannot be established from this input-only fixture.",
+  "oracle": {
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  }
 }

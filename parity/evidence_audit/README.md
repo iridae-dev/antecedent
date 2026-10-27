@@ -199,7 +199,7 @@ keeps its documented drop-last rule. These are limits on comparator parity.
 
 Two more reference reviews and one bounded primary implementation review bind
 the exact Vehtari/Geyer sections, assumptions, source, assertions and fixtures.
-Citation/deviation-content edits also make that method review stale. This is
+Citation/deviation-content edits also make that method review stale. There are
 two reviewed method records among 495; other primary reviews remain open.
 
 The second bounded primary review covers BH/BY/Bonferroni/Holm adjusted p-values
@@ -211,6 +211,18 @@ pinned reference cases pass. Underlying p-value validity and adaptive discovery
 families remain outside this review; raw contemporaneous tests do not inherit
 the lagged family's FDR control. The Holm citation retains its publisher stable
 identifier without asserting a DOI-registry verification that did not resolve.
+
+Artifact migration and incremental particle-filter input fixtures now name their
+actual software propositions and executing assertions. Current-format wire
+preservation does not establish every historical migration, and agreement of
+stepwise/batch paths sharing one filter and RNG is not independent filter
+accuracy. Original fixture inputs and tolerances are unchanged; historical
+authorship/exposure remains unknown.
+
+The workspace doctest run passes 17 tests across 25 crate targets, with three
+existing ignored illustrative snippets (facade GCM/prelude and attribution).
+Those snippets provide no executing evidence. Its local execution receipt marks
+the changing checkout explicitly; it is not a branch calibration attestation.
 The prior-support reference now reproduces 24 domain cases in its own pinned
 SciPy environment. Exact evidence fields cover support and coefficient precision;
 upstream normalization checks are separate fixture context, not product density

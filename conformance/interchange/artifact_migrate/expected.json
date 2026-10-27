@@ -10,5 +10,17 @@
     "causal_posterior",
     "model_bundle"
   ],
-  "migration": "0_1_to_0_2_to_0_3_to_0_4_to_0_5"
+  "migration": "0_1_to_0_2_to_0_3_to_0_4_to_0_5",
+  "evidence_kind": "regression_pin",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_source": "crates/antecedent/tests/artifact_migrate.rs::conformance_migrate_stable_kinds_round_trip",
+  "evidence_proposition": "The fixture matches the live stable-format constants and four current artifact kinds; encoding, migration/reading and decoding preserve their sections.",
+  "limitations": "Software serialization and format-drift coverage. The migration-name string is not proof that every historical version transition executes. Separate historical model-bundle and interval tests retain their own scope. No independent scientific model or numeric oracle is claimed.",
+  "oracle": {
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  }
 }
