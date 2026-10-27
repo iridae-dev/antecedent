@@ -143,23 +143,21 @@ fn discovery_pcmci_lag1_exact_parents() {
     );
     assert_eq!(result.algorithm.id.as_ref(), "pcmci");
 
-    // When the fixture was generated against pinned discovery-parity, also require
-    // our recovered set to match the black-box comparator parents.
+    // The retained pinned comparator is required and its parent set must match.
     let tig = &expected["reference"];
     let outs = &tig["outputs"];
-    if tig["available"].as_bool() == Some(true) {
-        let mut tig_set = BTreeSet::new();
-        for p in outs["recovered_parents"].as_array().expect("recovered_parents") {
-            tig_set.insert((
-                name_to_id(p["source"].as_str().unwrap()).raw(),
-                p["source_lag"].as_u64().unwrap() as u32,
-                name_to_id(p["target"].as_str().unwrap()).raw(),
-                p["target_lag"].as_u64().unwrap() as u32,
-            ));
-        }
-        assert_eq!(
-            recovered, tig_set,
-            "Rust PCMCI vs discovery-parity black-box mismatch: rust={recovered:?} discovery={tig_set:?}"
-        );
+    assert_eq!(tig["available"].as_bool(), Some(true), "required frozen comparator");
+    let mut tig_set = BTreeSet::new();
+    for p in outs["recovered_parents"].as_array().expect("recovered_parents") {
+        tig_set.insert((
+            name_to_id(p["source"].as_str().unwrap()).raw(),
+            p["source_lag"].as_u64().unwrap() as u32,
+            name_to_id(p["target"].as_str().unwrap()).raw(),
+            p["target_lag"].as_u64().unwrap() as u32,
+        ));
     }
+    assert_eq!(
+        recovered, tig_set,
+        "Rust PCMCI vs discovery-parity black-box mismatch: rust={recovered:?} discovery={tig_set:?}"
+    );
 }

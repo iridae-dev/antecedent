@@ -14,11 +14,82 @@
   "n": 500,
   "scm": "x_t ~ N(0,1); y_t = 0.8 * x_{t-1} + 0.2 * N(0,1); seed=0",
   "generation": {
-    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
+    "script": "conformance/discovery/pcmci_lag1/reference.py",
     "baseline_pin": "parity/baselines/tigramite.toml",
-    "env": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30"
+    "env": "uv run --frozen --script conformance/discovery/pcmci_lag1/reference.py --check --self-test"
   },
   "reference": {
+    "project": "tigramite",
+    "available": true,
+    "version": "5.2.1.30",
+    "commit": "5a8768754e6103755b006e9357e21c1a58534927",
+    "command": "uv run --frozen --script conformance/discovery/pcmci_lag1/reference.py --check --self-test",
+    "note": "Retained public PCMCI/PCMCI+ black-box reference on the original frozen CSV; original outputs and historical generation metadata preserved.",
+    "outputs": {
+      "graph_shape": [
+        2,
+        2,
+        3
+      ],
+      "recovered_parents": [
+        {
+          "source": "x",
+          "source_lag": 1,
+          "target": "y",
+          "target_lag": 0
+        }
+      ],
+      "alpha": 0.05,
+      "max_lag": 2,
+      "pin_note": "PyPI 5.2.1.25 unavailable; fixture generated with 5.2.1.30 (same 5.2.1 line as parity pin)"
+    },
+    "generator_retained": true,
+    "generator": "conformance/discovery/pcmci_lag1/reference.py",
+    "environment_lock": "conformance/discovery/pcmci_lag1/reference.py.lock"
+  },
+  "oracle": {
+    "kind": "external_package",
+    "project": "Tigramite",
+    "version": "5.2.1.30",
+    "source": "Retained independent public Tigramite 5.2.1.30 run reproduces the recorded scalar graph outputs on the original CSV.",
+    "note": "the recovered parent set is also the generating SCM's (scm field)",
+    "reference_review": {
+      "scope": "Exact scalar directed lagged-parent set on one frozen 500-row linear two-variable series.",
+      "independence_basis": "The independently authored harness reads the original CSV directly using NumPy and calls public Tigramite DataFrame, ParCorr and PCMCI APIs. It imports no product/test code, generates no expectations from product outputs, and checks input hashes and fixed scenario coordinates. The product CSV parser and JSON loader were inspected separately; helper and input bytes are bound below.",
+      "historical_exposure": "The original harness was deleted after import. Historical author exposure is unknown. Current review used official Tigramite public API documentation and inspected product assertions; upstream algorithm/test source was not consulted or copied.",
+      "redistribution": "Repository-authored black-box harness, fixed synthetic CSV and metadata remain MIT OR Apache-2.0. Upstream code is neither copied nor linked into the product; the complete locked comparator environment remains isolated tooling outside ordinary CI.",
+      "limitations": "One fixed linear Gaussian/partial-correlation realization with analytic CI significance, pc_alpha=alpha and maximum conditioning dimension two. It establishes this graph comparison, not general causal discovery accuracy, error rates, nonlinear/categorical/weighted behavior, latent-variable identification, uncertainty or calibration. The masked case uses a common binary row mask; arbitrary missingness mechanisms are outside scope. The PCMCI+ product canonicalizes contemporaneous links, so endpoint parity is not established. Original unavailable-version notes remain historical context; the retained environment uses the actual recorded 5.2.1.30 package.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/discovery/pcmci_lag1/reference.py",
+          "sha256": "da7f08bc88f14ff5f24d683f24d5cde4bac6a459ef549b24fd1efc1cb46248d1"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/discovery/pcmci_lag1/reference.py.lock",
+          "sha256": "b8a907061adfa47e97d91864eca40ceae23d962832e835816a96e9e7a62bc828"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-discovery/tests/discovery_pcmci_lag1.rs",
+          "sha256": "83707042288cc692fe7c09c4ec8ad9dcee36f61a36458c01513edb7875ce3506"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/discovery/pcmci_lag1/data.csv",
+          "sha256": "7f9eee556c62096679889389cc002c8f0e4c91aa4d3bfbd2d1cf43188bc3458b"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "crates/antecedent-test-support/src/lib.rs",
+          "sha256": "8c0c57ad6b392c147aecc2e0e925caee6a7fbfc16734d705a0b542900b9fc72e"
+        }
+      ],
+      "fixture_payload_sha256": "596557d76847700fe01cdac3cc5956c8f7e7eff06ee24a73e9f96b2742f08ef7"
+    }
+  },
+  "historical_reference": {
     "project": "tigramite",
     "available": true,
     "version": "5.2.1.30",
@@ -44,7 +115,12 @@
       "pin_note": "PyPI 5.2.1.25 unavailable; fixture generated with 5.2.1.30 (same 5.2.1 line as parity pin)"
     }
   },
-  "oracle": {
+  "historical_generation": {
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
+    "baseline_pin": "parity/baselines/tigramite.toml",
+    "env": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30"
+  },
+  "historical_oracle": {
     "kind": "external_package",
     "project": "Tigramite",
     "version": "5.2.1.30",

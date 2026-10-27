@@ -145,7 +145,7 @@ assertions pass; the ten foundations assertions pass. These are fixed-input
 comparisons. Temporal Sobel uncertainty is checked only under explicit iid
 opt-in, and GAM fit outputs remain product regression pins.
 
-Eighteen retained reference reviews bind generator, transitive comparison
+Twenty-three retained reference reviews bind generator, transitive comparison
 helper, lock, assertion source and fixture payload by digest. Gates reject
 changed inputs, expected outputs, tolerances, origins, assertions and helpers
 until reviewed again. Reviews record limited independence, redistribution
@@ -262,3 +262,28 @@ Complete those reviews and repairs, broaden the remaining method-family grids,
 and repeat complete ordinary/feature/CI verification on a stable revision with
 comparable build/runtime/resource reports. The documentation pass is being
 handled separately. Q08/E14 and Q11 remain deferred until the frozen candidate.
+
+The two original DoWhy identification fixtures now reproduce their complete
+printed outputs in a retained locked environment. Product checks require an
+estimand expression, since DoWhy prints method headings even when identification
+fails. All 481 active identification unit tests pass; three existing tests remain
+ignored. These graph-specific comparisons establish no effect-estimation or
+uncertainty claim.
+
+Three scalar Tigramite fixtures now retain independent PCMCI/PCMCI+ generators
+for ordinary lagged, common-row-masked and contemporaneous-link scenarios. Their
+original CSVs, parent sets and endpoint-marked comparator outputs reproduce
+exactly. All three product assertions pass; the ordinary PCMCI assertion now
+requires its comparator instead of conditionally bypassing it. The PCMCI+ product
+assertion still canonicalizes contemporaneous adjacency, so it earns no endpoint
+parity claim. Frozen CSV inputs are digest-bound artifacts; corruption and missing
+inputs fail the ordinary audit without installing an upstream package.
+
+The Gaussian absolute-scale prior audit found and repaired an input-shape panic:
+residual-variance estimation read malformed slices before the delegated fit's
+validation. Predictors, outcomes, weights and offsets now refuse with shape
+errors before those reads, for both known and estimated residual variance. All
+190 probability-library unit tests pass. The provenance record explicitly
+separates conjugate scale parameters, power-likelihood weights and the
+data-dependent residual-variance plug-in from calibrated uncertainty claims.
+This repair does not close the outstanding primary-method review.
