@@ -116,7 +116,7 @@ pub enum CyclicArtifactError {
     #[error(transparent)]
     WorldRefusal(#[from] antecedent_model::cyclic_world::CyclicInterventionRefusal),
     /// A native scientific refusal, distinct from argument, execution and replay failures.
-    #[error("reason={code}: {message}; next attempt: {next_attempt}")]
+    #[error("{prefix}{code}: {message}; next attempt: {next_attempt}", prefix = antecedent_core::reason_code::PREFIX)]
     ScientificRefusal {
         /// Registered native scientific reason.
         code: &'static str,

@@ -839,9 +839,8 @@ def tag_facets(records: dict[str, dict]) -> None:
     surface = facets.load_surface()
     if surface.errors:
         raise SystemExit("scripts/calibration_surface.list: " + "; ".join(surface.errors))
-    refs = facets.references(surface)
     for rec in records.values():
-        rec["facets"] = facets.record_facets(rec, surface, refs)
+        rec["facets"] = facets.record_facets(rec, surface)
 
 
 def keep_attested(measured: dict[str, dict]) -> dict[str, dict]:

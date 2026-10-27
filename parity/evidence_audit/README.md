@@ -93,6 +93,20 @@ ordinary feedback measurements are not performance acceptance evidence; Cargo
 build timings and nextest/pytest durations still separate build and execution
 costs. A failed-child control confirms that receipt generation preserves failure.
 
+The schema gate distinguishes explanatory `reason` prose from typed
+`calibration_reason`/`reason_code` fields, including within prose-bearing
+registries. Device fallback codes remain a separate vocabulary, scoped to the
+exact `FallbackReason` implementation; other code methods in that module still
+require scientific reason-code validation. Comment/string decoys and formatting
+changes have fault controls.
+
+The mechanism dependency correction widened derived facet tags on 17 historical
+records. All 1,472 record identities, measurements, original source SHAs, surface
+blobs and attestations are unchanged. This adds dependencies; it grants no current
+attestation. Retagging no longer builds an unused current-source reference graph:
+the tags derive from the record fields and surface keys alone. Twenty-nine
+classification controls and 62 collector controls pass.
+
 `bash scripts/test.sh scripts` discovers all script unit tests in a locked,
 isolated Python environment. The full run executed 517 controls successfully in
 322.91 seconds, with two explicitly pending external-performance-probe consumers.

@@ -7,6 +7,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import ensure_scripts_on_path
+from parity_rows import reason_obligation, runtime_code_literals
 
 root = Path(".")
 print_counts = "--print-counts" in sys.argv
@@ -21,21 +22,10 @@ else:
     vocab = tomllib.loads(vocab_path.read_text(encoding="utf-8"))
 codes = {row["id"]: row for row in vocab.get("code", [])}
 uses = {cid: 0 for cid in codes}
-applies_fields = ("reason", "calibration_reason", "reason_code")
 # support_{closed,n_a,axes} `reason` fields are matrix prose, not vocabulary ids.
 # Do not re-code those pre-existing typed refusals.
-_REASON_PROSE = {
-    "reason_codes.toml",
-    "support_closed.toml",
-    "support_n_a.toml",
-    "support_axes.toml",
-    # Facade-surface `reason` explains how Python reaches an entry or why it has none.
-    "python_facade_surface.toml",
-    # An interval-level exception's `reason` explains why the runtime publishes no interval.
-    "interval_level_exceptions.toml",
-}
 for path in sorted(root.glob("parity/*.toml")):
-    if path.name in _REASON_PROSE:
+    if path.name == "reason_codes.toml":
         continue
     text = path.read_text(encoding="utf-8")
     try:
@@ -47,21 +37,13 @@ for path in sorted(root.glob("parity/*.toml")):
     def walk(obj, path=path):
         if isinstance(obj, dict):
             for key, value in obj.items():
-                if key in applies_fields and isinstance(value, str) and value.strip():
+                obligation = reason_obligation(path, key)
+                if obligation and isinstance(value, str) and value.strip():
                     cid = value.strip()
                     if cid not in codes:
                         problems.append(f"{path}: unknown reason {cid!r}")
                     else:
                         uses[cid] += 1
-                        obligation = {
-                            "calibration_reason": "calibration",
-                            "reason_code": "runtime_refusal",
-                            "reason": "python_product"
-                            if path.name == "python_products.toml"
-                            else "claim",
-                        }[key]
-                        if path.name == "support_licensed.toml" and key == "calibration_reason":
-                            obligation = "calibration"
                         if obligation not in codes[cid].get("applies_to", []):
                             problems.append(f"{path}: {cid} does not apply to {obligation}")
                 else:
@@ -92,12 +74,11 @@ for cid, n in uses.items():
 # callers switch on; each must be in the closed vocabulary.
 for src in sorted(root.glob("crates/*/src/**/*.rs")):
     text = src.read_text(errors="ignore", encoding="utf-8")
-    for fn_body in re.findall(r"fn code\(&self\) -> &'static str \{(.*?)\n    \}", text, re.S):
-        for literal in re.findall(r'=>\s*"([a-z][a-z0-9_]+)"', fn_body):
-            if literal not in codes:
-                problems.append(
-                    f"{src}: fn code returns {literal!r}, absent from parity/reason_codes.toml"
-                )
+    for literal in runtime_code_literals(src, text):
+        if literal not in codes:
+            problems.append(
+                f"{src}: fn code returns {literal!r}, absent from parity/reason_codes.toml"
+            )
 
 # --- python_products ---
 pp = root / "parity/python_products.toml"

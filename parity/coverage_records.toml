@@ -12580,7 +12580,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_frontdoor_latent_district"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_latent_district"
-facets = ["core", "estimator.counterfactual_transport", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "suite.counterfactual_transport_sampled_oracle"]
+facets = ["core", "estimator.counterfactual_transport", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "mechanism", "suite.counterfactual_transport_sampled_oracle"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12616,7 +12616,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_mediation_covariate_shift"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_mediation_covariate_shift"
-facets = ["core", "estimator.counterfactual_transport", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "suite.counterfactual_transport_sampled_oracle"]
+facets = ["core", "estimator.counterfactual_transport", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "mechanism", "suite.counterfactual_transport_sampled_oracle"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12652,7 +12652,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_two_source_joint_counterfactual_transport"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_two_source_joint"
-facets = ["core", "estimator.counterfactual_transport", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "suite.counterfactual_transport_sampled_oracle"]
+facets = ["core", "estimator.counterfactual_transport", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "mechanism", "suite.counterfactual_transport_sampled_oracle"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25534,7 +25534,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l90"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25570,7 +25570,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l90_draws_8000"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25606,7 +25606,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_declared_measured_signal_se_090_sp_085_evidence_m1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_measured_signal_l90"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25642,7 +25642,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_declared_measured_signal_se_090_sp_085_evidence_m1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_measured_signal_l90_draws_8000"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25678,7 +25678,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25714,7 +25714,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95_draws_8000"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25750,7 +25750,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95_rows_1000_draws_2000"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25786,7 +25786,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95_rows_1000_draws_3000"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25822,7 +25822,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95_rows_1000_draws_4000"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25858,7 +25858,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95_rows_1000_draws_8000"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25894,7 +25894,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_declared_measured_signal_se_090_sp_085_evidence_m1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_measured_signal_l95"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25930,7 +25930,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_declared_measured_signal_se_090_sp_085_evidence_m1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_measured_signal_l95_draws_8000"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25966,7 +25966,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::rare_conditioning_event_ps1_about_003_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_rare_evidence_boundary_l95"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26002,7 +26002,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::rare_parent_configuration_pz1_004_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_sparse_parent_configuration_boundary_l95"
-facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "mechanism", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 

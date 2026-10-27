@@ -30,6 +30,25 @@ from reference_compare import values_close
 
 
 class Classification(unittest.TestCase):
+    def test_reason_namespaces_keep_prose_and_device_fallbacks_out_of_scientific_codes(self):
+        from parity_rows import reason_obligation, runtime_code_literals
+
+        for name in ("counterparts.toml", "support_graphless.toml", "estimator_route_residual.toml", "test_refactor_dispositions.toml"):
+            self.assertIsNone(reason_obligation(Path(name), "reason"))
+            self.assertEqual(reason_obligation(Path(name), "calibration_reason"), "calibration")
+            self.assertEqual(reason_obligation(Path(name), "reason_code"), "runtime_refusal")
+        self.assertEqual(reason_obligation(Path("python_products.toml"), "reason"), "python_product")
+        self.assertEqual(reason_obligation(Path("support_licensed.toml"), "calibration_reason"), "calibration")
+        body = "pub const fn code(&self) -> &'static str {\n        match self { Self::Missing => \"no_device\" }\n    }"
+        fallback = "impl FallbackReason {\n    " + body + "\n}"
+        path = Path("crates/antecedent-learn-burn/src/policy.rs")
+        self.assertEqual(runtime_code_literals(path, fallback), [])
+        self.assertEqual(runtime_code_literals(path, fallback + "\nimpl ScientificError {\n    " + body + "\n}"), ["no_device"])
+        self.assertEqual(runtime_code_literals(Path("crates/other/src/error.rs"), fallback), ["no_device"])
+        self.assertEqual(runtime_code_literals(path, "// " + body.splitlines()[0] + "\n"), [])
+        self.assertEqual(runtime_code_literals(path, 'const DECOY: &str = r#"' + body + '"#;'), [])
+        self.assertEqual(runtime_code_literals(Path("crates/other/src/error.rs"), fallback.replace("fn code(&self)", "fn   code ( &self )")), ["no_device"])
+
     def test_registered_rust_acceptance_requires_exact_live_discovery(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -36,6 +36,46 @@ _RUST_TEST = re.compile(r"#\[\s*(?:tokio::)?test\b")
 _PY_TEST = re.compile(r"^(?:async\s+)?def\s+test\w*\s*\(", re.M)
 RETIRED = ("intentional_deviation",)
 
+# These schemas use `reason` for explanatory prose. Their explicitly typed
+# calibration_reason/reason_code fields still consume the closed vocabulary.
+REASON_PROSE_SCHEMAS = frozenset({
+    "support_closed.toml", "support_n_a.toml", "support_axes.toml",
+    "support_graphless.toml", "python_facade_surface.toml",
+    "interval_level_exceptions.toml", "counterparts.toml",
+    "estimator_route_residual.toml", "test_refactor_dispositions.toml",
+})
+
+
+def reason_obligation(path: Path, key: str) -> str | None:
+    if key == "calibration_reason":
+        return "calibration"
+    if key == "reason_code":
+        return "runtime_refusal"
+    if key == "reason" and path.name not in REASON_PROSE_SCHEMAS:
+        return "python_product" if path.name == "python_products.toml" else "claim"
+    return None
+
+
+def runtime_code_literals(path: Path, text: str) -> list[str]:
+    """Scientific refusal codes, excluding one separately typed device vocabulary.
+
+    A device fallback diagnostic is not a scientific refusal. The exception is
+    scoped to its exact module and impl, not every code() method in that file.
+    """
+    from test_evidence import mask_rust, _match_bracket
+
+    masked = mask_rust(text)
+    impls = [(m.group(1), m.end() - 1, _match_bracket(masked.skeleton, m.end() - 1))
+             for m in re.finditer(r"\bimpl\s+(\w+)\s*\{", masked.skeleton)]
+    found = []
+    for method in re.finditer(r"\bfn\s+code\s*\(\s*&self\s*\)\s*->\s*&\s*'static\s+str\s*\{", masked.skeleton):
+        owners = [name for name, start, end in impls if start < method.start() < end]
+        if path.as_posix() == "crates/antecedent-learn-burn/src/policy.rs" and owners == ["FallbackReason"]:
+            continue
+        end = _match_bracket(masked.skeleton, method.end() - 1)
+        found.extend(re.findall(r'=>\s*"([a-z][a-z0-9_]+)"', masked.code[method.end():end]))
+    return found
+
 
 def rows(path: str | Path, table: str = "capabilities") -> list[dict]:
     """Rows of `[[table]]` in `path` (relative to the repo root), parsed by tomllib."""

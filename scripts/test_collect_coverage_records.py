@@ -667,6 +667,21 @@ UPPER = {"side": "upper", "target": "true upper extremal bound U"}
 
 
 class FacetTaggingTest(unittest.TestCase):
+    def test_retag_widens_dependencies_without_changing_measurement_or_attestation(self):
+        record = {"id": "historical", "query": "ObservationConditionalProbability",
+                  "calibration_sha": "a" * 40, "observed": 0.95,
+                  "replicates": 400, "facets": ["core"]}
+        before = dict(record)
+        surface = collector.facets.Surface(keys=[("mechanism", "query", ["ObservationConditionalProbability"])])
+        with (
+            patch.object(collector.facets, "load_surface", return_value=surface),
+            patch.object(collector.facets, "references", side_effect=AssertionError("record-owned tags must not borrow a current source graph")),
+        ):
+            collector.tag_facets({"historical": record})
+        self.assertEqual(record["facets"], ["core", "mechanism"])
+        self.assertEqual({k: v for k, v in record.items() if k != "facets"},
+                         {k: v for k, v in before.items() if k != "facets"})
+
     def test_empty_measurement_needs_no_repository_reference_scan(self):
         with (
             patch.object(collector.facets, "load_surface") as surface,
