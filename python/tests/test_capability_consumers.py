@@ -4,7 +4,7 @@ import json
 import struct
 
 import pytest
-from antecedent import _native
+from antecedent import _native, estimate, prepare
 from antecedent.errors import (
     CausalCancelledError,
     CausalResourceError,
@@ -13,6 +13,7 @@ from antecedent.errors import (
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.mechanism_composition import MeanContrast, MechanismCompositionRefusal
 from antecedent.outcomes import require_success
+from antecedent.transport import TransportEvaluation
 from antecedent.transport import advanced as transport
 
 from test_mechanism_composition import chain, compose, finite_chain
@@ -93,11 +94,12 @@ def _cbor_write(value):
 
 def _exact_bytes():
     identified, catalog, data = fixture()
-    prepared = transport.prepare_exact(identified, catalog, data, at={"x": 1.0})
-    result = require_success(prepared.estimate())
+    prepared = prepare(data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0}))
+    outcome = estimate(prepared)
+    result = require_success(outcome)
     assert result.probabilities == pytest.approx((0.3, 0.7))
     assert result.mean("y") == pytest.approx(0.35 / (0.15 + 0.35))
-    return bytes(prepared.export())
+    return bytes(outcome.export())
 
 
 @pytest.mark.parametrize("changed", ["proof", "law", "target_claim", "identity"])
@@ -108,7 +110,7 @@ def test_native_exact_consumer_rejects_semantically_changed_records(changed, mon
     # The test codec itself must preserve a valid native semantic consumer path.
     unchanged = _EXACT_PREFIX + _cbor_write([names, list(_cbor_write(record))])
     replay = transport.consume_exact(unchanged)
-    assert require_success(replay.estimate()).probabilities == pytest.approx((0.3, 0.7))
+    assert replay.probabilities == pytest.approx((0.3, 0.7))
     if changed == "proof":
         record["proof"]["proof"]["graph_signature"] = "substituted-graph"
     elif changed == "law":
@@ -138,31 +140,28 @@ def test_native_exact_consumer_rejects_semantically_changed_records(changed, mon
     assert calls == [damaged]
 
 
-@pytest.mark.parametrize("control", ["operations", "depth", "memory", "shared_memory", "cancel"])
+@pytest.mark.parametrize("control", ["operations", "depth", "memory", "cancel"])
 def test_native_exact_consumer_honors_limits_and_cancellation(control):
     artifact = _exact_bytes()
     if control == "operations":
         with pytest.raises(CausalResourceError, match="limit|budget"):
-            transport.consume_exact(artifact, max_operations=1)
+            transport.consume_exact(artifact, evaluation=TransportEvaluation(max_operations=1))
     elif control == "depth":
         with pytest.raises(CausalResourceError, match="limit|budget"):
-            transport.consume_exact(artifact, max_depth=1)
+            transport.consume_exact(artifact, evaluation=TransportEvaluation(max_depth=1))
     elif control == "memory":
-        with pytest.raises(CausalResourceError, match="memory budget"):
-            transport.consume_exact(artifact, memory_bytes=1)
-    elif control == "shared_memory":
-        # Shared execution reaches Rust's ctx limit, not the explicit byte precheck.
+        # The shared execution reaches Rust's context limit, not a Python byte precheck.
         policy = Execution(limits=ResourceLimits(memory_bytes=1))
         with pytest.raises(CausalResourceError, match="budget|memory|admission"):
-            policy._call(transport.consume_exact, artifact)
+            transport.consume_exact(artifact, execution=policy)
     else:
         token = _native.CancellationToken()
         token.cancel()
         with pytest.raises(CausalCancelledError, match="cancel"):
-            transport.consume_exact(artifact, cancel=token)
+            transport.consume_exact(artifact, execution=Execution(cancel=token))
     # A rejected consumer does not withdraw or mutate the independent producer bytes.
     replay = transport.consume_exact(artifact)
-    assert require_success(replay.estimate()).mean("y") == pytest.approx(0.7)
+    assert replay.mean("y") == pytest.approx(0.7)
 
 
 def test_native_exact_consumer_replays_the_embedded_law_without_a_producer():
@@ -171,14 +170,13 @@ def test_native_exact_consumer_replays_the_embedded_law_without_a_producer():
     consumed = transport.consume_exact(artifact)
     assert consumed.acceptance.verified
     assert consumed.acceptance.replayable
-    assert consumed.acceptance.resumable
+    # A consumed read model cannot resume: re-estimation rebinds the original data.
+    assert not consumed.acceptance.resumable
     plan = consumed.inspect()
     assert plan.identification.available
     assert not plan.uncertainty.available
-    replayed = require_success(consumed.estimate())
-    assert replayed.probabilities == pytest.approx((0.3, 0.7))
-    assert replayed.mean("y") == pytest.approx(0.35 / (0.15 + 0.35))
-    assert replayed.inspect().program_id == plan.program_id
+    assert consumed.probabilities == pytest.approx((0.3, 0.7))
+    assert consumed.mean("y") == pytest.approx(0.35 / (0.15 + 0.35))
     assert bytes(consumed.export()) == artifact
 
 

@@ -53,7 +53,7 @@ def main() -> None:
     )
     result = ant.analyze(data, graph=graph, query=query)
     assert result.answer.kind == "response"
-    assert [row[0] for row in result.response.values] == [0.5, 0.8]
+    assert [row[0] for row in result.value.response.values] == [0.5, 0.8]
     _slots(result, uncertainty=False)
     print(result)
 
@@ -77,9 +77,12 @@ def main() -> None:
             ),
         )
     )
-    refreshed = result.refresh(replacement)
-    assert [row[0] for row in refreshed.response.values] == [0.4, 0.7]
-    consumed = ant.load(result.export())
+    # Rebinding branches the study on the replacement laws; the first result is unchanged.
+    refreshed = ant.estimate(ant.rebind(result.study, data=replacement))
+    assert [row[0] for row in refreshed.value.response.values] == [0.4, 0.7]
+    assert [row[0] for row in result.value.response.values] == [0.5, 0.8]
+    artifact = result.export()
+    consumed = ant.load(artifact, expected=artifact.expectation)
     assert consumed is not None
     print(refreshed)
 

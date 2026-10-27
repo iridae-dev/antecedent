@@ -85,10 +85,9 @@ def test_sequential_contrast_posterior_is_the_modular_dirichlet_posterior() -> N
             _panel(),
             query=_contrast_query(),
             inference=ant.Bayesian(backend="conjugate", n_draws=2000),
-            return_posterior_artifact=True,
             estimator=Estimator.BAYESIAN_SEQUENTIAL_CROSSFIT_CONTRAST,
             refute="none",
-            seed=3,
+            execution=ant.Execution(seed=3),
         )
     )
     fit = result.sequential_contrast
@@ -129,7 +128,9 @@ def test_sequential_contrast_refusals_and_estimator_ids_are_typed() -> None:
 
 def _draws(result: object) -> np.ndarray:
     """The retained joint draws (stored quantity by quantity): a row per draw, a column per quantity."""
-    artifact = ant.inference.decode_posterior_artifact(result.posterior.artifact)  # type: ignore[attr-defined]
+    artifact = ant.inference.decode_posterior_artifact(
+        bytes(result.export(quantity="record"))  # type: ignore[attr-defined]
+    )
     flat = np.asarray(artifact.draws)
     return flat.reshape(len(artifact.quantity_names), artifact.n_draws).T
 
@@ -153,9 +154,8 @@ def test_binary_policy_posterior_matches_the_hand_scores() -> None:
             {"y": np.array([3.0, 5.0, 2.0, 1.0])},
             query=_policy_query(),
             inference=ant.Bayesian(backend="conjugate", n_draws=6000),
-            return_posterior_artifact=True,
             refute="none",
-            seed=5,
+            execution=ant.Execution(seed=5),
         )
     )
     value = result.policy_value
@@ -197,9 +197,8 @@ def test_sequential_regime_posterior_matches_the_hand_recursion() -> None:
             {"y": np.array([5.0, 4.0, 3.0, 0.0])},
             query=_regime_query(),
             inference=ant.Bayesian(backend="conjugate", n_draws=6000),
-            return_posterior_artifact=True,
             refute="none",
-            seed=6,
+            execution=ant.Execution(seed=6),
         )
     )
     regime = result.longitudinal_regime
@@ -385,10 +384,9 @@ def test_history_outcome_model_is_the_model_based_effect_on_the_treated() -> Non
             data,
             query=_history_outcome_query(),
             inference=ant.Bayesian(backend="conjugate", n_draws=2000),
-            return_posterior_artifact=True,
             estimator=Estimator.BAYESIAN_PERIOD_HISTORY_OUTCOME_MODEL,
             refute="none",
-            seed=5,
+            execution=ant.Execution(seed=5),
         )
     )
     assert result.posterior is not None

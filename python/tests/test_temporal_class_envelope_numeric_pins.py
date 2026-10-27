@@ -109,16 +109,15 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
             execution=antecedent.Execution(seed=1),
         )
     )
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=query,
         refute=False,
-        bootstrap=0,
-        seed=1,
-        latency="interactive",
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=1),
     )
-    click = require_success(prepared.estimate(data, seed=1))
+    click = require_success(antecedent.estimate(prepared))
 
     expected_source = "accepted" if accepted else "explicit"
     assert prepared.structure_source == expected_source
@@ -205,8 +204,7 @@ def test_temporal_class_bayesian_builds(class_name: str, graph_fn) -> None:
                     query=_pulse(_PIN),
                     inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
                     refute=False,
-                    bootstrap=0,
-                    seed=1,
+                    execution=antecedent.Execution(seed=1),
                 )
             )
         return
@@ -217,8 +215,7 @@ def test_temporal_class_bayesian_builds(class_name: str, graph_fn) -> None:
             query=_pulse(_PIN),
             inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.structural_weight_basis == "completion_enumeration"

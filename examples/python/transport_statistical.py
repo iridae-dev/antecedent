@@ -37,7 +37,7 @@ def main() -> None:
     }
     result = ant.analyze(data, graph=graph, query=query)
     assert result.answer.kind == "response"
-    assert [row[0] for row in result.response.values] == [0.5, 0.8]
+    assert [row[0] for row in result.value.response.values] == [0.5, 0.8]
     _slots(result, uncertainty=False)
     print(result)
 
@@ -45,8 +45,10 @@ def main() -> None:
         "x": [0.0] * 50 + [1.0] * 100,
         "y": [0.0] * 30 + [1.0] * 20 + [0.0] * 30 + [1.0] * 70,
     }
-    refreshed = result.refresh(replacement)
-    assert [round(row[0], 2) for row in refreshed.response.values] == [0.4, 0.7]
+    # Rebinding branches the study on the replacement table; the first result is unchanged.
+    refreshed = ant.estimate(ant.rebind(result.study, data=replacement))
+    assert [round(row[0], 2) for row in refreshed.value.response.values] == [0.4, 0.7]
+    assert [row[0] for row in result.value.response.values] == [0.5, 0.8]
     print(refreshed)
 
 

@@ -68,9 +68,9 @@ def _hex(value) -> str:
 
 
 def test_prepared_and_loaded_availability():
-    # An AIPW prepared study holds a score table, so every advertised domain,
-    # including score_reuse, has a value; a nonconstant retarget adds
-    # target_weights.
+    # A prepared study materializes no score table, so score_reuse (like the data
+    # snapshot) is advertised from the completed execution and its artifact; a
+    # nonconstant retarget of the completed study adds target_weights.
     data = _data()
     prepared = ant.prepare(
         data,
@@ -81,10 +81,13 @@ def test_prepared_and_loaded_availability():
         inference=ant.Frequentist(bootstrap=0),
     )
     slots = prepared.inspect()
-    executed = require_success(prepared.estimate())
-    retargeted = prepared.retarget(np.exp(data["z"] / 3), depends_on=["z"])
-    exported = bytes(retargeted.export())
-    loaded_slots = require_success(ant.load(exported)).inspect()
+    outcome = ant.estimate(prepared)
+    executed = require_success(outcome)
+    # The prepared branch is immutable; the completed study the outcome retains owns the scores.
+    retargeted = outcome.study.retarget(np.exp(data["z"] / 3), depends_on=["z"])
+    artifact = retargeted.export()
+    exported = bytes(artifact)
+    loaded_slots = require_success(ant.load(exported, expected=artifact.expectation)).inspect()
     section = ant.artifacts.loads(exported).contract
     for row in IDENTITY["identity"]:
         if not row["python"].startswith("inspect()."):

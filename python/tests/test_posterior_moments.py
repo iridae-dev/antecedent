@@ -8,7 +8,6 @@ import antecedent as ac
 import numpy as np
 import pytest
 from antecedent import artifacts
-from antecedent.estimation import PreparedAnalysis
 from antecedent.inference import decode_posterior_artifact, encode_posterior_artifact
 from antecedent.outcomes import require_success
 
@@ -18,16 +17,14 @@ FIXTURE = load_json(REPO_ROOT / "conformance/bayesian/posterior_moments/expected
 
 
 def prepare(data, graph, query, *, accepted, scale=10.0, suite="none", bayesian=True):
-    return PreparedAnalysis.prepare(
+    return ac.prepare(
         data,
         query=query,
         graph=ac.AcceptedGraph(graph) if accepted else graph,
         inference=ac.Bayesian(backend="conjugate", n_draws=8192, prior_scale=scale)
         if bayesian
-        else ac.Frequentist(),
+        else ac.Frequentist(bootstrap=0),
         refute=suite,
-        latency=None,
-        bootstrap=0,
     )
 
 
@@ -100,11 +97,12 @@ def test_posterior_moments_and_artifact(accepted, scale, family):
         graph = [("t", "y")]
         query = ac.ResponseCurve("t", "y", grid=[0, 1])
     prepared = prepare(data, graph, query, accepted=accepted, scale=scale)
-    result = require_success(prepared.estimate(data, seed=1201))
+    outcome = ac.estimate(ac.reconfigure(prepared, execution=ac.Execution(seed=1201)))
+    result = require_success(outcome)
     assert prepared.evidence_status == "licensed"
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
-    encoded = prepared.export_artifact()
-    query_art = artifacts.loads(prepared.export_artifact(payload="query"))
+    encoded = bytes(outcome.export(quantity="record"))
+    query_art = artifacts.loads(bytes(outcome.export(quantity="query")))
     assert (
         artifacts.loads(
             artifacts.dumps(
@@ -186,7 +184,8 @@ def test_mediation_validation_targets_and_prior_grid(accepted, suite, bayesian):
     query = ac.TemporalMediationEffect("t", "m", "y")
     graph = [("t", 1, "m", 0), ("t", 1, "y", 0), ("m", 0, "y", 0)]
     prepared = prepare(data, graph, query, accepted=accepted, suite=suite, bayesian=bayesian)
-    result = require_success(prepared.estimate(data, seed=1201))
+    outcome = ac.estimate(ac.reconfigure(prepared, execution=ac.Execution(seed=1201)))
+    result = require_success(outcome)
     # Validation checks the fixed finite sample, whose posterior moments are pinned independently.
     assert result.ate == pytest.approx(FIXTURE["posterior"]["10.0"]["mediation"][0], abs=0.02)
     if suite != "none":
@@ -218,12 +217,13 @@ def test_temporal_response_surface_artifact(accepted, intervention):
     else:
         query = ac.ResponseCurve("t", "y", grid=[0, 1], horizons=[1, 2], treatment_lag=1)
     prepared = prepare(data, graph, query, accepted=accepted)
-    result = require_success(prepared.estimate(data, seed=1201))
+    outcome = ac.estimate(ac.reconfigure(prepared, execution=ac.Execution(seed=1201)))
+    result = require_success(outcome)
     expected = pin["temporal_mean"][2:] if intervention else pin["temporal_mean"]
     assert np.asarray(result.response.values).flatten() == pytest.approx(
         expected, abs=pin["temporal_tolerance"]
     )
-    art = artifacts.loads(prepared.export_artifact())
+    art = artifacts.loads(bytes(outcome.export(quantity="record")))
     assert "response.temporal.bayesian" in str(art.payload)
     assert (
         artifacts.loads(
@@ -255,9 +255,10 @@ def test_functional_validation_uses_table_and_accepted_structure(accepted, suite
         suite=suite,
         bayesian=False,
     )
-    result = require_success(prepared.estimate(data))
+    outcome = ac.estimate(prepared)
+    result = require_success(outcome)
     assert result.ate == pytest.approx(0.7, abs=0.05)
-    query_art = artifacts.loads(prepared.export_artifact(payload="query"))
+    query_art = artifacts.loads(bytes(outcome.export(quantity="query")))
     assert (
         artifacts.loads(
             artifacts.dumps(
@@ -282,8 +283,9 @@ def test_shift_support_assesses_shifted_distribution_not_only_its_mean():
     data = {"t": source["t"], "y": source["r"]}
     query = ac.InterventionResponse("y", intervention=ac.intervention.Shift("t", 0.1))
     prepared = prepare(data, [("t", "y")], query, accepted=False)
-    require_success(prepared.estimate(data))
-    payload = artifacts.loads(prepared.export_artifact()).payload
+    outcome = ac.estimate(prepared)
+    require_success(outcome)
+    payload = artifacts.loads(bytes(outcome.export(quantity="record"))).payload
     assert payload["support"]["status"] == "outside_empirical_support"
     assert payload["support"]["query_region"]["maxima"][0] == pytest.approx(source["t"].max() + 0.1)
 
@@ -295,18 +297,18 @@ def test_dbn_validation_and_mass_survive_posterior_export(suite, sustained):
 
     data = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
     query_type = ac.SustainedEffect if sustained else ac.PulseEffect
-    prepared = PreparedAnalysis.prepare(
+    prepared = ac.prepare(
         data,
         query=query_type("pressure", "defect"),
         discovery=temporal_posterior(),
         inference=BAYES,
         refute=suite,
-        latency=None,
     )
-    result = require_success(prepared.estimate(data, seed=17))
+    outcome = ac.estimate(ac.reconfigure(prepared, execution=ac.Execution(seed=17)))
+    result = require_success(outcome)
     assert result.posterior is not None
     assert result.validation.reports
-    art = decode_posterior_artifact(prepared.export_artifact())
+    art = decode_posterior_artifact(bytes(outcome.export(quantity="record")))
     assert art.unidentified_mass == pytest.approx(result.posterior.unidentified_mass)
     assert art.identification == "GraphDependent"
     if suite == "full":
@@ -327,19 +329,23 @@ def test_binary_mediator_support_flags_disjoint_ranges():
         suite="cheap",
         bayesian=False,
     )
-    reports = {r.refuter: r for r in require_success(prepared.estimate(data)).validation.reports}
+    reports = {r.refuter: r for r in require_success(ac.estimate(prepared)).validation.reports}
     assert not reports["mediation.binary_mediator_support"].passed
 
 
 def test_incompatible_explicit_estimator_is_not_silently_replaced():
     data = {k: np.array(FIXTURE["data"][k]) for k in ["t", "w", "y"]}
     with pytest.raises(ac.errors.CausalUnsupportedError, match="conditional.bayesian"):
-        PreparedAnalysis.prepare(
-            data,
-            query=ac.ConditionalEffect("t", "y", "w"),
-            graph=[("t", "y"), ("w", "y")],
-            inference=ac.Bayesian(),
-            estimator="conditional.linear.adjustment",
+        require_success(
+            ac.estimate(
+                ac.prepare(
+                    data,
+                    query=ac.ConditionalEffect("t", "y", "w"),
+                    graph=[("t", "y"), ("w", "y")],
+                    inference=ac.Bayesian(),
+                    estimator="conditional.linear.adjustment",
+                )
+            )
         )
 
 
@@ -354,16 +360,16 @@ def test_composed_hmc_refuses_without_derived_chain_diagnostics(window):
         data = {"t": source["t"], "m": source["m"], "y": source["o"]}
         graph = [("t", 1, "m", 0), ("t", 1, "y", 0), ("m", 0, "y", 0)]
         query = ac.TemporalMediationEffect("t", "m", "y")
-    prepared = PreparedAnalysis.prepare(
+    prepared = ac.prepare(
         data,
         query=query,
         graph=graph,
         inference=ac.Bayesian(backend="hmc"),
         refute="none",
-        latency=None,
     )
     with pytest.raises(ac.errors.CausalEstimateError, match="derived-contrast chain diagnostics"):
-        require_success(prepared.estimate(data))
+        outcome = ac.estimate(prepared)
+        require_success(outcome)
 
 
 @pytest.mark.parametrize("accepted", [False, True])
@@ -378,10 +384,11 @@ def test_path_functional_and_query_artifact(accepted, suite):
         suite=suite,
         bayesian=False,
     )
-    result = require_success(prepared.estimate(data))
+    outcome = ac.estimate(prepared)
+    result = require_success(outcome)
     assert result.ate == pytest.approx(0.3)
     assert len(result.validation.reports) == {"none": 0, "cheap": 1, "full": 2}[suite]
-    artifact = artifacts.loads(prepared.export_artifact(payload="query"))
+    artifact = artifacts.loads(bytes(outcome.export(quantity="query")))
     assert (
         artifacts.loads(
             artifacts.dumps(
@@ -424,7 +431,12 @@ def test_bayesian_response_preserves_or_refuses_observation_contract(
         else ac.ResponseCurve("t", "y", grid=[0, 1], **options)
     )
     graph = [("t", 1, "y", 0)] if temporal else [("t", "y")]
-    call = PreparedAnalysis.prepare if entry == "prepare" else ac.analyze
+
+    def call(data, **declarations):
+        if entry == "prepare":
+            return require_success(ac.estimate(ac.prepare(data, **declarations)))
+        return require_success(ac.analyze(data, **declarations))
+
     if temporal and field == "observation":
         # A licensed observed-data posterior still requires an explicit
         # censoring assumption; omitting it is malformed input.
@@ -452,11 +464,8 @@ def test_bayesian_response_preserves_or_refuses_observation_contract(
             graph=graph,
             inference=ac.Bayesian(backend="conjugate", n_draws=4096),
             refute="none",
-            bootstrap=0,
-            seed=452,
+            execution=ac.Execution(seed=452),
         )
-        if entry == "prepare":
-            result = require_success(result.estimate(data, seed=452))
         assert result.response is not None
         assert np.asarray(result.response.values).reshape(-1) == pytest.approx(
             [2.0] if intervention else [1.0, 2.0], abs=0.15
@@ -498,7 +507,8 @@ def test_mediation_graph_confounder_adjusts_estimate_and_refuters(accepted, suit
         suite=suite,
         bayesian=bayesian,
     )
-    result = require_success(prepared.estimate(data, seed=120))
+    outcome = ac.estimate(ac.reconfigure(prepared, execution=ac.Execution(seed=120)))
+    result = require_success(outcome)
     assert result.ate == pytest.approx(2.0, abs=0.15)
     if suite != "none":
         reports = {report.refuter: report for report in result.validation.reports}
@@ -522,7 +532,8 @@ def test_continuous_conditional_validation_checks_conditional_support(accepted, 
     prepared = prepare(
         data, graph, ac.ConditionalEffect("t", "y", "w"), accepted=accepted, suite=suite
     )
-    result = require_success(prepared.estimate(data))
+    outcome = ac.estimate(prepared)
+    result = require_success(outcome)
     reports = {report.refuter: report for report in result.validation.reports}
     support = reports["overlap.continuous_support"]
     assert support.informative
@@ -552,8 +563,9 @@ def test_query_export_preserves_outer_kind_and_original_variable_ids(accepted, f
             else ac.SustainedEffect("t", "y", window=(-2, -1))
         )
     prepared = prepare(data, graph, query, accepted=accepted)
-    require_success(prepared.estimate(data))
-    artifact = artifacts.loads(prepared.export_artifact(payload="query"))
+    outcome = ac.estimate(prepared)
+    require_success(outcome)
+    artifact = artifacts.loads(bytes(outcome.export(quantity="query")))
     payload = artifact.to_dict()["payload"]
     if family == "conditional":
         assert set(payload) == {"conditional_effect"}
@@ -583,8 +595,9 @@ def test_prepared_response_accepts_explicit_complete_all_observed(accepted):
         target_population=population.AllRows(),
     )
     p = prepare(data, [("t", "y")], query, accepted=accepted)
-    require_success(p.estimate(data))
-    q = artifacts.loads(p.export_artifact(payload="query")).payload["response"]
+    outcome = ac.estimate(p)
+    require_success(outcome)
+    q = artifacts.loads(bytes(outcome.export(quantity="query"))).payload["response"]
     assert q["observation"] == "complete"
     assert q["target_population"] == "all_observed"
 
@@ -602,16 +615,18 @@ def test_stationary_sustained_intervals_cover_shared_mechanism_truth(backend):
         m = np.r_[0, t[:-1]] + rng.normal(size=n)
         y = np.r_[0, m[:-1]] + np.r_[0, 0, m[:-2]] + rng.normal(scale=0.01, size=n)
         data = {"t": t, "m": m, "y": y}
-        p = PreparedAnalysis.prepare(
+        p = ac.prepare(
             data,
             query=ac.SustainedEffect("t", "y", window=(-3, -2)),
             graph=graph,
             inference=ac.Bayesian(backend=backend, n_draws=4096),
             refute="none",
-            latency=None,
         )
-        result = require_success(p.estimate(data, seed=123))
-        draws = np.asarray(decode_posterior_artifact(p.export_artifact()).draws)
+        outcome = ac.estimate(ac.reconfigure(p, execution=ac.Execution(seed=123)))
+        result = require_success(outcome)
+        draws = np.asarray(
+            decode_posterior_artifact(bytes(outcome.export(quantity="record"))).draws
+        )
         lower, upper = np.quantile(draws, [0.025, 0.975])
         covered.append(lower <= 2 <= upper)
         points.append(result.ate)

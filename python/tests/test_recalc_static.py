@@ -108,15 +108,18 @@ def test_static_response_finite_truth_counts_and_full_rerun():
     result = require_success(StaticResponseSession().execute(request, seed=3))
     assert result.means == pytest.approx(response_truth(), abs=1e-12)
     existing = require_success(
-        ac.prepare(
-            request.data,
-            graph=request.graph,
-            query=ac.ResponseCurve("t", "y", grid=[0.0, 1.0]),
-            identifier="general.id",
-            estimator="functional.effect",
-            refute="none",
-            inference=ac.Frequentist(bootstrap=0),
-        ).estimate(request.data, seed=3)
+        ac.estimate(
+            ac.prepare(
+                request.data,
+                graph=request.graph,
+                query=ac.ResponseCurve("t", "y", grid=[0.0, 1.0]),
+                identifier="general.id",
+                estimator="functional.effect",
+                refute="none",
+                inference=ac.Frequentist(bootstrap=0),
+                execution=ac.Execution(seed=3),
+            )
+        )
     )
     assert result.means == pytest.approx(np.asarray(existing.response.values).flatten(), abs=1e-12)
     counts = result.receipt.totals

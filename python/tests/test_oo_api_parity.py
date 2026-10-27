@@ -152,8 +152,7 @@ def test_temporal_accepts_bayesian_pulse():
             query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
             inference=antecedent.Bayesian(n_draws=64),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.posterior is not None

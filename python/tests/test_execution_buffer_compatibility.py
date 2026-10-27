@@ -40,21 +40,25 @@ def test_typed_transport_matches_json_and_owns_input(route):
         query, data = trial_fixture()
 
         def prepare(value):
-            return advanced.prepare(query, value, inference=tr.TransportInference(0))
+            return ac.prepare(value, query=query, inference=tr.TransportInference(0))
     elif route == "continuous":
         from test_learned_continuous_transport import fixture, options
 
         query, data = fixture()
 
         def prepare(value):
-            return advanced.prepare_learned_continuous(query, value, options=options(), seed=5)
+            return advanced.prepare_learned_continuous(
+                query, value, options=options(), execution=ac.Execution(seed=5)
+            )
     else:
         from test_smoothed_dose_transport import fixture, options
 
         query, data = fixture(n_trial=600, n_target=400)
 
         def prepare(value):
-            return advanced.prepare_smoothed_dose(query, value, options=options(), seed=5)
+            return advanced.prepare_smoothed_dose(
+                query, value, options=options(), execution=ac.Execution(seed=5)
+            )
 
     reference = prepare(legacy_data(data))
     expected = require_success(reference.estimate())
@@ -75,10 +79,7 @@ def test_typed_transport_matches_json_and_owns_input(route):
     del owned, columns
     gc.collect()
     actual = require_success(prepared.estimate())
-    if route == "trial":
-        assert bytes(actual.export()) == bytes(expected.export())
-    else:
-        assert bytes(prepared.export()) == bytes(reference.export())
+    assert bytes(actual.export()) == bytes(expected.export())
 
 
 def test_cyclic_buffers_match_legacy_report_artifact_and_request():
@@ -104,7 +105,7 @@ def test_cyclic_buffers_match_legacy_report_artifact_and_request():
         == actual.to_dict()
     )
     assert json.loads(request) == json.loads(prepared.request_json)
-    retargeted = prepared.retarget([[]], [[0.2, 0.1]])
+    retargeted = prepared.reconfigure([[]], [[0.2, 0.1]])
     assert (
         require_success(retargeted.execute()).to_dict()
         == require_success(PreparedCyclicSystem(retargeted.request_json).execute()).to_dict()
@@ -170,7 +171,7 @@ def test_cyclic_refresh_buffers_match_json_refit_and_own_rows():
     replacement = [
         {**row, "values": strided([row["values"][0], row["values"][1] / 2])} for row in rows
     ]
-    refreshed = require_success(prepared.refresh(replacement))
+    refreshed = prepared.rebind(replacement)
     assert refreshed.inspect()["fits_performed"] == 0
     legacy_request = json.loads(prepared.request_json)
     legacy_request["fit"]["rows"] = [
@@ -210,5 +211,6 @@ def test_trial_compact_output_preserves_full_native_compatibility_and_artifact()
     full_data = json.loads(full)
     assert {"membership", "mu0", "mu1", "scores"} <= full_data.keys()
     assert not ({"membership", "mu0", "mu1", "scores"} & json.loads(compact).keys())
-    refreshed = native.refresh_summary(data)
-    assert bytes(_learned_trial(native, refreshed).export()) == bytes(full_result.export())
+    rebound = native.bind_snapshot(data)
+    refreshed = rebound.estimate_summary()
+    assert bytes(_learned_trial(rebound, refreshed).export()) == bytes(full_result.export())

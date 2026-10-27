@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+import antecedent as ant
 from antecedent import AverageEffect, Frequentist, prepare
 from antecedent.outcomes import require_success
 from antecedent.results import InspectionReport
@@ -36,7 +37,7 @@ def test_inspect_is_pydantic_and_to_dict_matches_dump() -> None:
     assert report.calibration.status == "unavailable"
     reconstructed = InspectionReport.model_validate(dumped)
     assert reconstructed.program_id == report.program_id
-    live = require_success(prepared.estimate(_data()))
+    live = require_success(ant.estimate(prepared))
     live_report = live.inspect()
     assert isinstance(live_report, InspectionReport)
     assert live_report.to_dict()["contract"] == live.inspect().to_dict()["contract"]

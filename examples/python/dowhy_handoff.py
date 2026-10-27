@@ -65,7 +65,7 @@ def antecedent_side(data: dict[str, np.ndarray]) -> dict[str, Any]:
     return {
         "dot": dag.to_dot(),
         "adjustment_set": adjustment,
-        "ate": float(result.ate),
+        "ate": float(result.answer.value),
         "status": identified.status,
         "method": identified.method,
     }

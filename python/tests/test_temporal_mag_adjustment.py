@@ -46,10 +46,16 @@ def test_temporal_mag_effect_and_prepared_reuse(accepted, mixed, sustained, refu
         assert [
             (item["name"], item["offset"]) for item in completion["adjustment_coordinates"][0]
         ] == [("z", -1)]
-    kwargs = dict(graph=graph, query=query, refute=refute, bootstrap=0, seed=7)
+    kwargs = dict(
+        graph=graph,
+        query=query,
+        refute=refute,
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=7),
+    )
     fresh = require_success(ant.analyze(data, **kwargs))
-    prepared = ant.estimation.PreparedAnalysis.prepare(data, **kwargs)
-    click = require_success(prepared.estimate(data, seed=7))
+    prepared = ant.prepare(data, **kwargs)
+    click = require_success(ant.estimate(prepared))
     for result in [fresh, click]:
         assert result.certificate is not None
         assert len(result.to_dict()["certificate"]["cases"]) == len(cert["cases"])
@@ -80,10 +86,16 @@ def test_fully_oriented_temporal_pag_keeps_mag_certificate():
     ]
     graph = ant.graph.TemporalPag.from_marked_lagged_edges(list(data), edges)
     query = ant.PulseEffect("t", "y", treatment_lag=1)
-    kwargs = dict(graph=graph, query=query, refute=False, bootstrap=0, seed=7)
+    kwargs = dict(
+        graph=graph,
+        query=query,
+        refute=False,
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=7),
+    )
     fresh = require_success(ant.analyze(data, **kwargs))
-    prepared = ant.estimation.PreparedAnalysis.prepare(data, **kwargs)
-    for result in (fresh, require_success(prepared.estimate(data, seed=7))):
+    prepared = ant.prepare(data, **kwargs)
+    for result in (fresh, require_success(ant.estimate(prepared))):
         assert result.effect == pytest.approx(2.0, abs=1e-6)
         assert result.certificate["graph_class"] == "TemporalPag"
         assert result.to_dict()["certificate"]["cases"][0]["graph"]["kind"] == "temporal_mag"

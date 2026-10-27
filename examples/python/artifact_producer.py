@@ -24,7 +24,7 @@ def produce(directory):
         inference=ant.Frequentist(bootstrap=0),
         refute=False,
     )
-    envelope = result.artifact()
+    envelope = result.export()
     assert envelope.expectation is not None
     (directory / "analysis.bin").write_bytes(envelope.data)
     (directory / "expected.json").write_text(

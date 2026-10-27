@@ -18,14 +18,25 @@ decision with prior 1/2 whose signals of accuracy 3/4 and 5/8 have EVSI 1/4 and 
 from __future__ import annotations
 
 import numpy as np
-from antecedent import ResponseCurve, analyze, decision, design, external, identify, program_claims
+from antecedent import (
+    ResponseCurve,
+    analyze,
+    decision,
+    design,
+    external,
+    identify,
+    program_claims,
+)
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 
 # -- 1. analyze, then decide on the result --------------------------------------------------
 rng = np.random.default_rng(23)
 a = rng.normal(size=400)
 data = {"a": a, "y": 2.0 * a + rng.normal(scale=0.2, size=400)}
-result = analyze(data, query=ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]), graph=[("a", "y")])
+result = require_success(
+    analyze(data, query=ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]), graph=[("a", "y")])
+)
 print(result.claim())
 
 low = ScientificQuantity.from_response_dose(result, -0.5, outcome_units="mmHg")
@@ -40,7 +51,7 @@ dose_contract = decision.Contract(
     target_population="target",
 )
 program = program_claims.ProgramBinding.from_response(result, outcome_units="mmHg", dose_units="mg")
-own = dose_contract.evaluate(result, program=program)
+own = require_success(dose_contract.evaluate(result, program=program))
 print(own.explain())
 assert own.selected == ("high",)
 # A mean grid retains no outcome draws: no regret and no replayable export.
@@ -91,7 +102,7 @@ lab_contract = decision.Contract(
     criterion=decision.Criterion.expected_utility(),
     target_population="target",
 )
-lab = lab_contract.evaluate(claim)
+lab = require_success(lab_contract.evaluate(claim))
 assert lab.selected == ("treat",)
 assert [round(action.expected_utility, 9) for action in lab.actions] == [1.0, 9.0]
 

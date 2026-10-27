@@ -32,7 +32,12 @@ def test_eventframe_pcmci_discovery_happy_path():
     result = require_success(
         antecedent.analyze(
             frame,
-            discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+            graph=antecedent.discovery.discover(
+                frame,
+                method=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
             query=antecedent.PulseEffect(
                 treatment="x",
                 outcome="y",
@@ -58,7 +63,12 @@ def test_eventframe_rejects_jpcmci_plus():
         require_success(
             antecedent.analyze(
                 frame,
-                discovery=antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
+                graph=antecedent.discovery.discover(
+                    frame,
+                    method=antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=True,
+                ),
                 query=antecedent.PulseEffect(
                     treatment="x",
                     outcome="y",

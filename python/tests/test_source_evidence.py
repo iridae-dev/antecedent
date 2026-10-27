@@ -92,7 +92,7 @@ from antecedent.source_evidence import SourceEvidence
 a=np.tile(np.array([0.,1.,2.,3.]),80)
 x=np.repeat(np.linspace(-1.,1.,80),4)
 y=1.+2.*a+.2*x
-view=ac.analyze({'x':x,'a':a,'y':y},graph=[('x','a'),('x','y'),('a','y')],query=ac.ResponseCurve('a','y',grid=[1.,2.]),refute='none',bootstrap=0)
+view=ac.analyze({'x':x,'a':a,'y':y},graph=[('x','a'),('x','y'),('a','y')],query=ac.ResponseCurve('a','y',grid=[1.,2.]),refute='none',inference=ac.Frequentist(bootstrap=0))
 program=program_claims.ProgramBinding.from_response(view,outcome_units='mmHg',dose_units='mg')
 actual=program_claims.native_claim(view,program)
 original=SourceEvidence.consume(open(sys.argv[1],'rb').read())
@@ -130,14 +130,16 @@ def test_source_evidence_survives_native_decision_and_original_inverse_artifact(
     claim = _claim()
     contract = _contract(decision.Criterion.expected_utility())
     actual = comp.DecisionInput.from_native_claim("actual", claim, contract=contract)
-    decided = comp.evaluate_with_support(contract, [actual])
+    decided = require_success(comp.evaluate_with_support(contract, [actual]))
     assert decided.verdict.selected == "B"
     assert len(decided.source_evidence) == 1
     assert decided.source_evidence[0].action_contributors == {
         "A": (claim.coordinates[0],),
         "B": (claim.coordinates[1],),
     }
-    inverse = iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),)).evaluate(claim)
+    inverse = require_success(
+        iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),)).evaluate(claim)
+    )
     assert inverse.selected == "B"
     assert inverse.source_evidence[0].diagnostics == claim.source_evidence.diagnostics
     loaded = require_success(iq.InverseResult.consume(bytes(inverse.export())))

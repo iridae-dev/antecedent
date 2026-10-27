@@ -22,7 +22,6 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalValueError
-from antecedent.estimation import PreparedAnalysis
 from antecedent.outcomes import require_success
 from antecedent.policy import ConditionalDoseResponse
 
@@ -53,7 +52,7 @@ def _table(n: int = 240, names: tuple[str, str, str] = ("t", "y", "z")) -> dict[
     return {t_name: t, y_name: y, z_name: z}
 
 
-def _licensed():
+def _licensed_outcome():
     prepared = ant.prepare(
         _table(),
         graph=_EDGES,
@@ -62,8 +61,11 @@ def _licensed():
         inference=ant.Frequentist(bootstrap=0),
         execution=ant.Execution(seed=3),
     )
-    require_success(prepared.estimate(_table(), seed=3))
-    return prepared
+    return ant.estimate(prepared)
+
+
+def _licensed():
+    return _licensed_outcome().study
 
 
 def _bayesian():
@@ -73,11 +75,9 @@ def _bayesian():
         query=ant.AverageEffect("t", "y"),
         inference=ant.Bayesian(backend="conjugate", n_draws=64, prior_scale=30.0),
         refute="none",
-        bootstrap=0,
-        seed=3,
+        execution=ant.Execution(seed=3),
     )
-    require_success(prepared.estimate(_table(), seed=3))
-    return prepared
+    return ant.estimate(prepared).study
 
 
 def _dose_data():
@@ -109,8 +109,7 @@ def _unlicensed():
             density_provenance="known",
         ),
     )
-    require_success(prepared.estimate())
-    return prepared
+    return ant.estimate(prepared).study
 
 
 def _temporal():
@@ -121,7 +120,7 @@ def _temporal():
     for t in range(1, n):
         defect[t] = 0.9 * pressure[t - 1] + 0.05 * rng.uniform(-1.0, 1.0)
     data = {"pressure": pressure, "defect": defect}
-    prepared = PreparedAnalysis.prepare(
+    prepared = ant.prepare(
         data,
         graph=[("pressure", 1, "defect", 0)],
         query=ant.PulseEffect(
@@ -132,13 +131,12 @@ def _temporal():
             active_level=1.0,
         ),
         refute=False,
-        seed=7,
+        execution=ant.Execution(seed=7),
     )
-    require_success(prepared.estimate(data, seed=7))
-    return prepared
+    return ant.estimate(prepared).study
 
 
-SCENARIOS: dict[str, Callable[[], PreparedAnalysis]] = {
+SCENARIOS: dict[str, Callable[[], ant.PreparedAnalysis]] = {
     "licensed_static_effect": _licensed,
     "unlicensed_executing_route": _unlicensed,
     "bayesian_effect": _bayesian,
@@ -187,11 +185,10 @@ def test_report_is_deterministic_from_the_study_to_the_bytes(name: str) -> None:
 
 
 def test_report_carries_every_section_and_the_claim_of_the_execution() -> None:
-    prepared = _licensed()
-    markdown = prepared.report("markdown")
+    outcome = _licensed_outcome()
+    markdown = outcome.study.report("markdown")
     assert re.findall(r"^## (.+)$", markdown, re.MULTILINE) == _SECTIONS
-    result = prepared.last_result
-    assert result is not None
+    result = require_success(outcome)
     assert float(_fact(markdown, "Value")) == pytest.approx(result.ate, abs=1e-9)
     assert _fact(markdown, "Support status") == "licensed"
     assert _fact(markdown, "Claim kind") == "point"
@@ -208,7 +205,7 @@ def test_report_before_an_estimate_reads_the_contract_and_executes_nothing() -> 
         execution=ant.Execution(seed=3),
     )
     markdown = prepared.report("markdown")
-    assert prepared.last_result is None, "a report executes nothing"
+    assert prepared.inspect().stage == "prepared", "a report executes nothing"
     assert "a contract before execution" in markdown
     assert "No claim is attached" in markdown
     assert "## Claim" not in markdown
@@ -216,8 +213,9 @@ def test_report_before_an_estimate_reads_the_contract_and_executes_nothing() -> 
         section for section in _SECTIONS if section != "Claim"
     ]
     assert prepared.report("markdown") == markdown, "reading it twice changes nothing"
-    require_success(prepared.estimate(_table(), seed=3))
-    assert "## Claim" in prepared.report("markdown")
+    executed = ant.estimate(prepared)
+    assert "## Claim" in executed.study.report("markdown")
+    assert "## Claim" not in prepared.report("markdown"), "the prepared branch stays unexecuted"
 
 
 def test_bayesian_report_states_its_posterior_plan_and_calibration() -> None:
@@ -262,7 +260,7 @@ def test_html_is_inert_and_escapes_every_value() -> None:
         inference=ant.Frequentist(bootstrap=0),
         execution=ant.Execution(seed=3),
     )
-    require_success(prepared.estimate(_table(names=hostile), seed=3))
+    prepared = ant.estimate(prepared).study
 
     html = prepared.report("html")
     assert "<script" not in html

@@ -227,7 +227,7 @@ def test_batch_retarget_guide_executes_its_declared_scientific_journey():
     from pathlib import Path
 
     guide = Path(__file__).resolve().parents[2] / "docs/guides/batch-retarget.md"
-    blocks = re.findall(r"```python\n(.*?)```", guide.read_text(), flags=re.DOTALL)
+    blocks = re.findall(r"```python\n(.*?)```", guide.read_text(encoding="utf-8"), flags=re.DOTALL)
     assert len(blocks) == 2
     namespace = {}
     for index, block in enumerate(blocks):

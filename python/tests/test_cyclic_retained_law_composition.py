@@ -82,8 +82,10 @@ def test_unresolved_law_preserves_failed_slots_and_refuses_unsupported_actions()
     assert result.law.to_dict() == before
     assert result.law.draw_status().items == law.draw_status().items
     assert result.law.unresolved(0).items == law.unresolved(0).items
-    with pytest.raises(ant.CausalError):
-        law.prepare([World(48, Shift("A", 1.0))], variables=["A", "B"], outcome="B")
+    refused = law.prepare([World(48, Shift("A", 1.0))], variables=["A", "B"], outcome="B")
+    assert refused.refusal.code == "route_not_supported"
+    assert ant.estimate(refused).refusal.detail == "cyclic_recovery.hard_clamp_required"
+    assert law.to_dict() == before
 
 
 def test_continuation_exports_existing_codec_and_loads_in_fresh_process(tmp_path):

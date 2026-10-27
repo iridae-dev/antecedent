@@ -223,7 +223,7 @@ def test_consumer_limits_and_corrupt_artifacts_refuse() -> None:
     corrupt[len(corrupt) // 2] ^= 0xFF
     with pytest.raises((CausalSerializationError, DoseGridRefusal)):
         consume_dose_grid_artifact(bytes(corrupt))
-    with pytest.raises(TypeError, match="artifact must be bytes"):
+    with pytest.raises(TypeError, match="an artifact is bytes or ExportedArtifact"):
         consume_dose_grid_artifact("text")  # type: ignore[arg-type]
 
 

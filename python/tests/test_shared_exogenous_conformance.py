@@ -66,7 +66,9 @@ def test_observational_nonidentification_is_not_reported_as_unsupported_executio
     assert not_identified.value.reason_code == "effect_not_identified"
     assert not_identified.value.identification_status == "not_identified"
 
-    # A declared model whose joint enumeration is too large is unsupported execution.
+    # A declared model whose joint exogenous space (8**6 states) is beyond the enumeration bound
+    # is still computed exactly, by variable elimination: v1 is 1 on four of eight equally likely
+    # states of its own term, whatever world fixes v0.
     terms = tuple(cw.ExogenousTerm(f"u{k}", (0.125,) * 8) for k in range(6))
     oversized = cw.FiniteSCM(
         population="clinic",
@@ -76,14 +78,30 @@ def test_observational_nonidentification_is_not_reported_as_unsupported_executio
             cw.FiniteVariable(f"v{k}", 2, (), f"u{k}", (0, 1, 0, 1, 0, 1, 0, 1)) for k in range(6)
         ),
     )
+    executor = cw.CrossWorldExecutor()
+    wide = require_success(
+        executor.execute(
+            cw.CrossWorldRequest(
+                scm=oversized,
+                units=(cw.FactualUnit("u"),),
+                worlds=(cw.World("w", {"v0": 0}),),
+                quantity=cw.probability("w", "v1", 1),
+            )
+        )
+    )
+    assert wide.value == pytest.approx(0.5, abs=1e-12)
+
+    # A request outside the declared model's history is an unsupported execution.
+    declared = _request()
     with pytest.raises(R) as unsupported:
         require_success(
-            cw.CrossWorldExecutor().execute(
+            executor.execute(
                 cw.CrossWorldRequest(
-                    scm=oversized,
-                    units=(cw.FactualUnit("u"),),
-                    worlds=(cw.World("w", {"v0": 0}),),
-                    quantity=cw.probability("w", "v1", 1),
+                    scm=declared.scm,
+                    units=declared.units,
+                    worlds=declared.worlds,
+                    quantity=declared.quantity,
+                    evidence_history="regime-2",
                 )
             )
         )

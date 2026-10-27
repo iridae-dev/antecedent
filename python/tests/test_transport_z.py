@@ -142,11 +142,11 @@ def test_z_transport_prepared_native_route_matches_independent_truth(empirical):
         assert result["interval"] == {"available": False, "reason": "no_interval_reported"}
     assert true_mass == pytest.approx(0.2, abs=0.002 if empirical else 1e-12)
     artifact = bytes(prepared.export())
-    consumed = json.loads(transport.consume_z_transport_artifact(artifact))
+    consumed = transport.consume_z_transport_artifact(artifact).to_dict()
     assert consumed["probabilities"] == pytest.approx(result["probabilities"])
     assert consumed["interval"] == {"available": False, "reason": "no_interval_reported"}
-    require_success(prepared.refresh(laws))
-    refreshed = json.loads(require_success(prepared.estimate()))
+    rebound = prepared.bind_snapshot(laws)
+    refreshed = json.loads(require_success(rebound.estimate()))
     assert refreshed["probabilities"] == pytest.approx(result["probabilities"])
     sensitivity = prepared.mechanism_sensitivity(0.2, 0.4)
     assert sensitivity["baseline"] == pytest.approx(0.6, abs=0.002 if empirical else 1e-12)
@@ -191,11 +191,11 @@ def test_z_transport_prepare_exact_compiles_a_checked_plan_after_builder_disposa
     assert true_mass == pytest.approx(0.2, abs=1e-12)
     # An exact law stays point-only; no interval is attached at estimate.
     assert result["interval"] == {"available": False, "reason": "no_interval_reported"}
-    consumed = json.loads(transport.consume_z_transport_artifact(bytes(prepared.export())))
+    consumed = transport.consume_z_transport_artifact(bytes(prepared.export())).to_dict()
     assert consumed["proof"]["rules"] == program["rules"]
     assert consumed["probabilities"] == pytest.approx(result["probabilities"])
-    require_success(prepared.refresh(laws))
-    assert json.loads(require_success(prepared.estimate()))["probabilities"] == pytest.approx(
+    rebound = prepared.bind_snapshot(laws)
+    assert json.loads(require_success(rebound.estimate()))["probabilities"] == pytest.approx(
         result["probabilities"]
     )
 
@@ -254,7 +254,7 @@ def test_bayesian_z_transport_posterior_executes_retained_plan_after_builder_dis
     assert mean["lower"] <= true_mass <= mean["upper"]
     assert prepared.interval_type == "posterior_equal_tail"
     # Portable artifacts carry the point result only; the posterior is never replayed.
-    consumed = json.loads(transport.consume_z_transport_artifact(bytes(prepared.export())))
+    consumed = transport.consume_z_transport_artifact(bytes(prepared.export())).to_dict()
     assert consumed["probabilities"] == pytest.approx(posterior["probabilities"])
     assert consumed["interval"] == {"available": False, "reason": "no_interval_reported"}
 
@@ -268,19 +268,17 @@ def test_z_transport_estimate_refresh_executes_retained_program_after_builder_di
 
     first = json.loads(require_success(prepared.estimate()))
     retained_plan = bytes(prepared.export())
-    independently_consumed = json.loads(transport.consume_z_transport_artifact(retained_plan))
+    independently_consumed = transport.consume_z_transport_artifact(retained_plan).to_dict()
     assert independently_consumed["probabilities"] == pytest.approx(first["probabilities"])
     assert independently_consumed["interval"] == {
         "available": False,
         "reason": "no_interval_reported",
     }
 
-    require_success(prepared.refresh(laws))
-    refreshed = json.loads(require_success(prepared.estimate()))
+    rebound = prepared.bind_snapshot(laws)
+    refreshed = json.loads(require_success(rebound.estimate()))
     assert refreshed["probabilities"] == pytest.approx(first["probabilities"])
-    refreshed_consumer = json.loads(
-        transport.consume_z_transport_artifact(bytes(prepared.export()))
-    )
+    refreshed_consumer = transport.consume_z_transport_artifact(bytes(rebound.export())).to_dict()
     assert refreshed_consumer["probabilities"] == pytest.approx(refreshed["probabilities"])
 
 
@@ -352,11 +350,11 @@ def test_z_transport_identification_proof_and_binding_survive_query_disposal():
     assert sum(
         p for atom, p in zip(result["atoms"], result["probabilities"], strict=True) if atom == [1.0]
     ) == pytest.approx(0.4)
-    require_success(prepared.refresh(laws))
-    assert json.loads(require_success(prepared.estimate()))["probabilities"] == pytest.approx(
+    rebound = prepared.bind_snapshot(laws)
+    assert json.loads(require_success(rebound.estimate()))["probabilities"] == pytest.approx(
         result["probabilities"]
     )
-    replay = json.loads(transport.consume_z_transport_artifact(bytes(prepared.export())))
+    replay = transport.consume_z_transport_artifact(bytes(rebound.export())).to_dict()
     assert replay["probabilities"] == pytest.approx(result["probabilities"])
 
 
@@ -632,7 +630,7 @@ def test_z_transport_failure_snapshot_plan_and_actual_arrival():
     # The typed proposal delta must survive the whole path: wire replay,
     # actual-evidence binding, execution, and independent artifact consumption.
     arrived_artifact = bytes(arrived.export())
-    consumed_arrival = json.loads(transport.consume_z_transport_artifact(arrived_artifact))
+    consumed_arrival = transport.consume_z_transport_artifact(arrived_artifact).to_dict()
     assert consumed_arrival["premises_digest"]
     assert consumed_arrival["probabilities"] == pytest.approx(result["probabilities"])
     y1 = sum(
@@ -765,7 +763,7 @@ def test_z_transport_artifact_tamper_is_refused_by_the_consumer():
     result = json.loads(require_success(prepared.estimate()))
     artifact = bytes(prepared.export())
     assert artifact.startswith(Z_PREFIX)
-    consumed = json.loads(transport.consume_z_transport_artifact(artifact))
+    consumed = transport.consume_z_transport_artifact(artifact).to_dict()
     assert consumed["outcomes"] == ["y"]
     assert consumed["proof"]["rules"] == ["ztr.surrogate_factorization"]
     # An edited point result no longer matches the recomputed one.
@@ -792,7 +790,7 @@ def test_z_transport_consumer_rechecks_the_embedded_point_after_builder_disposal
     artifact = bytes(prepared.export())
     assert artifact.startswith(Z_PREFIX)
     del builder, graph_builder, prepared
-    consumed = json.loads(transport.consume_z_transport_artifact(artifact))
+    consumed = transport.consume_z_transport_artifact(artifact).to_dict()
     assert consumed["outcomes"] == ["y"]
     assert consumed["proof"]["rules"] == program["rules"]
     assert consumed["probabilities"] == pytest.approx(result["probabilities"])
@@ -857,10 +855,10 @@ def test_z_transport_refusals_carry_typed_classes_and_registered_codes():
             ),
             memory_bytes=-1,
         )
-    from antecedent.transport import TransportControls
+    from antecedent.transport import TransportEvaluation
 
-    with pytest.raises(CausalValueError, match="non-negative"):
-        TransportControls(max_depth=-1)
+    with pytest.raises(CausalValueError, match="max_depth"):
+        TransportEvaluation(max_depth=-1)
     refused_stage = transport.identify_z_transport(
         graph=graph,
         query=transport.ZTransportQuery(
@@ -989,7 +987,7 @@ def test_z_transport_consumer_limits_below_the_artifact_declared_limits_refuse()
     _, _, _, prepared, _ = fixture(False)
     require_success(prepared.estimate())
     artifact = bytes(prepared.export())
-    consumed = json.loads(transport.consume_z_transport_artifact(artifact, max_laws=1))
+    consumed = transport.consume_z_transport_artifact(artifact, max_laws=1).to_dict()
     assert consumed["premises_digest"]
     with pytest.raises(CausalResourceError, match="consumer limit exceeded"):
         transport.consume_z_transport_artifact(artifact, max_operations=1)
@@ -1033,9 +1031,9 @@ def test_z_transport_refresh_on_an_empirical_handle_requires_counts():
     )
     before = json.loads(require_success(prepared.estimate()))
     with pytest.raises(CausalUnsupportedError, match="empirical_counts_required") as refused:
-        require_success(prepared.refresh((count_free,)))
+        require_success(prepared.bind_snapshot((count_free,)).estimate())
     assert refused.value.reason_code == "transport_missing_provider"
-    # The previous prepared state survives the refused refresh.
+    # The previous prepared state survives the refused rebind.
     assert json.loads(require_success(prepared.estimate()))["probabilities"] == pytest.approx(
         before["probabilities"]
     )
@@ -1200,7 +1198,7 @@ def test_z_transport_exchanged_treatment_binds_symbolically_to_the_request():
         result = json.loads(require_success(prepared.estimate()))
         risk = _y_risk(result)
         assert risk == pytest.approx(expected, abs=1e-12)
-        consumed = json.loads(transport.consume_z_transport_artifact(bytes(prepared.export())))
+        consumed = transport.consume_z_transport_artifact(bytes(prepared.export())).to_dict()
         assert consumed["proof"].get("surrogate") is None
         assert _y_risk(consumed) == pytest.approx(risk, abs=1e-12)
         risks.append(risk)

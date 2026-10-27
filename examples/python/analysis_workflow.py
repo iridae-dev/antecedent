@@ -33,25 +33,28 @@ result = ant.analyze(
     inference=ant.Frequentist(bootstrap=25),
 )
 study = result.study
-updated = study.refresh(new_data)
+branch = ant.rebind(study, data=new_data)
+updated = ant.estimate(branch)
 report = result.inspect().to_dict()
-loaded = ant.load(result.export())
+artifact = result.export()
+loaded = ant.load(artifact, expected=artifact.expectation)
 
 print(result)
-print("Calibration:", result.calibration.status, result.calibration.reason)
+print("Calibration:", result.value.calibration.status, result.value.calibration.reason)
 json.dumps(report, allow_nan=False)
 
 # The loaded execution keeps the recorded answer. A verified load replayed the
 # program; a sealed load verified the contract and identities and names the
 # checked operation it cannot replay from bytes alone.
 assert loaded.acceptance.verified or loaded.acceptance.sealed
-assert loaded.answer == result.answer
-assert loaded.export() == result.export()
+assert loaded.answer.kind == result.answer.kind
+assert loaded.answer.value == result.answer.value
+assert bytes(loaded.export()) == bytes(artifact)
 
-# Refresh re-executed the same program on new data; the original result stays fixed.
+# The branch re-executed the same program on new data; the original result stays fixed.
 assert np.isclose(updated.answer.value, result.answer.value + 1)
-assert np.isclose(study.estimate().answer.value, updated.answer.value)
-print("After refresh:", updated)
+assert np.isclose(ant.estimate(study).answer.value, result.answer.value)
+print("After rebinding:", updated)
 
 # To inspect identification before estimating, prepare the study explicitly.
 prepared = ant.prepare(
@@ -62,4 +65,4 @@ prepared = ant.prepare(
     inference=ant.Frequentist(bootstrap=25),
 )
 assert prepared.inspect().identification.available
-assert np.isclose(prepared.estimate().answer.value, result.answer.value)
+assert np.isclose(ant.estimate(prepared).answer.value, result.answer.value)

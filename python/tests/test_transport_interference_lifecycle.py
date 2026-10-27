@@ -5,12 +5,12 @@ every other licensed cell::
 
     result = ant.analyze(data, graph=graph, query=query)
     study = result.study
-    updated = study.refresh(new_data)
+    updated = ant.estimate(ant.rebind(study, data=new_data))
     report = result.inspect().to_dict()
     loaded = ant.load(result.export())
 
-with no warnings. The retained study re-executes the same program, a refresh
-executes on the refreshed data, the export verifies and its answer is the live
+with no warnings. The retained study re-executes the same program, a rebound
+branch executes on the new data, the export verifies and its answer is the live
 answer, and the calibration slot carries the match key the coverage harness
 binds records under. Operations with no meaning for a design-defined estimand
 (retarget, a second-click refuter suite, a bootstrap) refuse with a registered
@@ -30,8 +30,8 @@ import numpy as np
 import pytest
 from antecedent import interference
 from antecedent.errors import CausalUnsupportedError
-from antecedent.estimation import PreparedAnalysis
 from antecedent.outcomes import require_success
+from antecedent.prepared import PreparedAnalysis
 from antecedent.transport import advanced as transport
 from antecedent.transport.advanced import TransportQuery
 
@@ -117,7 +117,7 @@ def _golden(data, graph, query, new_data):
         warnings.simplefilter("error")
         result = require_success(ant.analyze(data, graph=graph, query=query))
         study = result.study
-        updated = require_success(study.refresh(new_data))
+        updated = require_success(ant.estimate(ant.rebind(study, data=new_data)))
         report = result.inspect().to_dict()
         loaded = require_success(ant.load(bytes(result.export())))
     return result, study, updated, report, loaded
@@ -129,16 +129,16 @@ def _assert_lifecycle(
     assert isinstance(study, PreparedAnalysis)
     assert result.answer.kind == "point"
 
-    # refresh re-executes the same program on the new data.
+    # rebinding executes the same program on the new data, on a new branch.
     assert updated.program_id == result.program_id
     assert updated.data_snapshot_id != result.data_snapshot_id
     assert updated.answer == fresh.answer
     assert updated.data_snapshot_id == fresh.data_snapshot_id
     assert updated.estimate.ate != result.estimate.ate
-    # ...and the refreshed study keeps executing the refreshed data.
+    # ...and the original study is unchanged: it still executes its own data.
     again = require_success(study.estimate())
-    assert again.answer == updated.answer
-    assert again.claim_id == updated.claim_id
+    assert again.answer == result.answer
+    assert again.claim_id == result.claim_id
 
     # inspect() reports identification, the answer, the calibration slot and identities.
     assert report["identification"]["available"] is True
@@ -273,9 +273,9 @@ def test_cluster_partial_interference_retains_study_and_refuses_cross_cluster_ed
     assert result.evidence_status == "off_axis"
     assert result.inspect().to_dict()["calibration"]["status"] == "unavailable"
     assert "partial_interference" in " ".join(result.assumptions or [])
-    assert require_success(
-        result.study.refresh({"y": [2.0] * 4 + [5.0] * 4})
-    ).estimate.ate == pytest.approx(3.0)
+    rebound = ant.rebind(result.study, data={"y": [2.0] * 4 + [5.0] * 4})
+    assert require_success(ant.estimate(rebound)).estimate.ate == pytest.approx(3.0)
+    assert require_success(result.study.estimate()).estimate.ate == pytest.approx(2.0)
     loaded = require_success(ant.load(bytes(result.export())))
     assert loaded.decoded_artifact.to_dict()["payload"]["estimate"] == pytest.approx(2.0)
 
@@ -414,15 +414,17 @@ def _interference_result():
 
 
 @pytest.mark.parametrize(
-    "run", [_transport_result, _interference_result], ids=["transport", "interference"]
+    ("run", "rows"),
+    [(_transport_result, 200), (_interference_result, UNITS)],
+    ids=["transport", "interference"],
 )
-def test_retarget_refuses_a_design_defined_population(run):
+def test_retarget_refuses_a_design_defined_population(run, rows):
     result = run()
     with pytest.raises(CausalUnsupportedError) as raised:
-        result.study.retarget(np.ones(len(result.study._native.names)), [])
+        require_success(result.study.retarget(np.ones(rows), depends_on=[]))
     assert raised.value.reason_code == "population_not_estimable"
     with pytest.raises(CausalUnsupportedError) as raised:
-        result.study.reexecute_retarget(bytes(result.export()))
+        require_success(result.study.reexecute_retarget(bytes(result.export())))
     assert raised.value.reason_code == "population_not_estimable"
 
 
@@ -432,7 +434,7 @@ def test_retarget_refuses_a_design_defined_population(run):
 def test_second_click_refuter_suite_refuses(run):
     result = run()
     with pytest.raises(CausalUnsupportedError) as raised:
-        result.study.refute({"y": [0.0]}, suite="placebo")
+        require_success(result.study.refute(suite="placebo"))
     assert raised.value.reason_code == "option_not_applicable"
 
 

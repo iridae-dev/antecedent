@@ -303,5 +303,5 @@ def test_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
     corrupt[len(corrupt) // 2] ^= 0xFF
     with pytest.raises((CausalSerializationError, RecoveryChainRefusal)):
         consume_recovery_chain_artifact(bytes(corrupt))
-    with pytest.raises(TypeError, match="artifact must be bytes"):
+    with pytest.raises(TypeError, match="an artifact is bytes or ExportedArtifact"):
         consume_recovery_chain_artifact("text")  # type: ignore[arg-type]

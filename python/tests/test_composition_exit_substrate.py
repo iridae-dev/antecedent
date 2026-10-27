@@ -48,6 +48,7 @@ from antecedent import Cpdag
 from antecedent import composition as comp
 from antecedent.extensibility import ProviderTrust
 from antecedent.joint_distribution import JointDistributionArtifact
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 import _multi_source_fixtures as fx
@@ -163,7 +164,7 @@ def test_substrate_native_claim_carries_quantities_support_trust_and_provenance(
     assert source.point_status == ("supported", "supported")
     assert source.trust is ProviderTrust.NATIVE_LICENSED
     # And into the decision: wait 2, treat 4 - 1 = 3, extend has no supported coordinate.
-    decided = comp.evaluate_with_support(fx.mean_contract(), [fx.native_input()])
+    decided = require_success(comp.evaluate_with_support(fx.mean_contract(), [fx.native_input()]))
     assert fx.near(decided.outcome("wait").expected_utility, 2.0)
     assert fx.near(decided.outcome("treat").expected_utility, 3.0)
     assert decided.verdict.selected == "treat"

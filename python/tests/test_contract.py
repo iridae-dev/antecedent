@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import antecedent as ant
 import numpy as np
-from antecedent.estimation import PreparedAnalysis
+import pytest
+from antecedent.errors import CausalUnsupportedError
 from antecedent.outcomes import require_success
 from antecedent.query import AverageEffect
 
@@ -17,24 +18,76 @@ def _data() -> dict[str, np.ndarray]:
     return {"t": t, "y": y, "z": z}
 
 
-def test_prepared_contract_has_domain_separated_identities() -> None:
-    prepared = PreparedAnalysis.prepare(
-        _data(),
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect("t", "y"),
+GRAPH = [("z", "t"), ("z", "y"), ("t", "y")]
+
+
+def _prepare(data, *, query=None, graph=GRAPH, **kwargs):
+    """One canonical preparation: a point-only frequentist study, nothing executed."""
+    return ant.prepare(
+        data,
+        graph=graph,
+        query=AverageEffect("t", "y") if query is None else query,
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
+        **kwargs,
     )
-    contract = prepared.inspect_plan().contract
-    assert contract["accepted_version"] == "1"
-    assert contract["accepted_variable_binding"] in {"explicit", "unbound"}
-    assert contract["target"] != contract["program"]
-    assert "identification_product" in contract
-    assert contract["identification_status"] == "nonparametrically_identified"
-    assert contract["matrix_coordinate"].startswith("AverageEffect:Dag:explicit:Frequentist:")
-    assert contract["empirical_support"].startswith("unavailable:")
-    assert "assumptions" in contract
-    assert contract["uncertainty"].startswith("unavailable:")
+
+
+def _hex(identity) -> str:
+    """The canonical hex of a retained contract identity (a 32-byte digest)."""
+    return identity if isinstance(identity, str) else bytes(identity).hex()
+
+
+_IDENTITIES = (
+    "target_id",
+    "identification_id",
+    "identification_product_id",
+    "program_id",
+    "inference_binding_id",
+    "observation_id",
+    "data_snapshot_id",
+)
+
+
+def test_prepared_contract_has_domain_separated_identities() -> None:
+    prepared = _prepare(_data())
+    report = prepared.inspect()
+    assert report.stage == "prepared"
+    # The data snapshot identity is not materialized by preparation: inspection
+    # reports it unavailable instead of hashing the observations.
+    assert report.data_snapshot_id is None
+    assert report.details["snapshot_unavailable"] == "prepared_snapshot_identity_not_materialized"
+    identities = [getattr(report, name) for name in _IDENTITIES if name != "data_snapshot_id"]
+    assert all(isinstance(identity, str) and identity for identity in identities)
+    # Every layer is a separate domain: no two identities coincide.
+    assert len(set(identities)) == len(identities)
+    assert report.claim_id is None
+    assert report.details["accepted_version"] == 1
+    # Nothing has executed: empirical support is not yet available.
+    assert report.support.payload["empirical"]["available"] is False
+    assert report.support.payload["empirical"]["reason"] == "not_evaluated"
+    outcome = ant.estimate(prepared)
+    executed = outcome.inspect()
+    contract = executed.contract
+    assert contract["format"] == 2
+    assert _hex(contract["identities"]["target"]) != _hex(contract["identities"]["program"])
+    assert "identification_product" in contract["identities"]
+    assert executed.identification.summary == "nonparametrically_identified"
+    assert executed.support.payload["matrix_coordinate"].startswith(
+        "AverageEffect:Dag:explicit:Frequentist:"
+    )
+    # The executed contract binds the same prepared question, identification and
+    # inference; the snapshot identity is materialized by execution, and the program
+    # identity is the one the execution sealed (its checked lowering is bound only once
+    # the operation has run), which the executed contract and report agree on.
+    for name in _IDENTITIES:
+        if name not in {"data_snapshot_id", "program_id"}:
+            assert getattr(executed, name) == getattr(report, name), name
+    assert _hex(contract["identities"]["program"]) == executed.program_id
+    assert _hex(contract["identities"]["target"]) == report.target_id
+    assert isinstance(executed.data_snapshot_id, str) and executed.data_snapshot_id
+    assert _hex(contract["identities"]["data_snapshot"]) == executed.data_snapshot_id
+    assert executed.assumptions.available
     refused = prepared.preview_transform("average_unweighted_class")
     assert refused["refused"] == "true"
     preview = prepared.preview_transform("compatible_data_replace")
@@ -42,65 +95,56 @@ def test_prepared_contract_has_domain_separated_identities() -> None:
     assert preview["refused"] == "false"
 
 
-def test_same_shape_refresh_changes_only_data_identity() -> None:
+def test_same_shape_rebind_changes_only_data_identity() -> None:
     data = _data()
-    prepared = PreparedAnalysis.prepare(
-        data,
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect("t", "y"),
-        refute="none",
-        bootstrap=0,
-    )
-    before = prepared.inspect_plan().contract
+    prepared = _prepare(data)
+    before = prepared.inspect()
     preview = prepared.preview_transform("compatible_data_replace")
-    assert preview["input_data_snapshot"] == before["data_snapshot"]
-    require_success(prepared.refresh({**data, "y": data["y"] + data["t"]}))
-    after = prepared.inspect_plan().contract
-    for layer in (
-        "target",
-        "identification",
-        "identification_product",
-        "program",
-        "inference_binding",
-        "observation",
-    ):
-        assert before[layer] == after[layer], layer
-    assert before["data_snapshot"] != after["data_snapshot"]
-    assert preview["input_program"] == after["program"]
-    assert preview["input_data_snapshot"] != after["data_snapshot"]
+    # Preparation does not materialize the snapshot identity; the preview does.
+    assert before.data_snapshot_id is None
+    assert isinstance(preview["input_data_snapshot"], str) and preview["input_data_snapshot"]
+    branch = ant.rebind(prepared, data={**data, "y": data["y"] + data["t"]})
+    after = branch.inspect()
+    for layer in _IDENTITIES:
+        if layer == "data_snapshot_id":
+            continue
+        assert getattr(before, layer) == getattr(after, layer), layer
+    assert after.data_snapshot_id is None
+    assert preview["input_program"] == after.program_id
+    # Only the data identity differs, observed through the branches' snapshot previews
+    # and the executions' materialized snapshot identities.
+    branch_preview = branch.preview_transform("compatible_data_replace")
+    assert branch_preview["input_data_snapshot"] != preview["input_data_snapshot"]
+    assert branch_preview["input_program"] == preview["input_program"]
+    first = ant.estimate(prepared).inspect()
+    second = ant.estimate(branch).inspect()
+    assert first.data_snapshot_id != second.data_snapshot_id
+    for layer in _IDENTITIES:
+        if layer != "data_snapshot_id":
+            assert getattr(first, layer) == getattr(second, layer), layer
+    # The source preparation is unchanged by its branch.
+    assert prepared.inspect().data_snapshot_id is None
+    assert prepared.preview_transform("compatible_data_replace") == preview
 
 
 def test_contracted_linear_adjustment_replays_from_fit_statistics() -> None:
     from antecedent import artifacts
 
     data = _data()
-    prepared = PreparedAnalysis.prepare(
-        data,
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect("t", "y"),
-        refute="none",
-        bootstrap=0,
-    )
-    require_success(prepared.estimate(data))
-    contract = prepared.inspect_plan().contract
-    encoded = bytes(prepared.export())
+    outcome = ant.estimate(_prepare(data))
+    require_success(outcome)
+    contract = outcome.inspect().contract
+    encoded = bytes(outcome.export())
     loaded = artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"
     assert loaded.contract is not None
     accepted = artifacts.accept(encoded)
     assert accepted["accepts_as_verified_program"] == "true"
-    assert accepted["program"] == contract["program"]
-    assert accepted["target"] == contract["target"]
-    for key in (
-        "treatment",
-        "outcome",
-        "control",
-        "active",
-        "population",
-        "temporal_coordinates",
-        "variable_names",
-    ):
-        assert accepted[key] == contract[key], key
+    assert accepted["program"] == _hex(contract["identities"]["program"])
+    assert accepted["target"] == _hex(contract["identities"]["target"])
+    query = outcome.inspect().target["query"]
+    assert accepted["treatment"] == str(query["treatment_id"])
+    assert accepted["outcome"] == str(query["outcome_id"])
     assert accepted["treatment"] == "0"
     assert accepted["outcome"] == "1"
     assert accepted["control"] == "set:0=0"
@@ -119,27 +163,24 @@ def test_conditional_effect_contracted_artifact_names_missing_checked_operation(
     w = np.array([float(i % 5) for i in range(n)])
     y = 1.0 + 2.0 * t + 0.5 * t * w
     data = {"t": t, "y": y, "w": w}
-    prepared = PreparedAnalysis.prepare(
-        data,
-        graph=[("t", "y"), ("w", "y")],
-        query=ConditionalEffect("t", "y", "w"),
-        refute="none",
-        bootstrap=0,
+    outcome = ant.estimate(
+        _prepare(data, graph=[("t", "y"), ("w", "y")], query=ConditionalEffect("t", "y", "w"))
     )
-    result = require_success(prepared.estimate(data))
-    contract = prepared.inspect_plan().contract
-    accepted = artifacts.accept(bytes(prepared.export()))
+    result = require_success(outcome)
+    contract = outcome.inspect().contract
+    accepted = artifacts.accept(bytes(outcome.export()))
     assert accepted["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_conditional_effect_operation" in accepted["unresolved"]
-    assert accepted["program"] == contract["program"]
-    assert accepted["target"] == contract["target"]
+    assert accepted["program"] == _hex(contract["identities"]["program"])
+    assert accepted["target"] == _hex(contract["identities"]["target"])
     assert accepted["query_kind"] == "conditional_effect"
-    assert accepted["treatment"] == contract["treatment"]
-    assert accepted["outcome"] == contract["outcome"]
+    query = outcome.inspect().target["query"]
+    assert accepted["treatment"] == str(query["treatment_id"])
+    assert accepted["outcome"] == str(query["outcome_id"])
     assert accepted["treatment"] == "0"
     assert accepted["outcome"] == "1"
     assert accepted["population"] == "all_observed"
-    assert contract["matrix_coordinate"].startswith("ConditionalEffect:")
+    assert outcome.inspect().support.payload["matrix_coordinate"].startswith("ConditionalEffect:")
     assert abs(result.estimate.ate - 3.0) < 1e-6
 
 
@@ -151,24 +192,24 @@ def test_mediation_contracted_artifact_names_missing_checked_operation() -> None
     m = 2.0 * a + np.cos(np.arange(200) * 1.13)
     y = 3.0 * a + 4.0 * m + 0.1 * np.sin(np.arange(200) * 0.31)
     data = {"a": a, "m": m, "y": y}
-    prepared = PreparedAnalysis.prepare(
-        data,
-        graph=[("a", "m"), ("a", "y"), ("m", "y")],
-        query=MediationEffect("a", "y", mediators=["m"], contrast="direct"),
-        refute="none",
-        bootstrap=0,
+    outcome = ant.estimate(
+        _prepare(
+            data,
+            graph=[("a", "m"), ("a", "y"), ("m", "y")],
+            query=MediationEffect("a", "y", mediators=["m"], contrast="direct"),
+        )
     )
-    result = require_success(prepared.estimate(data))
-    contract = prepared.inspect_plan().contract
-    accepted = artifacts.accept(bytes(prepared.export()))
+    result = require_success(outcome)
+    contract = outcome.inspect().contract
+    accepted = artifacts.accept(bytes(outcome.export()))
     assert accepted["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_mediation_operation" in accepted["unresolved"]
-    assert accepted["program"] == contract["program"]
-    assert accepted["target"] == contract["target"]
+    assert accepted["program"] == _hex(contract["identities"]["program"])
+    assert accepted["target"] == _hex(contract["identities"]["target"])
     assert accepted["query_kind"] == "mediation"
     assert accepted["treatment"] == "0"
     assert accepted["outcome"] == "2"
-    assert contract["matrix_coordinate"].startswith("MediationEffect:")
+    assert outcome.inspect().support.payload["matrix_coordinate"].startswith("MediationEffect:")
     assert np.isfinite(result.estimate.ate)
 
 
@@ -181,22 +222,26 @@ def test_response_curve_contracted_artifact_names_missing_checked_grid() -> None
     treatment = z + np.cos(np.arange(n) / 11.0) + (np.arange(n) % 7) * 0.03
     outcome = 1.0 + 2.0 * treatment + 0.8 * z
     data = {"treatment": treatment, "outcome": outcome, "confounder": z}
-    prepared = PreparedAnalysis.prepare(
-        data,
-        graph=[("confounder", "treatment"), ("confounder", "outcome"), ("treatment", "outcome")],
-        query=ResponseCurve("treatment", "outcome", grid=[-0.5, 0.0, 0.5]),
-        refute="none",
-        bootstrap=0,
+    outcome = ant.estimate(
+        _prepare(
+            data,
+            graph=[
+                ("confounder", "treatment"),
+                ("confounder", "outcome"),
+                ("treatment", "outcome"),
+            ],
+            query=ResponseCurve("treatment", "outcome", grid=[-0.5, 0.0, 0.5]),
+        )
     )
-    require_success(prepared.estimate(data))
-    contract = prepared.inspect_plan().contract
-    accepted = artifacts.accept(bytes(prepared.export()))
+    require_success(outcome)
+    contract = outcome.inspect().contract
+    accepted = artifacts.accept(bytes(outcome.export()))
     assert accepted["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_response_grid_operation" in accepted["unresolved"]
-    assert accepted["program"] == contract["program"]
+    assert accepted["program"] == _hex(contract["identities"]["program"])
     assert accepted["query_kind"] == "response"
     assert accepted["temporal_coordinates"] == "none"
-    assert contract["matrix_coordinate"].startswith("ResponseCurve:")
+    assert outcome.inspect().support.payload["matrix_coordinate"].startswith("ResponseCurve:")
 
 
 def test_intervention_response_contracted_artifact_names_missing_checked_operation() -> None:
@@ -209,52 +254,58 @@ def test_intervention_response_contracted_artifact_names_missing_checked_operati
     treatment = z + np.cos(np.arange(n) / 11.0)
     outcome = 1.0 + 2.0 * treatment + 0.8 * z
     data = {"treatment": treatment, "outcome": outcome, "confounder": z}
-    prepared = PreparedAnalysis.prepare(
-        data,
-        graph=[("confounder", "treatment"), ("confounder", "outcome"), ("treatment", "outcome")],
-        query=InterventionResponse("outcome", intervention=Set("treatment", 0.25)),
-        refute="none",
-        bootstrap=0,
+    outcome = ant.estimate(
+        _prepare(
+            data,
+            graph=[
+                ("confounder", "treatment"),
+                ("confounder", "outcome"),
+                ("treatment", "outcome"),
+            ],
+            query=InterventionResponse("outcome", intervention=Set("treatment", 0.25)),
+        )
     )
-    result = require_success(prepared.estimate(data))
-    contract = prepared.inspect_plan().contract
-    accepted = artifacts.accept(bytes(prepared.export()))
+    result = require_success(outcome)
+    contract = outcome.inspect().contract
+    accepted = artifacts.accept(bytes(outcome.export()))
     assert accepted["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_intervention_response_operation" in accepted["unresolved"]
-    assert accepted["program"] == contract["program"]
+    assert accepted["program"] == _hex(contract["identities"]["program"])
     assert accepted["query_kind"] == "response"
     assert accepted["temporal_coordinates"] == "none"
-    assert contract["matrix_coordinate"].startswith("InterventionResponse:")
+    assert (
+        outcome.inspect().support.payload["matrix_coordinate"].startswith("InterventionResponse:")
+    )
     assert abs(float(np.asarray(result.response.values).ravel()[0]) - 1.5) < 0.25
 
 
 def test_four_slots_agree_between_inspect_and_prepared_contract() -> None:
-    prepared = PreparedAnalysis.prepare(
-        _data(),
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect("t", "y"),
-        refute="none",
-        bootstrap=0,
-    )
+    prepared = _prepare(_data())
     inspected = prepared.inspect()
-    contract = inspected.contract
-    assert contract is not None
-    assert inspected.support.payload["matrix_coordinate"] == contract["matrix_coordinate"]
-    assert inspected.program_id == contract["program"]
+    assert inspected.stage == "prepared"
+    assert inspected.contract is None
     assert inspected.claim_id is None
-    assert "claim_id" not in contract
-    assert inspected.data_snapshot_id == contract["data_snapshot"]
     assert inspected.identification.available is True
-    assert inspected.identification.payload["identified_mass"] == 1.0
     assert inspected.rendering_limitation() is None
     assert prepared.preflight().identification.available is False
     report = inspected.to_dict()
-    assert report["contract"] == contract
     assert report["calibration"]["status"] == "unavailable"
     assert report["calibration"]["reason"] == "not_executed"
-    result = require_success(prepared.estimate(_data()))
+    outcome = ant.estimate(prepared)
+    result = require_success(outcome)
+    contract = outcome.inspect().contract
+    assert contract is not None
+    # The prepared question, identification and inference are the executed contract's;
+    # the executed program identity is the one the execution sealed.
+    assert inspected.target_id == _hex(contract["identities"]["target"])
+    assert inspected.identification_id == _hex(contract["identities"]["identification"])
+    assert inspected.inference_binding_id == _hex(contract["identities"]["inference_binding"])
+    # Preparation does not materialize the snapshot identity; execution does.
+    assert inspected.data_snapshot_id is None
+    assert outcome.inspect().data_snapshot_id == _hex(contract["identities"]["data_snapshot"])
+    assert "claim_id" not in contract["identities"]
     assert result.reasoning is not None
-    assert result.program_id == contract["program"]
+    assert result.program_id == _hex(contract["identities"]["program"])
     assert result.claim_id is not None
     assert result.claim_id != result.program_id
     assert result.answer.kind == "point" and result.answer.value == result.effect
@@ -264,7 +315,7 @@ def test_four_slots_agree_between_inspect_and_prepared_contract() -> None:
     assert display["refused"] == "false"
     scientific = prepared.preview_transform("new_conditional_query")
     assert scientific["intent"] == "new_conditional_query"
-    assert scientific["input_program"] == contract["program"]
+    assert scientific["input_program"] == inspected.program_id
 
 
 def test_four_slots_refuse_identified_atom_mean_for_partial_claim() -> None:
@@ -319,14 +370,7 @@ def test_four_slots_refuse_identified_atom_mean_for_partial_claim() -> None:
 
 
 def test_calibration_reads_from_contract() -> None:
-    prepared = PreparedAnalysis.prepare(
-        _data(),
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect("t", "y"),
-        refute="none",
-        bootstrap=0,
-    )
-    result = require_success(prepared.estimate())
+    result = require_success(ant.estimate(_prepare(_data())))
     slot = result.calibration
     assert slot.status in {"calibrated", "scope_not_assessed", "unavailable"}
     if slot.status == "unavailable":
@@ -334,14 +378,7 @@ def test_calibration_reads_from_contract() -> None:
 
 
 def test_calibration_prepared_is_not_executed() -> None:
-    prepared = PreparedAnalysis.prepare(
-        _data(),
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect("t", "y"),
-        refute="none",
-        bootstrap=0,
-    )
-    calibration = prepared.inspect().calibration
+    calibration = _prepare(_data()).inspect().calibration
     assert calibration.status == "unavailable"
     assert calibration.reason == "not_executed"
 
@@ -354,16 +391,7 @@ def test_custom_validator_is_attested_and_covered_by_claim_id() -> None:
         return {"passed": False, "refuted_ate": ate, "comparison": 1.0}
 
     def run(validators):
-        return require_success(
-            PreparedAnalysis.prepare(
-                _data(),
-                graph=[("z", "t"), ("z", "y"), ("t", "y")],
-                query=AverageEffect("t", "y"),
-                refute="none",
-                bootstrap=0,
-                validators=validators,
-            ).estimate()
-        )
+        return require_success(ant.estimate(_prepare(_data(), validators=validators)))
 
     passing, failing, unchecked = run([always_pass]), run([always_fail]), run(None)
     attested = require_success(ant.load(bytes(passing.export()))).decoded_artifact.contract[
@@ -379,21 +407,19 @@ def test_custom_validator_is_attested_and_covered_by_claim_id() -> None:
     assert len({passing.claim_id, failing.claim_id, unchecked.claim_id}) == 3
 
 
+def _aipw_study(data):
+    return _prepare(data, estimator="aipw")
+
+
 def test_retarget_export_reload_and_reexecute_on_snapshot() -> None:
     from antecedent import artifacts
 
     data = _data()
-    prepared = PreparedAnalysis.prepare(
-        data,
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect("t", "y"),
-        estimator="aipw",
-        refute="none",
-        bootstrap=0,
-    )
-    require_success(prepared.estimate(data))
+    estimated = ant.estimate(_aipw_study(data))
+    require_success(estimated)
     weights = np.exp(data["z"] / 3)
-    retargeted = prepared.retarget(weights, depends_on=["z"])
+    retargeted = estimated.study.retarget(weights, depends_on=["z"])
+    require_success(retargeted)
     encoded = bytes(retargeted.export())
     loaded = artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"
@@ -412,16 +438,9 @@ def test_retarget_export_reload_and_reexecute_on_snapshot() -> None:
 
 def test_constant_retarget_keeps_the_prepared_target() -> None:
     data = _data()
-    prepared = PreparedAnalysis.prepare(
-        data,
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect("t", "y"),
-        estimator="aipw",
-        refute="none",
-        bootstrap=0,
-    )
-    estimated = require_success(prepared.estimate(data))
-    constant = prepared.retarget(np.full(len(data["t"]), 7.0), depends_on=[])
+    estimated = ant.estimate(_aipw_study(data))
+    constant = estimated.study.retarget(np.full(len(data["t"]), 7.0), depends_on=[])
+    require_success(constant)
     assert constant.inspect().target_weights_id is None
     assert constant.inspect().target_id == estimated.inspect().target_id
     from antecedent import artifacts
@@ -440,25 +459,17 @@ def test_retarget_uses_the_scores_of_the_execution_it_follows() -> None:
         return {"t": t, "y": y, "z": z}
 
     d1, d2 = draw(1, 0.0), draw(2, 3.0)
-    kwargs = dict(
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect("t", "y"),
-        estimator="aipw",
-        refute="none",
-        bootstrap=0,
-    )
     weights = np.exp(d2["z"])
-    prepared = PreparedAnalysis.prepare(d1, **kwargs)
-    require_success(prepared.estimate(d2))
-    after_estimate = prepared.retarget(weights, depends_on=["z"])
-    fresh = PreparedAnalysis.prepare(d2, **kwargs)
-    require_success(fresh.estimate(d2))
-    on_d2 = fresh.retarget(weights, depends_on=["z"])
-    stale = PreparedAnalysis.prepare(d1, **kwargs)
-    require_success(stale.estimate(d1))
-    on_d1 = stale.retarget(weights, depends_on=["z"])
-    assert abs(on_d2.ate - on_d1.ate) > 0.5, "fixture must separate the two snapshots"
-    assert after_estimate.ate == on_d2.ate
+    # Preparing on d1 and branching onto d2 retargets the scores of the d2 execution.
+    after_estimate = ant.estimate(ant.rebind(_aipw_study(d1), data=d2)).study.retarget(
+        weights, depends_on=["z"]
+    )
+    on_d2 = ant.estimate(_aipw_study(d2)).study.retarget(weights, depends_on=["z"])
+    on_d1 = ant.estimate(_aipw_study(d1)).study.retarget(weights, depends_on=["z"])
+    assert abs(require_success(on_d2).ate - require_success(on_d1).ate) > 0.5, (
+        "fixture must separate the two snapshots"
+    )
+    assert require_success(after_estimate).ate == require_success(on_d2).ate
     exported = artifacts.loads(bytes(after_estimate.export())).contract
     reference = artifacts.loads(bytes(on_d2.export())).contract
     assert exported["identities"]["data_snapshot"] == reference["identities"]["data_snapshot"]
@@ -471,43 +482,33 @@ def test_retarget_refuses_new_data_with_code() -> None:
     The binding is a property of the retargeted result, not of the plan: the
     plan is still an AllObserved study and re-estimates on new data.
     """
-    # A Rust refusal keeps its native class; describe_refusal attaches the code.
-    from antecedent._native import CausalUnsupportedError
-
     data = _data()
-    kwargs = dict(
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect("t", "y"),
-        estimator="aipw",
-        refute="none",
-        bootstrap=0,
-    )
-    prepared = PreparedAnalysis.prepare(data, **kwargs)
-    require_success(prepared.estimate(data))
+    estimated = ant.estimate(_aipw_study(data))
+    require_success(estimated)
     weights = np.exp(data["z"] / 3)
-    retargeted = prepared.retarget(weights, depends_on=["z"])
+    retargeted = estimated.study.retarget(weights, depends_on=["z"])
     carried = bytes(retargeted.export())
 
-    # The plan itself is not bound: a plain estimate on new data still works.
+    # The plan itself is not bound: a plain estimate on a rebound branch still works.
     moved = {**data, "y": data["y"] + 1.0}
     assert (
-        require_success(prepared.estimate(moved)).ate
-        == require_success(prepared.estimate(moved)).ate
+        require_success(ant.estimate(ant.rebind(estimated.study, data=moved))).ate
+        == require_success(ant.estimate(ant.rebind(estimated.study, data=moved))).ate
     )
 
     # Re-executing the carried weights on their own snapshot reproduces them.
-    same = PreparedAnalysis.prepare(data, **kwargs)
-    require_success(same.estimate(data))
-    again = same.reexecute_retarget(carried)
-    assert again.ate == retargeted.ate
+    same = ant.estimate(_aipw_study(data))
+    again = same.study.reexecute_retarget(carried)
+    assert require_success(again).ate == require_success(retargeted).ate
     assert again.inspect().target_weights_id == retargeted.inspect().target_weights_id
 
-    # On a different snapshot of the same shape it refuses with the code.
-    other = PreparedAnalysis.prepare(moved, **kwargs)
-    require_success(other.estimate(moved))
-    try:
-        other.reexecute_retarget(carried)
-    except CausalUnsupportedError as err:
-        assert err.reason_code == "row_weights_bound_to_snapshot"
-    else:
-        raise AssertionError("row-weight retarget must refuse a new snapshot")
+    # On a different snapshot of the same shape it refuses with the code: a valid scientific
+    # question that cannot be answered returns a typed refusal outcome.
+    other = ant.estimate(_aipw_study(moved))
+    refused = other.study.reexecute_retarget(carried)
+    assert not refused.accepted
+    assert refused.refusal is not None
+    assert refused.refusal.code == "row_weights_bound_to_snapshot"
+    with pytest.raises(CausalUnsupportedError) as raised:
+        require_success(refused)
+    assert getattr(raised.value, "reason_code", None) == "row_weights_bound_to_snapshot"

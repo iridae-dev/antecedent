@@ -15,7 +15,6 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalError, CausalUnsupportedError
-from antecedent.estimation import PreparedAnalysis
 from antecedent.gcm import fitted_intrinsic_influence, intrinsic_influence
 from antecedent.graph import Dag
 from antecedent.graph_falsification import evaluate_graph
@@ -45,6 +44,7 @@ from antecedent.intervention_programs import (
     var,
 )
 from antecedent.outcomes import require_success
+from antecedent.prepared import PreparedAnalysis
 
 from _pricing_chain import (
     LINEAR_EDGES,
@@ -373,16 +373,26 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
     )
     assert isinstance(handle, PreparedAnalysis)
 
-    # The program is compiled once, at prepare; every rerun reuses it.
-    before = handle.preparation
-    assert (before.program_compilations, before.model_bindings, before.runs) == (1, 1, 0)
-    first = require_success(handle.estimate())
-    other_seed = require_success(handle.estimate(seed=9))
-    third = require_success(handle.estimate(seed=2))
-    receipt = handle.preparation
-    assert (receipt.program_compilations, receipt.model_bindings, receipt.runs) == (1, 1, 3)
-    assert first.preparation.runs == 1 and third.preparation.runs == 3
-    assert handle.last_result is third
+    # The program is compiled once, at prepare; the fit is deferred to execution.
+    prepared = handle.inspect()
+    assert prepared.stage == "prepared"
+    assert prepared.details["phase"] == "compiled" and not prepared.details["fit_materialized"]
+    first_outcome = antecedent.estimate(handle)
+    first = require_success(first_outcome)
+    other_seed = require_success(
+        antecedent.estimate(antecedent.reconfigure(handle, execution=antecedent.Execution(seed=9)))
+    )
+    third = require_success(
+        antecedent.estimate(antecedent.reconfigure(handle, execution=antecedent.Execution(seed=2)))
+    )
+    # The preparation is immutable: executing its branches leaves it unexecuted.
+    assert handle.inspect().stage == "prepared"
+    for result in (first, other_seed, third):
+        assert (
+            result.preparation.program_compilations,
+            result.preparation.model_bindings,
+            result.preparation.runs,
+        ) == (1, 1, 1)
     assert first.value != other_seed.value
 
     # Every rerun is the one-shot result on the same fitted model, program and seed, to the bit.
@@ -407,7 +417,7 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
     assert contract.program_identity == policy_program_identity(list(data), policy)
     assert any("independent" in assumption for assumption in contract.assumptions)
     assert set(contract.mechanisms) == set(data)
-    report = handle.inspect()
+    report = first_outcome.study.inspect()
     assert report.stage == "executed" and report.program_id == contract.program_identity
     assert report.details["provenance_id"] == "model.intervention_programs"
 
@@ -416,32 +426,42 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
         data,
         query=PolicyProgramValue([assign("price", 20.0)], "demand", n_draws=500),
         graph=PRICING_EDGES,
+        execution=antecedent.Execution(seed=1),
     )
-    assert require_success(level.estimate(seed=1)).support.identification.licensed
+    assert require_success(antecedent.estimate(level)).support.identification.licensed
 
-    # Refreshed data refits the model and rebinds the program: still one compilation, and the
-    # result is the one-shot result on the refit model, which the handle keeps.
+    # New observations refit the model on a branch and rebind the program: still one compilation,
+    # and the result is the one-shot result on the refit model. The preparation is unchanged.
     fresh = pricing_chain(5000, 777)
-    refreshed = require_success(handle.refresh(fresh, seed=5))
+    branch = antecedent.rebind(handle, data=fresh)
+    refreshed = require_success(antecedent.estimate(branch))
     assert refreshed.preparation.program_compilations == 1
-    assert refreshed.preparation.model_bindings == 2
+    assert refreshed.preparation.model_bindings == 1
     assert refreshed.value == policy_value(
         fit(fresh, PRICING_EDGES), policy, "demand", n=4000, seed=5
     )
-    assert require_success(handle.estimate(seed=5)).value == refreshed.value
-    # A transient estimate on other data leaves the retained model alone.
-    require_success(handle.estimate(pricing_chain(5000, 778), seed=5))
-    assert require_success(handle.estimate(seed=5)).value == refreshed.value
+    assert require_success(antecedent.estimate(handle)).value == first.value
+    # Branching on other data never alters the retained model of the original preparation.
+    require_success(antecedent.estimate(antecedent.rebind(handle, data=pricing_chain(5000, 778))))
+    assert require_success(antecedent.estimate(handle)).value == first.value
 
     # Operations that need an identified estimand are refused, as are options it does not take.
-    for operation in (handle.refute, handle.export, lambda: handle.identification):
+    for operation in (handle.refute, lambda: handle.identification):
         with pytest.raises(CausalUnsupportedError) as refused:
             operation()
         assert _code(refused.value) == "option_not_applicable"
     with pytest.raises(CausalUnsupportedError):
         antecedent.prepare(data, query=query, graph=PRICING_EDGES, estimator="linear")
-    with pytest.raises(CausalUnsupportedError):
-        require_success(antecedent.analyze(data, query=query, graph=PRICING_EDGES))
+    # The one-shot verb is exactly prepare followed by estimate, so it answers the same question.
+    one_shot = require_success(
+        antecedent.analyze(
+            data,
+            query=query,
+            graph=Dag.from_edges(list(data), PRICING_EDGES),
+            execution=antecedent.Execution(seed=5),
+        )
+    )
+    assert one_shot.value == first.value
     with pytest.raises(CausalError):
         antecedent.prepare(
             data, query=PolicyProgramValue(policy, "missing", n_draws=100), graph=PRICING_EDGES

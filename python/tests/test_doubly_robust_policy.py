@@ -164,7 +164,7 @@ def test_retained_policy_value_honors_capacity_budget_and_availability():
     assert loaded.answer.kind == "policy_value"
     assert loaded.answer.structured["policy_value"] == pytest.approx(5.875)
     with pytest.raises(CausalUnsupportedError, match="bound to the prepared evaluation rows"):
-        require_success(result.refresh({"y": outcome}))
+        ant.rebind(result.study, data={"y": outcome})
 
     for constrained in (
         policy.BinaryPolicy([True] * 4 + [False] * 4, capacity=3),
@@ -481,7 +481,7 @@ def test_retained_multi_action_policy_matches_direct_native_value_and_artifact()
             baseline_groups=["x"],
         )
     with pytest.raises(CausalUnsupportedError, match="bound to the prepared evaluation rows"):
-        require_success(result.refresh({"y": outcomes}))
+        ant.rebind(result.study, data={"y": outcomes})
 
     with pytest.raises(CausalValueError, match="probability"):
         policy.MultiActionPolicyValue(

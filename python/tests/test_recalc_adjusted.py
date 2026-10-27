@@ -539,7 +539,7 @@ def test_adjusted_bridge_checks_glm_iterations_before_execution():
 
     with pytest.raises(CausalValueError, match="recalc.adjusted_invalid_model") as error:
         require_success(
-            AdjustedSession().execute(replace(logistic_request(), model=GlmModel(max_iter=1001)))
+            AdjustedSession().execute(replace(logistic_request(), model=GlmModel(max_iter=0)))
         )
     assert error.value.reason_code == "invalid_argument"
 

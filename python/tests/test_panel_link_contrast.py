@@ -71,7 +71,7 @@ def delta_se(rows, beta, information):
     return float(np.sqrt(gradient @ np.linalg.solve(information, gradient)))
 
 
-def run(units, **kwargs):
+def run(units, *, inference=None, **kwargs):
     return require_success(
         antecedent.analyze(
             panel(units),
@@ -80,7 +80,7 @@ def run(units, **kwargs):
                 treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
             ),
             refute=False,
-            inference=antecedent.Frequentist(bootstrap=0),
+            inference=antecedent.Frequentist(bootstrap=0) if inference is None else inference,
             execution=antecedent.Execution(seed=4),
             **kwargs,
         )

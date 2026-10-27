@@ -65,14 +65,14 @@ def _counted_conditional(series: dict[str, np.ndarray]) -> float:
     return total
 
 
-def _run(query, graph=None, **kwargs):
+def _run(query, graph=None, inference=None, **kwargs):
     return require_success(
         antecedent.analyze(
             _series(),
             graph=graph if graph is not None else _graph(),
             query=query,
             refute=False,
-            inference=antecedent.Frequentist(bootstrap=kwargs.pop("bootstrap", 0)),
+            inference=antecedent.Frequentist(bootstrap=0) if inference is None else inference,
             execution=antecedent.Execution(seed=3),
             **kwargs,
         )
@@ -96,7 +96,10 @@ def test_a_pulse_is_the_counted_contrast_and_stays_unlicensed() -> None:
 
 
 def test_overlapping_windows_are_resampled_in_blocks() -> None:
-    result = _run(antecedent.PulseEffect("x", "y", treatment_lag=1, horizon_steps=1), bootstrap=40)
+    result = _run(
+        antecedent.PulseEffect("x", "y", treatment_lag=1, horizon_steps=1),
+        inference=antecedent.Frequentist(bootstrap=40),
+    )
     se = result.estimate.se_bootstrap
     assert se is not None and se > 0.0
 

@@ -57,7 +57,7 @@ def test_fixed_dose_policy_uses_retained_analyze_and_prepare():
     )
     assert (
         require_success(
-            ant.prepare(data, query=query, refute="none").estimate(data)
+            ant.estimate(ant.prepare(data, query=query, refute="none"))
         ).continuous_dose_response
         == response
     )

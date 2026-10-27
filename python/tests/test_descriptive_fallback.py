@@ -28,6 +28,7 @@ from antecedent.fallback import (
     EvidenceNeeds,
     FallbackRoles,
     FallbackUnavailable,
+    described,
     fallback_roles,
     is_identification_refusal,
 )
@@ -94,6 +95,21 @@ def _survey(measured):
     )
 
 
+def _describe(outcome) -> AnalysisWithFallback:
+    """The refusal outcome of an ``on_refusal='describe'`` analysis, read with its description.
+
+    The causal refusal stays the primary outcome: it is not accepted and its original
+    exception is retained. The separate associational outcome and evidence plan are attached.
+    """
+    assert not outcome.accepted
+    assert outcome.refusal is not None
+    assert outcome.answer.kind == "refused"
+    assert outcome.associational is not None and outcome.evidence_plan is not None
+    description = described(outcome)
+    assert description.refusal is outcome.refusal._error
+    return description
+
+
 def _association(outcome: AnalysisWithFallback) -> AssociationEstimate:
     section = outcome.associational.association  # type: ignore[union-attr]
     assert isinstance(section, AssociationEstimate)
@@ -105,8 +121,12 @@ def test_an_unmeasured_confounder_returns_the_refusal_the_description_and_the_ev
     query = ant.AverageEffect("t", "y")
     with pytest.raises(EffectNotIdentified) as raised:
         require_success(ant.analyze(data, graph=graph, query=query))
-    outcome = require_success(ant.analyze(data, graph=graph, query=query, on_refusal="describe"))
+    primary = ant.analyze(data, graph=graph, query=query, on_refusal="describe")
+    outcome = _describe(primary)
     assert isinstance(outcome, AnalysisWithFallback)
+    assert primary.refusal.code == "effect_not_identified"
+    assert primary.associational.accepted and primary.associational.answer.kind == "associational"
+    assert primary.evidence_plan is outcome.evidence_plan
 
     # The refusal object is the one analyze raises: same class, code, remedy and report.
     refusal = outcome.refusal
@@ -155,7 +175,7 @@ def test_an_unmeasured_confounder_returns_the_refusal_the_description_and_the_ev
 
 
 def test_a_hedge_returns_the_refusal_the_description_and_a_ranked_plan():
-    outcome = require_success(
+    outcome = _describe(
         ant.analyze(
             _hedge_data(),
             graph=_hedge_graph(),
@@ -186,7 +206,7 @@ def test_a_conditional_effect_holds_its_modifier_fixed():
     rng = np.random.default_rng(13)
     data = {name: rng.normal(size=200) for name in ("t", "y", "w")}
     bow = ant.Admg.from_edges(["t", "y", "w"], [("t", "y")], [("t", "y")])
-    outcome = require_success(
+    outcome = _describe(
         ant.analyze(
             data, graph=bow, query=ant.ConditionalEffect("t", "y", "w"), on_refusal="describe"
         )
@@ -205,15 +225,16 @@ def test_a_successful_causal_query_returns_the_ordinary_result_never_a_fallback(
             data, graph=graph, query=ant.AverageEffect("t", "y"), execution=ant.Execution(seed=3)
         )
     )
-    optional = require_success(
-        ant.analyze(
-            data,
-            graph=graph,
-            query=ant.AverageEffect("t", "y"),
-            execution=ant.Execution(seed=3),
-            on_refusal="describe",
-        )
+    optional_outcome = ant.analyze(
+        data,
+        graph=graph,
+        query=ant.AverageEffect("t", "y"),
+        execution=ant.Execution(seed=3),
+        on_refusal="describe",
     )
+    assert optional_outcome.accepted
+    assert optional_outcome.associational is None and optional_outcome.evidence_plan is None
+    optional = require_success(optional_outcome)
     assert not isinstance(optional, AnalysisWithFallback)
     assert optional.answer.kind == ordinary.answer.kind
     assert optional.answer.value == ordinary.answer.value
@@ -221,7 +242,7 @@ def test_a_successful_causal_query_returns_the_ordinary_result_never_a_fallback(
 
 def test_the_default_still_raises_and_the_refusal_points_at_the_opt_in():
     data, graph = _confounded_data(), _confounded_graph()
-    for kwargs in ({}, {"on_refusal": "raise"}):
+    for kwargs in ({}, {"on_refusal": "refuse"}):
         with pytest.raises(EffectNotIdentified) as caught:
             require_success(
                 ant.analyze(data, graph=graph, query=ant.AverageEffect("t", "y"), **kwargs)
@@ -296,7 +317,7 @@ def test_a_query_with_no_association_form_or_an_unmeasured_variable_says_so():
 
 
 def test_the_returned_object_states_plainly_that_it_is_not_a_causal_answer():
-    outcome = require_success(
+    outcome = _describe(
         ant.analyze(
             _confounded_data(),
             graph=_confounded_graph(),
@@ -313,15 +334,14 @@ def test_the_returned_object_states_plainly_that_it_is_not_a_causal_answer():
 
 
 def test_the_host_record_shows_both_statuses_and_satisfies_the_schema():
-    outcome = require_success(
-        ant.analyze(
-            _confounded_data(),
-            graph=_confounded_graph(),
-            query=ant.AverageEffect("t", "y"),
-            on_refusal="describe",
-        )
+    primary = ant.analyze(
+        _confounded_data(),
+        graph=_confounded_graph(),
+        query=ant.AverageEffect("t", "y"),
+        on_refusal="describe",
     )
-    record = host.fallback_response(outcome)
+    outcome = _describe(primary)
+    record = host.fallback_response(primary)
     assert outcome.to_dict() == record
     assert record["status"] == "unsupported" and record["causal_status"] == "unsupported"
     assert record["associational_status"] == "supported"
@@ -334,7 +354,7 @@ def test_the_host_record_shows_both_statuses_and_satisfies_the_schema():
 
 
 def test_a_bayesian_study_is_described_with_its_posterior():
-    outcome = require_success(
+    outcome = _describe(
         ant.analyze(
             _confounded_data(),
             graph=_confounded_graph(),

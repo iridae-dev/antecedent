@@ -1,4 +1,4 @@
-"""The evidence plan of a real study, reached through ``analyze`` and ``PreparedAnalysis.prepare``.
+"""The evidence plan of a real study, reached through ``analyze`` and ``prepare``.
 
 Nothing here hand-builds a contract: each study declares data, an ``Admg`` and an average effect
 the structure does not identify. The refusal is the one ``prepare`` and ``analyze`` have always
@@ -19,8 +19,12 @@ import numpy as np
 import pytest
 from antecedent import design, repair
 from antecedent.errors import CausalUnsupportedError, EffectNotIdentified
-from antecedent.estimation import PreparedAnalysis
-from antecedent.fallback import AnalysisWithFallback, EvidenceNeeds, FallbackUnavailable
+from antecedent.fallback import (
+    AnalysisWithFallback,
+    EvidenceNeeds,
+    FallbackUnavailable,
+    described,
+)
 from antecedent.outcomes import require_success
 
 _QUERY = ant.AverageEffect("t", "y")
@@ -77,11 +81,13 @@ def _declared(label, measured, cost, *, kind="observation", interventions=()):
 
 
 def _described(data, graph, **kwargs) -> EvidenceNeeds:
-    outcome = require_success(
-        ant.analyze(data, graph=graph, query=_QUERY, on_refusal="describe", **kwargs)
-    )
+    primary = ant.analyze(data, graph=graph, query=_QUERY, on_refusal="describe", **kwargs)
+    # The causal refusal stays the primary outcome; the description is attached beside it.
+    assert not primary.accepted and primary.refusal.code == "effect_not_identified"
+    outcome = described(primary)
     assert isinstance(outcome, AnalysisWithFallback)
     needs = outcome.evidence_plan
+    assert primary.evidence_plan is needs
     assert isinstance(needs, EvidenceNeeds), needs
     return needs
 
@@ -93,14 +99,17 @@ def _actions(needs: EvidenceNeeds) -> set[str]:
 def _assert_refusal_unchanged(data, graph) -> None:
     with pytest.raises(EffectNotIdentified) as analyzed:
         require_success(ant.analyze(data, graph=graph, query=_QUERY))
+    study = ant.prepare(data, query=_QUERY, graph=graph)
+    assert study.refusal is not None and study.refusal.code == "effect_not_identified"
     with pytest.raises(EffectNotIdentified) as prepared:
-        PreparedAnalysis.prepare(data, query=_QUERY, graph=graph)
+        require_success(ant.estimate(study))
     assert prepared.value.reason_code == analyzed.value.reason_code == "effect_not_identified"
     assert str(prepared.value) == str(analyzed.value)
-    outcome = require_success(ant.analyze(data, graph=graph, query=_QUERY, on_refusal="describe"))
+    primary = ant.analyze(data, graph=graph, query=_QUERY, on_refusal="describe")
+    outcome = described(primary)
     assert isinstance(outcome, AnalysisWithFallback)
     assert str(outcome.refusal) == str(analyzed.value)
-    assert outcome.refusal.reason_code == "effect_not_identified"
+    assert primary.refusal.code == outcome.refusal.reason_code == "effect_not_identified"
 
 
 def _assert_gate_then_cost(plan) -> None:

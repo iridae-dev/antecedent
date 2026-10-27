@@ -249,7 +249,11 @@ def test_latent_premise_and_configuration_refusals() -> None:
     assert_registered_refusal(caught.value)
     with pytest.raises(LatentClassRefusal) as caught:
         fit(d, classes=5)
-    assert caught.value.detail == "latent_class.too_many_classes"
+    # The class count is declared, not capped: five classes need at least d + K - 1 = 7 distinct
+    # treatment-covariate points, and this design has six.
+    assert caught.value.detail == "latent_class.design_support_too_small"
+    assert caught.value.reason_code == "design_rank_deficient"
+    assert_registered_refusal(caught.value)
     constant = {**d, "a": np.ones_like(d["a"])}
     with pytest.raises(LatentClassRefusal) as caught:
         fit(constant)

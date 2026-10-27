@@ -390,7 +390,7 @@ def _native_view(*, bayesian=False):
     kwargs = (
         {"inference": ac.Bayesian(backend="conjugate", n_draws=256)}
         if bayesian
-        else {"bootstrap": 0}
+        else {"inference": ac.Frequentist(bootstrap=0)}
     )
     return require_success(
         ac.analyze(
@@ -492,16 +492,18 @@ def test_native_mean_response_feeds_decision_and_inverse_query_on_hand_values():
     contract = _contract(decision.Criterion.expected_utility())
     source = claim.as_decision_source(contract)
     assert source.representation == "mean"
-    result = contract.evaluate(source.source)
+    result = require_success(contract.evaluate(source.source))
     assert result.selected == ("B",)
     by_id = {action.id: action for action in result.actions}
     assert by_id["A"].expected_utility == pytest.approx(3.0, abs=1e-4)
     assert by_id["B"].expected_utility == pytest.approx(3.5, abs=1e-4)
     assert source.mean_claim().means == pytest.approx((3.0, 5.0), abs=1e-4)
     assert (
-        iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),))
-        .evaluate(source.mean_claim())
-        .selected
+        require_success(
+            iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),)).evaluate(
+                source.mean_claim()
+            )
+        ).selected
         == "B"
     )
 
@@ -566,7 +568,7 @@ def test_native_response_retains_actual_joint_draws_and_refuses_uncertainty_subs
     assert source.source.semantic == "causal_functional_posterior"
     assert source.source.trust == "native_licensed"
     assert source.source.calibration == "unmeasured"
-    result = contract.evaluate(source.source)
+    result = require_success(contract.evaluate(source.source))
     assert result.actions[0].expected_utility == pytest.approx(
         source.source.joint_product_expectation(0, 1)
     )
@@ -673,7 +675,7 @@ def test_native_composition_consumes_issued_execution_and_refuses_metadata_subst
     assert native.provenance.snapshot_id == view.data_snapshot_id
     assert native.provenance.receipt["kind"] == "native_execution"
     assert len(native.provenance.receipt["execution_id"]) == 64
-    decided = comp.evaluate_with_support(contract, [native])
+    decided = require_success(comp.evaluate_with_support(contract, [native]))
     assert decided.verdict.selected == "B"
     assert decided.outcome("B").expected_utility == pytest.approx(3.5, abs=1e-4)
     with pytest.raises(CausalTypeError):
@@ -721,7 +723,7 @@ def test_native_composition_retains_actual_joint_functional_rows_and_calibration
     assert native.provenance.native
     assert native.provenance.calibration == "unmeasured"
     assert native.source == "joint_law"
-    result = comp.evaluate_with_support(contract, [native])
+    result = require_success(comp.evaluate_with_support(contract, [native]))
     assert result.outcome("product").expected_utility == pytest.approx(
         source.joint_product_expectation(0, 1)
     )

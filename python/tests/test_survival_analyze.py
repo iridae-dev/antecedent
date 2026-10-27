@@ -25,7 +25,8 @@ def test_survival_analyze_retains_rmst_curve_and_artifact() -> None:
         observation_assumption=IndependentGiven(()),
     )
     prepared = antecedent.prepare(data, query=query)
-    result = require_success(prepared.estimate())
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     assert result.survival is not None
     assert result.survival.times == (0.0, 1.0, 2.0)
     assert result.survival.control_survival == (1.0, 0.5, 0.5)
@@ -35,9 +36,12 @@ def test_survival_analyze_retains_rmst_curve_and_artifact() -> None:
     assert result.survival.uncertainty == "point_only_no_interval"
     assert result.survival.censoring_survival_provenance is None
     assert result.estimate.ate is None
-    assert require_success(prepared.refresh(data)).survival == result.survival
+    assert (
+        require_success(antecedent.estimate(antecedent.rebind(prepared, data=data))).survival
+        == result.survival
+    )
     assert require_success(antecedent.analyze(data, query=query)).survival == result.survival
-    loaded = require_success(antecedent.load(bytes(prepared.export(artifact_id="survival-study"))))
+    loaded = require_success(antecedent.load(bytes(outcome.export(artifact_id="survival-study"))))
     assert loaded.answer.kind == "structured"
     assert loaded.answer.structured["rmst_treated"] == pytest.approx(2.0)
 
@@ -89,7 +93,8 @@ def test_known_censoring_survival_analyze_matches_native_ipcw_and_artifact() -> 
         known_censoring=KnownCensoringSurvival((0.0, 1.0, 3.0), ("g0", "g1", "g3")),
     )
     prepared = antecedent.prepare(data, query=query)
-    result = require_success(prepared.estimate())
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     assert result.survival.control_survival == pytest.approx((1.0, 2 / 3, 2 / 3))
     assert result.survival.treated_survival == pytest.approx((1.0, 0.5, 0.5))
     assert result.survival.rmst_difference == pytest.approx(-1 / 3)
@@ -101,9 +106,12 @@ def test_known_censoring_survival_analyze_matches_native_ipcw_and_artifact() -> 
     assert "correct_caller_supplied_conditional_censoring_survival" in result.survival.assumptions
     assert "independent_right_censoring_within_arm" not in result.survival.assumptions
     assert result.estimate.ate is None
-    assert require_success(prepared.refresh(data)).survival == result.survival
+    assert (
+        require_success(antecedent.estimate(antecedent.rebind(prepared, data=data))).survival
+        == result.survival
+    )
     loaded = require_success(
-        antecedent.load(bytes(prepared.export(artifact_id="ipcw-survival-study")))
+        antecedent.load(bytes(outcome.export(artifact_id="ipcw-survival-study")))
     )
     assert loaded.answer.structured["rmst_treated"] == pytest.approx(2.0)
 
@@ -186,7 +194,8 @@ def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws(
         inference=antecedent.Frequentist(bootstrap=399),
         execution=antecedent.Execution(seed=17),
     )
-    result = require_success(prepared.estimate())
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     section = result.survival
     assert section is not None
     assert section.uncertainty == "subject_stratified_percentile_bootstrap_pointwise_95"
@@ -205,11 +214,15 @@ def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws(
     )
     assert result.answer.detail == "randomized_survival_pointwise_bootstrap"
     assert "Pointwise 95% subject-bootstrap interval" in result.claim()
-    assert require_success(prepared.refresh(data)).survival == section
-    loaded = require_success(
-        antecedent.load(bytes(prepared.export(artifact_id="survival-pointwise-interval")))
+    assert (
+        require_success(antecedent.estimate(antecedent.rebind(prepared, data=data))).survival
+        == section
     )
-    assert loaded.answer.structured["rmst_difference_interval"] == list(
+    loaded = require_success(
+        antecedent.load(bytes(outcome.export(artifact_id="survival-pointwise-interval")))
+    )
+    # A loaded answer is an immutable read model: its sequences are tuples.
+    assert loaded.answer.structured["rmst_difference_interval"] == tuple(
         section.rmst_difference_interval
     )
     assert loaded.answer.structured["bootstrap_replicates_ok"] == 399

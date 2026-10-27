@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import antecedent
@@ -122,7 +123,7 @@ def test_cpdag_ate_envelope_numeric_pin(
         )
         seed = int(section["seed"])
     else:
-        inference = None
+        inference = antecedent.Frequentist(bootstrap=0)
         seed = 1
 
     fresh = require_success(
@@ -132,21 +133,18 @@ def test_cpdag_ate_envelope_numeric_pin(
             query=query,
             inference=inference,
             refute=validation,
-            bootstrap=0,
-            seed=seed,
+            execution=antecedent.Execution(seed=seed),
         )
     )
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=query,
-        inference=inference,
+        inference=replace(inference, profile="interactive"),
         refute=validation,
-        bootstrap=0,
-        seed=seed,
-        latency="interactive",
+        execution=antecedent.Execution(seed=seed),
     )
-    click = require_success(prepared.estimate(data, seed=seed))
+    click = require_success(antecedent.estimate(prepared))
 
     _assert_common_cell_contract(
         fresh,
@@ -185,17 +183,17 @@ def test_cpdag_ate_envelope_numeric_pin(
 
 def test_cpdag_same_schema_refresh_reuses_identification() -> None:
     data = _expand_contingency(_PIN)
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=_cpdag(accepted=False),
         query=_query(_PIN),
         refute=False,
-        bootstrap=0,
-        seed=1,
-        latency="interactive",
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=1),
     )
-    click = require_success(prepared.estimate(data, seed=1))
-    refreshed = require_success(prepared.refresh(data, seed=1))
+    click = require_success(antecedent.estimate(prepared))
+    branch = antecedent.rebind(prepared, data=data)
+    refreshed = require_success(antecedent.estimate(branch))
     expected = float(_PIN["frequentist"]["expected_ate"])
     tolerance = float(_PIN["frequentist"]["absolute_tolerance"])
     assert click.ate == pytest.approx(expected, abs=tolerance)

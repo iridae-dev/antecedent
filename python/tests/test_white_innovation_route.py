@@ -67,8 +67,7 @@ def run(x, y, **bayes):
                 n_draws=DRAWS, prior_scale=1.0e3, backend="conjugate", **bayes
             ),
             refute=False,
-            bootstrap=0,
-            seed=11,
+            execution=antecedent.Execution(seed=11),
         )
     )
 
@@ -117,7 +116,6 @@ def test_a_route_that_does_not_read_the_premise_refuses_it() -> None:
                 query=antecedent.AverageEffect(treatment="t", outcome="y"),
                 inference=antecedent.Bayesian(white_innovation=(6, 0.01)),
                 refute=False,
-                bootstrap=0,
             )
         )
     assert info.value.reason_code == "option_not_applicable"
@@ -148,8 +146,7 @@ def run_curve(x, y, horizons=(1,), **bayes):
                 n_draws=DRAWS, prior_scale=1.0e3, backend="conjugate", **bayes
             ),
             refute=False,
-            bootstrap=0,
-            seed=12,
+            execution=antecedent.Execution(seed=12),
         )
     )
 

@@ -1,6 +1,6 @@
 """One omitted-default table, owned by the Rust study builder.
 
-`analyze` / `prepare` / `PreparedAnalysis.prepare` never fill an omitted
+`analyze` / `prepare` never fill an omitted
 `refute` / `bootstrap` / `latency`: the omission reaches the builder, which
 applies its own table, the latency-tier mapping and the refute downgrade. These
 tests read the executed plan back, so a change to the builder's table changes
@@ -9,12 +9,13 @@ what they observe — they do not compare a Python literal with itself.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import antecedent as ant
 import numpy as np
 import pytest
 from antecedent._defaults import OMITTED, is_temporal_query, resolve_threads
 from antecedent._native import default_user_threads, omitted_defaults
-from antecedent.estimation import PreparedAnalysis
 from antecedent.inference import Bayesian
 from antecedent.outcomes import require_success
 
@@ -28,10 +29,15 @@ def _data(n: int = 80, seed: int = 1) -> dict[str, np.ndarray]:
     return {"t": t, "y": t + z, "z": z}
 
 
-def _analyze(**kwargs):
+def _analyze(*, bootstrap=None, latency=None, inference=None, **kwargs):
+    """Declare the budget and tier on the scientific inference, never as loose arguments."""
+    if inference is None and (bootstrap is not None or latency is not None):
+        inference = ant.Frequentist(bootstrap=bootstrap, profile=latency)
+    elif isinstance(inference, ant.Bayesian) and latency is not None:
+        inference = replace(inference, profile=latency)
     kwargs.setdefault("graph", GRAPH)
     kwargs.setdefault("query", ant.AverageEffect("t", "y"))
-    return require_success(ant.analyze(_data(), **kwargs))
+    return require_success(ant.analyze(_data(), inference=inference, **kwargs))
 
 
 def test_omitted_threads_use_the_machine():
@@ -115,7 +121,7 @@ def test_entry_points_agree():
     query = ant.AverageEffect("t", "y")
     analyzed = require_success(ant.analyze(data, graph=GRAPH, query=query, refute="none"))
     prepared = require_success(
-        PreparedAnalysis.prepare(data, graph=GRAPH, query=query, refute="none").estimate()
+        ant.estimate(ant.prepare(data, graph=GRAPH, query=query, refute="none"))
     )
     workflow = require_success(
         ant.prepare(data, graph=GRAPH, query=query, refute="none").estimate()

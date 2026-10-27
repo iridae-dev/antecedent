@@ -29,15 +29,15 @@ def test_event_and_panel_and_multi_env_constructors():
 
     with pytest.raises(ValueError, match="≥1 unit"):
         data.panel([])
-    with pytest.raises(ValueError, match="do not match"):
+    with pytest.raises(ValueError, match="one ordered schema"):
         data.panel([frame, {"a": [0.0]}])
     by_id = data.panel({7: frame, 8: {"a": [4.0, 5.0], "y": [6.0, 7.0]}})
-    assert by_id.unit_ids == [7, 8]
+    assert by_id.unit_ids == (7, 8)
     sequential = data.panel([frame])
-    assert sequential.unit_ids == [0]
+    assert sequential.unit_ids == (0,)
 
     envs = data.multi_env([frame, {"a": [1.0, 2.0], "y": [3.0, 4.0]}])
-    assert envs.names == ["a", "y"]
+    assert envs.names == ("a", "y")
     with pytest.raises(ValueError, match="non-empty"):
         as_multi_env_columns([])
     with pytest.raises(ValueError, match="do not match"):

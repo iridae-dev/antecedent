@@ -342,5 +342,5 @@ def test_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
         consume_effect_constancy_artifact(artifact[:-5])
     with pytest.raises(CausalSerializationError):
         consume_effect_constancy_artifact(b"not an artifact")
-    with pytest.raises(TypeError, match="artifact must be bytes"):
+    with pytest.raises(TypeError, match="an artifact is bytes or ExportedArtifact"):
         consume_effect_constancy_artifact("text")  # type: ignore[arg-type]

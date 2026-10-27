@@ -69,7 +69,7 @@ def test_prepared_identity_domains_and_all_four_slots_match_native_header():
 
 def test_bounded_inspection_does_not_enter_legacy_contract_or_explicit_pages(monkeypatch):
     from antecedent._prepared_identification import PreparedIdentification
-    from antecedent.estimation import PreparedAnalysis as Engine
+    from antecedent.estimation import _PreparedEngine as Engine
     from antecedent.identify import Identification
 
     study = _prepare()

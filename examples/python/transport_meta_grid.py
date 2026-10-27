@@ -66,16 +66,17 @@ def main() -> None:
     result = ant.analyze(data, graph=graph, query=query)
     _slots(result, uncertainty=False)
     assert result.answer.kind == "response"
-    assert [round(row[0], 2) for row in result.response.values] == [0.26, 0.74]
-    print(list(result.response.values))
-    assert ant.load(result.export()) is not None
+    assert [round(row[0], 2) for row in result.value.response.values] == [0.26, 0.74]
+    print(list(result.value.response.values))
+    artifact = result.export()
+    assert ant.load(artifact, expected=artifact.expectation) is not None
 
     partial = ant.analyze(
         ant.transport.ExactTransportData(tuple(laws[1:])),
         graph=graph,
         query=query,
     )
-    assert any(status != "supported" for status in (partial.support.point_status or ()))
+    assert any(status != "supported" for status in (partial.value.support.point_status or ()))
 
 
 if __name__ == "__main__":

@@ -226,6 +226,10 @@ def prepared_analysis():
 
     data, edges = confounded_scm(n=200, seed=31)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
-    return antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=query, graph=edges, refute=False, seed=1
+    return antecedent.prepare(
+        data,
+        query=query,
+        graph=edges,
+        refute=False,
+        execution=antecedent.Execution(seed=1),
     )

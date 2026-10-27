@@ -1166,24 +1166,6 @@ binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_provider_reaches_plan"
 
-# Applies only to transport.Transport queries (refused on every other query by
-# refuse_transport_only_kwargs). transport.TransportControls bundles the execution
-# limits and cancellation token of a transport study (max_operations, max_depth,
-# max_support_rows, memory_bytes, cancel) the same way the top-level cancel=
-# parameter does for an ordinary analyze — prepare_transport
-# (python/antecedent/transport/_day1.py) reads controls.cancel and merges a bare
-# cancel= into it, and passes every field straight into the native
-# prepare_statistical_transport / prepare_exact_transport call as execution budgets,
-# never into the portable contract. Observed the same way cancel= is: a pre-cancelled
-# token inside controls= must actually stop the transport execution.
-[[parameter]]
-name = "controls"
-entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
-binding = "execution_control"
-reason = ""
-test = "python/tests/test_parameter_bindings.py::test_controls_reaches_plan"
-
-
 # Declared response metadata is sealed into the result-body digest and claim ID,
 # while program/data identities and numerical fits remain unchanged.
 
@@ -1251,3 +1233,10 @@ test = "python/tests/test_notebook_to_system.py::test_specialized_artifact_dispa
 area = "checked_mean_handoff"
 operations = ["results.MeanSource", "as_mean_source", "decision.Contract.evaluate", "inverse_query.InverseQuery.evaluate"]
 test = "python/tests/test_notebook_to_system.py::test_bridge_is_a_complete_checked_mean_producer"
+
+[[parameter]]
+name = "execution"
+entry_points = ["analyze", "prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_execution_cancellation_reaches_transport_plan"

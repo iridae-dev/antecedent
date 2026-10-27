@@ -667,11 +667,11 @@ def test_the_target_need_not_measure_the_outcome():
 
 
 # ---------------------------------------------------------------------------
-# Lifecycle: decide once, evaluate, refresh, order invariance.
+# Lifecycle: decide once, evaluate, rebind, order invariance.
 # ---------------------------------------------------------------------------
 
 
-def test_refresh_rebuilds_the_numbers_and_leaves_the_decided_value_untouched():
+def test_bind_snapshot_rebuilds_the_numbers_and_leaves_the_decided_value_untouched():
     case = mediation_case()
     worlds, event = nested(0, 0)  # depends on the covariate law
     decision = case.decide(worlds, event)
@@ -681,7 +681,7 @@ def test_refresh_rebuilds_the_numbers_and_leaves_the_decided_value_untouched():
         require_success(derivation.estimate())
     assert raised.value.reason_code == "transport_missing_provider"
 
-    first = require_success(derivation.refresh(case.laws()))
+    first = require_success(derivation.bind_snapshot(case.laws()))
     assert first.bound and not derivation.bound
     assert abs(require_success(first.estimate()).probability - before) <= EXACT_TOLERANCE
 
@@ -689,7 +689,7 @@ def test_refresh_rebuilds_the_numbers_and_leaves_the_decided_value_untouched():
     shifted_case = mediation_case(F(1, 2))
     shifted_truth = shifted_case.models["target"].probability(nested_truth(0, 0))
     assert abs(float(shifted_truth) - before) > 1e-3
-    second = require_success(first.refresh(shifted_case.laws()))
+    second = require_success(first.bind_snapshot(shifted_case.laws()))
     assert (
         abs(require_success(second.estimate()).probability - float(shifted_truth))
         <= EXACT_TOLERANCE
@@ -700,10 +700,10 @@ def test_refresh_rebuilds_the_numbers_and_leaves_the_decided_value_untouched():
     # The earlier prepared value keeps its numbers.
     assert abs(require_success(first.estimate()).probability - before) <= EXACT_TOLERANCE
 
-    # A refused refresh (a counted law) leaves the bound state alone.
+    # A refused rebind (a counted law) leaves the bound state alone.
     counted = [_counted(law) for law in case.laws()]
     with pytest.raises(CausalUnsupportedError) as refused:
-        require_success(second.refresh(counted))
+        require_success(second.bind_snapshot(counted))
     assert refused.value.reason_code == "cell_not_licensed"
     assert (
         abs(require_success(second.estimate()).probability - float(shifted_truth))
@@ -1207,7 +1207,9 @@ def test_identify_counterfactual_keeps_its_plan_after_the_builder_is_disposed():
     plan = derivation.derivation
     assert plan["canonical_text"] == program["derivation"]["canonical_text"]
     assert plan["rules"] and plan["cited"]
-    result = require_success(require_success(derivation.refresh(target.case.laws())).estimate())
+    result = require_success(
+        require_success(derivation.bind_snapshot(target.case.laws())).estimate()
+    )
     assert abs(result.probability - float(target.expected)) <= EXACT_TOLERANCE
 
 
@@ -1219,7 +1221,7 @@ def test_evaluate_runs_the_retained_plan_without_searching_again_after_builder_d
     receipt = derivation.derivation["search_receipt"]
     del builder
     result = derivation.evaluate(evidence=laws)
-    state = require_success(require_success(derivation.refresh(laws)).estimate())
+    state = require_success(require_success(derivation.bind_snapshot(laws)).estimate())
     assert result.probability == state.probability
     assert abs(result.probability - float(target.expected)) <= EXACT_TOLERANCE
     plan = derivation.derivation
@@ -1230,7 +1232,7 @@ def test_estimate_returns_the_bound_state_of_the_retained_plan_after_builder_dis
     target = _label("effect_on_treated")
     builder = target.case.decide(target.worlds, target.event, target.given)
     derivation = builder.derivation
-    bound = require_success(derivation.refresh(target.case.laws()))
+    bound = require_success(derivation.bind_snapshot(target.case.laws()))
     del builder
     state = require_success(bound.estimate())
     assert bound.bound and not derivation.bound
@@ -1242,15 +1244,15 @@ def test_estimate_returns_the_bound_state_of_the_retained_plan_after_builder_dis
     assert raised.value.reason_code == "transport_missing_provider"
 
 
-def test_refresh_rebinds_laws_to_the_retained_plan_after_builder_disposal():
+def test_bind_snapshot_rebinds_laws_to_the_retained_plan_after_builder_disposal():
     case = mediation_case()
     worlds, event = nested(0, 0)
     builder = case.decide(worlds, event)
     derivation = builder.derivation
-    first = require_success(derivation.refresh(case.laws()))
+    first = require_success(derivation.bind_snapshot(case.laws()))
     del builder
     shifted = mediation_case(F(1, 2))
-    second = require_success(first.refresh(shifted.laws()))
+    second = require_success(first.bind_snapshot(shifted.laws()))
     plan = second.derivation
     assert plan["canonical_text"] == derivation.derivation["canonical_text"]
     truth = float(shifted.models["target"].probability(nested_truth(0, 0)))
@@ -1275,10 +1277,12 @@ def test_result_export_binds_the_plan_and_the_laws_into_the_verified_identity():
     shifted = mediation_case()  # a different model class: another premises digest
     other = _label("Y_x0_Mx0")
     other_result = require_success(
-        require_success(shifted.decide(*nested(0, 0)).derivation.refresh(shifted.laws())).estimate()
+        require_success(
+            shifted.decide(*nested(0, 0)).derivation.bind_snapshot(shifted.laws())
+        ).estimate()
     )
     assert other_result.premises_digest != result.premises_digest
-    again = require_success(require_success(derivation.refresh(laws)).estimate())
+    again = require_success(require_success(derivation.bind_snapshot(laws)).estimate())
     assert bytes(again.export()) == artifact
     assert other.expected == MEDIATION_TRUTH[(0, 0)]
 
@@ -1300,7 +1304,7 @@ def test_consumer_recomputes_the_point_and_the_plan_after_builder_disposal():
     assert (
         consumed.probability
         == require_success(
-            require_success(derivation.refresh(target.case.laws())).estimate()
+            require_success(derivation.bind_snapshot(target.case.laws())).estimate()
         ).probability
     )
     assert consumed.independently_verified

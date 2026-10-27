@@ -19,6 +19,7 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 
 P = [1.0, 3.0, 2.0, 0.0]
 Q = [4.0, 0.0, 2.0, 6.0]
@@ -63,7 +64,7 @@ contract = decision.Contract(
     criterion=decision.Criterion.expected_utility(),
     target_population="target",
 )
-result = contract.evaluate(law)
+result = require_success(contract.evaluate(law))
 
 # Build: embed each artifact from its bytes and declare what depends on what.
 builder = cb.Bundle.builder()
@@ -81,7 +82,7 @@ print(bundle.explain())
 data, identity = bundle.export(), bundle.identity
 
 # Consume under the retained identity. Nothing is trusted from the bytes alone.
-consumed = cb.consume_bundle(data, expected_identity=identity)
+consumed = require_success(cb.consume_bundle(data, expected_identity=identity))
 consumed.require_verified()
 print(consumed.explain())
 assert consumed.all_verified and consumed.identity == identity
@@ -91,7 +92,7 @@ assert consumed.claim_label == "joint_draw"
 
 # Another identity refuses the same bytes.
 try:
-    cb.consume_bundle(data, expected_identity="0" * len(identity))
+    require_success(cb.consume_bundle(data, expected_identity="0" * len(identity)))
 except cb.ExpectedIdentityMismatchRefusal as refusal:
     assert refusal.bundle_stage == "expected_identity_mismatch"
 else:

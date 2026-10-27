@@ -20,16 +20,17 @@ def _rows(n: int = 120, seed: int = 3) -> dict[str, np.ndarray]:
     return {"z": z, "t": t, "y": y}
 
 
-def _run(**options):
+def _run(*, bootstrap=None, **options):
     return require_success(
-        ant.prepare(
+        ant.analyze(
             _rows(),
             graph=EDGES,
             query=QUERY,
             refute=False,
+            inference=ant.Frequentist(bootstrap=bootstrap),
             execution=ant.Execution(seed=1),
             **options,
-        ).estimate()
+        )
     )
 
 
@@ -66,7 +67,9 @@ def test_the_declaration_is_part_of_the_study_identity():
             execution=ant.Execution(seed=1),
             **options,
         )
-        return study.inspect_plan().data_snapshot_id
+        # Preparation defers materializing the snapshot, so the identity is read from the
+        # executed branch, which binds the declaration with the data it analysed.
+        return require_success(ant.estimate(study)).data_snapshot_id
 
     assert snapshot() != snapshot(sampling_design="clustered_panel")
     assert snapshot(sampling_design="clustered_panel") == snapshot(

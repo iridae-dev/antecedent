@@ -24,6 +24,7 @@ from antecedent.cross_world import (
     path_specific_effect,
 )
 from antecedent.errors import CausalUnsupportedError
+from antecedent.execution import Execution
 from antecedent.learners import Linear
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
@@ -206,13 +207,15 @@ def s1_producer():
     assert live["interval"]["status"] == "point_only"
     before = (bytes(prepared.export()), live)
 
-    require_success(prepared.refresh(s1_laws(S1_P_REFRESHED)))
-    moved = json.loads(require_success(prepared.estimate()))
+    branch = prepared.bind_snapshot(s1_laws(S1_P_REFRESHED))
+    moved = json.loads(require_success(branch.estimate()))
     assert [risk(r) for r in moved["requests"]] == pytest.approx(
         [s1_truth(S1_P_REFRESHED, 0), s1_truth(S1_P_REFRESHED, 1)], abs=1e-12
     )
     assert moved["contrasts"] != live["contrasts"]
-    after = (bytes(prepared.export()), moved)
+    after = (bytes(branch.export()), moved)
+    # The earlier preparation and its artifact are unchanged by the branch.
+    assert bytes(prepared.export()) == before[0]
 
     # Counted laws: the point is returned, the unmeasured interval route stays closed.
     counted = transport.identify_multi_source_z_transport(
@@ -233,7 +236,7 @@ def s1_producer():
 def test_story_1_multi_source_limited_experiment_effect_requiring_complementary_sources():
     before, after, counted = s1_producer()
     for (artifact, live), p in ((before, S1_P), (after, S1_P_REFRESHED)):
-        consumed = json.loads(transport.consume_multi_source_z_transport_artifact(artifact))
+        consumed = transport.consume_multi_source_z_transport_artifact(artifact).to_dict()
         for c, lv in zip(consumed["requests"], live["requests"], strict=True):
             assert hexes(c["probabilities"]) == hexes(lv["probabilities"])
         assert hexes(x["estimate"] for x in consumed["contrasts"]) == hexes(
@@ -244,7 +247,7 @@ def test_story_1_multi_source_limited_experiment_effect_requiring_complementary_
         )
         assert consumed["cited_sources"] == ["a", "b"]
     artifact, live = counted
-    consumed = json.loads(transport.consume_multi_source_z_transport_artifact(artifact))
+    consumed = transport.consume_multi_source_z_transport_artifact(artifact).to_dict()
     assert hexes(consumed["probabilities"]) == hexes(live["probabilities"])
     assert consumed["interval"] == live["interval"]
 
@@ -385,7 +388,7 @@ def s2_producer():
 
 def test_story_2_finite_scenario_set_retains_identified_unidentified_and_unevaluated_members():
     artifact, live = s2_producer()
-    consumed = json.loads(transport.consume_transport_scenarios_artifact(artifact))
+    consumed = transport.consume_transport_scenarios_artifact(artifact).to_dict()
     assert consumed["scenarios"] == live["scenarios"]
     assert consumed["weighted"] == live["weighted"]
     assert consumed["masses"] == live["masses"]
@@ -441,7 +444,9 @@ def s3_options():
 
 def s3_producer(design):
     query, data = s3_fixture(design)
-    study = transport.prepare_learned_continuous(query, data, options=s3_options(), seed=11)
+    study = transport.prepare_learned_continuous(
+        query, data, options=s3_options(), execution=Execution(seed=11)
+    )
     del query, data
     result = require_success(study.estimate())
     assert result.estimate == pytest.approx(1.2, abs=0.3)
@@ -449,17 +454,17 @@ def s3_producer(design):
     assert result.overlap["selection"]["probability_min"] > 0.05
     assert result.overlap["treatment"]["probability_min"] == pytest.approx(0.5)
     assert len(result.provenance) == 9
-    interval = study.interval()
+    interval = require_success(study.interval())
     assert interval.uncertainty["status"] == "available"
     assert interval.standard_error > 0
     assert interval.interval[0] < interval.estimate < interval.interval[1]
     # Refresh keeps the certificate and moves the point.
     _, fresh = s3_fixture(design, seed=9)
-    require_success(study.refresh(fresh))
-    moved = require_success(study.estimate())
+    branch = study.bind_snapshot(fresh)
+    moved = require_success(branch.estimate())
     assert moved.execution_id != result.execution_id and moved.certificate == result.certificate
     assert moved.estimate == pytest.approx(1.2, abs=0.3)
-    return bytes(study.export()), moved
+    return bytes(moved.export()), moved
 
 
 @pytest.mark.parametrize("design", ["nested_cohort", "independent_samples"])
@@ -476,7 +481,7 @@ def test_story_3_learned_continuous_transport_estimate_with_overlap_refusal(desi
     # Overlap refusal: the target is outside what the trial can represent.
     weak_query, weak_data = s3_fixture(design, shift=3.0, seed=5)
     weak = transport.prepare_learned_continuous(
-        weak_query, weak_data, options=s3_options(), seed=11
+        weak_query, weak_data, options=s3_options(), execution=Execution(seed=11)
     )
     with pytest.raises(CausalUnsupportedError, match="learned_transport.membership_overlap") as e:
         require_success(weak.estimate())
@@ -659,7 +664,7 @@ def s4_producer():
 
 def test_story_4_two_step_temporal_transport_with_history_support_refusal():
     for artifact, live, p, sequence in s4_producer():
-        consumed = json.loads(transport.consume_temporal_transport_artifact(artifact))
+        consumed = transport.consume_temporal_transport_artifact(artifact).to_dict()
         assert float(consumed["mean"]).hex() == float(live["mean"]).hex()
         assert hexes(consumed["point"]["probabilities"]) == hexes(live["point"]["probabilities"])
         assert consumed["support"] == live["support"]
@@ -852,12 +857,13 @@ def s6_producer():
     joint = enumerate_law(S6_FRONTDOOR, S6_NAMES, S6_P, {}, ["x", "y"])
     assert abs(joint[3] / (joint[2] + joint[3]) - s6_truth(S6_P, 1)) > 1e-2
     before = (bytes(prepared.export()), live, S6_P)
-    require_success(prepared.refresh(s6_laws(S6_P_REFRESHED)))
-    moved = json.loads(require_success(prepared.estimate()))
+    branch = prepared.bind_snapshot(s6_laws(S6_P_REFRESHED))
+    moved = json.loads(require_success(branch.estimate()))
     assert [risk(r) for r in moved["requests"]] == pytest.approx(
         [s6_truth(S6_P_REFRESHED, 0), s6_truth(S6_P_REFRESHED, 1)], abs=1e-12
     )
-    after = (bytes(prepared.export()), moved, S6_P_REFRESHED)
+    after = (bytes(branch.export()), moved, S6_P_REFRESHED)
+    assert bytes(prepared.export()) == before[0]
 
     # Incomplete side 1: the bow arc is not identifiable; the search only reports what it
     # explored and never claims non-identification.
@@ -890,7 +896,7 @@ def s6_producer():
 def test_story_6_mixed_source_proof_by_bounded_search_and_incomplete_search_stays_unresolved():
     before, after = s6_producer()
     for artifact, live, p in (before, after):
-        consumed = json.loads(transport.consume_mixed_source_artifact(artifact))
+        consumed = transport.consume_mixed_source_artifact(artifact).to_dict()
         for c, lv in zip(consumed["requests"], live["requests"], strict=True):
             assert hexes(c["probabilities"]) == hexes(lv["probabilities"])
         assert [risk(r) for r in consumed["requests"]] == pytest.approx(
@@ -933,7 +939,7 @@ def test_story_7_release_boundary_corrected_measurement_pooled_evidence_decision
     world = rb.World.build()
     assert world.excess_risk == _pytest.approx(values["excess_risk"], abs=rb.DECISION)
     assert rb.value_of(world.result, "act") == _pytest.approx(values["act"], abs=rb.DECISION)
-    assert world.result.selected == (values["selected"],)
+    assert require_success(world.result).selected == (values["selected"],)
     world.write_bundle(tmp_path / "base")
     plan_before = world.plan_identity
 
@@ -962,7 +968,7 @@ def test_story_7_release_boundary_corrected_measurement_pooled_evidence_decision
     )
     new = world.downstream_of(pooled, step.grown)
     assert rb.value_of(new.result, "act") == _pytest.approx(revised["act"], abs=rb.DECISION)
-    assert new.result.selected == (revised["selected"],)
+    assert require_success(new.result).selected == (revised["selected"],)
     assert new.plan_identity != plan_before
     assert new.gate().classify("decision").klass == "still_valid"
     new.write_bundle(tmp_path / "revised", studies=rb.revised_studies())

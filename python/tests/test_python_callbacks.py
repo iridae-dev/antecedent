@@ -165,7 +165,7 @@ def test_decision_utility_preserves_original_callback_exception(exception_type):
 
 
 @pytest.mark.parametrize("exception_type", [RuntimeError, KeyboardInterrupt, SystemExit])
-def test_custom_validator_report_cannot_swallow_interrupts(exception_type):
+def test_custom_validator_failures_propagate_the_original_exception(exception_type):
     rng = np.random.default_rng(932)
     n = 80
     z = rng.normal(size=n)
@@ -191,24 +191,18 @@ def test_custom_validator_report_cannot_swallow_interrupts(exception_type):
             threads=4,
         )
 
-    if exception_type is RuntimeError:
-        result = estimate()
-        assert result.refutation_ran
-        assert result.refutation_count >= 1
-        assert result.refutation_passed is False
-    else:
-        with pytest.raises(exception_type) as raised:
-            estimate()
-        assert raised.value is original
+    # A callback failure is operational, never a refuted result: every exception
+    # class propagates as the original object.
+    with pytest.raises(exception_type) as raised:
+        estimate()
+    assert raised.value is original
     assert invoked
     assert original.__traceback__ is not None
 
 
 @pytest.mark.parametrize("sink", ["on_progress", "on_stage"])
 @pytest.mark.parametrize("exception_type", [RuntimeError, KeyboardInterrupt, SystemExit])
-def test_execution_observers_print_ordinary_errors_but_preserve_interrupts(
-    sink, exception_type, capsys
-):
+def test_execution_observer_failures_propagate_the_original_exception(sink, exception_type):
     from antecedent._native import PreparedAnalysis
 
     rng = np.random.default_rng(934)
@@ -239,13 +233,8 @@ def test_execution_observers_print_ordinary_errors_but_preserve_interrupts(
             prepared.estimate(names, columns, threads=4, **{sink: failing_observer})
         )
 
-    if exception_type is RuntimeError:
-        result = estimate()
-        assert np.isfinite(result.ate)
-        assert f"{sink} callback identity" in capsys.readouterr().err
-    else:
-        with pytest.raises(exception_type) as raised:
-            estimate()
-        assert raised.value is original
+    with pytest.raises(exception_type) as raised:
+        estimate()
+    assert raised.value is original
     assert invoked
     assert original.__traceback__ is not None

@@ -1088,7 +1088,8 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp
     script = (
         "import json, sys\n"
         "from antecedent import evidence_ledger as el\n"
-        "c = el.consume_evidence_ledger_artifact(open(sys.argv[1], 'rb').read(), sys.argv[2])\n"
+        "from antecedent.outcomes import require_success\n"
+        "c = require_success(el.consume_evidence_ledger_artifact(open(sys.argv[1], 'rb').read(), sys.argv[2]))\n"
         "print(json.dumps({'identity': c.identity, 'head': c.head, "
         "'syntheses': [[s.result, s.method, list(s.values)] for s in c.syntheses]}))\n"
     )

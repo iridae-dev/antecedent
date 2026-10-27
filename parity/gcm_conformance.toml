@@ -317,10 +317,10 @@ evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs
 evidence_assertion = "shared_exogenous_cross_world_values_equal_an_independent_enumeration"
 
 [[conformance]]
-id = "shared_term_joint_state_bound"
+id = "shared_term_joint_state_elimination"
 clause = "shared_exogenous_execution"
 evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs"
-evidence_assertion = "the_joint_state_bound_holds_at_its_edge_and_refuses_one_term_past_it"
+evidence_assertion = "the_enumeration_bound_holds_at_its_edge_and_elimination_takes_over_past_it"
 
 [[conformance]]
 id = "shared_term_unsupported_is_not_nonidentification"

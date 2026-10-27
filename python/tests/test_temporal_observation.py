@@ -7,7 +7,6 @@ import numpy as np
 import pytest
 from antecedent import observation as obs
 from antecedent.errors import CausalError
-from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Set
 from antecedent.outcomes import require_success
 
@@ -71,8 +70,10 @@ def test_temporal_observation_pair_consumes_fixture(kind):
         observation=mechanism,
         observation_assumptions=[assumption],
     )
-    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
-    result = require_success(prepared.estimate(data))
+    prepared = antecedent.prepare(
+        data, graph=_EDGES, query=query, refute=False, inference=antecedent.Frequentist(bootstrap=0)
+    )
+    result = require_success(antecedent.estimate(prepared))
     fresh = require_success(
         antecedent.analyze(
             data,

@@ -11,6 +11,7 @@ import math
 import antecedent as _ant_api
 import numpy as np
 from antecedent import PulseEffect, analyze
+from antecedent.outcomes import require_success
 
 
 def main() -> None:
@@ -20,7 +21,7 @@ def main() -> None:
     for t in range(1, n):
         defect[t] = 0.9 * pressure[t - 1]
 
-    result = analyze(
+    outcome = analyze(
         {"pressure": pressure, "defect": defect},
         graph=[("pressure", 1, "defect", 0)],
         query=PulseEffect(
@@ -33,6 +34,7 @@ def main() -> None:
         inference=_ant_api.Frequentist(bootstrap=0),
         execution=_ant_api.Execution(seed=42),
     )
+    result = require_success(outcome)
     assert result.answer.kind == "point"
     print("Calibration:", result.calibration.status)
     print(

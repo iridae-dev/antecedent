@@ -31,7 +31,7 @@ def consume(directory):
         query=ant.AverageEffect("t", "y"),
         inference=ant.Frequentist(bootstrap=0),
         refute=False,
-    ).artifact()
+    ).export()
     wrong_expected = different.expectation
     for label, content, identity in [
         ("wrong identity", data, wrong_expected),

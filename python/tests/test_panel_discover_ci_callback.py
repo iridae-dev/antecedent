@@ -1,6 +1,6 @@
 """`ci=` (a Python callable CI test) reaching the PanelFrame discovery path.
 
-`analyze(panel, discovery=..., ...)` for `PanelFrame` routes through the prepared panel
+`discover(panel, method=...)` for `PanelFrame` routes through the panel
 discovery route. That route previously had no `ci` parameter
 at all, so a caller-supplied CI test was accepted by `PCMCI`/`PCMCIPlus`/
 `LPCMCI`/`JPCMCIPlus` (which all carry a `ci` field) and then silently dropped
@@ -56,8 +56,13 @@ def test_panel_discover_pcmci_ci_callback_invoked():
         require_success(
             antecedent.analyze(
                 panel,
-                discovery=antecedent.discovery.PCMCI(
-                    max_lag=1, alpha=0.2, fdr=False, ci=_counting_ci(calls)
+                graph=antecedent.discovery.discover(
+                    panel,
+                    method=antecedent.discovery.PCMCI(
+                        max_lag=1, alpha=0.2, fdr=False, ci=_counting_ci(calls)
+                    ),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=True,
                 ),
                 query=antecedent.PulseEffect(
                     treatment="x",
@@ -105,8 +110,13 @@ def test_panel_discover_jpcmci_plus_ci_callback_invoked():
         require_success(
             antecedent.analyze(
                 panel,
-                discovery=antecedent.discovery.JPCMCIPlus(
-                    max_lag=1, alpha=0.2, fdr=False, ci=_counting_ci(calls)
+                graph=antecedent.discovery.discover(
+                    panel,
+                    method=antecedent.discovery.JPCMCIPlus(
+                        max_lag=1, alpha=0.2, fdr=False, ci=_counting_ci(calls)
+                    ),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=True,
                 ),
                 query=antecedent.PulseEffect(
                     treatment="x",

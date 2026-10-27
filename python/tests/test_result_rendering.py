@@ -7,6 +7,7 @@ and loaded results, readable report targets, and a calibration row with no ``Non
 
 from __future__ import annotations
 
+import html as html_text
 import math
 import re
 import warnings
@@ -41,7 +42,9 @@ def _continuous(n: int = 400, seed: int = 0) -> dict[str, np.ndarray]:
 
 
 def _run(graph, *, bayesian: bool):
-    inference = ant.Bayesian(n_draws=64, backend="conjugate") if bayesian else ant.Frequentist()
+    inference = (
+        ant.Bayesian(n_draws=64, backend="conjugate") if bayesian else ant.Frequentist(bootstrap=20)
+    )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return require_success(
@@ -51,7 +54,6 @@ def _run(graph, *, bayesian: bool):
                 query=ant.AverageEffect("t", "y"),
                 inference=inference,
                 refute="none",
-                bootstrap=0 if bayesian else 20,
             )
         )
 
@@ -278,8 +280,7 @@ def test_bounds_answer_carries_the_identified_set_live_and_loaded():
                 query=_pulse(_PIN),
                 inference=ant.Bayesian(n_draws=64, backend="conjugate"),
                 refute=False,
-                bootstrap=0,
-                seed=7,
+                execution=ant.Execution(seed=7),
             )
         )
     loaded = require_success(ant.load(bytes(result.export())))
@@ -396,5 +397,7 @@ def test_calibration_row_in_notebook_card_has_no_none(partial_bayesian, identifi
         row = re.search(r"Calibration</span><span>([^<]*)</span>", html)
         assert row is not None
         assert "None" not in row.group(1)
-        assert row.group(1) == result.calibration.describe()
-        assert row.group(1).startswith(result.calibration.status)
+        # The card is HTML: its text is the described line after entity escaping.
+        shown = html_text.unescape(row.group(1))
+        assert shown == result.calibration.describe()
+        assert shown.startswith(result.calibration.status)

@@ -16,6 +16,7 @@ from __future__ import annotations
 import math
 
 from antecedent import cross_world_execution as cw
+from antecedent.outcomes import require_success
 
 
 def scm(*, shared: bool) -> cw.FiniteSCM:
@@ -44,8 +45,8 @@ def ask(model: cw.FiniteSCM) -> cw.CrossWorldRequest:
 
 
 executor = cw.CrossWorldExecutor()
-shared = executor.execute(ask(scm(shared=True)))
-independent = executor.execute(ask(scm(shared=False)))
+shared = require_success(executor.execute(ask(scm(shared=True))))
+independent = require_success(executor.execute(ask(scm(shared=False))))
 print(f"P(Y_x0 = 1 | X = 1), shared frailty:      {shared.value:.3f}")
 print(f"P(Y_x0 = 1 | X = 1), independent noise:   {independent.value:.3f}")
 assert shared.matrix_row == "counterfactual.finite_shared_exogenous_scm.marginal"
@@ -53,9 +54,9 @@ assert math.isclose(shared.value, 1.0, abs_tol=1e-12)
 assert math.isclose(independent.value, 0.3, abs_tol=1e-12)
 
 # Seal and replay: the consumer recomputes the enumeration and refuses any edit.
-sealed = cw.seal(ask(scm(shared=True)))
-replayed = cw.consume_cross_world_execution_artifact(
-    sealed.to_bytes(), expected_identity=sealed.identity
+sealed = require_success(cw.seal(ask(scm(shared=True))))
+replayed = require_success(
+    cw.consume_cross_world_execution_artifact(sealed.to_bytes(), expected_identity=sealed.identity)
 )
 assert replayed.result.value == sealed.value
 

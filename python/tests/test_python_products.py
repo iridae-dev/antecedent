@@ -1,14 +1,17 @@
 """Python product matrix: every route retains a study that re-executes it.
 
-Each `[[route]]` row in `parity/python_products.toml` runs one `analyze(...)`
-and then asserts the four things retention has to mean:
+Each `[[route]]` row in `parity/python_products.toml` runs one `ant.analyze(...)`
+and then asserts the five things retention has to mean:
 
-1. `result.study` exists;
-2. `result.export()` decodes and accepts as a verified program;
-3. `result.study.estimate()` reproduces the same point (or surface), the same
+1. `outcome.study` exists;
+2. `outcome.export()` decodes and accepts as a verified program, loaded against the
+   expectation retained at the producer;
+3. `ant.estimate(outcome.study)` reproduces the same point (or surface), the same
    `program_id` and `claim_id`, and the same data snapshot — so it is the same
    program on the same data, not a re-run of something adjacent;
-4. panel / multi-environment routes use every unit and environment: the
+4. `ant.rebind(outcome.study, data=<the same observations>)` is a new branch that
+   reproduces the same reading while the source study still reproduces its own;
+5. panel / multi-environment routes use every unit and environment: the
    fixtures are deliberately different per partition, and a route that quietly
    dropped all but the first would produce the single-partition answer, which
    the dedicated tests below pin as *different*.
@@ -45,7 +48,6 @@ from antecedent import (
     SemiElasticity,
     SustainedEffect,
     TemporalMediationEffect,
-    analyze,
 )
 from antecedent.data import event, multi_env, panel
 from antecedent.errors import CausalError
@@ -105,6 +107,7 @@ def _series(n: int = 64, seed: int = 4, beta: float = 0.4) -> dict[str, np.ndarr
 #: report 0.4 where the pooled answer is between 0.4 and 2.0.
 UNIT_A = _series(seed=4, beta=0.4)
 UNIT_B = _series(seed=9, beta=2.0)
+UNIT_C = _series(seed=13, beta=-1.0)
 
 
 def _query(kind: str, *, temporal_surface: bool):
@@ -257,10 +260,9 @@ def _kwargs(kind: str, data: str, structure: str, options: str) -> dict[str, obj
     kwargs: dict[str, object] = {
         "query": _query(kind, temporal_surface=temporal),
         "graph": _graph(kind, data, temporal),
-        "bootstrap": 0,
         "refute": "none",
-        "seed": 1,
-        "inference": Frequentist(),
+        "inference": Frequentist(bootstrap=0),
+        "execution": ant.Execution(seed=1),
     }
     if kind in {
         "point_derivative",
@@ -290,12 +292,10 @@ def _kwargs(kind: str, data: str, structure: str, options: str) -> dict[str, obj
             "sustained",
             "temporal_mediation",
         }
-        kwargs["inference"] = Frequentist() if freq_ok else Bayesian(n_draws=32)
+        kwargs["inference"] = Frequentist(bootstrap=0) if freq_ok else Bayesian(n_draws=32)
     if structure.startswith("discovered."):
         kwargs.pop("graph")
         kwargs["discovery"] = _discovery(structure)
-        if structure.endswith("rpcmci"):
-            kwargs["regimes"] = [0] * 200
     if options == "validators":
 
         def one_sided(*, ate, **_kwargs):
@@ -332,6 +332,27 @@ def _rd_data(n: int = 1200, seed: int = 25) -> dict[str, np.ndarray]:
     return {"t": t, "y": y, "r": r}
 
 
+def _execute_discovery(
+    kwargs: dict[str, object], kind: str, data: str, structure: str, temporal: bool, frame
+) -> None:
+    """Run the declared discovery explicitly; preparation only accepts its executed result."""
+    if structure == "graph_posterior":
+        # A posterior is fitted on the flat observations; the partitioned frame is
+        # what the prepared study is then bound to (and refused on, where unlicensed).
+        flat = frame if data in {"tabular", "series"} else _frame(kind, "series", temporal)
+        kwargs["discovery"] = kwargs["discovery"].run(flat, seed=1)
+    elif structure.startswith("discovered."):
+        from antecedent import discovery as d
+
+        kwargs["graph"] = d.discover(
+            frame,
+            method=kwargs.pop("discovery"),
+            execution=ant.Execution(seed=1),
+            accept_discovered=True,
+            regimes=[0] * 200 if structure.endswith("rpcmci") else None,
+        )
+
+
 def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
     temporal = kind in {"pulse", "sustained", "temporal_mediation"} or (
         kind in {"response_curve", "intervention_response"} and data != "tabular"
@@ -347,31 +368,55 @@ def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
         frame = _frame(kind, data, temporal)
     seen: list[tuple[float, str]] = []
     if options == "callbacks":
-        kwargs["on_progress"] = lambda fraction, stage: seen.append((fraction, stage))
-        kwargs["cancel"] = ant.state.CancellationToken()
-    result = analyze(frame, **kwargs)
+        kwargs["execution"] = ant.Execution(
+            seed=1,
+            cancel=ant.state.CancellationToken(),
+            on_progress=lambda fraction, stage: seen.append((fraction, stage)),
+        )
+    _execute_discovery(kwargs, kind, data, structure, temporal, frame)
+    outcome = ant.analyze(frame, **kwargs)
+    result = require_success(outcome)
 
-    study = result.study
+    study = outcome.study
     assert study is not None
-    encoded = bytes(result.export())
-    loaded = require_success(ant.load(encoded))
+    artifact = outcome.export()
+    loaded = require_success(ant.load(bytes(artifact), expected=artifact.expectation))
     assert loaded.decoded_artifact.payload_kind == "analysis_result"
     assert_answer_kept(loaded)
 
-    again = require_success(study.estimate())
-    assert _same(_point(result), _point(again)), (
-        f"{kind}/{data}/{structure}: the retained study did not reproduce its own point"
-    )
-    assert again.program_id == result.program_id
-    assert again.claim_id == result.claim_id
-    assert again.data_snapshot_id == result.data_snapshot_id
+    label = f"{kind}/{data}/{structure}"
+    ids = ("program_id", "claim_id", "data_snapshot_id")
+
+    def assert_reproduces(branch_outcome, how: str) -> None:
+        again = require_success(branch_outcome)
+        assert _same(_point(result), _point(again)), f"{label}: {how} did not reproduce its point"
+        for name in ids:
+            assert branch_outcome.identities[name] == outcome.identities[name], (label, how, name)
+
+    assert_reproduces(ant.estimate(study), "the retained study")
+    # A rebind onto the same observations is a new branch; it does not disturb its source.
+    branch = ant.rebind(study, data=frame)
+    assert branch is not study
+    assert_reproduces(ant.estimate(branch), "the rebound branch")
+    assert_reproduces(ant.estimate(study), "the source study after its branch ran")
     if options == "callbacks":
         assert seen, "on_progress never fired"
     if options == "validators":
-        attested = require_success(ant.load(bytes(result.export()))).decoded_artifact.contract[
-            "claim"
-        ]["attested"]
+        attested = loaded.decoded_artifact.contract["claim"]["attested"]
         assert [item["name"] for item in attested] == ["matrix.finite_effect"]
+
+
+def test_rebinding_new_observations_leaves_the_source_study_unchanged():
+    """A branch on different observations answers about those; the source keeps its own."""
+    source = ant.prepare(_tabular("average"), **_kwargs("average", "tabular", "explicit", ""))
+    before = ant.estimate(source)
+    branch = ant.rebind(source, data=_tabular("average", seed=11))
+    moved = ant.estimate(branch)
+    assert moved.identities["data_snapshot_id"] != before.identities["data_snapshot_id"]
+    assert not _same(_point(require_success(moved)), _point(require_success(before)))
+    again = ant.estimate(source)
+    assert again.identities["data_snapshot_id"] == before.identities["data_snapshot_id"]
+    assert _same(_point(require_success(again)), _point(require_success(before)))
 
 
 def test_every_route_retains():
@@ -440,20 +485,17 @@ def test_every_licensed_combination_has_a_route_row():
 
 def test_every_signature_parameter_has_a_row():
     rows = {row["name"] for row in PRODUCTS.get("parameter", [])}
-    for name, fn in {
-        "analyze": analyze,
-        "prepare": ant.prepare,
-        "PreparedAnalysis.prepare": __import__(
-            "antecedent.estimation", fromlist=["PreparedAnalysis"]
-        ).PreparedAnalysis.prepare,
-    }.items():
+    for name, fn in {"analyze": ant.analyze, "prepare": ant.prepare}.items():
         params = [
             key
-            for key in inspect.signature(fn).parameters
-            if key not in {"self", "cls", "args", "kwargs"}
+            for key, parameter in inspect.signature(fn).parameters.items()
+            if parameter.kind
+            not in {inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD}
         ]
         missing = [key for key in params if key not in rows]
         assert not missing, f"{name} missing product rows: {missing}"
+        # `analyze` forwards its declarations to `prepare`, so it takes exactly its parameters.
+        assert name == "analyze" or "execution" in params
 
 
 def test_route_tests_are_named():
@@ -498,13 +540,15 @@ QUERY_KIND = {
 
 
 def _pulse(frame):
-    return analyze(
-        frame,
-        graph=LAGGED,
-        query=PulseEffect("t", "y"),
-        inference=ant.Frequentist(bootstrap=0),
-        refute="none",
-        execution=ant.Execution(seed=1),
+    return require_success(
+        ant.analyze(
+            frame,
+            graph=LAGGED,
+            query=PulseEffect("t", "y"),
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+            execution=ant.Execution(seed=1),
+        )
     ).estimate.ate
 
 
@@ -520,13 +564,15 @@ def test_panel_pulse_uses_every_unit():
 
 def test_panel_response_uses_every_unit():
     def surface(frame):
-        view = analyze(
-            frame,
-            graph=LAGGED,
-            query=ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1]),
-            inference=ant.Frequentist(bootstrap=0),
-            refute="none",
-            execution=ant.Execution(seed=1),
+        view = require_success(
+            ant.analyze(
+                frame,
+                graph=LAGGED,
+                query=ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1]),
+                inference=ant.Frequentist(bootstrap=0),
+                refute="none",
+                execution=ant.Execution(seed=1),
+            )
         )
         return tuple(np.ravel(np.asarray(view.response.values, dtype=float)))
 
@@ -538,13 +584,12 @@ def test_panel_response_uses_every_unit():
 def test_multi_env_prepare_binds_every_environment():
     """Every environment is bound into the prepared study's data snapshot.
 
-    What the multi-environment executor then does with them (it currently
-    estimates on the first environment) is the Rust multi-environment route's
-    contract, not this layer's: the Python layer's guarantee is that no
-    environment is dropped before the study is compiled.
+    The multi-environment executor pools the environments as the clusters of one
+    regression, so a cluster-robust variance needs at least two of them; the Python
+    layer's guarantee is that no environment is dropped before the study is compiled.
     """
-    one = ant.prepare(
-        multi_env([UNIT_A]),
+    three = ant.prepare(
+        multi_env([UNIT_A, UNIT_B, UNIT_C]),
         graph=LAGGED,
         query=PulseEffect("t", "y"),
         inference=ant.Frequentist(bootstrap=0),
@@ -564,20 +609,39 @@ def test_multi_env_prepare_binds_every_environment():
         inference=ant.Frequentist(bootstrap=0),
         refute="none",
     )
-    assert one.inspect().data_snapshot_id != both.inspect().data_snapshot_id
+    # Preparation does not materialize snapshot identity; the executed standing reads it.
+    assert both.inspect().data_snapshot_id is None
+
+    def snapshot(study):
+        outcome = ant.estimate(study)
+        require_success(outcome)
+        return outcome.study.inspect().data_snapshot_id
+
+    # A cluster-robust variance needs at least two environments, so the comparison is
+    # between sets of two and three environments: an environment dropped before the study
+    # is compiled would collapse them.
+    assert snapshot(three) != snapshot(both)
     # Environment order is part of the snapshot, so nothing collapses them.
-    assert both.inspect().data_snapshot_id != reordered.inspect().data_snapshot_id
+    assert snapshot(both) != snapshot(reordered)
 
 
 # --- refusals ---------------------------------------------------------------------
 
 
-def _refusal_call(kind: str, data: str, structure: str):
+def _refusal_code(kind: str, data: str, structure: str) -> str | None:
+    """The reason code a combination is refused with, as a typed refusal or a raised error."""
     temporal = kind in {"pulse", "sustained", "temporal_mediation"} or (
         kind in {"response_curve", "intervention_response"} and data != "tabular"
     )
     kwargs = _kwargs(kind, data, structure, "")
-    return lambda: analyze(_frame(kind, data, temporal), **kwargs)
+    frame = _frame(kind, data, temporal)
+    try:
+        _execute_discovery(kwargs, kind, data, structure, temporal, frame)
+        outcome = ant.analyze(frame, **kwargs)
+    except CausalError as error:
+        return getattr(error, "reason_code", None)
+    assert outcome.refusal is not None, f"{kind}/{data}/{structure} was not refused"
+    return outcome.refusal.code
 
 
 @pytest.mark.parametrize(
@@ -589,9 +653,7 @@ def _refusal_call(kind: str, data: str, structure: str):
     ids=[f"{row['kind']}_{row['data']}_{row['structure']}" for row in PRODUCTS.get("refusal", [])],
 )
 def test_refusal_rows_are_reason_coded(kind, data, structure, reason):
-    with pytest.raises(CausalError) as raised:
-        _refusal_call(kind, data, structure)()
-    assert getattr(raised.value, "reason_code", None) == reason, str(raised.value)
+    assert _refusal_code(kind, data, structure) == reason
 
 
 def _install_route_tests() -> None:

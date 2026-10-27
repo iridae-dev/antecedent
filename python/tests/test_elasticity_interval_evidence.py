@@ -16,10 +16,15 @@ def test_elasticity_interval_matches_retained_and_accepted_routes_and_artifact()
     data = {"t": t, "x": x, "y": y}
     dag = antecedent.Dag.from_edges(["t", "x", "y"], [("x", "t"), ("x", "y"), ("t", "y")])
     query = antecedent.Elasticity("t", "y", at=0.5)
-    options = {"query": query, "estimator_config": {"bandwidth": 0.35}, "refute": False, "seed": 29}
+    options = {
+        "query": query,
+        "estimator_config": {"bandwidth": 0.35},
+        "refute": False,
+        "execution": antecedent.Execution(seed=29),
+    }
 
     explicit = require_success(antecedent.analyze(data, graph=dag, **options))
-    prepared = require_success(antecedent.prepare(data, graph=dag, **options).estimate(data))
+    prepared = require_success(antecedent.estimate(antecedent.prepare(data, graph=dag, **options)))
     accepted = require_success(
         antecedent.analyze(
             data,

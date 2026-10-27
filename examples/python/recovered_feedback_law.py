@@ -27,9 +27,7 @@ def run() -> dict[str, object]:
     generator = random.Random(19)
     clamp_a = [generator.gauss(0.0, 1.0) for _ in range(128)]
     clamp_b = [generator.gauss(0.0, 1.0) for _ in range(128)]
-    disturbance = [
-        (generator.gauss(0.0, 0.02), generator.gauss(0.0, 0.02)) for _ in range(128)
-    ]
+    disturbance = [(generator.gauss(0.0, 0.02), generator.gauss(0.0, 0.02)) for _ in range(128)]
     regimes = [
         ExperimentRegime(
             {
@@ -66,9 +64,7 @@ def run() -> dict[str, object]:
     assert abs(original - 0.5) < 0.05
 
     # A new target shares the recovered law and all original draw statuses.
-    branch = result.law.prepare(
-        [World(3, Set("A", 3.0))], variables=["A", "B"], outcome="B"
-    )
+    branch = result.law.prepare([World(3, Set("A", 3.0))], variables=["A", "B"], outcome="B")
     assert branch.inspect()["preparation_evaluations"] == 0
     continued = require_success(ant.estimate(branch))
     changed = require_success(continued.interventions())[3].mean()
@@ -97,4 +93,5 @@ def run() -> dict[str, object]:
 
 
 if __name__ == "__main__":
-    print(json.dumps(run(), indent=2))
+    # Retained read models are immutable mappings; copy them to plain dictionaries to print.
+    print(json.dumps(run(), indent=2, default=dict))

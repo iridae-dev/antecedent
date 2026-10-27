@@ -97,7 +97,7 @@ functional = "target_interventional_distribution"
 guarantee = "independently_checked_embedded_plugin_point"
 limits = "Version 2 checks all identities, sample summaries, replicate accounting, pointwise atom/mean intervals and reasoning; recomputes the point without fitting/fetching. Raw samples are required for re-estimation. Earlier statistical artifacts must be regenerated."
 evidence_test = "python/tests/test_transport_statistical.py"
-evidence_assertion = "test_consume_statistical_rechecks_the_point_and_refreshes_after_builder_disposal"
+evidence_assertion = "test_consume_statistical_rechecks_the_point_and_rebinds_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.advanced.identify_classical"
@@ -374,7 +374,7 @@ functional = "retained_partial_grid_and_four_reasoning_slots"
 guarantee = "independent_proof_binding_and_numerical_verification"
 limits = "Required features and all enclosing point claims are checked. No fitting, fetching or resampling on load. Raw samples must be supplied for statistical estimator replay; scalar projections produce loss receipts."
 evidence_test = "python/tests/test_transport_meta_grid.py"
-evidence_assertion = "test_consume_response_grid_refreshes_from_the_consumed_family_after_builder_disposal"
+evidence_assertion = "test_consume_response_grid_replays_the_consumed_family_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.consume_identification"
@@ -638,7 +638,7 @@ family = "transport_prepared_lifecycle"
 role = "positive"
 evidence_class = "internal_cross_check"
 evidence_test = "python/tests/test_transport_exact.py"
-evidence_assertion = "test_common_prepared_lifecycle_export_consume_atomic_refresh"
+evidence_assertion = "test_common_prepared_lifecycle_export_load_and_rebind_branches"
 limits = "Exact prepared path; statistical and grid refresh are evidenced on their own routes."
 
 [[fixture_evidence]]

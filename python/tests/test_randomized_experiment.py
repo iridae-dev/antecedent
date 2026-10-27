@@ -37,7 +37,7 @@ def test_calibrated_complete_interval_is_retained_by_analyze_and_prepare():
     assert fit.support_status == "licensed"
     assert result.evidence_status == "licensed"
     prepared = ant.prepare(data, query=query, refute="none")
-    assert require_success(prepared.estimate(data)).randomized_effect.interval_95 == fit.interval_95
+    assert require_success(ant.estimate(prepared)).randomized_effect.interval_95 == fit.interval_95
 
 
 def test_bernoulli_interval_has_exact_graphless_license():
@@ -558,7 +558,7 @@ def test_multi_arm_randomized_effect_uses_retained_analyze_and_prepare():
     assert fit.support_status == "unlicensed_off_matrix"
     assert result.evidence_status == "off_axis"
     prepared = ant.prepare(data, query=query, refute="none")
-    refreshed = require_success(prepared.estimate(data))
+    refreshed = require_success(ant.estimate(prepared))
     assert refreshed.randomized_effect.multi_arm_values == fit.multi_arm_values
     with pytest.raises(CausalValueError, match="observed support"):
         ant.experiment.MultiArmExperimentDesign(

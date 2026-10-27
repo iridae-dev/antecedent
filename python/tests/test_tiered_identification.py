@@ -10,6 +10,7 @@ import pytest
 from antecedent.errors import CausalDataError, CausalUnsupportedError, CausalValueError
 from antecedent.graph import TieredBackground, WithinTier
 from antecedent.intervention import Set, Shift
+from antecedent.outcomes import require_success
 
 
 def _background(within=WithinTier.CODETERMINED):
@@ -101,7 +102,14 @@ def test_a_tiered_identification_can_explicitly_estimate_its_own_target():
     y = 1.0 + 2.0 * t + 0.5 * z
     graph = TieredBackground(tiers=[["z"], ["t"], ["y"]])
     identified = ant.identify(graph=graph, query=ant.AverageEffect("t", "y"))
-    result = identified.estimate({"z": z, "t": t, "y": y}, bootstrap=0, refute="none", seed=1)
+    result = require_success(
+        identified.estimate(
+            {"z": z, "t": t, "y": y},
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+            execution=ant.Execution(seed=1),
+        )
+    )
     fresh = ant.analyze(
         {"z": z, "t": t, "y": y},
         graph=graph,
@@ -110,6 +118,7 @@ def test_a_tiered_identification_can_explicitly_estimate_its_own_target():
         refute="none",
         execution=ant.Execution(seed=1),
     )
+    fresh = require_success(fresh)
     assert result.estimate.ate == pytest.approx(2.0, abs=1e-10)
     assert result.estimate.ate == pytest.approx(fresh.estimate.ate, abs=1e-12)
     assert result.program_id == fresh.program_id

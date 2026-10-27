@@ -226,7 +226,7 @@ def test_artifact_round_trip_keeps_failed_scenarios_and_refuses_tampering():
     prepared = prepare(scenarios((0.3, 0.2, 0.4)))
     live = json.loads(require_success(prepared.estimate()))
     artifact = bytes(prepared.export())
-    consumed = json.loads(transport.consume_transport_scenarios_artifact(artifact))
+    consumed = transport.consume_transport_scenarios_artifact(artifact).to_dict()
     assert consumed["scenarios"] == live["scenarios"]
     assert by_name(consumed)["outcome_shift"]["status"] == "structurally_unidentified"
     with pytest.raises(CausalSerializationError):
@@ -385,7 +385,7 @@ def test_consume_rechecks_the_report_from_retained_plans_after_builder_disposal(
     plan = prepared.plan_summary()
     assert len(plan) == 3
     live = json.loads(require_success(prepared.estimate()))
-    consumed = json.loads(transport.consume_transport_scenarios_artifact(bytes(prepared.export())))
+    consumed = transport.consume_transport_scenarios_artifact(bytes(prepared.export())).to_dict()
     assert consumed["scenarios"] == live["scenarios"]
     assert consumed["weighted"] == live["weighted"]
 
@@ -530,14 +530,14 @@ def test_a_memory_truncated_report_replays_but_a_cancelled_one_is_not_exported()
     # identical prefix even though its own context sets no limit.
     prepared = prepare(memory_bytes=1500)
     live = json.loads(require_success(prepared.estimate()))
-    consumed = json.loads(transport.consume_transport_scenarios_artifact(bytes(prepared.export())))
+    consumed = transport.consume_transport_scenarios_artifact(bytes(prepared.export())).to_dict()
     assert consumed["receipt"] == live["receipt"]
     assert consumed["scenarios"] == live["scenarios"]
     # An operation bound is recorded and replays too.
     prepared = prepare(max_steps=25)
     live = json.loads(require_success(prepared.estimate()))
     assert live["receipt"]["stop"] == "search.operations"
-    consumed = json.loads(transport.consume_transport_scenarios_artifact(bytes(prepared.export())))
+    consumed = transport.consume_transport_scenarios_artifact(bytes(prepared.export())).to_dict()
     assert consumed["receipt"] == live["receipt"]
     # Cancellation falls where nothing recorded lets a consumer reproduce, so the
     # exporter refuses rather than write an artifact that can only fail replay.
@@ -606,5 +606,5 @@ def test_empirical_plug_in_points_per_scenario():
     assert mean(s["direct"]) == pytest.approx(0.6)
     assert mean(s["standardize"]) == pytest.approx(0.75 * 0.5 + 0.25 * 2 / 3)
     assert s["outcome_shift"]["status"] == "structurally_unidentified"
-    consumed = json.loads(transport.consume_transport_scenarios_artifact(bytes(prepared.export())))
+    consumed = transport.consume_transport_scenarios_artifact(bytes(prepared.export())).to_dict()
     assert consumed["scenarios"] == report["scenarios"]

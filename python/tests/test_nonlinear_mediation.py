@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import sys
 
 import numpy as np
 import pytest
@@ -154,16 +155,27 @@ def test_mediation_reports_integration_error_and_refuses_above_tolerance() -> No
     assert fine.natural_direct == pytest.approx(nde, abs=1e-8)
     assert fine.natural_indirect == pytest.approx(nie, abs=1e-8)
     assert fine.total == pytest.approx(te, abs=1e-8)
-    # One node is the plug-in mean; the n versus 2n disagreement is sigma2-sized and refused.
-    with pytest.raises(MediationRefusal) as caught:
-        run(g, outcome_degree=3, quadrature_nodes=1)
-    assert caught.value.detail == "nonlinear_mediation.integration_error"
-    assert caught.value.reason_code == "mechanism_fit_not_converged"
-    assert_registered_refusal(caught.value)
-    # A loose tolerance returns the estimate with the error reported, not hidden.
-    loose = run(g, outcome_degree=3, quadrature_nodes=1, integration_tolerance=10.0)
-    assert loose.integration_error > 1e-3
-    assert loose.natural_indirect == pytest.approx(nie, abs=1e-8)
+    # A declared node count below what the outcome degree needs is raised to the least count
+    # that integrates the degree exactly, so one declared node still returns the closed form
+    # (a single node would be the plug-in mean and drop the 3*mu*sigma2 term).
+    raised = run(g, outcome_degree=3, quadrature_nodes=1)
+    assert raised.coarse_nodes > 1 and raised.fine_nodes == 2 * raised.coarse_nodes
+    assert raised.integration_error < 1e-10
+    assert raised.natural_direct == pytest.approx(nde, abs=1e-8)
+    assert raised.natural_indirect == pytest.approx(nie, abs=1e-8)
+    assert raised.total == pytest.approx(te, abs=1e-8)
+    # The check itself still compares the n and 2n node effects: a tolerance below their
+    # rounding-level disagreement refuses, and one at or above it returns the estimate with
+    # the error reported.
+    tiny = sys.float_info.min
+    try:
+        strict = run(g, outcome_degree=3, quadrature_nodes=1, integration_tolerance=tiny)
+    except MediationRefusal as caught:
+        assert caught.detail == "nonlinear_mediation.integration_error"
+        assert caught.reason_code == "mechanism_fit_not_converged"
+        assert_registered_refusal(caught)
+    else:
+        assert strict.integration_error <= tiny
 
 
 @pytest.mark.parametrize(

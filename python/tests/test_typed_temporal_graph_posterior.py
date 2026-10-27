@@ -62,14 +62,19 @@ def test_temporal_class_posterior_executes_same_derivative_as_explicit_class_and
     graph = TemporalCpdag.from_lagged_edges(["x", "y"], [("x", 1, "y", 0)])
     posterior = GraphPosterior.from_graphs(["x", "y"], [1.0], [graph])
     query = TemporalQuery(ant.AverageDerivative("x", "y"), max_history_lag=1)
-    options = dict(query=query, bootstrap=0, refute="none", seed=11)
+    options = dict(
+        query=query,
+        inference=ant.Frequentist(bootstrap=0),
+        refute="none",
+        execution=ant.Execution(seed=11),
+    )
     explicit = ant.prepare(table, graph=graph, **options)
     supplied = ant.prepare(table, discovery=posterior, **options)
-    assert explicit.last_result is None and supplied.last_result is None
+    assert explicit.inspect().stage == "prepared" and supplied.inspect().stage == "prepared"
     assert supplied.plan_view()
-    assert supplied.last_result is None
-    result = require_success(supplied.estimate(seed=11))
-    reference = require_success(explicit.estimate(seed=11))
+    assert supplied.inspect().stage == "prepared"
+    result = require_success(supplied.estimate())
+    reference = require_success(explicit.estimate())
     np.testing.assert_allclose(np.asarray(result.estimate).reshape(-1), [2.0], atol=0.05, rtol=0)
     np.testing.assert_allclose(
         np.asarray(result.estimate), np.asarray(reference.estimate), atol=1e-12, rtol=0

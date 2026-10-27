@@ -203,7 +203,7 @@ def test_statistical_scalar_reports_native_interval_not_a_fabricated_se():
 
 
 def test_exact_contrast_never_reports_a_fabricated_analytic_se():
-    result = analyze(_exact(), graph=_graph(), query=_ate())
+    result = require_success(analyze(_exact(), graph=_graph(), query=_ate()))
     assert isinstance(result, AnalysisResult)
     assert result.answer.kind == "point"
     assert not math.isfinite(result.estimate.se_analytic)
@@ -213,7 +213,7 @@ def test_exact_contrast_never_reports_a_fabricated_analytic_se():
 
 
 def test_transport_validation_never_claims_passed_when_nothing_ran():
-    result = analyze(_exact(), graph=_graph(), query=_ate())
+    result = require_success(analyze(_exact(), graph=_graph(), query=_ate()))
     assert result.validation.ran is False
     assert result.validation.passed is False
 
@@ -281,7 +281,7 @@ def test_transport_export_is_verified_natively_not_a_bare_json_blob():
     # ``AverageEffect`` round-trips through ``_query_to_dict``/``_query_from_dict``
     # (unlike ``PointDerivative``, which those helpers do not reconstruct);
     # its contrast shape exercises the ``TransportResponseGrid`` export path.
-    result = analyze(_exact(), graph=_graph(), query=_ate())
+    result = require_success(analyze(_exact(), graph=_graph(), query=_ate()))
     blob = bytes(result.export())
     assert blob.startswith(b"ANTECEDENT-TRANSPORT-VIEW\x01")
     prefix = b"ANTECEDENT-TRANSPORT-VIEW\x01"

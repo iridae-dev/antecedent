@@ -16,12 +16,13 @@ def test_exact_dag_posterior_bayesian_ate_mixture():
     result = require_success(
         antecedent.analyze(
             {"t": t, "y": y, "z": z},
-            discovery=antecedent.discovery.ExactDagPosterior(),
+            discovery=antecedent.discovery.ExactDagPosterior().run(
+                {"t": t, "y": y, "z": z}, seed=7
+            ),
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=80, prior_scale=100.0, backend="conjugate"),
             refute=False,
-            bootstrap=0,
-            seed=7,
+            execution=antecedent.Execution(seed=7),
         )
     )
     assert result.posterior is not None
@@ -44,7 +45,9 @@ def test_exact_dag_posterior_frequentist_ate_mixture():
     result = require_success(
         antecedent.analyze(
             {"t": t, "y": y, "z": z},
-            discovery=antecedent.discovery.ExactDagPosterior(),
+            discovery=antecedent.discovery.ExactDagPosterior().run(
+                {"t": t, "y": y, "z": z}, seed=1
+            ),
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
@@ -70,7 +73,9 @@ def test_dbn_posterior_bayesian_pulse_mixture():
     result = require_success(
         antecedent.analyze(
             {"pressure": pressure, "defect": defect},
-            discovery=antecedent.discovery.DbnPosterior(max_lag=1),
+            discovery=antecedent.discovery.DbnPosterior(max_lag=1).run(
+                {"pressure": pressure, "defect": defect}, seed=11
+            ),
             query=antecedent.PulseEffect(
                 treatment="pressure",
                 outcome="defect",
@@ -80,8 +85,7 @@ def test_dbn_posterior_bayesian_pulse_mixture():
             ),
             inference=antecedent.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate"),
             refute=False,
-            bootstrap=0,
-            seed=11,
+            execution=antecedent.Execution(seed=11),
         )
     )
     assert result.posterior is not None
@@ -104,7 +108,9 @@ def test_dbn_posterior_bayesian_sustained_mixture():
     result = require_success(
         antecedent.analyze(
             {"pressure": pressure, "defect": defect},
-            discovery=antecedent.discovery.DbnPosterior(max_lag=1),
+            discovery=antecedent.discovery.DbnPosterior(max_lag=1).run(
+                {"pressure": pressure, "defect": defect}, seed=11
+            ),
             query=antecedent.SustainedEffect(
                 treatment="pressure",
                 outcome="defect",
@@ -114,8 +120,7 @@ def test_dbn_posterior_bayesian_sustained_mixture():
             ),
             inference=antecedent.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate"),
             refute=False,
-            bootstrap=0,
-            seed=11,
+            execution=antecedent.Execution(seed=11),
         )
     )
     assert result.posterior is not None
@@ -196,7 +201,7 @@ def test_dbn_posterior_temporal_response_curve_and_intervention():
     curve = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.DbnPosterior(max_lag=1),
+            discovery=antecedent.discovery.DbnPosterior(max_lag=1).run(data, seed=11),
             query=antecedent.ResponseCurve("pressure", "defect", grid=[0.0, 1.0], horizons=[1]),
             inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
@@ -209,7 +214,7 @@ def test_dbn_posterior_temporal_response_curve_and_intervention():
     ir = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.DbnPosterior(max_lag=1),
+            discovery=antecedent.discovery.DbnPosterior(max_lag=1).run(data, seed=11),
             query=antecedent.InterventionResponse(
                 "defect",
                 intervention=antecedent.intervention.Set("pressure", 1.0),

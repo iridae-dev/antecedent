@@ -42,7 +42,12 @@ def _pcmci_lag1_scm(n: int = 500, seed: int = 0) -> dict[str, np.ndarray]:
 def main() -> None:
     data = _pcmci_lag1_scm()
 
-    accepted = antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False).accept(data, seed=0)
+    accepted = antecedent.discovery.discover(
+        data,
+        method=antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False),
+        accept_discovered=True,
+        execution=antecedent.Execution(seed=0),
+    )
     assert isinstance(accepted, antecedent.AcceptedGraph)
 
     recovered = set(accepted.graph.edges())
@@ -64,10 +69,10 @@ def main() -> None:
         execution=antecedent.Execution(seed=0),
         refute=False,
     )
-    pulse = float(result.ate)
+    pulse = float(result.answer.value)
     print(
         f"PulseEffect={pulse:.4f} truth={TRUE_PULSE} tol={PULSE_TOL} "
-        f"plan={result.performance.plan_id}"
+        f"plan={result.value.performance.plan_id}"
     )
     assert abs(pulse - TRUE_PULSE) < PULSE_TOL, pulse
 

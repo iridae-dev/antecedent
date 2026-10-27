@@ -79,9 +79,13 @@ def main() -> None:
             refute="none",
             execution=antecedent.Execution(seed=3),
         )
-        print(f"effect from Parquet {from_file.effect:.4f}, in memory {in_memory.effect:.4f}")
-        assert math.isclose(from_file.effect, in_memory.effect, rel_tol=1e-12, abs_tol=1e-12)
-        assert abs(from_file.effect - 1.5) < 0.2
+        print(
+            f"effect from Parquet {from_file.answer.value:.4f}, in memory {in_memory.answer.value:.4f}"
+        )
+        assert math.isclose(
+            from_file.answer.value, in_memory.answer.value, rel_tol=1e-12, abs_tol=1e-12
+        )
+        assert abs(from_file.answer.value - 1.5) < 0.2
 
         by_path = antecedent.analyze(
             str(path),
@@ -91,7 +95,9 @@ def main() -> None:
             refute="none",
             execution=antecedent.Execution(seed=3),
         )
-        assert math.isclose(by_path.effect, in_memory.effect, rel_tol=1e-12, abs_tol=1e-12)
+        assert math.isclose(
+            by_path.answer.value, in_memory.answer.value, rel_tol=1e-12, abs_tol=1e-12
+        )
 
         identity = orders.content_identity(["t", "y", "z"])
         regrouped = Path(scratch) / "orders_regrouped.parquet"

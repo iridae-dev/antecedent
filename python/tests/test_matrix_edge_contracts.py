@@ -71,8 +71,7 @@ def test_bayesian_response_band_has_portable_uncertainty_source(query):
             query=query,
             inference=ant.Bayesian(n_draws=128),
             refute="none",
-            bootstrap=0,
-            seed=19019,
+            execution=ant.Execution(seed=19019),
             estimator_config={"bandwidth": 0.3},
         )
     )

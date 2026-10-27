@@ -4,6 +4,7 @@ import json
 
 import pytest
 from antecedent import Admg
+from antecedent._artifact_protocol import ExportedArtifact
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError, CausalValueError
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
@@ -129,7 +130,7 @@ def test_export_joint_sensitivity_after_builder_disposal():
     plan = json.loads(require_success(prepared.estimate()))
     assert plan["status"] == "available" and builder is None
     artifact = transport.export_joint_mechanism_sensitivity(prepared, DEVIATION)
-    assert isinstance(artifact, bytes) and len(artifact) > 100
+    assert isinstance(artifact, ExportedArtifact) and len(bytes(artifact)) > 100
     # The v2 one-factor consumer refuses the v3 artifact by version.
     with pytest.raises(CausalSerializationError):
         transport.consume_z_transport_sensitivity_artifact(artifact)
@@ -144,7 +145,7 @@ def test_consume_joint_sensitivity_artifact_replays_the_retained_plan():
     consumed = transport.consume_joint_mechanism_sensitivity_artifact(artifact)
     live = transport.joint_mechanism_sensitivity(prepared, DEVIATION)
     assert consumed["version"] == 3
-    assert consumed["outcome"]["range"] == [
+    assert list(consumed["outcome"]["range"]) == [
         live["assumption_range"]["minimum"],
         live["assumption_range"]["maximum"],
     ]
@@ -259,7 +260,7 @@ def test_out_of_scope_requests_refuse_with_reason_codes():
             "joint_sensitivity.unknown_factor",
         ),
         (
-            transport.JointDeviation({"outcome_kernel": 0.1}, frontier_points=34),
+            transport.JointDeviation({"outcome_kernel": 0.1}, frontier_points=258),
             CausalUnsupportedError,
             "route_not_supported",
             "joint_sensitivity.bounds_exceeded",
@@ -297,7 +298,7 @@ def test_out_of_scope_requests_refuse_with_reason_codes():
 def test_tampered_joint_artifact_fails_with_typed_errors():
     prepared = prepared_stage()
     require_success(prepared.estimate())
-    artifact = transport.export_joint_mechanism_sensitivity(prepared, DEVIATION)
+    artifact = bytes(transport.export_joint_mechanism_sensitivity(prepared, DEVIATION))
     # A flipped byte inside the embedded baseline changes the data identity.
     marker = b"snapshot_z0"
     at = artifact.index(marker)

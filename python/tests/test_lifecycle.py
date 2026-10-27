@@ -18,6 +18,7 @@ import antecedent as ac
 import pytest
 from antecedent import decision, external
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 
 GRID = [0.0, 1.0, 2.0]
 EDGES = [("x", "a"), ("x", "y"), ("a", "y")]
@@ -92,7 +93,7 @@ def test_identify_bind_inspect_decide_and_hand_off_to_a_fresh_process(tmp_path: 
 
     # (e) decide on the claim: 2 * 1 - 1 = 1 and 2 * 5 - 1 = 9.
     contract = _contract(claim)
-    result = contract.evaluate(claim)
+    result = require_success(contract.evaluate(claim))
     wait, treat = result.actions
     assert wait.expected_utility == pytest.approx(1.0)
     assert treat.expected_utility == pytest.approx(9.0)
@@ -136,6 +137,7 @@ def test_identify_bind_inspect_decide_and_hand_off_to_a_fresh_process(tmp_path: 
         import json, sys
         import antecedent as ac
         from antecedent import decision, external
+        from antecedent.outcomes import require_success
 
         ident = ac.identify(
             graph=[("x", "a"), ("x", "y"), ("a", "y")],
@@ -163,7 +165,7 @@ def test_identify_bind_inspect_decide_and_hand_off_to_a_fresh_process(tmp_path: 
             target_population="target",
         )
         assert contract.identity == sys.argv[3]
-        result = contract.evaluate(claim)
+        result = require_success(contract.evaluate(claim))
         assert result.selected == ("treat",)
         assert abs(result.actions[0].expected_utility - 1.0) < 1e-12
         assert abs(result.actions[1].expected_utility - 9.0) < 1e-12
@@ -206,12 +208,11 @@ def test_a_mean_grid_refuses_what_only_a_distribution_can_answer():
         criterion=decision.Criterion.expected_utility(),
         target_population="target",
     )
-    with pytest.raises(decision.DecisionRefusal) as nonlinear_refusal:
-        nonlinear.evaluate(claim)
-    assert nonlinear_refusal.value.reason_code == "decision_contract_unsatisfied"
-    assert nonlinear_refusal.value.detail == "decision_evaluation.mean_source_insufficient"
-    assert nonlinear_refusal.value.supplied == "mean"
-    assert nonlinear_refusal.value.remedy is not None
+    nonlinear_refusal = _refused(nonlinear.evaluate(claim))
+    assert nonlinear_refusal.reason_code == "decision_contract_unsatisfied"
+    assert nonlinear_refusal.detail == "decision_evaluation.mean_source_insufficient"
+    assert nonlinear_refusal.supplied == "mean"
+    assert nonlinear_refusal.remedy is not None
 
     cap = decision.Constraint("cap", decision.x(0), bound=10.0, units="mmHg", min_probability=0.9)
     constrained = decision.Contract(
@@ -221,9 +222,8 @@ def test_a_mean_grid_refuses_what_only_a_distribution_can_answer():
         target_population="target",
         constraints=(cap,),
     )
-    with pytest.raises(decision.DecisionRefusal) as constraint_refusal:
-        constrained.evaluate(claim)
-    assert constraint_refusal.value.detail == "decision_evaluation.mean_source_insufficient"
+    constraint_refusal = _refused(constrained.evaluate(claim))
+    assert constraint_refusal.detail == "decision_evaluation.mean_source_insufficient"
 
     # An outcome-law input cannot be read from a mean grid.
     outcome = decision.Contract(
@@ -239,16 +239,23 @@ def test_a_mean_grid_refuses_what_only_a_distribution_can_answer():
         criterion=decision.Criterion.expected_utility(),
         target_population="target",
     )
-    with pytest.raises(decision.DecisionRefusal) as quantity_refusal:
-        outcome.evaluate(claim)
-    assert quantity_refusal.value.reason_code == "quantity_semantics_mismatch"
+    quantity_refusal = _refused(outcome.evaluate(claim))
+    assert quantity_refusal.reason_code == "quantity_semantics_mismatch"
 
     # A mean-sourced decision is not replayable, so it is never silently exported.
-    result = base.evaluate(claim)
+    result = require_success(base.evaluate(claim))
     with pytest.raises(decision.DecisionRefusal) as export_refusal:
         bytes(result.export())
     assert export_refusal.value.reason_code == "route_not_supported"
     assert export_refusal.value.detail == "decision_evaluation.mean_source_not_replayable"
+
+
+def _refused(outcome):
+    """A valid but unanswerable question is a typed refusal outcome, not an answer."""
+    assert not outcome.accepted and outcome.answer.kind == "refused"
+    with pytest.raises(decision.DecisionRefusal) as caught:
+        outcome.refusal.raise_error()
+    return caught.value
 
 
 def _as_outcome(quantity: ScientificQuantity) -> ScientificQuantity:

@@ -6,9 +6,8 @@ from antecedent._transport_results import TransportGridPoint, grid_support_statu
 from antecedent.outcomes import require_success
 from antecedent.results import CausalResponseView
 from antecedent.results.response import SupportReport
-from antecedent.transport import advanced
 
-from test_transport_meta_grid import fixture
+from test_transport_meta_grid import fixture, grid_result
 
 
 def _curve():
@@ -65,11 +64,7 @@ def test_grid_point_support_status_maps_each_native_status():
 @pytest.mark.parametrize("statistical", [False, True])
 def test_native_grid_points_report_missing_evidence(statistical):
     _, identified, catalog, data = fixture(missing=True, statistical=statistical)
-    result = require_success(
-        advanced.prepare_response_grid(
-            identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=19
-        ).estimate()
-    )
+    result = grid_result(identified, catalog, data, [{"x": 0.0}, {"x": 1.0}], bootstrap=19)
     assert result.points[0]["status"] == "missing_evidence"
     assert [point.support_status for point in result.points] == ["missing_evidence", "supported"]
     slot = result.inspect().support.payload["slot"]
@@ -87,7 +82,7 @@ def test_native_grid_points_report_missing_evidence(statistical):
 
 def test_transported_curve_does_not_call_missing_evidence_a_support_failure():
     graph = Admg.from_edges(["x", "y"], [("x", "y")])
-    view = analyze(_treated_law_only(), graph=graph, query=_curve())
+    view = require_success(analyze(_treated_law_only(), graph=graph, query=_curve()))
     assert isinstance(view, CausalResponseView)
     assert tuple(view.support.point_status) == ("missing_evidence", "supported")
     assert view.support.status == "missing_evidence"
@@ -95,7 +90,7 @@ def test_transported_curve_does_not_call_missing_evidence_a_support_failure():
 
 def test_transported_curve_aligns_evidence_availability_with_each_requested_coordinate():
     graph = Admg.from_edges(["x", "y"], [("x", "y")])
-    view = analyze(_treated_law_only(), graph=graph, query=_curve())
+    view = require_success(analyze(_treated_law_only(), graph=graph, query=_curve()))
     labels = tuple(view.support.point_status)
     assert view.support.status == max(
         labels, key=("supported", "outside_empirical_support", "missing_evidence").index

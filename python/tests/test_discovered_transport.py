@@ -21,6 +21,7 @@ from unittest.mock import sentinel
 import numpy as np
 import pytest
 from antecedent import selective_discovery as sd
+from antecedent._artifact_protocol import ExportedArtifact
 from antecedent.errors import CausalValueError
 from antecedent.transport import discovered
 
@@ -234,9 +235,10 @@ def test_estimate_factory_preserves_the_native_artifact_and_retained_context() -
         "report_identity": "original-report",
         "identity": "original-result",
     }
-    artifact = b"opaque native artifact"
+    artifact = ExportedArtifact(b"opaque native artifact", "discovered_transport_estimate")
     result = discovered._estimate_of(wire, artifact, sentinel.outcome, sentinel.report)
-    assert bytes(result.export()) is artifact
+    assert result.export() is artifact
+    assert bytes(result.export()) == b"opaque native artifact"
     assert result.outcome is sentinel.outcome
     assert result.report is sentinel.report
     assert result.identity == "original-result"

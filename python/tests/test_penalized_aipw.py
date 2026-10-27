@@ -127,7 +127,7 @@ def test_a_penalized_aipw_reports_a_point_the_scores_and_the_influence_interval(
     assert again.estimate.se_analytic == estimate.se_analytic
 
     # The frozen scores retarget with their covariance, as for the unpenalized route.
-    retargeted = result.study.retarget(np.exp(data["z0"] / 3), depends_on=["z0"])
+    retargeted = require_success(result.study.retarget(np.exp(data["z0"] / 3), depends_on=["z0"]))
     assert math.isfinite(retargeted.effect)
     assert math.isfinite(retargeted.estimate.se_analytic)
     assert retargeted.estimate.joint_covariance is not None

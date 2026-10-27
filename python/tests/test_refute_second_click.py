@@ -28,25 +28,24 @@ def _confounded(n: int = 400, seed: int = 11):
 
 def test_prepared_refute_second_click():
     data, edges = _confounded()
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=edges,
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
         refute=False,
-        bootstrap=0,
-        seed=5,
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=5),
     )
-    first = require_success(prepared.estimate(data, seed=5))
+    first_outcome = antecedent.estimate(prepared)
+    first = require_success(first_outcome)
     assert not first.validation.ran
     ate = first.ate
 
-    second = prepared.refute(data, suite="placebo", seed=5)
+    second_outcome = first_outcome.study.refute(suite="placebo")
+    second = require_success(second_outcome)
     assert abs(second.ate - ate) < 1e-12
     assert second.validation.ran
     assert second.validation.count >= 1
-
-    # Convenience on the result object.
-    third = first.refute(data, suite="placebo", seed=5)
-    assert abs(third.ate - ate) < 1e-12
-    assert third.validation.ran
+    # The completed first estimate is untouched by the deferred suite.
+    assert not first.validation.ran
+    assert second_outcome.study is not first_outcome.study

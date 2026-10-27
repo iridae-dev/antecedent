@@ -23,7 +23,12 @@ from antecedent.cyclic import (
     consume_artifact,
     consume_family_artifact,
 )
-from antecedent.errors import CausalCancelledError, CausalResourceError, CausalValueError
+from antecedent.errors import (
+    CausalCancelledError,
+    CausalResourceError,
+    CausalValueError,
+    StructuredRefusal,
+)
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 
@@ -704,8 +709,9 @@ def test_frequentist_bootstrap_responses_keep_failed_replicate_slots() -> None:
             *inputs, replicates=4, execution=Execution(seed=91), policy=FitOptions(max_sweeps=1)
         ).execute()
     ).to_dict()["answer"]["result"]
-    assert failed["parameters"] == (None,) * 4
-    assert failed["worlds"][0] == (None,) * 4
+    # ``to_dict`` is the explicit editable JSON boundary: sequences are lists, failed slots stay.
+    assert failed["parameters"] == [None] * 4
+    assert failed["worlds"][0] == [None] * 4
 
 
 def test_sampled_gaussian_ci_discovery_keeps_cyclic_interpretation() -> None:
@@ -1087,8 +1093,12 @@ def test_native_cyclic_evidence_decision_and_fresh_process_replay(tmp_path):
     assert changed.identity != evidence.identity
     with pytest.raises(CausalSerializationError, match="identity"):
         require_success(consume_evidence(artifact, expected_identity=changed.identity))
-    with pytest.raises(ValueError, match="port"):
-        require_success(evidence.joint_law())
+    refused = evidence.joint_law()
+    assert refused.refusal is not None
+    assert refused.refusal.code == "joint_law_required"
+    assert refused.refusal.detail == "cyclic_evidence.joint_law"
+    with pytest.raises(StructuredRefusal, match="uncertainty_port"):
+        require_success(refused)
     with pytest.raises(ValueError, match="schema"):
         require_success(
             prepared.evidence(
@@ -1151,8 +1161,11 @@ def test_cyclic_evidence_retains_posterior_bootstrap_and_algebraic_meanings():
     )
     resampling = require_success(bootstrap.evidence(schema, selectors))
     assert resampling.to_dict()["columns"][0]["port"] == "sampling_law"
-    with pytest.raises(ValueError, match="port"):
-        require_success(resampling.joint_law())
+    refused = resampling.joint_law()
+    assert refused.refusal is not None
+    assert refused.refusal.code == "joint_law_required"
+    with pytest.raises(StructuredRefusal, match="uncertainty_port"):
+        require_success(refused)
 
 
 def test_equilibrium_polynomial_bridge_and_robust_solution_decisions():
@@ -1320,7 +1333,12 @@ def test_unavailable_cyclic_functional_is_a_scientific_refusal_with_native_evide
     assert refused.refusal.detail == "cyclic.observational_functional_unavailable"
     assert refused.refusal.fields["native_identification"]["status"] == status
     assert refused.refusal.fields["source_identity"] == original.identity
-    assert refused.refusal.fields["native_identification"] == original.to_dict()["answer"]["result"]
+    from antecedent._freeze import thaw
+
+    assert (
+        thaw(refused.refusal.fields["native_identification"])
+        == (original.to_dict()["answer"]["result"])
+    )
     assert refused.refusal.remedy
     assert require_success(study.execute()).to_dict() == original.to_dict()
 
@@ -1619,22 +1637,21 @@ def test_cyclic_native_facts_survive_execution_cancellation_and_bad_artifact():
     assert corrupt.value.execution_facts.status() == "failed"
 
 
-def test_numpy_cyclic_output_keeps_admission_in_its_base_after_receipt_is_discarded():
+def test_native_numeric_views_retain_their_execution_after_the_preparation_is_discarded():
     import gc
-
-    import numpy as np
 
     system = EquilibriumModel((Equation("x", 0.0, (0.0,), "identity"),), (1.0,))
     prepared = system.prepare([[]], [[float(i)] for i in range(80)])
-    _, _, values, counterfactuals, _, facts = prepared._handle.execute_buffers()
-    assert facts.observed_copied_bytes >= values.nbytes
-    assert facts.observed_retained_bytes >= values.nbytes
-    assert values.base.admitted_bytes >= values.nbytes
-    retained = values[5:10]
-    del prepared, facts, values, counterfactuals
+    execution, facts = prepared._handle.execute()
+    rows = [memoryview(execution.world_values(0, row=row)) for row in range(5, 10)]
+    assert all(view.readonly and view.format == "d" and view.shape == (1,) for view in rows)
+    del prepared, facts, execution
     gc.collect()
-    assert np.asarray(retained).tolist() == [5.0, 6.0, 7.0, 8.0, 9.0]
-    assert retained.base.base.admitted_bytes >= 80 * 8
+    # Each borrowed row still reads its exact native values: the view owns the execution.
+    assert [view[0] for view in rows] == [5.0, 6.0, 7.0, 8.0, 9.0]
+    with pytest.raises(ValueError, match="out of range"):
+        # The coordinate space belongs to the execution that produced it.
+        system.prepare([[]], [[0.0]])._handle.execute()[0].world_values(0, row=1)
 
 
 # Typed worlds, experimentally recovered laws and dynamic-fit inference. The feedback pair is
@@ -1825,12 +1842,15 @@ def test_equilibrium_and_ode_worlds_share_draws_initial_laws_and_refuse_shocks()
     assert trajectories[1].trajectory("x")[1] == pytest.approx(4.0 * math.exp(-1.0), rel=1e-6)
     assert trajectories[1].certificate["gap"] == "numerical_integration_only"
     assert trajectories[1].actions[0]["kind"] == "initial_state_change"
-    with pytest.raises(CyclicRefusal, match="shift") as refused:
-        # Admission or evaluation refuses the shock; either names its next attempt.
-        require_success(
-            decay.worlds([2.0], [0.0, 1.0], [World(0, Shift("x", 1.0))]).interventions()
-        )
-    assert refused.value.next_attempt
+    # A shock on a continuous-time world is a scientific refusal naming its next attempt,
+    # not an invalid argument.
+    shocked = decay.worlds([2.0], [0.0, 1.0], [World(0, Shift("x", 1.0))]).interventions()
+    assert shocked.refusal is not None
+    assert shocked.refusal.code == "route_not_supported"
+    assert shocked.refusal.detail == "cyclic_world.shift"
+    assert shocked.refusal.remedy
+    with pytest.raises(StructuredRefusal, match="cyclic_world.shift"):
+        require_success(shocked)
 
 
 def test_experimental_recovery_keeps_each_draw_origin_through_worlds_evidence_and_replay() -> None:
@@ -1941,26 +1961,35 @@ def test_recovery_and_world_refusals_name_their_next_attempt() -> None:
     from antecedent import _native
     from antecedent.cyclic import AsymptoticNormal, RecoveryBootstrap, Set, Shift, World
 
-    with pytest.raises(CyclicRefusal, match="hard clamps only") as shift:
-        _recovery(
-            AsymptoticNormal(4),
-            worlds=[World(1), World(3, Shift("A", 1.0))],
-            execution=Execution(seed=1),
-        )
-    assert "linear_worlds" in shift.value.next_attempt
-    assert shift.value.reason_code in _native.runtime_refusal_codes()
+    # A valid question the recovered law cannot answer is retained as the native scientific
+    # refusal on the immutable preparation; nothing is fitted.
+    shifted = _recovery(
+        AsymptoticNormal(4),
+        worlds=[World(1), World(3, Shift("A", 1.0))],
+        execution=Execution(seed=1),
+    )
+    assert shifted.refusal is not None
+    assert shifted.refusal.code == "route_not_supported"
+    assert shifted.refusal.code in _native.runtime_refusal_codes()
+    assert shifted.refusal.detail == "cyclic_recovery.hard_clamp_required"
+    assert "hard clamps only" in shifted.refusal.message
+    assert shifted.refusal.remedy
+    assert shifted.inspect()["stage"] == "preparation_refused"
 
-    with pytest.raises(CyclicRefusal, match="no sampling design") as undeclared:
+    # A malformed declaration is an invalid argument, not a refusal.
+    with pytest.raises(CausalValueError, match="sampling_design"):
         _recovery(RecoveryBootstrap(8), execution=Execution(seed=1))
-    assert undeclared.value.reason_code == "required_option_missing"
-    assert "sampling_design=" in undeclared.value.next_attempt
 
     # Decided by Rust request compilation; Python passes the declared design through.
     for design in ("clustered_panel", "dependent_time_series"):
-        with pytest.raises(CyclicRefusal, match=design) as clustered:
-            _recovery(AsymptoticNormal(8), sampling_design=design, execution=Execution(seed=1))
-        assert clustered.value.reason_code == "estimator_inference_mismatch"
-        assert "bootstrap under the declared" in clustered.value.next_attempt
+        clustered = _recovery(
+            AsymptoticNormal(8), sampling_design=design, execution=Execution(seed=1)
+        )
+        assert clustered.refusal is not None
+        assert clustered.refusal.code == "estimator_inference_mismatch"
+        assert clustered.refusal.detail == "cyclic_recovery.row_independence_unlicensed"
+        assert design in clustered.refusal.message
+        assert "bootstrap under the declared" in clustered.refusal.remedy
     assert (
         _recovery(
             AsymptoticNormal(8),
@@ -1970,21 +1999,20 @@ def test_recovery_and_world_refusals_name_their_next_attempt() -> None:
         == "experimental_recovery"
     )
 
-    with pytest.raises(CyclicRefusal, match="not declared") as unknown:
+    with pytest.raises(CausalValueError, match="not declared") as unknown:
         _recovery(
             AsymptoticNormal(8), worlds=[World(1, Set("C", 1.0))], execution=Execution(seed=1)
         )
-    assert unknown.value.reason_code == "unknown_variable"
-    assert "'A'" in unknown.value.next_attempt
+    assert "'A'" in str(unknown.value)
 
-    with pytest.raises(CyclicRefusal, match="requested twice") as repeated:
+    with pytest.raises(ValueError, match="requested twice") as repeated:
         _feedback_linear().worlds(
             [World(3), World(3, Set("A", 1.0))],
             component_id="feedback",
             source_id="specification",
             certifying_evidence=["independent-bench-test"],
         )
-    assert "own id" in repeated.value.next_attempt
+    assert "own id" in str(repeated.value)
 
     with pytest.raises(CausalValueError, match="sampling_design"):
         _recovery(AsymptoticNormal(8), sampling_design="rows", execution=Execution(seed=1))
@@ -2007,9 +2035,13 @@ def test_system_family_and_families_without_worlds_refuse_interventions() -> Non
     assert require_success(
         consume_family_artifact(bytes(answer.export()), expected_identity=answer.identity)
     ).to_dict() == (answer.to_dict())
-    with pytest.raises(CyclicRefusal, match="no intervention worlds") as refused:
-        require_success(family.interventions())
-    assert "linear_worlds" in refused.value.next_attempt
+    refused = family.interventions()
+    assert refused.refusal is not None
+    assert refused.refusal.code == "route_not_supported"
+    assert refused.refusal.detail == "cyclic_family.intervention_worlds_unavailable"
+    assert "linear_worlds" in refused.refusal.remedy
+    with pytest.raises(StructuredRefusal, match="intervention_worlds_unavailable"):
+        require_success(refused)
 
 
 def _ou_rows(seed: int = 7):
@@ -2091,9 +2123,8 @@ def test_dynamic_inference_shares_its_fit_across_methods_and_binds_its_port(
     )
     assert json.loads(replayed) == result.to_dict()
 
-    with pytest.raises(CyclicRefusal, match="sampling design") as undeclared:
+    with pytest.raises(CausalValueError, match="sampling_design"):
         process.infer(parameters, rows, method=ObservedInformation(), sampling_design=None)
-    assert undeclared.value.reason_code == "required_option_missing"
 
 
 def test_recovered_law_and_its_evidence_replay_in_a_fresh_process(tmp_path: Path) -> None:

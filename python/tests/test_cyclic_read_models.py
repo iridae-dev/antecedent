@@ -79,8 +79,10 @@ def test_live_common_inspection_retains_actual_contract_and_loaded_has_no_study(
     assert report.contract is None
     assert report.details["contract_is_summary"]
     assert report.details["contract"]["identities"] == expected["identities"]
-    assert report.target["kind"] == expected["layers"]["target"]["kind"]
-    assert report.target["target_count"] == 1
+    # The bounded summary names the full contract's tagged form as its kind.
+    assert report.target["kind"] == expected["layers"]["target"]["form"]
+    # The family evaluates its two variables A and B jointly: one scientific target each.
+    assert report.target["target_count"] == 2
     assert report.uncertainty.payload["method"] == "none"
     assert not report.uncertainty.available
     assert outcome.answer.kind == "structured"

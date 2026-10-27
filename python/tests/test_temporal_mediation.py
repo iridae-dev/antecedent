@@ -66,9 +66,7 @@ def test_handle_temporal_mediation_bayesian_uses_staged_estimator():
             graph=graph,
             inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
             refute=False,
-            seed=1,
-            bootstrap=0,
-            threads=1,
+            execution=antecedent.Execution(seed=1, threads=1),
         )
     )
     assert result.estimate.estimator_id == "temporal.mediation.bayesian"

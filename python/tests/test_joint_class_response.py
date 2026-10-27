@@ -41,14 +41,14 @@ def test_joint_response_identify_prepare_and_estimate(kind, accepted, bayesian):
     )
     identified = antecedent.identify(graph=graph, query=query)
     assert identified.adjustment_set == tuple(["w"])
-    kwargs = {"refute": False, "bootstrap": 0, "seed": 7}
-    if bayesian:
-        kwargs["inference"] = antecedent.Bayesian()
+    kwargs = {
+        "refute": False,
+        "inference": antecedent.Bayesian() if bayesian else antecedent.Frequentist(bootstrap=0),
+        "execution": antecedent.Execution(seed=7),
+    }
     data = _data()
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
-        data, graph=graph, query=query, **kwargs
-    )
-    result = require_success(prepared.estimate(data, seed=7))
+    prepared = antecedent.prepare(data, graph=graph, query=query, **kwargs)
+    result = require_success(antecedent.estimate(prepared))
     tolerance = _PIN["bayesian_tolerance"] if bayesian else _PIN["tolerance"]
     assert float(np.asarray(result.response.values).reshape(-1)[0]) == pytest.approx(
         _PIN["mean"], abs=tolerance
@@ -87,8 +87,7 @@ def test_bayesian_joint_policy_mean(kind, policy):
             query=query,
             inference=antecedent.Bayesian(),
             refute=False,
-            bootstrap=0,
-            seed=7,
+            execution=antecedent.Execution(seed=7),
         )
     )
     assert float(np.asarray(result.response.values).reshape(-1)[0]) == pytest.approx(

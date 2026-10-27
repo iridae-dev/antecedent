@@ -240,9 +240,10 @@ def test_invalid_horizon_sequence_and_bounds_refuse():
     with pytest.raises(CausalValueError, match="temporal_transport.invalid_spec") as action:
         prepare(the_spec=spec(selections=("a1",)))
     assert action.value.reason_code == "invalid_argument"
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.bounds_exceeded") as wide:
-        prepare(the_spec=spec(actions=9))
-    assert wide.value.reason_code == "route_not_supported"
+    # The alphabet size has no fixed cap: a wide alphabet is bounded only by the one
+    # shared search budget, whose stop is a receipt and never a verdict.
+    with pytest.raises(CausalResourceError, match="temporal_transport.history_budget"):
+        prepare(the_spec=spec(actions=9), max_steps=1)
 
 
 def test_one_shared_budget_stops_are_receipts_never_verdicts():
@@ -364,7 +365,7 @@ def test_artifact_round_trip_is_recomputed_bit_for_bit_and_tampering_fails():
     prepared = prepare((1.0, 0.0))
     live = json.loads(require_success(prepared.estimate()))
     artifact = bytes(prepared.export())
-    consumed = json.loads(transport.consume_temporal_transport_artifact(artifact))
+    consumed = transport.consume_temporal_transport_artifact(artifact).to_dict()
     assert consumed["mean"] == live["mean"]
     assert consumed["point"]["probabilities"] == live["point"]["probabilities"]
     assert consumed["support"] == live["support"] and consumed["invariances"] == live["invariances"]
@@ -372,7 +373,7 @@ def test_artifact_round_trip_is_recomputed_bit_for_bit_and_tampering_fails():
     # Another sequence, another identity.
     other = prepare((0.0, 1.0))
     require_success(other.estimate())
-    other_digest = json.loads(transport.consume_temporal_transport_artifact(bytes(other.export())))
+    other_digest = transport.consume_temporal_transport_artifact(bytes(other.export())).to_dict()
     assert other_digest["premises_digest"] != consumed["premises_digest"]
     names, inner = _unframe(artifact)
     assert names == NAMES and _frame(names, inner) == artifact
@@ -464,7 +465,7 @@ def test_export_replays_the_retained_plan_after_builder_disposal():
     assert json.loads(retained_plan.plan())["compiled"]
     live = json.loads(require_success(retained_plan.estimate()))
     artifact = bytes(retained_plan.export())
-    consumed = json.loads(transport.consume_temporal_transport_artifact(artifact))
+    consumed = transport.consume_temporal_transport_artifact(artifact).to_dict()
     assert consumed["mean"] == live["mean"] and consumed["support"] == live["support"]
 
 
@@ -472,9 +473,9 @@ def test_consume_recomputes_from_the_retained_plan_after_builder_disposal():
     retained_plan = _retained_plan((0.0, 1.0))
     plan = json.loads(retained_plan.plan())
     live = json.loads(require_success(retained_plan.estimate()))
-    consumed = json.loads(
-        transport.consume_temporal_transport_artifact(bytes(retained_plan.export()))
-    )
+    consumed = transport.consume_temporal_transport_artifact(
+        bytes(retained_plan.export())
+    ).to_dict()
     assert consumed["sequence"] == plan["sequence"] == [0.0, 1.0]
     assert consumed["point"]["probabilities"] == live["point"]["probabilities"]
     assert consumed["mean"] == pytest.approx(truth("target", (0, 1)), abs=1e-12)

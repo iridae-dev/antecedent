@@ -34,7 +34,11 @@ from antecedent.outcomes import require_success
 
 EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
 QUERY = ant.AverageEffect(treatment="t", outcome="y")
-ONE_SHOT = {"bootstrap": 0, "refute": False, "seed": 1}
+ONE_SHOT = {
+    "inference": ant.Frequentist(bootstrap=0),
+    "refute": False,
+    "execution": ant.Execution(seed=1),
+}
 
 
 def _survey(n: int = 160, seed: int = 7) -> dict[str, np.ndarray]:
@@ -47,9 +51,10 @@ def _survey(n: int = 160, seed: int = 7) -> dict[str, np.ndarray]:
     return {"z": z, "t": t, "y": y, "w": w}
 
 
-def _run(data, estimator, **options):
+def _run(data, estimator, *, bootstrap=0, **options):
+    declared = {**ONE_SHOT, "inference": ant.Frequentist(bootstrap=bootstrap), **options}
     return require_success(
-        ant.analyze(data, graph=EDGES, query=QUERY, estimator=estimator, **{**ONE_SHOT, **options})
+        ant.analyze(data, graph=EDGES, query=QUERY, estimator=estimator, **declared)
     )
 
 
@@ -214,7 +219,7 @@ def test_a_refreshed_table_with_other_weights_is_refused():
     )
     other = {**data, "w": data["w"] * np.linspace(0.5, 1.5, len(data["w"]))}
     with pytest.raises(CausalValueError, match="weights column 'w' changed"):
-        require_success(study.refresh(other))
+        ant.rebind(study, data=other)
 
 
 def test_clusters_on_propensity_weighting_and_stratification_are_valid():
@@ -407,7 +412,12 @@ def test_a_weighted_temporal_pulse_reads_one_weight_per_time_step():
         y[i] += 0.8 * rng.normal()
     w = 0.3 + 3.0 * rng.uniform(size=n)
     graph = [("t", 1, "y", 0), ("t", 2, "y", 0)]
-    kwargs = {"graph": graph, "refute": False, "bootstrap": 0, "seed": 1}
+    kwargs = {
+        "graph": graph,
+        "refute": False,
+        "inference": ant.Frequentist(bootstrap=0),
+        "execution": ant.Execution(seed=1),
+    }
     weighted = require_success(
         ant.analyze(
             {"t": t, "y": y, "w": w}, query=ant.PulseEffect("t", "y", weights="w"), **kwargs

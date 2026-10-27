@@ -42,8 +42,7 @@ def test_supplied_static_posterior_refuses_column_order_mismatch():
             )
         )
     with pytest.raises(ValueError, match="names must match data column names and order"):
-        # lgtm[py/call/wrong-named-argument]
-        antecedent.estimation.PreparedAnalysis.prepare(
+        antecedent.prepare(
             data, discovery=static_posterior(), query=_ATE, inference=BAYES, refute=False
         )
 
@@ -58,8 +57,7 @@ def test_supplied_dbn_posterior_refuses_column_order_mismatch():
             )
         )
     with pytest.raises(ValueError, match="names must match data column names and order"):
-        # lgtm[py/call/wrong-named-argument]
-        antecedent.estimation.PreparedAnalysis.prepare(
+        antecedent.prepare(
             data, discovery=temporal_posterior(), query=_PULSE, inference=BAYES, refute=False
         )
 
@@ -87,8 +85,8 @@ def test_from_atoms_validates_atoms_and_weights():
         from_atoms(names, [1.0], [1 << 6])
     with pytest.raises(ValueError, match="sum to 1"):
         from_atoms(names, [0.5, 0.3], [set_edge(0, 3, 0, 1), 0])
-    with pytest.raises(ValueError, match="at most 16 variables"):
-        from_atoms([f"v{i}" for i in range(17)], [1.0], [0])
+    wide = from_atoms([f"v{i}" for i in range(17)], [1.0], [1 << 271])
+    assert wide.n_vars == 17 and wide.adjacency == [1 << 271]
     with pytest.raises(ValueError, match="lag_masks require max_lag"):
         from_atoms(["pressure", "defect"], [1.0], [0], lag_masks=[2])
     with pytest.raises(ValueError, match="beyond max_lag=1"):
@@ -125,15 +123,17 @@ def test_supplied_dbn_posterior_refuses_a_static_query():
                 refute=False,
             )
         )
+    # Preparation keeps a valid-but-unanswerable question as a refused branch; execution
+    # of that branch returns the same typed refusal and never an answer.
+    refused = antecedent.prepare(
+        series,
+        discovery=temporal_posterior(),
+        query=static_query,
+        inference=BAYES,
+        refute=False,
+    )
     with pytest.raises(CausalUnsupportedError, match="DBN lag structure"):
-        # lgtm[py/call/wrong-named-argument]
-        antecedent.estimation.PreparedAnalysis.prepare(
-            series,
-            discovery=temporal_posterior(),
-            query=static_query,
-            inference=BAYES,
-            refute=False,
-        )
+        require_success(antecedent.estimate(refused))
 
 
 @pytest.mark.parametrize(
@@ -141,11 +141,10 @@ def test_supplied_dbn_posterior_refuses_a_static_query():
     [
         ("identifier", "backdoor.adjustment"),
         ("estimator", "linear.adjustment.ate"),
-        ("return_posterior_artifact", True),
     ],
 )
 def test_supplied_posterior_refuses_options_it_cannot_honour(option, value):
-    """Per-atom identification and per-atom draws are not caller-selectable."""
+    """Per-atom identification and per-atom estimators are not caller-selectable."""
     data = static_data(int(STATIC["n"]))
     with pytest.raises(CausalUnsupportedError, match=option.split("_")[0]):
         require_success(
@@ -158,6 +157,22 @@ def test_supplied_posterior_refuses_options_it_cannot_honour(option, value):
                 **{option: value},
             )
         )
+
+
+def test_supplied_posterior_refuses_a_posterior_export_that_mixes_structures():
+    """Per-atom draws are not one scalar estimand's posterior, so none is selectable."""
+    result = require_success(
+        antecedent.analyze(
+            static_data(int(STATIC["n"])),
+            discovery=static_posterior(),
+            query=_ATE,
+            inference=BAYES,
+            refute=False,
+        )
+    )
+    with pytest.raises(CausalUnsupportedError) as raised:
+        result.export(quantity="posterior")
+    assert raised.value.reason_code == "option_not_applicable"
 
 
 def test_supplied_posterior_attests_custom_validators():
@@ -189,19 +204,15 @@ def test_supplied_posterior_attests_custom_validators():
 @pytest.mark.parametrize("route", ["static", "temporal"])
 def test_live_discovery_honours_cancellation(route):
     """A cancelled token stops a live-discovery request at the discovery boundary."""
-    data, discovery, query = _live_route(route)
+    data, discovery, _query = _live_route(route)
     token = antecedent.state.CancellationToken()
     token.cancel()
     with pytest.raises(antecedent.errors.CausalCancelledError, match="cancelled before discovery"):
-        require_success(
-            antecedent.analyze(
-                data,
-                discovery=discovery,
-                query=query,
-                inference=antecedent.Frequentist(),
-                refute=False,
-                execution=antecedent.Execution(cancel=token),
-            )
+        antecedent.discovery.discover(
+            data,
+            method=discovery,
+            accept_discovered=True,
+            execution=antecedent.Execution(cancel=token),
         )
 
 
@@ -210,29 +221,38 @@ def test_live_discovery_forwards_progress(route):
     """Progress reports through discovery and on into identification."""
     data, discovery, query = _live_route(route)
     seen: list[tuple[float, str]] = []
+    execution = antecedent.Execution(
+        on_progress=lambda fraction, stage: seen.append((fraction, stage))
+    )
+    accepted = antecedent.discovery.discover(
+        data, method=discovery, accept_discovered=True, execution=execution
+    )
+    # Explicit discovery brackets its review with discovery reports; the native
+    # identification run that reviews the structure reports between them.
+    assert [seen[0][1], seen[-1][1]] == ["discovery", "discovery"]
+    assert [seen[0][0], seen[-1][0]] == [0.0, 1.0]
+    assert any(stage.startswith("ide") for _, stage in seen[1:-1])
     require_success(
         antecedent.analyze(
             data,
-            discovery=discovery,
+            graph=accepted,
             query=query,
             inference=antecedent.Frequentist(),
             refute=False,
-            execution=antecedent.Execution(
-                on_progress=lambda fraction, stage: seen.append((fraction, stage))
-            ),
+            execution=execution,
         )
     )
-    assert any(stage == "discovery" for _, stage in seen)
 
 
 def test_live_discovery_refuses_stage_streaming_where_there_are_no_stages():
     """A temporal route fits point and uncertainty together, so it has no stages."""
     data, discovery, query = _live_route("temporal")
+    accepted = antecedent.discovery.discover(data, method=discovery, accept_discovered=True)
     with pytest.raises(CausalUnsupportedError, match="stage") as raised:
         require_success(
             antecedent.analyze(
                 data,
-                discovery=discovery,
+                graph=accepted,
                 query=query,
                 inference=antecedent.Frequentist(),
                 refute=False,
@@ -280,7 +300,7 @@ def test_supplied_posterior_honours_cancellation(temporal):
         posterior = static_posterior()
         query = _ATE
 
-    with pytest.raises(antecedent.errors.CausalCancelledError, match="cancelled during compile"):
+    with pytest.raises(antecedent.errors.CausalCancelledError, match="cancelled during ingest"):
         require_success(
             antecedent.analyze(
                 data,
@@ -351,8 +371,7 @@ def test_supplied_posterior_keeps_discovery_provenance():
             query=_ATE,
             inference=antecedent.Bayesian(n_draws=48, prior_scale=100.0, backend="conjugate"),
             refute=False,
-            bootstrap=0,
-            seed=7,
+            execution=antecedent.Execution(seed=7),
         )
     )
     assert result.plan.discovery_algorithm == "exact_dag_posterior"

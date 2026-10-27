@@ -24,12 +24,21 @@ from test_rollout import fixture as rollout_fixture
 from test_sensitivity_decision import _prepared_stage, _quantity
 
 
+def _functional(*args):
+    """The successful functional value (refusals re-raise their original error)."""
+    return require_success(comp.evaluate_functional(*args))
+
+
+def _supported(*args):
+    return require_success(comp.evaluate_with_support(*args))
+
+
 def _native_functional():
     view = _native_view()
     claim = program_claims.native_claim(view, _native_program(view))
     declaration = _contract(decision.Criterion.expected_utility())
     source = comp.DecisionInput.from_native_claim("original", claim, contract=declaration)
-    return claim, comp.evaluate_functional(declaration, "B", comp.Functional.expectation(), source)
+    return claim, _functional(declaration, "B", comp.Functional.expectation(), source)
 
 
 def test_native_functional_keeps_original_semantic_diagnostics_and_typed_lineage():
@@ -79,7 +88,7 @@ def test_law_functional_full_original_request_replays_truth_without_trust_upgrad
         ]
     )
     source = comp.DecisionInput.from_distribution("law", joint())
-    result = comp.evaluate_functional(declaration, "treat", functional, source)
+    result = _functional(declaration, "treat", functional, source)
     assert result.value == pytest.approx(truth)
     original = result.source_artifact
     loaded = require_success(LawFunctionalArtifact.consume(bytes(original.export())))
@@ -102,15 +111,17 @@ def test_law_functional_full_original_request_replays_truth_without_trust_upgrad
 
 def _sensitivity():
     stage = _prepared_stage()
-    return sd.SensitivityArtifact.from_joint_sensitivity(
-        stage,
-        transport.JointDeviation({"outcome_kernel": 0.2}),
-        effect=_quantity("effect", "outcome_units"),
-        actions=[
-            sd.SensitivityAction("adopt", sd.quantity("effect")),
-            sd.SensitivityAction("status_quo", sd.const(0.45)),
-        ],
-        causal_contract_id="checked-contract",
+    return require_success(
+        sd.evaluate_joint_sensitivity(
+            stage,
+            transport.JointDeviation({"outcome_kernel": 0.2}),
+            effect=_quantity("effect", "outcome_units"),
+            actions=[
+                sd.SensitivityAction("adopt", sd.quantity("effect")),
+                sd.SensitivityAction("status_quo", sd.const(0.45)),
+            ],
+            causal_contract_id="checked-contract",
+        )
     )
 
 
@@ -119,7 +130,9 @@ def test_sensitivity_full_original_v3_source_replays_surface_and_preserves_withh
     assert artifact.source_evidence["source_verified"] is True
     assert artifact.source_evidence["native_authority_issued"] is False
     assert artifact.original_source()
-    loaded = sd.SensitivityArtifact.consume_with_source(artifact.export_with_source())
+    loaded = require_success(
+        sd.SensitivityArtifact.consume_with_source(bytes(artifact.export(include_source=True)))
+    )
     assert loaded.identity == artifact.identity
     assert loaded.quantities == artifact.quantities
     assert loaded.uncertainty == artifact.uncertainty
@@ -135,7 +148,7 @@ def test_sensitivity_full_original_v3_source_replays_surface_and_preserves_withh
     historical = require_success(sd.SensitivityArtifact.consume(bytes(artifact.export())))
     assert historical.source_evidence is None
     with pytest.raises(ValueError, match="sensitivity_source.source_unavailable") as missing:
-        historical.export_with_source()
+        historical.export(include_source=True)
     assert missing.value.reason_code == "invalid_argument"
 
 
@@ -173,7 +186,7 @@ def test_full_sensitivity_and_law_sources_replay_in_fresh_process(tmp_path):
             action("treat", "do(a=1)", "outcome", decision.x(0)),
         ]
     )
-    result = comp.evaluate_functional(
+    result = _functional(
         declaration,
         "treat",
         comp.Functional.probability(2.0, "upper"),
@@ -181,13 +194,14 @@ def test_full_sensitivity_and_law_sources_replay_in_fresh_process(tmp_path):
     )
     sensitivity_path = tmp_path / "sensitivity.art"
     law_path = tmp_path / "law.art"
-    sensitivity_path.write_bytes(sensitivity.export_with_source())
+    sensitivity_path.write_bytes(bytes(sensitivity.export(include_source=True)))
     law_path.write_bytes(bytes(result.source_artifact.export()))
     script = """
 import json,sys
+from antecedent.outcomes import require_success
 from antecedent.sensitivity_decision import SensitivityArtifact
 from antecedent.functional_source import LawFunctionalArtifact
-s=SensitivityArtifact.consume_with_source(open(sys.argv[1],'rb').read())
+s=require_success(SensitivityArtifact.consume_with_source(open(sys.argv[1],'rb').read()))
 l=LawFunctionalArtifact.consume(open(sys.argv[2],'rb').read()).report
 print(json.dumps({'lower':s.quantities[0].lower[-1],'upper':s.quantities[0].upper[-1],'sensitivity':s.source_evidence['source_verified'],'probability':l['value'],'native':l['native_authority_issued'],'calibration':l['calibration_license_issued']}))
 """
@@ -213,10 +227,10 @@ def test_law_functional_changed_complete_request_identity_and_invalid_artifact_r
         ]
     )
     source = comp.DecisionInput.from_distribution("law", joint())
-    original = comp.evaluate_functional(
+    original = _functional(
         declaration, "treat", comp.Functional.expectation(), source
     ).source_artifact
-    changed = comp.evaluate_functional(
+    changed = _functional(
         declaration, "treat", comp.Functional.probability(2.0, "upper"), source
     ).source_artifact
     with pytest.raises(
@@ -257,7 +271,7 @@ def test_issued_native_law_alias_retains_diagnostics_but_import_does_not_issue_a
     source = comp.DecisionInput.from_distribution("issued", law, requirement="native")
     assert source.provenance.native
     assert law.source_evidence.diagnostics == claim.source_evidence.diagnostics
-    value = comp.evaluate_functional(declaration, "product", comp.Functional.expectation(), source)
+    value = _functional(declaration, "product", comp.Functional.expectation(), source)
     assert value.value == pytest.approx(law.joint_product_expectation(0, 1))
     assert value.source_evidence[0].diagnostics == claim.source_evidence.diagnostics
     imported = JointDistributionArtifact.load(
@@ -271,7 +285,7 @@ def test_issued_native_law_alias_retains_diagnostics_but_import_does_not_issue_a
 def test_native_law_functional_portable_diagnostics_require_actual_row_origin_resolution():
     claim, declaration, law = _issued_joint()
     source = comp.DecisionInput.from_distribution("issued", law, requirement="native")
-    original = comp.evaluate_functional(
+    original = _functional(
         declaration, "product", comp.Functional.expectation(), source
     ).source_artifact
     loaded = require_success(
@@ -299,7 +313,7 @@ def test_native_law_functional_portable_diagnostics_require_actual_row_origin_re
 def test_native_law_functional_fresh_process_resolves_only_actual_reissued_source(tmp_path):
     claim, declaration, law = _issued_joint()
     source = comp.DecisionInput.from_distribution("issued", law, requirement="native")
-    value = comp.evaluate_functional(declaration, "product", comp.Functional.expectation(), source)
+    value = _functional(declaration, "product", comp.Functional.expectation(), source)
     path = tmp_path / "native-law-functional.art"
     path.write_bytes(bytes(value.source_artifact.export()))
     child = subprocess.run(
@@ -372,7 +386,7 @@ def test_native_rollout_retains_original_semantic_diagnostics_in_independent_ran
 def test_native_law_row_resolution_refuses_other_actual_source_and_missing_original_citation():
     _, declaration, law = _issued_joint()
     source = comp.DecisionInput.from_distribution("issued", law, requirement="native")
-    artifact = comp.evaluate_functional(
+    artifact = _functional(
         declaration, "product", comp.Functional.expectation(), source
     ).source_artifact
     other_view = _native_view()
@@ -386,7 +400,7 @@ def test_native_law_row_resolution_refuses_other_actual_source_and_missing_origi
             action("treat", "do(a=1)", "outcome", decision.x(0)),
         ]
     )
-    external = comp.evaluate_functional(
+    external = _functional(
         external_contract,
         "treat",
         comp.Functional.expectation(),
@@ -426,9 +440,11 @@ def test_inverse_all_original_native_evidence_slots_retain_distinct_source_diagn
         "identified_set": iq.IdentifiedSet(members, True),
         "scenarios": members,
     }
-    result = iq.InverseQuery(
-        declaration, ("product", "reference"), (iq.target_mean(0.0),)
-    ).evaluate(**{slot: supplied[slot]})
+    result = require_success(
+        iq.InverseQuery(declaration, ("product", "reference"), (iq.target_mean(0.0),)).evaluate(
+            **{slot: supplied[slot]}
+        )
+    )
     assert result.selected is None
     expected = {
         first.source_evidence.source_artifact_digest,
@@ -461,15 +477,11 @@ def test_issued_native_aligned_law_functionals_and_evsi_match_independent_finite
         abs=1e-12,
     )
     threshold = float(np.median(product))
-    probability = comp.evaluate_functional(
+    probability = _functional(
         declaration, "product", comp.Functional.probability(threshold, "lower"), source
     )
-    quantile = comp.evaluate_functional(
-        declaration, "product", comp.Functional.quantile(0.75), source
-    )
-    expectation = comp.evaluate_functional(
-        declaration, "product", comp.Functional.expectation(), source
-    )
+    quantile = _functional(declaration, "product", comp.Functional.quantile(0.75), source)
+    expectation = _functional(declaration, "product", comp.Functional.expectation(), source)
     assert probability.value == pytest.approx(float(np.mean(product <= threshold)), abs=1e-12)
     assert quantile.value == float(sorted(product)[int(np.ceil(0.75 * len(product))) - 1])
     assert expectation.value == pytest.approx(float(product.mean()), abs=1e-12)
@@ -581,10 +593,10 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
     assert imported.identities == claim.identity_fields
     assert imported.lineage == evidence.lineage
     assert imported._summary["native_authority_issued"] is False
-    value = comp.evaluate_functional(declaration, "A", comp.Functional.expectation(), source)
+    value = _functional(declaration, "A", comp.Functional.expectation(), source)
     assert value.value == 5.0
     with pytest.raises(comp.SupportRefusal) as unsupported:
-        comp.evaluate_functional(declaration, "B", comp.Functional.expectation(), source)
+        _functional(declaration, "B", comp.Functional.expectation(), source)
     assert unsupported.value.detail == "composition_boundary.unsupported_action_not_comparable"
     assert unsupported.value.reason_code == "decision_contract_unsatisfied"
     assert value.source_evidence[0].action_contributors == {"A": (claim.quantities[0],)}
@@ -592,7 +604,7 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
         bytes(value.source_artifact.export()), expected_identity=value.source_artifact.identity
     )
     assert original.report["trust"] == "externally_attested"
-    result = comp.evaluate_with_support(declaration, [source])
+    result = _supported(declaration, [source])
     assert result.source_evidence[0].identities == claim.identity_fields
     query = iq.InverseQuery(
         declaration,
@@ -601,7 +613,7 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
         selection="first_in_grid_order",
     )
     point = claim if forward == "bound" else iq.MeanClaim.from_external(claim)
-    inverse = query.evaluate(point=point)
+    inverse = require_success(query.evaluate(point=point))
     assert inverse.selected == "A"
     loaded = require_success(
         iq.InverseResult.consume(bytes(inverse.export()), expected_identity=inverse.identity)
@@ -611,18 +623,19 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
     assert loaded.source_evidence[0]._summary["native_authority_issued"] is False
     if forward == "mean_adapter":
         with pytest.raises(ValueError, match="source_evidence.point_binding_mismatch"):
-            query.evaluate(point=replace(point, means=(30.0, 50.0)))
-    decision_result = declaration.evaluate(claim)
+            require_success(query.evaluate(point=replace(point, means=(30.0, 50.0))))
+    decision_result = require_success(declaration.evaluate(claim))
     assert decision_result.source_evidence[0].identities == claim.identity_fields
     (tmp_path / "external_evidence").write_bytes(bytes(value.source_evidence[0].export()))
     (tmp_path / "inverse").write_bytes(bytes(inverse.export()))
     script = """
 import json,sys
 from pathlib import Path
+from antecedent.outcomes import require_success
 from antecedent.source_evidence import SourceEvidence
 from antecedent.inverse_query import InverseResult
 p=Path(sys.argv[1]); evidence=SourceEvidence.consume((p/'external_evidence').read_bytes())
-result=InverseResult.consume((p/'inverse').read_bytes())
+result=require_success(InverseResult.consume((p/'inverse').read_bytes()))
 print(json.dumps({'selected':result.selected,'identity':evidence.identities,
  'authority':evidence._summary['native_authority_issued'],
  'inverse_identity':result.source_evidence[0].identities,'diagnostics':evidence.diagnostics}))
@@ -653,12 +666,12 @@ def test_named_native_mean_adapters_preserve_original_source_and_remain_mean_onl
     declaration = _contract(decision.Criterion.expected_utility())
     adapter = claim.as_decision_source(declaration)
     assert isinstance(adapter.source, decision.MeanSource)
-    result = declaration.evaluate(adapter.source)
+    result = require_success(declaration.evaluate(adapter.source))
     assert result.source_evidence[0].diagnostics == claim.source_evidence.diagnostics
     assert result.source_evidence[0].identities == claim.source_evidence.identities
     mean = adapter.mean_claim()
     query = iq.InverseQuery(declaration, ("A", "B"), (iq.target_mean(3.25),))
-    inverse = query.evaluate(point=mean)
+    inverse = require_success(query.evaluate(point=mean))
     assert inverse.selected == "B"
     imported = require_success(
         iq.InverseResult.consume(bytes(inverse.export()), expected_identity=inverse.identity)
@@ -673,7 +686,8 @@ def test_named_native_mean_adapters_preserve_original_source_and_remain_mean_onl
 import json,sys
 from pathlib import Path
 from antecedent.inverse_query import InverseResult
-result=InverseResult.consume(Path(sys.argv[1]).read_bytes())
+from antecedent.outcomes import require_success
+result=require_success(InverseResult.consume(Path(sys.argv[1]).read_bytes()))
 evidence=result.source_evidence[0]
 print(json.dumps({'selected':result.selected,'identities':evidence.identities,
  'diagnostics':evidence.diagnostics,'resolution':evidence.resolution,
@@ -692,11 +706,19 @@ print(json.dumps({'selected':result.selected,'identities':evidence.identities,
         "unresolved": ["dependencies.checked_response_grid_operation"],
     }
     with pytest.raises(CausalUnsupportedError) as quantile_refusal:
-        iq.InverseQuery(declaration, ("A", "B"), (iq.target_quantile(0.5, 0),)).evaluate(point=mean)
+        require_success(
+            iq.InverseQuery(declaration, ("A", "B"), (iq.target_quantile(0.5, 0),)).evaluate(
+                point=mean
+            )
+        )
     assert quantile_refusal.value.reason_code == "decision_contract_unsatisfied"
     assert quantile_refusal.value.detail == "decision_evaluation.mean_source_insufficient"
     with pytest.raises(ValueError, match="source_evidence.point_binding_mismatch") as changed:
-        query.evaluate(point=replace(mean, means=tuple(value + 1 for value in mean.means)))
+        require_success(
+            query.evaluate(point=replace(mean, means=tuple(value + 1 for value in mean.means)))
+        )
     assert changed.value.reason_code == "invalid_argument"
     with pytest.raises(ValueError, match="source_evidence.point_binding_mismatch"):
-        declaration.evaluate(replace(adapter.source, snapshot_id="substituted-snapshot"))
+        require_success(
+            declaration.evaluate(replace(adapter.source, snapshot_id="substituted-snapshot"))
+        )

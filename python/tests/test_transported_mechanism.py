@@ -319,18 +319,16 @@ def test_an_unknown_dependence_refuses_the_variance_but_not_the_point(
 def test_the_transported_artifact_is_the_existing_one_and_replays(source_gcm, target_gcm) -> None:
     source = source_composition(source_gcm)
     transported = source.transport_to(transport(refits=[refit_m(target_gcm)]))
-    exported = bytes(transported.export({"X": 2.0}, outcome="Y"))
+    exported = transported.export({"X": 2.0}, outcome="Y")
+    produced = exported.metadata["result"]
+    digest = exported.expectation.identity
     names, mean, cov = scm_law(TARGET_SPEC, {"X": 2.0})
-    assert exported.result.mean == pytest.approx(mean[names.index("Y")], abs=1e-8)
-    assert exported.result.variance == pytest.approx(
-        cov[names.index("Y"), names.index("Y")], abs=1e-8
-    )
-    consumed = require_success(
-        mc.consume_mechanism_composition_artifact(exported.artifact, exported.premises_digest)
-    )
+    assert produced.mean == pytest.approx(mean[names.index("Y")], abs=1e-8)
+    assert produced.variance == pytest.approx(cov[names.index("Y"), names.index("Y")], abs=1e-8)
+    consumed = require_success(mc.consume_mechanism_composition_artifact(exported.data, digest))
     assert consumed.family == "linear_gaussian"
-    assert consumed.result.mean == pytest.approx(exported.result.mean, abs=0.0)
-    assert consumed.premises_digest == exported.premises_digest
+    assert consumed.result.mean == pytest.approx(produced.mean, abs=0.0)
+    assert consumed.premises_digest == digest == exported.metadata["premises_digest"]
 
 
 # ------------------------------------------------------------------------------ refusals

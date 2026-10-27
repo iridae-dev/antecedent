@@ -224,7 +224,7 @@ def test_an_exported_study_plan_is_replayed_by_an_independent_consumer():
     live = stage.plan()
     artifact = bytes(stage.export())
     del stage
-    replayed = json.loads(transport.replay_study_plan(artifact))
+    replayed = transport.replay_study_plan(artifact).to_dict()
     for key in ("failure", "subsets", "proposals", "minimal", "operations_consumed", "limits"):
         assert replayed[key] == live[key], key
     assert len(replayed["plan_digest"]) == 64
@@ -399,7 +399,7 @@ def test_a_multi_level_mz_plan_receives_by_level_labels_and_replays():
     # Export and an independent replay reproduce the plan.
     artifact = bytes(stage.export())
     del stage
-    replayed = json.loads(transport.replay_study_plan(artifact))
+    replayed = transport.replay_study_plan(artifact).to_dict()
     for key in ("route", "failure", "subsets", "proposals", "minimal", "operations_consumed"):
         assert replayed[key] == live[key], key
 

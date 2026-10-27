@@ -30,8 +30,7 @@ def test_manufacturing_bayesian_pulse_recovers_effect():
             ),
             inference=antecedent.Bayesian(n_draws=256),
             refute=False,
-            bootstrap=0,
-            seed=42,
+            execution=antecedent.Execution(seed=42),
         )
     )
     assert result.posterior is not None
@@ -65,8 +64,7 @@ def test_manufacturing_bayesian_sustained_recovers_effect():
             ),
             inference=antecedent.Bayesian(n_draws=256),
             refute=False,
-            bootstrap=0,
-            seed=42,
+            execution=antecedent.Execution(seed=42),
         )
     )
     assert result.posterior is not None
@@ -118,8 +116,7 @@ def test_temporal_pulse_bayesian_composed_prior_is_hydrated():
                 query=query,
                 inference=inference,
                 refute=False,
-                bootstrap=0,
-                seed=42,
+                execution=antecedent.Execution(seed=42),
             )
         )
 
@@ -150,13 +147,11 @@ def test_temporal_pulse_bayesian_prior_artifact_and_mapping_are_hydrated():
             query=query,
             inference=antecedent.Bayesian(n_draws=64),
             refute=False,
-            bootstrap=0,
-            seed=42,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=42),
         )
     )
-    assert source.posterior is not None and source.posterior.artifact is not None
-    artifact = bytes(source.posterior.artifact)
+    assert source.posterior is not None
+    artifact = bytes(source.export(quantity="posterior"))
 
     transferred = require_success(
         antecedent.analyze(
@@ -169,8 +164,7 @@ def test_temporal_pulse_bayesian_prior_artifact_and_mapping_are_hydrated():
                 mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
             ),
             refute=False,
-            bootstrap=0,
-            seed=42,
+            execution=antecedent.Execution(seed=42),
         )
     )
     assert transferred.posterior is not None
@@ -190,8 +184,7 @@ def test_temporal_pulse_bayesian_prior_artifact_and_mapping_are_hydrated():
                     mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
                 ),
                 refute=False,
-                bootstrap=0,
-                seed=42,
+                execution=antecedent.Execution(seed=42),
             )
         )
 
@@ -209,8 +202,7 @@ def test_temporal_pulse_bayesian_without_composed_prior_still_works():
             query=query,
             inference=antecedent.Bayesian(n_draws=64),
             refute=False,
-            bootstrap=0,
-            seed=42,
+            execution=antecedent.Execution(seed=42),
         )
     )
     assert result.posterior is not None

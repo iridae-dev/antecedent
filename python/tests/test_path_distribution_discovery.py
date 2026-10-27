@@ -68,7 +68,12 @@ def test_path_specific_lingam_discovery_smoke():
     result = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.LiNGAM(),
+            graph=antecedent.discovery.discover(
+                data,
+                method=antecedent.discovery.LiNGAM(),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
             query=antecedent.PathSpecificEffect("t", "m", path_nodes=["y"]),
             refute=False,
             inference=antecedent.Frequentist(bootstrap=0),
@@ -88,7 +93,12 @@ def test_interventional_lingam_discovery_smoke():
     result = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.LiNGAM(),
+            graph=antecedent.discovery.discover(
+                data,
+                method=antecedent.discovery.LiNGAM(),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
             query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
             refute=False,
             inference=antecedent.Frequentist(bootstrap=0),
@@ -103,7 +113,7 @@ def test_path_specific_exact_dag_posterior_map():
     result = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.ExactDagPosterior(),
+            discovery=antecedent.discovery.ExactDagPosterior().run(data, seed=1),
             query=antecedent.PathSpecificEffect("x", "y"),
             refute=False,
             inference=antecedent.Frequentist(bootstrap=0),
@@ -119,7 +129,7 @@ def test_interventional_distribution_exact_dag_posterior_mixes_the_atoms():
     result = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.ExactDagPosterior(),
+            discovery=antecedent.discovery.ExactDagPosterior().run(data, seed=1),
             query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
             refute=False,
             inference=antecedent.Frequentist(bootstrap=0),
@@ -142,9 +152,13 @@ def test_path_specific_fci_rejected():
         require_success(
             antecedent.analyze(
                 data,
-                discovery=antecedent.discovery.FCI(alpha=0.2, fdr=False),
+                graph=antecedent.discovery.discover(
+                    data,
+                    method=antecedent.discovery.FCI(alpha=0.2, fdr=False),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=True,
+                ),
                 query=antecedent.PathSpecificEffect("t", "y"),
-                accept_discovered=True,
                 refute=False,
                 inference=antecedent.Frequentist(bootstrap=0),
                 execution=antecedent.Execution(seed=1),
@@ -163,9 +177,13 @@ def test_path_specific_incomplete_pc_rejected():
         require_success(
             antecedent.analyze(
                 data,
-                discovery=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
+                graph=antecedent.discovery.discover(
+                    data,
+                    method=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=True,
+                ),
                 query=antecedent.PathSpecificEffect("t", "y"),
-                accept_discovered=True,
                 refute=False,
                 inference=antecedent.Frequentist(bootstrap=0),
                 execution=antecedent.Execution(seed=1),
@@ -183,9 +201,13 @@ def test_path_specific_accept_discovered_false_review_attrs():
         require_success(
             antecedent.analyze(
                 {"t": t, "y": y, "z": z},
-                discovery=antecedent.discovery.FCI(alpha=0.5, fdr=False, max_cond_size=0),
+                graph=antecedent.discovery.discover(
+                    {"t": t, "y": y, "z": z},
+                    method=antecedent.discovery.FCI(alpha=0.5, fdr=False, max_cond_size=0),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=False,
+                ),
                 query=antecedent.PathSpecificEffect("t", "y"),
-                accept_discovered=False,
                 refute=False,
                 inference=antecedent.Frequentist(bootstrap=0),
                 execution=antecedent.Execution(seed=1),

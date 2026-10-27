@@ -55,10 +55,9 @@ def _run(graph, query, inference=None):
             _series(),
             graph=graph,
             query=query,
-            inference=inference,
+            inference=antecedent.Frequentist(bootstrap=0) if inference is None else inference,
             refute=False,
-            bootstrap=0,
-            seed=7,
+            execution=antecedent.Execution(seed=7),
         )
     )
 

@@ -54,6 +54,9 @@ def _curve(result: Any) -> list[float]:
 def test_temporal_control_level_sets_the_contrast(query_type: Any, options: dict) -> None:
     """A linear lagged effect scales with ``active_level - control_level``."""
     data = _series()
+    if "discovery" in options:
+        # Discovery executes explicitly; preparation consumes its reviewed posterior.
+        options = {**options, "discovery": options["discovery"].run(data, seed=3)}
 
     def effect(control: float) -> float:
         query = query_type("x", "y", treatment_lag=1, control_level=control, active_level=1.0)
@@ -97,7 +100,7 @@ def test_response_options_reach_a_class_envelope_and_a_graph_posterior() -> None
     cpdag = ant.Cpdag.from_directed_undirected(
         ["z", "t", "y"], [("z", "y"), ("t", "y")], [("z", "t")]
     )
-    for route in ({"graph": cpdag}, {"discovery": ExactDagPosterior()}):
+    for route in ({"graph": cpdag}, {"discovery": ExactDagPosterior().run(data, seed=1)}):
         base = require_success(ant.analyze(data, query=query, refute=False, **route))
         other = require_success(
             ant.analyze(data, query=query, refute=False, estimator_config={"folds": 3}, **route)

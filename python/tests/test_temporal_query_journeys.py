@@ -50,15 +50,20 @@ def test_each_temporal_derivative_matches_its_structural_target_and_independent_
     inference = (
         ant.Bayesian(n_draws=32, prior_scale=1000, backend="conjugate")
         if bayesian
-        else ant.Frequentist()
+        else ant.Frequentist(bootstrap=0)
     )
     study = ant.prepare(
-        data, graph=graph, query=query, inference=inference, bootstrap=0, refute="none", seed=11
+        data,
+        graph=graph,
+        query=query,
+        inference=inference,
+        refute="none",
+        execution=ant.Execution(seed=11),
     )
-    assert study.last_result is None, "preparation and inspection do not execute a numerical fit"
+    assert study.inspect().stage == "prepared", "preparation does not execute a numerical fit"
     plan = study.plan_view()
-    assert study.last_result is None
-    result = require_success(study.estimate(seed=11))
+    assert study.inspect().stage == "prepared"
+    result = require_success(study.estimate())
     np.testing.assert_allclose(np.asarray(result.estimate).reshape(-1), expected, atol=0.05, rtol=0)
     assert result.program_id
     assert result.data_snapshot_id
@@ -118,12 +123,11 @@ def test_unfolded_cross_world_targets_keep_their_own_mechanism_and_consumer(
         graph=graph,
         query=TemporalQuery(base),
         inference=inference,
-        bootstrap=0,
         refute="none",
-        seed=11,
+        execution=ant.Execution(seed=11),
     )
-    assert study.last_result is None
-    result = require_success(study.estimate(seed=11))
+    assert study.inspect().stage == "prepared"
+    result = require_success(study.estimate())
     assert result.estimate.ate == pytest.approx(expected, abs=0.05)
     loaded = require_success(ant.load(result.export()))
     assert loaded.program_id == result.program_id

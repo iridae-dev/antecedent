@@ -94,7 +94,7 @@ def test_scientific_reconfigure_reads_owned_snapshot_without_reingestion(monkeyp
 
 
 def test_preparation_and_scientific_branching_never_call_estimation(monkeypatch):
-    from antecedent.estimation import PreparedAnalysis as Engine
+    from antecedent.estimation import _PreparedEngine as Engine
 
     def forbidden(*args, **kwargs):
         raise AssertionError("preparation or branching executed the estimator")

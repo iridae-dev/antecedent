@@ -12,6 +12,7 @@ from __future__ import annotations
 import antecedent as _ant_api
 import numpy as np
 from antecedent import AverageEffect, Bayesian, analyze
+from antecedent.outcomes import require_success
 
 
 def _batch(n: int, seed: int) -> tuple[dict[str, np.ndarray], list[tuple[str, str]]]:
@@ -28,7 +29,7 @@ def main() -> None:
     data_b, _ = _batch(180, seed=2)
     query = AverageEffect(treatment="t", outcome="y")
 
-    batch_a = analyze(
+    outcome_a = analyze(
         data_a,
         graph=edges,
         query=query,
@@ -36,11 +37,12 @@ def main() -> None:
         refute="none",
         execution=_ant_api.Execution(seed=11),
     )
+    batch_a = require_success(outcome_a)
     assert batch_a.posterior is not None
-    # Prior hydration needs the posterior payload; batch_a.export() saves the full execution.
-    artifact = batch_a.study.export_artifact()
+    # Prior hydration needs the posterior payload; a plain export would save the full execution.
+    artifact = bytes(outcome_a.export(quantity="posterior"))
 
-    batch_b = analyze(
+    outcome_b = analyze(
         data_b,
         graph=edges,
         query=query,
@@ -48,8 +50,9 @@ def main() -> None:
         refute="none",
         execution=_ant_api.Execution(seed=12),
     )
+    batch_b = require_success(outcome_b)
     print("Calibration:", batch_b.calibration.status)
-    assert batch_b.study.estimate().posterior is not None
+    assert require_success(_ant_api.estimate(outcome_b.study)).posterior is not None
     assert batch_b.posterior is not None
     assert np.isfinite(batch_b.posterior.effect_mean)
     assert batch_b.identification.assumption_count >= 1

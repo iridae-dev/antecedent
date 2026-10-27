@@ -24,6 +24,7 @@ from antecedent import decision
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
 from antecedent.extensibility import ProviderTrust
 from antecedent.joint_distribution import JointDistributionArtifact
+from antecedent.outcomes import require_success
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import generate_cross_surface_fixtures as gen  # noqa: E402
@@ -135,7 +136,7 @@ def test_rust_source_and_result_replay_under_python_declarations():
     # The Rust-built source holds the same aligned rows as the Python-built one.
     assert decision.source_digest(source) == decision.source_digest(gen.decision_source())
 
-    replayed = decision.replay(result_bytes, contract=contract, source=source)
+    replayed = require_success(decision.replay(result_bytes, contract=contract, source=source))
     assert replayed.selected == ("safe",)
     assert replayed.verdict == decision.Verdict("uniquely_optimal", ("safe",))
     assert replayed.evpi == pytest.approx(0.5, abs=1e-12)
@@ -150,10 +151,12 @@ def test_rust_source_and_result_replay_under_python_declarations():
             _flip_last_byte(source_bytes), expected_identity=gen.source_identity()
         )
     with pytest.raises(REFUSED):
-        decision.replay(_flip_last_byte(result_bytes), contract=contract, source=source)
+        require_success(
+            decision.replay(_flip_last_byte(result_bytes), contract=contract, source=source)
+        )
     other = dataclasses.replace(contract, criterion=decision.Criterion.expected_loss())
     with pytest.raises(decision.DecisionRefusal) as wrong:
-        decision.replay(result_bytes, contract=other, source=source)
+        require_success(decision.replay(result_bytes, contract=other, source=source))
     assert wrong.value.reason_code == "decision_contract_unsatisfied"
 
 
@@ -176,7 +179,9 @@ def test_committed_python_fixtures_still_load_and_match_their_identities():
         _read("py_decision_source.bin"), expected_identity=gen.source_identity()
     )
     decision.Contract.load(_read("py_decision_contract.bin"), expected_identity=contract.identity)
-    replayed = decision.replay(_read("py_decision_result.bin"), contract=contract, source=source)
+    replayed = require_success(
+        decision.replay(_read("py_decision_result.bin"), contract=contract, source=source)
+    )
     assert replayed.selected == ("safe",)
     identities = json.loads(_read("py_decision.identities.json"))
     assert identities["contract_identity"] == contract.identity
@@ -235,16 +240,21 @@ def test_refusal_details_match_the_strings_the_rust_tests_assert():
     marginals = dataclasses.replace(gen.source_identity(), alignment="independent_marginals")
     draws = np.array([[a, b, 3.0] for a, b in zip(gen.P, gen.Q, strict=True)], dtype=np.float64)
     independent = JointDistributionArtifact(marginals, draws, calibration="exact")
+    refused = gen.decision_contract().evaluate(independent)
+    assert not refused.accepted and refused.answer.kind == "refused"
+    refusal = refused.refusal
+    assert refusal.code == "joint_law_required"
+    assert refusal.detail == "decision_evaluation.joint_law_required"
+    assert refusal.stage == "evaluate"
+    assert refusal.offending == "risky"
+    assert (refusal.fields["expected"], refusal.fields["supplied"]) == (
+        "joint",
+        "independent_marginals",
+    )
+    assert refusal.remedy is not None
     with pytest.raises(CausalUnsupportedError) as joint:
-        gen.decision_contract().evaluate(independent)
+        refusal.raise_error()
     assert isinstance(joint.value, decision.DecisionRefusal)
-    assert joint.value.reason_code == "joint_law_required"
-    assert joint.value.detail == "decision_evaluation.joint_law_required"
-    assert joint.value.stage == "evaluate"
-    assert joint.value.offending == "risky"
-    assert joint.value.expected == "joint"
-    assert joint.value.supplied == "independent_marginals"
-    assert joint.value.remedy is not None
 
 
 # ---- the two-coordinate aligned law, built on each surface and read on the other ----

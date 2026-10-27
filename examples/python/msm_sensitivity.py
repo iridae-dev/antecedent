@@ -16,6 +16,7 @@ import math
 from antecedent import msm_sensitivity, sensitivity_decision
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.msm_sensitivity import MsmStratum
+from antecedent.outcomes import require_success
 
 # One row per stratum of the adjustment set: its population mass, the propensity of treatment,
 # and the treated / control outcome rates (a column may also hold a finite OutcomeLaw).
@@ -28,11 +29,13 @@ strata = MsmStratum.table(
     }
 )
 
-result = msm_sensitivity.msm_ate_sensitivity(strata, 4.0, decision_threshold=0.0)
+result = require_success(msm_sensitivity.msm_ate_sensitivity(strata, 4.0, decision_threshold=0.0))
 print(result.explain())
 
 assert math.isclose(result.identified, 0.3, abs_tol=1e-12)
-lower, upper = msm_sensitivity.msm_ate_sensitivity(strata, 2.0, grid_points=2).assumption_range()
+lower, upper = require_success(
+    msm_sensitivity.msm_ate_sensitivity(strata, 2.0, grid_points=2)
+).assumption_range()
 assert math.isclose(lower, 0.04375, abs_tol=1e-12)
 assert math.isclose(upper, 0.4875, abs_tol=1e-12)
 assert result.inference_claim == "assumption_range"
@@ -52,7 +55,7 @@ effect = ScientificQuantity(
     horizon=0,
     functional_id="msm_ate",
 )
-surface = msm_sensitivity.msm_ate_sensitivity(strata, 2.0, grid_points=3)
+surface = require_success(msm_sensitivity.msm_ate_sensitivity(strata, 2.0, grid_points=3))
 artifact = surface.to_sensitivity_artifact(
     effect=effect,
     actions=[
@@ -61,7 +64,7 @@ artifact = surface.to_sensitivity_artifact(
     ],
     causal_contract_id="example-contract",
 )
-decided = sensitivity_decision.decide(artifact.contract(), artifact)
+decided = require_success(sensitivity_decision.decide(artifact.contract(), artifact))
 print(decided.explain())
 assert decided.kind == "invariant_action" and decided.invariant_action == "treat"
 assert decided.sampling.status == "withheld"

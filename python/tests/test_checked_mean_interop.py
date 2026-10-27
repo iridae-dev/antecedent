@@ -436,8 +436,10 @@ def test_registered_legacy_transport_prefixes_keep_their_specialized_consumers()
     from test_transport_exact import fixture
 
     identified, catalog, data = fixture()
-    exact = transport.prepare_exact(identified, catalog, data, at={"x": 1.0})
-    result = require_success(exact.estimate())
+    exact = ant.estimate(
+        ant.prepare(data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0}))
+    )
+    result = require_success(exact)
     loaded = require_success(ant.load(bytes(exact.export())))
     assert loaded.probabilities == result.probabilities
     assert loaded.mean("y") == result.mean("y")
@@ -503,8 +505,10 @@ def test_legacy_transport_load_checks_explicit_native_execution_bindings():
     from test_transport_exact import fixture
 
     identified, catalog, data = fixture()
-    exact = transport.prepare_exact(identified, catalog, data, at={"x": 1.0})
-    original = require_success(exact.estimate())
+    exact = ant.estimate(
+        ant.prepare(data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0}))
+    )
+    original = require_success(exact)
     expectation = ArtifactExpectation(
         "ANTECEDENT-EXACT-TRANSPORT", {"execution_id": original.inspect().execution_id}
     )

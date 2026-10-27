@@ -61,8 +61,7 @@ def test_temporal_class_bayesian_pulse_without_prior_is_identified_set() -> None
             query=_pulse(_PIN),
             inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
             refute=False,
-            bootstrap=0,
-            seed=7,
+            execution=antecedent.Execution(seed=7),
         )
     )
     assert result.posterior is None or result.posterior.n_draws is None
@@ -89,25 +88,22 @@ def test_temporal_class_bayesian_pulse_with_class_prior_mixes() -> None:
             inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
             class_prior=prior,
             refute=False,
-            bootstrap=0,
-            seed=7,
+            execution=antecedent.Execution(seed=7),
         )
     )
     assert result.ate is not None and np.isfinite(result.ate)
     assert result.structural_weight_basis == "caller_supplied_class_prior"
     assert result.structural_unidentified_mass == pytest.approx(0.0, abs=1e-9)
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=_cpdag(),
         query=_pulse(_PIN),
-        inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
+        inference=antecedent.Bayesian(n_draws=64, backend="conjugate", profile="interactive"),
         class_prior=prior,
         refute=False,
-        bootstrap=0,
-        seed=7,
-        latency="interactive",
+        execution=antecedent.Execution(seed=7),
     )
-    click = require_success(prepared.estimate(data, seed=7))
+    click = require_success(antecedent.estimate(prepared))
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
 
 
@@ -154,19 +150,19 @@ def test_class_curve_executes_without_collapsing_graph(inference) -> None:
     from antecedent import artifacts
 
     query = antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1, 2])
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         _series(_PIN),
         graph=_cpdag(),
         query=query,
         inference=inference,
         refute=False,
-        bootstrap=0,
-        seed=17,
+        execution=antecedent.Execution(seed=17),
     )
-    result = require_success(prepared.estimate(_series(_PIN), seed=17))
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     assert result.envelope.weight_basis == "completion_enumeration"
     assert len(result.envelope.atom_keys) == 4
-    decoded = artifacts.loads(prepared.export_artifact())
+    decoded = artifacts.loads(bytes(outcome.export()))
     atoms = decoded.to_dict()["payload"]["structural_response"]["atoms"]
     assert len(atoms) == 4
     assert all(atom["response"] is not None for atom in atoms)
@@ -200,20 +196,20 @@ def test_class_curve_prior_withholds_conditional_when_unidentified_mass() -> Non
     n_cases = len(identified.completion_keys)
     assert n_cases >= 2
     masses = [0.4] + [0.6 / (n_cases - 1)] * (n_cases - 1)
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1]),
         inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
         class_prior=antecedent.ClassPrior.from_ordered(masses),
         refute=False,
-        bootstrap=0,
-        seed=19,
+        execution=antecedent.Execution(seed=19),
     )
-    result = require_success(prepared.estimate(data, seed=19))
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     assert result.envelope.weight_basis == "caller_supplied_class_prior"
     assert result.envelope.unidentified_mass > 0.0
-    structural = artifacts.loads(prepared.export_artifact()).payload["structural_response"]
+    structural = artifacts.loads(bytes(outcome.export())).payload["structural_response"]
     assert structural["unidentified_mass"] > 0.0
     assert structural["conditional_on_identified"] is None
 
@@ -222,19 +218,19 @@ def test_class_curve_prior_survives_artifact_roundtrip() -> None:
     from antecedent import artifacts
 
     query = antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1, 2])
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         _series(_PIN),
         graph=_cpdag(),
         query=query,
         inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
         class_prior=antecedent.ClassPrior.from_ordered([0.2, 0.8]),
         refute=False,
-        bootstrap=0,
-        seed=17,
+        execution=antecedent.Execution(seed=17),
     )
-    result = require_success(prepared.estimate(_series(_PIN), seed=17))
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     assert result.envelope.weight_basis == "caller_supplied_class_prior"
-    payload = artifacts.loads(prepared.export_artifact()).payload
+    payload = artifacts.loads(bytes(outcome.export())).payload
     structural = payload["structural_response"]
     assert structural["conditional_on_identified"] is not None
     assert structural["identified_mass"] == pytest.approx(1.0)
@@ -264,16 +260,16 @@ def test_class_prior_does_not_coerce_invalid_completion_keys(key) -> None:
 def test_prepared_scalar_keeps_atom_posterior_artifacts() -> None:
     from antecedent import artifacts
 
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         _series(_PIN),
         graph=_cpdag(),
         query=_pulse(_PIN),
         inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
         refute=False,
-        bootstrap=0,
     )
-    require_success(prepared.estimate(_series(_PIN)))
-    payload = artifacts.loads(prepared.export_artifact()).payload
+    outcome = antecedent.estimate(prepared)
+    require_success(outcome)
+    payload = artifacts.loads(bytes(outcome.export())).payload
     assert payload["posterior_artifact"] is None
     assert all(atom["posterior_artifact"] for atom in payload["structural_response"]["atoms"])
 
@@ -314,16 +310,16 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
     assert "temporal_mediation" in json.dumps(identified.to_dict()["certificate"])
     assert identified.certificate["treatments"][0]["offset"] == -1
     assert identified.certificate["outcome"]["offset"] == 0
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=query,
         inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
         class_prior=antecedent.ClassPrior.from_ordered([1.0]),
         refute=False,
-        bootstrap=0,
     )
-    result = require_success(prepared.estimate(data))
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     # With a single completion the shared-design condition holds trivially, so the
     # canonical shared-design contrast is a real BayesianPointwise summary (not NaN).
     # The 64-draw value below is a deterministic function of the hashed per-(horizon,
@@ -335,17 +331,16 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
     assert result.ate == pytest.approx(0.4378822213934731, abs=1e-9)
     # Stream-independent reference: the 8192-draw posterior mean is ~0.43873 (0.43875 at
     # 65536 draws), so the estimand is pinned loosely, independent of RNG streams.
-    large = antecedent.estimation.PreparedAnalysis.prepare(
+    large = antecedent.prepare(
         data,
         graph=graph,
         query=query,
         inference=antecedent.Bayesian(n_draws=8192, backend="conjugate"),
         class_prior=antecedent.ClassPrior.from_ordered([1.0]),
         refute=False,
-        bootstrap=0,
     )
-    assert require_success(large.estimate(data)).ate == pytest.approx(0.43875, abs=1e-3)
-    payload = artifacts.loads(prepared.export_artifact()).payload
+    assert require_success(antecedent.estimate(large)).ate == pytest.approx(0.43875, abs=1e-3)
+    payload = artifacts.loads(bytes(outcome.export())).payload
     atom = payload["structural_response"]["atoms"][0]
     assert atom["posterior_artifact"]
     assert payload["structural_response"]["conditional_on_identified"] is not None
@@ -362,8 +357,7 @@ def test_capped_audit_does_not_publish_a_full_class_mixture() -> None:
             class_prior=antecedent.ClassPrior.from_ordered([1.0]),
             max_completions=1,
             refute=False,
-            bootstrap=0,
-            seed=7,
+            execution=antecedent.Execution(seed=7),
         )
     )
     assert result.posterior is None or result.posterior.n_draws is None

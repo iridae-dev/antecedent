@@ -46,7 +46,7 @@ def test_precision_adjusted_intervals_use_retained_public_flow():
         assert result.evidence_status == "licensed"
         assert (
             require_success(
-                ant.prepare(data, query=query, refute="none").estimate(data)
+                ant.estimate(ant.prepare(data, query=query, refute="none"))
             ).randomized_effect.interval_95
             == fit.interval_95
         )

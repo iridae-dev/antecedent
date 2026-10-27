@@ -38,8 +38,7 @@ def test_panel_bayesian_pulse_smoke():
             ),
             inference=antecedent.Bayesian(n_draws=128),
             refute=False,
-            bootstrap=0,
-            seed=42,
+            execution=antecedent.Execution(seed=42),
         )
     )
     assert result.posterior is not None

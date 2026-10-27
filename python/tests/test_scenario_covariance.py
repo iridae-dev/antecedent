@@ -237,17 +237,18 @@ def test_independent_or_incompatible_rows_refuse_unknown_dependence():
 
 def test_bounds_arguments_and_failures_refuse_with_typed_details():
     two = family("a", "b")
-    over = refusal(lambda: bootstrap(two, replicates=2001))
-    assert over == ("cell_not_licensed", "scenario_covariance.too_many_replicates")
+    # Memory admission, not a constant, bounds the replicate count and the family width.
+    over = bootstrap(two, replicates=2001)
+    assert over.replicates_total == 2001 and over.replicates_used == 2001
     under = refusal(lambda: bootstrap(two, replicates=1))
     assert under == ("invalid_argument", "scenario_covariance.too_few_replicates")
     capped = refusal(lambda: exact(two, max_compositions=461))
     assert capped == ("cell_not_licensed", "scenario_covariance.exact_enumeration_cap")
     many = [transport.ScenarioEstimator(f"s{i}", estimator("a").functional) for i in range(65)]
-    assert refusal(lambda: exact(many)) == (
-        "cell_not_licensed",
-        "scenario_covariance.too_many_scenarios",
-    )
+    wide = exact(many)
+    assert wide.scenario_ids == tuple(f"s{i}" for i in range(65))
+    assert wide.as_array().shape == (65, 65)
+    assert wide.entry("s0", "s64") == pytest.approx(closed_form("a", "a"), abs=1e-12)
     twins = [estimator("a"), estimator("a")]
     assert refusal(lambda: exact(twins)) == (
         "invalid_argument",

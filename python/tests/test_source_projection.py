@@ -187,12 +187,13 @@ import numpy as np
 import antecedent as ac
 from antecedent import program_claims
 from antecedent.composition_bundle import consume_bundle
+from antecedent.outcomes import require_success
 raw=Path(sys.argv[1]).read_bytes()
-assert not consume_bundle(raw,expected_identity=sys.argv[2]).all_verified
+assert not require_success(consume_bundle(raw,expected_identity=sys.argv[2])).all_verified
 a=np.tile(np.array([0.,1.,2.,3.]),80); x=np.repeat(np.linspace(-1.,1.,80),4); y=1.+2.*a+.2*x
-view=ac.analyze({'x':x,'a':a,'y':y},graph=[('x','a'),('x','y'),('a','y')],query=ac.ResponseCurve('a','y',grid=[1.,2.]),refute='none',bootstrap=0)
+view=require_success(ac.analyze({'x':x,'a':a,'y':y},graph=[('x','a'),('x','y'),('a','y')],query=ac.ResponseCurve('a','y',grid=[1.,2.]),refute='none',inference=ac.Frequentist(bootstrap=0)))
 actual=program_claims.native_claim(view,program_claims.ProgramBinding.from_response(view,outcome_units='mmHg',dose_units='mg'))
-resolved=consume_bundle(raw,expected_identity=sys.argv[2],actual_claims={sys.argv[3]:actual})
+resolved=require_success(consume_bundle(raw,expected_identity=sys.argv[2],actual_claims={sys.argv[3]:actual}))
 resolved.require_verified()
 print(json.dumps({'A':resolved.value('utility','A.expected_utility'),'B':resolved.value('utility','B.expected_utility'),'trust':[n.facts['trust'] for n in resolved.nodes]}))
 """

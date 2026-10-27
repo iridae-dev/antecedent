@@ -69,7 +69,8 @@ def test_retained_delayed_entry_bootstrap_reports_pointwise_interval():
         inference=antecedent.Frequentist(bootstrap=299),
         execution=antecedent.Execution(seed=279),
     )
-    result = require_success(prepared.estimate())
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     section = result.survival
     assert section is not None
     assert section.uncertainty == "subject_stratified_percentile_bootstrap_pointwise_95"
@@ -78,9 +79,10 @@ def test_retained_delayed_entry_bootstrap_reports_pointwise_interval():
     assert section.bootstrap_replicates_ok == 299
     assert section.support_status == "unlicensed_pointwise_interval"
     loaded = require_success(
-        antecedent.load(bytes(prepared.export(artifact_id="left-truncated-survival-bootstrap")))
+        antecedent.load(bytes(outcome.export(artifact_id="left-truncated-survival-bootstrap")))
     )
-    assert loaded.answer.structured["rmst_difference_interval"] == list(
+    # The loaded answer is an immutable record: its sequences are tuples.
+    assert tuple(loaded.answer.structured["rmst_difference_interval"]) == tuple(
         section.rmst_difference_interval
     )
 

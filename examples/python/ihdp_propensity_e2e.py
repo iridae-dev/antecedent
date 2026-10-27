@@ -55,6 +55,7 @@ from __future__ import annotations
 import antecedent as _ant_api
 import numpy as np
 from antecedent import AverageEffect, analyze
+from antecedent.outcomes import require_success
 
 TRUE_ATE = 4.0
 N_ROWS = 747
@@ -118,14 +119,16 @@ def main() -> None:
     print("Assumed adjustment set:", ADJUSTMENT)
     print(f"IHDP-like table: n={N_ROWS}, covariates={N_COVARS} (binary x7–x25 not in DAG)")
 
-    ipw = analyze(
-        data,
-        graph=graph,
-        query=query,
-        estimator="propensity.weighting",
-        refute="cheap",
-        inference=_ant_api.Frequentist(bootstrap=40),
-        execution=_ant_api.Execution(seed=11),
+    ipw = require_success(
+        analyze(
+            data,
+            graph=graph,
+            query=query,
+            estimator="propensity.weighting",
+            refute="cheap",
+            inference=_ant_api.Frequentist(bootstrap=40),
+            execution=_ant_api.Execution(seed=11),
+        )
     )
     assert ipw.answer.kind == "point"
     assert ipw.identification.status == "NonparametricallyIdentified"
@@ -160,14 +163,16 @@ def main() -> None:
         )
 
     # AIPW: full-sample nuisances (no cross-fitting); see provenance/estimate.aipw.toml.
-    aipw = analyze(
-        data,
-        graph=graph,
-        query=query,
-        estimator="aipw",
-        refute="none",
-        inference=_ant_api.Frequentist(bootstrap=40),
-        execution=_ant_api.Execution(seed=11),
+    aipw = require_success(
+        analyze(
+            data,
+            graph=graph,
+            query=query,
+            estimator="aipw",
+            refute="none",
+            inference=_ant_api.Frequentist(bootstrap=40),
+            execution=_ant_api.Execution(seed=11),
+        )
     )
     assert aipw.answer.kind == "point"
     assert aipw.identification.status == "NonparametricallyIdentified"

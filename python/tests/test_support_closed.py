@@ -36,7 +36,9 @@ def test_path_specific_graph_posterior_runs_and_is_never_licensed():
         antecedent.analyze(
             {"t": treatment, "y": outcome},
             query=antecedent.PathSpecificEffect("t", "y"),
-            discovery=antecedent.discovery.ExactDagPosterior(),
+            discovery=antecedent.discovery.ExactDagPosterior().run(
+                {"t": treatment, "y": outcome}, seed=1
+            ),
             refute=False,
             inference=antecedent.Frequentist(bootstrap=0),
             execution=antecedent.Execution(seed=1),
@@ -185,8 +187,7 @@ def test_admg_bayesian_average_effect_uses_functional_estimator():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=64),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.plan.estimator == "functional.effect"

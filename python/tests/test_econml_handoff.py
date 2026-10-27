@@ -239,17 +239,16 @@ def test_frontdoor_refuses() -> None:
 
 
 def test_frequentist_graph_posterior_refuses() -> None:
-    from known_truth import FREQ, STATIC, static_data, static_posterior
+    from known_truth import STATIC, static_data, static_posterior
 
     result = require_success(
         antecedent.analyze(
             static_data(int(STATIC["n"])),
             discovery=static_posterior(),
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=FREQ,
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.plan.structure_source == "graph_posterior"
@@ -269,12 +268,11 @@ def test_graph_posterior_refuses() -> None:
     result = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.ExactDagPosterior(),
+            discovery=antecedent.discovery.ExactDagPosterior().run(data, seed=7),
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
             refute=False,
-            bootstrap=0,
-            seed=7,
+            execution=antecedent.Execution(seed=7),
         )
     )
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="graph-posterior"):
@@ -640,5 +638,9 @@ def test_attach_refusals_are_typed_with_reason_codes_and_remedies() -> None:
         "unknown_variable",
     )
     opaque = spec.attach(learner="x", effect=np.ones(20), data=data)
-    error = refused(opaque.export_claim, "handoff.no_bound_claim", "attested_not_reverifiable")
+    error = refused(
+        lambda: opaque.export(quantity="claim"),
+        "handoff.no_bound_claim",
+        "attested_not_reverifiable",
+    )
     assert isinstance(error, CausalUnsupportedError)

@@ -86,8 +86,7 @@ def test_bayesian_native_draw_projection_truth_and_full_rerun(model):
                 graph=req.edges,
                 inference=req.inference,
                 refute="none",
-                bootstrap=0,
-                seed=41,
+                execution=ac.Execution(seed=41),
             )
         )
         assert result.law.mean == pytest.approx(full.posterior.effect_mean, abs=1e-12)

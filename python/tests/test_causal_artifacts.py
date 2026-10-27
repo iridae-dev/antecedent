@@ -881,21 +881,21 @@ def test_identified_set_interval_survives_export_and_reencode() -> None:
     graph = antecedent.graph.TemporalCpdag.from_lagged_edges(
         ["t", "y", "z"], [("z", 1, "y", 0), ("t", 1, "y", 0)], [("z", 1, "t", 1)]
     )
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1, active_level=1.0),
-        inference=antecedent.Frequentist(),
+        inference=antecedent.Frequentist(bootstrap=60),
         refute=False,
-        bootstrap=60,
-        seed=5,
+        execution=antecedent.Execution(seed=5),
     )
-    result = require_success(prepared.estimate(data, seed=5))
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     assert result.structural_identified_set_interval is not None
     assert result.structural_identified_set_interval_method == "imbens_manski_shared_block"
     assert result.structural_identified_set_interval_truncated is False
 
-    decoded = artifacts.loads(prepared.export_artifact())
+    decoded = artifacts.loads(bytes(outcome.export()))
     assert decoded.format_version == (0, 5)
     interval = decoded.to_dict()["payload"]["structural_response"]["identified_set_interval"]
     assert interval["method"] == "imbens_manski_shared_block"

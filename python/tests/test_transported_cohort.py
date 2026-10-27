@@ -139,9 +139,9 @@ def test_the_decision_source_is_the_existing_surface_with_the_same_mean(model) -
     assert source.quantity.population_id == "clinic_b"
     contract = affine_contract(source, 5.0, -2.0)
     with pytest.raises(cd.CohortDecisionRefusal) as unaccepted:
-        contract.evaluate(source)
+        require_success(contract.evaluate(source))
     assert unaccepted.value.detail == "cohort_decision.extrapolative_not_accepted"
-    decided = contract.evaluate(source.accept_extrapolative())
+    decided = require_success(contract.evaluate(source.accept_extrapolative()))
     assert effect.mean_source.means == pytest.approx((effect.mean_contrast,), abs=TOLERANCE)
     by_id = {a.id: a for a in decided.actions}
     assert by_id["treat"].expected_utility == pytest.approx(

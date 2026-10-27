@@ -89,7 +89,7 @@ def test_selected_world_composition_uses_retained_native_projection(monkeypatch)
         evidence = require_success(world.evidence(schema, "B"))
         assert evidence.quantities[0].units == "meter"
         assert evidence.quantities[0].population_id == "declared population"
-        assert evidence.columns(limit=1).items[0]["world"] == 7
+        assert evidence.columns(limit=1).items[0]["world"] == "world:7"
     assert evidence.to_dict()["columns"][0]["samples"] == pytest.approx([1.0])
     del world, worlds, family
     gc.collect()

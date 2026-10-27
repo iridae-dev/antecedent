@@ -214,23 +214,29 @@ def test_estimate_returns_exact_points_only():
     assert risk(result) == pytest.approx(truth(0, 0), abs=1e-12)
 
 
-def test_refresh_keeps_the_proof_and_moves_the_point():
+def test_rebinding_laws_keeps_the_proof_and_moves_the_point():
     builder = decide()
     prepared = builder.prepare_exact(laws(), REQUESTS)
     del builder
     before = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
-    require_success(prepared.refresh(laws(shift=0.1)))
-    assert prepared.plan() == plan
-    after = json.loads(require_success(prepared.estimate()))
+    moved = prepared.bind_snapshot(laws(shift=0.1))
+    assert moved is not prepared
+    assert moved.plan() == plan
+    after = json.loads(require_success(moved.estimate()))
     for request, point in zip(REQUESTS, after["requests"], strict=True):
         expected = truth(int(request["x"]), int(request["w"]), shift=0.1)
         assert risk(point) == pytest.approx(expected, abs=1e-12)
     assert risk(before) != pytest.approx(risk(after), abs=1e-6)
-    # Refresh clears the last result: nothing is exported until the plan runs again.
-    require_success(prepared.refresh(laws()))
+    # The original branch keeps its laws and its executed result.
+    assert risk(json.loads(require_success(prepared.estimate()))) == pytest.approx(
+        risk(before), abs=1e-12
+    )
+    # A rebound branch exports nothing until its own plan runs.
+    unexecuted = prepared.bind_snapshot(laws())
     with pytest.raises(CausalUnsupportedError, match="not_executed"):
-        bytes(prepared.export())
+        bytes(unexecuted.export())
+    assert bytes(prepared.export()).startswith(b"ANTECEDENT-ADMG-CONDITIONAL\x01")
 
 
 def test_export_requires_an_estimate_and_frames_the_names():
@@ -255,7 +261,7 @@ def test_exported_result_is_recomputed_by_the_artifact_consumer():
     assert prepared.plan()["remaining"] == ["w"]
     artifact = bytes(prepared.export())
     del prepared
-    consumed = json.loads(transport.consume_admg_conditional_transport_artifact(artifact))
+    consumed = transport.consume_admg_conditional_transport_artifact(artifact).to_dict()
     assert consumed["probabilities"] == produced["probabilities"]
     for a, b in zip(consumed["requests"], produced["requests"], strict=True):
         assert a["probabilities"] == b["probabilities"]
@@ -384,7 +390,7 @@ def test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes():
     assert info.value.reason_code == "transport_proven_non_transportable"
     # The obstruction exports and the consumer re-verifies the witness.
     artifact = stage.export_obstruction()
-    consumed = json.loads(transport.consume_admg_conditional_obstruction_artifact(artifact))
+    consumed = transport.consume_admg_conditional_obstruction_artifact(artifact).to_dict()
     assert consumed["identification_status"] == "proven_non_transportable"
     assert consumed["witness"] == witness
     assert consumed["remaining"] == ["w"]
@@ -566,7 +572,7 @@ def test_consumer_mismatches_carry_their_reason_codes():
     assert info.value.reason_code == "transport_not_certified"
     assert "a point does not replay" in str(info.value)
     # The unedited artifact still replays.
-    consumed = json.loads(transport.consume_admg_conditional_transport_artifact(artifact))
+    consumed = transport.consume_admg_conditional_transport_artifact(artifact).to_dict()
     assert consumed["probabilities"] == produced["probabilities"]
 
 
@@ -634,7 +640,7 @@ def test_conditional_questions_enter_the_scenario_envelope():
     assert counts[negative] == 1 and counts["identified"] == 2
     # The artifact replays independently.
     artifact = bytes(prepared.export())
-    consumed = json.loads(transport.consume_transport_scenarios_artifact(artifact))
+    consumed = transport.consume_transport_scenarios_artifact(artifact).to_dict()
     assert [row["status"] for row in consumed["scenarios"]] == [
         row["status"] for row in report["scenarios"]
     ]
@@ -680,7 +686,7 @@ def test_the_obstruction_consumer_reverifies_the_exported_witness():
     artifact = stage.export_obstruction()
     # The consumer needs only the bytes: it re-verifies the witness exactly
     # and reports the same verdict and witness the producer held.
-    consumed = json.loads(transport.consume_admg_conditional_obstruction_artifact(artifact))
+    consumed = transport.consume_admg_conditional_obstruction_artifact(artifact).to_dict()
     assert consumed["identification_status"] == "proven_non_transportable"
     assert consumed["witness"] == witness
     assert witness_holds(consumed["witness"], NAMES)
@@ -697,7 +703,7 @@ def test_an_exported_obstruction_replays_after_its_builder_is_discarded():
     witness = builder.decision()["witness"]
     artifact = builder.export_obstruction()
     del builder
-    consumed = json.loads(transport.consume_admg_conditional_obstruction_artifact(artifact))
+    consumed = transport.consume_admg_conditional_obstruction_artifact(artifact).to_dict()
     assert consumed["witness"] == witness
     assert witness_holds(consumed["witness"], NAMES)
     # An obstruction retains no plan to execute: the proven stage refuses to
@@ -715,7 +721,7 @@ def test_the_obstruction_artifact_consumer_needs_no_builder_plan_or_data():
     del builder
     # Bytes alone: no catalog, law or plan is supplied, and a point artifact is
     # not an obstruction (the retained plan of a point route is a different format).
-    consumed = json.loads(transport.consume_admg_conditional_obstruction_artifact(artifact))
+    consumed = transport.consume_admg_conditional_obstruction_artifact(artifact).to_dict()
     assert consumed["identification_status"] == "proven_non_transportable"
     assert consumed["remaining"] == ["w"]
     prepared = decide().prepare_exact(laws(), REQUESTS)

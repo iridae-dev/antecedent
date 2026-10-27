@@ -37,10 +37,15 @@ def main():
             inference=ant.Frequentist(bootstrap=0),
             refute=False,
         )
-        print(study.inspect_plan())
-        result = study.estimate()
+        print(study.inspect())
+        result = ant.estimate(study)
         print(result.inspect())
-        print("Effect:", result.answer.value, "calibration:", result.calibration.status)
+        print(
+            "Effect:",
+            result.answer.value,
+            "calibration:",
+            result.value.calibration.status,
+        )
         assert result.answer.kind == "point"
         assert abs(result.answer.value - 2) < 0.3
 

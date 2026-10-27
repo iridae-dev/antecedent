@@ -16,6 +16,7 @@ import struct
 import sys
 import tomllib
 import warnings
+from dataclasses import replace
 from typing import Any
 
 import antecedent as ant
@@ -23,7 +24,6 @@ import numpy as np
 import pytest
 from antecedent.discovery import PC, RPCMCI
 from antecedent.errors import CausalCancelled, ReviewRequired
-from antecedent.estimation import PreparedAnalysis
 from antecedent.inference import Bayesian, Frequentist
 from antecedent.outcomes import require_success
 from antecedent.population import CustomDistribution, PopulationRegistry, Treated
@@ -46,12 +46,33 @@ def _data(n: int = 200, seed: int = 5) -> dict[str, np.ndarray]:
     return {"t": t, "y": y, "z": z}
 
 
+def _declared(kwargs: dict[str, Any]) -> None:
+    """Move the budget, tier and execution controls under test into their typed declarations."""
+    bootstrap = kwargs.pop("bootstrap", 0)
+    latency = kwargs.pop("latency", None)
+    inference = kwargs.pop("inference", None)
+    if inference is None:
+        inference = Frequentist(bootstrap=bootstrap, profile=latency)
+    elif latency is not None:
+        inference = replace(inference, profile=latency)
+    if isinstance(inference, Frequentist) and inference.bootstrap is None and bootstrap is not None:
+        inference = replace(inference, bootstrap=bootstrap)
+    kwargs["inference"] = inference
+    controls = {
+        name: kwargs.pop(name)
+        for name in ("seed", "threads", "cancel", "on_progress", "on_stage")
+        if name in kwargs
+    }
+    if controls:
+        kwargs["execution"] = ant.Execution(**controls)
+
+
 def _analyze(**kwargs: Any):
     kwargs.setdefault("graph", GRAPH)
     kwargs.setdefault("query", ant.AverageEffect("t", "y"))
-    kwargs.setdefault("bootstrap", 0)
     kwargs.setdefault("refute", "none")
     data = kwargs.pop("data", None)
+    _declared(kwargs)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return require_success(ant.analyze(_data() if data is None else data, **kwargs))
@@ -94,11 +115,15 @@ def test_parameter_rows_exist():
 
 
 def test_every_signature_parameter_has_a_row():
-    for fn in (ant.analyze, ant.prepare, PreparedAnalysis.prepare):
-        for key in inspect.signature(fn).parameters:
-            if key in {"self", "cls"}:
-                continue
-            assert key in ROWS, key
+    for key in inspect.signature(ant.prepare).parameters:
+        assert key in ROWS, key
+    # ``analyze`` is preparation followed by estimation: it forwards the same declarations.
+    forwarded = [
+        parameter
+        for parameter in inspect.signature(ant.analyze).parameters.values()
+        if parameter.kind is inspect.Parameter.VAR_KEYWORD
+    ]
+    assert len(forwarded) == 1
 
 
 def test_every_row_names_a_test_here_that_reads_its_binding():
@@ -143,8 +168,7 @@ def test_query_reaches_plan():
     )
     assert treated["average_effect"]["target_population"] == "treated"
     assert forward["average_effect"]["target_population"] == "all_observed"
-    for fn in (ant.analyze, ant.prepare, PreparedAnalysis.prepare):
-        assert "target_population" not in inspect.signature(fn).parameters
+    assert "target_population" not in inspect.signature(ant.prepare).parameters
 
 
 def test_graph_reaches_plan():
@@ -156,7 +180,8 @@ def test_graph_reaches_plan():
 
 def test_discovery_reaches_plan():
     data = _data(n=300)
-    result = _analyze(data=data, graph=None, discovery=PC(), accept_discovered=True)
+    structure = ant.discovery.discover(data, method=PC(), accept_discovered=True)
+    result = _analyze(data=data, graph=structure)
     assert _bound(result, "discovery") == PC().run(data).algorithm_id
 
 
@@ -170,13 +195,13 @@ def test_accept_discovered_reaches_plan():
     from antecedent.discovery import FCI
 
     data = _data(n=300)
-    accepted = _analyze(data=data, graph=None, discovery=PC(), accept_discovered=True)
+    structure = ant.discovery.discover(data, method=PC(), accept_discovered=True)
+    accepted = _analyze(data=data, graph=structure)
     assert _bound(accepted, "accept_discovered") == "accepted"
     with pytest.raises(ReviewRequired, match="static PAG review incomplete"):
-        _analyze(
-            data=data,
-            graph=None,
-            discovery=FCI(alpha=0.2, fdr=False),
+        ant.discovery.discover(
+            data,
+            method=FCI(alpha=0.2, fdr=False),
             accept_discovered=False,
         )
 
@@ -244,7 +269,6 @@ def _temporal_class(**kwargs: Any):
                 graph=_cpdag(),
                 query=_pulse(_PIN),
                 refute=False,
-                inference=ant.Frequentist(bootstrap=0),
                 execution=ant.Execution(seed=7),
                 **kwargs,
             )
@@ -316,7 +340,8 @@ def test_regimes_reaches_plan():
     regimes = [0] * len(data["x"])
     query = ant.PulseEffect("x", "y", treatment_lag=1, horizon_steps=1, active_level=1.0)
     config = RPCMCI(max_lag=1, alpha=0.2, fdr=False)
-    result = _analyze(data=data, graph=None, discovery=config, regimes=regimes, query=query)
+    structure = ant.discovery.discover(data, method=config, regimes=regimes, accept_discovered=True)
+    result = _analyze(data=data, graph=structure, query=query)
     assert config.run(data, regimes=regimes).n_regimes == 1
     assert _bound(result, "regimes") == config.algorithm_id
 
@@ -337,10 +362,14 @@ def test_population_registry_reaches_plan():
 
 
 def test_return_posterior_artifact_reaches_plan():
-    kept = _analyze(inference=Bayesian(n_draws=32), return_posterior_artifact=True)
+    # The posterior artifact is no longer a preparation flag: it is selected from the
+    # executed result, and ordinary execution carries only the posterior summary.
     summary = _analyze(inference=Bayesian(n_draws=32))
-    assert kept.posterior is not None and kept.posterior.artifact
     assert summary.posterior is not None and summary.posterior.artifact is None
+    exported = summary.export(quantity="posterior")
+    decoded = ant.inference.decode_posterior_artifact(bytes(exported))
+    assert decoded.n_draws == 32
+    assert len(decoded.draws) == 32 * len(decoded.quantity_names)
 
 
 def test_running_variable_reaches_plan():
@@ -399,7 +428,7 @@ def test_cancel_reaches_plan():
 
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(CausalCancelled, match="cancelled during compile"):
+    with pytest.raises(CausalCancelled, match="cancelled during"):
         _analyze(bootstrap=199, cancel=token)
 
 
@@ -423,20 +452,19 @@ def _bow_fixture():
 
 def test_on_refusal_reaches_workflow():
     from antecedent.errors import EffectNotIdentified
-    from antecedent.fallback import AnalysisWithFallback
 
     data, bow = _bow_fixture()
     with pytest.raises(EffectNotIdentified):
         require_success(ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y")))
     with pytest.raises(EffectNotIdentified):
         require_success(
-            ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="raise")
+            ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="refuse")
         )
-    outcome = require_success(
-        ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="describe")
-    )
-    assert isinstance(outcome, AnalysisWithFallback)
-    assert isinstance(outcome.refusal, EffectNotIdentified)
+    outcome = ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="describe")
+    # A described refusal keeps the causal refusal and adds a separate associational description.
+    assert outcome.refusal is not None and outcome.associational is not None
+    with pytest.raises(EffectNotIdentified):
+        require_success(outcome)
     with pytest.raises(ValueError, match="on_refusal"):
         require_success(
             ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="substitute")
@@ -462,14 +490,12 @@ def test_evidence_candidates_reach_the_plan():
         sample_budget=100,
         feasible=True,
     )
-    outcome = require_success(
-        ant.analyze(
-            data,
-            graph=bow,
-            query=ant.AverageEffect("t", "y"),
-            on_refusal="describe",
-            evidence_candidates=[trial],
-        )
+    outcome = ant.analyze(
+        data,
+        graph=bow,
+        query=ant.AverageEffect("t", "y"),
+        on_refusal="describe",
+        evidence_candidates=[trial],
     )
     plan = outcome.evidence_plan.plan
     assert plan is not None and plan.best is not None
@@ -529,9 +555,8 @@ def test_provider_reaches_plan():
     assert default.estimate.estimator_id != learned.estimate.estimator_id
 
 
-def test_controls_reaches_plan():
-    """Applies only to transport.Transport (see the ``controls`` row's reason)."""
-    from antecedent import transport
+def test_execution_cancellation_reaches_transport_plan():
+    """Transport cancellation is owned by the same reusable Execution policy."""
     from antecedent.state import CancellationToken
 
     graph, data, query = _transport_query()
@@ -539,9 +564,7 @@ def test_controls_reaches_plan():
     token.cancel()
     with pytest.raises(ant.errors.CausalCancelledError, match="cancelled"):
         require_success(
-            ant.analyze(
-                data, query=query, graph=graph, controls=transport.TransportControls(cancel=token)
-            )
+            ant.analyze(data, query=query, graph=graph, execution=ant.Execution(cancel=token))
         )
 
 
@@ -589,7 +612,6 @@ def test_quantity_transform_reaches_plan():
 
 
 def test_retain_joint_horizons_reaches_plan():
-    from antecedent.estimation import PreparedAnalysis
     from antecedent.external import ExternalRefusal
     from antecedent.horizon_composition import JointHorizonDraws
 
@@ -604,18 +626,18 @@ def test_retain_joint_horizons_reaches_plan():
     )
 
     def prepared(**kwargs):
-        return PreparedAnalysis.prepare(
+        return ant.prepare(
             data,
             graph=[("x", 1, "y", 0), ("x", 2, "y", 0)],
             query=query,
             refute=False,
-            seed=21,
-            bootstrap=60,
+            inference=Frequentist(bootstrap=60),
+            execution=ant.Execution(seed=21),
             **kwargs,
         )
 
-    kept = require_success(prepared(retain_joint_horizons=True).estimate(data, seed=21))
-    dropped = require_success(prepared().estimate(data, seed=21))
+    kept = require_success(ant.estimate(prepared(retain_joint_horizons=True)))
+    dropped = require_success(ant.estimate(prepared()))
     assert isinstance(kept.horizon_draws(0), JointHorizonDraws)
     with pytest.raises(ExternalRefusal):
         dropped.horizon_draws(0)
@@ -646,7 +668,11 @@ def test_dose_units_reaches_plan():
         decision.Criterion.expected_utility(),
         "target",
     )
-    assert contract.evaluate(mg).selected == contract.evaluate(grams).selected == ("high",)
+    assert (
+        require_success(contract.evaluate(mg)).selected
+        == require_success(contract.evaluate(grams)).selected
+        == ("high",)
+    )
     with pytest.raises(CausalValueError, match="requires outcome_units"):
         _response_with_coordinates(dose_units="mg")
     with pytest.raises(CausalValueError, match="static ResponseCurve"):

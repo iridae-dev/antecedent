@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import antecedent as ac
 import numpy as np
-from antecedent.estimation import PreparedAnalysis
 from antecedent.outcomes import require_success
 
 BAYES = ac.Bayesian(backend="conjugate", n_draws=256, prior_scale=10.0)
@@ -12,15 +11,16 @@ BAYES = ac.Bayesian(backend="conjugate", n_draws=256, prior_scale=10.0)
 
 def _run(data, graph, query):
     return require_success(
-        PreparedAnalysis.prepare(
-            data,
-            query=query,
-            graph=graph,
-            inference=BAYES,
-            refute="none",
-            latency=None,
-            bootstrap=0,
-        ).estimate(data, seed=3)
+        ac.estimate(
+            ac.prepare(
+                data,
+                query=query,
+                graph=graph,
+                inference=BAYES,
+                refute="none",
+                execution=ac.Execution(seed=3),
+            )
+        )
     )
 
 

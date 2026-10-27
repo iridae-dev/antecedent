@@ -270,7 +270,7 @@ def test_exported_result_is_recomputed_by_an_independent_consumer():
     prepared = identified_stage().prepare_exact(laws(), {"x": 1.0})
     live = json.loads(require_success(prepared.estimate()))
     artifact = bytes(prepared.export())
-    consumed = json.loads(transport.consume_multi_source_z_transport_artifact(artifact))
+    consumed = transport.consume_multi_source_z_transport_artifact(artifact).to_dict()
     assert consumed["probabilities"] == live["probabilities"]
     assert consumed["cited_sources"] == ["a", "b"]
     assert consumed["proof"]["route"] == "combined"
@@ -293,9 +293,9 @@ def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
     assert interval["dependence_reason"] is None
     assert interval["mean_intervals"] == [] and interval["contrast_intervals"] == []
     assert interval["seed"] is None and interval["replicates_requested"] == 0
-    consumed = json.loads(
-        transport.consume_multi_source_z_transport_artifact(bytes(with_studies.export()))
-    )
+    consumed = transport.consume_multi_source_z_transport_artifact(
+        bytes(with_studies.export())
+    ).to_dict()
     assert consumed["interval"] == interval
     assert consumed["probabilities"] == result["probabilities"]
     # Without study identities the two arms of source a are not known to be
@@ -329,15 +329,19 @@ def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
     assert "mz_transport.interval_withheld" in str(refused.value)
 
 
-def test_refresh_keeps_the_proof_and_refuses_other_snapshots():
+def test_rebinding_keeps_the_proof_and_refuses_other_snapshots():
     prepared = identified_stage().prepare_empirical(laws(sample_size=40_000), {"x": 1.0})
     before = json.loads(require_success(prepared.estimate()))
-    require_success(prepared.refresh(laws(sample_size=5_000)))
-    after = json.loads(require_success(prepared.estimate()))
+    moved = prepared.bind_snapshot(laws(sample_size=5_000))
+    after = json.loads(require_success(moved.estimate()))
     assert after["probabilities"] != before["probabilities"]
+    assert (
+        json.loads(require_success(prepared.estimate()))["probabilities"]
+        == (before["probabilities"])
+    )
     # Evidence under a snapshot the frozen catalog never bound needs a new preparation.
     with pytest.raises(CausalUnsupportedError, match="snapshot does not match catalog binding"):
-        require_success(prepared.refresh(laws(sample_size=5_000, snapshot_suffix="-new")))
+        prepared.bind_snapshot(laws(sample_size=5_000, snapshot_suffix="-new"))
 
 
 def test_query_contract_is_validated_before_search():
@@ -419,23 +423,23 @@ def test_estimate_executes_every_request_and_contrast_from_the_retained_plan():
     assert again["contrasts"] == result["contrasts"]
 
 
-def test_refresh_rebinds_snapshots_and_re_executes_the_retained_plan():
+def test_rebinding_snapshots_re_executes_the_retained_plan_on_a_new_branch():
     builder = identified_stage()
     prepared = builder.prepare_empirical(laws(sample_size=40_000), REQUESTS)
     del builder
     before = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
-    require_success(prepared.refresh(laws(sample_size=5_000)))
+    moved = prepared.bind_snapshot(laws(sample_size=5_000))
     # The proof and requests of the plan are unchanged; only the laws moved.
-    assert prepared.plan() == plan
-    after = json.loads(require_success(prepared.estimate()))
+    assert moved.plan() == plan
+    after = json.loads(require_success(moved.estimate()))
     assert len(after["requests"]) == 2 and len(after["contrasts"]) == 1
     assert after["contrasts"][0]["estimate"] != before["contrasts"][0]["estimate"]
     assert after["contrasts"][0]["estimate"] == pytest.approx(truth(1) - truth(0), abs=5e-2)
-    # Refresh clears the last claim: nothing is exported until the plan runs again.
-    require_success(prepared.refresh(laws(sample_size=5_000)))
+    # A rebound branch has no claim: nothing is exported until its plan runs.
+    unexecuted = prepared.bind_snapshot(laws(sample_size=5_000))
     with pytest.raises(Exception, match="not_executed"):
-        bytes(prepared.export())
+        bytes(unexecuted.export())
 
 
 _MZ_PREFIX = b"ANTECEDENT-MZ-TRANSPORT\x01"
@@ -507,7 +511,7 @@ def test_export_binds_names_limits_and_snapshots_into_the_verified_identity():
     json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
     artifact = bytes(prepared.export())
-    consumed = json.loads(transport.consume_multi_source_z_transport_artifact(artifact))
+    consumed = transport.consume_multi_source_z_transport_artifact(artifact).to_dict()
     assert consumed["proof"]["rules"] == plan["rules"]
     # Relabelling coordinates in the frame (z1 <-> z2, same byte length) is refused:
     # the names are bound into the artifact's verified identity.
@@ -569,11 +573,9 @@ def test_export_binds_names_limits_and_snapshots_into_the_verified_identity():
     with pytest.raises(CausalResourceError, match="search memory limit"):
         transport.consume_multi_source_z_transport_artifact(artifact, memory_bytes=1 << 20)
     # With the stored cap (or more) the same artifact verifies.
-    affordable = json.loads(
-        transport.consume_multi_source_z_transport_artifact(
-            artifact, memory_bytes=512 * 1024 * 1024
-        )
-    )
+    affordable = transport.consume_multi_source_z_transport_artifact(
+        artifact, memory_bytes=512 * 1024 * 1024
+    ).to_dict()
     assert affordable["proof"]["search"]["memory_limit_bytes"] == 512 * 1024 * 1024
 
 
@@ -585,7 +587,7 @@ def test_consumer_recomputes_points_and_contrasts_after_builder_disposal():
     plan = prepared.plan()
     artifact = bytes(prepared.export())
     del prepared
-    consumed = json.loads(transport.consume_multi_source_z_transport_artifact(artifact))
+    consumed = transport.consume_multi_source_z_transport_artifact(artifact).to_dict()
     assert consumed["proof"]["rules"] == plan["rules"]
     assert consumed["requests"] == live["requests"]
     assert consumed["contrasts"] == live["contrasts"]

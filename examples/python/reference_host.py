@@ -58,7 +58,7 @@ def serve(data, graph, query):
     report = result.inspect()
     claim = host.claim_record(report.contract["claim"])
     response = {"status": claim["status"], "claim": claim, "value": result.answer.value}
-    return response, result.artifact()
+    return response, result.export()
 
 
 def accept(artifact_bytes, expected):
@@ -119,7 +119,7 @@ def main():
         query=ant.AverageEffect("t", "y"),
         inference=ant.Frequentist(bootstrap=0),
         refute=False,
-    ).artifact()
+    ).export()
     wrong = accept(artifact.data, other.expectation)
     print("wrong identity:", wrong["status"])
     assert wrong["status"] != "supported", wrong

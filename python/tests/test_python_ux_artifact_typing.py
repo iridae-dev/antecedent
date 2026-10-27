@@ -15,6 +15,7 @@ def test_checked_artifact_envelopes_preserve_family_types(tmp_path):
     fixture.write_text("""from typing import assert_type
 import antecedent as ant
 from antecedent.artifacts import ExportedArtifact
+from antecedent.outcomes import Outcome, require_success
 from antecedent import compact_export as ce, cohort_decision as cd, provider_callbacks as pc
 from antecedent import sequential_evaluation as se, selective_discovery as sd
 from antecedent import adaptive_inference as ai, cross_world_execution as cw
@@ -24,16 +25,16 @@ def checked(compact: ce.CompactExport, cohort: cd.CohortDecisionSource,
             discovery: sd.SelectiveDiscovery, adaptive: ai.AdaptiveInferenceSession,
             crossworld: cw.CrossWorldExecution) -> None:
     assert_type(compact.export(), ExportedArtifact[ce.CompactExport])
-    assert_type(ant.load(compact.export(), expected=compact.identity), ce.CompactExport)
+    assert_type(ant.load(compact.export(), expected=compact.identity), Outcome[ce.CompactExport])
     assert_type(cohort.export(), ExportedArtifact[cd.CohortDecisionSource])
-    assert_type(ant.load(cohort.export(), expected=cohort.identity), cd.CohortDecisionSource)
+    assert_type(ant.load(cohort.export(), expected=cohort.identity), Outcome[cd.CohortDecisionSource])
     assert_type(callback.export(), ExportedArtifact[pc.CallbackConsumed])
-    assert_type(ant.load(callback.export()), pc.CallbackConsumed)
+    assert_type(ant.load(callback.export()), Outcome[pc.CallbackConsumed])
     assert_type(sequential.export(), ExportedArtifact[se.EvaluationArtifact])
-    assert_type(ant.load(sequential.export()), se.EvaluationArtifact)
+    assert_type(ant.load(sequential.export()), Outcome[se.EvaluationArtifact])
     assert_type(discovery.export(), ExportedArtifact[sd.ConsumedSelectiveDiscovery])
     assert_type(adaptive.export(ai.BayesianPosterior(1)), ExportedArtifact[ai.ConsumedAdaptiveResult])
-    assert_type(adaptive.analyze(ai.BayesianPosterior(1)).export(), ExportedArtifact[ai.ConsumedAdaptiveResult])
+    assert_type(require_success(adaptive.analyze(ai.BayesianPosterior(1))).export(), ExportedArtifact[ai.ConsumedAdaptiveResult])
     assert_type(crossworld.export(), ExportedArtifact[cw.ConsumedCrossWorldExecution])
 """)
     result = subprocess.run(

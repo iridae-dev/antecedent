@@ -84,7 +84,9 @@ def assert_refusal(error, code, detail):
 
 def refused(call, code, detail):
     with pytest.raises(ScientificBridgeRefusal) as caught:
-        call()
+        # A refused operation returns a typed refusal Outcome; require_success
+        # re-raises that same refusal so its code, detail and remedy are asserted.
+        require_success(call())
     assert_refusal(caught.value, code, detail)
     return caught.value
 
@@ -875,7 +877,7 @@ def test_a_scoped_interval_needs_the_source_standard_error_and_a_measured_design
             sb.SourceClaim.declared("biomarker-effect", 1.2, quantity, standard_error=0.1)
         )
     )
-    interval = claim.interval(0.95)
+    interval = require_success(claim.interval(0.95))
     assert interval.lower < interval.value < interval.upper
     assert interval.licensed_by == "coverage_record"
     assert interval.coverage_record.startswith("cov.bridged_claim_interval.")
@@ -967,7 +969,8 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp
     script = (
         "import json, sys\n"
         "from antecedent import scientific_bridge as sb\n"
-        "c = sb.consume_scientific_bridge_artifact(open(sys.argv[1], 'rb').read(), sys.argv[2])\n"
+        "from antecedent.outcomes import require_success\n"
+        "c = require_success(sb.consume_scientific_bridge_artifact(open(sys.argv[1], 'rb').read(), sys.argv[2]))\n"
         "print(json.dumps({'value': c.claim.value, 'claim_id': c.claim.claim_id,\n"
         "                  'slope': c.claim.fit.slope, 'identity': c.identity,\n"
         "                  'transported': c.claim.transported}))\n"

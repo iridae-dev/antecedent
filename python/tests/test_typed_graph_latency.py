@@ -1,10 +1,8 @@
-"""`latency=` must reach the typed-graph analyze paths (Cpdag / Pag / Admg).
+"""Inference profiles must reach the typed-graph analyze paths (Cpdag / Pag / Admg).
 
-The static DAG route has always accepted `latency=`, but the typed-graph entry
-points did not, so `analyze(graph=<Cpdag|Pag|Admg>, latency=...)` raised
-``TypeError: unexpected keyword argument 'latency'``. That made every
-``AcceptedGraph.analyze()`` on a non-DAG structure fail outright, since
-``AcceptedGraph.analyze`` defaults to ``latency="interactive"``.
+``Frequentist(profile=...)`` selects the interactive, standard or report preset on
+every graph kind. ``AcceptedGraph.analyze`` defaults to the interactive profile, so a
+non-DAG accepted structure must run under it.
 """
 
 from __future__ import annotations
@@ -36,8 +34,8 @@ def test_cpdag_analyze_honours_every_latency_tier(mode):
             data,
             graph=cpdag,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            latency=mode,
-            seed=1,
+            inference=antecedent.Frequentist(profile=mode),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.performance.latency_mode == mode
@@ -51,20 +49,24 @@ def test_admg_analyze_honours_latency():
             data,
             graph=admg,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            latency="report",
-            seed=1,
+            inference=antecedent.Frequentist(profile="report"),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.performance.latency_mode == "report"
 
 
 def test_accepted_graph_analyze_on_cpdag_runs():
-    """`AcceptedGraph.analyze` defaults to latency="interactive" — it must not raise."""
+    """`AcceptedGraph.analyze` defaults to the interactive profile — it must not raise."""
     data = _binary_treatment_scm()
     cpdag = Cpdag.from_directed_undirected(["z", "t", "y"], _EDGES, [])
     accepted = antecedent.AcceptedGraph.from_graph(cpdag, algorithm_id="pc")
     result = require_success(
-        accepted.analyze(data, query=antecedent.AverageEffect(treatment="t", outcome="y"), seed=1)
+        accepted.analyze(
+            data,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert result.performance.latency_mode == "interactive"
     assert abs(result.ate - 2.0) < 0.5

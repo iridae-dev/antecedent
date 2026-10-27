@@ -63,7 +63,7 @@ def main() -> None:
     ate = float(result.answer.value)
     print(f"Antecedent ATE={ate:.4f} (truth={TRUE_ATE})")
 
-    spec = econml(result)
+    spec = econml(result.value)
     print(
         f"Handoff: treatment={spec.treatment!r} outcome={spec.outcome!r} "
         f"confounders={spec.confounders} identifier={spec.identifier} "

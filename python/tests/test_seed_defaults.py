@@ -8,8 +8,9 @@ execution entry points and the two nuisance treatment-score posteriors.
 Changing either one changes published numerical results, so a new numeric
 default or a silent flip between 0 and 1 fails this test.
 
-``seed=None`` is not a numeric default. Four prepare-then-evaluate stages use
-it as an optional override of the seed frozen at prepare, and the count-fitted
+``seed=None`` is not a numeric default. Four prepare-then-evaluate stages and the
+immutable-branch ``fork`` of every transport stage use it as an optional override of
+the seed frozen at prepare, and the count-fitted
 observation build uses it as an optional seed that defaults inside the engine. Those names are
 pinned in ``SEED_OPTIONAL`` so that optional form cannot grow, shrink, or
 turn into a third integer unnoticed.
@@ -127,7 +128,9 @@ SEED_ZERO = (
     "recovery_api.rs::prepare_exact",
     "recovery_chain_api.rs::consume_recovery_chain_artifact",
     "recovery_chain_api.rs::recover_recovery_chain",
+    "temporal_counterfactual_api.rs::consume_general_temporal_counterfactual_artifact",
     "temporal_counterfactual_api.rs::consume_temporal_counterfactual_artifact",
+    "temporal_counterfactual_api.rs::evaluate_general_temporal_counterfactual",
     "temporal_counterfactual_api.rs::evaluate_temporal_counterfactual",
     "transport_admg_conditional_api.rs::prepare_empirical",
     "transport_admg_conditional_api.rs::prepare_exact",
@@ -143,6 +146,17 @@ SEED_ZERO = (
 )
 
 SEED_OPTIONAL = (
+    "learned_continuous_api.rs::fork",
+    "learned_trial_api.rs::fork",
+    "smoothed_dose_api.rs::fork",
+    "transport_admg_conditional_api.rs::fork",
+    "transport_counterfactual_api.rs::fork",
+    "transport_exact_api.rs::fork",
+    "transport_grid_api.rs::fork",
+    "transport_mixed_api.rs::fork",
+    "transport_mz_api.rs::fork",
+    "transport_statistical_api.rs::fork",
+    "transport_z_api.rs::fork",
     "observation_query_api.rs::count_fitted_observation_build",
     "transport_admg_conditional_api.rs::estimate",
     "transport_mixed_api.rs::estimate",

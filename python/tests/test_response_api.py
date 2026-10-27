@@ -243,15 +243,15 @@ def test_response_curve_graph_posterior_retains():
     z = np.linspace(0.0, 1.0, n, dtype=np.float64)
     t = z + 0.1
     y = 1.0 + 2.0 * t + z
+    columns = {"t": t, "y": y, "z": z}
     result = require_success(
         antecedent.analyze(
-            {"t": t, "y": y, "z": z},
-            discovery=antecedent.discovery.ExactDagPosterior(),
+            columns,
+            discovery=antecedent.discovery.ExactDagPosterior().run(columns, seed=1),
             query=antecedent.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
             inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.study is not None
@@ -341,7 +341,7 @@ def test_accepted_discovery_dag_is_an_artifact_first_response_input():
                 {"a": a, "y": y},
                 query=query,
                 graph=accepted,
-                discovery=antecedent.discovery.PC(),
+                discovery=antecedent.discovery.PC().run({"a": a, "y": y}),
             )
         )
 
@@ -629,7 +629,9 @@ def test_response_refuses_discovery_and_runs_bayesian():
                 data,
                 query=query,
                 graph=[("a", "y")],
-                discovery=antecedent.discovery.PC(alpha=0.05),
+                discovery=antecedent.discovery.PC(alpha=0.05).run(
+                    {"a": np.sin(np.arange(60.0)), "y": np.cos(np.arange(60.0) ** 1.3)}
+                ),
             )
         )
     result = require_success(

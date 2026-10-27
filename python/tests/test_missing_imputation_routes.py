@@ -80,13 +80,13 @@ def _conditional_data(n: int, seed: int) -> dict[str, np.ndarray]:
 
 
 def _conditional(data, missing, **extra):
+    extra.setdefault("inference", ant.Frequentist(bootstrap=0))
     return require_success(
         ant.analyze(
             data,
             graph=[("t", "y"), ("w", "y")],
             query=ant.ConditionalEffect("t", "y", "w"),
             refute="none",
-            inference=ant.Frequentist(bootstrap=0),
             execution=ant.Execution(seed=1),
             missing=missing,
             **extra,

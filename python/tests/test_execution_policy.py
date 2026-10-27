@@ -11,7 +11,7 @@ import pytest
 from antecedent.execution import CachePolicy, Execution, ResourceLimits
 
 
-def _prepare():
+def _prepare(execution=None):
     t = np.tile([0.0, 1.0], 32)
     z = np.repeat(np.linspace(-1.0, 1.0, len(t) // 2), 2)
     return ant.prepare(
@@ -20,6 +20,7 @@ def _prepare():
         query=ant.AverageEffect("t", "y"),
         inference=ant.Frequentist(bootstrap=0),
         refute="none",
+        execution=execution,
     )
 
 
@@ -27,10 +28,10 @@ def test_memory_policy_reaches_native_prepare_and_restores_after_failure():
     tiny = Execution(limits=ResourceLimits(memory_bytes=0), cache=CachePolicy.disabled())
     roomy = Execution(limits=ResourceLimits(memory_bytes=1_000_000))
     with pytest.raises(ant.errors.CausalResourceError):
-        tiny._call(_prepare)
-    study = roomy._call(_prepare)
-    assert study.estimate().answer.value == pytest.approx(2.0)
-    assert _prepare().estimate().answer.value == pytest.approx(2.0)
+        _prepare(tiny)
+    study = _prepare(roomy)
+    assert ant.estimate(study).answer.value == pytest.approx(2.0)
+    assert ant.estimate(_prepare()).answer.value == pytest.approx(2.0)
 
 
 def test_nested_policy_restores_the_outer_caller_after_exception():
@@ -39,8 +40,8 @@ def test_nested_policy_restores_the_outer_caller_after_exception():
 
     def operation():
         with pytest.raises(ant.errors.CausalResourceError):
-            inner._call(_prepare)
-        return _prepare().estimate().answer.value
+            _prepare(inner)
+        return ant.estimate(_prepare(outer)).answer.value
 
     assert outer._call(operation) == pytest.approx(2.0)
 
@@ -53,7 +54,7 @@ def test_concurrent_callers_do_not_inherit_each_others_resource_policy():
 
         def operation():
             barrier.wait(timeout=10)
-            return _prepare().estimate().answer.value
+            return ant.estimate(_prepare(policy)).answer.value
 
         try:
             return policy._call(operation)

@@ -917,31 +917,42 @@ def test_declared_bounds_are_refused_not_truncated():
         terminal_utility=(0.0, 0.0),
     )
     ship_now = det("v", {(): 0})
-    # more than 32 latent states
-    many = 33
-    states = tuple(f"s{i}" for i in range(many))
-    flat = tuple(tuple(1.0 if i == j else 0.0 for j in range(many)) for i in range(many))
-    wide = se.FiniteModel(
-        **{
-            **base,
-            "states": states,
-            "initial": (1.0 / many,) * many,
-            "actions": (se.Action("ship", "commit", transition=flat),),
-            "terminal_utility": (0.0,) * many,
-        }
-    )
-    refused(
-        lambda: se.evaluate(wide, ship_now),
-        "invalid_argument",
-        "sequential_evaluation.model_states",
-    )
-    # more than 16 actions
+    # the latent state space needs 2 to 4096 distinct named states; a state space beyond the
+    # upper bound cannot be built here without a 4097 x 4097 transition table, so the declared
+    # lower bound and the distinct-name rule stand for the structural state checks
+    for bad_states, initial, terminal in (
+        (("only",), (1.0,), (0.0,)),
+        (("twin", "twin"), (0.5, 0.5), (0.0, 0.0)),
+    ):
+        flat = tuple(
+            tuple(1.0 if i == j else 0.0 for j in range(len(bad_states)))
+            for i in range(len(bad_states))
+        )
+        refused(
+            lambda bad_states=bad_states, initial=initial, terminal=terminal, flat=flat: (
+                se.evaluate(
+                    se.FiniteModel(
+                        **{
+                            **base,
+                            "states": bad_states,
+                            "initial": initial,
+                            "actions": (se.Action("ship", "commit", transition=flat),),
+                            "terminal_utility": terminal,
+                        }
+                    ),
+                    ship_now,
+                )
+            ),
+            "invalid_argument",
+            "sequential_evaluation.model_states",
+        )
+    # more than 1024 actions
     crowd = se.FiniteModel(
         **{
             **base,
             "actions": tuple(
                 se.Action(f"a{i}", "commit", transition=IDENTITY, immediate_utility=(0.0, 0.0))
-                for i in range(17)
+                for i in range(1025)
             ),
         }
     )
@@ -950,12 +961,15 @@ def test_declared_bounds_are_refused_not_truncated():
         "invalid_argument",
         "sequential_evaluation.model_actions",
     )
-    # a horizon beyond 12 decision times
-    refused(
-        lambda: se.evaluate(se.FiniteModel(**{**base, "horizon": 13}), ship_now),
-        "invalid_argument",
-        "sequential_evaluation.model_horizon",
-    )
+    # a horizon beyond 1024 decision times, and a horizon of zero
+    for horizon in (1025, 0):
+        refused(
+            lambda horizon=horizon: se.evaluate(
+                se.FiniteModel(**{**base, "horizon": horizon}), ship_now
+            ),
+            "invalid_argument",
+            "sequential_evaluation.model_horizon",
+        )
     one = se.FiniteModel(**base)
     # more than 65536 policy entries
     big = se.Policy.deterministic("big", {((0, i),): 0 for i in range(65_537)})

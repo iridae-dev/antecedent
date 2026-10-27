@@ -3035,10 +3035,10 @@ id = "shared_exogenous_finite_scm_joint_state_bounds_retained"
 area = "shared_exogenous"
 workflow = "antecedent.gcm / cross_world_execution"
 configuration = { mechanisms = 3, exogenous_terms_shared = 1 }
-expected = { kind = "value", outputs = ["joint-state count bound retained and enforced"] }
+expected = { kind = "value", outputs = ["enumeration bound retained and exact variable elimination past it"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Finite SCM enumeration of bounded joint states is exact and fast." }
 dataset = { generator = "finite_scm_enumeration", seed = 8307012, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs::the_joint_state_bound_holds_at_its_edge_and_refuses_one_term_past_it" }
+evidence = { status = "bound", test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs::the_enumeration_bound_holds_at_its_edge_and_elimination_takes_over_past_it" }
 
 [[case]]
 id = "shared_exogenous_finite_scm_values_match_independent_enumeration"

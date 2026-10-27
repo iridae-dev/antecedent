@@ -3,7 +3,6 @@
 import antecedent
 import numpy as np
 import pytest
-from antecedent.estimation import PreparedAnalysis
 from antecedent.observation import IndependentGiven, RightCensored
 from antecedent.outcomes import require_success
 
@@ -37,19 +36,18 @@ def test_observed_temporal_posterior_and_response_roundtrip_together():
         observation=RightCensored("y", "y", "c", "r"),
         observation_assumptions=[IndependentGiven([])],
     )
-    plan = PreparedAnalysis.prepare(
+    plan = antecedent.prepare(
         data,
         graph=[("x", 1, "y", 0), ("x", 2, "y", 0)],
         query=query,
         inference=antecedent.Bayesian(backend="conjugate", n_draws=pin["draws"]),
         refute=False,
-        bootstrap=0,
-        seed=pin["posterior_seed"],
+        execution=antecedent.Execution(seed=pin["posterior_seed"]),
     )
-    result = require_success(plan.estimate(data, seed=pin["posterior_seed"]))
+    result = require_success(antecedent.estimate(plan))
     assert result.response is not None
     # The response projection exposes bands; the composite artifact retains draws.
-    decoded = antecedent.artifacts.loads(plan.export_artifact())
+    decoded = antecedent.artifacts.loads(bytes(result.export()))
     assert decoded.payload_kind == "analysis_result"
     assert decoded.to_dict()["payload"]["estimate"] is None
     assert decoded.to_dict()["payload"]["response"] is not None

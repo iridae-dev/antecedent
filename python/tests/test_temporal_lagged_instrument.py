@@ -71,7 +71,7 @@ def ratio_posterior_reference(series, prior_sd, draws=400_000, seed=0):
     return sample[:, 3] / sample[:, 1]
 
 
-def run(series, graph=GRAPH, **kwargs):
+def run(series, graph=GRAPH, inference=None, **kwargs):
     return require_success(
         antecedent.analyze(
             series,
@@ -81,7 +81,7 @@ def run(series, graph=GRAPH, **kwargs):
             ),
             identifier=antecedent.Identifier.TEMPORAL_IV_UNFOLDED,
             refute=False,
-            inference=antecedent.Frequentist(bootstrap=0),
+            inference=antecedent.Frequentist(bootstrap=0) if inference is None else inference,
             execution=antecedent.Execution(seed=2),
             **kwargs,
         )

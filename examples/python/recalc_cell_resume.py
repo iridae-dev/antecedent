@@ -14,6 +14,7 @@ from dataclasses import replace
 
 import numpy as np
 from antecedent import recalc_cell
+from antecedent.outcomes import require_success
 from antecedent.recalc import Stage, TargetWeights, Utility
 
 N = 1200
@@ -52,41 +53,43 @@ request = recalc_cell.CellRequest(
 )
 
 session = recalc_cell.CellSession()
-first = session.execute(request, seed=SEED)
+first = require_success(session.execute(request, seed=SEED))
 print(first.receipt.explain())
 assert first.receipt.totals.fold_fits == FIRST_RUN_FITS
 assert abs(first.law.ate - 1.5) < 0.5
 assert np.isclose(first.decision.net_benefit, 2.0 * first.law.ate - 0.5)
 
 # A new utility recomputes the decision only: zero fits, the law is untouched.
-priced = session.execute(replace(request, utility=Utility(3.0, 0.1)), seed=SEED)
+priced = require_success(session.execute(replace(request, utility=Utility(3.0, 0.1)), seed=SEED))
 assert priced.receipt.totals.fold_fits == 0
 assert priced.law == first.law
 assert np.isclose(priced.decision.net_benefit, 3.0 * first.law.ate - 0.1)
 
 # A new target population reweights the frozen scores: still zero fits.
 weights = TargetWeights(np.exp(0.4 * z), ("z",))
-retargeted = session.execute(replace(request, target=weights), seed=SEED)
+retargeted = require_success(session.execute(replace(request, target=weights), seed=SEED))
 assert retargeted.receipt.totals.fold_fits == 0
 assert abs(retargeted.law.ate - first.law.ate) > 1e-3
 
 # Export the frozen scores, retain their identity, and resume from the bytes alone.
 frozen = session.export_frozen_scores()
-resumed = recalc_cell.resume_from_scores(
-    frozen.export(),
-    variables=VARIABLES,
-    edges=EDGES,
-    utility=UTILITY,
-    expected_identity=frozen.identity,
+resumed = require_success(
+    recalc_cell.resume_from_scores(
+        frozen.export(),
+        variables=VARIABLES,
+        edges=EDGES,
+        utility=UTILITY,
+        expected_identity=frozen.identity,
+    )
 )
-again = resumed.retarget(weights, row_ids=resumed.row_ids)
+again = require_success(resumed.retarget(weights, row_ids=resumed.row_ids))
 print(again.receipt.explain())
 assert again.receipt.totals.fold_fits == 0
 assert np.isclose(again.law.ate, retargeted.law.ate, atol=1e-10)
 
 # Anything that needs the data or a fit is refused before any work; the session is unchanged.
 try:
-    resumed.retarget(declared_changes={Stage.QUERY: "outcome=y2"})
+    require_success(resumed.retarget(declared_changes={Stage.QUERY: "outcome=y2"}))
 except recalc_cell.ScoreResumeUnavailable as refusal:
     assert refusal.detail == "recalc.unavailable_data" and refusal.missing == "data"
 else:

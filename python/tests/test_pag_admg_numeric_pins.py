@@ -139,13 +139,21 @@ def test_pag_ate_envelope_numeric_pin(
     if accepted:
         graph = antecedent.AcceptedGraph.from_graph(graph)
     query = antecedent.AverageEffect("t", "y")
-    inference = antecedent.Bayesian(prior_scale=100.0) if inference_name == "bayesian" else None
+    inference = (
+        antecedent.Bayesian(prior_scale=100.0)
+        if inference_name == "bayesian"
+        else antecedent.Frequentist(bootstrap=0)
+    )
     kwargs = dict(
-        graph=graph, query=query, inference=inference, refute=validation, bootstrap=0, seed=1
+        graph=graph,
+        query=query,
+        inference=inference,
+        refute=validation,
+        execution=antecedent.Execution(seed=1),
     )
     fresh = require_success(antecedent.analyze(data, **kwargs))
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(data, **kwargs)
-    click = require_success(prepared.estimate(data, seed=1))
+    prepared = antecedent.prepare(data, **kwargs)
+    click = require_success(antecedent.estimate(prepared))
     _assert_common_cell_contract(
         fresh,
         click,
@@ -191,16 +199,15 @@ def test_admg_frontdoor_functional_effect_numeric_pin(
             execution=antecedent.Execution(seed=seed),
         )
     )
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=query,
         refute=validation,
-        bootstrap=0,
-        seed=seed,
-        latency="interactive",
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=seed),
     )
-    click = require_success(prepared.estimate(data, seed=seed))
+    click = require_success(antecedent.estimate(prepared))
 
     _assert_common_cell_contract(
         fresh,
@@ -219,20 +226,20 @@ def test_admg_frontdoor_functional_effect_numeric_pin(
 
 def test_admg_functional_effect_refresh_exports_replayable_law() -> None:
     data = _expand_contingency(_ADMG_PIN)
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=_admg(accepted=False),
         query=_query(_ADMG_PIN),
         refute=False,
-        bootstrap=0,
-        seed=1,
+        inference=antecedent.Frequentist(bootstrap=0),
+        execution=antecedent.Execution(seed=1),
     )
-    first = require_success(prepared.estimate(data, seed=1))
+    first = require_success(antecedent.estimate(prepared))
     first_replay = antecedent.artifacts.accept(bytes(first.export()))
     assert first_replay["accepts_as_verified_program"] == "true"
 
     changed = {**data, "y": 1.0 - data["y"]}
-    refreshed = require_success(prepared.refresh(changed, seed=1))
+    refreshed = require_success(antecedent.estimate(antecedent.rebind(prepared, data=changed)))
     assert refreshed.ate == pytest.approx(-first.ate, abs=1e-12)
     replay = antecedent.artifacts.accept(bytes(refreshed.export()))
     assert replay["accepts_as_verified_program"] == "true"
@@ -244,17 +251,16 @@ def test_pag_same_schema_refresh_reuses_identification() -> None:
     from test_mag_adjustment_visibility import _case
 
     data, graph = _case(True)
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=antecedent.AverageEffect("t", "y"),
         refute=False,
-        bootstrap=0,
-        seed=1,
-        latency="interactive",
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=1),
     )
-    click = require_success(prepared.estimate(data, seed=1))
-    refreshed = require_success(prepared.refresh(data, seed=1))
+    click = require_success(antecedent.estimate(prepared))
+    refreshed = require_success(antecedent.estimate(antecedent.rebind(prepared, data=data)))
     expected = 2.0
     tolerance = 1e-10
     assert click.ate == pytest.approx(expected, abs=tolerance)
@@ -333,10 +339,15 @@ def test_admg_interventional_distribution_numeric_pin(accepted: bool) -> None:
                 execution=antecedent.Execution(seed=1),
             )
         )
-        prepared = antecedent.estimation.PreparedAnalysis.prepare(
-            data, graph=graph, query=query, refute=False, bootstrap=0, seed=1
+        prepared = antecedent.prepare(
+            data,
+            graph=graph,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
-        click = require_success(prepared.estimate(data, seed=1))
+        click = require_success(antecedent.estimate(prepared))
         assert fresh.ate == pytest.approx(expected, abs=tolerance)
         assert click.ate == pytest.approx(expected, abs=tolerance)
         one = next(a for a in fresh.estimate.distribution if a.outcomes[0][1] == 1.0)
@@ -387,17 +398,17 @@ def test_admg_response_pins_against_distribution(accepted: bool) -> None:
                 execution=antecedent.Execution(seed=1),
             )
         )
-        prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        prepared = antecedent.prepare(
             data,
             graph=graph,
             query=antecedent.InterventionResponse(
                 "y", intervention=antecedent.intervention.Set("t", level)
             ),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
-        click = require_success(prepared.estimate(data, seed=1))
+        click = require_success(antecedent.estimate(prepared))
         dist_means[level] = float(dist.ate)
         assert ir.ate == pytest.approx(dist_means[level], abs=tolerance)
         assert click.ate == pytest.approx(dist_means[level], abs=tolerance)

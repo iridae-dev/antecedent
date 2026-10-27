@@ -372,14 +372,25 @@ def test_subsets_beyond_the_declared_depth_are_not_examined_and_say_so():
 
 
 def test_request_bounds_are_refusals():
+    # The candidate count is not itself a request bound: only the declared work and memory are.
+    # A large candidate set is searched within the declared operations and either repairs or
+    # reports what it never evaluated; it is never truncated silently.
     many = [observation(f"n{k}", ["t", "y", "z1"], k + 1) for k in range(17)]
-    with pytest.raises(repair.RepairRefusal) as caught:
-        repair.repair(backdoor(), many)
-    assert caught.value.detail == "identification_repair.bounds_exceeded"
-    assert caught.value.reason_code == "invalid_argument"
+    # No single study of these reads the joint law of {t, y, z1, z2}, so none certifies a repair.
+    searched = repair.repair(backdoor(), many)
+    assert searched.outcome in {"none_certified", "exhausted"}
+    if searched.outcome == "exhausted":
+        assert searched.receipt.unevaluated_total > 0
+    # One study that does read it is found among the many, within the declared work.
+    with_cohort = [*many, observation("cohort", ["t", "y", "z1", "z2"], 20)]
+    found = repair.repair(backdoor(), with_cohort)
+    assert found.outcome in {"repaired", "exhausted"}
+    if found.outcome == "exhausted":
+        assert found.receipt.unevaluated_total > 0
     with pytest.raises(repair.RepairRefusal) as caught:
         repair.repair(backdoor(), candidates(), limits=repair.RepairLimits(max_operations=10**9))
     assert caught.value.detail == "identification_repair.bounds_exceeded"
+    assert caught.value.reason_code == "invalid_argument"
 
 
 # ------------------------------------------------------------------- artifact

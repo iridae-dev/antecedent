@@ -127,16 +127,19 @@ def test_retained_continuous_dose_matches_direct_kernel_and_artifact():
     )
     direct = require_success(antecedent.analyze(data, query=query)).continuous_dose_response
     prepared = antecedent.prepare(data, query=query)
-    result = require_success(prepared.estimate())
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     grid = result.continuous_dose_response
     assert grid is not None
     assert grid.points == direct.points
     assert grid.uncertainty == "point_only_no_interval"
     assert result.estimate.ate is None
-    assert require_success(prepared.refresh(data)).continuous_dose_response == grid
+    rebound = antecedent.rebind(prepared, data=data)
+    assert require_success(antecedent.estimate(rebound)).continuous_dose_response == grid
+    assert result.continuous_dose_response == grid
     assert require_success(antecedent.analyze(data, query=query)).continuous_dose_response == grid
     loaded = require_success(
-        antecedent.load(bytes(prepared.export(artifact_id="continuous-dose-study")))
+        antecedent.load(bytes(outcome.export(artifact_id="continuous-dose-study")))
     )
     assert loaded.answer == result.answer
     assert loaded.answer.structured["graphless_support_status"] == "unlicensed_point_utility"
@@ -168,4 +171,4 @@ def test_retained_continuous_dose_refuses_support_and_row_rebinding():
     )
     prepared = antecedent.prepare(data, query=query)
     with pytest.raises(Exception, match="baseline-group row order"):
-        require_success(prepared.refresh({**data, "group": list(reversed(data["group"]))}))
+        antecedent.rebind(prepared, data={**data, "group": list(reversed(data["group"]))})

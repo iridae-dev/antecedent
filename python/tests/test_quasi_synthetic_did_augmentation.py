@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent import analyze
 from antecedent.errors import CausalCompileError, CausalValueError
-from antecedent.estimation import PreparedAnalysis
 from antecedent.outcomes import require_success
 from antecedent.quasi import (
     AugmentedPanelDiD,
@@ -28,9 +28,11 @@ def _synthetic_did_panel():
 
 
 def test_synthetic_did_recovers_known_effect_with_additive_unit_and_time_effects():
-    result = analyze(
-        _synthetic_did_panel(),
-        query=SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 4),
+    result = require_success(
+        analyze(
+            _synthetic_did_panel(),
+            query=SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 4),
+        )
     ).synthetic_did
     assert result.estimate == pytest.approx(7.0)
     assert result.n_donors == 3
@@ -46,8 +48,8 @@ def test_synthetic_did_recovers_known_effect_with_additive_unit_and_time_effects
 def test_retained_synthetic_did_matches_direct_and_preserves_point_only_weights():
     rows = _synthetic_did_panel()
     query = SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 4)
-    direct = analyze(rows, query=query).synthetic_did
-    result = analyze(rows, query=query)
+    direct = require_success(analyze(rows, query=query)).synthetic_did
+    result = require_success(analyze(rows, query=query))
     fit = result.synthetic_did
     assert fit is not None
     assert fit.estimate == pytest.approx(direct.estimate)
@@ -56,13 +58,13 @@ def test_retained_synthetic_did_matches_direct_and_preserves_point_only_weights(
     assert fit.support_status == "unlicensed_point_utility"
     assert fit.uncertainty == "point_only"
     assert np.isnan(result.estimate.se_analytic)
-    prepared = PreparedAnalysis.prepare(rows, query=query)
-    assert require_success(prepared.estimate(rows)).synthetic_did == fit
+    prepared = antecedent.prepare(rows, query=query)
+    assert require_success(antecedent.estimate(prepared)).synthetic_did == fit
+    rebound = antecedent.rebind(prepared, data=rows)
+    assert require_success(antecedent.estimate(rebound)).synthetic_did == fit
 
 
 def test_synthetic_did_exact_uniform_unit_assignment_uses_retained_analysis():
-    import antecedent
-
     rows = _synthetic_did_panel()
     query = SyntheticDifferenceInDifferences(
         "y",
@@ -72,7 +74,7 @@ def test_synthetic_did_exact_uniform_unit_assignment_uses_retained_analysis():
         4,
         uniform_unit_randomization=True,
     )
-    direct = analyze(rows, query=query).synthetic_did
+    direct = require_success(analyze(rows, query=query)).synthetic_did
     prepared = antecedent.prepare(rows, query=query)
     result = require_success(prepared.estimate())
     fit = result.synthetic_did
@@ -109,16 +111,18 @@ def test_augmented_panel_did_recovers_known_effect_and_reports_overlap():
     treated = [True, True, True, False, False, False]
     baseline = np.array([10.0, 12.0, 13.0, 9.0, 15.0, 11.0])
     changes = np.array([5.0, 5.0, 5.0, 2.0, 2.0, 2.0])
-    result = analyze(
-        {
-            "id": subjects,
-            "pre": baseline,
-            "post": baseline + changes,
-            "treated": treated,
-            "p": np.full(6, 0.5),
-            "m0": np.full(6, 2.0),
-        },
-        query=AugmentedPanelDiD("pre", "post", "id", "treated", "p", "m0", True),
+    result = require_success(
+        analyze(
+            {
+                "id": subjects,
+                "pre": baseline,
+                "post": baseline + changes,
+                "treated": treated,
+                "p": np.full(6, 0.5),
+                "m0": np.full(6, 2.0),
+            },
+            query=AugmentedPanelDiD("pre", "post", "id", "treated", "p", "m0", True),
+        )
     ).panel_did
     assert result.estimate == pytest.approx(3.0)
     assert result.treated_subjects == 3
@@ -148,8 +152,6 @@ def test_augmented_panel_did_refuses_nonoverlap_and_duplicate_subjects():
 
 
 def test_augmented_panel_did_uses_retained_prepare_analyze_and_artifact():
-    import antecedent
-
     query = AugmentedPanelDiD("pre", "post", "id", "treated", "p", "m0", True)
     data = {
         "id": [f"s{i}" for i in range(6)],
@@ -167,12 +169,8 @@ def test_augmented_panel_did_uses_retained_prepare_analyze_and_artifact():
     assert result.panel_did.uncertainty == "point_only_no_standard_error"
     assert result.panel_did.estimate == direct.estimate
     assert require_success(antecedent.analyze(data, query=query)).panel_did == result.panel_did
-    assert (
-        require_success(
-            prepared.estimate({**data, "post": [x + 1 for x in data["post"]]})
-        ).panel_did
-        == result.panel_did
-    )
+    rebound = antecedent.rebind(prepared, data={**data, "post": [x + 1 for x in data["post"]]})
+    assert require_success(antecedent.estimate(rebound)).panel_did == result.panel_did
     artifact = bytes(result.export())
     loaded = require_success(antecedent.load(artifact))
     assert bytes(loaded.export()) == artifact

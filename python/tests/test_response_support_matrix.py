@@ -54,7 +54,9 @@ def test_admg_intervention_cheap_is_not_a_closed_rule():
 
 def test_accepted_graph_analyze_response_curve_threads_accepted():
     """The retained contract preserves reviewed versus explicit structure."""
-    result = require_success(_ACCEPTED.analyze(_DATA, query=_CURVE, refute=False, seed=1))
+    result = require_success(
+        _ACCEPTED.analyze(_DATA, query=_CURVE, refute=False, execution=antecedent.Execution(seed=1))
+    )
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
     assert (
@@ -92,10 +94,11 @@ def test_path_distribution_graph_posterior_rule_executes_and_the_prepare_gate_is
     rng = np.random.default_rng(5)
     treatment = (rng.random(200) < 0.5).astype(float)
     outcome = (rng.random(200) < 0.3 + 0.4 * treatment).astype(float)
+    columns = {"t": treatment, "y": outcome}
     prepared = antecedent.prepare(
-        {"t": treatment, "y": outcome},
+        columns,
         query=antecedent.PathSpecificEffect("t", "y"),
-        discovery=antecedent.discovery.ExactDagPosterior(),
+        discovery=antecedent.discovery.ExactDagPosterior().run(columns, seed=1),
         refute=False,
         inference=antecedent.Frequentist(bootstrap=0),
     )

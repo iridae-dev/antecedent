@@ -5,6 +5,7 @@ import dataclasses
 import antecedent as ac
 import pytest
 from antecedent import transport as tr
+from antecedent.errors import CausalUnsupportedError
 from antecedent.learners import Linear, Logistic
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced
@@ -15,7 +16,7 @@ from test_transport_statistical import fixture
 def test_categorical_provider_uses_common_lifecycle_and_verified_load():
     identified, catalog, data = fixture()
     query = advanced.StatisticalTransportQuery(identified, catalog, {"x": 1.0}, bootstrap=9)
-    study = advanced.prepare(query, data, provider=tr.LearnedCategorical(Logistic()))
+    study = ac.prepare(data, query=query, provider=tr.LearnedCategorical(Logistic()))
     result = require_success(study.estimate())
     assert result.mean("y") == pytest.approx(0.8, abs=1e-6)
     loaded = require_success(ac.load(bytes(result.export())))
@@ -61,7 +62,7 @@ def test_trial_lifecycle_retains_paired_score_and_atomic_refresh(sampling):
             ac.estimate(ac.rebind(study, data=dataclasses.replace(data, randomization=[0.0] * 200)))
         )
     assert require_success(study.estimate()).estimate == result.estimate
-    assert study.plan.structure_source if hasattr(study.plan, "structure_source") else True
+    assert study.inspect().identification.available
     alternative = ac.reconfigure(study, execution=ac.Execution(seed=9))
     assert require_success(alternative.estimate()).estimate == pytest.approx(2.0)
 
@@ -69,20 +70,20 @@ def test_trial_lifecycle_retains_paired_score_and_atomic_refresh(sampling):
 def test_trial_rejects_unsupported_sampling_and_uncertified_covariates():
     query, data = trial_fixture()
     with pytest.raises(ValueError, match="unknown variant `clustered`"):
-        advanced.prepare(query, dataclasses.replace(data, sampling="clustered"))
+        ac.prepare(dataclasses.replace(data, sampling="clustered"), query=query)
     with pytest.raises(ValueError, match="invalid certified trial AIPW input or options"):
-        advanced.prepare(query, dataclasses.replace(data, covariates={"a": [0.0] * 200}))
+        ac.prepare(dataclasses.replace(data, covariates={"a": [0.0] * 200}), query=query)
 
 
 def test_trial_identity_binds_sampling_design():
     query, data = trial_fixture()
     independent = require_success(
-        advanced.prepare(query, data, inference=tr.TransportInference(0)).estimate()
+        ac.prepare(data, query=query, inference=tr.TransportInference(0)).estimate()
     )
     nested = require_success(
-        advanced.prepare(
-            query,
+        ac.prepare(
             dataclasses.replace(data, sampling="nested_cohort"),
+            query=query,
             inference=tr.TransportInference(0),
         ).estimate()
     )
@@ -105,8 +106,8 @@ def test_recursive_learned_provider_composes_complementary_sources():
         identified, catalog, ({"x": 0.0}, {"x": 1.0}), bootstrap=9
     )
     result = require_success(
-        advanced.prepare(
-            query, tr.StatisticalTransportData(samples), provider=tr.LearnedCategorical()
+        ac.prepare(
+            tr.StatisticalTransportData(samples), query=query, provider=tr.LearnedCategorical()
         ).estimate()
     )
     assert [result.mean(i, "y") for i in range(2)] == pytest.approx([0.26, 0.74], abs=1e-6)
@@ -141,8 +142,11 @@ def test_trial_nuisance_misspecification_cases_are_separate(misspecified):
         graph, advanced.SelectionDiagram("trial", "target", ["z"]), "a", "y"
     )
     result = require_success(
-        advanced.prepare(
-            query, data, provider=tr.TrialAipw(outcome=Linear()), inference=tr.TransportInference(0)
+        ac.prepare(
+            data,
+            query=query,
+            provider=tr.TrialAipw(outcome=Linear()),
+            inference=tr.TransportInference(0),
         ).estimate()
     )
     assert result.estimate == pytest.approx(2.0, abs=0.16)
@@ -151,9 +155,9 @@ def test_trial_nuisance_misspecification_cases_are_separate(misspecified):
 
 def test_trial_transformation_preview_uses_common_contract():
     query, data = trial_fixture()
-    study = advanced.prepare(
-        query,
+    study = ac.prepare(
         data,
+        query=query,
         provider=tr.TrialAipw(Linear(), Logistic(), folds=3),
         inference=tr.TransportInference(bootstrap=0),
     )
@@ -186,7 +190,7 @@ def test_canonical_trial_executes_retained_checked_score_after_builder_disposal(
     refreshed = require_success(ac.estimate(ac.rebind(study, data=data)))
     assert refreshed.estimate == result.estimate
     assert refreshed.replicates == result.replicates
-    with pytest.raises(ValueError, match="reprepare_required"):
+    with pytest.raises(CausalUnsupportedError, match="reprepare_required"):
         require_success(
             ac.estimate(ac.rebind(study, data=dataclasses.replace(data, sampling="nested_cohort")))
         )

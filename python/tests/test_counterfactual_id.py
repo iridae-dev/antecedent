@@ -160,16 +160,14 @@ def test_refusals_carry_reason_codes() -> None:
         (ett(observed=1.0), "invalid_argument", "invalid_query"),
         (ett(operations=100_001), "route_not_supported", "bounds_exceeded"),
         (ett(operations=2), "transport_budget_cancel", "budget"),
-        (
-            ett(levels={"x": [0.0, 1.0], "m": [0.0, 1.0, 2.0, 3.0, 4.0], "y": [0.0, 1.0]}),
-            "route_not_supported",
-            "bounds_exceeded",
-        ),
     ]
     for call, code, detail in cases:
         error = refusal(call)
         assert error.reason_code == code, (code, str(error))
         assert f"counterfactual_id.{detail}" in str(error)
+    # Identification has no count cap on levels: five levels are decided, not refused.
+    five = ett(levels={"x": [0.0, 1.0], "m": [0.0, 1.0, 2.0, 3.0, 4.0], "y": [0.0, 1.0]})()
+    assert five is not None
     error = refusal(ett(Cpdag.from_edges(["x", "m", "y"], [])))
     assert error.reason_code == "cell_not_licensed"
     # A law without positivity for this functional.

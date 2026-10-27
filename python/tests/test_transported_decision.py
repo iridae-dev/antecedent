@@ -17,6 +17,7 @@ from antecedent import transported_response as tr
 from antecedent.composition import SupportPolicy
 from antecedent.errors import CausalTypeError
 from antecedent.joint_distribution import DistributionIdentity, JointDistributionArtifact
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 from _transport_fixtures import (
@@ -71,8 +72,8 @@ def refusal_of(call) -> decision.DecisionRefusal:
 def test_a_transported_point_decides_by_the_utility_of_the_mean_and_names_its_transport(
     prepared,
 ) -> None:
-    decided = contract().evaluate_transported(
-        point(2.0), analysis=prepared, support_policy=accepting()
+    decided = require_success(
+        contract().evaluate_transported(point(2.0), analysis=prepared, support_policy=accepting())
     )
     assert decided.decision.outcome("treat").expected_utility == pytest.approx(6.5, abs=TOL)
     assert decided.decision.outcome("wait").expected_utility == pytest.approx(0.0, abs=TOL)
@@ -90,13 +91,15 @@ def test_a_transported_point_decides_by_the_utility_of_the_mean_and_names_its_tr
 
     # Repeating the request reproduces the identity; another value or another transport at the
     # same shape changes it.
-    again = contract().evaluate_transported(
-        point(2.0), analysis=prepared, support_policy=accepting()
+    again = require_success(
+        contract().evaluate_transported(point(2.0), analysis=prepared, support_policy=accepting())
     )
     assert again.identity == decided.identity
     assert again.bound_identity == decided.bound_identity
-    moved = contract().evaluate_transported(
-        point(2.0, diagram="diagram-2"), analysis=prepared, support_policy=accepting()
+    moved = require_success(
+        contract().evaluate_transported(
+            point(2.0, diagram="diagram-2"), analysis=prepared, support_policy=accepting()
+        )
     )
     assert moved.identity != decided.identity
     assert moved.bound_identity == decided.bound_identity
@@ -115,10 +118,12 @@ def test_declared_exclusions_remove_actions_and_are_part_of_the_bound_decision(p
     excluding = admissible(declared_exclusions=(exclusions("hold", "not offered"),))
     assert plain.identity != excluding.identity
 
-    full = plain.evaluate_transported(point(2.0), analysis=prepared, support_policy=accepting())
+    full = require_success(
+        plain.evaluate_transported(point(2.0), analysis=prepared, support_policy=accepting())
+    )
     assert len(full.outcomes) == 3
-    narrowed = excluding.evaluate_transported(
-        point(2.0), analysis=prepared, support_policy=accepting()
+    narrowed = require_success(
+        excluding.evaluate_transported(point(2.0), analysis=prepared, support_policy=accepting())
     )
     assert [o.id for o in narrowed.outcomes] == ["treat", "wait"]
     assert narrowed.verdict.selected == "treat"
@@ -129,8 +134,8 @@ def test_declared_exclusions_remove_actions_and_are_part_of_the_bound_decision(p
         declared_exclusions=(exclusions("hold", "not offered"), exclusions("wait", "not offered"))
     )
     refusal = refusal_of(
-        lambda: nothing.evaluate_transported(
-            point(2.0), analysis=prepared, support_policy=accepting()
+        lambda: require_success(
+            nothing.evaluate_transported(point(2.0), analysis=prepared, support_policy=accepting())
         )
     )
     assert refusal.reason_code == "decision_contract_unsatisfied"
@@ -140,8 +145,8 @@ def test_declared_exclusions_remove_actions_and_are_part_of_the_bound_decision(p
 def test_a_support_rule_stronger_than_the_transported_label_refuses(prepared) -> None:
     strict = admissible(default_weakest_support="supported")
     refusal = refusal_of(
-        lambda: strict.evaluate_transported(
-            point(2.0), analysis=prepared, support_policy=accepting()
+        lambda: require_success(
+            strict.evaluate_transported(point(2.0), analysis=prepared, support_policy=accepting())
         )
     )
     assert refusal.reason_code == "transport_support_failure"
@@ -153,15 +158,19 @@ def test_a_support_rule_stronger_than_the_transported_label_refuses(prepared) ->
 def test_an_uncertainty_requirement_a_point_cannot_meet_refuses(prepared) -> None:
     for requirement in ("credible", "structural_envelope"):
         refusal = refusal_of(
-            lambda requirement=requirement: admissible(
-                uncertainty=requirement
-            ).evaluate_transported(point(2.0), analysis=prepared, support_policy=accepting())
+            lambda requirement=requirement: require_success(
+                admissible(uncertainty=requirement).evaluate_transported(
+                    point(2.0), analysis=prepared, support_policy=accepting()
+                )
+            )
         )
         assert refusal.reason_code == "decision_contract_unsatisfied"
         assert refusal.detail == "transported_decision.uncertainty_requirement"
     # A point requirement is met by a transported point.
-    met = admissible(uncertainty="point_only").evaluate_transported(
-        point(2.0), analysis=prepared, support_policy=accepting()
+    met = require_success(
+        admissible(uncertainty="point_only").evaluate_transported(
+            point(2.0), analysis=prepared, support_policy=accepting()
+        )
     )
     assert met.verdict.selected == "treat"
 
@@ -171,8 +180,10 @@ def test_a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_l
 ) -> None:
     response = point(2.0)
     law = refusal_of(
-        lambda: contract().evaluate_transported(
-            response, analysis=prepared, demand="law", support_policy=accepting()
+        lambda: require_success(
+            contract().evaluate_transported(
+                response, analysis=prepared, demand="law", support_policy=accepting()
+            )
         )
     )
     assert law.reason_code == "decision_contract_unsatisfied"
@@ -180,15 +191,19 @@ def test_a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_l
     assert law.remedy
 
     interval = refusal_of(
-        lambda: contract().evaluate_transported(
-            response, analysis=prepared, demand="interval", support_policy=accepting()
+        lambda: require_success(
+            contract().evaluate_transported(
+                response, analysis=prepared, demand="interval", support_policy=accepting()
+            )
         )
     )
     assert interval.reason_code == "cell_not_licensed"
 
     # The default policy admits only `supported` coordinates: accepting a transported claim is the
     # consumer's explicit choice.
-    default = refusal_of(lambda: contract().evaluate_transported(response, analysis=prepared))
+    default = refusal_of(
+        lambda: require_success(contract().evaluate_transported(response, analysis=prepared))
+    )
     assert default.reason_code == "cell_not_licensed"
     assert default.detail == "transported_decision.transported_not_accepted"
 
@@ -269,8 +284,8 @@ def test_a_law_carries_its_receipt_and_a_native_label_is_refused() -> None:
 
 def test_only_a_transported_response_is_a_decision_source_of_this_route(prepared) -> None:
     with pytest.raises(CausalTypeError):
-        contract().evaluate_transported(object(), analysis=prepared)  # type: ignore[arg-type]
+        require_success(contract().evaluate_transported(object(), analysis=prepared))  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
-        contract().evaluate(point(2.0))  # type: ignore[arg-type]
+        require_success(contract().evaluate(point(2.0)))  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
-        contract().evaluate_transported(point(2.0), analysis=object())
+        require_success(contract().evaluate_transported(point(2.0), analysis=object()))

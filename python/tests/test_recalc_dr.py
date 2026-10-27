@@ -348,8 +348,20 @@ def test_dr_bounded_native_input_and_learner_configs():
         )
     assert caught.value.reason_code == "invalid_argument"
     assert "recalc.memory_budget_exceeded" in str(caught.value)
+    # The public declaration refuses a one-fold cross-fit before any request exists; the native
+    # boundary independently refuses the same count in a request spelled directly.
+    with pytest.raises(ValueError, match="at least 2"):
+        replace(r.estimator, folds=1)
+    one_fold = _spec(r)
+    one_fold["config"] = {**one_fold["config"], "folds": 1}
     with pytest.raises(CausalValueError) as caught:
-        require_success(session.execute(replace(r, estimator=replace(r.estimator, folds=21))))
+        require_success(
+            session._handle.execute(
+                list(r.data),
+                [np.asarray(column) for column in r.data.values()],
+                json.dumps(one_fold),
+            )
+        )
     assert caught.value.reason_code == "invalid_argument"
     assert "recalc.dr_invalid_folds" in str(caught.value)
     cate = DrSession()

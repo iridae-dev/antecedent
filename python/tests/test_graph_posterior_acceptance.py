@@ -198,11 +198,11 @@ def test_a_nine_variable_posterior_is_returned_where_the_eight_variable_word_end
     # The exact route answers at nine variables with exact marginals, which the samplers match.
     exact = assert_exact_route_and_samplers_agree(data, posts, 9)
     assert_true_skeleton(exact, names, edges)
-    # The enumerating native entry point keeps its size bound; its refusal names it and the route.
+    # The enumerating native entry point cannot list the graphs of nine variables: it routes the
+    # run to order MCMC at its default schedule, whose diagnostics gate refuses to publish it.
     columns = [np.asarray(values) for values in data.values()]
-    with pytest.raises(Exception, match="n ≤ 6") as refused:
+    with pytest.raises(Exception, match="order MCMC diagnostics gate"):
         _native.discover_exact_dag_posterior(names, columns)
-    assert "order_mcmc" in str(refused.value) and "structure_mcmc" in str(refused.value)
 
 
 @pytest.mark.parametrize(
@@ -243,28 +243,30 @@ def test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics(
             run(names, columns, n_chains=2, n_warmup=20, n_draws=40)
 
 
-def test_posteriors_beyond_the_supported_size_are_refused_naming_the_size():
+def test_exact_marginals_beyond_their_work_budget_are_refused_naming_the_ceiling():
     data, _ = tractable_posterior_scm("colliders", 12, 1677237, rows=1000)
     columns = [np.asarray(values) for values in data.values()]
 
     def wide(size: int, prefix: str) -> dict[str, np.ndarray]:
         return {f"{prefix}{i}": columns[i % len(columns)] + 0.01 * i for i in range(size)}
 
-    # The exact route's ceiling is twelve variables, and the refusal names it.
-    for size in (13, 16):
-        with pytest.raises(Exception, match="at most 12 variables") as refused:
+    # The exact route's ceiling is its work budget, fifteen variables; the refusal names the
+    # ceiling and the samplers that have none.
+    for size in (16, 17):
+        with pytest.raises(Exception, match="work budget beyond 15 variables") as refused:
             ExactDagPosterior().run(wide(size, "w"))
         assert "EXACT_MARGINAL_MAX_NODES" in str(refused.value)
         assert "order_mcmc" in str(refused.value)
-    # Twelve variables are answered; the enumerating entry point still stops at six.
+    # Twelve variables are answered; the enumerating entry point cannot list their graphs and
+    # routes the run to the order sampler, whose gate refuses the default schedule.
     assert isinstance(ExactDagPosterior().run(data), ExactDagMarginals)
-    with pytest.raises(Exception, match="n ≤ 6") as refused:
+    with pytest.raises(Exception, match="order MCMC diagnostics gate"):
         _native.discover_exact_dag_posterior(list(data), columns)
-    assert "EXACT_ENUM_MAX_NODES" in str(refused.value)
-    # The samplers stop at sixteen.
+    # The samplers have no node-count ceiling: seventeen variables reach the diagnostics gate,
+    # which refuses a schedule far shorter than the published one.
     seventeen = wide(17, "u")
     for run in (_native.discover_structure_mcmc, _native.discover_order_mcmc):
-        with pytest.raises(Exception, match="at most 16 variables"):
+        with pytest.raises(Exception, match="diagnostics gate"):
             run(list(seventeen), list(seventeen.values()), n_chains=2, n_warmup=10, n_draws=20)
 
 
@@ -317,8 +319,7 @@ def test_eight_variable_artifacts_are_still_consumed_and_wider_ones_carry_wide_e
             query=ant.AverageEffect("t", "y"),
             inference=ant.Bayesian(backend="conjugate", n_draws=64, prior_scale=100.0),
             refute=False,
-            bootstrap=0,
-            seed=3,
+            execution=ant.Execution(seed=3),
         )
     )
     assert result.evidence_status == "licensed"

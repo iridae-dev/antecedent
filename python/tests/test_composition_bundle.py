@@ -94,7 +94,7 @@ def _mean_contract(claim: external.BoundExternalClaim) -> decision.Contract:
 def _joint_bytes(law: JointDistributionArtifact | None = None) -> dict[str, bytes]:
     contract = gen.decision_contract()
     law = law or gen.decision_source()
-    result = contract.evaluate(law)
+    result = require_success(contract.evaluate(law))
     return {
         "contract": bytes(contract.export(artifact_id="contract")),
         "law": bytes(law.export("law")),
@@ -175,9 +175,10 @@ def test_fresh_interpreter_consumes_the_exported_bundle(tmp_path: Path) -> None:
         """
         import json, sys
         from antecedent import composition_bundle as cb
+        from antecedent.outcomes import require_success
 
         data = open(sys.argv[1], "rb").read()
-        consumed = cb.consume_bundle(data, expected_identity=sys.argv[2])
+        consumed = require_success(cb.consume_bundle(data, expected_identity=sys.argv[2]))
         consumed.require_verified()
         print(json.dumps({
             "verified": consumed.all_verified,
@@ -364,7 +365,7 @@ def test_external_mean_decision_is_exportable_as_a_point_only_attested_result() 
     assert "requires_law" not in consumed.node("contract").facts
 
     # The decision is the Rust evaluation of the same means, not a stored claim.
-    assert contract.evaluate(claim).selected == ("treat",)
+    assert require_success(contract.evaluate(claim)).selected == ("treat",)
 
     # The same means under another request still carry the stored decision: it rests on
     # the digest of the means, and the request is a separate, checked fact.

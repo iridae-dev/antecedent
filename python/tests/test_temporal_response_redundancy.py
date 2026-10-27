@@ -7,7 +7,6 @@ from typing import Any
 import antecedent
 import numpy as np
 import pytest
-from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Set
 from antecedent.outcomes import require_success
 
@@ -117,8 +116,14 @@ def test_confounded_pulse_recovers_structural_surface_unadjusted_does_not():
     tdag = antecedent.TemporalDag.from_lagged_edges(["t", "y", "z"], _CONFOUNDED_EDGES)
     accepted = antecedent.AcceptedGraph.from_graph(tdag, algorithm_id="hand")
     click = require_success(
-        PreparedAnalysis.prepare(data, graph=accepted, query=query, refute=False, seed=21).estimate(
-            data, seed=21
+        antecedent.estimate(
+            antecedent.prepare(
+                data,
+                graph=accepted,
+                query=query,
+                refute=False,
+                execution=antecedent.Execution(seed=21),
+            )
         )
     )
     np.testing.assert_allclose(_means(click), _CONFOUNDED["contract"]["surface"]["mean"], atol=atol)
@@ -159,16 +164,18 @@ def test_confounded_multi_horizon_keeps_z_at_short_horizon():
     assert abs(mean[2] - mean[0] - 2.0) <= atol
 
     click = require_success(
-        PreparedAnalysis.prepare(
-            data,
-            graph=antecedent.AcceptedGraph.from_graph(
-                antecedent.TemporalDag.from_lagged_edges(["t", "y", "z"], _CONFOUNDED_EDGES),
-                algorithm_id="hand",
-            ),
-            query=query,
-            refute=False,
-            seed=29,
-        ).estimate(data, seed=29)
+        antecedent.estimate(
+            antecedent.prepare(
+                data,
+                graph=antecedent.AcceptedGraph.from_graph(
+                    antecedent.TemporalDag.from_lagged_edges(["t", "y", "z"], _CONFOUNDED_EDGES),
+                    algorithm_id="hand",
+                ),
+                query=query,
+                refute=False,
+                execution=antecedent.Execution(seed=29),
+            )
+        )
     )
     np.testing.assert_allclose(_means(click), mean, atol=atol)
     assert click.identification.horizon_adjustment_sets == (("z@-1",), ())

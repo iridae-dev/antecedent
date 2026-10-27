@@ -202,7 +202,7 @@ def test_staleness_guide_executes_the_declared_diagnostic_and_artifact_journey()
     from pathlib import Path
 
     guide = Path(__file__).resolve().parents[2] / "docs/guides/staleness.md"
-    blocks = re.findall(r"```python\n(.*?)```", guide.read_text(), flags=re.DOTALL)
+    blocks = re.findall(r"```python\n(.*?)```", guide.read_text(encoding="utf-8"), flags=re.DOTALL)
     assert len(blocks) == 1
     namespace = {}
     exec(compile(blocks[0], str(guide), "exec"), namespace)

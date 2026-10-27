@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import antecedent
 from antecedent.observation import IndependentGiven
+from antecedent.outcomes import require_success
 from antecedent.survival import SurvivalOutcome
 
 
@@ -33,8 +34,8 @@ def main() -> None:
     )
 
     prepared = antecedent.prepare(data, query=query)
-    result = prepared.estimate()
-    curve = result.survival
+    outcome = antecedent.estimate(prepared)
+    curve = require_success(outcome).survival
     print("times:", curve.times)
     print("control survival:", curve.control_survival)
     print("treated survival:", curve.treated_survival)
@@ -46,7 +47,8 @@ def main() -> None:
     assert curve.rmst_control < curve.rmst_treated
 
     # The frozen study round-trips through the durable artifact.
-    loaded = antecedent.load(prepared.export(artifact_id="survival-study"))
+    artifact = outcome.export(artifact_id="survival-study")
+    loaded = antecedent.load(artifact, expected=artifact.expectation)
     print("loaded answer kind:", loaded.answer.kind)
 
 

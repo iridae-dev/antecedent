@@ -15,6 +15,7 @@ import antecedent as _ant_api
 import numpy as np
 from antecedent import InterventionResponse, ResponseCurve, analyze, load
 from antecedent.intervention import Set
+from antecedent.outcomes import require_success
 
 # Pressure at lag 1 and 2 drives defect; pulse policy at t-1.
 N = 400
@@ -38,21 +39,24 @@ curve = ResponseCurve(
 # The band comes from joint circular-block bootstrap replicates of the whole
 # surface; bootstrap=0 keeps the point surface and withholds
 # the band, because an analytic band would treat lag-aligned rows as independent.
-result = analyze(
-    data,
-    graph=graph,
-    query=curve,
-    refute="none",
-    inference=_ant_api.Frequentist(bootstrap=100),
-    execution=_ant_api.Execution(seed=42),
+result = require_success(
+    analyze(
+        data,
+        graph=graph,
+        query=curve,
+        refute="none",
+        inference=_ant_api.Frequentist(bootstrap=100),
+        execution=_ant_api.Execution(seed=42),
+    )
 )
 assert result.response is not None
 curve_result = result
 study = result.study
 print("Calibration:", result.calibration.status)
-loaded = load(result.export())
+artifact = result.export()
+loaded = load(artifact, expected=artifact.expectation)
 assert loaded.acceptance.verified or loaded.acceptance.sealed
-assert study.estimate().response.values == result.response.values
+assert require_success(_ant_api.estimate(study)).response.values == result.response.values
 print("dose × horizon surface (mean, pointwise 95% lower, upper):")
 assert curve_result.uncertainty.lower is not None
 assert curve_result.uncertainty.upper is not None
@@ -76,19 +80,21 @@ for point, lo_row, hi_row in zip(curve_result.response.points, band.lower, band.
     print(f"  dose={point[0]:.1f} horizon={point[1]:.0f}  [{lo_row[0]:.4f}, {hi_row[0]:.4f}]")
 
 # Next, hold the intervention level fixed and follow its effect over time.
-path = analyze(
-    data,
-    graph=graph,
-    query=InterventionResponse(
-        "defect",
-        intervention=Set("pressure", 1.0),
-        horizons=[1, 2],
-        policy="pulse",
-        treatment_lag=1,
-    ),
-    refute="none",
-    inference=_ant_api.Frequentist(bootstrap=0),
-    execution=_ant_api.Execution(seed=42),
+path = require_success(
+    analyze(
+        data,
+        graph=graph,
+        query=InterventionResponse(
+            "defect",
+            intervention=Set("pressure", 1.0),
+            horizons=[1, 2],
+            policy="pulse",
+            treatment_lag=1,
+        ),
+        refute="none",
+        inference=_ant_api.Frequentist(bootstrap=0),
+        execution=_ant_api.Execution(seed=42),
+    )
 )
 assert path.response is not None
 print("intervention path:", [row[0] for row in path.response.values])

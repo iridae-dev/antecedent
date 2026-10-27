@@ -263,7 +263,6 @@ def test_temporal_geometry_retains_the_nested_query_population() -> None:
         _series(),
         graph=TEMPORAL_DAG,
         query=query,
-        estimator_config={"bandwidth": 0.8},
         refute=False,
     )
     outcome = ant.estimate(study)

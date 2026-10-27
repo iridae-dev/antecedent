@@ -66,6 +66,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
         PolynomialSystem,
         consume_artifact,
     )
+    from antecedent.outcomes import require_success
 
     spec = {"thread_policy": "public_api_default"}
     cases = []
@@ -88,16 +89,15 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
             "graph": [("z", "t"), ("z", "y"), ("t", "y")],
             "query": ant.AverageEffect("t", "y"),
             "refute": False,
-            "bootstrap": 0,
-            "seed": args.seed,
-            "threads": args.threads,
+            "inference": ant.Frequentist(bootstrap=0),
+            "execution": ant.Execution(seed=args.seed, threads=args.threads),
         }
         if name == "crossfit_dml":
             from antecedent.estimators import DML
 
             options["estimator"] = DML(learner="ridge", folds=4)
         else:
-            options["inference"] = ant.inference.Bayesian(
+            options["inference"] = ant.Bayesian(
                 backend="hmc" if name == "gaussian_hmc" else "laplace",
                 likelihood="gaussian" if name == "gaussian_hmc" else "logit",
                 n_draws=args.draws,
@@ -143,8 +143,20 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
 
         cases.extend(
             [
-                Case(name, "cold", lambda: ant.analyze(data, **options), check, spec),
-                Case(name, "prepared", prepared.estimate, check, spec),
+                Case(
+                    name,
+                    "cold",
+                    lambda: require_success(ant.analyze(data, **options)),
+                    check,
+                    spec,
+                ),
+                Case(
+                    name,
+                    "prepared",
+                    lambda: require_success(ant.estimate(prepared)),
+                    check,
+                    spec,
+                ),
             ]
         )
     elif name == "dose_grid":
@@ -208,7 +220,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
         )
 
         def check(result):
-            report = result.report
+            report = result.to_dict()
             require(len(report["worlds"]) == len(worlds), "worlds omitted")
             max_residual = 0.0
             for world, rows in zip(worlds, report["worlds"], strict=True):
@@ -244,13 +256,13 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
         if name == "cyclic_worlds":
             cases.extend(
                 [
-                    Case(name, "cold", lambda: make().execute(), check, spec),
-                    Case(name, "prepared", prepared.execute, check, spec),
+                    Case(name, "cold", lambda: require_success(make().execute()), check, spec),
+                    Case(name, "prepared", lambda: require_success(prepared.execute()), check, spec),
                 ]
             )
         else:
-            result = prepared.execute()
-            artifact = result.export()
+            result = require_success(prepared.execute())
+            artifact = bytes(result.export())
             expected = result.identity
             spec["artifact_bytes"] = len(artifact)
             if name == "artifact_replay":
@@ -258,7 +270,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                     Case(
                         name,
                         "load_and_recompute",
-                        lambda: consume_artifact(artifact, expected_identity=expected),
+                        lambda: require_success(consume_artifact(artifact, expected_identity=expected)),
                         check,
                         spec,
                     )
@@ -268,8 +280,9 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                 path.write_bytes(artifact)
                 script = (
                     "import json,pathlib; from antecedent.cyclic import consume_artifact; "
-                    f"r=consume_artifact(pathlib.Path({str(path)!r}).read_bytes(),expected_identity={expected!r}); "
-                    "print(json.dumps({'identity':r.identity,'report':r.report}))"
+                    "from antecedent.outcomes import require_success; "
+                    f"r=require_success(consume_artifact(pathlib.Path({str(path)!r}).read_bytes(),expected_identity={expected!r})); "
+                    "print(json.dumps({'identity':r.identity,'report':r.to_dict()}))"
                 )
 
                 def fresh():
@@ -286,7 +299,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                         value["identity"] == expected,
                         "fresh consumer identity mismatch",
                     )
-                    observed = check(SimpleNamespace(report=value["report"]))
+                    observed = check(SimpleNamespace(to_dict=lambda: value["report"]))
                     return dict(observed, identity=expected)
 
                 cases.append(Case(name, "startup_load_and_recompute", fresh, check_fresh, spec))
@@ -320,15 +333,15 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
         prepared = make()
 
         def check_fit(value, expected=1.4):
-            require(value.report["fit"]["converged"], "fit did not converge")
+            require(value.to_dict()["fit"]["converged"], "fit did not converge")
             require(
-                abs(value.report["worlds"][0][0]["values"][1] - math.tanh(expected)) < 1e-4,
+                abs(value.to_dict()["worlds"][0][0]["values"][1] - math.tanh(expected)) < 1e-4,
                 "fitted intervention truth failed",
             )
             return {
                 "fit_converged": True,
                 "training_rows": args.units,
-                "intervention_response": value.report["worlds"][0][0]["values"][1],
+                "intervention_response": value.to_dict()["worlds"][0][0]["values"][1],
                 "expected_response": math.tanh(expected),
             }
 
@@ -343,15 +356,15 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                 Case(
                     name,
                     "cold_fit_and_query",
-                    lambda: make().execute(),
+                    lambda: require_success(make().execute()),
                     check_fit,
                     spec,
                 ),
-                Case(name, "prepared_query", prepared.execute, check_fit, spec),
+                Case(name, "prepared_query", lambda: require_success(prepared.execute()), check_fit, spec),
                 Case(
                     name,
                     "refresh_fit_and_query",
-                    lambda: prepared.refresh(rows(0.6)).execute(),
+                    lambda: require_success(ant.rebind(prepared, data=rows(0.6)).execute()),
                     lambda r: check_fit(r, 1.2),
                     spec,
                 ),
@@ -367,7 +380,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
         prepared = make()
 
         def check(result):
-            answer = result.report["answer"]["result"]
+            answer = result.to_dict()["answer"]["result"]
             if name == "cyclic_identify":
                 require(
                     answer["status"] == "identified" and bool(answer["expression"]),
@@ -398,11 +411,11 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                 Case(
                     name,
                     "cold",
-                    lambda: make().execute(),
+                    lambda: require_success(make().execute()),
                     check,
                     dict(spec, variables=3),
                 ),
-                Case(name, "prepared", prepared.execute, check, dict(spec, variables=3)),
+                Case(name, "prepared", lambda: require_success(prepared.execute()), check, dict(spec, variables=3)),
             ]
         )
     elif name in ("ode", "ou", "constraints"):
@@ -420,7 +433,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                 return model.prepare([1.0, 0.0], times)
 
             def check(result):
-                states = result.report["answer"]["result"]["states"]
+                states = result.to_dict()["answer"]["result"]["states"]
                 require(len(states) == len(times), "trajectory points omitted")
                 error = max(
                     abs(a - b)
@@ -448,7 +461,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
             make = model.stationary
 
             def check(result):
-                values = result.report["answer"]["result"]
+                values = result.to_dict()["answer"]["result"]
                 require(len(values) == d * d, "covariance entries omitted")
                 require(
                     max(abs(v - float(i // d == i % d)) for i, v in enumerate(values)) < 1e-8,
@@ -478,7 +491,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
             make = model.prepare
 
             def check(result):
-                answer = result.report["answer"]["result"]
+                answer = result.to_dict()["answer"]["result"]
                 require(
                     len(answer["roots"]) == 3 and answer["unresolved"] == [],
                     "bounded roots incomplete",
@@ -497,8 +510,8 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
         prepared = make()
         cases.extend(
             [
-                Case(name, "cold", lambda: make().execute(), check, spec),
-                Case(name, "prepared", prepared.execute, check, spec),
+                Case(name, "cold", lambda: require_success(make().execute()), check, spec),
+                Case(name, "prepared", lambda: require_success(prepared.execute()), check, spec),
             ]
         )
     return cases

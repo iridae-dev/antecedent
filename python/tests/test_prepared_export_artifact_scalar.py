@@ -1,7 +1,7 @@
 """The uncontracted and contracted `analysis_result` artifacts of one execution must
 agree on whether a scalar effect was reported, and both must actually encode.
 
-`PreparedAnalysis.export_artifact(payload="result")` used to hand-build its own
+The prepared engine's native `export_artifact(payload="result")` used to hand-build its own
 `AnalysisResultWire` (a near-duplicate of the facade's `body_for`/`body_frame`),
 including its own `estimate` rule (`ate.is_finite().then_some(ate)`) and its own
 `identification_variables` fallback that only consulted the certificate's temporal
@@ -21,7 +21,6 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 from antecedent import artifacts
-from antecedent.estimation import PreparedAnalysis
 from antecedent.outcomes import require_success
 
 
@@ -31,22 +30,22 @@ def test_export_artifact_matches_contracted_artifact_for_dag_posterior_response(
     t = z + 0.1
     y = 1.0 + 2.0 * t + z
     data = {"t": t, "y": y, "z": z}
-    prepared = PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
-        discovery=antecedent.discovery.ExactDagPosterior(),
+        discovery=antecedent.discovery.ExactDagPosterior().run(data, seed=1),
         query=antecedent.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
         inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
         refute=False,
-        bootstrap=0,
-        seed=1,
+        execution=antecedent.Execution(seed=1),
     )
-    result = require_success(prepared.estimate(data, seed=1))
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     assert result.response is not None
 
     # This used to raise `CausalSerializationError` from the binding's own
     # duplicated wire construction; it must now encode like any other export.
-    uncontracted = artifacts.loads(prepared.export_artifact(payload="result"))
-    contracted = artifacts.loads(bytes(prepared.export()))
+    uncontracted = artifacts.loads(outcome.study._engine.export_artifact(payload="result"))
+    contracted = artifacts.loads(bytes(outcome.export()))
     assert uncontracted.payload_kind == "analysis_result"
     assert contracted.payload_kind == "analysis_result"
 

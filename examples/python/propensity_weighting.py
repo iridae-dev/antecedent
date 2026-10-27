@@ -17,6 +17,7 @@ import random
 import antecedent as _ant_api
 import numpy as np
 from antecedent import AverageEffect, analyze
+from antecedent.outcomes import require_success
 
 
 def main() -> None:
@@ -34,13 +35,15 @@ def main() -> None:
         t[i] = ti
         y[i] = yi
 
-    result = analyze(
-        {"t": t, "y": y, "z": z},
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect(treatment="t", outcome="y"),
-        estimator="propensity.weighting",
-        inference=_ant_api.Frequentist(bootstrap=30),
-        execution=_ant_api.Execution(seed=11),
+    result = require_success(
+        analyze(
+            {"t": t, "y": y, "z": z},
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=AverageEffect(treatment="t", outcome="y"),
+            estimator="propensity.weighting",
+            inference=_ant_api.Frequentist(bootstrap=30),
+            execution=_ant_api.Execution(seed=11),
+        )
     )
     assert result.answer.kind == "point"
     print("Calibration:", result.calibration.status)

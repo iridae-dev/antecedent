@@ -1,7 +1,7 @@
 """Public-member snapshot of the objects the five-line API touches.
 
 ``antecedent`` (the package root), ``AnalysisResult``, ``PreparedAnalysis`` and
-``LoadedResult`` are what ``analyze`` → ``.study`` → ``refresh`` →
+``LoadedResult`` are what ``analyze`` → ``.study`` → ``rebind`` / ``estimate`` →
 ``inspect().to_dict()`` → ``load(export())`` hands a caller. Their public names
 are listed here in full, so adding or removing one fails this test until the
 snapshot is edited in the same change: growth of the surface is a reviewed act,
@@ -25,7 +25,7 @@ import dataclasses, json, sys
 import antecedent
 from antecedent import AnalysisResult
 from antecedent._workflow import LoadedResult
-from antecedent.estimation import PreparedAnalysis
+from antecedent.prepared import PreparedAnalysis
 from antecedent import estimators
 from antecedent import design
 from antecedent import inference
@@ -178,6 +178,9 @@ SNAPSHOT: dict[str, set[str]] = {
         "target_effect_mean",
         "target_effect_variance",
         "to_dict",
+        "as_mean_source",
+        "inspect",
+        "to_rows",
     },
     "transport.TemporalIntervalCandidate": {
         "calibration",
@@ -195,6 +198,9 @@ SNAPSHOT: dict[str, set[str]] = {
         "snapshot_id",
         "to_dict",
         "upper",
+        "as_mean_source",
+        "inspect",
+        "to_rows",
     },
     "transport.NestedMarkovPrior": {
         "coordinates",
@@ -227,6 +233,9 @@ SNAPSHOT: dict[str, set[str]] = {
         "export",
         "to_dict",
         "load",
+        "as_mean_source",
+        "inspect",
+        "to_rows",
     },
     "transport.NestedFisherCandidate": {
         "calibration",
@@ -241,6 +250,9 @@ SNAPSHOT: dict[str, set[str]] = {
         "nominal_level",
         "to_dict",
         "values",
+        "as_mean_source",
+        "inspect",
+        "to_rows",
     },
     "transport.SampledRecoveryCandidate": {
         "calibration",
@@ -253,6 +265,9 @@ SNAPSHOT: dict[str, set[str]] = {
         "interval_method",
         "level",
         "load",
+        "as_mean_source",
+        "to_dict",
+        "to_rows",
     },
     "transport.SampledRecoveryIdentity": {"data_digest", "premises_digest"},
     "design.CheckedPriorSignal": {"diagnostics", "prior", "prior_id", "signal"},
@@ -449,11 +464,23 @@ SNAPSHOT: dict[str, set[str]] = {
         "missing",
         "graph_falsification",
         "intrinsic_influence",
+        "CachePolicy",
+        "CancellationToken",
+        "Execution",
+        "Outcome",
+        "PreparedAnalysis",
+        "Refusal",
+        "ResourceLimits",
+        "TemporalQuery",
+        "rebind",
+        "reconfigure",
+        "execution",
+        "outcomes",
+        "prepared",
     },
     "AnalysisResult": {
         "association",
         "iv_bounds",
-        "artifact",
         "history_match",
         "posterior_row",
         "route_diagnostics",
@@ -508,7 +535,6 @@ SNAPSHOT: dict[str, set[str]] = {
         "ate",
         "effect",
         "mean_ite",
-        "refresh",
         "refute",
         "to_dict",
         # Structural uncertainty
@@ -538,59 +564,49 @@ SNAPSHOT: dict[str, set[str]] = {
         "missing_data",
     },
     "PreparedAnalysis": {
-        "report",
-        "participants",
-        "temporal_treatment_score",
-        "treatment_score_posterior",
-        "identification",
-        "inspect_plan",
-        "last_result",
-        "reprepare",
-        "replace_snapshot",
-        # One-factor mechanism sensitivity on the retained fixed-graph plan
-        "mechanism_sensitivity",
-        # Compile, execute, and the two views
-        "prepare",
-        "estimate",
-        "refresh",
-        "inspect",
-        "preflight",
-        # Data-reading diagnostics, cost counts and the opt-in rank-drop plan
-        "diagnose",
-        "diagnose_fit",
-        "plan_rank_drop",
-        "estimate_cost",
-        "preview_transform",
-        "export",
-        # Second clicks on the retained execution
-        "refute",
-        "retarget",
-        "reexecute_retarget",
-        # Callback validators frozen at prepare
-        "rebind_validators",
-        "validator_names",
-        # Staleness and drift diagnostics against the retained data
-        "staleness",
-        "staleness_baseline",
-        # Target-native refutation of the study's own target
-        "refute_target",
-        # Plan coordinates
+        # The immutable prepared branch: compile once, then estimate, branch and inspect
         "allowlist_parent",
         "allowlist_reason",
+        "assumption_obligations",
+        "diagnose",
+        "diagnose_fit",
+        "estimate",
+        "estimate_cost",
+        "evidence_actions",
+        "evidence_obligations",
         "evidence_status",
-        "plan",
-        "structure_source",
-        # Posterior / response payload for prior transfer
-        "export_artifact",
-        # One view over every layer of the prepared program
+        "execution",
+        "identification",
+        "inspect",
+        "mechanism_sensitivity",
+        "participants",
+        "plan_rank_drop",
         "plan_view",
+        "preflight",
+        "preview_transform",
+        "query",
+        "rebind",
+        "reconfigure",
+        "reexecute_retarget",
+        "refusal",
+        "refute",
+        "refute_target",
+        "report",
+        "retarget",
+        "reuse",
+        "staleness",
+        "staleness_baseline",
+        "structure_source",
+        "temporal_treatment_score",
+        "treatment_score_posterior",
+        "uncertainty_components",
+        "validator_names",
     },
     "LoadedResult": {
         "decoded_artifact",
         "fitted_model",
         "acceptance",
         "answer",
-        "artifact",
         "as_point",
         "as_response",
         "msm_sensitivity",
@@ -604,7 +620,6 @@ SNAPSHOT: dict[str, set[str]] = {
         "program_id",
         "quasi_rollout",
         "temporal_design",
-        "refresh",
         "refute",
         "study",
     },
@@ -622,6 +637,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "n_draws_explicit",
         "prior_from",
         "prior_scale",
+        "profile",
     },
     "PulseEffect": {
         "active_level",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import antecedent
@@ -107,16 +108,15 @@ def test_class_aware_intervention_pins(accepted: bool, class_name: str) -> None:
             execution=antecedent.Execution(seed=1),
         )
     )
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=_intervention(1.0),
         refute=False,
-        bootstrap=0,
-        seed=1,
-        latency="interactive",
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=1),
     )
-    click = require_success(prepared.estimate(data, seed=1))
+    click = require_success(antecedent.estimate(prepared))
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
     assert prepared.evidence_status == "licensed"
     tol = section["intervention"]["absolute_tolerance"]
@@ -165,16 +165,15 @@ def test_class_aware_curve_pins(accepted: bool, class_name: str) -> None:
             execution=antecedent.Execution(seed=1),
         )
     )
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=query,
         refute=False,
-        bootstrap=0,
-        seed=1,
-        latency="interactive",
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=1),
     )
-    click = require_success(prepared.estimate(data, seed=1))
+    click = require_success(antecedent.estimate(prepared))
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
     expected = np.asarray(section["curve"]["mean"], dtype=np.float64)
     for result in (fresh, click):
@@ -210,8 +209,7 @@ def test_class_aware_bayesian_intervention_pins(accepted: bool, class_name: str)
             query=_intervention(1.0),
             inference=inference,
             refute=False,
-            bootstrap=0,
-            seed=int(bayes["seed"]),
+            execution=antecedent.Execution(seed=int(bayes["seed"])),
         )
     )
     low = require_success(
@@ -221,21 +219,18 @@ def test_class_aware_bayesian_intervention_pins(accepted: bool, class_name: str)
             query=_intervention(0.0),
             inference=inference,
             refute=False,
-            bootstrap=0,
-            seed=int(bayes["seed"]),
+            execution=antecedent.Execution(seed=int(bayes["seed"])),
         )
     )
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=_intervention(1.0),
-        inference=inference,
+        inference=replace(inference, profile="interactive"),
         refute=False,
-        bootstrap=0,
-        seed=int(bayes["seed"]),
-        latency="interactive",
+        execution=antecedent.Execution(seed=int(bayes["seed"])),
     )
-    click = require_success(prepared.estimate(data, seed=int(bayes["seed"])))
+    click = require_success(antecedent.estimate(prepared))
     assert high.evidence_status == click.evidence_status == "licensed"
     assert any(str(d).startswith(bayes["diagnostic"]) for d in high.diagnostics)
     expected = bayes["cpdag_ate_contrast" if class_name == "cpdag" else "pag_ate_contrast"]

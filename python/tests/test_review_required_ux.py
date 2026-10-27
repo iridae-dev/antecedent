@@ -25,16 +25,11 @@ def test_fci_review_required_attrs():
     t = z + rng.normal(size=n) * 0.3
     y = 1.2 * t + z + rng.normal(size=n) * 0.3
     with pytest.raises(antecedent.errors.CausalReviewError) as ei:
-        require_success(
-            antecedent.analyze(
-                {"t": t, "y": y, "z": z},
-                discovery=antecedent.discovery.FCI(alpha=0.2, fdr=False, max_cond_size=2),
-                query=antecedent.AverageEffect(treatment="t", outcome="y"),
-                accept_discovered=False,
-                refute=False,
-                inference=antecedent.Frequentist(bootstrap=0),
-                execution=antecedent.Execution(seed=1),
-            )
+        antecedent.discovery.discover(
+            {"t": t, "y": y, "z": z},
+            method=antecedent.discovery.FCI(alpha=0.2, fdr=False, max_cond_size=2),
+            accept_discovered=False,
+            execution=antecedent.Execution(seed=1),
         )
     err = ei.value
     assert getattr(err, "kind", None) == "static_pag"

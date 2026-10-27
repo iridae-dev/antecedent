@@ -73,16 +73,21 @@ def test_wide_adjacency_is_validated():
     # Bit 132 is the first past the 132 edge bits of twelve variables.
     with pytest.raises(ValueError, match="beyond 12 variables"):
         GraphPosterior.from_atoms(names, [1.0], [1 << 132])
-    with pytest.raises(ValueError, match="below 2\\*\\*256"):
+    with pytest.raises(ValueError, match="beyond 12 variables"):
         GraphPosterior.from_atoms(names, [1.0], [1 << 256])
-    with pytest.raises(ValueError, match="below 2\\*\\*256"):
+    with pytest.raises(ValueError, match="non-negative"):
         GraphPosterior.from_atoms(names, [1.0], [-1])
-    with pytest.raises(ValueError, match="at most 16 variables"):
-        GraphPosterior.from_atoms([f"v{i}" for i in range(17)], [1.0], [0])
     sixteen = [f"v{i}" for i in range(16)]
     top_edge = _mask([("v15", "v14")], sixteen)
     assert top_edge == 1 << 239
     assert GraphPosterior.from_atoms(sixteen, [1.0], [top_edge]).adjacency == [top_edge]
+    # An edge set has no word limit: seventeen variables need 272 bits.
+    seventeen = [f"v{i}" for i in range(17)]
+    wider_edge = _mask([("v16", "v15")], seventeen)
+    assert wider_edge == 1 << 271
+    assert GraphPosterior.from_atoms(seventeen, [1.0], [wider_edge]).adjacency == [wider_edge]
+    with pytest.raises(ValueError, match="beyond 17 variables"):
+        GraphPosterior.from_atoms(seventeen, [1.0], [1 << 272])
 
 
 def test_ten_variable_posteriors_recover_the_colliders():
@@ -153,11 +158,11 @@ def test_short_schedule_is_refused_by_the_gate_on_ten_variables():
         _native.discover_order_mcmc(_NAMES, columns, n_chains=2, n_warmup=20, n_draws=40)
 
 
-def test_more_than_sixteen_variables_are_refused():
+def test_more_than_sixteen_variables_reach_the_diagnostics_gate_not_a_size_ceiling():
     rng = np.random.default_rng(1)
     names = [f"v{i}" for i in range(17)]
     columns = [rng.normal(size=60) for _ in names]
-    with pytest.raises(Exception, match="at most 16 variables"):
+    with pytest.raises(Exception, match="diagnostics gate"):
         _native.discover_structure_mcmc(names, columns, n_chains=2, n_warmup=10, n_draws=20)
-    with pytest.raises(Exception, match="at most 16 variables"):
+    with pytest.raises(Exception, match="diagnostics gate"):
         _native.discover_order_mcmc(names, columns, n_chains=2, n_warmup=10, n_draws=20)

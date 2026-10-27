@@ -218,7 +218,7 @@ def test_mutation_quantity_is_refused_at_the_program_and_recomputes_the_native_c
         criterion=decision.Criterion.expected_utility(),
         target_population="target",
     )
-    decided = comp.evaluate_with_support(contract, [fx.e1_input()])
+    decided = require_success(comp.evaluate_with_support(contract, [fx.e1_input()]))
     assert decided.unsupported_actions == ("treat",)
     assert decided.verdict.kind == "only_one_evaluated" and decided.verdict.selected == "wait"
     (reason,) = decided.disposition("treat").reasons
@@ -279,8 +279,10 @@ def test_mutation_tampered_quantity_in_a_bundle_fails_the_dependent_decision() -
 def test_mutation_law_a_mean_a_marginal_or_another_meaning_never_stands_in() -> None:
     mean = fx.e2_mean_input()
     with pytest.raises(comp.SupportRefusal) as refused:
-        comp.evaluate_functional(
-            fx.mean_contract(), "treat", comp.Functional.probability(2.5, "upper"), mean
+        require_success(
+            comp.evaluate_functional(
+                fx.mean_contract(), "treat", comp.Functional.probability(2.5, "upper"), mean
+            )
         )
     assert refused.value.detail == "composition_boundary.mean_is_not_a_distribution"
 
@@ -299,7 +301,7 @@ def test_mutation_law_a_mean_a_marginal_or_another_meaning_never_stands_in() -> 
     )
     marginals = fx.law(alignment="independent_marginals")
     with pytest.raises(decision.DecisionRefusal) as independent:
-        product.evaluate(marginals)
+        require_success(product.evaluate(marginals))
     assert independent.value.detail == "decision_evaluation.joint_law_required"
     assert independent.value.reason_code == "joint_law_required"
     assert (independent.value.expected, independent.value.supplied) == (
@@ -307,13 +309,13 @@ def test_mutation_law_a_mean_a_marginal_or_another_meaning_never_stands_in() -> 
         "independent_marginals",
     )
     # E[y1 * y2] over the joint rows is (6 * 3 + 1 * 7) / 2 = 12.5, a number marginals cannot give.
-    joint = product.evaluate(fx.law())
+    joint = require_success(product.evaluate(fx.law()))
     assert fx.near(joint.actions[1].expected_utility, 12.5)
 
     identity = replace(fx.law().identity, semantic="causal_functional_posterior")
     other_meaning = JointDistributionArtifact(identity, np.array(fx.LAW_ROWS, dtype=np.float64))
     with pytest.raises(decision.DecisionRefusal) as meaning:
-        fx.law_contract().evaluate(other_meaning)
+        require_success(fx.law_contract().evaluate(other_meaning))
     assert meaning.value.reason_code == "distribution_meaning_mismatch"
 
     provider = fx.provider_object("lab-1", "snap-e1", "req-e1", meaning="posterior_predictive")
@@ -370,9 +372,9 @@ def test_mutation_structure_a_changed_graph_or_premise_is_refused_and_reidentifi
 
     atoms = [comp.StructuralAtom("graph-a", 0.25), comp.StructuralAtom("graph-b")]
     with pytest.raises(comp.DependenceRefusal) as averaged:
-        comp.check_atom_combination(atoms, "weighted_by_declared_probabilities")
+        require_success(comp.check_atom_combination(atoms, "weighted_by_declared_probabilities"))
     assert averaged.value.detail == "composition_boundary.conflicting_atoms_not_averaged"
-    assert comp.check_atom_combination(atoms, "worst_case").kind == "worst_case"
+    assert require_success(comp.check_atom_combination(atoms, "worst_case")).kind == "worst_case"
 
     plan, unchanged = _plan(graph=changed_spec.graph_id)
     assert _recomputed(plan) == {
@@ -415,7 +417,7 @@ def test_mutation_structure_a_changed_graph_or_premise_is_refused_and_reidentifi
 def test_mutation_support_withdrawn_from_a_study_excludes_only_the_affected_action() -> None:
     weak = (*fx.SUPPORTED[:2], "weak_overlap")
     claim = fx.e1_claim(support=(*fx.SUPPORTED[:2], fx.OUTSIDE))
-    decided = comp.evaluate_with_support(fx.mean_contract(), [fx.e1_input(claim)])
+    decided = require_success(comp.evaluate_with_support(fx.mean_contract(), [fx.e1_input(claim)]))
     assert [o.id for o in decided.outcomes] == ["wait", "treat"]
     assert fx.near(decided.outcome("wait").expected_utility, 1.0)
     assert fx.near(decided.outcome("treat").expected_utility, 3.0 - 1.0)
@@ -428,17 +430,21 @@ def test_mutation_support_withdrawn_from_a_study_excludes_only_the_affected_acti
         fx.OUTSIDE,
     )
     with pytest.raises(comp.SupportRefusal) as refused:
-        comp.evaluate_with_support(
-            fx.mean_contract(), [fx.e1_input(claim)], comp.SupportPolicy.require_all()
+        require_success(
+            comp.evaluate_with_support(
+                fx.mean_contract(), [fx.e1_input(claim)], comp.SupportPolicy.require_all()
+            )
         )
     assert refused.value.detail == "composition_boundary.unsupported_action_not_comparable"
 
     # A weakly supported coordinate is admitted only when the policy says so.
     weak_input = fx.e1_input(fx.e1_claim(support=weak))
-    strict = comp.evaluate_with_support(fx.mean_contract(), [weak_input])
+    strict = require_success(comp.evaluate_with_support(fx.mean_contract(), [weak_input]))
     assert strict.unsupported_actions == ("extend",) and strict.verdict.selected == "treat"
-    lenient = comp.evaluate_with_support(
-        fx.mean_contract(), [weak_input], comp.SupportPolicy.compare_supported("weak_overlap")
+    lenient = require_success(
+        comp.evaluate_with_support(
+            fx.mean_contract(), [weak_input], comp.SupportPolicy.compare_supported("weak_overlap")
+        )
     )
     assert fx.near(lenient.outcome("extend").expected_utility, 5.5 - 3.0)
     assert lenient.verdict.selected == "extend"
@@ -489,10 +495,14 @@ def test_mutation_snapshot_recomputes_dependents_and_keeps_the_external_branches
     same = fx.e1_input(fx.e1_claim(snapshot=SNAPSHOT))
     independent = comp.PairRelation("native", "e1", comp.EvidenceRelation.independent())
     with pytest.raises(comp.DependenceRefusal) as shared:
-        comp.check_composition([fx.native_input(), same], [independent], "statistical_pooling")
+        require_success(
+            comp.check_composition([fx.native_input(), same], [independent], "statistical_pooling")
+        )
     assert shared.value.detail == "composition_boundary.shared_evidence_not_independent"
-    receipt = comp.check_composition(
-        [fx.native_input(), fx.e1_input()], [independent], "statistical_pooling"
+    receipt = require_success(
+        comp.check_composition(
+            [fx.native_input(), fx.e1_input()], [independent], "statistical_pooling"
+        )
     )
     assert receipt.independence_assumed and receipt.shared_evidence == ()
 
@@ -667,27 +677,27 @@ def test_mutation_overlap_is_never_pooled_or_counted_twice() -> None:
     ]
     for operation in ("statistical_pooling", "bayesian_borrowing"):
         with pytest.raises(comp.DependenceRefusal) as refused:
-            comp.check_composition(inputs, relations, operation)
+            require_success(comp.check_composition(inputs, relations, operation))
         assert refused.value.detail == "composition_boundary.shared_evidence_not_independent"
         assert refused.value.offending == "native~e1"
         assert_registered_refusal(refused.value)
     # Declared reuse and transport report the registry once, however many pairs share it.
     for operation in ("evidence_reuse", "causal_transport"):
-        receipt = comp.check_composition(inputs, relations, operation)
+        receipt = require_success(comp.check_composition(inputs, relations, operation))
         assert receipt.shared_evidence == ("registry-7",), operation
         assert not receipt.independence_assumed
     # A shared prior is borrowing, not pooling.
     prior = [comp.PairRelation("e1", "e2law", comp.EvidenceRelation.shared_prior("prior-7"))]
     pair = [fx.e1_input(), fx.e2_law_input()]
     with pytest.raises(comp.DependenceRefusal):
-        comp.check_composition(pair, prior, "statistical_pooling")
-    borrowed = comp.check_composition(pair, prior, "bayesian_borrowing")
+        require_success(comp.check_composition(pair, prior, "statistical_pooling"))
+    borrowed = require_success(comp.check_composition(pair, prior, "bayesian_borrowing"))
     assert borrowed.shared_evidence == ("prior-7",) and not borrowed.independence_assumed
     # A shared fitted model refuses both statistical operations.
     model = [comp.PairRelation("e1", "e2law", comp.EvidenceRelation.shared_fitted_model("fit-3"))]
     for operation in ("statistical_pooling", "bayesian_borrowing"):
         with pytest.raises(comp.DependenceRefusal):
-            comp.check_composition(pair, model, operation)
+            require_success(comp.check_composition(pair, model, operation))
 
     # The bundle's declared independence is checked against the studies' own evidence.
     overlapping = fx.composed_builder(e2_evidence="study:e1").build()
@@ -735,11 +745,11 @@ def test_mutation_utility_recomputes_only_the_decision_with_no_fit_work() -> Non
     )
 
     # Same sources, new utility: treat is now worth 4 - 2 = 2, so extend (E1: 5.5 - 3) wins.
-    again = comp.evaluate_with_support(shifted, [fx.native_input(), fx.e1_input()])
+    again = require_success(comp.evaluate_with_support(shifted, [fx.native_input(), fx.e1_input()]))
     assert fx.near(again.outcome("treat").expected_utility, 2.0)
     assert fx.near(again.outcome("extend").expected_utility, 2.5)
     assert again.verdict.selected == "extend"
-    original = comp.evaluate_with_support(base, [fx.native_input(), fx.e1_input()])
+    original = require_success(comp.evaluate_with_support(base, [fx.native_input(), fx.e1_input()]))
     assert original.verdict.selected == "treat"
 
     # The real session counts it: no identification, no fold fit, no score, no reweight.

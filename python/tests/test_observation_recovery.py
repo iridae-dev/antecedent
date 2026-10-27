@@ -205,7 +205,7 @@ def test_export_binds_names_and_the_consumer_recomputes_after_builder_disposal()
     plan = prepared.plan()
     artifact = bytes(prepared.export())
     del prepared
-    consumed = json.loads(transport.consume_observation_recovery_artifact(artifact))
+    consumed = transport.consume_observation_recovery_artifact(artifact).to_dict()
     assert consumed["recovered"]["probabilities"] == live["recovered"]["probabilities"]
     assert consumed["effects"] == live["effects"]
     assert consumed["derivation"]["identity"] == plan["identity"]
@@ -218,7 +218,7 @@ def test_consumer_refuses_an_edited_artifact_and_limits_below_the_stored_ones():
     live = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
     artifact = bytes(prepared.export())
-    consumed = json.loads(transport.consume_observation_recovery_artifact(artifact))
+    consumed = transport.consume_observation_recovery_artifact(artifact).to_dict()
     assert consumed["effects"] == live["effects"]
     assert consumed["derivation"]["factors"] == plan["factors"]
     edited = bytearray(artifact)

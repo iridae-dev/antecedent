@@ -446,15 +446,20 @@ def test_estimator_config_reaches_estimator_on_discovery_path():
             )
         )
 
-    # Regression case: the same config object, reached through discovery=
-    # instead of graph=, must raise identically — not silently fall back to
-    # estimator defaults and succeed.
+    # Regression case: the same config object, reached through an explicitly
+    # discovered structure instead of a declared graph, must raise identically —
+    # not silently fall back to estimator defaults and succeed.
+    discovered = antecedent.discovery.discover(
+        data,
+        method=antecedent.discovery.LiNGAM(),
+        execution=antecedent.Execution(seed=1),
+        accept_discovered=True,
+    )
     with pytest.raises(antecedent.errors.CausalEstimateError, match="did not converge"):
         require_success(
             antecedent.analyze(
                 data,
-                discovery=antecedent.discovery.LiNGAM(),
-                accept_discovered=True,
+                graph=discovered,
                 query=query,
                 estimator=cfg,
                 refute=False,
@@ -473,12 +478,17 @@ def test_estimator_config_dict_reaches_estimator_on_discovery_path():
     data = dict(zip(names, columns, strict=True))
     query = antecedent.AverageEffect(treatment="t", outcome="y")
 
+    discovered = antecedent.discovery.discover(
+        data,
+        method=antecedent.discovery.LiNGAM(),
+        execution=antecedent.Execution(seed=1),
+        accept_discovered=True,
+    )
     with pytest.raises(antecedent.errors.CausalEstimateError, match="did not converge"):
         require_success(
             antecedent.analyze(
                 data,
-                discovery=antecedent.discovery.LiNGAM(),
-                accept_discovered=True,
+                graph=discovered,
                 query=query,
                 estimator="propensity.weighting",
                 estimator_config={"glm_options": {"max_iter": 3}},

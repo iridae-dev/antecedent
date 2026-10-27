@@ -42,16 +42,15 @@ def test_visible_mag_known_linear_effect(mixed, accepted, bayesian, kind):
         ),
         "curve": lambda: ant.ResponseCurve("t", "y", grid=[0.25, 0.75]),
     }[kind]()
-    kwargs = {"inference": ant.Bayesian(prior_scale=100.0)} if bayesian else {}
+    inference = ant.Bayesian(prior_scale=100.0) if bayesian else ant.Frequentist(bootstrap=0)
     result = require_success(
         ant.analyze(
             data,
             graph=graph,
             query=query,
             refute=False,
-            inference=ant.Frequentist(bootstrap=0),
+            inference=inference,
             execution=ant.Execution(seed=7),
-            **kwargs,
         )
     )
     assert result.certificate is not None

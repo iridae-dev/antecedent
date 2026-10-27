@@ -78,7 +78,7 @@ def test_staged_learner_artifact_roundtrip(estimator):
         inference=antecedent.Frequentist(bootstrap=0),
         refute="none",
     )
-    result = require_success(prepared.estimate(data))
+    result = require_success(antecedent.estimate(prepared))
     restored = require_success(antecedent.load(bytes(result.export())))
     payload = restored.decoded_artifact.payload
     assert (

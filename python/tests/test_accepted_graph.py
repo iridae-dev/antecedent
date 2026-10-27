@@ -115,7 +115,7 @@ def test_accepted_graph_prepare_records_accepted_structure():
     accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="hand")
     q = antecedent.AverageEffect(treatment="t", outcome="y")
     prepared = accepted.prepare(data, query=q, refute=False, execution=Execution(seed=1))
-    assert prepared._engine.structure_source == "accepted"
+    assert prepared.structure_source == "accepted"
     click = require_success(prepared.estimate())
     assert math.isfinite(click.ate)
     edges_prepared = antecedent.prepare(
@@ -125,7 +125,7 @@ def test_accepted_graph_prepare_records_accepted_structure():
         refute=False,
         execution=Execution(seed=1),
     )
-    assert edges_prepared._engine.structure_source == "explicit"
+    assert edges_prepared.structure_source == "explicit"
 
 
 def test_rediscover_bumps_version_and_calls_discovery(monkeypatch):

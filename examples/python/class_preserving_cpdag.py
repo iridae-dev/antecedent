@@ -46,10 +46,10 @@ def main() -> None:
     )
     print("Partial answer:", envelope.answer)
     print("Identification:", envelope.inspect().identification)
-    print("Calibration:", envelope.calibration.status)
+    print("Calibration:", envelope.value.calibration.status)
     assert envelope.answer.kind in {"bounds", "partial"}
     assert envelope.answer.value is None
-    assert envelope.study.estimate().answer == envelope.answer
+    assert _ant_api.estimate(envelope.study).answer == envelope.answer
 
     oriented = Cpdag.from_directed_undirected(
         names,

@@ -151,21 +151,20 @@ def test_analyze_refusal_report_next():
     t = z + rng.normal(size=80) * 0.3
     y = 1.2 * t + z + rng.normal(size=80) * 0.3
     with pytest.raises(antecedent.ReviewRequired) as ei:
-        require_success(
-            antecedent.analyze(
-                {"t": t, "y": y, "z": z},
-                discovery=antecedent.discovery.FCI(alpha=0.2, fdr=False, max_cond_size=2),
-                query=antecedent.AverageEffect(treatment="t", outcome="y"),
-                accept_discovered=False,
-                refute=False,
-                inference=antecedent.Frequentist(bootstrap=0),
-                execution=antecedent.Execution(seed=1),
-            )
+        antecedent.discovery.discover(
+            {"t": t, "y": y, "z": z},
+            method=antecedent.discovery.FCI(alpha=0.2, fdr=False, max_cond_size=2),
+            accept_discovered=False,
+            execution=antecedent.Execution(seed=1),
         )
-    report = ei.value.report
-    assert report.next
-    assert "Review required" in report.next
-    sources = {edge.source for edge in report.pending_edges}
+    from antecedent.errors import named_pending_edges, next_action, pending_edges
+
+    pending = pending_edges(ei.value)
+    assert pending and len(pending) == ei.value.pending_edge_count
+    next_step = next_action(ei.value, pending)
+    assert next_step
+    assert "Review required" in next_step
+    sources = {edge.source for edge in named_pending_edges(pending, ["t", "y", "z"])}
     # Resolved against the data columns, not V0/V1.
     assert sources <= {"t", "y", "z"} or any(not s.startswith("V") for s in sources)
 

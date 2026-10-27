@@ -336,7 +336,7 @@ def test_exported_result_is_recomputed_by_an_independent_consumer():
     )
     live = json.loads(require_success(prepared.estimate()))
     artifact = bytes(prepared.export())
-    consumed = json.loads(transport.consume_mixed_source_artifact(artifact))
+    consumed = transport.consume_mixed_source_artifact(artifact).to_dict()
     assert consumed["probabilities"] == live["probabilities"]
     assert consumed["proof"]["rule_set"] == "mixed_source_proof_rules.v1"
     assert {s["study"] for s in consumed["cited_sources"]} == {"observational", "trial"}
@@ -373,23 +373,29 @@ def test_export_binds_names_limits_and_snapshots_into_the_verified_identity():
         transport.consume_mixed_source_artifact(artifact, max_search_operations=10)
 
 
-def test_refresh_rebinds_snapshots_and_re_executes_the_retained_plan():
+def test_rebinding_snapshots_re_executes_the_retained_plan_on_a_new_branch():
     builder = decide(chain_graph(), CHAIN_STUDIES)
     prepared = builder.prepare_exact(laws(CHAIN, CHAIN_STUDIES), {"x": 1.0})
     del builder
     before = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
     shifted = {**CHAIN, "z": lambda v, e: e[2] if v["x"] else e[1]}
-    require_success(prepared.refresh(laws(shifted, CHAIN_STUDIES)))
-    assert prepared.plan() == plan
-    after = json.loads(require_success(prepared.estimate()))
+    moved = prepared.bind_snapshot(laws(shifted, CHAIN_STUDIES))
+    assert moved is not prepared
+    assert moved.plan() == plan
+    after = json.loads(require_success(moved.estimate()))
     assert after["probabilities"] != before["probabilities"]
+    # The original branch is unchanged.
+    assert (
+        json.loads(require_success(prepared.estimate()))["probabilities"]
+        == (before["probabilities"])
+    )
     with pytest.raises(CausalUnsupportedError, match="snapshot does not match catalog binding"):
-        require_success(prepared.refresh(laws(CHAIN, CHAIN_STUDIES, snapshot_suffix="-new")))
-    # Refresh clears the last claim: nothing is exported until the plan runs again.
-    require_success(prepared.refresh(laws(CHAIN, CHAIN_STUDIES)))
+        prepared.bind_snapshot(laws(CHAIN, CHAIN_STUDIES, snapshot_suffix="-new"))
+    # A rebound branch has no claim: nothing is exported until its plan runs.
+    unexecuted = prepared.bind_snapshot(laws(CHAIN, CHAIN_STUDIES))
     with pytest.raises(Exception, match="not_executed"):
-        bytes(prepared.export())
+        bytes(unexecuted.export())
 
 
 def test_prepare_exact_compiles_a_checked_plan_after_builder_disposal():
@@ -457,7 +463,7 @@ def test_consumer_recomputes_points_after_builder_disposal():
     plan = prepared.plan()
     artifact = bytes(prepared.export())
     del prepared
-    consumed = json.loads(transport.consume_mixed_source_artifact(artifact))
+    consumed = transport.consume_mixed_source_artifact(artifact).to_dict()
     assert consumed["requests"] == live["requests"]
     assert [s["source"]["regime"] for s in plan["steps"] if s["source"]] == ["s1", "s2"]
     assert {c["study"] for c in consumed["cited_sources"]} == {"study-1", "study-2"}

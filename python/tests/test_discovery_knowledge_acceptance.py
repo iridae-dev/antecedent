@@ -521,10 +521,15 @@ def test_background_knowledge_is_carried_through_dispatch_refresh_serialization_
             continue
 
         # The analysis built on the discovery states the knowledge in its contract, keeps it
-        # through a refresh and a replayed preparation, and states the changed knowledge when
-        # that is what it was built on.
-        def stated(study) -> str:
-            return study.inspect().to_dict()["contract"]["discovery_algorithm"]
+        # through a rebind and a replayed branch, and states the changed knowledge when that is
+        # what it was built on. The contract is read from each executed outcome's report; the
+        # prepared branches themselves stay unexecuted.
+        def stated(outcome) -> str:
+            require_success(outcome)
+            markdown = outcome.study.report("markdown")
+            prefix = "- **Discovery algorithm:** "
+            (line,) = (row for row in markdown.splitlines() if row.startswith(prefix))
+            return line.removeprefix(prefix)
 
         study = ant.prepare(
             table,
@@ -535,16 +540,19 @@ def test_background_knowledge_is_carried_through_dispatch_refresh_serialization_
             inference=ant.Frequentist(bootstrap=0),
             refute=False,
         )
-        first = require_success(study.estimate())
-        assert stated(study) == f"{algorithm}+knowledge:{digest}"
-        refreshed_study = study.rebind(data=refreshed_table)
-        refreshed = require_success(refreshed_study.estimate())
+        assert study.inspect().stage == "prepared"
+        first_outcome = ant.estimate(study)
+        first = require_success(first_outcome)
+        assert stated(first_outcome) == f"{algorithm}+knowledge:{digest}"
+        refreshed_study = ant.rebind(study, data=refreshed_table)
+        refreshed_outcome = ant.estimate(refreshed_study)
+        refreshed = require_success(refreshed_outcome)
         assert refreshed.program_id == first.program_id
-        assert stated(study) == f"{algorithm}+knowledge:{digest}"
-        assert stated(refreshed_study) == stated(study)
-        replayed = refreshed_study.rebind(data=table)
-        require_success(replayed.estimate())
-        assert stated(replayed) == stated(study)
+        assert stated(first_outcome) == f"{algorithm}+knowledge:{digest}"
+        assert stated(refreshed_outcome) == stated(first_outcome)
+        replayed_outcome = ant.estimate(ant.rebind(refreshed_study, data=table))
+        require_success(replayed_outcome)
+        assert stated(replayed_outcome) == stated(first_outcome)
         altered = ant.prepare(
             table,
             query=query,
@@ -554,8 +562,10 @@ def test_background_knowledge_is_carried_through_dispatch_refresh_serialization_
             inference=ant.Frequentist(bootstrap=0),
             refute=False,
         )
-        assert stated(altered) == f"{algorithm}+knowledge:{replaced.background_knowledge}"
-        assert stated(altered) != stated(study)
+        altered_outcome = ant.estimate(altered)
+        require_success(altered_outcome)
+        assert stated(altered_outcome) == f"{algorithm}+knowledge:{replaced.background_knowledge}"
+        assert stated(altered_outcome) != stated(first_outcome)
     # One statement has one digest, whichever algorithm read it.
     assert len({digests[name] for name in STATIC}) == 1
     assert digests["pc"] == PC(**ALPHA, knowledge=statements(0, 3)).run(data).background_knowledge

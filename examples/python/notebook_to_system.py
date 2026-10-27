@@ -14,6 +14,18 @@ from tempfile import TemporaryDirectory
 
 import antecedent as ant
 import numpy as np
+from antecedent.outcomes import require_success
+
+
+def first_proof(view):
+    """The first retained proof node of a prepared identification."""
+    if view.kind == "proof":
+        return view
+    for child in view.children():
+        selected = first_proof(child)
+        if selected is not None:
+            return selected
+    return None
 
 
 def main() -> None:
@@ -32,18 +44,22 @@ def main() -> None:
         inference=ant.Frequentist(bootstrap=0),
         refute=False,
     )
-    assert study.last_result is None
-    assert study.identification.verdict == "identified"
-    print(study.inspect_plan())
-    result = study.estimate()
-    checked = result.refute(suite="cheap", seed=24)
+    assert study.inspect().stage == "prepared"
+    proof = first_proof(study.identification)
+    assert proof.status == "nonparametrically_identified"
+    assert [item["name"] for item in proof.adjustment(estimand=0).items] == ["z"]
+    print(study.inspect())
+    result = require_success(ant.estimate(study))
+    checked = result.refute(suite="cheap")
     assert checked.answer.value == result.answer.value
     print(checked.inspect())
 
-    # Update observations while retaining the scientific question and design.
-    updated = study.refresh({**data, "outcome": data["outcome"] + treatment})
+    # Branch on new observations while retaining the scientific question and design.
+    updated = require_success(
+        ant.estimate(ant.rebind(study, data={**data, "outcome": data["outcome"] + treatment}))
+    )
     assert np.isclose(updated.answer.value, result.answer.value + 1)
-    assert result.refute(suite="cheap", seed=24).answer.value == result.answer.value
+    assert result.refute(suite="cheap").answer.value == result.answer.value
     # Named experimental assignments and unit IDs are frozen design bindings.
     from antecedent.interference import BernoulliAssignment
 
@@ -58,26 +74,28 @@ def main() -> None:
         ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), "arm", "id", "id"),
     )
     experiment = ant.prepare(experiment_data, query=design_query, refute=False)
-    original = experiment.estimate()
+    original = ant.estimate(experiment)
     changed_design = {**experiment_data, "arm": ~experiment_data["arm"]}
     try:
-        experiment.refresh(changed_design)
+        ant.rebind(experiment, data=changed_design)
     except ant.CausalError as error:
-        assert "arm" in str(error) and "reprepare" in str(error)
+        assert "arm" in str(error) and "ant.prepare" in str(error)
     else:
         raise AssertionError("changing retained assignments must be refused")
-    assert experiment.last_result is original
-    assert experiment.refresh({"outcome": data["outcome"]}).answer.value == original.answer.value
-    # Repreparation returns a new study, resolves the names and repeats checks.
-    revised = experiment.reprepare(changed_design)
-    assert revised is not experiment and revised.last_result is None
-    assert np.isclose(revised.estimate().answer.value, -original.answer.value)
+    unchanged = ant.rebind(experiment, data={"outcome": data["outcome"]})
+    assert ant.estimate(unchanged).answer.value == original.answer.value
+    # A new preparation resolves the names and repeats the design checks.
+    revised = ant.prepare(changed_design, query=design_query, refute=False)
+    assert revised is not experiment and revised.inspect().stage == "prepared"
+    assert np.isclose(ant.estimate(revised).answer.value, -original.answer.value)
 
     # A mean producer with incomplete coordinates requires a declaration.
     from antecedent import decision, joint_distribution, joint_law_propagation
 
-    producer = joint_law_propagation.mixture(
-        [joint_law_propagation.MixtureComponent("model", "evidence", 1.0, 2.0, 3.0)]
+    producer = require_success(
+        joint_law_propagation.mixture(
+            [joint_law_propagation.MixtureComponent("model", "evidence", 1.0, 2.0, 3.0)]
+        )
     )
     quantity = joint_distribution.ScientificQuantity.of(
         "outcome",
@@ -96,13 +114,12 @@ def main() -> None:
         target_population="declared_target",
         criterion=decision.Criterion.expected_utility(),
     )
-    assert contract.evaluate(mean).source.means == (2.0,)
+    assert require_success(contract.evaluate(mean)).source.means == (2.0,)
 
-    envelope = checked.artifact()
-    assert isinstance(checked.export(), bytes)
-    assert envelope.data == checked.export()
+    envelope = checked.export()
+    assert bytes(checked.export()) == envelope.data
     assert ant.artifacts.inspect(envelope).acceptance.status == "unavailable"
-    consumed = ant.load(envelope, expected=envelope.expectation)
+    consumed = require_success(ant.load(envelope, expected=envelope.expectation))
     assert consumed.answer.value == checked.answer.value
     assert consumed.acceptance.identity_bound
     with TemporaryDirectory() as directory:

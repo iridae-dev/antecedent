@@ -8,6 +8,7 @@ import numpy as np
 from antecedent import transport as tr
 from antecedent.estimators import DRLearner
 from antecedent.learners import Linear, Logistic, Ridge
+from antecedent.outcomes import require_success
 from antecedent.prediction import FittedEffectModel
 
 
@@ -34,7 +35,7 @@ def ml_prepare():
 
 def ml_example():
     study = ml_prepare()
-    result = study.estimate()
+    result = require_success(ac.estimate(study))
     model = FittedEffectModel.load(result.fitted_model.export())
     predictions = model.predict({"z": [-1.0, 0.0, 1.0]})
     assert predictions == result.fitted_model.predict({"z": [-1.0, 0.0, 1.0]})
@@ -71,7 +72,8 @@ def transport_example():
         inference=tr.TransportInference(bootstrap=9),
         execution=ac.Execution(seed=8),
     )
-    loaded = ac.load(result.export())
+    artifact = result.export()
+    loaded = ac.load(artifact, expected=artifact.expectation)
     assert loaded.answer.kind == result.answer.kind
     assert loaded.answer.value == result.answer.value
     assert abs(result.answer.value - 2.0) < 1e-10

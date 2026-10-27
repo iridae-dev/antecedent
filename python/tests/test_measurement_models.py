@@ -145,7 +145,7 @@ def test_binary_prevalence_inverts_the_misclassification_algebra():
     assert estimate.rows == n
     # There is no coefficient vector to take a functional of.
     with pytest.raises(MeasurementModelRefusal) as caught:
-        estimate.downstream_linear_functional([1.0])
+        require_success(estimate.downstream_linear_functional([1.0]))
     assert caught.value.reason_code in {"cell_not_licensed", "invalid_argument"}
 
 
@@ -365,18 +365,18 @@ def test_the_measurement_parameter_uncertainty_enters_the_variance_and_the_funct
     expected = (uncertain.point / (s_r2 - 0.6)) ** 2 * 0.06**2
     assert added == pytest.approx(expected, rel=1e-6)
     # A downstream linear functional is the quadratic form under the joint covariance.
-    value, variance = uncertain.downstream_linear_functional([0.0, 1.5, 0.0])
+    value, variance = require_success(uncertain.downstream_linear_functional([0.0, 1.5, 0.0]))
     assert value == pytest.approx(1.5 * uncertain.point, abs=1e-12)
     assert variance == pytest.approx(2.25 * uncertain.standard_error**2, abs=1e-12)
     cov = np.array(uncertain.detail["covariance"]).reshape(3, 3)
     weights = np.array([0.3, -1.0, 2.0])
-    value, variance = uncertain.downstream_linear_functional(weights)
+    value, variance = require_success(uncertain.downstream_linear_functional(weights))
     assert value == pytest.approx(
         float(weights @ np.array(uncertain.detail["coefficients"])), abs=1e-12
     )
     assert variance == pytest.approx(float(weights @ cov @ weights), abs=1e-12)
     with pytest.raises(MeasurementModelRefusal):
-        uncertain.downstream_linear_functional([1.0])  # wrong width
+        require_success(uncertain.downstream_linear_functional([1.0]))  # wrong width
 
 
 def test_row_order_is_invariant_and_the_same_inputs_give_the_same_bits():
@@ -936,7 +936,8 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp
     script = (
         "import json, sys\n"
         "from antecedent import measurement_models as mm\n"
-        "consumed = mm.consume_measurement_model_artifact(open(sys.argv[1], 'rb').read(), sys.argv[2])\n"
+        "from antecedent.outcomes import require_success\n"
+        "consumed = require_success(mm.consume_measurement_model_artifact(open(sys.argv[1], 'rb').read(), sys.argv[2]))\n"
         "print(json.dumps({'point': consumed.point, 'se': consumed.standard_error, "
         "'identity': consumed.model_identity, 'route': consumed.route}))\n"
     )

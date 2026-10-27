@@ -3,16 +3,17 @@
 ```python
 result = ant.analyze(data, graph=graph, query=ant.AverageEffect("treatment", "outcome"))
 study = result.study
-updated = study.refresh(new_data)
+updated = ant.estimate(ant.rebind(study, data=new_data))
 report = result.inspect().to_dict()
-loaded = ant.load(result.export())
+artifact = result.export()
+loaded = ant.load(artifact, expected=artifact.expectation)
 ```
 
-Each case runs exactly those five statements with every warning turned into an
+Each case runs exactly those statements with every warning turned into an
 error, then checks that the report is JSON, the loaded execution is verified,
 and the live and loaded answers agree (kind, value or bounds, and identities).
-A route that needs one more argument (``inference=``, ``discovery=``) passes it
-through ``options``; the five statements themselves never change.
+A route that needs one more argument (``inference=``) passes it through ``options``;
+a discovered structure is executed and accepted explicitly first and passed as ``graph``.
 """
 
 from __future__ import annotations
@@ -221,15 +222,19 @@ CASES = [
 @pytest.mark.parametrize("case", CASES, ids=[case.name for case in CASES])
 def test_golden_path(case: Case) -> None:
     data, new_data = case.make(1), case.make(2)
-    graph, query, options = case.graph, case.query, case.options
+    graph, query, options = case.graph, case.query, dict(case.options)
+    method = options.pop("discovery", None)
+    if method is not None:
+        graph = ant.discovery.discover(data, method=method, accept_discovered=True)
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         result = require_success(ant.analyze(data, graph=graph, query=query, **options))
         study = result.study
-        updated = require_success(study.refresh(new_data))
+        updated = require_success(ant.estimate(ant.rebind(study, data=new_data)))
         report = result.inspect().to_dict()
-        loaded = require_success(ant.load(bytes(result.export())))
+        artifact = result.export()
+        loaded = require_success(ant.load(artifact, expected=artifact.expectation))
 
         # Refresh re-executed the same program on new data, of the same result type,
         # and the earlier result still exports its own execution (checked below
@@ -326,17 +331,21 @@ def test_autoregressive_treatment_pulse_is_identified_by_parent_adjustment(
     ``{t[t-2], z[t-2]}``: the five lines recover the known effect, and the report
     and the loaded contract name the ``temporal.parent_adjustment`` derivation."""
     query = ant.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1)
-    if "discovery" in options:
-        accepted = options["discovery"].accept(_autoregressive(1))
+    options = dict(options)
+    method = options.pop("discovery", None)
+    if method is not None:
+        accepted = ant.discovery.discover(_autoregressive(1), method=method, accept_discovered=True)
         assert set(accepted.graph.edges()) == set(AUTOREGRESSIVE_DAG)
+        options["graph"] = accepted
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         result = require_success(ant.analyze(_autoregressive(1), query=query, **options))
         study = result.study
-        updated = require_success(study.refresh(_autoregressive(2)))
+        updated = require_success(ant.estimate(ant.rebind(study, data=_autoregressive(2))))
         report = result.inspect().to_dict()
-        loaded = require_success(ant.load(bytes(result.export())))
+        artifact = result.export()
+        loaded = require_success(ant.load(artifact, expected=artifact.expectation))
 
     for answer in (result.answer, updated.answer):
         assert answer.kind == "point"
@@ -345,7 +354,10 @@ def test_autoregressive_treatment_pulse_is_identified_by_parent_adjustment(
     assert loaded.answer == result.answer
 
     identification = report["identification"]["payload"]
-    assert identification["status"] == "NonparametricallyIdentified"
+    # The inspection payload reports the native reasoning slot's wire spelling, the same
+    # live and loaded; the typed identification view keeps the CamelCase verdict.
+    assert identification["status"] == "nonparametrically_identified"
+    assert result.identification.status == "NonparametricallyIdentified"
     assert result.identification.adjustment_set == tuple(["t", "z"])
     (case,) = report["assumptions"]["payload"]["certificate"]["cases"]
     assert [step["rule"] for step in case["identification"]["derivation"]][0] == PARENT_ADJUSTMENT

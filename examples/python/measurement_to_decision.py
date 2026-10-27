@@ -10,6 +10,7 @@ from antecedent import evidence_ledger as el
 from antecedent import measurement_models as mm
 from antecedent import mechanism_composition as mc
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 
 _ROLES = {"X": "treatment", "Y": "outcome"}
 
@@ -71,7 +72,7 @@ def compose(prevalence: float, baseline: float, effect: float) -> mc.PreparedMec
 def outcome_risk(
     composition: mc.PreparedMechanismComposition, do: dict[str, str] | None = None
 ) -> float:
-    return composition.finite_law(do or {}).probability({"Y": "1"})
+    return require_success(composition.finite_law(do or {})).probability({"Y": "1"})
 
 
 def excess_risk(composition: mc.PreparedMechanismComposition) -> float:
@@ -92,9 +93,9 @@ def main():
         model_id="exposure-misclassification",
     )
     binding = mm.AnalysisBinding("exposure", "pop", "observational", representation=representation)
-    measured = mm.prepare_measurement_model(
-        model, binding, mm.BinaryPrevalenceData(410, 1000)
-    ).estimate()
+    measured = require_success(
+        mm.prepare_measurement_model(model, binding, mm.BinaryPrevalenceData(410, 1000)).estimate()
+    )
     assert math.isclose(measured.point, 0.3)
     quantity = ScientificQuantity(
         variable_id="excess_risk",
@@ -128,26 +129,30 @@ def main():
         ("revised", 0.07, 0.0002, 0.08, -6.0),
     ]:
         if previous_pool is not None:
-            revision = ledger.revise_source(
-                el.SourceRevision.update(
-                    source_b,
-                    el.SourceDeclaration(
-                        "B-grown",
-                        "observation_set",
-                        observations=el.rows("study-B", range(600)),
-                    ),
+            revision = require_success(
+                ledger.revise_source(
+                    el.SourceRevision.update(
+                        source_b,
+                        el.SourceDeclaration(
+                            "B-grown",
+                            "observation_set",
+                            observations=el.rows("study-B", range(600)),
+                        ),
+                    )
                 )
             )
             assert revision.created_source is not None
             source_b = revision.created_source
             assert ledger.standing(previous_pool) == "recompute"
-        pooled = ledger.pool_summaries(
-            label,
-            [
-                el.StudySummary(source_a, 0.1, 0.0004),
-                el.StudySummary(source_b, second_effect, second_variance),
-            ],
-            replaces=previous_pool,
+        pooled = require_success(
+            ledger.pool_summaries(
+                label,
+                [
+                    el.StudySummary(source_a, 0.1, 0.0004),
+                    el.StudySummary(source_b, second_effect, second_variance),
+                ],
+                replaces=previous_pool,
+            )
         )
         previous_pool = pooled.result
         effect = pooled.value.estimate
@@ -161,7 +166,7 @@ def main():
             snapshot_id=ledger.state_digest,
             causal_contract_id=composition.plan_identity,
         )
-        result = contract.evaluate(source)
+        result = require_success(contract.evaluate(source))
         utilities = {action.id: action.expected_utility for action in result.actions}
         assert math.isclose(utilities["act"], expected_utility, abs_tol=1e-10)
         assert utilities["hold"] == 0

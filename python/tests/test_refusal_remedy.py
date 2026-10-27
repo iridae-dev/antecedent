@@ -19,52 +19,47 @@ from antecedent.errors import (
 from antecedent.outcomes import require_success
 
 
-def _three_treatment_data():
+def _three_treatment_data(n=600):
     rng = np.random.default_rng(31)
-    x = rng.normal(size=200)
-    a, b, c = (0.3 * x + rng.normal(size=200) for _ in range(3))
-    y = 1.0 + a - 0.5 * b + 0.25 * c + x + rng.normal(scale=0.2, size=200)
+    x = rng.normal(size=n)
+    a, b, c = (0.3 * x + rng.normal(size=n) for _ in range(3))
+    y = 1.0 + a - 0.5 * b + 0.25 * c + x + rng.normal(scale=0.2, size=n)
     data = {"x": x, "a": a, "b": b, "c": c, "y": y}
     graph = [("x", t) for t in "abc"] + [("x", "y")] + [(t, "y") for t in "abc"]
     return data, graph
 
 
-def test_jacobian_over_two_treatments_names_a_remedy():
+def test_jacobian_over_three_treatments_is_estimated_not_refused():
+    # The plug-in gradient has no fixed treatment count: three treatments are estimated,
+    # and the additive truth y = 1 + a - 0.5 b + 0.25 c + x has Jacobian (1, -0.5, 0.25).
     data, graph = _three_treatment_data()
-    with pytest.raises(CausalEstimateError) as raised:
-        require_success(
-            antecedent.analyze(
-                data,
-                query=antecedent.ResponseJacobian(["a", "b", "c"], ["y"], at=[0.0, 0.0, 0.0]),
-                graph=graph,
-            )
+    result = require_success(
+        antecedent.analyze(
+            data,
+            query=antecedent.ResponseJacobian(["a", "b", "c"], ["y"], at=[0.0, 0.0, 0.0]),
+            graph=graph,
         )
-    err = raised.value
-    # The message and (absent) reason code are unchanged; the remedy is separate.
-    assert str(err) == "plug-in response Jacobian supports at most two treatments"
-    assert getattr(err, "reason_code", None) is None
-    assert err.remedy is not None
-    assert "at most two treatments" in err.remedy
-    assert "AverageDerivative" in err.remedy
-    assert err.remedy not in str(err)
+    )
+    # A derivative-family answer is the native vector or matrix, not a point grid.
+    jacobian = np.asarray(result.estimate, dtype=float).ravel()
+    assert jacobian.shape == (3,)
+    assert np.allclose(jacobian, [1.0, -0.5, 0.25], atol=0.15)
 
 
-def test_directional_derivative_over_two_treatments_names_a_remedy():
+def test_directional_derivative_over_three_treatments_is_estimated_not_refused():
     data, graph = _three_treatment_data()
-    with pytest.raises(CausalEstimateError) as raised:
-        require_success(
-            antecedent.analyze(
-                data,
-                query=antecedent.DirectionalDerivative(
-                    ["a", "b", "c"], ["y"], at=[0.0, 0.0, 0.0], direction=[1.0, 0.0, 0.0]
-                ),
-                graph=graph,
-            )
+    result = require_success(
+        antecedent.analyze(
+            data,
+            query=antecedent.DirectionalDerivative(
+                ["a", "b", "c"], ["y"], at=[0.0, 0.0, 0.0], direction=[1.0, 0.0, 0.0]
+            ),
+            graph=graph,
         )
-    err = raised.value
-    assert str(err) == "plug-in directional derivative supports at most two treatments"
-    assert err.remedy is not None
-    assert "ResponseJacobian" in err.remedy
+    )
+    # The derivative along the first coordinate is the additive slope of y in a.
+    derivative = float(np.asarray(result.estimate, dtype=float).ravel()[0])
+    assert derivative == pytest.approx(1.0, abs=0.15)
 
 
 def test_remedy_defaults_to_none_on_every_error():

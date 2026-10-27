@@ -107,9 +107,9 @@ def test_the_python_wrapper_runs_the_class_posterior_over_each_base():
     data = dict(zip(names, cols, strict=True))
     exact = EquivalenceClassPosterior(ExactDagPosterior()).run(data, seed=1)
     assert exact.atom_kind == "Cpdag"
-    sampled = EquivalenceClassPosterior(StructureMcmc(n_chains=2, n_warmup=100, n_draws=300)).run(
-        data, seed=1
-    )
+    sampled = EquivalenceClassPosterior(
+        StructureMcmc(n_chains=4, n_warmup=3000, n_draws=12_000, thin=2, max_parents=3)
+    ).run(data, seed=1)
     assert sampled.atom_kind == "Cpdag"
     assert sum(sampled.weights) == pytest.approx(1.0)
     with pytest.raises(CausalUnsupportedError):
@@ -268,8 +268,15 @@ def test_a_pag_posterior_merges_markov_equivalent_ancestral_graphs():
     assert _edges(result.adjacency[top], 3) == {(0, 1), (2, 1)}
     assert _edges(result.mark_masks[top], 3) == {(0, 1), (2, 1)}
     assert result.weights[top] > 0.5
-    with pytest.raises(Exception):  # noqa: B017, PT011 - five variables are not enumerated
-        _native.discover_exact_pag_posterior(list("abcde"), [x[:50]] * 5)
+    # Five variables cannot be enumerated (4^10 candidate graphs): the run is routed to the PAG
+    # sampler and returns a sampled posterior over classes, not an exhaustive one.
+    rng = np.random.default_rng(3)
+    wide = _native.discover_exact_pag_posterior(
+        list("abcde"), [rng.normal(size=400) for _ in range(5)], seed=1
+    )
+    assert wide.atom_kind == "Pag"
+    assert wide.n_vars == 5
+    assert sum(wide.weights) == pytest.approx(1.0)
 
 
 def test_a_multi_environment_search_is_resampled_environment_by_environment():

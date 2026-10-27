@@ -126,8 +126,7 @@ def test_static_posterior_section_mirrors_flat_fields_when_bayesian():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=256),
             refute=False,
-            bootstrap=0,
-            seed=2,
+            execution=antecedent.Execution(seed=2),
         )
     )
     raw = result._raw
@@ -260,8 +259,7 @@ def test_temporal_posterior_section_mirrors_flat_fields_when_bayesian():
             query=antecedent.PulseEffect(**_PULSE_QUERY_KWARGS),
             inference=antecedent.Bayesian(n_draws=256),
             refute=False,
-            bootstrap=0,
-            seed=6,
+            execution=antecedent.Execution(seed=6),
         )
     )
     raw = result._raw

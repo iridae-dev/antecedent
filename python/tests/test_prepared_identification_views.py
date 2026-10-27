@@ -161,7 +161,7 @@ def test_native_readview_preserves_each_prepared_cache_and_complete_proofs(famil
 def test_reads_and_repr_do_not_enter_execution_or_legacy_identification_conversion(
     family, monkeypatch
 ):
-    from antecedent.estimation import PreparedAnalysis as Engine
+    from antecedent.estimation import _PreparedEngine as Engine
     from antecedent.identify import Identification
 
     study = _prepare(family)
@@ -278,8 +278,10 @@ def test_posterior_rejects_bows_without_changing_explicit_admg(edge):
         GraphPosterior.from_graphs(names, [1.0], [bow])
     # Rejecting the posterior encoding does not narrow the explicit native ADMG
     # graph interface: its actual bow has a hedge, not an identified zero effect.
-    proof = ant.identify(graph=bow, query=ant.AverageEffect(edge[0], edge[1]))
-    assert proof.status == "NotIdentified"
+    with pytest.raises(ant.errors.EffectNotIdentified) as refusal:
+        ant.identify(graph=bow, query=ant.AverageEffect(edge[0], edge[1]))
+    assert refusal.value.identification_status == "not_identified"
+    assert refusal.value.search_complete is True
     assert bow.children(edge[0]) == [edge[1]]
     assert bow.bidirected_neighbors("t") == ["y"]
 

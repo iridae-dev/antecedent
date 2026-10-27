@@ -172,7 +172,7 @@ def test_max_cond_size_honored_by_native_functions(discover_cls):
 
 def test_max_cond_size_flows_through_dataclass_dispatch():
     """PCMCI(max_cond_size=...) reaches the native call via run_temporal_discovery, the
-    same dispatcher `analyze(discovery=PCMCI(...))` and GCM compose helpers use.
+    same dispatcher `discover(method=PCMCI(...))` and GCM compose helpers use.
     """
     names, cols = _pruned_conditioning_series()
     data = dict(zip(names, cols, strict=True))
@@ -183,10 +183,10 @@ def test_max_cond_size_flows_through_dataclass_dispatch():
 
 
 def test_max_cond_size_reaches_analyze_temporal_discover_path():
-    """`analyze(discovery=PCMCIPlus(max_cond_size=...))` must not silently drop the cap.
+    """`discover(method=PCMCIPlus(max_cond_size=...))` must not silently drop the cap.
 
     `run_temporal_discovery` (tested above) is the free-function dispatcher used by
-    `AcceptedGraph` and GCM compose helpers; `analyze(..., discovery=...)` for
+    `AcceptedGraph` and GCM compose helpers; `analyze(..., graph=discover(...))` for
     PulseEffect/SustainedEffect goes through a completely separate call path
     (the prepared-analysis compile route), so it needs its own coverage — a prior bug had exactly this path silently ignoring `max_cond_size`
     while `run_temporal_discovery` already forwarded it correctly.
@@ -212,7 +212,12 @@ def test_max_cond_size_reaches_analyze_temporal_discover_path():
             antecedent.analyze(
                 data,
                 query=query,
-                discovery=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=0),
+                graph=antecedent.discovery.discover(
+                    data,
+                    method=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=0),
+                    execution=antecedent.Execution(seed=1, threads=1),
+                    accept_discovered=True,
+                ),
                 execution=antecedent.Execution(seed=1, threads=1),
             )
         )
@@ -221,7 +226,12 @@ def test_max_cond_size_reaches_analyze_temporal_discover_path():
         antecedent.analyze(
             data,
             query=query,
-            discovery=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=2),
+            graph=antecedent.discovery.discover(
+                data,
+                method=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=2),
+                execution=antecedent.Execution(seed=1, threads=1),
+                accept_discovered=True,
+            ),
             execution=antecedent.Execution(seed=1, threads=1),
         )
     )
@@ -233,7 +243,12 @@ def test_max_cond_size_reaches_analyze_temporal_discover_path():
         antecedent.analyze(
             data,
             query=query,
-            discovery=PCMCIPlus(max_lag=1, alpha=0.05),
+            graph=antecedent.discovery.discover(
+                data,
+                method=PCMCIPlus(max_lag=1, alpha=0.05),
+                execution=antecedent.Execution(seed=1, threads=1),
+                accept_discovered=True,
+            ),
             execution=antecedent.Execution(seed=1, threads=1),
         )
     )

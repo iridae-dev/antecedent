@@ -13,6 +13,7 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 
 
 def _artifact(
@@ -54,14 +55,14 @@ def _pair(snapshot: str, scale: int = 1) -> tuple[jl.PropagationDraws, jl.Propag
 
 def main():
     x, y = _pair("tutorial")
-    spread = jl.spread("product", x, y, "product")
+    spread = require_success(jl.spread("product", x, y, "product"))
     assert spread.label == "uncalibrated_spread"
     assert math.isclose(spread.value("mean"), 0.4)
     assert math.isclose(spread.value("variance"), 6.4 / 9)
     print("Product mean:", spread.value("mean"))
     print("Product variance:", spread.value("variance"), "standing:", spread.label)
     try:
-        jl.aligned_functional("product", x, y, "product").interval()
+        require_success(jl.aligned_functional("product", x, y, "product")).interval()
     except jl.JointLawPropagationRefusal as error:
         assert error.reason_code == "cell_not_licensed"
         print("Interval request:", error.reason_code)

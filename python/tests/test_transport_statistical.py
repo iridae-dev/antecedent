@@ -1,10 +1,33 @@
 """Empirical-table stages publish licensed pointwise intervals on the common handle."""
 
 import pytest
-from antecedent import Admg, Execution, load, prepare
+from antecedent import (
+    Admg,
+    Execution,
+    ResourceLimits,
+    estimate,
+    load,
+    prepare,
+    rebind,
+    reconfigure,
+)
 from antecedent.errors import CausalCancelledError, CausalResourceError, CausalUnsupportedError
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
+
+
+def statistical_study(identified, catalog, data, at, *, seed=1, **settings):
+    """Prepare the typed empirical question on the common immutable lifecycle."""
+    return prepare(
+        data,
+        query=transport.StatisticalTransportQuery(identified, catalog, at, **settings),
+        execution=Execution(seed=seed),
+    )
+
+
+def estimated(study):
+    outcome = estimate(study)
+    return outcome, require_success(outcome)
 
 
 def fixture():
@@ -76,19 +99,24 @@ def test_statistical_prepare_estimate_and_inspect_license():
         execution=Execution(seed=7),
     )
     inspection = study.inspect()
-    assert inspection.uncertainty.available
-    result = require_success(study.estimate())
+    assert inspection.identification.available
+    # Preparation retains the checked derivation; the interval license is decided by
+    # the execution that fits the supplied rows.
+    assert not inspection.uncertainty.available
+    assert inspection.uncertainty.reason == "not_executed"
+    outcome, result = estimated(study)
     assert result.mean("y") == pytest.approx(0.8)
     assert result.uncertainty["available"]
+    assert result.inspect().uncertainty.available
     assert result.uncertainty["row"]["method"] == "percentile_bootstrap"
     assert result.uncertainty["row"]["interval_scope"] == "pointwise"
-    loaded = require_success(load(bytes(study.export())))
+    loaded = require_success(load(bytes(outcome.export())))
     assert loaded.probabilities == result.probabilities
     assert loaded.uncertainty["available"]
 
 
 def test_prepare_statistical_retains_checked_plan_after_builder_disposal():
-    """The prepared statistical study keeps its checked plan, refreshes atomically and
+    """The prepared statistical study keeps its checked plan, rebinds atomically and
     invalidates its execution identity when the snapshot changes."""
     from dataclasses import replace
 
@@ -100,31 +128,36 @@ def test_prepare_statistical_retains_checked_plan_after_builder_disposal():
     del query_builder, identified
     before = plan.inspect()
     assert before.identification.available
-    assert before.uncertainty.available
-    result = require_success(plan.estimate())
+    assert not before.uncertainty.available
+    outcome, result = estimated(plan)
     # Independent arithmetic: 80 of 100 trial rows have y = 1.
     assert result.mean("y") == pytest.approx(0.8)
     assert result.uncertainty["row"]["method"] == "percentile_bootstrap"
     assert result.uncertainty["row"]["interval_scope"] == "pointwise"
-    assert plan.inspect().execution_id == result.inspect().execution_id
-    # A sample outside the declared domain is rejected atomically; the execution stands.
+    original = result.inspect()
+    assert original.uncertainty.available
+    # A sample outside the declared domain is rejected atomically; the source stands.
     invalid = replace(data.samples[0], interventions=(("x", 2.0),))
     with pytest.raises(ValueError, match="declared finite domain"):
-        require_success(plan.refresh(transport.StatisticalTransportData(samples=(invalid,))))
-    assert plan.inspect().execution_id == result.inspect().execution_id
-    # A different snapshot invalidates the execution claim until it is re-run.
+        require_success(
+            estimate(rebind(plan, data=transport.StatisticalTransportData(samples=(invalid,))))
+        )
+    assert result.inspect().execution_id == original.execution_id
+    # A different snapshot is another branch with another execution claim.
     larger = replace(data.samples[0], columns={"y": data.samples[0].columns["y"] * 2})
-    plan.replace_snapshot(transport.StatisticalTransportData(samples=(larger,)))
-    assert plan.inspect().program_id == before.program_id
-    assert plan.inspect().identification_id == before.identification_id
-    assert plan.inspect().data_snapshot_id != before.data_snapshot_id
-    assert plan.inspect().execution_id != result.inspect().execution_id
+    branch = rebind(plan, data=transport.StatisticalTransportData(samples=(larger,)))
     with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
-        bytes(plan.export())
-    again = require_success(plan.refresh(data))
+        branch._engine._native.export()
+    changed = require_success(estimate(branch)).inspect()
+    assert changed.program_id == original.program_id
+    assert changed.identification_id == original.identification_id
+    assert changed.data_snapshot_id != original.data_snapshot_id
+    assert changed.execution_id != original.execution_id
+    again = require_success(estimate(rebind(branch, data=data)))
     assert again.probabilities == pytest.approx(result.probabilities)
     assert again.uncertainty["replicate_ids"] == result.uncertainty["replicate_ids"]
-    assert plan.inspect().execution_id == result.inspect().execution_id
+    assert again.inspect().execution_id == original.execution_id
+    assert bytes(outcome.export()) == bytes(result.export())
 
 
 def test_empirical_table_execution_survives_identification_builder_disposal():
@@ -142,18 +175,21 @@ def test_empirical_table_execution_survives_identification_builder_disposal():
         interventions=(("x", 1.0),),
     )
     data = transport.StatisticalTransportData(samples=(sample,))
-    prepared = transport.prepare_statistical(identified, catalog, data, at={"x": 1.0}, bootstrap=0)
+    prepared = statistical_study(identified, catalog, data, {"x": 1.0}, bootstrap=0)
     plan = prepared.inspect()
     assert plan.identification.available
-    result = require_success(prepared.estimate())
+    outcome, result = estimated(prepared)
     assert result.mean("y") == pytest.approx(0.8)
-    consumer = transport.consume_statistical(bytes(result.export()))
-    assert consumer.inspect().program_id == plan.program_id
+    consumer = transport.consume_statistical(bytes(outcome.export()))
+    assert consumer.inspect().program_id == result.inspect().program_id
     assert consumer.inspect().identification.available
-    # Raw empirical rows are an explicit dependency for a new estimate.
-    with pytest.raises(CausalUnsupportedError, match="transport.samples_not_embedded"):
-        require_success(consumer.estimate())
-    replay = require_success(consumer.refresh(data))
+    assert consumer.probabilities == pytest.approx(result.probabilities)
+    # Raw empirical rows are an explicit dependency for a new estimate: the consumed
+    # read model names them and cannot be re-estimated.
+    assert consumer.acceptance.verified
+    assert not consumer.acceptance.resumable
+    assert any("not embedded" in item for item in consumer.acceptance.unresolved)
+    replay = require_success(estimate(rebind(prepared, data=data)))
     assert replay.probabilities == pytest.approx(result.probabilities)
     assert replay.mean("y") == pytest.approx(0.8)
 
@@ -167,17 +203,10 @@ def test_empirical_table_execution_survives_identification_builder_disposal():
 )
 def test_bayesian_statistical_providers_keep_posterior_unlicensed(provider, estimator_id):
     identified, catalog, data = fixture()
-    study = transport.prepare_statistical(
-        identified,
-        catalog,
-        data,
-        at={"x": 1.0},
-        estimator=provider,
-        seed=23,
-    )
+    study = statistical_study(identified, catalog, data, {"x": 1.0}, estimator=provider, seed=23)
 
-    assert study.inspect().uncertainty.available
-    result = require_success(study.estimate())
+    assert not study.inspect().uncertainty.available
+    outcome, result = estimated(study)
     posterior = result.uncertainty["bayesian_posterior"]
     assert posterior["estimator"] == estimator_id
     assert posterior["interval_method"] == "posterior_equal_tail"
@@ -186,15 +215,20 @@ def test_bayesian_statistical_providers_keep_posterior_unlicensed(provider, esti
     assert posterior["calibration_status"] == "estimator_grid_not_measured"
     assert posterior["mean_intervals"]
     assert result.uncertainty["available"] is False
-    assert study.inspect().uncertainty.available
+    assert result.inspect().uncertainty.available
 
     # The portable transport artifact retains the posterior summaries and provider identity.
-    consumed = transport.consume_statistical(bytes(result.export()))
-    refreshed = require_success(consumed.refresh(data))
-    replayed = refreshed.uncertainty["bayesian_posterior"]
+    consumed = transport.consume_statistical(bytes(outcome.export()))
+    replayed = consumed.uncertainty["bayesian_posterior"]
     assert replayed["estimator"] == estimator_id
     assert replayed["draws_requested"] == replayed["draws_ok"] == 199
     assert replayed["calibration_status"] == "estimator_grid_not_measured"
+    assert replayed["probabilities"] == posterior["probabilities"]
+    # Re-fitting from the raw rows on a rebound branch reproduces the posterior summaries.
+    refit = require_success(estimate(rebind(study, data=data))).uncertainty["bayesian_posterior"]
+    assert refit["estimator"] == estimator_id
+    assert refit["draws_requested"] == refit["draws_ok"] == 199
+    assert refit["calibration_status"] == "estimator_grid_not_measured"
 
 
 def test_unknown_dependence_keeps_identification_and_withholds_interval():
@@ -211,30 +245,27 @@ def test_unknown_dependence_keeps_identification_and_withholds_interval():
         execution=Execution(seed=3),
     )
     assert not study.inspect().uncertainty.available
-    result = require_success(study.estimate())
+    result = require_success(estimate(study))
     assert result.mean("y") == pytest.approx(0.8)
     assert result.uncertainty["available"] is False
     assert result.uncertainty["reason"] == "transport.unsupported_dependence"
+    assert not result.inspect().uncertainty.available
 
 
 @pytest.mark.parametrize("level", [0.0, 1.0, -0.1, float("nan"), float("inf")])
 def test_invalid_coverage_is_rejected_during_prepare(level):
     identified, catalog, data = fixture()
     with pytest.raises(ValueError, match="coverage_level"):
-        transport.prepare_statistical(
-            identified, catalog, data, at={"x": 1.0}, coverage_level=level
-        )
+        statistical_study(identified, catalog, data, {"x": 1.0}, coverage_level=level)
 
 
 def test_statistical_native_authority_identity_and_load_round_trip():
     from dataclasses import replace
 
     identified, catalog, data = fixture()
-    study = transport.prepare_statistical(
-        identified, catalog, data, at={"x": 1.0}, bootstrap=29, seed=41
-    )
-    result = require_success(study.estimate())
-    loaded = require_success(load(bytes(result.export())))
+    study = statistical_study(identified, catalog, data, {"x": 1.0}, bootstrap=29, seed=41)
+    outcome, result = estimated(study)
+    loaded = require_success(load(bytes(outcome.export())))
     assert loaded.uncertainty == result.uncertainty
     assert loaded.inspect().execution_id == result.inspect().execution_id
     assert bytes(loaded.export()) == bytes(result.export())
@@ -242,70 +273,82 @@ def test_statistical_native_authority_identity_and_load_round_trip():
     with pytest.raises(TypeError, match="does not support item assignment"):
         data.samples[0].columns["y"] = ()
     larger = replace(data.samples[0], columns={"y": data.samples[0].columns["y"] * 2})
-    second = transport.prepare_statistical(
-        identified,
-        catalog,
-        transport.StatisticalTransportData((larger,)),
-        at={"x": 1.0},
-        bootstrap=29,
-        seed=41,
+    second = require_success(
+        estimate(
+            statistical_study(
+                identified,
+                catalog,
+                transport.StatisticalTransportData((larger,)),
+                {"x": 1.0},
+                bootstrap=29,
+                seed=41,
+            )
+        )
     )
-    assert second.inspect().data_snapshot_id != study.inspect().data_snapshot_id
-    assert second.inspect().identification_id == study.inspect().identification_id
+    assert second.inspect().data_snapshot_id != result.inspect().data_snapshot_id
+    assert second.inspect().identification_id == result.inspect().identification_id
     changed = replace(result, probabilities=(1.0, 0.0), uncertainty={"available": False})
     assert require_success(load(bytes(changed.export()))).uncertainty == result.uncertainty
 
 
-def test_consume_statistical_rechecks_the_point_and_refreshes_after_builder_disposal():
-    """The consumer rechecks the embedded plug-in point and replays only from raw samples."""
+def test_consume_statistical_rechecks_the_point_and_rebinds_after_builder_disposal():
+    """The consumer rechecks the embedded plug-in point; only raw samples can re-estimate."""
     from dataclasses import replace
 
     identified, catalog, data = fixture()
-    producer_builder = transport.prepare_statistical(
-        identified, catalog, data, at={"x": 1.0}, bootstrap=29, seed=41
+    producer_builder = statistical_study(
+        identified, catalog, data, {"x": 1.0}, bootstrap=29, seed=41
     )
     plan = producer_builder.inspect()
     assert plan.identification.available
-    result = require_success(producer_builder.estimate())
+    outcome, result = estimated(producer_builder)
     # Forged display fields are not the claim: the embedded native point is.
     forged = replace(result, probabilities=(1.0, 0.0), uncertainty={"available": False})
     wire = bytes(forged.export())
     assert wire == bytes(result.export())
-    del producer_builder, identified
+    del identified
     consumed = transport.consume_statistical(wire)
-    assert consumed.inspect().program_id == plan.program_id
+    assert consumed.inspect().program_id == result.inspect().program_id
     assert consumed.inspect().identification.available
     assert consumed.inspect().execution_id == result.inspect().execution_id
     # Raw samples are an explicit dependency for re-estimation; nothing is fitted or fetched on load.
-    with pytest.raises(CausalUnsupportedError, match="transport.samples_not_embedded"):
-        require_success(consumed.estimate())
-    replay = require_success(consumed.refresh(data))
+    assert not consumed.acceptance.resumable
+    assert any("not embedded" in item for item in consumed.acceptance.unresolved)
+    replay = require_success(estimate(rebind(producer_builder, data=data)))
     # Independent arithmetic: 80 of 100 trial rows have y = 1.
     assert replay.mean("y") == pytest.approx(0.8)
     assert replay.probabilities == pytest.approx(result.probabilities)
-    assert replay.uncertainty == result.uncertainty
+    assert replay.uncertainty == result.uncertainty == consumed.uncertainty
     assert replay.uncertainty["row"]["calibration_status"] == "not_bound_to_this_execution"
     assert require_success(load(wire)).probabilities == result.probabilities
     assert require_success(load(wire)).uncertainty == result.uncertainty
+    assert bytes(outcome.export()) == wire
 
 
-def test_statistical_cancel_and_memory_limits_preserve_atomic_refresh():
+def test_statistical_cancel_and_memory_limits_preserve_atomic_rebind():
     from antecedent.state import CancellationToken
 
     identified, catalog, data = fixture()
-    study = transport.prepare_statistical(identified, catalog, data, at={"x": 1.0}, bootstrap=19)
-    require_success(study.estimate())
-    before = bytes(study.export())
+    study = statistical_study(identified, catalog, data, {"x": 1.0}, bootstrap=19)
+    outcome = estimate(study)
+    require_success(outcome)
+    before = bytes(outcome.export())
     token = CancellationToken()
+    cancelled = reconfigure(study, execution=Execution(cancel=token))
     token.cancel()
     with pytest.raises(CausalCancelledError, match="cancel"):
-        require_success(study.refresh(data, cancel=token))
-    assert bytes(study.export()) == before
+        rebind(cancelled, data=data)
     with pytest.raises(CausalCancelledError, match="cancel"):
-        study.replace_snapshot(data, cancel=token)
-    assert bytes(study.export()) == before
-    with pytest.raises(CausalResourceError, match="memory"):
-        transport.prepare_statistical(identified, catalog, data, at={"x": 1.0}, memory_bytes=1024)
+        estimate(cancelled)
+    assert bytes(outcome.export()) == before
+    assert bytes(estimate(study).export()) == before
+    limited = Execution(limits=ResourceLimits(memory_bytes=1024))
+    with pytest.raises(CausalResourceError, match="memory|budget|admission"):
+        prepare(
+            data,
+            query=transport.StatisticalTransportQuery(identified, catalog, {"x": 1.0}),
+            execution=limited,
+        )
 
 
 def test_statistical_missingness_is_not_silently_a_population_law():
@@ -314,8 +357,10 @@ def test_statistical_missingness_is_not_silently_a_population_law():
     identified, catalog, data = fixture()
     sample = replace(data.samples[0], columns={"y": [None, 0.0, 1.0]})
     with pytest.raises(ValueError, match="missing"):
-        transport.prepare_statistical(
-            identified, catalog, transport.StatisticalTransportData((sample,)), at={"x": 1.0}
+        estimate(
+            statistical_study(
+                identified, catalog, transport.StatisticalTransportData((sample,)), {"x": 1.0}
+            )
         )
 
 
@@ -329,10 +374,8 @@ def test_intervention_world_resamples_do_not_collide():
         data.samples[0], columns={"y": [0.0] * 5 + [1.0] * 5}, interventions=(("x", 0.0),)
     )
     two_worlds = transport.StatisticalTransportData((zero, data.samples[0]))
-    study = transport.prepare_statistical(
-        identified, catalog, two_worlds, at={"x": 0.0}, bootstrap=29
-    )
-    result = require_success(study.estimate())
+    study = statistical_study(identified, catalog, two_worlds, {"x": 0.0}, bootstrap=29)
+    result = require_success(estimate(study))
     assert result.mean("y") == pytest.approx(0.5)
     assert result.uncertainty["row"]["replicates_ok"] == 29
     assert result.uncertainty["row"]["replicates_failed"] == 0
@@ -355,7 +398,7 @@ def test_joint_grid_and_contrasts_preserve_shared_replicates():
         # A nominal 0.95 percentile interval needs B >= 40 (PERCENTILE_95_MIN_REPLICATES);
         # 39 runs cleanly but withholds the interval as unlicensed.
         bootstrap=40,
-        seed=17,
+        execution=Execution(seed=17),
     )
     assert points[0].mean("y") == pytest.approx(0.2)
     assert points[1].mean("y") == pytest.approx(0.8)
@@ -373,7 +416,7 @@ def test_joint_grid_and_contrasts_preserve_shared_replicates():
     )
 
 
-def test_grid_failure_scope_changes_identity_and_survives_refresh():
+def test_grid_failure_scope_changes_identity_and_survives_rebind():
     identified, base, _ = fixture()
     catalog = transport.EvidenceCatalog(
         environments=base.environments,
@@ -396,21 +439,24 @@ def test_grid_failure_scope_changes_identity_and_survives_refresh():
         )
     )
     single = require_success(
-        transport.prepare_statistical(
-            identified, catalog, data, at={"x": 0.0}, bootstrap=99, seed=17
-        ).estimate()
+        estimate(statistical_study(identified, catalog, data, {"x": 0.0}, bootstrap=99, seed=17))
     )
     points = transport.evaluate_statistical_grid(
-        identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=99, seed=17
+        identified,
+        catalog,
+        data,
+        at=[{"x": 0.0}, {"x": 1.0}],
+        bootstrap=99,
+        execution=Execution(seed=17),
     )
     assert single.uncertainty["row"]["replicates_failed"] == 0
     assert points[0].uncertainty["row"]["replicates_failed"] > 0
     assert points[0].uncertainty["replicate_ids"] == points[1].uncertainty["replicate_ids"]
     assert points[0].inspect().inference_binding_id != single.inspect().inference_binding_id
     loaded = transport.consume_statistical(bytes(points[0].export()))
-    refreshed = require_success(loaded.refresh(data))
-    assert refreshed.uncertainty == points[0].uncertainty
-    assert refreshed.inspect().execution_id == points[0].inspect().execution_id
+    assert loaded.uncertainty == points[0].uncertainty
+    assert loaded.inspect().execution_id == points[0].inspect().execution_id
+    assert loaded.inspect().inference_binding_id == points[0].inspect().inference_binding_id
 
 
 def test_convenience_target_flag_does_not_reject_source_only_estimation():
@@ -419,9 +465,7 @@ def test_convenience_target_flag_does_not_reject_source_only_estimation():
     identified, catalog, data = fixture()
     catalog = replace(catalog, target_sampling="convenience_sample")
     result = require_success(
-        transport.prepare_statistical(
-            identified, catalog, data, at={"x": 1.0}, bootstrap=9
-        ).estimate()
+        estimate(statistical_study(identified, catalog, data, {"x": 1.0}, bootstrap=9))
     )
     assert result.mean("y") == pytest.approx(0.8)
 
@@ -433,12 +477,14 @@ def test_sample_intervention_must_belong_to_declared_domain(value):
     identified, catalog, data = fixture()
     invalid = replace(data.samples[0], interventions=(("x", value),))
     with pytest.raises(ValueError, match="declared finite domain"):
-        transport.prepare_statistical(
-            identified,
-            catalog,
-            transport.StatisticalTransportData(samples=(invalid,)),
-            at={"x": value},
-            bootstrap=0,
+        estimate(
+            statistical_study(
+                identified,
+                catalog,
+                transport.StatisticalTransportData(samples=(invalid,)),
+                {"x": value},
+                bootstrap=0,
+            )
         )
 
 
@@ -457,18 +503,20 @@ def test_bayesian_grid_reuses_one_draw_sequence():
         at=[{"x": 0.0}, {"x": 1.0}],
         estimator="state_space_dirichlet",
         bootstrap=0,
-        seed=17,
+        execution=Execution(seed=17),
     )
     alone = require_success(
-        transport.prepare_statistical(
-            identified,
-            catalog,
-            both,
-            at={"x": 0.0},
-            estimator="state_space_dirichlet",
-            bootstrap=0,
-            seed=17,
-        ).estimate()
+        estimate(
+            statistical_study(
+                identified,
+                catalog,
+                both,
+                {"x": 0.0},
+                estimator="state_space_dirichlet",
+                bootstrap=0,
+                seed=17,
+            )
+        )
     )
     shared = points[0].uncertainty["bayesian_posterior"]
     separate = alone.uncertainty["bayesian_posterior"]
@@ -495,28 +543,26 @@ def test_iid_bootstrap_interval_executes_from_retained_plan_after_builder_dispos
     program = builder.formula
     assert program
     del builder
-    prepared = transport.prepare_statistical(
-        identified, catalog, data, at={"x": 1.0}, bootstrap=40, seed=7
-    )
+    prepared = statistical_study(identified, catalog, data, {"x": 1.0}, bootstrap=40, seed=7)
     plan = prepared.inspect()
     assert plan.identification.available
-    assert plan.uncertainty.available
-    result = require_success(prepared.estimate())
+    outcome, result = estimated(prepared)
     assert result.mean("y") == pytest.approx(0.8)
+    assert result.inspect().uncertainty.available
     assert result.uncertainty["available"]
     row = result.uncertainty["row"]
     assert row["method"] == "percentile_bootstrap"
     assert row["interval_scope"] == "pointwise"
     assert row["replicates_ok"] == 40
     assert row["replicates_failed"] == 0
-    consumer = transport.consume_statistical(bytes(result.export()))
-    assert consumer.inspect().program_id == plan.program_id
-    with pytest.raises(CausalUnsupportedError, match="transport.samples_not_embedded"):
-        require_success(consumer.estimate())
-    replay = require_success(consumer.refresh(data))
+    consumer = transport.consume_statistical(bytes(outcome.export()))
+    assert consumer.inspect().program_id == result.inspect().program_id
+    assert any("not embedded" in item for item in consumer.acceptance.unresolved)
+    assert consumer.uncertainty["replicate_ids"] == result.uncertainty["replicate_ids"]
+    replay = require_success(estimate(rebind(prepared, data=data)))
     assert replay.mean("y") == pytest.approx(0.8)
     assert replay.uncertainty["replicate_ids"] == result.uncertainty["replicate_ids"]
     assert replay.uncertainty["row"]["replicates_ok"] == 40
-    again = require_success(prepared.refresh(data))
+    again = require_success(estimate(prepared))
     assert again.uncertainty["replicate_ids"] == result.uncertainty["replicate_ids"]
     assert again.probabilities == pytest.approx(result.probabilities)

@@ -123,7 +123,7 @@ def test_prepare_and_estimate_on_the_same_table_reproduce_analyze() -> None:
     prepared = antecedent.prepare(
         table, query=_two_arm_query(), execution=antecedent.Execution(seed=7)
     )
-    clicked = require_success(prepared.estimate(table))
+    clicked = require_success(antecedent.estimate(prepared))
     assert clicked.temporal_design == direct.temporal_design
 
 

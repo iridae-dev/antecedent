@@ -126,13 +126,17 @@ def test_refresh_encodes_a_new_table_by_the_same_declared_labels() -> None:
         inference=ant.Frequentist(bootstrap=0),
         execution=ant.Execution(seed=3),
     )
-    first = require_success(prepared.estimate())
-    again = require_success(prepared.refresh(labelled))
+    outcome = ant.estimate(prepared)
+    first = require_success(outcome)
+    again = require_success(ant.estimate(ant.rebind(prepared, data=labelled)))
     assert again.answer.value == first.answer.value
     assert again.estimand_text == first.estimand_text == "E[y | do(t='b')] - E[y | do(t='a')]"
     # A refreshed table with other outcomes keeps the mapping and moves the estimate.
     shifted = {**labelled, "y": labelled["y"] + 1.0 * data["t"]}
-    assert require_success(prepared.refresh(shifted)).answer.value > first.answer.value + 0.5
+    assert (
+        require_success(ant.estimate(ant.rebind(prepared, data=shifted))).answer.value
+        > first.answer.value + 0.5
+    )
 
 
 def test_a_row_at_another_label_is_refused_not_dropped() -> None:

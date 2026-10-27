@@ -121,7 +121,7 @@ def test_the_identified_branch_is_the_sampling_interval_of_the_refined_estimate_
     assert result.outcome_support == (0.0, 1.0)
     assert result.estimate is not None
     replay = tc.verify_trial_compatible_transport_confidence_set_against(
-        result.receipt(), CONTRACT, SOURCE, SOURCE, **arguments
+        result.export(), CONTRACT, SOURCE, SOURCE, **arguments
     )
     assert replay.identity == result.identity
     assert (replay.lower, replay.upper) == (result.lower, result.upper)
@@ -145,7 +145,7 @@ def test_a_rejected_class_returns_the_declared_support_not_a_point_and_replays()
     assert result.estimate is None
     assert result.compatibility.retained_members == ()
     replay = tc.verify_trial_compatible_transport_confidence_set_against(
-        result.receipt(), CONTRACT, SOURCE, SOURCE, **arguments
+        result.export(), CONTRACT, SOURCE, SOURCE, **arguments
     )
     assert replay.identity == result.identity
 
@@ -161,7 +161,7 @@ def test_a_receipt_does_not_replay_against_other_inputs():
     }
     receipt = tc.estimate_trial_compatible_transport_confidence_set(
         CONTRACT, SOURCE, SOURCE, **arguments
-    ).receipt()
+    ).export()
     with pytest.raises(CausalValueError):
         tc.verify_trial_compatible_transport_confidence_set_against(
             receipt, CONTRACT, SOURCE, SOURCE, **{**arguments, "support_upper": 4.0}
@@ -172,7 +172,7 @@ def test_a_receipt_does_not_replay_against_other_inputs():
         )
     with pytest.raises(CausalValueError):
         tc.verify_trial_compatible_transport_confidence_set_against(
-            receipt[:-1], CONTRACT, SOURCE, SOURCE, **arguments
+            bytes(receipt)[:-1], CONTRACT, SOURCE, SOURCE, **arguments
         )
 
 

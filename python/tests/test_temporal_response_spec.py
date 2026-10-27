@@ -30,18 +30,23 @@ def test_query_defaults_come_from_the_license():
     assert path.policy == spec.default_policy
 
 
-def test_horizon_cap_and_policy_list_are_not_hardcoded():
-    too_many = list(range(1, spec.max_horizons + 2))
-    with pytest.raises(CausalValueError, match=str(spec.max_horizons)):
-        antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=too_many)
+def test_policy_list_is_native_and_horizon_count_has_no_fixed_cap():
+    # The native license states no fixed horizon count: execution memory bounds materialization.
+    assert spec.max_horizons == native_spec()["max_horizons"]
     with pytest.raises(CausalValueError, match=spec.allowed_policies[0]):
         antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1], policy="dynamic")
-    ok = list(range(1, spec.max_horizons + 1))
-    antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=ok)
+    long = list(range(1, 513))
+    curve = antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=long)
+    assert curve.horizons == tuple(long)
+    with pytest.raises(CausalValueError, match="strictly increasing"):
+        antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[*long, 3])
 
 
-def test_joint_cell_cap_is_native_and_fails_early():
-    horizons = list(range(1, spec.max_horizons + 1))
-    doses = [float(i) for i in range(spec.max_cells // len(horizons) + 1)]
-    with pytest.raises(CausalValueError, match=rf"materialization limit is {spec.max_cells}"):
-        antecedent.ResponseCurve("t", "y", grid=doses, horizons=horizons)
+def test_joint_cell_count_has_no_fixed_cap_at_construction():
+    # More cells than the former fixed ceiling are a valid declaration; whether they fit is
+    # decided by the execution budget when the response is materialized.
+    horizons = list(range(1, 1001))
+    doses = [float(i) for i in range(1001)]
+    assert spec.max_cells == native_spec()["max_cells"]
+    curve = antecedent.ResponseCurve("t", "y", grid=doses, horizons=horizons)
+    assert len(curve.grid) * len(curve.horizons) == 1_001_000

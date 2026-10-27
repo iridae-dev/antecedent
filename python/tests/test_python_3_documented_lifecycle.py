@@ -11,7 +11,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def blocks(path):
-    return re.findall(r"```python\n(.*?)```", (ROOT / path).read_text(), flags=re.DOTALL)
+    return re.findall(
+        r"```python\n(.*?)```", (ROOT / path).read_text(encoding="utf-8"), flags=re.DOTALL
+    )
 
 
 def execute(code, namespace, name):
@@ -41,8 +43,14 @@ def test_migration_examples_execute_with_declared_application_inputs():
         "query": ant.AverageEffect("treatment", "outcome"),
         "other_query": ant.AverageEffect("z", "outcome"),
     }
-    examples = blocks("docs/migrations/2.4-to-3.0-python.md")
-    assert len(examples) == 7
+    published = blocks("docs/migrations/2.4-to-3.0-python.md")
+    # The leading blocks are the self-contained lifecycle; the trailing ones are fragments that
+    # continue an application's own cancellation token or transport catalog. Every block must
+    # still be valid Python.
+    assert len(published) == 9
+    examples, fragments = published[:7], published[7:]
+    for index, fragment in enumerate(fragments):
+        compile(fragment, f"migration:fragment-{index}", "exec")
     execute(examples[0], namespace, "migration:preparation")
     assert namespace["result"].answer.value == pytest.approx(2.0)
     assert namespace["updated_result"].answer.value == pytest.approx(3.0)

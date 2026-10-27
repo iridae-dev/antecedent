@@ -43,18 +43,18 @@ def test_known_truth_regime_value_prepare_analyze_and_artifact():
         == result.longitudinal_regime
     )
 
-    loaded = require_success(antecedent.load(bytes(prepared.export())))
+    loaded = require_success(antecedent.load(bytes(result.export())))
     assert loaded.decoded_artifact.payload_kind == "analysis_result"
     section = loaded.decoded_artifact.to_dict()["payload"]["longitudinal_regime"]
     assert section["value"] == pytest.approx(4.0)
     assert section["uncertainty"] == "point_only_no_interval"
-    query_artifact = antecedent.artifacts.loads(prepared.export_artifact(payload="query"))
+    query_artifact = antecedent.artifacts.loads(bytes(result.export(quantity="query")))
     assert query_artifact.payload_kind == "query"
     query_wire = query_artifact.to_dict()["payload"]["longitudinal_regime"]
     assert query_wire["subject_ids"] == ["a", "b", "c", "d"]
     assert query_wire["fold_ids"] == [0, 0, 0, 0]
     with pytest.raises(ValueError, match="align with subject histories"):
-        require_success(prepared.refresh({"y": [1.0, 2.0]}))
+        require_success(antecedent.estimate(antecedent.rebind(prepared, data={"y": [1.0, 2.0]})))
 
 
 def test_retained_ipw_interval_on_independent_subject_histories_round_trips():
@@ -144,7 +144,8 @@ def test_dynamic_rule_freezes_only_available_history_with_identity_and_point_val
     assert seen[0] == (0, (), ((1.0,),))
     assert seen[1] == (1, (True,), ((1.0,), (99.0,)))
     prepared = antecedent.prepare(data, query=query)
-    fit = require_success(prepared.estimate()).longitudinal_regime
+    result = require_success(prepared.estimate())
+    fit = result.longitudinal_regime
     assert fit.value == pytest.approx(4.0)
     assert fit.rule_id == "adaptive-threshold"
     assert fit.rule_version == "v1"
@@ -152,11 +153,11 @@ def test_dynamic_rule_freezes_only_available_history_with_identity_and_point_val
     assert fit.uncertainty == "point_only_no_interval"
     assert fit.support_status == "unlicensed_point_utility"
     assert require_success(antecedent.analyze(data, query=query)).longitudinal_regime == fit
-    result_wire = require_success(
-        antecedent.load(bytes(prepared.export()))
-    ).decoded_artifact.payload["longitudinal_regime"]
+    result_wire = require_success(antecedent.load(bytes(result.export()))).decoded_artifact.payload[
+        "longitudinal_regime"
+    ]
     assert result_wire["rule_provenance"] == "study-protocol-7"
-    query_wire = antecedent.artifacts.loads(prepared.export_artifact(payload="query")).to_dict()[
+    query_wire = antecedent.artifacts.loads(bytes(result.export(quantity="query"))).to_dict()[
         "payload"
     ]["longitudinal_regime"]
     assert query_wire["rule_id"] == "adaptive-threshold"
@@ -289,9 +290,9 @@ def test_g_formula_regime_uses_main_analysis_and_round_trips_method():
         require_success(antecedent.analyze(data, query=query)).longitudinal_regime
         == result.longitudinal_regime
     )
-    artifact = require_success(antecedent.load(bytes(prepared.export()))).decoded_artifact
+    artifact = require_success(antecedent.load(bytes(result.export()))).decoded_artifact
     assert artifact.to_dict()["payload"]["longitudinal_regime"]["method"] == "g_formula"
-    query_artifact = antecedent.artifacts.loads(prepared.export_artifact(payload="query"))
+    query_artifact = antecedent.artifacts.loads(bytes(result.export(quantity="query")))
     assert query_artifact.to_dict()["payload"]["longitudinal_regime"]["method"] == "g_formula"
 
 
@@ -358,9 +359,9 @@ def test_sequential_dr_retained_matches_direct_kernel_and_artifact():
         require_success(antecedent.analyze(data, query=query)).longitudinal_regime
         == result.longitudinal_regime
     )
-    artifact = require_success(antecedent.load(bytes(prepared.export()))).decoded_artifact
+    artifact = require_success(antecedent.load(bytes(result.export()))).decoded_artifact
     assert artifact.to_dict()["payload"]["longitudinal_regime"]["method"] == "sequential_dr"
-    query_artifact = antecedent.artifacts.loads(prepared.export_artifact(payload="query"))
+    query_artifact = antecedent.artifacts.loads(bytes(result.export(quantity="query")))
     assert query_artifact.to_dict()["payload"]["longitudinal_regime"]["q_predictions"] == [
         1.0,
         3.0,
@@ -557,11 +558,11 @@ def test_msm_retained_matches_direct_and_round_trips_pointwise_uncertainty():
     assert fit.support_status == "unlicensed_point_utility"
     assert "additive_marginal_structural_mean" in " ".join(result.assumptions or [])
     assert require_success(antecedent.analyze({"y": y}, query=query)).longitudinal_regime == fit
-    artifact = require_success(antecedent.load(bytes(prepared.export()))).decoded_artifact
+    artifact = require_success(antecedent.load(bytes(result.export()))).decoded_artifact
     assert artifact.to_dict()["payload"]["longitudinal_regime"]["period_effects"] == pytest.approx(
         [2.0, 3.0]
     )
-    query_artifact = antecedent.artifacts.loads(prepared.export_artifact(payload="query"))
+    query_artifact = antecedent.artifacts.loads(bytes(result.export(quantity="query")))
     assert query_artifact.to_dict()["payload"]["longitudinal_regime"][
         "stabilizing_numerator_probabilities"
     ] == [

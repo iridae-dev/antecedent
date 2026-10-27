@@ -16,7 +16,7 @@ from antecedent.intervention_callbacks import (
     GENERATED,
     CallbackProgram,
     InterventionCallback,
-    export_records,
+    callback_records,
     recover_callback,
     required_callbacks,
 )
@@ -109,7 +109,7 @@ by_callback = CallbackProgram(
 via_callback = sample_callbacks(model, [by_callback], N_DRAWS, seed=7).draws[0]
 np.testing.assert_array_equal(via_callback, floored)
 try:
-    export_records([by_callback])
+    callback_records([by_callback])
 except CausalUnsupportedError as refusal:
     assert refusal.reason_code == "policy_callback_not_portable", refusal
 else:
@@ -122,7 +122,7 @@ SOURCE = "def floor(g):\n    return np.maximum(10.0, 0.85 * g)\n"
 recoverable = InterventionCallback.from_source(
     SOURCE, entry_point="floor", inputs=["g"], name="floor"
 )
-(record,) = export_records([recoverable])
+(record,) = callback_records([recoverable])
 replayed = recover_callback(SOURCE, record)
 program = CallbackProgram(
     "price",

@@ -4,10 +4,24 @@ from dataclasses import replace
 
 import antecedent as _ant_api
 import pytest
-from antecedent import Admg, load, prepare
+from antecedent import Admg, estimate, load, prepare, rebind, reconfigure
 from antecedent.errors import CausalCancelledError, CausalResourceError, CausalUnsupportedError
 from antecedent.outcomes import require_success
+from antecedent.transport import TransportEvaluation
 from antecedent.transport import advanced as transport
+
+
+def grid_study(identified, catalog, data, at, *, seed=1, execution=None, **settings):
+    """Prepare the typed finite-grid question on the common immutable lifecycle."""
+    return prepare(
+        data,
+        query=transport.TransportResponseGridQuery(identified, catalog, tuple(at), **settings),
+        execution=_ant_api.Execution(seed=seed) if execution is None else execution,
+    )
+
+
+def grid_result(identified, catalog, data, at, **options):
+    return require_success(estimate(grid_study(identified, catalog, data, at, **options)))
 
 
 def fixture(missing=False, statistical=False):
@@ -144,26 +158,28 @@ def test_identify_meta_proof_executes_through_retained_checked_plan_after_builde
     assert [family.mean(i, "y") for i in range(2)] == pytest.approx([0.26, 0.74])
     assert family.contrast(1, 0, "y")["estimate"] == pytest.approx(0.48)
     assert family.contrast(1, 0, "y")["interval"] is None
-    assert require_success(plan.refresh(data)).points == family.points
+    assert require_success(estimate(rebind(plan, data=data))).points == family.points
 
 
 @pytest.mark.parametrize("statistical", [False, True])
 def test_partial_grid_retains_missing_first_point(statistical):
     _, identified, catalog, data = fixture(missing=True, statistical=statistical)
-    study = transport.prepare_response_grid(
-        identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=19
-    )
-    result = require_success(study.estimate())
+    study = grid_study(identified, catalog, data, [{"x": 0.0}, {"x": 1.0}], bootstrap=19)
+    result = require_success(estimate(study))
     assert result.points[0]["status"] == "missing_evidence"
     assert result.mean(1, "y") == pytest.approx(0.74)
     with pytest.raises(ValueError, match="executable"):
         result.contrast(1, 0, "y")
     restored = require_success(load(bytes(result.export())))
     assert restored.points == result.points
+    consumed = transport.consume_response_grid(bytes(result.export()))
+    assert consumed.points == result.points
+    assert not consumed.acceptance.resumable
+    # The recorded local failure stays an unresolved dependency of the consumed family.
+    assert any("missing_evidence" in item for item in consumed.acceptance.unresolved)
     if statistical:
-        with pytest.raises(CausalUnsupportedError, match="samples_not_embedded"):
-            require_success(transport.consume_response_grid(bytes(result.export())).estimate())
-    assert require_success(study.refresh(data)).points == result.points
+        assert any("not embedded" in item for item in consumed.acceptance.unresolved)
+    assert require_success(estimate(rebind(study, data=data))).points == result.points
 
 
 @pytest.mark.parametrize("statistical", [False, True])
@@ -172,12 +188,10 @@ def test_evaluate_response_grid_retains_local_failures_after_builder_disposal(st
     graph_builder, identification_builder, catalog, data = fixture(
         missing=True, statistical=statistical
     )
-    plan = transport.prepare_response_grid(
-        identification_builder, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=40
-    )
+    plan = grid_study(identification_builder, catalog, data, [{"x": 0.0}, {"x": 1.0}], bootstrap=40)
     del graph_builder, identification_builder
     assert plan.inspect().identification.available
-    family = require_success(plan.estimate())
+    family = require_success(estimate(plan))
     # The missing first point is retained as a local failure, not dropped.
     assert family.points[0]["status"] == "missing_evidence"
     assert family.points[1]["status"] == "available"
@@ -192,7 +206,7 @@ def test_evaluate_response_grid_retains_local_failures_after_builder_disposal(st
             family.points[1]["uncertainty"]["reason"]
             == "exact_supplied_law_no_sampling_uncertainty"
         )
-    assert require_success(plan.refresh(data)).points == family.points
+    assert require_success(estimate(rebind(plan, data=data))).points == family.points
     assert require_success(load(bytes(family.export()))).points == family.points
 
 
@@ -200,10 +214,7 @@ def test_statistical_grid_paired_contrast_and_catalog_permutation():
     _, identified, catalog, data = fixture(statistical=True)
     # A nominal 0.95 percentile interval needs B >= 40 (PERCENTILE_95_MIN_REPLICATES);
     # fewer replicates run cleanly but withhold the contrast interval as unlicensed.
-    study = transport.prepare_response_grid(
-        identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=40, seed=7
-    )
-    result = require_success(study.estimate())
+    result = grid_result(identified, catalog, data, [{"x": 0.0}, {"x": 1.0}], bootstrap=40, seed=7)
     assert (
         result.points[0]["uncertainty"]["replicate_ids"]
         == result.points[1]["uncertainty"]["replicate_ids"]
@@ -218,11 +229,7 @@ def test_statistical_grid_paired_contrast_and_catalog_permutation():
         regimes=tuple(reversed(catalog.regimes)),
         bindings=tuple(reversed(catalog.bindings)),
     )
-    again = require_success(
-        transport.prepare_response_grid(
-            identified, changed, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=40, seed=7
-        ).estimate()
-    )
+    again = grid_result(identified, changed, data, [{"x": 0.0}, {"x": 1.0}], bootstrap=40, seed=7)
     assert again.points == result.points
     assert again.execution_id == result.execution_id
 
@@ -230,14 +237,16 @@ def test_statistical_grid_paired_contrast_and_catalog_permutation():
 def test_grid_budgets_invalid_values_and_display_edits():
     _, identified, catalog, data = fixture()
     with pytest.raises(ValueError, match="finite domain"):
-        transport.prepare_response_grid(identified, catalog, data, at=[{"x": 0.5}])
+        grid_result(identified, catalog, data, [{"x": 0.5}])
     with pytest.raises(CausalResourceError, match="budget"):
-        transport.prepare_response_grid(
-            identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], max_operations=1
+        grid_result(
+            identified,
+            catalog,
+            data,
+            [{"x": 0.0}, {"x": 1.0}],
+            evaluation=TransportEvaluation(max_operations=1),
         )
-    result = require_success(
-        transport.prepare_response_grid(identified, catalog, data, at=[{"x": 1.0}]).estimate()
-    )
+    result = grid_result(identified, catalog, data, [{"x": 1.0}])
     edited = replace(result, execution_id="forged", points=())
     assert bytes(edited.export()) == bytes(result.export())
 
@@ -278,20 +287,24 @@ def test_checked_meta_statistical_plan_survives_builder_and_independent_consume(
     assert compiled.outcomes == proof.outcomes
 
     builder = transport.StatisticalTransportQuery(compiled, catalog, {"x": 1.0}, bootstrap=40)
-    plan = transport.prepare(builder, data)
+    plan = prepare(data, query=builder)
     assert plan.inspect().identification.available
     del builder, graph, compiled
-    result = require_success(plan.estimate())
+    result = require_success(estimate(plan))
     # Independent arithmetic: 0.8 P(y=1 | do(z=1)) + 0.2 P(y=1 | do(z=0)).
     assert result.mean("y") == pytest.approx(0.8 * 0.9 + 0.2 * 0.1)
-    direct_plan = transport.prepare_statistical(proof, catalog, data, at={"x": 1.0}, bootstrap=40)
+    direct_plan = prepare(
+        data, query=transport.StatisticalTransportQuery(proof, catalog, {"x": 1.0}, bootstrap=40)
+    )
     assert direct_plan.inspect().identification.available
-    assert require_success(direct_plan.estimate()).mean("y") == pytest.approx(result.mean("y"))
+    assert require_success(estimate(direct_plan)).mean("y") == pytest.approx(result.mean("y"))
     consumed = transport.consume_statistical(bytes(result.export()))
     assert consumed.inspect().identification.available
-    with pytest.raises(CausalUnsupportedError, match="samples_not_embedded"):
-        require_success(consumed.estimate())
-    assert require_success(consumed.refresh(data)).mean("y") == pytest.approx(result.mean("y"))
+    assert consumed.mean("y") == pytest.approx(result.mean("y"))
+    assert any("not embedded" in item for item in consumed.acceptance.unresolved)
+    assert require_success(estimate(rebind(plan, data=data))).mean("y") == pytest.approx(
+        result.mean("y")
+    )
 
     grid = transport.evaluate_statistical_grid(
         proof, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=40
@@ -299,26 +312,22 @@ def test_checked_meta_statistical_plan_survives_builder_and_independent_consume(
     assert [point.mean("y") for point in grid] == pytest.approx([0.26, 0.74])
     assert grid[1].contrast(grid[0], "y")["estimate"] == pytest.approx(0.48)
 
-    grid_plan = transport.prepare_response_grid(
-        proof, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=40
-    )
+    grid_plan = grid_study(proof, catalog, data, [{"x": 0.0}, {"x": 1.0}], bootstrap=40)
     assert grid_plan.inspect().identification.available
-    family = require_success(grid_plan.estimate())
+    family = require_success(estimate(grid_plan))
     assert [family.mean(i, "y") for i in range(2)] == pytest.approx([0.26, 0.74])
     assert family.contrast(1, 0, "y")["estimate"] == pytest.approx(0.48)
     restored_family = transport.consume_response_grid(bytes(family.export()))
     assert restored_family.inspect().identification.available
-    with pytest.raises(CausalUnsupportedError, match="samples_not_embedded"):
-        require_success(restored_family.estimate())
-    assert require_success(restored_family.refresh(data)).points == family.points
+    assert restored_family.points == family.points
+    assert any("not embedded" in item for item in restored_family.acceptance.unresolved)
+    assert require_success(estimate(rebind(grid_plan, data=data))).points == family.points
 
 
-def test_grid_snapshot_refresh_and_scalar_loss_receipt():
+def test_grid_snapshot_rebind_and_scalar_loss_receipt():
     _, identified, catalog, data = fixture(statistical=True)
-    study = transport.prepare_response_grid(
-        identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=19, seed=2
-    )
-    original = require_success(study.estimate())
+    study = grid_study(identified, catalog, data, [{"x": 0.0}, {"x": 1.0}], bootstrap=19, seed=2)
+    original = require_success(estimate(study))
     updated = replace(
         data,
         samples=tuple(
@@ -326,43 +335,46 @@ def test_grid_snapshot_refresh_and_scalar_loss_receipt():
             for sample in data.samples
         ),
     )
-    result = require_success(study.refresh(updated))
+    branch = rebind(study, data=updated)
+    result = require_success(estimate(branch))
     assert result.execution_id != original.execution_id
     assert require_success(load(bytes(result.export()))).points == result.points
     scalar = result.scalar_projection(0, "y")
     assert scalar["value"] == result.mean(0, "y")
     assert not scalar["equivalent_claim"]
     assert "accept_as_claim" in scalar["unavailable_operations"]
-    study.replace_snapshot(data)
+    back = rebind(branch, data=data)
     with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
-        bytes(study.export())
-    assert require_success(study.estimate()).execution_id == original.execution_id
+        back._engine._native.export()
+    assert require_success(estimate(back)).execution_id == original.execution_id
+    assert require_success(estimate(study)).execution_id == original.execution_id
 
 
-def test_consume_response_grid_refreshes_from_the_consumed_family_after_builder_disposal():
-    """The consumer rechecks the embedded grid claim and replays only from supplied samples."""
+def test_consume_response_grid_replays_the_consumed_family_after_builder_disposal():
+    """The consumer rechecks the embedded grid claim; only supplied samples can re-estimate."""
     graph_builder, identification_builder, catalog, data = fixture(statistical=True)
-    producer_builder = transport.prepare_response_grid(
-        identification_builder, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=40, seed=2
+    producer = grid_study(
+        identification_builder, catalog, data, [{"x": 0.0}, {"x": 1.0}], bootstrap=40, seed=2
     )
-    family = require_success(producer_builder.estimate())
+    family = require_success(estimate(producer))
     family_wire = bytes(family.export())
-    plan = producer_builder.inspect()
-    assert plan.identification.available
+    assert producer.inspect().identification.available
     expected_points = family.points
-    del producer_builder, identification_builder, graph_builder, family
+    expected_execution = family.execution_id
+    del identification_builder, graph_builder, family
     consumed = transport.consume_response_grid(family_wire)
-    assert consumed.inspect().program_id == plan.program_id
     assert consumed.inspect().identification.available
+    assert consumed.execution_id == expected_execution
+    assert consumed.points == expected_points
     # No fitting, fetching or resampling on load: raw samples are an explicit dependency.
-    with pytest.raises(CausalUnsupportedError, match="samples_not_embedded"):
-        require_success(consumed.estimate())
-    replay = require_success(consumed.refresh(data))
+    assert not consumed.acceptance.resumable
+    assert any("not embedded" in item for item in consumed.acceptance.unresolved)
+    replay = require_success(estimate(rebind(producer, data=data)))
     assert replay.points == expected_points
     assert [replay.mean(i, "y") for i in range(2)] == pytest.approx([0.26, 0.74])
     assert replay.contrast(1, 0, "y")["estimate"] == pytest.approx(0.48)
     # A scalar projection of the consumed family carries its loss receipt.
-    scalar = replay.scalar_projection(0, "y")
+    scalar = consumed.scalar_projection(0, "y")
     assert scalar["value"] == replay.mean(0, "y")
     assert not scalar["equivalent_claim"]
     assert "accept_as_claim" in scalar["unavailable_operations"]
@@ -378,9 +390,7 @@ def test_forwarded_dataset_aliases_share_resampling_and_reject_conflicts():
         ),
     )
     kwargs = dict(at=[{"x": 0.0}, {"x": 1.0}], bootstrap=29, seed=9)
-    original = require_success(
-        transport.prepare_response_grid(identified, catalog, data, **kwargs).estimate()
-    )
+    original = grid_result(identified, catalog, data, **kwargs)
     alias_regime = replace(catalog.regimes[0], id="forwarded_a")
     alias_binding = replace(catalog.bindings[0], regime="forwarded_a")
     copies = tuple(
@@ -392,16 +402,14 @@ def test_forwarded_dataset_aliases_share_resampling_and_reject_conflicts():
         bindings=(*catalog.bindings, alias_binding),
     )
     aliases = replace(data, samples=(*data.samples, *copies))
-    forwarded = require_success(
-        transport.prepare_response_grid(identified, alias_catalog, aliases, **kwargs).estimate()
-    )
+    forwarded = grid_result(identified, alias_catalog, aliases, **kwargs)
     for left, right in zip(original.points, forwarded.points, strict=True):
         assert left["probabilities"] == right["probabilities"]
         assert left["uncertainty"] == right["uncertainty"]
     assert require_success(load(bytes(forwarded.export()))).points == forwarded.points
     bad = replace(copies[0], columns={"z": [0.0] * 100})
     with pytest.raises(ValueError, match="conflicting forwarded"):
-        transport.prepare_response_grid(
+        grid_result(
             identified,
             alias_catalog,
             replace(data, samples=(*data.samples, bad, copies[1])),
@@ -412,57 +420,47 @@ def test_forwarded_dataset_aliases_share_resampling_and_reject_conflicts():
 def test_all_missing_providers_and_sample_order_are_retained():
     _, identified, catalog, data = fixture(statistical=True)
     empty_source = replace(data, samples=tuple(s for s in data.samples if s.population == "b"))
-    missing = require_success(
-        transport.prepare_response_grid(
-            identified, catalog, empty_source, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=7
-        ).estimate()
-    )
+    missing = grid_result(identified, catalog, empty_source, [{"x": 0.0}, {"x": 1.0}], bootstrap=7)
     assert [p["status"] for p in missing.points] == ["missing_evidence"] * 2
     assert missing.points[0]["factor_diagnostic"]["bindings"]
     assert require_success(load(bytes(missing.export()))).points == missing.points
-    first = require_success(
-        transport.prepare_response_grid(
-            identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=7
-        ).estimate()
-    )
+    first = grid_result(identified, catalog, data, [{"x": 0.0}, {"x": 1.0}], bootstrap=7)
     reversed_data = replace(data, samples=tuple(reversed(data.samples)))
-    second = require_success(
-        transport.prepare_response_grid(
-            identified, catalog, reversed_data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=7
-        ).estimate()
-    )
+    second = grid_result(identified, catalog, reversed_data, [{"x": 0.0}, {"x": 1.0}], bootstrap=7)
     assert first.points == second.points
     assert first.execution_id == second.execution_id
 
 
-def test_grid_family_identity_atomic_refresh_and_preview():
+def test_grid_family_identity_atomic_rebind_and_preview():
     _, identified, catalog, data = fixture()
-    study = transport.prepare_response_grid(identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}])
-    result = require_success(study.estimate())
-    larger = require_success(
-        transport.prepare_response_grid(
-            identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}, {"x": 0.0}]
-        ).estimate()
-    )
+    study = grid_study(identified, catalog, data, [{"x": 0.0}, {"x": 1.0}])
+    result = require_success(estimate(study))
+    larger = grid_result(identified, catalog, data, [{"x": 0.0}, {"x": 1.0}, {"x": 0.0}])
     assert larger.execution_id != result.execution_id
     malformed = replace(
         data, laws=(replace(data.laws[0], probabilities=(0.2, 0.2)), *data.laws[1:])
     )
     with pytest.raises(ValueError, match="unnormalized_law"):
-        require_success(study.refresh(malformed))
-    assert require_success(study.estimate()).execution_id == result.execution_id
+        require_success(estimate(rebind(study, data=malformed)))
+    assert require_success(estimate(study)).execution_id == result.execution_id
     preview = study.preview_transform("compatible_data_replace")
     assert preview is not None
-    with pytest.raises(ValueError, match="retained graph"):
-        prepare(
-            data,
-            query=transport.TransportResponseGridQuery(identified, catalog, ({"x": 0.0},)),
-            execution=_ant_api.Execution(threads=2),
+    # Execution threads are a policy the typed grid family cannot honour: refused, not ignored.
+    with pytest.raises(CausalUnsupportedError, match="typed transport queries") as refused:
+        require_success(
+            estimate(
+                prepare(
+                    data,
+                    query=transport.TransportResponseGridQuery(identified, catalog, ({"x": 0.0},)),
+                    execution=_ant_api.Execution(threads=2),
+                )
+            )
         )
+    assert refused.value.reason_code == "option_not_applicable"
 
 
 def test_prepare_response_grid_retains_family_plan_after_builder_disposal():
-    """The prepared family keeps its checked plan, refreshes atomically and invalidates identity."""
+    """The prepared family keeps its checked plan, rebinds atomically and invalidates identity."""
     graph_builder, identification_builder, catalog, data = fixture()
     query_builder = transport.TransportResponseGridQuery(
         identification_builder, catalog, ({"x": 0.0}, {"x": 1.0})
@@ -471,31 +469,31 @@ def test_prepare_response_grid_retains_family_plan_after_builder_disposal():
     del query_builder, identification_builder, graph_builder
     before = plan.inspect()
     assert before.identification.available
-    family = require_success(plan.estimate())
+    family = require_success(estimate(plan))
     assert [family.mean(i, "y") for i in range(2)] == pytest.approx([0.26, 0.74])
-    assert plan.inspect().execution_id == family.execution_id
-    # A malformed refresh is rejected atomically: the previous execution stands.
+    assert family.inspect().execution_id == family.execution_id
+    # A malformed rebind is rejected atomically: the source study still stands.
     malformed = replace(
         data, laws=(replace(data.laws[0], probabilities=(0.2, 0.2)), *data.laws[1:])
     )
     with pytest.raises(ValueError, match="unnormalized_law"):
-        require_success(plan.refresh(malformed))
-    assert plan.inspect().execution_id == family.execution_id
-    assert require_success(plan.estimate()).points == family.points
-    # A new snapshot identity invalidates the execution claim until it is re-run.
+        require_success(estimate(rebind(plan, data=malformed)))
+    assert require_success(estimate(plan)).points == family.points
+    # A new snapshot identity is another branch with another execution claim.
     renamed = replace(
         data,
         laws=tuple(
             replace(law, snapshot_identity=law.snapshot_identity + "next") for law in data.laws
         ),
     )
-    plan.replace_snapshot(renamed)
-    assert plan.inspect().program_id == before.program_id
-    assert plan.inspect().execution_id != family.execution_id
+    branch = rebind(plan, data=renamed)
+    assert branch.inspect().program_id == before.program_id
     with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
-        bytes(plan.export())
-    assert require_success(plan.refresh(data)).points == family.points
-    assert plan.inspect().execution_id == family.execution_id
+        branch._engine._native.export()
+    assert require_success(estimate(branch)).execution_id != family.execution_id
+    back = require_success(estimate(rebind(branch, data=data)))
+    assert back.points == family.points
+    assert back.execution_id == family.execution_id
 
 
 def calibration_case(seed, parameter=0, bootstrap=40):
@@ -517,15 +515,13 @@ def calibration_case(seed, parameter=0, bootstrap=40):
         samples.append(
             replace(sample, columns={axis: [float(rng.random() < probability) for _ in range(n)]})
         )
-    result = require_success(
-        transport.prepare_response_grid(
-            identified,
-            catalog,
-            replace(data, samples=tuple(samples)),
-            at=[{"x": 0.0}, {"x": 1.0}],
-            bootstrap=bootstrap,
-            seed=seed,
-        ).estimate()
+    result = grid_result(
+        identified,
+        catalog,
+        replace(data, samples=tuple(samples)),
+        [{"x": 0.0}, {"x": 1.0}],
+        bootstrap=bootstrap,
+        seed=seed,
     )
     truth = [py[0] * (1 - p) + py[1] * p for p in pz]
     return result, truth
@@ -581,11 +577,7 @@ def test_joint_regimes_do_not_come_from_separate_experiments():
         for x, w, p in [(0.0, 0.0, 0.1), (0.0, 1.0, 0.5), (1.0, 0.0, 0.4)]
     )
     grid = [{"x": x, "w": w} for x in (0.0, 1.0) for w in (0.0, 1.0)]
-    result = require_success(
-        transport.prepare_response_grid(
-            identified, catalog, transport.ExactTransportData(laws), at=grid
-        ).estimate()
-    )
+    result = grid_result(identified, catalog, transport.ExactTransportData(laws), grid)
     assert [p["status"] for p in result.points] == ["available"] * 3 + ["missing_evidence"]
     assert [result.mean(i, "y") for i in range(3)] == pytest.approx([0.1, 0.5, 0.4])
     assert require_success(load(bytes(result.export()))).points == result.points
@@ -601,9 +593,7 @@ def test_joint_regimes_do_not_come_from_separate_experiments():
         ],
     )
     with pytest.raises(CausalUnsupportedError, match="catalog"):
-        transport.prepare_response_grid(
-            identified, separate, transport.ExactTransportData(()), at=grid
-        )
+        grid_result(identified, separate, transport.ExactTransportData(()), grid)
 
 
 def test_irrelevant_source_deterministic_alternative_and_wrong_selection():
@@ -619,9 +609,7 @@ def test_irrelevant_source_deterministic_alternative_and_wrong_selection():
     other = transport.identify_meta(
         graph, irrelevant, target="target", outcomes=["y"], treatments=["x"]
     )
-    result = require_success(
-        transport.prepare_response_grid(other, irrelevant, data, at=[{"x": 1.0}]).estimate()
-    )
+    result = grid_result(other, irrelevant, data, [{"x": 1.0}])
     assert result.mean(0, "y") == pytest.approx(0.74)
     # A lexically earlier admissible source has no providers. Catalog-aware search must try a.
     alternative = replace(
@@ -634,9 +622,9 @@ def test_irrelevant_source_deterministic_alternative_and_wrong_selection():
     alternate_id = transport.identify_meta(
         graph, alternative, target="target", outcomes=["y"], treatments=["x"]
     )
-    assert require_success(
-        transport.prepare_response_grid(alternate_id, alternative, data, at=[{"x": 1.0}]).estimate()
-    ).mean(0, "y") == pytest.approx(0.74)
+    assert grid_result(alternate_id, alternative, data, [{"x": 1.0}]).mean(0, "y") == pytest.approx(
+        0.74
+    )
     conflicting = replace(
         catalog,
         environments=(
@@ -645,7 +633,7 @@ def test_irrelevant_source_deterministic_alternative_and_wrong_selection():
         ),
     )
     with pytest.raises(CausalUnsupportedError, match="catalog mechanism selections disagree"):
-        transport.prepare_response_grid(identified, conflicting, data, at=[{"x": 1.0}])
+        grid_result(identified, conflicting, data, [{"x": 1.0}])
 
 
 def test_retained_support_failure_and_checked_irrelevant_zero():
@@ -680,10 +668,8 @@ def test_retained_support_failure_and_checked_irrelevant_zero():
     target = transport.ExactDiscreteLaw(
         "target", "covariates", (("z", (0.0, 1.0)),), (0.5, 0.5), "target"
     )
-    result = require_success(
-        transport.prepare_response_grid(
-            identified, catalog, transport.ExactTransportData((source, target)), at=[{"x": 1.0}]
-        ).estimate()
+    result = grid_result(
+        identified, catalog, transport.ExactTransportData((source, target)), [{"x": 1.0}]
     )
     assert result.points[0]["status"] == "support_failure"
     # A support failure in supplied evidence, not missing evidence.
@@ -693,13 +679,11 @@ def test_retained_support_failure_and_checked_irrelevant_zero():
     )
     assert result.points[0]["factor_diagnostic"]["assignment"]
     assert require_success(load(bytes(result.export()))).points == result.points
-    valid = require_success(
-        transport.prepare_response_grid(
-            identified,
-            catalog,
-            transport.ExactTransportData((source, replace(target, probabilities=(1.0, 0.0)))),
-            at=[{"x": 1.0}],
-        ).estimate()
+    valid = grid_result(
+        identified,
+        catalog,
+        transport.ExactTransportData((source, replace(target, probabilities=(1.0, 0.0)))),
+        [{"x": 1.0}],
     )
     assert valid.mean(0, "y") == pytest.approx(0.3)
     assert valid.points[0]["factor_support"]
@@ -709,13 +693,16 @@ def test_grid_cancellation_preserves_previous_execution():
     from antecedent.state import CancellationToken
 
     _, identified, catalog, data = fixture()
-    study = transport.prepare_response_grid(identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}])
-    result = require_success(study.estimate())
+    study = grid_study(identified, catalog, data, [{"x": 0.0}, {"x": 1.0}])
+    outcome = estimate(study)
+    result = require_success(outcome)
     token = CancellationToken()
+    cancelled = reconfigure(study, execution=_ant_api.Execution(cancel=token))
     token.cancel()
     with pytest.raises(CausalCancelledError, match="cancel"):
-        require_success(study.estimate(cancel=token))
-    assert require_success(load(bytes(study.export()))).execution_id == result.execution_id
+        estimate(cancelled)
+    assert require_success(load(bytes(outcome.export()))).execution_id == result.execution_id
+    assert require_success(estimate(study)).execution_id == result.execution_id
 
 
 def test_consume_identification_executes_from_the_consumed_proof_after_builder_disposal():
@@ -730,10 +717,12 @@ def test_consume_identification_executes_from_the_consumed_proof_after_builder_d
     proof = transport.consume_identification(proof_wire)
     assert proof.outcome == "identified"
     assert proof.inspect() == expected
-    plan = transport.prepare_statistical(proof, catalog, data, at={"x": 1.0}, bootstrap=40)
+    plan = prepare(
+        data, query=transport.StatisticalTransportQuery(proof, catalog, {"x": 1.0}, bootstrap=40)
+    )
     assert plan.inspect().identification.available
     # Independent arithmetic: 0.8 P(y=1 | do(z=1)) + 0.2 P(y=1 | do(z=0)).
-    assert require_success(plan.estimate()).mean("y") == pytest.approx(0.8 * 0.9 + 0.2 * 0.1)
+    assert require_success(estimate(plan)).mean("y") == pytest.approx(0.8 * 0.9 + 0.2 * 0.1)
 
     # A frozen NotCertified claim is consumed as it was recorded: never upgraded
     # to a proof or to an obstruction.
@@ -788,4 +777,4 @@ def test_invalid_source_coordinates_and_continuous_provider_contracts():
         ),
     )
     with pytest.raises(ValueError, match="finite discrete"):
-        transport.prepare_response_grid(identified, continuous, data, at=[{"x": 1.0}])
+        grid_result(identified, continuous, data, [{"x": 1.0}])

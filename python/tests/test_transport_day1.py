@@ -3,10 +3,26 @@
 import json
 
 import pytest
-from antecedent import Admg, AverageEffect, Execution, ResponseCurve, analyze, identify, transport
+from antecedent import (
+    Admg,
+    AverageEffect,
+    Execution,
+    ResponseCurve,
+    estimate,
+    identify,
+    rebind,
+    transport,
+)
+from antecedent import analyze as _analyze
+from antecedent import reconfigure as ant_reconfigure
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
 from antecedent.outcomes import require_success
 from antecedent.results import AnalysisResult, CausalResponseView
+
+
+def analyze(*args, **kwargs):
+    """The successful reading of one-shot analysis; a scientific refusal re-raises its error."""
+    return require_success(_analyze(*args, **kwargs))
 
 
 def _graph():
@@ -291,13 +307,15 @@ def test_day1_surface_excludes_stage_types():
 def test_route_transport_tabular_explicit_day1():
     from antecedent import load
 
-    result = analyze(_statistical(), graph=_graph(), query=_curve())
-    assert result.study is not None
-    refreshed = require_success(result.refresh(_statistical()))
+    outcome = _analyze(_statistical(), graph=_graph(), query=_curve())
+    result = require_success(outcome)
+    assert outcome.study is not None
+    branch = rebind(outcome.study, data=_statistical())
+    refreshed = require_success(estimate(branch))
     assert list(refreshed.response.values) == list(result.response.values)
-    loaded = require_success(load(bytes(result.export())))
+    loaded = require_success(load(bytes(outcome.export())))
     assert list(loaded.response.values) == list(result.response.values)
-    again = require_success(result.study.estimate())
+    again = require_success(estimate(outcome.study))
     assert list(again.response.values) == list(result.response.values)
 
 
@@ -459,21 +477,31 @@ def _restricted_query():
 
 
 def test_restricted_experiment_uses_z_transport_not_classical_sid():
+    import base64
+
+    from antecedent import prepare
+
     graph = _surrogate_graph()
     query = _restricted_query()
-    result = analyze(transport.ExactTransportData((_surrogate_law(),)), graph=graph, query=query)
+    outcome = estimate(
+        prepare(transport.ExactTransportData((_surrogate_law(),)), graph=graph, query=query)
+    )
+    result = require_success(outcome)
     assert result.answer.kind == "response"
     assert [row[0] for row in result.response.values] == pytest.approx([0.2, 0.8])
     assert result.transport.formula == "single_source_z_transport_cited_joints_sound_incomplete"
     assert result.transport.provider == "exact_law"
-    # A grid execution carries one independently consumable artifact per point.
-    artifacts = result.transport.distribution.artifacts
+    # A grid execution is exported as one complete view carrying one independently
+    # consumable artifact per point, in target-assignment order.
+    prefix = b"ANTECEDENT-TRANSPORT-VIEW\x01"
+    payload = json.loads(bytes(outcome.export())[len(prefix) :])
+    artifacts = [base64.b64decode(item) for item in payload["specialist_artifacts"]]
     assert len(artifacts) == 2
-    consumed = json.loads(transport.advanced.consume_z_transport_artifact(artifacts[0]))
+    consumed = transport.advanced.consume_z_transport_artifact(artifacts[0]).to_dict()
     assert consumed["probabilities"]
     assert consumed["outcomes"] == ["y"]
-    with pytest.raises(CausalUnsupportedError, match="one artifact per target assignment"):
-        bytes(result.transport.distribution.export())
+    distribution_payload = json.loads(bytes(result.transport.distribution.export())[len(prefix) :])
+    assert distribution_payload["specialist_artifacts"] == payload["specialist_artifacts"]
     contrast = analyze(
         transport.ExactTransportData((_surrogate_law(),)),
         graph=graph,
@@ -561,13 +589,13 @@ def test_one_restricted_source_identifies_without_the_other():
     assert result.transport.formula == "single_source_z_transport_cited_joints_sound_incomplete"
 
 
-def test_restricted_experiment_keeps_the_z_transport_controllable_bound():
+def test_restricted_experiment_has_no_controllable_count_ceiling():
     controllable = ["c0", "c1", "c2", "c3", "c4"]
     small = Admg.from_edges(
         ["x", "y", *controllable],
         [("x", "y"), *[(name, "x") for name in controllable]],
     )
-    too_many = transport.Transport(
+    many = transport.Transport(
         ResponseCurve("x", "y", grid=[0.0, 1.0]),
         target="target",
         evidence=transport.Evidence(
@@ -580,8 +608,10 @@ def test_restricted_experiment_keeps_the_z_transport_controllable_bound():
             target_sampling="representative_sample",
         ),
     )
-    with pytest.raises(CausalUnsupportedError, match="z_transport.unsupported_controllable_count"):
-        identify(graph=small, query=too_many)
+    # The checked search charges its work to a budget; the number of controllable
+    # experiments is not itself a refusal.
+    identified = identify(graph=small, query=many)
+    assert "unsupported_controllable_count" not in json.dumps(identified.to_dict(), default=str)
 
 
 def test_root_transport_query_removal_names_its_replacement():
@@ -642,26 +672,28 @@ def test_restricted_prepared_study_is_a_first_class_handle():
     study = prepare(
         transport.ExactTransportData((_surrogate_law(),)), graph=graph, query=_restricted_query()
     )
-    with pytest.raises(CausalUnsupportedError, match="estimate before exporting") as refused:
-        bytes(study.export())
-    assert refused.value.reason_code == "not_executed"
-    result = require_success(study.estimate())
+    # Only an executed outcome exports; a prepared study has no claim to forward.
+    assert not hasattr(study, "export")
+    outcome = estimate(study)
+    result = require_success(outcome)
     assert [row[0] for row in result.response.values] == pytest.approx([0.2, 0.8])
-    assert isinstance(study.plan, PhysicalPlanView)
-    assert study.plan.kernels == "z_transport_exact_point"
-    assert study.structure_source == "explicit"
+    # The retained physical plan is read from the prepared native handle.
+    plan = study._engine.plan
+    assert isinstance(plan, PhysicalPlanView)
+    assert plan.kernels == "z_transport_exact_point"
+    assert study._engine.structure_source == "explicit"
     preview = study.preview_transform("display_precision")
     assert preview["refused"] == "false"
     refused_preview = study.preview_transform("change_graph")
     assert refused_preview["refused"] == "true"
     assert refused_preview["refusal_code"] == "option_not_applicable"
-    study_view = require_success(load(bytes(study.export())))
+    study_view = require_success(load(bytes(outcome.export())))
     assert [row[0] for row in study_view.response.values] == pytest.approx([0.2, 0.8])
     assert study.inspect().identification.available
 
     # The result view carries one z-transport artifact per grid point, and
     # every reloaded number is recomputed by the native consumer.
-    blob = bytes(result.export())
+    blob = bytes(outcome.export())
     payload = json.loads(blob[len(b"ANTECEDENT-TRANSPORT-VIEW\x01") :])
     assert len(payload["specialist_artifacts"]) == 2
     loaded = require_success(load(blob))
@@ -675,7 +707,7 @@ def test_restricted_prepared_study_is_a_first_class_handle():
     import struct
 
     first = base64.b64decode(payload["specialist_artifacts"][0])
-    probabilities = json.loads(transport.advanced.consume_z_transport_artifact(first))[
+    probabilities = transport.advanced.consume_z_transport_artifact(first).to_dict()[
         "probabilities"
     ]
 
@@ -703,7 +735,7 @@ def test_restricted_prepared_study_is_a_first_class_handle():
     assert reloaded.answer.value == pytest.approx(0.6)
 
 
-def test_restricted_refresh_with_a_new_snapshot_identity_rebinds_laws_and_catalog():
+def test_restricted_rebind_with_a_new_snapshot_identity_rebinds_laws_and_catalog():
     from antecedent import prepare
 
     study = prepare(
@@ -711,22 +743,22 @@ def test_restricted_refresh_with_a_new_snapshot_identity_rebinds_laws_and_catalo
         graph=_surrogate_graph(),
         query=_restricted_query(),
     )
-    first = require_success(study.estimate())
+    first = require_success(estimate(study))
     assert first.transport.bindings == ("source:z=0.0:snap_one",)
-    second = require_success(
-        study.refresh(transport.ExactTransportData((_snapshot_law("snap_two"),)))
-    )
+    two = rebind(study, data=transport.ExactTransportData((_snapshot_law("snap_two"),)))
+    second = require_success(estimate(two))
     assert second.transport.bindings == ("source:z=0.0:snap_two",)
     assert [row[0] for row in second.response.values] == pytest.approx([0.2, 0.8])
     # Same identity, native rebind: still the same claim.
     third = require_success(
-        study.refresh(transport.ExactTransportData((_snapshot_law("snap_two"),)))
+        estimate(rebind(two, data=transport.ExactTransportData((_snapshot_law("snap_two"),))))
     )
     assert third.transport.bindings == ("source:z=0.0:snap_two",)
-    study.replace_snapshot(transport.ExactTransportData((_snapshot_law("snap_three"),)))
-    with pytest.raises(CausalUnsupportedError, match="estimate before exporting"):
-        bytes(study.export())
-    assert require_success(study.estimate()).transport.bindings == ("source:z=0.0:snap_three",)
+    three = rebind(study, data=transport.ExactTransportData((_snapshot_law("snap_three"),)))
+    assert not hasattr(three, "export")
+    assert require_success(estimate(three)).transport.bindings == ("source:z=0.0:snap_three",)
+    # The source study and its first outcome keep their original binding.
+    assert require_success(estimate(study)).transport.bindings == ("source:z=0.0:snap_one",)
 
 
 def test_restricted_missing_evidence_is_named_in_variables_and_survives_export():
@@ -758,33 +790,53 @@ def test_restricted_missing_evidence_is_named_in_variables_and_survives_export()
 
 
 def test_statistical_payload_shape_and_support_budget_are_enforced():
-    from antecedent.errors import CausalResourceError, CausalValueError
+    from antecedent import prepare
+    from antecedent.errors import CausalCancelledError, CausalResourceError, CausalValueError
+    from antecedent.state import CancellationToken
+    from antecedent.transport import TransportEvaluation
 
     from test_transport_statistical import fixture
 
     identified, catalog, data = fixture()
     with pytest.raises(CausalResourceError, match="max_support_rows"):
-        transport.advanced.prepare_statistical(
-            identified, catalog, data, at={"x": 1.0}, max_support_rows=1
+        prepare(
+            data,
+            query=transport.advanced.StatisticalTransportQuery(
+                identified,
+                catalog,
+                {"x": 1.0},
+                evaluation=TransportEvaluation(max_support_rows=1),
+            ),
         )
-    study = transport.advanced.prepare_statistical(
-        identified, catalog, data, at={"x": 1.0}, bootstrap=0
+    study = prepare(
+        data,
+        query=transport.advanced.StatisticalTransportQuery(
+            identified, catalog, {"x": 1.0}, bootstrap=0
+        ),
     )
-    result = require_success(study.estimate())
+    outcome = estimate(study)
+    result = require_success(outcome)
+    # A payload that is not statistical data is refused by the native snapshot parser
+    # and leaves the source study untouched.
     with pytest.raises(CausalValueError, match="samples field"):
-        require_success(study._native.refresh(tuple(data.laws)))
+        require_success(estimate(rebind(study, data=tuple(data.laws))))
     with pytest.raises(CausalValueError, match="RegimeSample"):
         require_success(
-            study._native.refresh(transport.StatisticalTransportData(samples=(_surrogate_law(),)))
+            estimate(
+                rebind(
+                    study,
+                    data=transport.StatisticalTransportData(samples=(_surrogate_law(),)),
+                )
+            )
         )
-    from antecedent.state import CancellationToken
-
     token = CancellationToken()
+    cancelled = ant_reconfigure(study, execution=Execution(cancel=token))
+    before = bytes(outcome.export())
     token.cancel()
-    before = bytes(study.export())
-    from antecedent.errors import CausalCancelledError
-
-    with pytest.raises(CausalCancelledError, match="transport statistical execution cancelled"):
-        require_success(study.estimate(cancel=token))
-    assert bytes(study.export()) == before
-    assert require_success(study.estimate()).probabilities == pytest.approx(result.probabilities)
+    with pytest.raises(
+        CausalCancelledError,
+        match="transport (statistical execution|provider materialization) cancelled",
+    ):
+        require_success(estimate(cancelled))
+    assert bytes(outcome.export()) == before
+    assert require_success(estimate(study)).probabilities == pytest.approx(result.probabilities)

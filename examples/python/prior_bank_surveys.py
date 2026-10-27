@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 
 def _survey(
@@ -35,7 +36,7 @@ def _fit_artifact(
     *,
     seed: int,
 ) -> tuple[bytes, float]:
-    result = antecedent.analyze(
+    outcome = antecedent.analyze(
         data,
         graph=edges,
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
@@ -43,9 +44,11 @@ def _fit_artifact(
         refute="none",
         execution=antecedent.Execution(seed=seed),
     )
+    result = require_success(outcome)
     assert result.posterior is not None
     # The prior catalog consumes a posterior payload, not a full execution export.
-    return result.study.export_artifact(), float(result.posterior.effect_mean)
+    posterior = outcome.export(quantity="posterior")
+    return bytes(posterior), float(result.posterior.effect_mean)
 
 
 def main() -> None:
@@ -151,17 +154,19 @@ def main() -> None:
         conflict=None,
     )
 
-    target = antecedent.analyze(
-        data_t,
-        graph=edges,
-        query=query,
-        inference=antecedent.Bayesian(
-            n_draws=96,
-            backend="conjugate",
-            prior_from=prior_for_fit,
-        ),
-        refute="full",
-        execution=antecedent.Execution(seed=13),
+    target = require_success(
+        antecedent.analyze(
+            data_t,
+            graph=edges,
+            query=query,
+            inference=antecedent.Bayesian(
+                n_draws=96,
+                backend="conjugate",
+                prior_from=prior_for_fit,
+            ),
+            refute="full",
+            execution=antecedent.Execution(seed=13),
+        )
     )
     print("Calibration:", target.calibration.status)
     assert target.posterior is not None

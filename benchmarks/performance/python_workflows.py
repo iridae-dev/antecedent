@@ -17,6 +17,19 @@ import statistics
 import time
 from functools import partial
 from pathlib import Path
+from typing import Any
+
+
+def estimate_retained(ant: Any, retained: list[Any]) -> Any:
+    """Estimate the newest completed study.
+
+    Prepared branches are immutable: the reusable design and workspace live on the completed
+    study each outcome retains, so repeated estimation continues from that study.
+    """
+    outcome = ant.estimate(retained[0])
+    if outcome.study is not None:
+        retained[0] = outcome.study
+    return outcome
 
 
 def main() -> None:
@@ -55,6 +68,7 @@ def main() -> None:
         import antecedent as ant
         import numpy as np
         from antecedent import _native
+        from antecedent.outcomes import require_success
     except ImportError as error:
         parser.exit(
             1,
@@ -74,32 +88,38 @@ def main() -> None:
         + [("t", "y")],
         "query": ant.AverageEffect("t", "y"),
         "refute": False,
-        "seed": 11,
-        "threads": args.threads,
+        "execution": ant.Execution(seed=11, threads=args.threads),
     }
     cells = []
     families = args.family or ("bootstrap", "gaussian_bayes")
     if args.profile is not None and families[-1] != "gaussian_bayes":
         parser.error("--profile requires the final family to be gaussian_bayes")
     for family in families:
-        options = dict(common, bootstrap=args.bootstrap if family == "bootstrap" else 0)
-        if family == "gaussian_bayes":
-            options["inference"] = ant.inference.Bayesian(n_draws=args.draws)
+        options = dict(
+            common,
+            inference=(
+                ant.Frequentist(bootstrap=args.bootstrap)
+                if family == "bootstrap"
+                else ant.Bayesian(n_draws=args.draws)
+            ),
+        )
         prepared = ant.prepare(data, **options)
         for mode in ("first_answer", "prepared_estimate"):
             call = (
                 partial(ant.analyze, data, **options)
                 if mode == "first_answer"
-                else prepared.estimate
+                else partial(estimate_retained, ant, [prepared])
             )
             call()  # Declared single warmup, outside the retained repeats.
             samples = []
             for repeat in range(args.repeats):
                 started = time.perf_counter_ns()
-                result = call()
+                outcome = call()
                 nanos = time.perf_counter_ns() - started
+                result = require_success(outcome)
                 perf = result.performance
-                if not math.isfinite(result.effect) or abs(result.effect - 2) > 0.3:
+                effect = outcome.answer.value
+                if effect is None or not math.isfinite(effect) or abs(effect - 2) > 0.3:
                     raise RuntimeError("known-truth response failed")
                 if perf.cancelled or perf.early_stopped:
                     raise RuntimeError("incomplete numerical effort")
@@ -115,7 +135,7 @@ def main() -> None:
                     {
                         "repeat": repeat,
                         "elapsed_ns": nanos,
-                        "effect": result.effect,
+                        "effect": effect,
                         "analytic_se": result.estimate.se_analytic,
                         "bootstrap_se": result.estimate.se_bootstrap,
                         "native_wall_ns": perf.wall_time_ns,
@@ -149,7 +169,7 @@ def main() -> None:
         profiler.enable()
         try:
             for _ in range(args.profile_repeats):
-                result = prepared.estimate()
+                result = require_success(ant.estimate(prepared))
                 if (
                     result.performance.n_draws != args.draws
                     or result.performance.cancelled

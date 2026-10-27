@@ -388,7 +388,9 @@ def test_selected_staggered_group_time_runs_through_retained_analyze():
     ) == pytest.approx(4.0)
 
     changed = dict(data, y=[value + 1.0 for value in outcomes])
-    assert require_success(prepared.estimate(changed)).panel_did == result.panel_did
+    rebound = antecedent.rebind(prepared, data=changed)
+    assert require_success(antecedent.estimate(rebound)).panel_did == result.panel_did
+    assert result.panel_did.estimate == pytest.approx(4.0)
     with pytest.raises(CausalValueError, match="target_cohort and target_period"):
         StaggeredAdoption("y", "id", "period", "cohort", target_cohort=3)
     with pytest.raises(Exception, match="never-treated"):
@@ -553,12 +555,8 @@ def test_staggered_event_study_runs_through_retained_analyze_with_direct_parity(
         for d in result.diagnostics
     )
     assert require_success(antecedent.analyze(data, query=query)).panel_did == direct
-    assert (
-        require_success(
-            prepared.estimate({**data, "y": [value + 1 for value in outcomes]})
-        ).panel_did
-        == direct
-    )
+    rebound = antecedent.rebind(prepared, data={**data, "y": [value + 1 for value in outcomes]})
+    assert require_success(antecedent.estimate(rebound)).panel_did == direct
     with pytest.raises(Exception, match="never-treated"):
         require_success(antecedent.analyze({**data, "cohort": [3] * len(cohorts)}, query=query))
 

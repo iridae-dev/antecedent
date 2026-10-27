@@ -7,6 +7,7 @@ import antecedent as ant
 import numpy as np
 from antecedent import joint_law_propagation as jl
 from antecedent.interference import BernoulliAssignment
+from antecedent.outcomes import require_success
 
 
 def main():
@@ -23,20 +24,21 @@ def main():
         ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), "arm", "id", "id"),
     )
     study = ant.prepare(data, query=query, refute=False)
-    original = study.estimate()
+    original = ant.estimate(study)
     changed = {**data, "arm": ~assigned}
     try:
-        study.refresh(changed)
+        ant.rebind(study, data=changed)
     except ant.CausalError as error:
-        assert "arm" in str(error) and "reprepare" in str(error)
+        assert "arm" in str(error) and "ant.prepare" in str(error)
         print("Design refusal:", error)
     else:
         raise AssertionError("Changed assignments were accepted")
-    assert study.last_result is original
-    revised = study.reprepare(changed).estimate()
+    # The refused branch left the study and its outcome as they were.
+    assert ant.estimate(study).answer.value == original.answer.value
+    revised = ant.estimate(ant.prepare(changed, query=query, refute=False))
     assert np.isclose(revised.answer.value, -original.answer.value)
     print("Reprepared effect:", revised.answer.value)
-    claim = jl.mixture([jl.MixtureComponent("model", "evidence", 1.0, 2.0, 3.0)])
+    claim = require_success(jl.mixture([jl.MixtureComponent("model", "evidence", 1.0, 2.0, 3.0)]))
     try:
         claim.interval()
     except jl.JointLawPropagationRefusal as error:

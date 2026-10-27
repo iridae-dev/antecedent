@@ -1,4 +1,4 @@
-"""Latency tiers + cancel mid-bootstrap (Python dual of Rust backlog A)."""
+"""Inference profiles + cancel mid-bootstrap (Python dual of Rust backlog A)."""
 
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ def test_interactive_vs_standard_effort():
             data,
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            latency="interactive",
-            seed=1,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert math.isfinite(interactive.ate)
@@ -34,9 +34,9 @@ def test_interactive_vs_standard_effort():
             data,
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            latency="standard",
+            inference=antecedent.Frequentist(profile="standard"),
             refute=False,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert math.isfinite(standard.ate)
@@ -146,11 +146,9 @@ def test_interactive_class_envelope_reports_subsampled_out_mass_separately():
                 data,
                 graph=graph,
                 query=antecedent.AverageEffect(treatment="t", outcome="y"),
-                inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
-                latency=latency,
+                inference=antecedent.Bayesian(n_draws=64, backend="conjugate", profile=latency),
                 refute=False,
-                bootstrap=0,
-                seed=5,
+                execution=antecedent.Execution(seed=5),
             )
         )
 

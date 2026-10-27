@@ -69,7 +69,7 @@ def test_the_range_is_built_from_the_responses_value_quantity_and_receipt() -> N
 
 def test_the_sealed_artifact_exports_and_a_consumer_recomputes_it() -> None:
     result = sensitivity(point(2.0), reference_value=1.0)
-    artifact = result.artifact
+    artifact = result.decision_source
     assert isinstance(artifact, sd.SensitivityArtifact)
     assert artifact.grid == pytest.approx((0.0, 0.25, 0.5), abs=TOL)
     # The reference 1.0 lies below the whole range [1.5, 2.5]: acting is the invariant best.
@@ -86,15 +86,15 @@ def test_the_sealed_artifact_exports_and_a_consumer_recomputes_it() -> None:
     # an assumption range is never inherited by another target.
     other = sensitivity(point(2.0, "clinic_c"), reference_value=1.0)
     assert other.identity != result.identity
-    assert other.artifact.identity != artifact.identity
+    assert other.decision_source.identity != artifact.identity
     # And a different point value at the same declared family moves the range.
     moved = sensitivity(point(3.0))
     assert moved.lower == pytest.approx((3.0, 2.75, 2.5), abs=TOL)
     # A reference above the range flips the invariant action.
     above = sensitivity(point(2.0), reference_value=3.0)
-    assert above.artifact.outcome is not None
-    assert above.artifact.outcome.kind == "invariant_action"
-    assert above.artifact.outcome.action != artifact.outcome.action
+    assert above.decision_source.outcome is not None
+    assert above.decision_source.outcome.kind == "invariant_action"
+    assert above.decision_source.outcome.action != artifact.outcome.action
 
 
 def test_a_response_that_cannot_be_shifted_is_refused_with_its_own_reason() -> None:

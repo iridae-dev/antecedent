@@ -72,7 +72,7 @@ def _tables(horizon: bool) -> tuple[dict[str, np.ndarray], tuple]:
 
 def _inference(bayesian: bool):
     if not bayesian:
-        return ant.Frequentist()
+        return ant.Frequentist(bootstrap=0)
     return ant.Bayesian(
         n_draws=GAUSSIAN["posterior_draws"],
         prior_scale=GAUSSIAN["prior_scale"],
@@ -88,8 +88,7 @@ def _prepare(horizon: bool, bayesian: bool):
         query=query,
         inference=_inference(bayesian),
         refute="none",
-        bootstrap=0,
-        seed=1,
+        execution=ant.Execution(seed=1),
     )
     return prepared, data
 
@@ -113,23 +112,26 @@ def test_one_result_reads_the_same_through_plan_report_artifact_and_host(cell) -
     horizon, bayesian = cell
     prepared, data = _prepare(horizon, bayesian)
     view = prepared.plan_view()
-    assert prepared.last_result is None, "reading the plan executes nothing"
+    assert prepared.inspect().stage == "prepared", "reading the plan executes nothing"
     assert (view.uncertainty.reading == "posterior") is bayesian
 
     before = prepared.report("markdown")
     assert "a contract before execution" in before
     assert "## Claim" not in before
 
-    result = require_success(prepared.estimate(data, seed=1))
+    completed = ant.estimate(prepared)
+    result = require_success(completed)
     assert result.estimate.ate == pytest.approx(
         GAUSSIAN["effect"], abs=_tolerance(horizon, bayesian)
     )
     assert prepared.plan_view().identity == view.identity, "estimating keeps the program"
+    assert completed.study.plan_view().identity == view.identity
+    assert prepared.report("markdown") == before, "the prepared branch is not executed"
 
-    after = prepared.report("markdown")
+    after = completed.study.report("markdown")
     assert "## Claim" in after
     assert _fact(after, "Inference").lower() == ("bayesian" if bayesian else "frequentist")
-    assert after == prepared.report("markdown"), "reading the report twice changes nothing"
+    assert after == completed.study.report("markdown"), "reading the report twice changes nothing"
 
     # The host reads the same claim the report prints, and a causal effect is a causal record.
     inspection = result.inspect()
@@ -161,7 +163,8 @@ def forbidden(*args, **kwargs):
     raise AssertionError('a fresh-process load cannot analyze or prepare')
 ant.analyze = forbidden
 ant.prepare = forbidden
-loaded = ant.load(Path(sys.argv[1]).read_bytes())
+from antecedent.outcomes import require_success
+loaded = require_success(ant.load(Path(sys.argv[1]).read_bytes()))
 print(json.dumps({
     "program_id": loaded.program_id,
     "claim_id": loaded.claim_id,
@@ -183,7 +186,7 @@ def _routes() -> dict:
     routes = {}
     for horizon, bayesian in _CELLS:
         prepared, data = _prepare(horizon, bayesian)
-        routes[_cell_id((horizon, bayesian))] = require_success(prepared.estimate(data, seed=1))
+        routes[_cell_id((horizon, bayesian))] = require_success(ant.estimate(prepared))
     routes["anomaly-attribution"] = require_success(
         ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query())
     )
@@ -207,7 +210,7 @@ def test_every_route_artifact_reloads_in_a_fresh_process_with_its_identities(tmp
 
 def test_a_changed_byte_is_refused_or_never_a_different_recognized_answer() -> None:
     prepared, data = _prepare(False, False)
-    result = require_success(prepared.estimate(data, seed=1))
+    result = require_success(ant.estimate(prepared))
     artifact = bytes(result.export())
     step = max(1, len(artifact) // 48)
     refused = 0
@@ -228,13 +231,13 @@ def test_a_changed_byte_is_refused_or_never_a_different_recognized_answer() -> N
         require_success(ant.load(artifact[: len(artifact) // 2]))
 
 
-def test_a_refresh_moves_the_data_not_the_program_and_leaves_the_earlier_artifact_intact(
+def test_a_rebind_moves_the_data_not_the_program_and_leaves_the_earlier_artifact_intact(
     tmp_path,
 ) -> None:
     for horizon, bayesian in _CELLS:
         label = _cell_id((horizon, bayesian))
         prepared, data = _prepare(horizon, bayesian)
-        result = require_success(prepared.estimate(data, seed=1))
+        result = require_success(ant.estimate(prepared))
         program = prepared.plan_view().identity
         earlier = bytes(result.export(artifact_id=label))
         earlier_path = tmp_path / f"{label}-earlier.ant"
@@ -249,11 +252,25 @@ def test_a_refresh_moves_the_data_not_the_program_and_leaves_the_earlier_artifac
             # One more unit of slope moves the contrast.
             moved = {"t": data["t"], "y": data["y"] + data["t"]}
             truth = GAUSSIAN["effect"] + 1.0
-        refreshed = require_success(prepared.refresh(moved, seed=1))
+        branch = ant.rebind(prepared, data=moved)
+        refreshed = require_success(ant.estimate(branch))
         tolerance = 2 * _tolerance(horizon, bayesian) if bayesian else 1e-6
         assert refreshed.estimate.ate == pytest.approx(truth, abs=tolerance), label
         assert refreshed.program_id == result.program_id, label
         assert prepared.plan_view().identity == program, label
+        moved = branch.plan_view()
+        original = prepared.plan_view()
+        assert moved.statistical.identity == original.statistical.identity, label
+        assert moved.scientific.target == original.scientific.target, label
+        if original.scientific.source_digest is not None:
+            # The lowered program binds the digest of the observations it reads.
+            assert moved.scientific.source_digest != original.scientific.source_digest, label
+            assert moved.identity != program, label
+        else:
+            # A prepared plan without a lowered program carries no source digest; the executed outcomes
+            # bind the observations each execution read through their snapshot identities.
+            assert result.inspect().data_snapshot_id is not None, label
+            assert refreshed.inspect().data_snapshot_id != result.inspect().data_snapshot_id, label
         assert refreshed.data_snapshot_id != result.data_snapshot_id, label
         assert bytes(refreshed.export(artifact_id=label)) != earlier, label
 
@@ -278,15 +295,15 @@ def test_a_refresh_moves_the_data_not_the_program_and_leaves_the_earlier_artifac
             )
 
 
-def test_a_refused_refresh_leaves_the_prepared_study_as_it_was() -> None:
+def test_a_refused_rebind_leaves_the_prepared_study_as_it_was() -> None:
     prepared, data = _prepare(False, False)
-    first = require_success(prepared.estimate(data, seed=1))
+    first = require_success(ant.estimate(prepared))
     program = prepared.plan_view().identity
     wrong_schema = {"t": data["t"], "w": data["y"]}
     with pytest.raises(_REFUSALS):
-        require_success(prepared.refresh(wrong_schema, seed=1))
+        ant.rebind(prepared, data=wrong_schema)
     assert prepared.plan_view().identity == program
-    again = require_success(prepared.estimate(data, seed=1))
+    again = require_success(ant.estimate(prepared))
     assert again.estimate.ate == first.estimate.ate
     assert again.data_snapshot_id == first.data_snapshot_id
 

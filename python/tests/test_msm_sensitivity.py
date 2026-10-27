@@ -227,7 +227,7 @@ def test_msm_refuses_lambda_below_one_and_an_empty_range():
         "msm_sensitivity.lambda_range_empty",
     )
     _refusal(
-        lambda: msm.msm_ate_sensitivity(_two_strata(), 1.0e6),
+        lambda: msm.msm_ate_sensitivity(_two_strata(), 1.0e13),
         "route_not_supported",
         "msm_sensitivity.bounds_exceeded",
     )
@@ -358,7 +358,7 @@ def test_msm_artifact_is_a_lambda_surface_with_withheld_sampling():
 
 def test_msm_decision_invariant_action():
     artifact = _treat_vs(2.0, 3, 0.0)
-    decided = sd.decide(artifact.contract(), artifact)
+    decided = require_success(sd.decide(artifact.contract(), artifact))
     assert decided.kind == "invariant_action"
     assert decided.robust
     assert decided.invariant_action == "treat"
@@ -378,7 +378,7 @@ def test_msm_decision_assumption_dependent_switch():
         [sd.SensitivityAction("treat", net), sd.SensitivityAction("skip", sd.const(0.0))],
         [(_scientific("cost"), [0.0, 0.0, 2.0])],
     )
-    decided = sd.decide(artifact.contract(), artifact)
+    decided = require_success(sd.decide(artifact.contract(), artifact))
     assert decided.kind == "assumption_dependent"
     assert not decided.robust
     switch = decided.switch
@@ -393,7 +393,7 @@ def test_msm_decision_assumption_dependent_switch():
 
 def test_msm_decision_no_robust_action():
     artifact = _treat_vs(3.0, 3, 0.2)
-    decided = sd.decide(artifact.contract(), artifact)
+    decided = require_success(sd.decide(artifact.contract(), artifact))
     assert decided.kind == "no_robust_action"
     assert decided.outcome.reason == "mixed_within_range"
     assert decided.outcome.coordinates == (2.0, 3.0)
@@ -402,12 +402,16 @@ def test_msm_decision_no_robust_action():
 
 def test_msm_decision_keeps_sampling_withheld_and_refuses_composition():
     artifact = _treat_vs(2.0, 3, 0.0)
-    decided = sd.decide(artifact.contract(), artifact)
+    decided = require_success(sd.decide(artifact.contract(), artifact))
     assert decided.sampling.status == "withheld"
     assert decided.sampling.reason_code == "cell_not_licensed"
     assert decided.sampling.detail == "msm_sensitivity.interval_withheld"
     with pytest.raises(sd.SensitivityRefusal) as caught:
-        sd.decide(artifact.contract(), artifact, sampling_composition="sum_of_interval_and_range")
+        require_success(
+            sd.decide(
+                artifact.contract(), artifact, sampling_composition="sum_of_interval_and_range"
+            )
+        )
     assert caught.value.reason_code == "cell_not_licensed"
     assert caught.value.detail == "sensitivity_decision_composition.composition_not_licensed"
 

@@ -113,12 +113,11 @@ def _run_analyze(data: Any) -> None:
         data,
         graph=_EDGES,
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
-        bootstrap=0,
+        inference=antecedent.Frequentist(profile="interactive", bootstrap=0),
         refute=False,
-        seed=1,
+        execution=antecedent.Execution(seed=1),
     )
-    if not math.isfinite(result.ate):
+    if not math.isfinite(result.answer.value):
         raise RuntimeError("analyze returned non-finite ATE")
 
 

@@ -46,7 +46,7 @@ def main() -> None:
     panel = analyze(
         {"y": panel_outcome, "id": subjects, "group": treated_panel, "after": post_panel},
         query=PanelDifferenceInDifferences("y", "id", "group", "after"),
-    ).panel_did
+    ).value.panel_did
     print(
         f"panel DiD estimate={panel.estimate} se={panel.standard_error} clusters={panel.clusters}"
     )

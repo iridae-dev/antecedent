@@ -8,7 +8,6 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError, CausalValueError
-from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Sequence, Set, Soft
 from antecedent.outcomes import require_success
 
@@ -63,10 +62,25 @@ def test_temporal_response_curve_matches_fixture_and_prepared_reuse():
     assert direct.support.status == "supported"
     assert list(direct.support.point_status) == ["supported"] * 4
 
-    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False, seed=21)
-    click = require_success(prepared.estimate(data, seed=21))
+    prepared = antecedent.prepare(
+        data,
+        graph=_EDGES,
+        query=query,
+        refute=False,
+        execution=antecedent.Execution(seed=21),
+    )
+    click = require_success(antecedent.estimate(prepared))
     np.testing.assert_allclose(_response_means(click), _MEAN, atol=_ATOL)
     assert prepared.structure_source == "explicit"
+    # Reuse: a rebound branch on the same data reproduces the surface, and the
+    # original preparation is unchanged and still estimable.
+    rebound = antecedent.rebind(prepared, data=data)
+    np.testing.assert_allclose(
+        _response_means(require_success(antecedent.estimate(rebound))), _MEAN, atol=_ATOL
+    )
+    np.testing.assert_allclose(
+        _response_means(require_success(antecedent.estimate(prepared))), _MEAN, atol=_ATOL
+    )
 
 
 def test_temporal_intervention_set_and_single_step_sequence_match_fixture():
@@ -126,8 +140,14 @@ def test_temporal_intervention_set_and_single_step_sequence_match_fixture():
     np.testing.assert_allclose(_response_means(seq_result), _SET_PATH, atol=_ATOL)
     np.testing.assert_allclose(_response_means(soft_result), _SOFT_CONST, atol=_ATOL)
 
-    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=seq_query, refute=False, seed=22)
-    click = require_success(prepared.estimate(data, seed=22))
+    prepared = antecedent.prepare(
+        data,
+        graph=_EDGES,
+        query=seq_query,
+        refute=False,
+        execution=antecedent.Execution(seed=22),
+    )
+    click = require_success(antecedent.estimate(prepared))
     np.testing.assert_allclose(_response_means(click), _SET_PATH, atol=_ATOL)
 
 
@@ -159,8 +179,14 @@ def test_multi_step_sequence_matches_two_step_truth_and_does_not_collapse():
     np.testing.assert_raises(
         AssertionError, np.testing.assert_allclose, _response_means(result), last_step
     )
-    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False, seed=22)
-    click = require_success(prepared.estimate(data, seed=22))
+    prepared = antecedent.prepare(
+        data,
+        graph=_EDGES,
+        query=query,
+        refute=False,
+        execution=antecedent.Execution(seed=22),
+    )
+    click = require_success(antecedent.estimate(prepared))
     np.testing.assert_allclose(_response_means(click), two_step, atol=_ATOL)
 
 
@@ -338,15 +364,15 @@ def test_temporal_dose_horizon_point_and_block_bands_match_fixture():
     )
     _assert_block_bands(result, int(pin["replicates"]))
     _assert_pinned_block_bands(result)
-    prepared = PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=_EDGES,
         query=_SURFACE_QUERY,
         refute=False,
-        seed=int(pin["seed"]),
-        bootstrap=int(pin["replicates"]),
+        inference=antecedent.Frequentist(bootstrap=int(pin["replicates"])),
+        execution=antecedent.Execution(seed=int(pin["seed"])),
     )
-    _assert_pinned_block_bands(require_success(prepared.estimate(data, seed=int(pin["seed"]))))
+    _assert_pinned_block_bands(require_success(antecedent.estimate(prepared)))
 
 
 def test_temporal_response_zero_bootstrap_withholds_band():
@@ -372,10 +398,15 @@ def test_temporal_response_zero_bootstrap_withholds_band():
     assert result.validation is not None
     assert any(check.id == "refute.temporal_response.skipped" for check in result.validation.checks)
 
-    prepared = PreparedAnalysis.prepare(
-        data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, bootstrap=0
+    prepared = antecedent.prepare(
+        data,
+        graph=_EDGES,
+        query=_SURFACE_QUERY,
+        refute=False,
+        inference=antecedent.Frequentist(bootstrap=0),
+        execution=antecedent.Execution(seed=21),
     )
-    _assert_band_withheld(require_success(prepared.estimate(data, seed=21)))
+    _assert_band_withheld(require_success(antecedent.estimate(prepared)))
 
 
 @pytest.mark.parametrize("bootstrap", [None, 60])
@@ -383,14 +414,15 @@ def test_temporal_response_bootstrap_publishes_block_bands(bootstrap: int | None
     data = _fixture_data()
     replicates = 199 if bootstrap is None else bootstrap
     kwargs: dict[str, Any] = {} if bootstrap is None else {"bootstrap": bootstrap}
+    inference = antecedent.Frequentist(**kwargs)
     direct = require_success(
         antecedent.analyze(
             data,
             graph=_EDGES,
             query=_SURFACE_QUERY,
             refute=False,
+            inference=inference,
             execution=antecedent.Execution(seed=21),
-            **kwargs,
         )
     )
     _assert_block_bands(direct, replicates)
@@ -400,8 +432,8 @@ def test_temporal_response_bootstrap_publishes_block_bands(bootstrap: int | None
             graph=_EDGES,
             query=_SURFACE_QUERY,
             refute=False,
+            inference=inference,
             execution=antecedent.Execution(seed=21),
-            **kwargs,
         )
     )
     assert again.uncertainty.lower == direct.uncertainty.lower
@@ -411,20 +443,25 @@ def test_temporal_response_bootstrap_publishes_block_bands(bootstrap: int | None
         # Prepared temporal responses follow the latency tier like Pulse /
         # Sustained: interactive publishes no band, standard runs the omitted
         # replicate count (199), which an omitted tier also uses.
-        interactive = PreparedAnalysis.prepare(
+        interactive = antecedent.prepare(
             data,
             graph=_EDGES,
             query=_SURFACE_QUERY,
             refute=False,
-            seed=21,
-            latency="interactive",
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=21),
         )
-        _assert_band_withheld(require_success(interactive.estimate(data, seed=21)))
-        kwargs = {"latency": "standard"}
-    prepared = PreparedAnalysis.prepare(
-        data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, **kwargs
+        _assert_band_withheld(require_success(antecedent.estimate(interactive)))
+        inference = antecedent.Frequentist(profile="standard")
+    prepared = antecedent.prepare(
+        data,
+        graph=_EDGES,
+        query=_SURFACE_QUERY,
+        refute=False,
+        inference=inference,
+        execution=antecedent.Execution(seed=21),
     )
-    click = require_success(prepared.estimate(data, seed=21))
+    click = require_success(antecedent.estimate(prepared))
     _assert_block_bands(click, replicates)
 
 
@@ -478,10 +515,13 @@ def test_prepared_temporal_rejects_wrong_identifier_and_refute_click():
     data = _fixture_data()
     query = antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1], policy="pulse")
     with pytest.raises(CausalValueError, match="temporal.backdoor.unfolded"):
-        PreparedAnalysis.prepare(data, graph=_EDGES, query=query, identifier="response.backdoor")
-    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False)
+        antecedent.prepare(data, graph=_EDGES, query=query, identifier="response.backdoor")
+    prepared = antecedent.prepare(data, graph=_EDGES, query=query, refute=False)
+    completed = antecedent.estimate(prepared)
+    require_success(completed)
+    assert completed.study is not None
     with pytest.raises(CausalUnsupportedError, match="ResponseCurve cheap/full/placebo"):
-        prepared.refute(data)
+        require_success(completed.study.refute())
 
 
 def _feedback(**changes: Any) -> antecedent.FeedbackMechanism:

@@ -2,7 +2,7 @@
 
 The five-line lifecycle must hold for every query family, not only the graph
 routes in ``test_golden_path.py``. Design-carrying queries freeze their design in
-the query, so ``refresh`` re-reads outcomes for the *same* rows (``refresh="same"``)
+the query, so ``rebind`` re-reads outcomes for the *same* rows (``refresh="same"``)
 or is refused by construction (``refresh="refused"``); either way the other four
 verbs work and, critically, ``load(result.export()).answer == result.answer`` --
 the invariant that regressed silently because no case exercised it.
@@ -156,7 +156,7 @@ CASES = [
             observation_assumption=IndependentGiven(()),
         ),
         "structured",
-        options={"bootstrap": 199},
+        options={"inference": ant.Frequentist(bootstrap=199)},
     ),
     Case("longitudinal-regime", _longitudinal, _longitudinal_query(), "structured"),
 ]
@@ -180,7 +180,8 @@ def test_golden_path_structured_queries(case: Case) -> None:
 
         # 3. export -> load round-trips, and the loaded answer equals the live answer
         #    (the invariant that silently regressed).
-        loaded = require_success(ant.load(bytes(result.export())))
+        artifact = result.export()
+        loaded = require_success(ant.load(artifact, expected=artifact.expectation))
         loaded_report = loaded.inspect().to_dict()
         json.dumps(loaded_report, allow_nan=False)
         assert set(report) == set(loaded_report)
@@ -190,14 +191,14 @@ def test_golden_path_structured_queries(case: Case) -> None:
         #    refused by construction -- never an untyped crash.
         study = result.study
         if case.refresh == "same":
-            updated = require_success(study.refresh(data))
+            updated = require_success(ant.estimate(ant.rebind(study, data=data)))
             assert type(updated) is type(result)
             assert updated.program_id == result.program_id
         elif case.refresh == "refused":
             with pytest.raises(
                 CausalUnsupportedError, match="bound to the prepared evaluation rows"
             ):
-                require_success(study.refresh(data))
+                require_success(ant.estimate(ant.rebind(study, data=data)))
 
 
 def test_policy_claim_does_not_crash() -> None:

@@ -17,18 +17,21 @@ import antecedent as ant
 from antecedent import adaptive_inference as ai
 from antecedent import scientific_bridge as sb
 from antecedent.artifacts import ExportedArtifact
+from antecedent.outcomes import Outcome, require_success
 from antecedent.results import MeanSource
 
 def checked(session: ai.AdaptiveInferenceSession, claim: sb.BridgedClaim) -> None:
-    posterior = session.analyze(ai.BayesianPosterior(1))
+    outcome = session.analyze(ai.BayesianPosterior(1))
+    assert_type(outcome, Outcome[ai.AdaptiveResult[ai.PosteriorSummary]])
+    posterior = require_success(outcome)
     assert_type(posterior, ai.AdaptiveResult[ai.PosteriorSummary])
     assert_type(posterior.payload.arms[0].mean, float)
-    sequential = session.analyze(ant.adaptive_inference.GroupSequential(2))
+    sequential = require_success(session.analyze(ant.adaptive_inference.GroupSequential(2)))
     assert_type(sequential, ai.AdaptiveResult[ai.SequentialSummary])
     assert_type(sequential.payload.stopped_at, int | None)
     artifact = claim.export()
     assert_type(artifact, ExportedArtifact[sb.ConsumedBridge])
-    assert_type(ant.load(artifact, expected=artifact.expectation), sb.ConsumedBridge)
+    assert_type(ant.load(artifact, expected=artifact.expectation), Outcome[sb.ConsumedBridge])
     assert_type(claim.as_mean_source(), MeanSource)
     ant.transport.advanced.estimate_augmented_response_grid
 """)

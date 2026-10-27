@@ -76,10 +76,10 @@ def test_prepare_estimate_and_refresh_accept_files(tmp_path):
     study = ant.prepare(
         first, query=QUERY, graph=GRAPH, inference=ant.Frequentist(bootstrap=0), refute="none"
     )
-    baseline = require_success(study.estimate())
-    refreshed = require_success(study.refresh(second))
+    baseline = require_success(ant.estimate(study))
+    refreshed = require_success(ant.estimate(ant.rebind(study, data=second)))
     assert refreshed.effect == pytest.approx(baseline.effect + 1.0)
-    other = require_success(study.estimate(ant.data.from_parquet(second)))
+    other = require_success(ant.estimate(ant.rebind(study, data=ant.data.from_parquet(second))))
     assert other.effect == pytest.approx(refreshed.effect)
 
 

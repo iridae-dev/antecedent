@@ -1,4 +1,4 @@
-"""discovery= + latency=interactive must fail closed (backlog D)."""
+"""A live discovery configuration never enters preparation; executed discovery feeds any profile."""
 
 from __future__ import annotations
 
@@ -12,16 +12,17 @@ from antecedent.outcomes import require_success
 from _scm import confounded_scm
 
 
-def test_discovery_plus_interactive_raises_unsupported():
+@pytest.mark.parametrize("profile", ["interactive", "standard"])
+def test_discovery_plus_interactive_raises_unsupported(profile):
     data, _edges = confounded_scm(n=400, seed=11)
-    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="interactive estimate path"):
+    with pytest.raises(antecedent.errors.CausalTypeError, match="executed discovery result"):
         require_success(
             antecedent.analyze(
                 data,
                 discovery=antecedent.discovery.PC(alpha=0.2, fdr=False, max_cond_size=2),
                 query=antecedent.AverageEffect(treatment="t", outcome="y"),
-                latency="interactive",
-                seed=1,
+                inference=antecedent.Frequentist(profile=profile),
+                execution=antecedent.Execution(seed=1),
             )
         )
 
@@ -38,12 +39,16 @@ def test_discovery_plus_standard_still_allowed():
     result = require_success(
         antecedent.analyze(
             {"t": t, "y": y, "w": w},
-            discovery=antecedent.discovery.PC(alpha=0.001, fdr=False, max_cond_size=2),
+            graph=antecedent.discovery.discover(
+                {"t": t, "y": y, "w": w},
+                method=antecedent.discovery.PC(alpha=0.001, fdr=False, max_cond_size=2),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            latency="standard",
-            seed=1,
+            inference=antecedent.Frequentist(profile="standard"),
+            execution=antecedent.Execution(seed=1),
             refute=False,
-            accept_discovered=True,
         )
     )
     assert abs(result.ate - 1.5) < 4.0 * result.estimate.se_analytic
@@ -56,8 +61,8 @@ def test_interactive_with_supplied_graph_ok():
             data,
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            latency="interactive",
-            seed=1,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert math.isfinite(result.ate)

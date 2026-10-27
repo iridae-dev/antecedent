@@ -269,7 +269,7 @@ def _joint_bundle(contract: decision.Contract, law: JointDistributionArtifact) -
     builder.add_artifact("distribution", bytes(law.export("law")), node_id="law")
     builder.add_artifact(
         "decision_result",
-        bytes(contract.evaluate(law).export(artifact_id="result")),
+        bytes(require_success(contract.evaluate(law)).export(artifact_id="result")),
         node_id="result",
     )
     return builder.connect("law", "result").connect("c", "result").build()
@@ -781,7 +781,7 @@ def _adaptive() -> Adaptive:
     request = ai.AdaptiveWeighting(
         look=1, plus_arm=1, minus_arm=None, scheme="uniform", prior_mean=0.5, prior_strength=1.0
     )
-    contract_bytes = session.export_contract("frequentist_adaptive_weighting")
+    contract_bytes = bytes(session.export(paradigm="frequentist_adaptive_weighting"))
     result_bytes = bytes(session.export(request))
     return Adaptive(
         session,
@@ -889,7 +889,7 @@ def _reliability() -> dreliab.DecisionReliability:
         coupling="shared_simulation",
         within_stream="independent",
     )
-    return dreliab.assess(draws, dreliab.ReliabilityRequest())
+    return require_success(dreliab.assess(draws, dreliab.ReliabilityRequest()))
 
 
 def _build_objects() -> Objs:
@@ -922,7 +922,7 @@ def _build_objects() -> Objs:
         ),
         stage=_scenario_stage(),
         sensitivity=_frozen_sensitivity(),
-        result=gen.decision_contract().evaluate(gen.decision_source()),
+        result=require_success(gen.decision_contract().evaluate(gen.decision_source())),
         ranking=_ranking(),
         failed=_failed_contract(),
         measurement_prepared=prepared,
@@ -1139,16 +1139,16 @@ def _bundle_payload(producer: str, o: Objs) -> object:
 
 
 def _feed_evaluate(obj: Any) -> object:
-    return gen.decision_contract().evaluate(obj)
+    return require_success(gen.decision_contract().evaluate(obj))
 
 
 def _feed_support(obj: Any) -> object:
-    return comp.evaluate_with_support(gen.decision_contract(), [obj])
+    return require_success(comp.evaluate_with_support(gen.decision_contract(), [obj]))
 
 
 def _feed_inverse(obj: Any) -> object:
     query = iq.InverseQuery(gen.decision_contract(), ("risky", "safe"), (iq.target_mean(2.5),))
-    return query.evaluate(obj)
+    return require_success(query.evaluate(obj))
 
 
 def _feed_prior(obj: Any) -> object:
@@ -1161,7 +1161,7 @@ def _feed_prior(obj: Any) -> object:
 
 
 def _feed_sensitivity(obj: Any) -> object:
-    return sd.decide(gen.decision_contract(), obj)
+    return require_success(sd.decide(gen.decision_contract(), obj))
 
 
 def _feed_scenarios(obj: Any) -> object:
@@ -1185,11 +1185,11 @@ def _feed_cpdag(obj: Any) -> object:
 
 
 def _feed_obligations(obj: Any) -> object:
-    return repair.obligations(obj)
+    return require_success(repair.obligations(obj))
 
 
 def _feed_repair(obj: Any) -> object:
-    return repair.repair(obj, [])
+    return require_success(repair.repair(obj, []))
 
 
 def _feed_bundle(obj: Any) -> object:
@@ -1282,7 +1282,7 @@ def _check_recalc_adapter(stage: Stage, identity: str) -> None:
 def _check_native_decision(o: Objs) -> None:
     contract = _native_contract(decision.Criterion.expected_utility())
     source = o.native.as_decision_source(contract)
-    decided = contract.evaluate(source.source)
+    decided = require_success(contract.evaluate(source.source))
     by_id = {a.id: a for a in decided.actions}
     assert by_id["A"].expected_utility == pytest.approx(3.0, abs=1e-12)
     assert by_id["B"].expected_utility == pytest.approx(3.5, abs=1e-12)
@@ -1299,7 +1299,7 @@ def _check_native_decision(o: Objs) -> None:
         support=list(o.native.support),  # type: ignore[arg-type]
     )
     assert adapted.source == "mean" and not adapted.native
-    supported = comp.evaluate_with_support(contract, [adapted])
+    supported = require_success(comp.evaluate_with_support(contract, [adapted]))
     assert supported.outcome("B").expected_utility == pytest.approx(3.5, abs=1e-12)
     assert supported.verdict.selected == "B"
 
@@ -1327,13 +1327,15 @@ def _check_native_decision(o: Objs) -> None:
 
     # The claim itself is not a decision source.
     with pytest.raises(Exception):  # noqa: B017, PT011
-        contract.evaluate(o.native)  # type: ignore[arg-type]
+        require_success(contract.evaluate(o.native))  # type: ignore[arg-type]
 
 
 def _check_native_inverse(o: Objs) -> None:
     contract = _native_contract(decision.Criterion.expected_utility())
     mean_claim = o.native.as_decision_source(contract).mean_claim()
-    answered = iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),)).evaluate(mean_claim)
+    answered = require_success(
+        iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),)).evaluate(mean_claim)
+    )
     assert answered.feasible_actions == ("B",)
     assert answered.selected == "B"
     for constraint in (
@@ -1341,11 +1343,15 @@ def _check_native_inverse(o: Objs) -> None:
         iq.target_quantile(0.5, 3.0),
     ):
         with pytest.raises(iq.InverseQueryRefusal) as refused:
-            iq.InverseQuery(contract, ("A", "B"), (constraint,)).evaluate(mean_claim)
+            require_success(
+                iq.InverseQuery(contract, ("A", "B"), (constraint,)).evaluate(mean_claim)
+            )
         assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
         assert refused.value.reason_code == "decision_contract_unsatisfied"
         assert_registered_refusal(refused.value)
-    retained = iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),)).evaluate(o.native)
+    retained = require_success(
+        iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),)).evaluate(o.native)
+    )
     assert retained.selected == "B"
     assert retained.source_evidence[0].coordinates == o.native.coordinates
     assert retained.source_evidence[0].diagnostics == o.native.source_evidence.diagnostics
@@ -1353,7 +1359,7 @@ def _check_native_inverse(o: Objs) -> None:
 
 def _check_claim_decision(o: Objs) -> None:
     contract = _mean_contract(o.claim)
-    decided = contract.evaluate(o.claim)
+    decided = require_success(contract.evaluate(o.claim))
     by_id = {a.id: a for a in decided.actions}
     assert by_id["wait"].expected_utility == pytest.approx(1.0, abs=1e-12)
     assert by_id["treat"].expected_utility == pytest.approx(9.0, abs=1e-12)
@@ -1366,20 +1372,20 @@ def _check_claim_decision(o: Objs) -> None:
 
     attested = comp.DecisionInput.from_claim("claim", o.claim)
     assert attested.source == "mean" and not attested.native
-    supported = comp.evaluate_with_support(contract, [attested])
+    supported = require_success(comp.evaluate_with_support(contract, [attested]))
     # The claim marks dose 2 outside empirical support, so the composition boundary reports
     # `treat` as unsupported (with its reason) instead of scoring it, and still scores `wait`.
     assert supported.disposition("treat").status == "unsupported"
     assert supported.outcome("wait").expected_utility == pytest.approx(1.0, abs=1e-12)
-    expectation = comp.evaluate_functional(
-        contract, "wait", comp.Functional.expected_utility(), attested
+    expectation = require_success(
+        comp.evaluate_functional(contract, "wait", comp.Functional.expected_utility(), attested)
     )
     assert expectation.value == pytest.approx(1.0, abs=1e-12)
     assert expectation.standard_error is None
     # A mean never answers a probability or a quantile.
     for functional in (comp.Functional.probability(2.0, "upper"), comp.Functional.quantile(0.5)):
         with pytest.raises(comp.SupportRefusal) as refused:
-            comp.evaluate_functional(contract, "wait", functional, attested)
+            require_success(comp.evaluate_functional(contract, "wait", functional, attested))
         assert refused.value.detail == "composition_boundary.mean_is_not_a_distribution"
         assert refused.value.reason_code == "decision_contract_unsatisfied"
         assert_registered_refusal(refused.value)
@@ -1388,13 +1394,13 @@ def _check_claim_decision(o: Objs) -> None:
 def _check_claim_inverse(o: Objs) -> None:
     contract = _mean_contract(o.claim)
     query = iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(5.0),))
-    answered = query.evaluate(o.claim)
+    answered = require_success(query.evaluate(o.claim))
     assert answered.feasible_actions == ("treat",)
     assert answered.action("wait").point_values[0].value == pytest.approx(1.0, abs=1e-12)
     assert answered.action("treat").point_values[0].value == pytest.approx(9.0, abs=1e-12)
     refused_query = iq.InverseQuery(contract, ("wait", "treat"), (iq.target_quantile(0.5, 5.0),))
     with pytest.raises(iq.InverseQueryRefusal) as refused:
-        refused_query.evaluate(o.claim)
+        require_success(refused_query.evaluate(o.claim))
     assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
 
 
@@ -1435,7 +1441,7 @@ def _check_claim_bundle(o: Objs) -> None:
 
 def _check_law_decision(o: Objs) -> None:
     contract = gen.decision_contract()
-    decided = contract.evaluate(o.law)
+    decided = require_success(contract.evaluate(o.law))
     by_id = {a.id: a for a in decided.actions}
     assert by_id["risky"].expected_utility == pytest.approx(2.0, abs=1e-12)
     assert by_id["safe"].expected_utility == pytest.approx(3.0, abs=1e-12)
@@ -1445,11 +1451,13 @@ def _check_law_decision(o: Objs) -> None:
 
     law_input = comp.DecisionInput.from_distribution("law", o.law)
     assert law_input.source == "joint_law"
-    supported = comp.evaluate_with_support(contract, [law_input])
+    supported = require_success(comp.evaluate_with_support(contract, [law_input]))
     assert supported.outcome("risky").expected_utility == pytest.approx(2.0, abs=1e-12)
     # P(P * Q >= 4) over the rows 4, 0, 4, 0 is 1/2: only an aligned joint law answers it.
-    probability = comp.evaluate_functional(
-        contract, "risky", comp.Functional.probability(4.0, "upper"), law_input
+    probability = require_success(
+        comp.evaluate_functional(
+            contract, "risky", comp.Functional.probability(4.0, "upper"), law_input
+        )
     )
     assert probability.value == pytest.approx(0.5, abs=1e-12)
 
@@ -1457,7 +1465,7 @@ def _check_law_decision(o: Objs) -> None:
 def _check_law_inverse(o: Objs) -> None:
     contract = gen.decision_contract()
     query = iq.InverseQuery(contract, ("risky", "safe"), (iq.target_mean(2.5),))
-    answered = query.evaluate(o.law)
+    answered = require_success(query.evaluate(o.law))
     assert answered.action("risky").point_values[0].value == pytest.approx(2.0, abs=1e-12)
     assert answered.action("safe").point_values[0].value == pytest.approx(3.0, abs=1e-12)
     assert answered.feasible_actions == ("safe",)
@@ -1517,61 +1525,67 @@ def _check_scenarios_decision(o: Objs) -> None:
     # Independent finite structures are decided by the robustness adapters, over laws the
     # caller supplies for each structure (a transport stage retains no joint law in Python).
     support = decision_robust.Support("supported")
-    robust = decision_robust.finite_scenarios(
-        _rob_contract(
-            rules=decision_robust.AdmissibilityRules(default_weakest_support="supported")
-        ),
-        [
-            decision_robust.Claim.evaluated("s1", _rob_law(5.0, 3.0), support=support),
-            decision_robust.Claim.evaluated("s2", _rob_law(6.0, 2.0), support=support),
-        ],
+    robust = require_success(
+        decision_robust.finite_scenarios(
+            _rob_contract(
+                rules=decision_robust.AdmissibilityRules(default_weakest_support="supported")
+            ),
+            [
+                decision_robust.Claim.evaluated("s1", _rob_law(5.0, 3.0), support=support),
+                decision_robust.Claim.evaluated("s2", _rob_law(6.0, 2.0), support=support),
+            ],
+        )
     )
     assert robust.verdict == decision_robust.RobustVerdict("structurally_robust", action="A")
     by_id = {a.id: a for a in robust.actions}
     assert by_id["A"].range == (5.0, 6.0)
     assert by_id["B"].range == (2.0, 3.0)
 
-    clear = decision_robust.identified_sets(
-        _rob_contract(),
-        [
-            decision_robust.IdentifiedUtility("A", 4.0, 6.0),
-            decision_robust.IdentifiedUtility("B", 1.0, 3.0),
-        ],
+    clear = require_success(
+        decision_robust.identified_sets(
+            _rob_contract(),
+            [
+                decision_robust.IdentifiedUtility("A", 4.0, 6.0),
+                decision_robust.IdentifiedUtility("B", 1.0, 3.0),
+            ],
+        )
     )
     assert clear.verdict == decision_robust.IdentifiedVerdict("necessarily_best", action="A")
     # An identified set is never a probability law.
     with pytest.raises(decision.DecisionRefusal) as refused:
-        decision_robust.identified_sets(
-            _rob_contract("bayes_over_structures"),
-            [
-                decision_robust.IdentifiedUtility("A", 2.0, 5.0),
-                decision_robust.IdentifiedUtility("B", 3.0, 6.0),
-            ],
+        require_success(
+            decision_robust.identified_sets(
+                _rob_contract("bayes_over_structures"),
+                [
+                    decision_robust.IdentifiedUtility("A", 2.0, 5.0),
+                    decision_robust.IdentifiedUtility("B", 3.0, 6.0),
+                ],
+            )
         )
     assert refused.value.detail == "decision_adapters.bayes_over_identified_set"
     assert refused.value.reason_code == "decision_contract_unsatisfied"
     # The transport stage is not itself a decision source.
     with pytest.raises(Exception):  # noqa: B017, PT011
-        gen.decision_contract().evaluate(o.stage)
+        require_success(gen.decision_contract().evaluate(o.stage))
 
 
 def _check_scenarios_inverse(o: Objs) -> None:
     law = gen.decision_source()
     contract = gen.decision_contract()
     query = iq.InverseQuery(contract, ("risky", "safe"), (iq.target_mean(2.5),))
-    declared = query.evaluate(
-        identified_set=iq.IdentifiedSet((iq.Scenario.evaluated("s1", law),), True)
+    declared = require_success(
+        query.evaluate(identified_set=iq.IdentifiedSet((iq.Scenario.evaluated("s1", law),), True))
     )
     assert declared.action("safe").identified_set == "feasible"
     assert declared.action("risky").identified_set == "infeasible"
     assert declared.action("safe").point is None, "an absent kind of evidence is never feasible"
-    undeclared = query.evaluate(
-        identified_set=iq.IdentifiedSet((iq.Scenario.evaluated("s1", law),), False)
+    undeclared = require_success(
+        query.evaluate(identified_set=iq.IdentifiedSet((iq.Scenario.evaluated("s1", law),), False))
     )
     assert undeclared.action("safe").identified_set == "unevaluated"
     # The prepared transport stage is not a forward claim.
     with pytest.raises(CausalTypeError):
-        query.evaluate(o.stage)  # type: ignore[arg-type]
+        require_success(query.evaluate(o.stage))  # type: ignore[arg-type]
 
 
 def _check_scenarios_scenario(o: Objs) -> None:
@@ -1591,7 +1605,7 @@ def _check_scenarios_scenario(o: Objs) -> None:
 
 
 def _check_sensitivity_decision(o: Objs) -> None:
-    result = sd.decide(o.sensitivity.contract(), o.sensitivity)
+    result = require_success(sd.decide(o.sensitivity.contract(), o.sensitivity))
     assert result.kind == "assumption_dependent"
     assert not result.robust
     switch = result.switch
@@ -1602,7 +1616,9 @@ def _check_sensitivity_decision(o: Objs) -> None:
     assert o.sensitivity.outcome == result.outcome
     # The assumption range is never a sampling interval and a sampling interval is never composed.
     with pytest.raises(sd.SensitivityRefusal) as composed:
-        sd.decide(o.sensitivity.contract(), o.sensitivity, sampling_composition="merge")
+        require_success(
+            sd.decide(o.sensitivity.contract(), o.sensitivity, sampling_composition="merge")
+        )
     assert composed.value.reason_code == "cell_not_licensed"
 
 
@@ -1901,7 +1917,7 @@ def _declared_quantity(
 def _check_declared_decision(declared: Declared, *, act: float, hold: float, selected: str) -> None:
     """``Contract.evaluate`` and ``evaluate_with_support`` over the declared mean source."""
     contract = declared.contract()
-    decided = contract.evaluate(declared.source())
+    decided = require_success(contract.evaluate(declared.source()))
     by_id = {a.id: a for a in decided.actions}
     assert by_id["act"].expected_utility == pytest.approx(act, abs=1e-12)
     assert by_id["hold"].expected_utility == pytest.approx(hold, abs=1e-12)
@@ -1924,19 +1940,23 @@ def _check_declared_decision(declared: Declared, *, act: float, hold: float, sel
         causal_contract_id=declared.causal_contract_id,
     )
     assert adapted.source == "mean" and not adapted.native
-    supported = comp.evaluate_with_support(contract, [adapted])
+    supported = require_success(comp.evaluate_with_support(contract, [adapted]))
     assert supported.outcome("act").expected_utility == pytest.approx(act, abs=1e-12)
     assert supported.verdict.selected == selected
 
     # A mean is not an outcome distribution: a quantile or a probability is refused.
     with pytest.raises(decision.DecisionRefusal) as quantile:
-        declared.contract(decision.Criterion.quantile(0.5)).evaluate(declared.source())
+        require_success(
+            declared.contract(decision.Criterion.quantile(0.5)).evaluate(declared.source())
+        )
     assert quantile.value.detail == "decision_evaluation.mean_source_insufficient"
     assert quantile.value.reason_code == "decision_contract_unsatisfied"
     assert_registered_refusal(quantile.value)
     with pytest.raises(comp.SupportRefusal) as probability:
-        comp.evaluate_functional(
-            contract, "act", comp.Functional.probability(0.5, "upper"), adapted
+        require_success(
+            comp.evaluate_functional(
+                contract, "act", comp.Functional.probability(0.5, "upper"), adapted
+            )
         )
     assert probability.value.detail == "composition_boundary.mean_is_not_a_distribution"
 
@@ -1944,9 +1964,11 @@ def _check_declared_decision(declared: Declared, *, act: float, hold: float, sel
 def _check_declared_inverse(
     declared: Declared, *, target: float, feasible: tuple[str, ...]
 ) -> None:
-    answered = iq.InverseQuery(
-        declared.contract(), ("act", "hold"), (iq.target_mean(target),)
-    ).evaluate(declared.claim())
+    answered = require_success(
+        iq.InverseQuery(declared.contract(), ("act", "hold"), (iq.target_mean(target),)).evaluate(
+            declared.claim()
+        )
+    )
     assert answered.feasible_actions == feasible
     assert answered.selected == feasible[0]
     for constraint in (
@@ -1954,8 +1976,10 @@ def _check_declared_inverse(
         iq.target_quantile(0.5, 0.5),
     ):
         with pytest.raises(iq.InverseQueryRefusal) as refused:
-            iq.InverseQuery(declared.contract(), ("act", "hold"), (constraint,)).evaluate(
-                declared.claim()
+            require_success(
+                iq.InverseQuery(declared.contract(), ("act", "hold"), (constraint,)).evaluate(
+                    declared.claim()
+                )
             )
         assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
         assert refused.value.reason_code == "decision_contract_unsatisfied"
@@ -2257,7 +2281,10 @@ def _check_cohort_decision(o: Objs) -> None:
     assert source.mean_contrast == pytest.approx(2.225, abs=1e-12)
     assert not source.is_native
     contract = _cohort_contract(source)
-    for evaluated in (contract.evaluate(source), contract.evaluate(source.mean_source)):
+    for evaluated in (
+        require_success(contract.evaluate(source)),
+        require_success(contract.evaluate(source.mean_source)),
+    ):
         by_id = {a.id: a for a in evaluated.actions}
         assert by_id["treat"].expected_utility == pytest.approx(7.4, abs=1e-12)
         assert by_id["wait"].expected_utility == pytest.approx(0.0, abs=1e-12)
@@ -2274,7 +2301,7 @@ def _check_cohort_decision(o: Objs) -> None:
         ),
     )
     with pytest.raises(decision.DecisionRefusal) as nonlinear:
-        squared.evaluate(source)
+        require_success(squared.evaluate(source))
     assert nonlinear.value.reason_code == "decision_contract_unsatisfied"
     # The model-based variance is labelled, off the decision, and the interval is closed.
     diagnostic = source.uncalibrated_standard_error
@@ -2300,8 +2327,10 @@ def _check_cohort_decision(o: Objs) -> None:
 def _check_cohort_inverse(o: Objs) -> None:
     source = o.cohort
     contract = _cohort_contract(source)
-    answered = iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(5.0),)).evaluate(
-        source.forward_claim()
+    answered = require_success(
+        iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(5.0),)).evaluate(
+            source.forward_claim()
+        )
     )
     assert answered.feasible_actions == ("treat",)
     for constraint in (
@@ -2309,8 +2338,10 @@ def _check_cohort_inverse(o: Objs) -> None:
         iq.target_quantile(0.5, 0.5),
     ):
         with pytest.raises(iq.InverseQueryRefusal) as refused:
-            iq.InverseQuery(contract, ("wait", "treat"), (constraint,)).evaluate(
-                source.forward_claim()
+            require_success(
+                iq.InverseQuery(contract, ("wait", "treat"), (constraint,)).evaluate(
+                    source.forward_claim()
+                )
             )
         assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
     _check_raw_rejected(source, feeders=_INVERSE_FEEDERS)
@@ -2373,16 +2404,18 @@ def _declared_reliability(o: Objs) -> Declared:
     assert report.decided_id == "A"
     assert report.monte_carlo_error["decision"]["value"] == pytest.approx(2.5, abs=1e-12)
     assert report.label["calibration"] == "uncalibrated"
-    consumed = dreliab.consume_decision_reliability_artifact(
-        bytes(result.export()), draws_digest=result.digests()[0], decided_id="A"
+    consumed = require_success(
+        dreliab.consume_decision_reliability_artifact(
+            bytes(result.export()), draws_digest=result.digests()[0], decided_id="A"
+        )
     )
     assert consumed.report.raw == report.raw
     with pytest.raises(dreliab.DecisionReliabilityRefusal) as closed:
-        result.publish("ranking_probability")
+        require_success(result.publish("ranking_probability"))
     assert closed.value.reason_code == "cell_not_licensed"
     assert closed.value.detail == "decision_reliability.cell_not_licensed"
     with pytest.raises(dreliab.DecisionReliabilityRefusal) as combined:
-        result.combined_uncertainty()
+        require_success(result.combined_uncertainty())
     assert combined.value.reason_code == "uncertainty_components_not_combined"
     quantity = _declared_quantity("utility", "decided", units="utility", population="cohort")
     draws_digest, set_digest = result.digests()
@@ -2779,7 +2812,7 @@ def _declared_bridge() -> Declared:
         assert wrong.value.reason_code == "bridge_substitution_refused"
         assert wrong.value.detail == "scientific_bridge.value_kind_substitution"
     with pytest.raises(sb.ScientificBridgeRefusal) as closed:
-        claim.interval()
+        require_success(claim.interval())
     assert closed.value.reason_code == "cell_not_licensed"
     assert closed.value.detail == "scientific_bridge.interval_not_licensed"
     assert_registered_refusal(closed.value)
@@ -3080,18 +3113,24 @@ def _analysis() -> Any:
     from _scm import confounded_scm
 
     data, edges = confounded_scm(n=200, seed=31)
-    return ac.estimation.PreparedAnalysis.prepare(
-        data, query=ac.AverageEffect(treatment="t", outcome="y"), graph=edges, refute=False, seed=1
+    return ac.prepare(
+        data,
+        query=ac.AverageEffect(treatment="t", outcome="y"),
+        graph=edges,
+        refute=False,
+        execution=ac.Execution(seed=1),
     )
 
 
 def _check_carried_decision(o: Objs) -> None:
     response = _carried()
     contract = _carried_contract()
-    decided = contract.evaluate_transported(
-        response,
-        analysis=_analysis(),
-        support_policy=comp.SupportPolicy.require_all("extrapolative"),
+    decided = require_success(
+        contract.evaluate_transported(
+            response,
+            analysis=_analysis(),
+            support_policy=comp.SupportPolicy.require_all("extrapolative"),
+        )
     )
     by_id = {a.id: a for a in decided.outcomes}
     assert by_id["treat"].expected_utility == pytest.approx(6.5, abs=1e-12)
@@ -3101,15 +3140,17 @@ def _check_carried_decision(o: Objs) -> None:
     assert decided.receipt.target_population == "clinic_b"
     # The default policy refuses the extrapolative label; a law and an interval are refused.
     with pytest.raises(decision.DecisionRefusal) as unaccepted:
-        contract.evaluate_transported(response, analysis=_analysis())
+        require_success(contract.evaluate_transported(response, analysis=_analysis()))
     assert unaccepted.value.detail == "transported_decision.transported_not_accepted"
     assert_registered_refusal(unaccepted.value)
     with pytest.raises(decision.DecisionRefusal) as law:
-        contract.evaluate_transported(
-            response,
-            analysis=_analysis(),
-            demand="law",
-            support_policy=comp.SupportPolicy.require_all("extrapolative"),
+        require_success(
+            contract.evaluate_transported(
+                response,
+                analysis=_analysis(),
+                demand="law",
+                support_policy=comp.SupportPolicy.require_all("extrapolative"),
+            )
         )
     assert law.value.detail == "transported_decision.law_not_supplied"
     # The raw response is no source of the other entry points.
@@ -3120,7 +3161,9 @@ def _check_carried_inverse(o: Objs) -> None:
     response = _carried()
     contract = _carried_contract()
     source = isrc.transported_forward_source(response, accepts_transported=True)
-    answered = source.evaluate(iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(5.0),)))
+    answered = require_success(
+        source.evaluate(iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(5.0),)))
+    )
     # 4 * 2 - 1.5 = 6.5 >= 5 keeps `treat`; `wait` earns 0.
     assert answered.feasible_actions == ("treat",)
     assert answered.origin.transported and answered.origin.support == "extrapolative"
@@ -3129,8 +3172,10 @@ def _check_carried_inverse(o: Objs) -> None:
     assert native.value.detail == "inverse_forward_source.transported_not_accepted"
     assert_registered_refusal(native.value)
     with pytest.raises(iq.InverseQueryRefusal) as quantile:
-        source.evaluate(
-            iq.InverseQuery(contract, ("wait", "treat"), (iq.target_quantile(0.5, 0.5),))
+        require_success(
+            source.evaluate(
+                iq.InverseQuery(contract, ("wait", "treat"), (iq.target_quantile(0.5, 0.5),))
+            )
         )
     assert quantile.value.detail == "inverse_forward_source.point_only_law_requested"
     _check_raw_rejected(response, feeders=_INVERSE_FEEDERS)
@@ -3154,8 +3199,8 @@ def _check_carried_sensitivity(o: Objs) -> None:
     # [1.5, 2.5]; the reference 1.0 lies below the whole range.
     assert result.lower == pytest.approx((2.0, 1.75, 1.5), abs=1e-12)
     assert result.upper == pytest.approx((2.0, 2.25, 2.5), abs=1e-12)
-    artifact = result.artifact
-    decided = sd.decide(artifact.contract(), artifact)
+    artifact = result.decision_source
+    decided = require_success(sd.decide(artifact.contract(), artifact))
     assert decided.kind == "invariant_action"
     assert decided.invariant_action == artifact.outcome.action
     _check_raw_rejected(response, feeders=(_feed_sensitivity,))
@@ -3554,9 +3599,11 @@ def test_producer_consumer_matrix_a_classification_is_not_a_decision_source() ->
     assert_registered_refusal(stale.value)
     assert result.require_valid("other").klass == "still_valid"
     with pytest.raises(CausalTypeError):
-        gen.decision_contract().evaluate(result)  # type: ignore[arg-type]
+        require_success(gen.decision_contract().evaluate(result))  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
-        gen.decision_contract().evaluate(verified.exported.data)  # type: ignore[arg-type]
+        require_success(
+            gen.decision_contract().evaluate(verified.exported.data)  # type: ignore[arg-type]
+        )
 
 
 def test_producer_consumer_matrix_a_good_score_is_not_a_decision_source() -> None:
@@ -3586,7 +3633,7 @@ def test_producer_consumer_matrix_a_good_score_is_not_a_decision_source() -> Non
         assert closed.value.detail == detail
         assert_registered_refusal(closed.value)
     with pytest.raises(CausalTypeError):
-        gen.decision_contract().evaluate(result)  # type: ignore[arg-type]
+        require_success(gen.decision_contract().evaluate(result))  # type: ignore[arg-type]
 
 
 # ------------------------------------------------------------------------ cross-cutting rules
@@ -3639,20 +3686,24 @@ def test_producer_consumer_matrix_a_mean_never_answers_a_probability_a_quantile_
     mean_input = comp.DecisionInput.from_claim("claim", objs.claim)
     law_input = comp.DecisionInput.from_distribution("law", objs.law)
     # The mean is a distribution functional's special case only for the expectation.
-    assert comp.evaluate_functional(
-        contract, "wait", comp.Functional.expected_utility(), mean_input
+    assert require_success(
+        comp.evaluate_functional(contract, "wait", comp.Functional.expected_utility(), mean_input)
     ).value == pytest.approx(1.0, abs=1e-12)
     with pytest.raises(comp.SupportRefusal):
-        comp.evaluate_functional(
-            contract, "wait", comp.Functional.probability(2.0, "upper"), mean_input
+        require_success(
+            comp.evaluate_functional(
+                contract, "wait", comp.Functional.probability(2.0, "upper"), mean_input
+            )
         )
     # The same question on an aligned joint law is answered (1/2, by hand).
-    assert comp.evaluate_functional(
-        gen.decision_contract(), "risky", comp.Functional.probability(4.0, "upper"), law_input
+    assert require_success(
+        comp.evaluate_functional(
+            gen.decision_contract(), "risky", comp.Functional.probability(4.0, "upper"), law_input
+        )
     ).value == pytest.approx(0.5, abs=1e-12)
     # A mean cannot be paired with draws, and a claim's mean grid is not a joint law.
     with pytest.raises(comp.CompositionRefusal) as paired:
-        comp.check_paired_draws([law_input, mean_input], [])
+        require_success(comp.check_paired_draws([law_input, mean_input], []))
     assert paired.value.reason_code == "joint_law_required"
     assert_registered_refusal(paired.value)
     # A joint law required by the contract is refused over a mean-only claim in a bundle.

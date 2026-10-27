@@ -86,7 +86,9 @@ def options(**kwargs):
 def test_known_truth_grid_under_each_design(design):
     query, data = fixture(design)
     result = require_success(
-        advanced.prepare_smoothed_dose(query, data, options=options(), seed=5).estimate()
+        advanced.prepare_smoothed_dose(
+            query, data, options=options(), execution=ac.Execution(seed=5)
+        ).estimate()
     )
     assert [p.dose for p in result.grid] == list(GRID)
     for point in result.grid:
@@ -104,7 +106,9 @@ def test_known_truth_grid_under_each_design(design):
 
 def test_prepare_smoothed_dose_retains_a_checked_plan_after_builder_disposal():
     builder_query, builder_data = fixture()
-    study = advanced.prepare_smoothed_dose(builder_query, builder_data, options=options(), seed=7)
+    study = advanced.prepare_smoothed_dose(
+        builder_query, builder_data, options=options(), execution=ac.Execution(seed=7)
+    )
     del builder_query, builder_data
     # The retained plan holds the certificate and the query: estimating never identifies.
     plan = require_success(study.estimate())
@@ -117,7 +121,9 @@ def test_prepare_smoothed_dose_retains_a_checked_plan_after_builder_disposal():
 @pytest.mark.parametrize("design", DESIGNS)
 def test_estimate_executes_the_retained_plan_after_builder_disposal(design):
     builder_query, builder_data = fixture(design)
-    study = advanced.prepare_smoothed_dose(builder_query, builder_data, options=options(), seed=7)
+    study = advanced.prepare_smoothed_dose(
+        builder_query, builder_data, options=options(), execution=ac.Execution(seed=7)
+    )
     del builder_query, builder_data
     plan = require_success(study.estimate())
     assert require_success(study.estimate()).execution_id == plan.execution_id
@@ -128,30 +134,36 @@ def test_estimate_executes_the_retained_plan_after_builder_disposal(design):
     )
 
 
-def test_refresh_rebinds_rows_and_re_executes_the_retained_plan():
+def test_rebinding_rows_re_executes_the_retained_plan_on_a_new_branch():
     builder_query, builder_data = fixture()
-    study = advanced.prepare_smoothed_dose(builder_query, builder_data, options=options(), seed=7)
+    study = advanced.prepare_smoothed_dose(
+        builder_query, builder_data, options=options(), execution=ac.Execution(seed=7)
+    )
     first = require_success(study.estimate())
     del builder_query, builder_data
     _, fresh = fixture(seed=9)
-    require_success(study.refresh(fresh))
-    plan = require_success(study.estimate())
+    rebound = study.bind_snapshot(fresh)
+    plan = require_success(rebound.estimate())
     assert plan.execution_id != first.execution_id
     assert plan.premises_digest == first.premises_digest
     assert plan.certificate == first.certificate
+    # The original branch keeps its rows and its answer.
+    assert require_success(study.estimate()).execution_id == first.execution_id
     with pytest.raises((ValueError, CausalUnsupportedError), match="reprepare_required"):
-        require_success(study.refresh(dataclasses.replace(fresh, sampling="nested_cohort")))
-    with pytest.raises(TypeError, match="refresh requires SmoothedDoseData"):
-        require_success(study.refresh(object()))
+        study.bind_snapshot(dataclasses.replace(fresh, sampling="nested_cohort"))
+    with pytest.raises(TypeError, match="bind_snapshot requires SmoothedDoseData"):
+        study.bind_snapshot(object())
 
 
 @pytest.mark.parametrize("design", DESIGNS)
 def test_prepare_once_estimate_export_and_independent_consume_after_builder_disposal(design):
     builder_query, builder_data = fixture(design)
-    study = advanced.prepare_smoothed_dose(builder_query, builder_data, options=options(), seed=7)
+    study = advanced.prepare_smoothed_dose(
+        builder_query, builder_data, options=options(), execution=ac.Execution(seed=7)
+    )
     del builder_query, builder_data
     result = require_success(study.estimate())
-    artifact = bytes(study.export())
+    artifact = bytes(result.export())
     plan = advanced.consume_smoothed_dose(artifact)
     assert plan.grid == result.grid
     assert plan.execution_id == result.execution_id
@@ -163,9 +175,11 @@ def test_prepare_once_estimate_export_and_independent_consume_after_builder_disp
 
 def test_consumer_replays_the_grid_after_builder_disposal():
     builder_query, builder_data = fixture()
-    study = advanced.prepare_smoothed_dose(builder_query, builder_data, options=options(), seed=7)
+    study = advanced.prepare_smoothed_dose(
+        builder_query, builder_data, options=options(), execution=ac.Execution(seed=7)
+    )
     result = require_success(study.estimate())
-    artifact = bytes(study.export())
+    artifact = bytes(result.export())
     del builder_query, builder_data, study
     # The artifact alone (certificate, rows, fold models) replays the plan's grid.
     plan = advanced.consume_smoothed_dose(artifact)
@@ -192,7 +206,9 @@ def test_smoothed_dose_estimator_menu_reads_the_retained_plan_after_builder_disp
         builder_query, options=options(quadrature_nodes=32)
     )
     assert any("32-node" in s for s in tuned["smoothed_dose_transport_aipw"].support_requirements)
-    study = advanced.prepare_smoothed_dose(builder_query, builder_data, options=options(), seed=7)
+    study = advanced.prepare_smoothed_dose(
+        builder_query, builder_data, options=options(), execution=ac.Execution(seed=7)
+    )
     del builder_query, builder_data
     # The retained plan carries the certificate, query and options the menu is derived from.
     plan = study.estimator_menu()
@@ -249,7 +265,7 @@ def test_refusals_carry_their_reason_codes():
     # Below the replicate floor the point is kept and the interval withheld.
     below = require_success(
         advanced.prepare_smoothed_dose(
-            query, data, options=options(bootstrap=50), seed=2
+            query, data, options=options(bootstrap=50), execution=ac.Execution(seed=2)
         ).estimate()
     )
     assert below.uncertainty["detail"] == "dose_response.bootstrap_below_floor"
@@ -309,16 +325,22 @@ def test_support_learner_and_quadrature_refusals_carry_code_and_detail():
     # quadrature rules are compared on every target row and a tight tolerance refuses.
     trees = ac.learners.GradientBoostedTrees(trees=5, depth=2)
     study = advanced.prepare_smoothed_dose(
-        query, data, options=options(outcome=trees, quadrature_tolerance=1e-12), seed=3
+        query,
+        data,
+        options=options(outcome=trees, quadrature_tolerance=1e-12),
+        execution=ac.Execution(seed=3),
     )
-    assert _refusal(study.estimate) == (
+    assert _refusal(lambda: require_success(study.estimate())) == (
         "transport_numerical_failure",
         "dose_response.quadrature_tolerance",
     )
     # A linear fit is integrated exactly, so the same tolerance is never gated.
     exact = require_success(
         advanced.prepare_smoothed_dose(
-            query, data, options=options(quadrature_tolerance=1e-300), seed=3
+            query,
+            data,
+            options=options(quadrature_tolerance=1e-300),
+            execution=ac.Execution(seed=3),
         ).estimate()
     )
     assert all(p.quadrature["exact"] and p.quadrature["pieces"] == 1 for p in exact.grid)
@@ -326,9 +348,10 @@ def test_support_learner_and_quadrature_refusals_carry_code_and_detail():
 
 def test_consumer_limits_cancellation_and_replay_refusals_are_typed():
     query, data = fixture()
-    study = advanced.prepare_smoothed_dose(query, data, options=options(), seed=7)
-    require_success(study.estimate())
-    artifact = bytes(study.export())
+    study = advanced.prepare_smoothed_dose(
+        query, data, options=options(), execution=ac.Execution(seed=7)
+    )
+    artifact = bytes(require_success(study.estimate()).export())
     assert advanced.consume_smoothed_dose(artifact, max_memory_bytes=512 * 1024 * 1024).grid
     with pytest.raises(CausalResourceError, match="replay workspace above the memory limit"):
         advanced.consume_smoothed_dose(artifact, max_memory_bytes=1024)
@@ -344,11 +367,14 @@ def test_consumer_limits_cancellation_and_replay_refusals_are_typed():
 
 def test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_errors():
     query, data = fixture()
-    study = advanced.prepare_smoothed_dose(query, data, options=options(), seed=7)
-    with pytest.raises(CausalUnsupportedError, match="estimate before exporting"):
-        bytes(study.export())
-    require_success(study.estimate())
-    artifact = bytes(study.export())
+    study = advanced.prepare_smoothed_dose(
+        query, data, options=options(), execution=ac.Execution(seed=7)
+    )
+    # A preparation owns no artifact: only a completed estimate exports one.
+    assert "export" not in study.inspect().operations
+    with pytest.raises(CausalUnsupportedError, match="no portable artifact"):
+        study.export()
+    artifact = bytes(require_success(study.estimate()).export())
     with pytest.raises(CausalSerializationError):
         advanced.consume_smoothed_dose(artifact[:-40])
     with pytest.raises(CausalSerializationError):
@@ -375,15 +401,17 @@ def test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_err
 
 def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
     query, data = fixture()
-    study = advanced.prepare_smoothed_dose(query, data, options=options(bootstrap=199), seed=4)
+    study = advanced.prepare_smoothed_dose(
+        query, data, options=options(bootstrap=199), execution=ac.Execution(seed=4)
+    )
     with pytest.raises(CausalUnsupportedError, match="dose_response.interval_withheld") as info:
-        study.interval()
+        require_success(study.interval())
     assert info.value.reason_code == "cell_not_licensed"
     result = require_success(study.estimate())
     assert result.uncertainty["status"] == "withheld"
     assert result.uncertainty["reason"] == "cell_not_licensed"
     assert result.interval is None
-    consumed = advanced.consume_smoothed_dose(bytes(study.export()))
+    consumed = advanced.consume_smoothed_dose(bytes(result.export()))
     assert consumed.uncertainty == result.uncertainty
     assert consumed.interval is None
 
@@ -395,7 +423,6 @@ def posterior_model(**kwargs):
         "residual_variance": 1.0,
         "min_local_rows": 50,
         "draws": 20_000,
-        "seed": 7,
     }
     arguments.update(kwargs)
     return advanced.SmoothedDosePosteriorModel(**arguments)
@@ -404,7 +431,9 @@ def posterior_model(**kwargs):
 @pytest.mark.parametrize("design", DESIGNS)
 def test_posterior_covers_the_closed_form_target_with_the_joint_covariance(design):
     query, data = fixture(design)
-    study = advanced.prepare_smoothed_dose(query, data, options=options(), seed=5)
+    study = advanced.prepare_smoothed_dose(
+        query, data, options=options(), execution=ac.Execution(seed=7)
+    )
     result = require_success(study.posterior(posterior_model()))
     row = result.posterior
     assert row.estimator == "bayesian.smoothed_dose"
@@ -435,9 +464,9 @@ def test_posterior_intervals_cover_the_closed_form_target_at_the_nominal_rate(de
     for data_seed in range(3, 15):
         query, data = fixture(design, seed=data_seed)
         row = require_success(
-            advanced.prepare_smoothed_dose(query, data, options=options(), seed=5).posterior(
-                posterior_model(draws=4_000)
-            )
+            advanced.prepare_smoothed_dose(
+                query, data, options=options(), execution=ac.Execution(seed=7)
+            ).posterior(posterior_model(draws=4_000))
         ).posterior
         mean_z = float(np.asarray(data.covariates["z"])[~np.asarray(data.source)].mean())
         for index, dose in enumerate(GRID):
@@ -450,7 +479,9 @@ def test_posterior_intervals_cover_the_closed_form_target_at_the_nominal_rate(de
 
 def test_posterior_artifact_is_consumed_independently_and_refuses_changes():
     query, data = fixture()
-    study = advanced.prepare_smoothed_dose(query, data, options=options(), seed=5)
+    study = advanced.prepare_smoothed_dose(
+        query, data, options=options(), execution=ac.Execution(seed=7)
+    )
     result = require_success(study.posterior(posterior_model(draws=2_000)))
     consumed = advanced.consume_smoothed_dose_posterior(bytes(result.export()))
     assert consumed.posterior == result.posterior
@@ -466,7 +497,9 @@ def test_posterior_artifact_is_consumed_independently_and_refuses_changes():
 
 def test_posterior_refuses_thin_windows_and_undeclared_residual_priors():
     query, data = fixture()
-    study = advanced.prepare_smoothed_dose(query, data, options=options(), seed=5)
+    study = advanced.prepare_smoothed_dose(
+        query, data, options=options(), execution=ac.Execution(seed=7)
+    )
     with pytest.raises(CausalError, match="local support failure"):
         require_success(study.posterior(posterior_model(min_local_rows=100_000)))
     with pytest.raises(CausalError, match="residual_variance"):

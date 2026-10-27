@@ -16,6 +16,7 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 
 
 def _quantity(variable: str, regime: str) -> ScientificQuantity:
@@ -63,9 +64,16 @@ def _marginals() -> JointDistributionArtifact:
     return JointDistributionArtifact(identity, draws, calibration="exact")
 
 
+def _refused(contract: decision.Contract):
+    """Evaluate the contract on independent marginals; a refusal is a typed outcome."""
+    outcome = contract.evaluate(_marginals())
+    assert outcome.refusal is not None
+    return require_success(outcome)
+
+
 def test_decision_refusal_fields_survive_the_bridge():
     with pytest.raises(decision.DecisionRefusal) as caught:
-        _contract().evaluate(_marginals())
+        _refused(_contract())
     refusal = caught.value
     assert isinstance(refusal, CausalUnsupportedError)
     assert refusal.reason_code == "joint_law_required"
@@ -87,7 +95,7 @@ def test_unit_and_capability_style_mistakes_stay_distinct_across_families():
         target_population="other",
     )
     with pytest.raises(decision.DecisionRefusal) as population:
-        wrong_population.evaluate(_marginals())
+        _refused(wrong_population)
     assert population.value.reason_code == "quantity_semantics_mismatch"
     assert population.value.detail == "decision_contract.outside_decision_scope"
 
@@ -99,7 +107,7 @@ def test_unit_and_capability_style_mistakes_stay_distinct_across_families():
         constraints=(decision.Constraint("cap", decision.x(0), 1.0, "units", 1.0, ("A9",)),),
     )
     with pytest.raises(decision.DecisionRefusal) as unknown:
-        unknown_action.evaluate(_marginals())
+        _refused(unknown_action)
     assert unknown.value.reason_code == "invalid_argument"
     assert unknown.value.detail == "decision_contract.unknown_action"
 

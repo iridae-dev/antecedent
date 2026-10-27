@@ -27,7 +27,7 @@ def _study(**controls):
 
 
 def test_staleness_assesses_canonical_preparation_without_estimating_or_mutating(monkeypatch):
-    from antecedent.estimation import PreparedAnalysis as Engine
+    from antecedent.estimation import _PreparedEngine as Engine
 
     def no_causal_estimation(*args, **kwargs):
         raise AssertionError("drift assessment must not estimate the causal effect")

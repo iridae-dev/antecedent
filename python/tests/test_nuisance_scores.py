@@ -16,7 +16,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import nuisance_scores
-from antecedent.errors import CausalSerializationError, CausalUnsupportedError
+from antecedent.errors import CausalSerializationError
 from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 
@@ -118,9 +118,9 @@ def test_an_edited_or_truncated_artifact_is_refused() -> None:
     product = require_success(prepared().treatment_score_posterior(summary_rows=[0], draws=500))
     artifact = bytearray(bytes(product.export()))
     artifact[len(artifact) // 2] ^= 0x01
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(CausalSerializationError):
         nuisance_scores.load_artifact(bytes(artifact))
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(CausalSerializationError):
         nuisance_scores.load_artifact(bytes(product.export())[:-5])
 
 

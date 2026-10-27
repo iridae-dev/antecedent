@@ -82,17 +82,16 @@ def test_class_aware_conditional_pins(accepted: bool, class_name: str, refute) -
             execution=antecedent.Execution(seed=1),
         )
     )
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=query,
         refute=refute,
-        bootstrap=0,
-        seed=1,
-        latency="interactive",
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=1),
     )
-    click = require_success(prepared.estimate(data, seed=1))
-    assert prepared.structure_source == ("accepted" if accepted else "explicit")
+    click = require_success(antecedent.estimate(prepared))
+    assert click.plan.structure_source == ("accepted" if accepted else "explicit")
     assert fresh.evidence_status == click.evidence_status == "licensed"
     assert fresh.plan.identifier == "generalized.adjustment"
     assert fresh.plan.estimator == freq["estimator"]
@@ -124,8 +123,7 @@ def test_class_aware_conditional_bayesian_pins(accepted: bool, class_name: str) 
             query=_query(),
             inference=inference,
             refute=False,
-            bootstrap=0,
-            seed=int(bayes["seed"]),
+            execution=antecedent.Execution(seed=int(bayes["seed"])),
         )
     )
     assert result.plan.estimator == bayes["estimator"]

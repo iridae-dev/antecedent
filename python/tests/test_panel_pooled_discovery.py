@@ -31,7 +31,12 @@ def test_panel_pooled_pcmci_smoke():
     result = require_success(
         antecedent.analyze(
             panel,
-            discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+            graph=antecedent.discovery.discover(
+                panel,
+                method=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
             query=antecedent.PulseEffect(
                 treatment="x",
                 outcome="y",
@@ -63,7 +68,12 @@ def test_panel_pooled_rejects_rpcmci():
         require_success(
             antecedent.analyze(
                 panel,
-                discovery=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
+                graph=antecedent.discovery.discover(
+                    panel,
+                    method=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=True,
+                ),
                 query=antecedent.PulseEffect(
                     treatment="x",
                     outcome="y",

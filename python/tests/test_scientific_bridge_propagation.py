@@ -99,7 +99,9 @@ def delta_variance(x, se, covariance=0.0):
 
 def refused(call, code, detail):
     with pytest.raises(ScientificBridgeRefusal) as caught:
-        call()
+        # A refused operation returns a typed refusal Outcome; require_success
+        # re-raises that same refusal so its code, detail and remedy are asserted.
+        require_success(call())
     assert_registered_refusal(caught.value)
     assert caught.value.reason_code == code, (caught.value.reason_code, str(caught.value))
     assert caught.value.detail == detail, (caught.value.detail, str(caught.value))

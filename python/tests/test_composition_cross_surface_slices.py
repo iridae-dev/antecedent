@@ -19,10 +19,12 @@ from antecedent import (
     Admg,
     AverageEffect,
     Bayesian,
+    Execution,
     Frequentist,
     PulseEffect,
     analyze,
     load,
+    prepare,
 )
 from antecedent import evidence_ledger as ledger_api
 from antecedent._artifact_protocol import exported_artifact
@@ -73,16 +75,17 @@ def _gaussian_cell(horizon: bool, bayesian: bool):
             backend="conjugate",
         )
         if bayesian
-        else Frequentist()
+        else Frequentist(bootstrap=0)
     )
-    result = analyze(
-        data,
-        graph=graph,
-        query=query,
-        inference=inference,
-        bootstrap=0,
-        refute="none",
-        seed=1,
+    result = require_success(
+        analyze(
+            data,
+            graph=graph,
+            query=query,
+            inference=inference,
+            refute="none",
+            execution=Execution(seed=1),
+        )
     )
     # A frequentist fit is exact on the noiseless line. A Bayesian point estimate is the mean of
     # iid conjugate draws, so it carries Monte Carlo error: five standard errors of that mean.
@@ -173,8 +176,11 @@ def _discrete_arm(counts, level, estimator):
             ),
         )
     )
-    study = transport.prepare_statistical(
-        identified, catalog, data, at={"t": float(level)}, bootstrap=0, estimator=estimator
+    study = prepare(
+        data,
+        query=transport.StatisticalTransportQuery(
+            identified, catalog, {"t": float(level)}, bootstrap=0, estimator=estimator
+        ),
     )
     return require_success(load(bytes(require_success(study.estimate()).export())))
 
@@ -486,7 +492,7 @@ def test_recovered_feedback_reloads_the_observation_law():
     live = json.loads(require_success(prepared.estimate()))
     artifact = bytes(prepared.export())
     del prepared
-    consumed = json.loads(transport.consume_observation_recovery_artifact(artifact))
+    consumed = require_success(transport.consume_observation_recovery_artifact(artifact)).to_dict()
     assert consumed["recovered"]["probabilities"] == pytest.approx(
         live["recovered"]["probabilities"]
     )

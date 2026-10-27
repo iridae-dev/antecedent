@@ -7,6 +7,7 @@ uncertainty is not silently absorbed into a confidence interval.
 import math
 
 from antecedent import measurement_models as mm
+from antecedent.outcomes import require_success
 
 
 def main():
@@ -23,8 +24,10 @@ def main():
     invariance = mm.InvarianceDeclaration(
         "clinic_a", "clinic_b", "analyst", ("sensitivity", "specificity")
     )
-    result = mm.transport_measurement_model(
-        [model], analysis, mm.BinaryPrevalenceData(520, 1000), structure=invariance
+    result = require_success(
+        mm.transport_measurement_model(
+            [model], analysis, mm.BinaryPrevalenceData(520, 1000), structure=invariance
+        )
     )
     point = (0.52 + 0.8 - 1) / (0.9 + 0.8 - 1)
     variance = (0.52 * 0.48 / 1000 + (1 - point) ** 2 * 4e-4 + point**2 * 1e-4) / (

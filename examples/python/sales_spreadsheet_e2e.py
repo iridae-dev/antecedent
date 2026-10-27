@@ -13,6 +13,7 @@ import math
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 
 def _sales_static(n: int = 400, seed: int = 7):
@@ -62,14 +63,15 @@ def main() -> None:
     accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="reviewed")
     q = antecedent.AverageEffect(treatment="t", outcome="y")
 
-    bayes = antecedent.analyze(
-        data,
-        graph=accepted,
-        query=q,
-        inference=antecedent.Bayesian(backend="laplace", n_draws=128),
-        refute="none",
-        seed=3,
-        bootstrap=0,
+    bayes = require_success(
+        antecedent.analyze(
+            data,
+            graph=accepted,
+            query=q,
+            inference=antecedent.Bayesian(backend="laplace", n_draws=128),
+            refute="none",
+            execution=antecedent.Execution(seed=3),
+        )
     )
     assert math.isfinite(bayes.ate), bayes.ate
     assert bayes.posterior is not None
@@ -91,11 +93,13 @@ def main() -> None:
     assert math.isfinite(path.total_change)
     print(f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}")
 
-    ite = antecedent.analyze(
-        data,
-        graph=accepted,
-        query=antecedent.Counterfactual("t", "y"),
-        execution=antecedent.Execution(seed=7),
+    ite = require_success(
+        antecedent.analyze(
+            data,
+            graph=accepted,
+            query=antecedent.Counterfactual("t", "y"),
+            execution=antecedent.Execution(seed=7),
+        )
     )
     assert len(ite.unit_effects) == len(cols[0])
     assert math.isfinite(ite.mean_ite)
@@ -103,9 +107,12 @@ def main() -> None:
 
     # Second estimate click — still no discovery.
     study = bayes.study
-    second = study.estimate(seed=4)
+    second = require_success(
+        antecedent.estimate(antecedent.reconfigure(study, execution=antecedent.Execution(seed=4)))
+    )
     assert second.data_snapshot_id == bayes.data_snapshot_id
-    acceptance = antecedent.load(bayes.export()).acceptance
+    artifact = bayes.export()
+    acceptance = antecedent.load(artifact, expected=artifact.expectation).acceptance
     assert acceptance.verified or acceptance.sealed
     print("Calibration:", bayes.calibration.status)
     assert discovery_calls["n"] == 0, "static estimate clicks must not discover"
@@ -117,20 +124,21 @@ def main() -> None:
         ["promo", "returns"], [("promo", 1, "returns", 0)]
     )
     temporal = antecedent.AcceptedGraph.from_graph(tdag, algorithm_id="pcmci")
-    pulse = antecedent.analyze(
-        series,
-        graph=temporal,
-        query=antecedent.PulseEffect(
-            treatment="promo",
-            outcome="returns",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        inference=antecedent.Bayesian(backend="laplace", n_draws=96),
-        refute="none",
-        seed=13,
-        bootstrap=0,
+    pulse = require_success(
+        antecedent.analyze(
+            series,
+            graph=temporal,
+            query=antecedent.PulseEffect(
+                treatment="promo",
+                outcome="returns",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            inference=antecedent.Bayesian(backend="laplace", n_draws=96),
+            refute="none",
+            execution=antecedent.Execution(seed=13),
+        )
     )
     assert math.isfinite(pulse.ate), pulse.ate
     print(f"Temporal pulse Bayesian ATE={pulse.ate:.4f} (promo → returns)")
