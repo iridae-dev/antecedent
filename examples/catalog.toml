@@ -78,14 +78,14 @@ claim = "Randomized reminder effect of 2 sessions in a simulated fixture; the ho
 [[example]]
 id = "observational_study"
 title = "Estimate a training programme's effect from observational data"
-summary = "Adjust for declared confounders on a job-training study with a comparison group, using a public dataset on request and a synthetic stand-in offline."
+summary = "Estimate a job-training effect on participants from a non-experimental comparison group: see weighting refuse without overlap, restrict to common support, and compare with the experiment."
 python = "examples/python/observational_study.py"
 unreleased = true
 topic = "Tutorials"
 level = "intermediate"
 dependencies = ["numpy"]
 runtime = "up to 1 min"
-claim = "Effect on the treated under a declared no-unmeasured-confounding graph. Offline runs use a synthetic stand-in with a known truth; real data are evidence about whether the adjustment works here, never known causal truth. See examples/data/nsw_psid.toml for provenance and licence."
+claim = "Effect on the treated under a declared no-unmeasured-confounding graph, on a comparison group restricted by pre-programme covariates. On the verified real files the whole comparison group refuses for extreme propensity scores; estimators then disagree and neither is known causal truth. Offline runs use a synthetic stand-in with a known truth. See examples/data/nsw_psid.toml for provenance and licence."
 
 [[example]]
 id = "analysis_workflow"

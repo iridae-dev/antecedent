@@ -21,6 +21,12 @@ The stand-in is a simulation. Its effect on the treated, the average over partic
 
 You declare that age, schooling, race, ethnicity, marital status, degree status and the two pre-programme earnings each may affect both entering the programme and 1978 earnings, and that the programme may affect 1978 earnings. Nothing else is declared. This is the assumption of no unmeasured confounding given those eight variables. Antecedent does not learn it from the table, and no diagnostic below can confirm it.
 
+## When the comparison group does not overlap
+
+Before the main analysis, the example weights the whole PSID comparison group. On the real files that request refuses. Most PSID respondents were older, more educated and earning far more than anyone who entered the programme, so the propensity model gives them a probability of entry within 1e-8 of zero. Weighting would divide by those probabilities. Antecedent stops instead of reporting a number that rests on them, and the refusal says why: the fitted scores are too extreme to weight.
+
+The refusal also says what would help. A comparison row with essentially no chance of treatment carries no information about what the participants would have earned without the programme. The example therefore keeps every participant and only the comparison rows whose age, schooling and 1974 and 1975 earnings fall inside the participants' range. The rule reads pre-programme covariates only, never the outcome. Because every participant stays, the target is unchanged: it is still the effect on the participants. On the real files 1,479 of the 2,490 comparison rows remain. This trimming is a choice you make and report; a different reasonable rule gives a different comparison group and can give a different answer.
+
 ## Prepare and inspect
 
 The example prepares the analysis and prints its inspection before estimating. Identification comes first: with this graph the programme effect is identified by adjusting for the eight covariates, an identification that holds only if the declared graph does. Then overlap. The query declares the treated population as its target, so the comparison rows are reweighted toward the participants. Programme participants were selected for low earnings, so few comparison rows resemble them; `overlap_ess` reports the effective number of rows the weights rely on, and the smallest estimated propensity shows how extreme the weights are.
@@ -37,11 +43,13 @@ The cheap refuter suite runs with the estimate. The example also computes an E-v
 
 ## Compare with the experiment
 
-On the real files the example also prints the randomised NSW difference in means. It estimates the effect on the participants, the same estimand as the observational analysis, so the two numbers are directly comparable. Agreement would show that this adjustment worked with this comparison group; disagreement would show that something failed without saying which assumption. Neither makes the observational estimate the causal truth. Dehejia and Wahba (1999) and later work show that the result depends strongly on the comparison group and the method, which is why this is a lesson about assumptions rather than a score for an estimator.
+On the real files the example also prints the randomised NSW difference in means, about 1,794 dollars with a standard error of about 671. It estimates the effect on the participants, the same estimand as the observational analysis, so the numbers are directly comparable. On the trimmed comparison group, weighting gives about 747 and AIPW about 1,858.
+
+Read that carefully. The two observational estimators use the same graph, the same rows and the same target, yet they differ by more than a thousand dollars, because the overlap that remains is thin: the weights rest on about 155 effective rows. That AIPW lands near the experimental number does not make it the right method, and the distance of the weighting estimate does not show which assumption failed. Dehejia and Wahba (1999) and later work found that results on these data depend strongly on the comparison group and the method. The lesson is about assumptions and overlap, not a score for an estimator.
 
 ## A boundary that teaches
 
-Compare the unadjusted difference with the adjusted estimate. If they differ a great deal, selection into the programme on observed earnings explains it. What the table cannot show is selection on something unobserved, such as motivation, that affects both entry and earnings. Overlap is a separate limit: where no comparison row resembles a participant, no weighting recovers the effect there, and the estimate leans on a few rows. Better evidence for either limit is a measured confounder, a design that creates variation unrelated to confounders, or an experiment, which is what NSW supplied.
+Compare the unadjusted difference with the adjusted estimate. If they differ a great deal, selection into the programme on observed earnings explains it. What the table cannot show is selection on something unobserved, such as motivation, that affects both entry and earnings. Overlap is a separate limit, and on these data it is the binding one: where no comparison row resembles a participant, no weighting recovers the effect there, and the estimate leans on a few rows. Better evidence for either limit is a measured confounder, a design that creates variation unrelated to confounders, or an experiment, which is what NSW supplied.
 
 ## What was established and what comes next
 

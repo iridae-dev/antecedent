@@ -133,6 +133,23 @@ def mean_difference(table: dict[str, np.ndarray]) -> tuple[float, float]:
     )
 
 
+def common_support(table: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    """Keep every treated row and the comparison rows inside the treated covariate range.
+
+    The rule reads pre-programme covariates only, never the outcome. Every participant is kept,
+    so the target, the effect on the treated, is unchanged; the comparison group shrinks to
+    people who resemble someone who entered the programme.
+    """
+    treated = table["treat"] == 1
+    keep = treated.copy()
+    inside = np.ones_like(treated)
+    for column in ("age", "educ", "re74", "re75"):
+        low, high = table[column][treated].min(), table[column][treated].max()
+        inside &= (table[column] >= low) & (table[column] <= high)
+    keep |= inside
+    return {name: values[keep] for name, values in table.items()}
+
+
 def main() -> None:
     real = real_tables()
     if real is None:
@@ -161,7 +178,36 @@ def main() -> None:
         f"Unadjusted treated-minus-comparison difference: {raw:,.0f} (se {raw_se:,.0f})"
     )
 
-    # Prepare and inspect before estimating: identification and overlap are readable first.
+    # First attempt: weight the whole comparison group.
+    attempt = analyze(
+        data,
+        graph=graph,
+        query=query,
+        estimator="propensity.weighting",
+        refute="none",
+        inference=_ant_api.Frequentist(bootstrap=100),
+        execution=_ant_api.Execution(seed=11),
+    )
+    if attempt.refusal is not None:
+        print(
+            f"Whole comparison group refused ({attempt.refusal.code}): {attempt.refusal.message}"
+        )
+    else:
+        print(
+            f"Whole comparison group: weighted effect on the treated {attempt.answer.value:,.0f}"
+        )
+    if benchmark is not None:
+        # Many PSID respondents have essentially no chance of entering the programme, so the
+        # propensity model reaches 0 or 1 and weighting refuses rather than divide by it.
+        assert attempt.refusal is not None
+
+    # Restrict the comparison group to the treated covariate range, then prepare and inspect.
+    full_rows = len(data["treat"])
+    data = common_support(data)
+    assert int(data["treat"].sum()) == n_treated
+    print(
+        f"Common support: kept {len(data['treat']) - n_treated} of {full_rows - n_treated} comparison rows"
+    )
     study = _ant_api.prepare(
         data,
         graph=graph,
@@ -235,9 +281,10 @@ def main() -> None:
         exp, exp_se = mean_difference(benchmark)
         print(
             f"Experimental benchmark (randomised NSW treated vs control): {exp:,.0f} (se {exp_se:,.0f}). "
-            "Both numbers target the effect on the participants. Closeness shows the declared "
-            "adjustment worked with this comparison group; it does not make either number "
-            "the causal truth, and another comparison group or method can differ."
+            f"Weighting gave {result.answer.value:,.0f} and AIPW {aipw.answer.value:,.0f} for the same "
+            "target on the same comparison rows. The estimators disagree with each other, and "
+            "neither the closer nor the further one is thereby the causal truth: the gap shows how "
+            "much the answer depends on modelling choices where overlap is thin."
         )
         assert np.isfinite(exp) and exp_se > 0.0
 

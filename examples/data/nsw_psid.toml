@@ -24,7 +24,7 @@ citation = [
 licence = "not stated by the publisher"
 licence_note = "The origin page credits LaLonde's permission to use the data and states no licence. Antecedent fetches the files from the publisher on request and does not redistribute them."
 version = "files as served by the publisher; the SHA-256 values below identify the exact bytes this example was written against"
-retrieved = ""   # coordinator: record the retrieval date (YYYY-MM-DD) when filling the checksums
+retrieved = "2026-10-27"
 
 # Each file is plain text, whitespace separated, no header, one row per person.
 # Columns, in order (the page lists the last column as the outcome and the rest as pre-programme).
@@ -42,28 +42,27 @@ re74 = "real earnings in 1974, US dollars (pre-programme)"
 re75 = "real earnings in 1975, US dollars (pre-programme)"
 re78 = "real earnings in 1978, US dollars (outcome, after the programme)"
 
-# sha256 = "" means the checksum has not been recorded yet: fetch.py then
-# refuses to treat the file as verified and the example uses its stand-in.
+# fetch.py treats a file as verified only when its bytes match the sha256 below.
 [[file]]
 name = "nswre74_treated.txt"
 role = "experimental treated group"
 url = "https://users.nber.org/~rdehejia/data/nswre74_treated.txt"
 rows = 185
-sha256 = ""
+sha256 = "e7b742fe0ff07a0f45e129b4ff108bb9611cd83d53604732c48a8a0a3e20eda3"
 
 [[file]]
 name = "nswre74_control.txt"
 role = "experimental control group"
 url = "https://users.nber.org/~rdehejia/data/nswre74_control.txt"
 rows = 260
-sha256 = ""
+sha256 = "a1364cea459d953dc691a667d99194b4ad335d6d550354fe23a5d2dc58d729b5"
 
 [[file]]
 name = "psid_controls.txt"
 role = "non-experimental comparison group (PSID-1)"
 url = "https://users.nber.org/~rdehejia/data/psid_controls.txt"
 rows = 2490
-sha256 = ""
+sha256 = "73ffcdd8feb7f965f8e1de9bfdb80a095542c7a95ce7f56b2e2b2a9716e858cc"
 
 [preprocessing]
 steps = [
