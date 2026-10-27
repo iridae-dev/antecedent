@@ -41,8 +41,6 @@ def orphans_of(crate: Path) -> list[str]:
     compiled: set[Path] = set()
     for entry in data.get("test", []):
         compiled |= included_files(crate / entry.get("path", f"tests/{entry['name']}.rs"))
-    for suite in crate.glob("tests/suite_*.rs"):
-        compiled |= included_files(suite)
     return [
         f"{crate.name}/tests/{f.name}"
         for f in sorted(crate.glob("tests/*.rs"))

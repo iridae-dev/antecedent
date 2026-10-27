@@ -25,6 +25,21 @@ MANIFEST = '[package]\nname = "demo"\nautotests = false\n\n[[test]]\nname = "sui
 
 
 class TestTargetChecks(unittest.TestCase):
+    def test_an_unregistered_suite_and_its_includes_are_orphans(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            crate = crate_with(
+                Path(tmp),
+                {
+                    "suite_01.rs": "",
+                    "suite_02.rs": '#[path = "hidden.rs"]\nmod hidden;\n',
+                    "hidden.rs": "",
+                },
+                MANIFEST,
+            )
+            self.assertEqual(
+                check.orphans_of(crate), ["demo/tests/hidden.rs", "demo/tests/suite_02.rs"]
+            )
+
     def test_a_file_included_through_another_included_file_is_compiled(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             crate = crate_with(
