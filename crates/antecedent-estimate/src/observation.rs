@@ -1693,6 +1693,7 @@ fn binary_events(events: &[f64]) -> Result<(), EstimationError> {
 
 #[cfg(test)]
 mod tests {
+    use antecedent_stats::fit_observation_logistic;
     use antecedent_core::{
         ContinuousDomain, GridSpec, ObservationAssumption, ResponseFunctional, ResponseQuery,
     };
