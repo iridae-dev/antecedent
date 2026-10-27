@@ -621,7 +621,8 @@ mod tests {
     }
 
     fn normal_pdf(x: f64, mean: f64, variance: f64) -> f64 {
-        (-(x - mean).powi(2) / (2.0 * variance)).exp() / (2.0 * std::f64::consts::PI * variance).sqrt()
+        (-(x - mean).powi(2) / (2.0 * variance)).exp()
+            / (2.0 * std::f64::consts::PI * variance).sqrt()
     }
 
     /// Moments of `(theta, phi)` by quadrature over the defining densities:
@@ -629,31 +630,46 @@ mod tests {
     /// `y2` given `theta`, and `p(phi | theta)` normalized numerically from
     /// prior times likelihood. Nothing here uses the closed forms.
     fn quadrature(model: &SharedParameterModel, eta: f64) -> [f64; 5] {
-        let pooled = reconcile_priors(model.margin_prior, model.cost_prior, model.pooling_weight)
-            .unwrap();
+        let pooled =
+            reconcile_priors(model.margin_prior, model.cost_prior, model.pooling_weight).unwrap();
         let (theta_lo, theta_hi, theta_n) = (-9.0, 9.0, 721);
         let (phi_lo, phi_hi, phi_n) = (-14.0, 14.0, 1121);
         let theta_step = (theta_hi - theta_lo) / (theta_n - 1) as f64;
         let phi_step = (phi_hi - phi_lo) / (phi_n - 1) as f64;
-        let (mut mass, mut e_t, mut e_p, mut e_tt, mut e_pp, mut e_tp) = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let (mut mass, mut e_t, mut e_p, mut e_tt, mut e_pp, mut e_tp) =
+            (0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         for i in 0..theta_n {
             let theta = theta_lo + theta_step * i as f64;
             // marginal likelihood of y2 given theta, integrating phi
             let mut marginal = 0.0;
             for j in 0..phi_n {
                 let phi = phi_lo + phi_step * j as f64;
-                marginal += normal_pdf(phi, model.specific_prior.mean, model.specific_prior.variance)
-                    * normal_pdf(model.cost_observation.mean, theta + phi, model.cost_observation.variance)
-                    * phi_step;
+                marginal +=
+                    normal_pdf(phi, model.specific_prior.mean, model.specific_prior.variance)
+                        * normal_pdf(
+                            model.cost_observation.mean,
+                            theta + phi,
+                            model.cost_observation.variance,
+                        )
+                        * phi_step;
             }
             let weight_theta = normal_pdf(theta, pooled.mean, pooled.variance)
-                * normal_pdf(model.margin_observation.mean, theta, model.margin_observation.variance)
+                * normal_pdf(
+                    model.margin_observation.mean,
+                    theta,
+                    model.margin_observation.variance,
+                )
                 * marginal.powf(eta);
             for j in 0..phi_n {
                 let phi = phi_lo + phi_step * j as f64;
-                let conditional = normal_pdf(phi, model.specific_prior.mean, model.specific_prior.variance)
-                    * normal_pdf(model.cost_observation.mean, theta + phi, model.cost_observation.variance)
-                    / marginal;
+                let conditional =
+                    normal_pdf(phi, model.specific_prior.mean, model.specific_prior.variance)
+                        * normal_pdf(
+                            model.cost_observation.mean,
+                            theta + phi,
+                            model.cost_observation.variance,
+                        )
+                        / marginal;
                 let density = weight_theta * conditional * theta_step * phi_step;
                 mass += density;
                 e_t += density * theta;
@@ -673,7 +689,11 @@ mod tests {
         for eta in [0.0, 0.35, 1.0] {
             let exact = model.posterior(eta).unwrap();
             let [mt, mp, vt, vp, ctp] = quadrature(&model, eta);
-            assert!((exact.theta_mean - mt).abs() < 1e-6, "eta {eta}: {} vs {mt}", exact.theta_mean);
+            assert!(
+                (exact.theta_mean - mt).abs() < 1e-6,
+                "eta {eta}: {} vs {mt}",
+                exact.theta_mean
+            );
             assert!((exact.phi_mean - mp).abs() < 1e-6, "eta {eta}");
             assert!((exact.theta_variance - vt).abs() < 1e-6, "eta {eta}");
             assert!((exact.phi_variance - vp).abs() < 1e-5, "eta {eta}");
@@ -684,8 +704,8 @@ mod tests {
     #[test]
     fn full_feedback_is_the_coherent_joint_posterior_from_the_joint_precision() {
         let model = model();
-        let pooled = reconcile_priors(model.margin_prior, model.cost_prior, model.pooling_weight)
-            .unwrap();
+        let pooled =
+            reconcile_priors(model.margin_prior, model.cost_prior, model.pooling_weight).unwrap();
         // Joint Gaussian over (theta, phi): y1 = theta + e1, y2 = theta + phi + e2.
         let (s1, s2) = (model.margin_observation.variance, model.cost_observation.variance);
         let (vp, mp) = (model.specific_prior.variance, model.specific_prior.mean);
@@ -748,12 +768,15 @@ mod tests {
         let cut = model.posterior(0.0).unwrap();
         let half = model.posterior(0.5).unwrap();
         let full = model.posterior(1.0).unwrap();
-        assert!(full.theta_variance < half.theta_variance && half.theta_variance < cut.theta_variance);
+        assert!(
+            full.theta_variance < half.theta_variance && half.theta_variance < cut.theta_variance
+        );
         let envelope = model.pooling_envelope(1.0, 0.0, 1.0, 40).unwrap();
         assert_eq!(envelope.weights, 41);
         for index in 0..=200 {
             let weight = f64::from(index) / 200.0;
-            let at = SharedParameterModel { pooling_weight: weight, ..model }.posterior(1.0).unwrap();
+            let at =
+                SharedParameterModel { pooling_weight: weight, ..model }.posterior(1.0).unwrap();
             assert!(at.theta_mean >= envelope.theta_mean.low - 1e-3);
             assert!(at.theta_mean <= envelope.theta_mean.high + 1e-3);
         }
@@ -782,5 +805,4 @@ mod tests {
         let pooled = reconcile_priors(law(0.0, 1.0), law(2.0, 1.0), 0.5).unwrap();
         assert!((pooled.mean - 1.0).abs() < 1e-12 && (pooled.variance - 1.0).abs() < 1e-12);
     }
-
 }

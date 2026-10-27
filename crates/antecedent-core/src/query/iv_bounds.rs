@@ -1,8 +1,8 @@
 //! Sharp bounds on the average effect of a binary treatment under a binary instrument.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::fault::IvBoundsFault;
 use super::QueryError;
+use super::fault::IvBoundsFault;
 use crate::canonical_encode::{CanonicalEncode, encode_option};
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;

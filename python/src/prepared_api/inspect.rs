@@ -242,7 +242,7 @@ impl PyPreparedAnalysis {
         insert_reuse_identities(
             &mut report,
             inner.score_reuse_identity().map_err(py_err)?,
-            result.row_weights.as_ref().map(|binding| binding.target_weights),
+            result.row_weights().as_ref().map(|binding| binding.target_weights),
         );
         report.insert("claim_id".into(), claim.claim_id.to_hex());
         report.insert("calibration_status".into(), claim.calibration.status.to_string());
@@ -429,8 +429,7 @@ impl PyPreparedAnalysis {
         let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
         let data = FrameInput::ingest(py, &names, columns, Some(&frame))?;
         if response {
-            let out =
-                self.click(py, data, seed, threads, controls, response_from_study)?;
+            let out = self.click(py, data, seed, threads, controls, response_from_study)?;
             Ok(Py::new(py, out)?.into_any())
         } else {
             let out = self.click(py, data, seed, threads, controls, map_ate)?;

@@ -467,6 +467,7 @@ fn every_counterfactual_and_attribution_field_reaches_the_encoding() {
             &|q| q.outcomes = Arc::from([v(2), v(1)]),
             &|q| q.interventions = Arc::from([set(0, 2.0)]),
             &|q| q.control = set(0, 0.5),
+            &|q| q.joint_control = Arc::from([set(2, 0.0)]),
             &|q| q.allow_nested = true,
         ],
     );
@@ -1842,4 +1843,49 @@ fn the_association_kind_appends_its_tag_and_every_field_reaches_the_bytes() {
     assert!(no_predictor.validate().is_err());
     let marginal = AssociationQuery::new(v(1), Vec::<VariableId>::new());
     assert!(marginal.validate().is_ok());
+}
+
+/// The bytes a single-intervention counterfactual query always had.
+fn legacy_counterfactual_digest(query: &CounterfactualQuery) -> [u8; 32] {
+    let mut writer = CanonicalWriter::new("t");
+    crate::canonical_encode::encode_variables(&mut writer, &query.outcomes);
+    crate::canonical_encode::encode_list(&mut writer, &query.interventions);
+    query.control.encode(&mut writer);
+    writer.word(crate::canonical_encode::flag(query.allow_nested));
+    writer.finish()
+}
+
+#[test]
+fn a_single_intervention_baseline_keeps_its_canonical_bytes() {
+    let query = counterfactual();
+    assert_eq!(digest(&query), legacy_counterfactual_digest(&query));
+    let nested = counterfactual().with_nested(true).with_control_level(0.5);
+    assert_eq!(digest(&nested), legacy_counterfactual_digest(&nested));
+}
+
+#[test]
+fn a_joint_baseline_is_a_different_canonical_form_and_keeps_its_order() {
+    let joint = CounterfactualQuery::new(v(2), vec![set(0, 1.0), set(1, 1.0)])
+        .with_joint_control([set(0, 0.0), set(1, 0.0)]);
+    let swapped = CounterfactualQuery::new(v(2), vec![set(0, 1.0), set(1, 1.0)])
+        .with_joint_control([set(1, 0.0), set(0, 0.0)]);
+    let single = CounterfactualQuery::new(v(2), vec![set(0, 1.0), set(1, 1.0)]);
+    assert_ne!(digest(&joint), digest(&single));
+    assert_ne!(digest(&joint), digest(&swapped));
+    assert_eq!(joint.control_world(), vec![set(0, 0.0), set(1, 0.0)]);
+    assert!(joint.validate().is_ok());
+    assert!(swapped.validate().is_ok());
+}
+
+#[test]
+fn a_joint_baseline_must_intervene_on_the_variables_the_active_world_does() {
+    let active = vec![set(0, 1.0), set(1, 1.0)];
+    let missing = CounterfactualQuery::new(v(2), active.clone())
+        .with_joint_control([set(0, 0.0), set(3, 0.0)]);
+    assert!(matches!(missing.validate(), Err(QueryError::InterventionVariableMismatch { .. })));
+    let shorter = CounterfactualQuery::new(v(2), active).with_joint_control([set(0, 0.0)]);
+    assert!(shorter.validate().is_ok(), "a one-element baseline is the single form");
+    let three = CounterfactualQuery::new(v(2), vec![set(0, 1.0), set(1, 1.0)])
+        .with_joint_control([set(0, 0.0), set(1, 0.0), set(2, 0.0)]);
+    assert!(three.validate().is_err());
 }

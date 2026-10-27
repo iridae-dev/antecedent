@@ -399,11 +399,7 @@ pub struct CallbackDeclaration {
 }
 
 fn check_text(field: &str, text: &str) -> Result<(), CallbackRefusal> {
-    if text.trim().is_empty() {
-        Err(blank_field(field))
-    } else {
-        Ok(())
-    }
+    if text.trim().is_empty() { Err(blank_field(field)) } else { Ok(()) }
 }
 
 impl CallbackDeclaration {

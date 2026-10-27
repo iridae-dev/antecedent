@@ -268,15 +268,21 @@ impl InterferenceQuery {
                 if probabilities.is_empty()
                     || probabilities.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p >= 1.0) =>
             {
-                return Err(QueryError::InvalidInterference(InterferenceFault::BernoulliProbabilities));
+                return Err(QueryError::InvalidInterference(
+                    InterferenceFault::BernoulliProbabilities,
+                ));
             }
             AssignmentDesign::CompleteRandomization { treated } if *treated == 0 => {
-                return Err(QueryError::InvalidInterference(InterferenceFault::CompleteTreatedUnits));
+                return Err(QueryError::InvalidInterference(
+                    InterferenceFault::CompleteTreatedUnits,
+                ));
             }
             AssignmentDesign::ClusterRandomization { clusters, treated_clusters }
                 if clusters.is_empty() || *treated_clusters == 0 =>
             {
-                return Err(QueryError::InvalidInterference(InterferenceFault::ClusterTreatedClusters));
+                return Err(QueryError::InvalidInterference(
+                    InterferenceFault::ClusterTreatedClusters,
+                ));
             }
             AssignmentDesign::TwoStageSaturation {
                 clusters,

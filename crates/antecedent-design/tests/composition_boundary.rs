@@ -39,7 +39,6 @@ fn near(a: f64, b: f64) -> bool {
     within(a, b, NEAR_TOLERANCE)
 }
 
-
 fn q(regime: &str, functional: &str) -> ScientificQuantity {
     ScientificQuantity {
         variable_id: "y".into(),

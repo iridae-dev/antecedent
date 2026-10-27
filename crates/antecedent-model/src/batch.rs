@@ -326,8 +326,7 @@ mod tests {
         assert!(matches!(batch.column(1), Err(ModelError::Shape { .. })));
         assert!(matches!(batch.get(2, 1), Err(ModelError::Shape { .. })));
         let mut buffer = vec![0.0; 4];
-        let mut mutable =
-            ValueBatchMut { n_rows: 3, n_nodes: 2, values: &mut buffer };
+        let mut mutable = ValueBatchMut { n_rows: 3, n_nodes: 2, values: &mut buffer };
         assert!(matches!(mutable.column_mut(1), Err(ModelError::Shape { .. })));
         assert!(matches!(mutable.set(2, 1, 1.0), Err(ModelError::Shape { .. })));
     }

@@ -30,7 +30,7 @@ use crate::compiled_route_api::{DiscoverInput, RouteRecord};
 use crate::discovery_api::{
     compiled_search, knowledge_arg, panel_units_from_unit_batches, tabular_from_ingested,
 };
-use crate::{GraphEdge, numeric_columns_to_batch, detach_catch, py_err};
+use crate::{GraphEdge, detach_catch, numeric_columns_to_batch, py_err};
 
 /// How often one pair of endpoint marks appeared on a node pair.
 #[pyclass(skip_from_py_object)]

@@ -48,11 +48,11 @@ use antecedent_identify::{
     IdentificationWorkspace, InstrumentSearchConfig, InstrumentalVariableIdentifier,
 };
 
+use crate::plan_common::id_list;
 use crate::repair::{
     BackdoorRepairFamily, FailedContract, FamilyVerdict, RepairCancelled, RepairDerivation,
     RepairError, RepairFamily, dense_of, graph_variables,
 };
-use crate::plan_common::id_list;
 use crate::study_candidate::DurableStudyCandidate;
 
 /// Most candidate mediator sets or instruments one search collects.

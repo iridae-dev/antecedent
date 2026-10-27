@@ -25,13 +25,13 @@ use antecedent_model::compose::{
     ParameterTerm, ParentBinding, PosteriorDependence, TabularRow, UncertaintyMeaning,
 };
 use antecedent_model::discretized_scm::{
-    BRIDGE_CALIBRATION, BRIDGE_INFERENCE, DETAIL_CANCELLED, MAX_BRIDGE_LEVELS, DETAIL_COMPOSITION_INCOHERENT,
+    BRIDGE_CALIBRATION, BRIDGE_INFERENCE, DETAIL_CANCELLED, DETAIL_COMPOSITION_INCOHERENT,
     DETAIL_DEGENERATE_MARGINAL, DETAIL_INTERVENTION_INVALID, DETAIL_LATENT_CONFOUNDING,
     DETAIL_LEVELS_OUT_OF_RANGE, DETAIL_LEVELS_UNDECLARED, DETAIL_NON_GAUSSIAN,
     DETAIL_PARADIGM_CLOSED, DETAIL_POINT_ONLY, DETAIL_STATE_SPACE_TOO_LARGE,
     DETAIL_SUPPORT_NOT_REAL, DETAIL_UNKNOWN_VARIABLE, DiscreteArm, DiscreteContrast,
     DiscretizationMethod, DiscretizationPlan, DiscretizedLinearGaussian, InferenceParadigm,
-    PARITY_TABLE, ParadigmCell, ParityRoute, parity_row, require_paradigm,
+    MAX_BRIDGE_LEVELS, PARITY_TABLE, ParadigmCell, ParityRoute, parity_row, require_paradigm,
 };
 
 const METHOD: DiscretizationMethod = DiscretizationMethod::EqualProbabilityQuantile;

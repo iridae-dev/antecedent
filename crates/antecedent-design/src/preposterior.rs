@@ -266,7 +266,8 @@ fn sample_binomial(n: u64, p: f64, rng: &mut CausalRng) -> u64 {
     let reflect = p > 0.5;
     let q = if reflect { 1.0 - p } else { p };
     let nf = n as f64;
-    let successes = if nf * q < 10.0 { binomial_inversion(n, q, rng) } else { binomial_btrs(n, q, rng) };
+    let successes =
+        if nf * q < 10.0 { binomial_inversion(n, q, rng) } else { binomial_btrs(n, q, rng) };
     if reflect { n - successes } else { successes }
 }
 
@@ -974,7 +975,9 @@ mod weighted_belief_tests {
     #[test]
     fn large_binomial_draws_have_the_binomial_moments() {
         let mut rng = evsi_replicate_rng(&RngFactory::from_seed(7), 0);
-        for (n, p) in [(1_000_u64, 0.3), (50_000, 0.5), (200, 0.01), (1_000_000, 0.9999), (400, 0.75)] {
+        for (n, p) in
+            [(1_000_u64, 0.3), (50_000, 0.5), (200, 0.01), (1_000_000, 0.9999), (400, 0.75)]
+        {
             let draws = 4_000;
             let mut sum = 0.0;
             let mut sum_sq = 0.0;

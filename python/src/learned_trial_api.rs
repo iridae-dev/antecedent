@@ -165,10 +165,19 @@ impl PreparedLearnedTrial {
             })?
             .reconfigure(diagram, query, options, &ctx)
             .map_err(err)?;
-        Ok(Self { inner: Some(Arc::new(inner)), seed, memory_bytes, last: None, names: self.names.clone() })
+        Ok(Self {
+            inner: Some(Arc::new(inner)),
+            seed,
+            memory_bytes,
+            last: None,
+            names: self.names.clone(),
+        })
     }
     fn last_result_summary(&self) -> PyResult<String> {
-        trial_payload(self.last.as_deref().ok_or_else(|| err("execute before reading result"))?, true)
+        trial_payload(
+            self.last.as_deref().ok_or_else(|| err("execute before reading result"))?,
+            true,
+        )
     }
     fn freeze(&self) -> Self {
         self.clone()

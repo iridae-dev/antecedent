@@ -121,8 +121,9 @@ impl PlaceboTreatment {
             EstimationWorkspace::default,
             |problem, refit, workspace, ctx, r| {
                 let mut perm = factual.clone();
-                let mut rng =
-                    ctx.rng.stream(crate::streams::replicate_stream(crate::streams::PLACEBO_SHUFFLE, r));
+                let mut rng = ctx
+                    .rng
+                    .stream(crate::streams::replicate_stream(crate::streams::PLACEBO_SHUFFLE, r));
                 let mut shuffled = observed.clone();
                 shuffle(&mut rng, &mut shuffled);
                 for (&row, value) in eligible.iter().zip(shuffled) {

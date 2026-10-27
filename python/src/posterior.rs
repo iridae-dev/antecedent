@@ -238,4 +238,3 @@ impl PosteriorArtifact {
         }
     }
 }
-

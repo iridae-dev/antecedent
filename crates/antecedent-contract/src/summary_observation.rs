@@ -885,11 +885,7 @@ fn declared(
     field: &'static str,
 ) -> Result<Arc<str>, SummaryObservationError> {
     let name = name.into();
-    if is_blank(&name) {
-        Err(SummaryObservationError::blank(field))
-    } else {
-        Ok(name)
-    }
+    if is_blank(&name) { Err(SummaryObservationError::blank(field)) } else { Ok(name) }
 }
 
 fn named(prefix: &str, name: &str, suffix: &str, next: NextAttempt) -> String {
@@ -930,9 +926,9 @@ mod tests {
 
     use super::{
         ADAPT_ESTIMATE_COVARIANCE, Dependence, FrequentistSummary, FrequentistSummaryKind,
-        NEXT_ATTEMPTS, Origin, REPORT_AS_FREQUENTIST_INTERVAL,
-        SUPPLY_ESTIMATE_COVARIANCE, SamplingApproximation, Selection, SummaryCovariance,
-        SummaryObservationModel, SummaryUse, USE_AS_LIKELIHOOD_UPDATE,
+        NEXT_ATTEMPTS, Origin, REPORT_AS_FREQUENTIST_INTERVAL, SUPPLY_ESTIMATE_COVARIANCE,
+        SamplingApproximation, Selection, SummaryCovariance, SummaryObservationModel, SummaryUse,
+        USE_AS_LIKELIHOOD_UPDATE,
     };
 
     struct ObservationRecords {

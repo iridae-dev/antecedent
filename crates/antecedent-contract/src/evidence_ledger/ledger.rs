@@ -1104,13 +1104,8 @@ impl EvidenceLedger {
         canonical: SynthesisOperation,
         facts: CombinationFacts,
     ) -> Result<CheckedCombination, LedgerError> {
-        let CombinationFacts {
-            claim_class,
-            data_reuse,
-            dependence_declared,
-            direct,
-            precomputed,
-        } = facts;
+        let CombinationFacts { claim_class, data_reuse, dependence_declared, direct, precomputed } =
+            facts;
         let (mass, observations_digest, transport_identities) = match precomputed {
             Some(values) => values,
             None => self.account(&direct)?,

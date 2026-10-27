@@ -1,8 +1,8 @@
 //! Retained synthetic-control design metadata.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::fault::PanelDesignFault;
 use super::QueryError;
+use super::fault::PanelDesignFault;
 use crate::canonical_encode::{CanonicalEncode, encode_i64s, flag, i64_bits};
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
@@ -229,19 +229,25 @@ impl SyntheticControlQuery {
             || self.units.iter().any(|unit| unit.trim().is_empty())
             || self.periods.iter().any(|period| *period <= 0)
         {
-            return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::SyntheticControlPanel));
+            return Err(QueryError::InvalidRandomizedEffect(
+                PanelDesignFault::SyntheticControlPanel,
+            ));
         }
         if let Some(ridge) = self.augmentation_ridge {
             if !ridge.is_finite() || ridge <= 0.0 {
                 return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::AugmentedRidge));
             }
             if self.method != SyntheticPanelMethod::Control {
-                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::AugmentedWithDid));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::AugmentedWithDid,
+                ));
             }
         }
         if let Some(effect) = self.sharp_null_effect {
             if !effect.is_finite() || !self.uniform_unit_randomization {
-                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::SharpNullRandomization));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::SharpNullRandomization,
+                ));
             }
         }
         if let Some(rollout) = &self.rollout {
@@ -260,20 +266,28 @@ impl SyntheticControlQuery {
                     *unit == self.treated_unit && *period == self.intervention_period
                 })
             {
-                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::SyntheticAdoptions));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::SyntheticAdoptions,
+                ));
             }
             if self.uniform_unit_randomization || self.augmentation_ridge.is_some() {
-                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::IntervalWithRandomizationTest));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::IntervalWithRandomizationTest,
+                ));
             }
             match rollout.interval {
                 SyntheticInterval::Conformal
                     if rollout.adoptions.len() != 1
                         || self.method != SyntheticPanelMethod::Control =>
                 {
-                    return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::ConformalIntervalDesign));
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        PanelDesignFault::ConformalIntervalDesign,
+                    ));
                 }
                 SyntheticInterval::PlaceboVariance if rollout.replicates < 2 => {
-                    return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::PlaceboReplicates));
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        PanelDesignFault::PlaceboReplicates,
+                    ));
                 }
                 _ => {}
             }

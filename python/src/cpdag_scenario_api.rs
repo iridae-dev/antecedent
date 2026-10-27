@@ -553,13 +553,12 @@ fn scenario_shared_covariance_stage(
 
 /// Independently recompute a covariance artifact under the consumer's limits.
 #[pyfunction]
-#[pyo3(signature=(artifact, *, max_rows=10_000, max_columns=64, max_replicates=2000, max_compositions=4_000_000, memory_bytes=None, cancel=None))]
+#[pyo3(signature=(artifact, *, max_rows=10_000, max_replicates=2000, max_compositions=4_000_000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
 fn consume_scenario_covariance_artifact(
     py: Python<'_>,
     artifact: &[u8],
     max_rows: usize,
-    max_columns: usize,
     max_replicates: usize,
     max_compositions: u64,
     memory_bytes: Option<u64>,
@@ -569,8 +568,7 @@ fn consume_scenario_covariance_artifact(
         .strip_prefix(COVARIANCE_PREFIX)
         .ok_or_else(|| serialization_error("invalid scenario covariance artifact format"))?
         .to_vec();
-    let limits =
-        ScenarioCovarianceConsumeLimits { max_rows, max_columns, max_replicates, max_compositions };
+    let limits = ScenarioCovarianceConsumeLimits { max_rows, max_replicates, max_compositions };
     crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory_bytes, cancel);
         match ScenarioCovarianceArtifactWire::consume_with_limits(&bytes, limits, &ctx) {

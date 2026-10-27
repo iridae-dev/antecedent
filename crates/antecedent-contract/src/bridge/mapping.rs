@@ -230,8 +230,9 @@ pub(super) fn fit_with_statistics(
         return Err(validation_trials_too_few(validation.min_trials, n));
     }
     let stats = TrialStatistics::of(&validation.trials);
-    let TrialStatistics { mean_x, mean_y, sxx, sxy, syy, surrogate_min: lo, surrogate_max: hi, .. } =
-        stats;
+    let TrialStatistics {
+        mean_x, mean_y, sxx, sxy, syy, surrogate_min: lo, surrogate_max: hi, ..
+    } = stats;
     if sxx.is_nan() || sxx <= 0.0 {
         return Err(degenerate_validation(
             "varying surrogate effects",

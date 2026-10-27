@@ -290,9 +290,8 @@ fn fit_inducing_gaussian_process(
             let b_beta: f64 = rhs.iter().zip(&beta).map(|(b, w)| b * w).sum();
             let quad = (yy - b_beta) / noise_var;
             let log_det = (n - m) as f64 * noise_var.ln() + chol_log_det(&chol_a, m) - log_det_mm;
-            let nlml = 0.5 * quad
-                + 0.5 * log_det
-                + 0.5 * n as f64 * (2.0 * std::f64::consts::PI).ln();
+            let nlml =
+                0.5 * quad + 0.5 * log_det + 0.5 * n as f64 * (2.0 * std::f64::consts::PI).ln();
             if !nlml.is_finite() {
                 continue;
             }

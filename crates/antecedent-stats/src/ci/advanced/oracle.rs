@@ -2,10 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
-use antecedent_core::ExecutionContext;
-use crate::ci::types::{CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest, PreparedCiTest};
+use crate::ci::types::{
+    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    PreparedCiTest,
+};
 use crate::error::StatsError;
+use antecedent_core::ExecutionContext;
+use std::sync::Arc;
 
 /// Oracle CI: independence decided by an explicit forbidden-edge set (synthetic/conformance).
 #[derive(Clone, Debug, Default)]

@@ -258,10 +258,8 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<AteAnalysisResult> {
-        let prior = self
-            .last
-            .clone()
-            .ok_or_else(|| crate::value_err("call estimate before refute"))?;
+        let prior =
+            self.last.clone().ok_or_else(|| crate::value_err("call estimate before refute"))?;
         let refute_suite = suite_from_refute(Some(&suite))?;
         let cancel_token = cancel.map(|c| c.inner);
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));

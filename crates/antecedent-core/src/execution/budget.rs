@@ -1,9 +1,9 @@
 //! Execution context: parallelism, kernel and cache policy, and Monte Carlo budgets.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::num::NonZeroU32;
 #[cfg(doc)]
 use super::context::ExecutionContext;
+use std::num::NonZeroU32;
 
 /// Parallel execution budget.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

@@ -33,6 +33,7 @@ pub mod external_binding;
 pub mod external_refusal;
 pub mod interface_contract;
 pub mod joint_alignment;
+pub mod joint_event_quantity;
 pub mod joint_law_rule;
 pub mod measurement;
 pub mod mechanism_composition;
@@ -106,6 +107,7 @@ pub use joint_alignment::{
     AlignedLaw, JointAlignment, JointAlignmentError, JointAlignmentRequest, JointAxis,
     JointAxisKind, JointConsumer, JointCovariance, LawArray, LawCoupling, MassAccount, MassFate,
 };
+pub use joint_event_quantity::{JointEventKind, JointEventQuantity, JointEventVariable};
 pub use joint_law_rule::{
     ASSUMPTION_RANGE_LABEL, ComposedCoordinate, ComposedIntervalPlan, CoverageRecord,
     InputAlignment, InputRole, JOINT_LAW_STAGE, MEASURED_INTERVAL_LABEL, POINT_ONLY_LABEL,
@@ -117,12 +119,11 @@ pub use joint_law_rule::{
 };
 pub use mechanism_composition::{
     AdmissionBasis, AdmissionCoordinate, DependenceDeclaration, LatentCauseDeclaration,
-    MECHANISM_COMPOSITION_STAGE, MECHANISM_OUTPUT_PORT,
-    MECHANISM_VALUE_FUNCTIONAL, MechanismCompositionDeclaration, MechanismCompositionPlan,
-    MechanismDeclaration, MechanismInterfaceBasis, MechanismOriginKind, PlannedMechanism,
-    PlannedParent, TransportAdmission, UncertaintyRoute,
-    check_declared_independence_against_ledger, check_mechanism_composition, composition_refusal,
-    reason_code_for_kind,
+    MECHANISM_COMPOSITION_STAGE, MECHANISM_OUTPUT_PORT, MECHANISM_VALUE_FUNCTIONAL,
+    MechanismCompositionDeclaration, MechanismCompositionPlan, MechanismDeclaration,
+    MechanismInterfaceBasis, MechanismOriginKind, PlannedMechanism, PlannedParent,
+    TransportAdmission, UncertaintyRoute, check_declared_independence_against_ledger,
+    check_mechanism_composition, composition_refusal, reason_code_for_kind,
 };
 pub use obligation::{ObligationKind, ObligationRecord, ObligationScope};
 pub use observation_query::{

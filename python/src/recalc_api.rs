@@ -284,7 +284,8 @@ fn build_request(
             ));
         }
     }
-    let columns: Vec<(String, Vec<f64>)> = crate::named_f64_columns(names.iter().cloned(), columns)?;
+    let columns: Vec<(String, Vec<f64>)> =
+        crate::named_f64_columns(names.iter().cloned(), columns)?;
     let rows = columns[0].1.len();
     if rows == 0 || columns.iter().any(|(_, v)| v.len() != rows || v.iter().any(|x| !x.is_finite()))
     {

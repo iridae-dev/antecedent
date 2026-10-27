@@ -18,14 +18,14 @@ use antecedent_kernels::standard_normal;
 use antecedent_kernels::{norm_cdf, norm_inv, norm_pdf};
 use antecedent_validate::predictive_assessment::{
     DependenceDeclaration, EnsembleCrpsForm, FiniteTruth, FitDeclaration, ForecastLaw, Horizon,
-    LawSource, ObservationKey, Outcome, OverlapPolicy, OverlapStatus, PredictiveAssessmentError,
-    PredictiveAssessmentReport, PredictiveAssessmentSpec, PredictiveReplicates, PredictiveTarget,
-    PredictorLaws, ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreIntervalQuery,
+    LawSource, MAX_BINS, MAX_JOINT_DIMENSION, MAX_LAW_ATOMS, MAX_PREDICTORS, ObservationKey,
+    Outcome, OverlapPolicy, OverlapStatus, PredictiveAssessmentError, PredictiveAssessmentReport,
+    PredictiveAssessmentSpec, PredictiveReplicates, PredictiveTarget, PredictorLaws,
+    ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreIntervalQuery,
     ScoreIntervalRequest, ScoreKind, ValidationDesign, assess_predictive_laws, brier_binary,
     construct_expected_score_interval, crps_gaussian, crps_weighted_atoms, detail,
     distribution_drift, energy_score_weighted, exact_expected_score, expected_score_interval,
-    log_score_gaussian, score_case, variance_of_mean, MAX_BINS, MAX_JOINT_DIMENSION, MAX_LAW_ATOMS,
-    MAX_PREDICTORS,
+    log_score_gaussian, score_case, variance_of_mean,
 };
 
 fn ctx() -> ExecutionContext {
@@ -963,9 +963,12 @@ fn a_malformed_diagnostic_configuration_is_refused() {
         spec.interval_levels = levels;
         spec
     };
-    for spec in
-        [build(1, vec![0.5]), build(10, vec![1.5]), build(10, vec![0.0]), build(MAX_BINS + 1, vec![])]
-    {
+    for spec in [
+        build(1, vec![0.5]),
+        build(10, vec![1.5]),
+        build(10, vec![0.0]),
+        build(MAX_BINS + 1, vec![]),
+    ] {
         let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
         assert_eq!(code, "invalid_argument");
         assert_eq!(slot, detail::DIAGNOSTIC_NOT_DEFINED);

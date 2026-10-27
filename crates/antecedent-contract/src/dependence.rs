@@ -396,8 +396,11 @@ impl DependenceContract {
                 }
             }
         }
-        let shared: BTreeSet<SharedFactor> =
-            holders.into_iter().filter(|&(_, count)| count >= 2).map(|(factor, _)| factor).collect();
+        let shared: BTreeSet<SharedFactor> = holders
+            .into_iter()
+            .filter(|&(_, count)| count >= 2)
+            .map(|(factor, _)| factor)
+            .collect();
         let mut unknown = BTreeSet::new();
         for source in sources {
             if matches!(source.disclosure, FactorDisclosure::UnknownOverlap) {

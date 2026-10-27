@@ -256,6 +256,17 @@ pub enum EquilibriumError {
     /// Shared resource admission or cancellation failed.
     #[error("equilibrium resource refusal: {0}")]
     Resource(String),
+    /// A foreign local-mechanism callback raised. The failure is structured data, so a
+    /// host binding finds the exception it retained from the error chain; the text is the
+    /// same as the [`Self::Invalid`] it replaces.
+    #[error("invalid equilibrium input: local callback {mechanism}: {failure}")]
+    CallbackFailed {
+        /// The mechanism whose callback raised.
+        mechanism: String,
+        /// The structured failure.
+        #[source]
+        failure: antecedent_core::CallbackFailure,
+    },
 }
 
 fn invalid(message: &str) -> EquilibriumError {
@@ -835,6 +846,21 @@ pub(crate) fn log_abs_determinant(mut a: Vec<f64>, n: usize) -> Result<f64, Equi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_callback_failure_round_trips_through_the_equilibrium_error() {
+        let failure =
+            antecedent_core::CallbackFailure::new(Some(2), "cyclic callback raised", None);
+        let error =
+            EquilibriumError::CallbackFailed { mechanism: "a".into(), failure: failure.clone() };
+        assert_eq!(
+            error.to_string(),
+            "invalid equilibrium input: local callback a: cyclic callback raised"
+        );
+        assert_eq!(antecedent_core::CallbackFailure::in_chain(&error), Some(&failure));
+        assert!(antecedent_core::CallbackFailure::in_chain(&EquilibriumError::Singular).is_none());
+    }
+
     fn model(a: f64, b: f64, activation: Activation) -> EquilibriumModel {
         EquilibriumModel {
             equations: vec![

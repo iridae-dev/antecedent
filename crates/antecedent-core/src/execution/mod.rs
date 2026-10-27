@@ -38,4 +38,6 @@ pub use cancel::{CancellationToken, ProgressSink, WeakCancellationToken};
 pub use context::ExecutionContext;
 pub use pipeline::{MapExecutionError, PipelineReceipt, PipelineStep};
 pub use request::{ExecutionReceipt, ExecutionRequestState, RequestIdentity};
-pub use rng::{CausalRng, GOLDEN_GAMMA, RngFactory, StreamDomain, derive_stream, mix64, splitmix64};
+pub use rng::{
+    CausalRng, GOLDEN_GAMMA, RngFactory, StreamDomain, derive_stream, mix64, splitmix64,
+};

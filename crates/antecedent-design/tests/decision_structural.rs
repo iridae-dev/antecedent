@@ -22,7 +22,6 @@ fn near(a: f64, b: f64) -> bool {
     within(a, b, NEAR_TOLERANCE)
 }
 
-
 mod common;
 
 fn quantity(variable: &str, regime: &str, units: &str) -> ScientificQuantity {

@@ -2,7 +2,9 @@
 #![allow(unused_imports)]
 
 use super::*;
-use crate::ci::types::{CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, SignificanceMethod};
+use crate::ci::types::{
+    CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, SignificanceMethod,
+};
 use crate::test_util::centered_uniform as lcg_noise;
 use antecedent_core::derive_stream;
 
@@ -114,10 +116,7 @@ fn gpdc_scaled_z_null_and_power() {
     }
     let type_i = f64::from(null_rej) / f64::from(trials);
     let power = f64::from(alt_rej) / f64::from(trials);
-    assert!(
-        type_i < 0.25,
-        "scaled-Z GPDC null rejects near 1 without standardisation: {type_i}"
-    );
+    assert!(type_i < 0.25, "scaled-Z GPDC null rejects near 1 without standardisation: {type_i}");
     assert!(power > 0.5, "scaled-Z GPDC lost power after standardisation: {power}");
 }
 
@@ -158,14 +157,8 @@ fn gpdc_refuses_constant_series_and_budgets_the_conditional_kernel() {
     };
     let done = Gpdc::new().test_batch_adhoc(&big_req, &mut ws, &ctx).unwrap();
     let dcor = crate::dcor::distance_correlation(
-        &big_cols[0]
-            .iter()
-            .map(|v| v - bx.iter().sum::<f64>() / big as f64)
-            .collect::<Vec<_>>(),
-        &big_cols[1]
-            .iter()
-            .map(|v| v - by.iter().sum::<f64>() / big as f64)
-            .collect::<Vec<_>>(),
+        &big_cols[0].iter().map(|v| v - bx.iter().sum::<f64>() / big as f64).collect::<Vec<_>>(),
+        &big_cols[1].iter().map(|v| v - by.iter().sum::<f64>() / big as f64).collect::<Vec<_>>(),
     );
     assert!((done.results[0].statistic - dcor).abs() < 1e-12);
     let conditional = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
@@ -250,9 +243,8 @@ fn nystrom_sample(n: usize, seed: u64, y_on_x: f64) -> (Vec<Vec<f64>>, Vec<f64>,
     let e1: Vec<f64> = (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
     let e2: Vec<f64> = (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
     let x: Vec<f64> = (0..n).map(|i| 1.5 * (1.5 * z1[i]).sin() + 0.8 * z2[i] + e1[i]).collect();
-    let y: Vec<f64> = (0..n)
-        .map(|i| 1.5 * (1.5 * z1[i]).tanh() - 0.8 * z2[i] + e2[i] + y_on_x * x[i])
-        .collect();
+    let y: Vec<f64> =
+        (0..n).map(|i| 1.5 * (1.5 * z1[i]).tanh() - 0.8 * z2[i] + e2[i] + y_on_x * x[i]).collect();
     (vec![x, y, z1, z2], e1, e2)
 }
 
@@ -292,8 +284,7 @@ fn dense_nystrom_residual(
             .sum();
         (-0.5 * d2 / ls2).exp()
     };
-    let knm: Vec<Vec<f64>> =
-        (0..n).map(|i| rows.iter().map(|&r| kernel(i, r)).collect()).collect();
+    let knm: Vec<Vec<f64>> = (0..n).map(|i| rows.iter().map(|&r| kernel(i, r)).collect()).collect();
     let mut normal = vec![0.0; m * m];
     for j in 0..m {
         for l in 0..m {
@@ -312,9 +303,7 @@ fn dense_nystrom_residual(
         (0..m).map(|j| knm.iter().zip(&centered).map(|(row, yc)| row[j] * yc).sum()).collect();
     let chol = crate::gram::cholesky_spd(&normal, m).unwrap();
     let c = crate::gram::chol_solve(&chol, m, &rhs).unwrap();
-    (0..n)
-        .map(|i| centered[i] - knm[i].iter().zip(&c).map(|(k, ci)| k * ci).sum::<f64>())
-        .collect()
+    (0..n).map(|i| centered[i] - knm[i].iter().zip(&c).map(|(k, ci)| k * ci).sum::<f64>()).collect()
 }
 
 #[test]
@@ -370,9 +359,8 @@ fn gpdc_nystrom_is_identical_at_any_thread_count() {
     let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
     let serial = ExecutionContext::for_tests(8);
     let mut threaded = ExecutionContext::for_tests(8);
-    threaded.parallelism = antecedent_core::Parallelism::bounded(
-        antecedent_core::NonZeroThreadCount::new(4).unwrap(),
-    );
+    threaded.parallelism =
+        antecedent_core::Parallelism::bounded(antecedent_core::NonZeroThreadCount::new(4).unwrap());
     let run = |ctx: &ExecutionContext| {
         let fit = nystrom_fit(&cols, &[2, 3], n, &GpdcNystrom::new(), ctx).unwrap();
         nystrom_residuals(Some(&fit), [cols[0], cols[1]], ctx).unwrap()
@@ -427,10 +415,7 @@ fn gpdc_nystrom_refuses_invalid_rank_and_budget_instead_of_degrading() {
     let ctx = ExecutionContext::for_tests(10);
     for inducing_points in [0, GPDC_NYSTROM_MAX_INDUCING_POINTS + 1] {
         let gp = GpdcNystrom { inducing_points, ..GpdcNystrom::new() };
-        assert!(matches!(
-            gp.test_batch_adhoc(&req, &mut ws, &ctx),
-            Err(StatsError::Shape { .. })
-        ));
+        assert!(matches!(gp.test_batch_adhoc(&req, &mut ws, &ctx), Err(StatsError::Shape { .. })));
     }
     let mut limited = ExecutionContext::for_tests(10);
     limited.set_memory_limit(Some(1_024));
@@ -514,8 +499,7 @@ fn exact_conditional_gpdc_retained_at_small_sizes() {
         assert_eq!(got.statistic.to_bits(), want.statistic.to_bits(), "{label} statistic");
         assert_eq!(got.p_value.to_bits(), want.p_value.to_bits(), "{label} p-value");
 
-        let low_rank =
-            GpdcNystrom::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0];
+        let low_rank = GpdcNystrom::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0];
         assert_ne!(low_rank.statistic.to_bits(), got.statistic.to_bits(), "{label}");
     }
     // Under a budget that cannot hold the kernel the exact test is refused, and the

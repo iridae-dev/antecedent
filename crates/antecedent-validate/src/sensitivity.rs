@@ -1471,7 +1471,8 @@ fn kernel_residuals(
             "nonparametric sensitivity requires at least 2 complete cases",
         ));
     }
-    let routed = matches!(smoother, ResidualSmoother::ExactUpTo { .. }) && n > MAX_NONPARAMETRIC_ROWS;
+    let routed =
+        matches!(smoother, ResidualSmoother::ExactUpTo { .. }) && n > MAX_NONPARAMETRIC_ROWS;
     let smoother = match smoother {
         ResidualSmoother::ExactUpTo { neighbors_beyond } if routed => {
             ResidualSmoother::Neighborhood { neighbors: neighbors_beyond }

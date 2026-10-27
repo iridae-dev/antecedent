@@ -278,28 +278,30 @@ impl super::PyJointDesignResult {
                     value["route"] = "population_reference".into();
                     Ok(value.to_string())
                 }
-                PopulationReferenceAttempt::Coarser { refusal, executed } => Ok(serde_json::json!({
-                    "route": "coarser_components",
-                    "refusal": refusal,
-                    "executed": {
-                        "decomposition": {
-                            "point": executed.decomposition.point,
-                            "draws": executed.decomposition.draws,
-                            "weights": executed.decomposition.weights,
+                PopulationReferenceAttempt::Coarser { refusal, executed } => {
+                    Ok(serde_json::json!({
+                        "route": "coarser_components",
+                        "refusal": refusal,
+                        "executed": {
+                            "decomposition": {
+                                "point": executed.decomposition.point,
+                                "draws": executed.decomposition.draws,
+                                "weights": executed.decomposition.weights,
+                            },
+                            "covariance": executed.covariance,
+                            "joint_uncertainty": executed.decomposition.joint_uncertainty(),
+                            "procedure_failures": executed.procedure_failures,
+                            "question_identity": executed.question_identity.to_hex(),
+                            "scope": if scope == ScientificConsumptionScope::IdentifiedCausal {
+                                "identified"
+                            } else {
+                                "model_conditional"
+                            },
                         },
-                        "covariance": executed.covariance,
-                        "joint_uncertainty": executed.decomposition.joint_uncertainty(),
-                        "procedure_failures": executed.procedure_failures,
-                        "question_identity": executed.question_identity.to_hex(),
-                        "scope": if scope == ScientificConsumptionScope::IdentifiedCausal {
-                            "identified"
-                        } else {
-                            "model_conditional"
-                        },
-                    },
-                    "grants_unique_causal_attribution": false,
-                })
-                .to_string()),
+                        "grants_unique_causal_attribution": false,
+                    })
+                    .to_string())
+                }
             }
         })
     }

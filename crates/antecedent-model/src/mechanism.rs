@@ -1136,9 +1136,7 @@ fn softmax_row_logits(
     out: &mut [f64],
 ) -> Result<(), ModelError> {
     if logits.len() < k * width || width != 1 + cols.len() || out.len() < k {
-        return Err(ModelError::Shape {
-            message: "discrete logit_coeffs length mismatch".into(),
-        });
+        return Err(ModelError::Shape { message: "discrete logit_coeffs length mismatch".into() });
     }
     for cat in 0..k {
         let base = cat * width;
@@ -1388,7 +1386,9 @@ mod tests {
             logit_coeffs: None,
         };
         let mut lp = [0.0];
-        for (value, expected) in [(0.0, 0.5_f64.ln()), (2.0, f64::NEG_INFINITY), (7.0, f64::NEG_INFINITY)] {
+        for (value, expected) in
+            [(0.0, 0.5_f64.ln()), (2.0, f64::NEG_INFINITY), (7.0, f64::NEG_INFINITY)]
+        {
             log_prob_column(&unconditional, &[value], parents, &mut lp).unwrap();
             assert_eq!(lp[0], expected, "value {value}");
         }
@@ -1407,9 +1407,8 @@ mod tests {
         let parent_vals = [0.0_f64, 1.0];
         let parents = ParentBatch { n_rows: 2, n_parents: 1, values: &parent_vals };
         let mut out = [0.0; 2];
-        let degenerate = gp_predictive_mean_column(
-            0.0, 1.0, 0.0, &[0.0], 1, 1, &[1.0], parents, &mut out,
-        );
+        let degenerate =
+            gp_predictive_mean_column(0.0, 1.0, 0.0, &[0.0], 1, 1, &[1.0], parents, &mut out);
         assert!(matches!(degenerate, Err(ModelError::Numerical { .. })));
         let short_alpha =
             gp_predictive_mean_column(1.0, 1.0, 0.0, &[0.0, 1.0], 2, 1, &[1.0], parents, &mut out);

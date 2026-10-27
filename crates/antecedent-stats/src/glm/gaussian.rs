@@ -2,9 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::{GlmDesignRef, GlmFit, check_prior_weights, validate_glm_shape};
 use crate::error::StatsError;
 use crate::linalg::{DenseLinearAlgebra, LeastSquaresWorkspace};
-use super::{GlmDesignRef, GlmFit, check_prior_weights, validate_glm_shape};
 
 pub(super) fn fit_gaussian(
     design: GlmDesignRef<'_>,

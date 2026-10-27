@@ -12,11 +12,11 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
 use super::{
-    conditional_query, configured_spec, dbn_posterior, exact_dag_posterior,
-    finish_series_graph_posterior, finish_static_graph_posterior, one_series,
-    parse_response_options, response_query, static_ate_query, static_kind_query,
-    take_supplied_posterior, temporal_effect_query, temporal_mediation_query, PrepareRequest,
-    PyPreparedAnalysis, SeriesGraphQuery,
+    PrepareRequest, PyPreparedAnalysis, SeriesGraphQuery, conditional_query, configured_spec,
+    dbn_posterior, exact_dag_posterior, finish_series_graph_posterior,
+    finish_static_graph_posterior, one_series, parse_response_options, response_query,
+    static_ate_query, static_kind_query, take_supplied_posterior, temporal_effect_query,
+    temporal_mediation_query,
 };
 use crate::py_err;
 use crate::response_api::build_functional;
@@ -331,7 +331,7 @@ impl PyPreparedAnalysis {
         let data = req.load_columns(py, columns)?;
         let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
         req.off_gil(py, move |mut req| {
-            use crate::transport_interference_api::{schema_ids, transport_query, ResponseArgs};
+            use crate::transport_interference_api::{ResponseArgs, schema_ids, transport_query};
             let schema = data.schema().clone();
             let query = transport_query(
                 ResponseArgs {

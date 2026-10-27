@@ -385,11 +385,7 @@ fn next_permutation(perm: &mut [usize]) -> bool {
 }
 
 /// The relabellings to compare against and whether they are all of the non-identity ones.
-fn draw_permutations(
-    n: usize,
-    requested: usize,
-    rng: &mut CausalRng,
-) -> (RelabellingPlan, bool) {
+fn draw_permutations(n: usize, requested: usize, rng: &mut CausalRng) -> (RelabellingPlan, bool) {
     if factorial_within(n, requested.min(MAX_ENUMERATED_RELABELLINGS)).is_some() {
         let mut perm: Vec<usize> = (0..n).collect();
         let mut all = Vec::new();

@@ -72,12 +72,19 @@ impl PyIdentificationMaterialization {
         Ok(value.unbind())
     }
 
-    fn retained_bytes(&self) -> usize { self.inner.retained_bytes() }
-    fn encoded_bytes(&self) -> usize { self.inner.as_bytes().len() }
+    fn retained_bytes(&self) -> usize {
+        self.inner.retained_bytes()
+    }
+    fn encoded_bytes(&self) -> usize {
+        self.inner.as_bytes().len()
+    }
 
     fn __repr__(&self) -> String {
-        format!("IdentificationMaterialization(encoded_bytes={}, retained_bytes={})",
-            self.inner.as_bytes().len(), self.inner.retained_bytes())
+        format!(
+            "IdentificationMaterialization(encoded_bytes={}, retained_bytes={})",
+            self.inner.as_bytes().len(),
+            self.inner.retained_bytes()
+        )
     }
 }
 
@@ -166,7 +173,10 @@ impl PyPreparedIdentificationView {
                 })?;
             }
             let inner = view.materialize_admitted(&context).map_err(crate::py_err)?;
-            Ok(PyIdentificationMaterialization { inner, cancellation: context.cancellation.clone() })
+            Ok(PyIdentificationMaterialization {
+                inner,
+                cancellation: context.cancellation.clone(),
+            })
         })
     }
 

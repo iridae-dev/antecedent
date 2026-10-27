@@ -609,11 +609,9 @@ impl WorldBinding {
         outcome: OutcomeQuantity,
         conditioning: Conditioning,
     ) -> Result<Self, ScientificTargetError> {
-        population
-            .validate()
-            .map_err(|err| ScientificTargetError::InvalidAction {
-                reason: ActionFault::Population(err),
-            })?;
+        population.validate().map_err(|err| ScientificTargetError::InvalidAction {
+            reason: ActionFault::Population(err),
+        })?;
         if conditioning.variables().contains(&outcome.outcome()) {
             return Err(ScientificTargetError::ConditioningIncludesOutcome);
         }
@@ -900,11 +898,9 @@ impl WorldAction {
     ) -> Result<Self, ScientificTargetError> {
         let intervention = canonical_intervention(intervention);
         ensure_portable(&intervention)?;
-        policy
-            .validate()
-            .map_err(|err| ScientificTargetError::InvalidAction {
-                reason: ActionFault::Intervention(err),
-            })?;
+        policy.validate().map_err(|err| ScientificTargetError::InvalidAction {
+            reason: ActionFault::Intervention(err),
+        })?;
         Ok(Self { kind: ActionKind::Schedule { intervention, policy } })
     }
 
@@ -981,11 +977,9 @@ fn min_target(intervention: &Intervention) -> u32 {
 }
 
 pub(super) fn ensure_portable(intervention: &Intervention) -> Result<(), ScientificTargetError> {
-    intervention
-        .validate()
-        .map_err(|err| ScientificTargetError::InvalidAction {
-                reason: ActionFault::Intervention(err),
-            })?;
+    intervention.validate().map_err(|err| ScientificTargetError::InvalidAction {
+        reason: ActionFault::Intervention(err),
+    })?;
     ensure_concrete_levels(intervention)?;
     match intervention.portability() {
         Portability::Portable => Ok(()),
@@ -998,11 +992,11 @@ pub(super) fn ensure_portable(intervention: &Intervention) -> Result<(), Scienti
 /// A world names a level it can be evaluated at, never the symbolic `do(V)` marker.
 fn ensure_concrete_levels(intervention: &Intervention) -> Result<(), ScientificTargetError> {
     match intervention {
-        Intervention::Set { value: level, .. } | Intervention::Shift { delta: level, .. } => level
-            .validate_concrete_intervention_level()
-            .map_err(|err| ScientificTargetError::InvalidAction {
-                reason: ActionFault::Level(err),
-            }),
+        Intervention::Set { value: level, .. } | Intervention::Shift { delta: level, .. } => {
+            level.validate_concrete_intervention_level().map_err(|err| {
+                ScientificTargetError::InvalidAction { reason: ActionFault::Level(err) }
+            })
+        }
         Intervention::Sequence(sequence) => {
             sequence.steps.iter().try_for_each(|step| ensure_concrete_levels(&step.intervention))
         }

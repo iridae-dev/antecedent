@@ -47,9 +47,9 @@ use antecedent_core::NextAttempt;
 pub use analytic::{allocate, plan_analytic, try_allocate};
 pub use request::{
     ArmComparison, FactorialContrast, FamilyPower, InterferenceExposure, MAX_SIMULATION_REPLICATES,
-    Multiplicity, NormalPrior, OutcomeModel, PlannedDesign,
-    PlanningAssumptions, PlanningCriterion, PlanningGoal, PlanningRefusal, PlanningRequest,
-    SimulationSpec, StratumSpec, SuccessCriterion, TestSidedness,
+    Multiplicity, NormalPrior, OutcomeModel, PlannedDesign, PlanningAssumptions, PlanningCriterion,
+    PlanningGoal, PlanningRefusal, PlanningRequest, SimulationSpec, StratumSpec, SuccessCriterion,
+    TestSidedness,
 };
 pub use result::{
     AnalyticCharacteristics, FamilyCharacteristics, FamilySimulation, PlanningResult,

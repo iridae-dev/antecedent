@@ -11,9 +11,9 @@
     )
 )]
 
-use antecedent_kernels::{norm_cdf, sigmoid};
 use crate::error::{GlmRefusalKind, StatsError};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
+use antecedent_kernels::{norm_cdf, sigmoid};
 
 mod binomial;
 mod count;
@@ -31,9 +31,9 @@ pub use multinomial::{
 #[cfg(test)]
 use self::{binomial::*, count::*, gaussian::*, multinomial::*};
 
-use gaussian::{fit_gaussian, fit_gaussian_weighted};
-use count::{fit_negbin, fit_negbin_prior, fit_poisson, fit_poisson_weighted};
 use binomial::{fit_logistic, fit_probit, fit_probit_weighted};
+use count::{fit_negbin, fit_negbin_prior, fit_poisson, fit_poisson_weighted};
+use gaussian::{fit_gaussian, fit_gaussian_weighted};
 
 /// Family for the GLM path.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -504,8 +504,8 @@ mod binomial_tests;
 #[cfg(test)]
 mod count_tests;
 #[cfg(test)]
-mod multinomial_tests;
+mod fused_tests;
 #[cfg(test)]
 mod gaussian_tests;
 #[cfg(test)]
-mod fused_tests;
+mod multinomial_tests;

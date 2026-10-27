@@ -69,8 +69,8 @@ pub mod recalc;
 pub mod refusal;
 pub mod response;
 pub mod rng_key;
-pub mod row_mask;
 pub mod route_memory;
+pub mod row_mask;
 pub mod sampling_design;
 pub mod schema;
 pub mod scientific_target;
@@ -92,8 +92,9 @@ pub use assumption::{
 };
 pub use calibration_basis::CalibrationBasis;
 pub use callback::{
-    BatchCallback, CallbackCall, CallbackError, CallbackImplementation, CallbackOutput,
-    CallbackRefusal, CallbackSpec, PinnedDependency, Portability, RecoveryMismatch, RecoveryRecord,
+    BatchCallback, CallbackCall, CallbackError, CallbackFailure, CallbackImplementation,
+    CallbackOutput, CallbackRefusal, CallbackSpec, PinnedDependency, Portability, RecoveryMismatch,
+    RecoveryRecord,
 };
 pub use canonical_encode::CanonicalEncode;
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
@@ -151,31 +152,34 @@ pub use provider_capability::{
 };
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
-    AttributionComponents, AverageEffectQuery, CatalogDistribution, CausalQuery, CausalQueryKind,
-    ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, ContinuousDoseResponseQuery,
-    CounterfactualQuery, DependenceGroup, DerivativeScale, DerivativeWeighting, DidSamplingDesign,
+    AssociationFault, AttributeFault, AttributionComponents, AverageEffectQuery,
+    CatalogDistribution, CausalQuery, CausalQueryKind, ChangeAttributionQuery,
+    ConditionalEffectQuery, ContinuousDomain, ContinuousDoseResponseQuery, CounterfactualQuery,
+    DependenceGroup, DerivativeScale, DerivativeWeighting, DidSamplingDesign, DiscoverFault,
     DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment, EvidenceCatalog,
     EvidenceCatalogDelta, EvidenceKind, EvidenceProjection, EvidenceRegime, ExposureLevel,
     ExposureMapping, ExposurePropensityProvenance, FactorNeed, FeedbackDeclaration,
-    FixedCandidateRegretInputs, FixedGroupDosePolicy, GridSpec, HistoryMatchQuery,
-    InterferenceFunctional, InterferenceQuery, InterventionAssignment,
-    InterventionalDistributionQuery, IvBoundsQuery, KnownCensoringSurvival, LawOrigin,
-    LicensedWeights, LocalPolynomialRatioQuery, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
-    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS,
+    FixedCandidateRegretInputs, FixedGroupDosePolicy, GridSpec, HistoryMatchFault,
+    HistoryMatchQuery, InterferenceFault, InterferenceFunctional, InterferenceQuery,
+    InterventionAssignment, InterventionFault, InterventionalDistributionQuery, IvBoundsFault,
+    IvBoundsQuery, KnownCensoringSurvival, LawOrigin, LicensedWeights, LocalPolynomialRatioFault,
+    LocalPolynomialRatioQuery, LongitudinalRegimeFault, LongitudinalRegimeMethod,
+    LongitudinalRegimeQuery, MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS,
     MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
     NestedCounterfactualQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
-    OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
-    PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, ProbabilityRows, ProbabilityTable,
-    AssociationFault, AttributeFault, DiscoverFault, HistoryMatchFault, InterferenceFault, InterventionFault, IvBoundsFault, LocalPolynomialRatioFault, LongitudinalRegimeFault, PanelDesignFault, PolicyValueFault, ResponseFault, SequentialContrastFault, SimulateFault, SurvivalFault, TemporalDesignFault, TransportFault, QueryError, QueryVariant, RandomizedEffectFault,
-    RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
-    ResponseFunctional, ResponseQuery, SamplingDesign, SamplingSelection, SequentialContrastQuery,
-    ShapleyConfig, ShapleyMode, SharedData, SurvivalFunctional, SurvivalQuery,
-    SyntheticControlQuery, SyntheticPanelMethod, TEMPORAL_OBSERVATION_UNLICENSED, TargetPopulation,
-    TargetSampling, TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec,
-    TheoremFamily, TheoremScope, TransportEvaluateSupport, TransportIdentifySupport,
-    TransportLocation, TransportOutcome, TransportOutcomeKind, TransportQuery,
-    TransportSupportCoordinate, TransportUncertaintySupport, UnitChangeQuery, UnmetDependency,
-    VariableCoordinate, VariableDomain, policy_graphless_coordinate,
+    OutcomeFunctional, PanelDesignFault, PanelDidQuery, PathSpecificEffectQuery, PolicyValueFault,
+    PolicyValueQuery, PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr,
+    ProbabilityRows, ProbabilityTable, QueryError, QueryVariant, RandomizationDesign,
+    RandomizedEffectFault, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
+    ResponseFault, ResponseFunctional, ResponseQuery, SamplingDesign, SamplingSelection,
+    SequentialContrastFault, SequentialContrastQuery, ShapleyConfig, ShapleyMode, SharedData,
+    SimulateFault, SurvivalFault, SurvivalFunctional, SurvivalQuery, SyntheticControlQuery,
+    SyntheticPanelMethod, TEMPORAL_OBSERVATION_UNLICENSED, TargetPopulation, TargetSampling,
+    TemporalDesignFault, TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec,
+    TheoremFamily, TheoremScope, TransportEvaluateSupport, TransportFault,
+    TransportIdentifySupport, TransportLocation, TransportOutcome, TransportOutcomeKind,
+    TransportQuery, TransportSupportCoordinate, TransportUncertaintySupport, UnitChangeQuery,
+    UnmetDependency, VariableCoordinate, VariableDomain, policy_graphless_coordinate,
     randomized_graphless_coordinate,
 };
 pub use query::{
@@ -190,8 +194,7 @@ pub use query::{
 };
 pub use query::{CounterfactualEvent, CounterfactualEventQuery};
 pub use query::{
-    CrossWorldQuery, EdgeRoute, ExogenousCoupling, WorldId, WorldObservation,
-    WorldSpec,
+    CrossWorldQuery, EdgeRoute, ExogenousCoupling, WorldId, WorldObservation, WorldSpec,
 };
 pub use query::{
     DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod, DidResampling,
@@ -213,11 +216,11 @@ pub use rng_key::{
     BatchSize, ChainId, DeclaredTolerance, FailedRngAttempt, FoldId, ReductionPolicy, ReplicateId,
     RngKey, SemanticOperation, StreamRequest, ToleranceError, WorkerId,
 };
-pub use row_mask::{RowMask, RowMaskError};
 pub use route_memory::{
     AdmittedRouteMemory, EncodedWidth, RouteBudget, RouteMemoryComponent, RouteMemoryDeclaration,
     RouteMemoryError, RouteMemoryEstimate,
 };
+pub use row_mask::{RowMask, RowMaskError};
 pub use sampling_design::SamplingDesign as DeclaredSamplingDesign;
 pub use sampling_design::{
     AllowedRule, AttemptedRule, BoundEffectiveSampleSize, BoundResampling, BoundSplitting,
@@ -229,12 +232,12 @@ pub use schema::{
     ValueType, VariableInProgress, VariableSchema,
 };
 pub use scientific_target::{
-    ActionFault, ContrastIncoherence, DoseGridFault, Conditioning, ContrastForm, ContrastTerm, CrossWorldPremise, DoseTimeSurface, GraphFamily,
-    HistoryWindow, InferenceSelection, InitialLaw, InterventionContrast, InterventionWorld,
-    MediationArms, MediationComponent, MediationTarget, ModelAssumptions, ObservationUnit,
-    OutcomeQuantity, QuantityUnits, SCIENTIFIC_TARGET_FORMAT, SCIENTIFIC_TARGET_IDENTITY_TAG,
-    ScientificTarget, ScientificTargetError, ScientificWorldId, StructuralAction, TargetForm,
-    TimeFrame, WorldAction, WorldBinding, WorldCollection,
+    ActionFault, Conditioning, ContrastForm, ContrastIncoherence, ContrastTerm, CrossWorldPremise,
+    DoseGridFault, DoseTimeSurface, GraphFamily, HistoryWindow, InferenceSelection, InitialLaw,
+    InterventionContrast, InterventionWorld, MediationArms, MediationComponent, MediationTarget,
+    ModelAssumptions, ObservationUnit, OutcomeQuantity, QuantityUnits, SCIENTIFIC_TARGET_FORMAT,
+    SCIENTIFIC_TARGET_IDENTITY_TAG, ScientificTarget, ScientificTargetError, ScientificWorldId,
+    StructuralAction, TargetForm, TimeFrame, WorldAction, WorldBinding, WorldCollection,
 };
 pub use scratch_admission::{ScratchLease, ScratchRefusal};
 pub use temporal::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};

@@ -38,7 +38,34 @@ pub enum DesignError {
         /// Failure detail.
         message: String,
     },
+    /// A foreign utility / constraint callback raised. The failure is structured data, so a
+    /// host binding finds the exception it retained from the error chain; the text is the
+    /// same as the [`Self::Callback`] it replaces.
+    #[error("callback {name}: {failure}")]
+    CallbackFailed {
+        /// Callback name (`utility` or a constraint name).
+        name: String,
+        /// The structured failure.
+        #[source]
+        failure: antecedent_core::CallbackFailure,
+    },
     /// The caller cancelled the evaluation. A partial ranking is not a result.
     #[error("design evaluation cancelled")]
     Cancelled,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DesignError;
+    use antecedent_core::CallbackFailure;
+
+    #[test]
+    fn a_callback_failure_round_trips_through_the_design_error() {
+        let failure = CallbackFailure::new(Some(5), "utility failed: boom", None);
+        let error =
+            DesignError::CallbackFailed { name: "utility".into(), failure: failure.clone() };
+        assert_eq!(error.to_string(), "callback utility: utility failed: boom");
+        assert_eq!(CallbackFailure::in_chain(&error), Some(&failure));
+        assert!(CallbackFailure::in_chain(&DesignError::Cancelled).is_none());
+    }
 }

@@ -2,13 +2,16 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::search_budget::GpdcKernel;
-use antecedent_core::{ExecutionContext, StreamDomain};
 use crate::ci::block_shuffle::{add_one_pvalue, permutation_null_exceedances, query_stream_salt};
 use crate::ci::residualize::residual_is_uninformative;
-use crate::ci::types::{CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest, PreparedCiTest, nonparametric_permutation_count, requested_block_size};
+use crate::ci::types::{
+    CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    PreparedCiTest, nonparametric_permutation_count, requested_block_size,
+};
 use crate::dcor::distance_correlation;
 use crate::error::StatsError;
+use antecedent_core::search_budget::GpdcKernel;
+use antecedent_core::{ExecutionContext, StreamDomain};
 
 /// Conditioning sets whose kernel factorization one batch keeps for reuse, when the caller's
 /// memory budget holds that many beside the working kernel; one when it holds only one.
@@ -382,7 +385,11 @@ pub(super) fn ensure_residual_information(raw: &[f64], resid: &[f64]) -> Result<
 
 /// Z columns standardised to zero mean and unit SD (row-major `n × |Z|`; a constant column
 /// becomes zeros), so the fixed RBF length scale means the same thing at any scale of Z.
-pub(super) fn standardized_z(columns: &[&[f64]], z: &[usize], n: usize) -> Result<Vec<f64>, StatsError> {
+pub(super) fn standardized_z(
+    columns: &[&[f64]],
+    z: &[usize],
+    n: usize,
+) -> Result<Vec<f64>, StatsError> {
     // Standardise each Z column before the fixed RBF length scale so conditioning
     // does not silently fail when Z is far from unit scale (stats-ci-4).
     let zdim = z.len();
@@ -415,7 +422,12 @@ pub(super) fn standardized_z(columns: &[&[f64]], z: &[usize], n: usize) -> Resul
 }
 
 /// Cholesky factor of `K + λI` on the standardised Z columns (row-major `n × n`).
-pub(super) fn gp_factor(columns: &[&[f64]], z: &[usize], n: usize, gp: &Gpdc) -> Result<Vec<f64>, StatsError> {
+pub(super) fn gp_factor(
+    columns: &[&[f64]],
+    z: &[usize],
+    n: usize,
+    gp: &Gpdc,
+) -> Result<Vec<f64>, StatsError> {
     #[cfg(test)]
     GPDC_FACTORIZATIONS.with(|count| count.set(count.get() + 1));
     let zdim = z.len();
@@ -444,7 +456,11 @@ pub(super) fn gp_factor(columns: &[&[f64]], z: &[usize], n: usize, gp: &Gpdc) ->
 ///
 /// With `(K+λI)α = y_c` the mean prediction is `Kα = y_c − λα` (MM-008), so the residual is
 /// `y_c − Kα = λα` — one triangular solve, no `O(n²)` matrix-vector product.
-pub(super) fn gp_residual(y: &[f64], factor: Option<&[f64]>, ridge: f64) -> Result<Vec<f64>, StatsError> {
+pub(super) fn gp_residual(
+    y: &[f64],
+    factor: Option<&[f64]>,
+    ridge: f64,
+) -> Result<Vec<f64>, StatsError> {
     let n = y.len();
     if y.iter().any(|v| !v.is_finite()) {
         return Err(StatsError::Shape { message: "non-finite response in GPDC residualization" });

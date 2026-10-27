@@ -25,8 +25,8 @@ mod model;
 #[cfg(test)]
 mod tests;
 
-pub use self::fault::{ActionFault, ContrastIncoherence, DoseGridFault};
 pub use self::contrast::{ContrastForm, ContrastTerm, DoseTimeSurface, InterventionContrast};
+pub use self::fault::{ActionFault, ContrastIncoherence, DoseGridFault};
 pub use self::identity::{ScientificTarget, TargetForm};
 pub use self::mediation::{CrossWorldPremise, MediationArms, MediationComponent, MediationTarget};
 pub use self::model::{

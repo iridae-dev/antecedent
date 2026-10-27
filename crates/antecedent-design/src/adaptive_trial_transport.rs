@@ -356,8 +356,8 @@ fn check_shape(
     law: &[f64],
 ) -> SequentialResult<()> {
     let strata = request.stratum_labels.len();
-    let labels_ok = strata >= 1
-        && request.stratum_labels.iter().all(|label| !label.trim().is_empty());
+    let labels_ok =
+        strata >= 1 && request.stratum_labels.iter().all(|label| !label.trim().is_empty());
     let mut sorted: Vec<&str> = request.stratum_labels.iter().map(String::as_str).collect();
     sorted.sort_unstable();
     let distinct = sorted.windows(2).all(|pair| pair[0] != pair[1]);

@@ -7,8 +7,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::result::IntervalBinding;
 use antecedent::StudyResult;
+use antecedent::result::IntervalBinding;
 
 fn binding_json(binding: &IntervalBinding) -> serde_json::Value {
     serde_json::json!({

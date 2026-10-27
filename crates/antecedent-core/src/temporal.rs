@@ -92,14 +92,11 @@ impl TemporalIndexer {
         if variable_count == 0 || horizon == 0 {
             return Err(TemporalIndexError::EmptyDimension);
         }
-        let slices = history
-            .checked_add(horizon)
-            .ok_or(TemporalIndexError::WindowOverflow)?;
-        let dense_u32 = variable_count
-            .checked_mul(slices)
-            .ok_or(TemporalIndexError::DenseSpaceOverflow)?;
-        let dense_len = usize::try_from(dense_u32)
-            .map_err(|_| TemporalIndexError::DenseSpaceOverflow)?;
+        let slices = history.checked_add(horizon).ok_or(TemporalIndexError::WindowOverflow)?;
+        let dense_u32 =
+            variable_count.checked_mul(slices).ok_or(TemporalIndexError::DenseSpaceOverflow)?;
+        let dense_len =
+            usize::try_from(dense_u32).map_err(|_| TemporalIndexError::DenseSpaceOverflow)?;
         Ok(Self { variable_count, history, horizon, dense_len })
     }
 
@@ -141,11 +138,9 @@ impl TemporalIndexer {
         if slice < 0 || slice >= i64::from(self.history) + i64::from(self.horizon) {
             return Err(TemporalIndexError::OffsetOutsideWindow);
         }
-        let slice_u =
-            u64::try_from(slice).map_err(|_| TemporalIndexError::OffsetOutsideWindow)?;
+        let slice_u = u64::try_from(slice).map_err(|_| TemporalIndexError::OffsetOutsideWindow)?;
         let dense = slice_u * u64::from(self.variable_count) + u64::from(v);
-        u32::try_from(dense)
-            .map_err(|_| TemporalIndexError::DenseIdExceedsU32)
+        u32::try_from(dense).map_err(|_| TemporalIndexError::DenseIdExceedsU32)
     }
 
     /// Invert a dense index to a stable key.
@@ -154,8 +149,8 @@ impl TemporalIndexer {
     ///
     /// Out of range dense id.
     pub fn key_of(&self, dense: u32) -> Result<TemporalNodeKey, TemporalIndexError> {
-        let dense_usize = usize::try_from(dense)
-            .map_err(|_| TemporalIndexError::DenseIdOutOfRange)?;
+        let dense_usize =
+            usize::try_from(dense).map_err(|_| TemporalIndexError::DenseIdOutOfRange)?;
         if dense_usize >= self.dense_len() {
             return Err(TemporalIndexError::DenseIdOutOfRange);
         }

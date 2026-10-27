@@ -19,8 +19,7 @@ use super::refusal::{
     InterfaceRefusal, blank_field, calibration_record_blank, calibration_without_interval,
     duplicate_port, inherited_input_unknown, invalid_digest, invalid_quantity, invalid_support,
     missing_operations, point_only_with_uncertainty, posterior_without_posterior_meaning,
-    uncertainty_meaning_required, uncertainty_meaning_unused,
-    unknown_provenance_stage,
+    uncertainty_meaning_required, uncertainty_meaning_unused, unknown_provenance_stage,
 };
 use crate::composition_provenance::CompositionStage;
 use crate::evidence_ledger::SourceId;

@@ -1,7 +1,6 @@
 //! Execution context: request identity and receipts.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-
 /// Host request identity: scoped to the complete scientific + execution inputs.
 ///
 /// A key reused for different inputs is a conflict. The request binds every

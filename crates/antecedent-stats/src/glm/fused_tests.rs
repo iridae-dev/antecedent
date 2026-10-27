@@ -98,9 +98,8 @@ fn glm_deviance_matches_returned_coefficients_at_max_iter_one() {
     );
 
     let nb_opts = GlmOptions { nb_alpha: NbAlphaPolicy::Fixed(0.5), ..opts };
-    let nb =
-        fit_glm(GlmFamily::NegativeBinomial, design_count, &FaerBackend, &mut ws, &nb_opts)
-            .unwrap();
+    let nb = fit_glm(GlmFamily::NegativeBinomial, design_count, &FaerBackend, &mut ws, &nb_opts)
+        .unwrap();
     assert_eq!(nb.iterations, 1);
     let theta = 2.0; // 1 / 0.5
     let mut nb_re = 0.0;
@@ -161,8 +160,7 @@ fn row_logit(x: &[f64], y: &[f64], max_iter: u32, tol: f64) -> Vec<f64> {
                 x_w[c * nrows + r] = x[c * nrows + r] * w;
             }
         }
-        let fit =
-            FaerBackend.least_squares(&x_w, nrows, ncols, &z, &mut ws).expect("row logit");
+        let fit = FaerBackend.least_squares(&x_w, nrows, ncols, &z, &mut ws).expect("row logit");
         for c in 0..ncols {
             max_delta = max_delta.max((fit.coefficients[c] - beta[c]).abs());
             beta[c] = fit.coefficients[c];
@@ -266,10 +264,7 @@ fn fused_glm_matches_row_formula_on_a_penalized_design() {
         .expect("fused logit");
     let again = fit_glm(GlmFamily::BinomialLogit, design, &FaerBackend, &mut ws, &opts)
         .expect("reused workspace");
-    assert_eq!(
-        ws.grow_count, 1,
-        "the solve workspace grows once, then the second fit reuses it"
-    );
+    assert_eq!(ws.grow_count, 1, "the solve workspace grows once, then the second fit reuses it");
     assert!(fused.converged && again.converged);
     coefs_match(&fused.coefficients, &row_logit(&x, &y, opts.max_iter, opts.tol));
     coefs_match(&again.coefficients, &fused.coefficients);

@@ -4,8 +4,8 @@
 //! rows; prediction ownership is retained as caller-declared metadata.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::fault::PolicyValueFault;
 use super::QueryError;
+use super::fault::PolicyValueFault;
 use super::probability::{compensated_sum, row_totals_one, within_budget};
 use crate::canonical_encode::{
     CanonicalEncode, count, encode_flags, encode_option, encode_usizes, flag,
@@ -139,7 +139,9 @@ impl MultiActionPolicyInputs {
             let mut counts = vec![0usize; k];
             for (i, &action) in recommendations.iter().enumerate() {
                 if !self.available[i * k + action] {
-                    return Err(QueryError::InvalidPolicyValue(PolicyValueFault::UnavailableAction));
+                    return Err(QueryError::InvalidPolicyValue(
+                        PolicyValueFault::UnavailableAction,
+                    ));
                 }
                 counts[action] += 1;
             }
@@ -147,7 +149,9 @@ impl MultiActionPolicyInputs {
             if counts.iter().zip(capacities.iter()).any(|(count, limit)| count > limit)
                 || budget.is_some_and(|limit| !within_budget(total_cost, limit))
             {
-                return Err(QueryError::InvalidPolicyValue(PolicyValueFault::ActionCapacityExceeded));
+                return Err(QueryError::InvalidPolicyValue(
+                    PolicyValueFault::ActionCapacityExceeded,
+                ));
             }
         }
         Ok(())

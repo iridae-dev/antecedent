@@ -65,11 +65,10 @@ pub use contract::{
     BRIDGE_TARGET_PORT, BridgeAssumption, BridgeContract, BridgeDrawsSource, BridgeEndpoint,
     BridgeInterfaceBasis, BridgeScope, BridgedDistributionClaim, CorrectionDrawLaw, DrawMapping,
     DrawsPlan, EstimandBridge, ExperimentalPrior, ExposureSetting, ImportedExperimentalPrior,
-    Licensing, MAX_BRIDGE_ASSUMPTIONS, MappedDrawsSummary,
-    MappingUncertainty, NonlinearMap, NonlinearMoment, NonlinearPropagation,
-    POINT_PROPAGATION_CALIBRATION, POINT_PROPAGATION_LABEL, PointPropagation, PreservedSupport,
-    PropagatedUncertainty, SourceMappingDependence, SupportMap, TransportabilityPremise,
-    ValueInterval, bridged_distribution_claim_id, nonlinear_expectation,
+    Licensing, MAX_BRIDGE_ASSUMPTIONS, MappedDrawsSummary, MappingUncertainty, NonlinearMap,
+    NonlinearMoment, NonlinearPropagation, POINT_PROPAGATION_CALIBRATION, POINT_PROPAGATION_LABEL,
+    PointPropagation, PreservedSupport, PropagatedUncertainty, SourceMappingDependence, SupportMap,
+    TransportabilityPremise, ValueInterval, bridged_distribution_claim_id, nonlinear_expectation,
     point_propagation_unavailable, preserved_support, support_image,
 };
 pub use contract::{

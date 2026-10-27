@@ -1,8 +1,8 @@
 //! Two-period and selected staggered group-time difference-in-differences queries.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::fault::PanelDesignFault;
 use super::QueryError;
+use super::fault::PanelDesignFault;
 use crate::canonical_encode::{
     CanonicalEncode, encode_flags, encode_i64s, encode_option, encode_variables, flag, i64_bits,
 };
@@ -580,7 +580,9 @@ impl PanelDidQuery {
         }
         if self.design == DidSamplingDesign::AugmentedPanel {
             let Some(nuisance) = &self.augmented else {
-                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::AugmentedNeedsNuisance));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::AugmentedNeedsNuisance,
+                ));
             };
             let variables = [
                 self.outcome,
@@ -595,10 +597,14 @@ impl PanelDidQuery {
                 || !self.cohorts.is_empty()
                 || self.target.is_some()
             {
-                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::AugmentedColumns));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::AugmentedColumns,
+                ));
             }
         } else if self.augmented.is_some() {
-            return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::NuisanceNeedsAugmented));
+            return Err(QueryError::InvalidRandomizedEffect(
+                PanelDesignFault::NuisanceNeedsAugmented,
+            ));
         }
         if matches!(
             self.design,
@@ -606,7 +612,9 @@ impl PanelDidQuery {
         ) {
             let (cohort, period) = if self.design == DidSamplingDesign::StaggeredGroupTime {
                 let Some((cohort, period)) = self.target else {
-                    return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::StaggeredTarget));
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        PanelDesignFault::StaggeredTarget,
+                    ));
                 };
                 (cohort, period)
             } else {
@@ -619,7 +627,9 @@ impl PanelDidQuery {
                 || self.periods.iter().any(|p| *p <= 0)
                 || self.cohorts.iter().any(|g| *g < 0)
             {
-                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::StaggeredPeriods));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::StaggeredPeriods,
+                ));
             }
         }
         self.validate_rollout()
@@ -635,10 +645,14 @@ impl PanelDidQuery {
         );
         match (&self.robust, rollout) {
             (Some(_), false) => {
-                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::RobustSpecificationDesign));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::RobustSpecificationDesign,
+                ));
             }
             (None, true) => {
-                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::RobustDesignSpecification));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::RobustDesignSpecification,
+                ));
             }
             _ => {}
         }
@@ -657,21 +671,27 @@ impl PanelDidQuery {
                 || robust.covariates.iter().collect::<std::collections::BTreeSet<_>>().len()
                     != robust.covariates.len()
             {
-                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::RolloutCovariates));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::RolloutCovariates,
+                ));
             }
             if self.design == DidSamplingDesign::CovariateAdjustedTwoPeriod
                 && (robust.covariates.is_empty()
                     || robust.estimator != RolloutDidEstimator::CallawaySantAnna
                     || robust.anticipation != 0)
             {
-                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::CovariateAdjustedTwoPeriod));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::CovariateAdjustedTwoPeriod,
+                ));
             }
         }
         if let Some(resampling) = &self.resampling {
             if resampling.replicates < 2
                 || !(rollout || self.design == DidSamplingDesign::AugmentedPanel)
             {
-                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::WholeProcedureResample));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::WholeProcedureResample,
+                ));
             }
         }
         Ok(())

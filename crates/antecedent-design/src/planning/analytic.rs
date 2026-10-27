@@ -292,7 +292,9 @@ fn model_of(design: &PlannedDesign) -> Box<dyn DesignModel> {
     match design {
         PlannedDesign::Bernoulli => Box::new(BernoulliModel),
         PlannedDesign::Complete => Box::new(CompleteModel),
-        PlannedDesign::Stratified { strata } => Box::new(StratifiedModel { strata: strata.clone() }),
+        PlannedDesign::Stratified { strata } => {
+            Box::new(StratifiedModel { strata: strata.clone() })
+        }
         PlannedDesign::Cluster { mean_cluster_size, icc, cluster_size_cv } => {
             Box::new(ClusterModel(ClusterShape {
                 mean_cluster_size: *mean_cluster_size,
@@ -1552,8 +1554,7 @@ mod allocation_tests {
     #[test]
     fn allocation_always_sums_to_the_total() {
         for total in [0, 1, 7, 100, 12_345, (1 << 53) + 3, u64::MAX / 3] {
-            for weights in [&[1.0, 1.0][..], &[1.0, 3.0], &[0.2, 0.3, 0.5], &[1.0, 1.0, 1.0, 1.0]]
-            {
+            for weights in [&[1.0, 1.0][..], &[1.0, 3.0], &[0.2, 0.3, 0.5], &[1.0, 1.0, 1.0, 1.0]] {
                 let counts = try_allocate(total, weights).unwrap();
                 assert_eq!(counts.iter().sum::<u64>(), total, "{total} over {weights:?}");
             }
@@ -1565,7 +1566,11 @@ mod allocation_tests {
         for total in 0..200_u64 {
             for ratio in [1.0, 0.5, 2.0, 3.0, 1.7] {
                 let general = allocate(total, &[1.0, ratio]);
-                assert_eq!(split_two(total, 1.0, ratio), (general[0], general[1]), "{total} {ratio}");
+                assert_eq!(
+                    split_two(total, 1.0, ratio),
+                    (general[0], general[1]),
+                    "{total} {ratio}"
+                );
             }
         }
     }

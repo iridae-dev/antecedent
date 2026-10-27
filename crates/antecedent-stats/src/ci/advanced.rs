@@ -19,16 +19,6 @@ pub use symbolic::SymbolicCmi;
 #[cfg(test)]
 use self::{gpdc::*, knn::*, nystrom::*, oracle::*, symbolic::*};
 #[cfg(test)]
-use std::collections::{BTreeMap, HashMap};
-#[cfg(test)]
-use std::sync::Arc;
-#[cfg(test)]
-use antecedent_core::search_budget::GpdcKernel;
-#[cfg(test)]
-use antecedent_core::{ExecutionContext, StreamDomain};
-#[cfg(test)]
-use antecedent_kernels::unbiased_index;
-#[cfg(test)]
 use crate::ci::block_shuffle::{add_one_pvalue, permutation_null_exceedances, query_stream_salt};
 #[cfg(test)]
 use crate::ci::gsquared::{
@@ -38,7 +28,7 @@ use crate::ci::gsquared::{
 use crate::ci::residualize::residual_is_uninformative;
 #[cfg(test)]
 use crate::ci::types::{
-    CiResult, CiBatchResult, ConditionalIndependenceTest, KnnDependenceWorkspace, PreparedCiTest,
+    CiBatchResult, CiResult, ConditionalIndependenceTest, KnnDependenceWorkspace, PreparedCiTest,
     nonparametric_permutation_count, reject_unsupported_block_size, requested_block_size,
 };
 #[cfg(test)]
@@ -47,6 +37,16 @@ use crate::dcor::distance_correlation;
 use crate::error::StatsError;
 #[cfg(test)]
 use crate::matching::{MatchingDistance, MatchingIndex};
+#[cfg(test)]
+use antecedent_core::search_budget::GpdcKernel;
+#[cfg(test)]
+use antecedent_core::{ExecutionContext, StreamDomain};
+#[cfg(test)]
+use antecedent_kernels::unbiased_index;
+#[cfg(test)]
+use std::collections::{BTreeMap, HashMap};
+#[cfg(test)]
+use std::sync::Arc;
 
 #[cfg(test)]
 mod gpdc_tests;

@@ -61,6 +61,12 @@ const ALLOWLIST: &[Allowed] = &[
                  blocks on it, so it adds no parallelism, and the route's work admits itself",
     },
     Allowed {
+        path: "python/src/mixed_decision_api.rs",
+        marker: "REPLAY_STACK_BYTES",
+        reason: "one scoped thread that only gives the replay a larger stack; the caller \
+                 blocks on it, so it adds no parallelism, and the replay's work admits itself",
+    },
+    Allowed {
         path: "python/src/interrupt.rs",
         marker: "WORKER_STACK_BYTES",
         reason: "one worker so the calling thread can poll Python signals and release the \

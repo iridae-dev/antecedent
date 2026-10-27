@@ -74,7 +74,7 @@ fn parent_list<'py>(
 
 /// The typed error of a user method `name` that raised.
 fn method_failure(name: &str, err: PyErr) -> ModelError {
-    ModelError::Unsupported { message: callback_failure(&format!("Python {name} failed"), err) }
+    ModelError::CallbackFailed(callback_failure(&format!("Python {name} failed"), err))
 }
 
 /// Copy the float64 ndarray `out` returned by the user's `name` into `output[..n]`, requiring
@@ -101,8 +101,8 @@ fn copy_column_result(
 /// govern them.
 fn accepts_rng(obj: &Bound<'_, PyAny>) -> Result<bool, ModelError> {
     let py = obj.py();
-    let unsupported = |e: PyErr| ModelError::Unsupported {
-        message: callback_failure("could not inspect sample_noise", e),
+    let unsupported = |e: PyErr| {
+        ModelError::CallbackFailed(callback_failure("could not inspect sample_noise", e))
     };
     let method = obj.getattr("sample_noise").map_err(unsupported)?;
     let Ok(signature_of) = inspect_signature(py) else {
@@ -149,7 +149,7 @@ impl ConditionalIndependenceTest for PyConditionalIndependence {
                 queries.append((q.x, q.y, z)).map_err(|e| StatsError::Backend(e.to_string()))?;
             }
             let out = self.callback.bind(py).call1((cols, queries)).map_err(|e| {
-                StatsError::Backend(callback_failure("Python CI callback failed", e))
+                StatsError::CallbackFailed(callback_failure("Python CI callback failed", e))
             })?;
             let seq = out.cast::<PyList>().map_err(|_| StatsError::Shape {
                 message: "Python CI callback must return a list of (statistic, p_value)",
@@ -242,10 +242,12 @@ impl DynamicMechanism for PyDynamicMechanism {
             let bound = self.obj.bind(py);
             let out = (if self.accepts_rng(py)? {
                 // The run's seeded stream governs the user's draws through a NumPy generator.
-                let generator =
-                    numpy_default_rng(py, rng.next_u64()).map_err(|e| ModelError::Unsupported {
-                        message: callback_failure("failed to seed sample_noise rng", e),
-                    })?;
+                let generator = numpy_default_rng(py, rng.next_u64()).map_err(|e| {
+                    ModelError::CallbackFailed(callback_failure(
+                        "failed to seed sample_noise rng",
+                        e,
+                    ))
+                })?;
                 let kwargs = PyDict::new(py);
                 kwargs
                     .set_item("rng", generator)
@@ -253,8 +255,8 @@ impl DynamicMechanism for PyDynamicMechanism {
             } else {
                 bound.call_method1("sample_noise", (n_rows,))
             })
-            .map_err(|e| ModelError::Unsupported {
-                message: callback_failure("Python sample_noise failed", e),
+            .map_err(|e| {
+                ModelError::CallbackFailed(callback_failure("Python sample_noise failed", e))
             })?;
             copy_column_result(&out, "sample_noise", n_rows, output)
         })
@@ -305,9 +307,10 @@ impl DynamicMechanism for PyDynamicMechanism {
                 Ok(true) => {}
                 Ok(false) => return None,
                 Err(e) => {
-                    return Some(Err(ModelError::Unsupported {
-                        message: callback_failure("Python infer_noise lookup failed", e),
-                    }));
+                    return Some(Err(ModelError::CallbackFailed(callback_failure(
+                        "Python infer_noise lookup failed",
+                        e,
+                    ))));
                 }
             }
             Some((|| {
@@ -346,9 +349,10 @@ impl DynamicMechanism for PyDynamicMechanism {
                 Ok(true) => {}
                 Ok(false) => return None,
                 Err(e) => {
-                    return Some(Err(ModelError::Unsupported {
-                        message: callback_failure("Python log_prob lookup failed", e),
-                    }));
+                    return Some(Err(ModelError::CallbackFailed(callback_failure(
+                        "Python log_prob lookup failed",
+                        e,
+                    ))));
                 }
             }
             Some((|| {
@@ -400,11 +404,12 @@ impl Utility<f64, f64> for PyUtility {
         Python::attach(|py| -> Result<(), DesignError> {
             let a = PyArray1::from_slice(py, actions);
             let o = PyArray1::from_slice(py, outcomes);
-            let got =
-                self.callback.bind(py).call1((a, o)).map_err(|err| DesignError::Callback {
+            let got = self.callback.bind(py).call1((a, o)).map_err(|err| {
+                DesignError::CallbackFailed {
                     name: "utility".into(),
-                    message: callback_failure("utility failed", err),
-                })?;
+                    failure: callback_failure("utility failed", err),
+                }
+            })?;
             let arr = match got.extract::<PyReadonlyArray1<'_, f64>>() {
                 Ok(arr) => arr,
                 Err(err) => {

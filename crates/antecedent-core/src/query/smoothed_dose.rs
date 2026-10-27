@@ -11,8 +11,8 @@
 //! target and the refusals of point, stochastic, coarsened and derivative targets are
 //! what keep the routes apart.
 
-use super::fault::ResponseFault;
 use super::TransportQuery;
+use super::fault::ResponseFault;
 use super::{ContinuousDomain, GridSpec, QueryError, ResponseFunctional, ResponseQuery};
 use crate::ids::VariableId;
 use std::sync::Arc;

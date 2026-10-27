@@ -1,14 +1,14 @@
 //! Execution context: cancellation tokens and progress reporting.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::sync::atomic::{AtomicBool, Ordering};
-#[cfg(any(test, feature = "test-support"))]
-use core::sync::atomic::AtomicUsize;
-use std::fmt;
-use std::sync::{Arc, Mutex, Weak};
 use super::admission::{SharedAdmission, lock_mutex};
 #[cfg(doc)]
 use super::context::ExecutionContext;
+#[cfg(any(test, feature = "test-support"))]
+use core::sync::atomic::AtomicUsize;
+use core::sync::atomic::{AtomicBool, Ordering};
+use std::fmt;
+use std::sync::{Arc, Mutex, Weak};
 
 /// Shared wait state. A production token is this and nothing else.
 pub(super) struct CancelWait {

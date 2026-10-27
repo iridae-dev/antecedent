@@ -327,12 +327,15 @@ fn transport_sensitivity_build(
         Ok(range) => range,
         Err(error) => return Ok((None, None, Some(entry_refusal_json(&error)))),
     };
-    let artifact =
-        match transport_sensitivity_artifact(&response.inner, &request, &reference, reference_value)
-        {
-            Ok(artifact) => artifact,
-            Err(error) => return Ok((None, None, Some(entry_refusal_json(&error)))),
-        };
+    let artifact = match transport_sensitivity_artifact(
+        &response.inner,
+        &request,
+        &reference,
+        reference_value,
+    ) {
+        Ok(artifact) => artifact,
+        Err(error) => return Ok((None, None, Some(entry_refusal_json(&error)))),
+    };
     let (low, high) = range.range_at_bound();
     let summary = json!({
         "route": range.route().as_str(),

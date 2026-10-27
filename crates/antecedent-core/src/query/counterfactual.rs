@@ -21,20 +21,52 @@ pub struct CounterfactualQuery {
     /// Interventions defining the counterfactual (active) world after abduction.
     pub interventions: Arc<[Intervention]>,
     /// Control world for a two-world ITE (typically a hard set of treatment to 0).
+    ///
+    /// When [`Self::joint_control`] is non-empty this is the first intervention of a joint
+    /// baseline; the whole baseline is [`Self::control_world`].
     pub control: Intervention,
+    /// The further simultaneous interventions of a joint baseline, applied together with
+    /// [`Self::control`] in the control world. Empty for the single-intervention baseline.
+    pub joint_control: Arc<[Intervention]>,
     /// When true, allow nested counterfactual interventions under invertible SCMs.
     pub allow_nested: bool,
 }
 
+/// Tag written in place of the control intervention when the baseline is joint.
+///
+/// [`Intervention`] encodes a tag in `1..=7`, so a single-intervention baseline can never
+/// begin with this word: the bytes of a query with one control are exactly those it always
+/// had, and a joint baseline is a different canonical form.
+const JOINT_CONTROL_TAG: u64 = 8;
+
 /// Every field is written, in the order given: `outcomes` index the result,
 /// and `interventions` keep their declared order (a later intervention on the
-/// same variable is not assumed to commute with an earlier one).
+/// same variable is not assumed to commute with an earlier one). A joint baseline
+/// is written as [`JOINT_CONTROL_TAG`] followed by the whole control world in order.
 impl CanonicalEncode for CounterfactualQuery {
     fn encode(&self, writer: &mut CanonicalWriter) {
         encode_variables(writer, &self.outcomes);
         encode_list(writer, &self.interventions);
-        self.control.encode(writer);
+        if self.joint_control.is_empty() {
+            self.control.encode(writer);
+        } else {
+            writer.word(JOINT_CONTROL_TAG);
+            encode_list(writer, &self.control_world());
+        }
         writer.word(flag(self.allow_nested));
+    }
+}
+
+/// Every variable an intervention sets, shifts or replaces, in order of appearance
+/// (a sequence contributes the variables of its steps).
+fn intervened_variables(intervention: &Intervention, out: &mut Vec<VariableId>) {
+    match intervention {
+        Intervention::Sequence(sequence) => {
+            for step in sequence.steps.iter() {
+                intervened_variables(&step.intervention, out);
+            }
+        }
+        other => out.extend(other.primary_variable()),
     }
 }
 
@@ -58,17 +90,69 @@ impl CounterfactualQuery {
     pub fn new(outcome: VariableId, interventions: impl Into<Arc<[Intervention]>>) -> Self {
         let interventions = interventions.into();
         let control = Self::default_control(&interventions);
-        Self { outcomes: Arc::from([outcome]), interventions, control, allow_nested: false }
+        Self {
+            outcomes: Arc::from([outcome]),
+            interventions,
+            control,
+            joint_control: Arc::from([]),
+            allow_nested: false,
+        }
+    }
+
+    /// The whole control world: [`Self::control`] followed by [`Self::joint_control`].
+    #[must_use]
+    pub fn control_world(&self) -> Vec<Intervention> {
+        let mut world = Vec::with_capacity(1 + self.joint_control.len());
+        world.push(self.control.clone());
+        world.extend(self.joint_control.iter().cloned());
+        world
+    }
+
+    /// Every variable the active world intervenes on, in order of appearance.
+    #[must_use]
+    pub fn active_variables(&self) -> Vec<VariableId> {
+        let mut out = Vec::new();
+        for intervention in self.interventions.iter() {
+            intervened_variables(intervention, &mut out);
+        }
+        out
+    }
+
+    /// Every variable the control world intervenes on, in order of appearance.
+    #[must_use]
+    pub fn control_variables(&self) -> Vec<VariableId> {
+        let mut out = Vec::new();
+        for intervention in self.control_world() {
+            intervened_variables(&intervention, &mut out);
+        }
+        out
+    }
+
+    /// Replace the control world by a joint baseline of simultaneous interventions: the
+    /// first becomes [`Self::control`], the rest [`Self::joint_control`].
+    ///
+    /// An empty baseline leaves the control world unchanged.
+    #[must_use]
+    pub fn with_joint_control(mut self, baseline: impl IntoIterator<Item = Intervention>) -> Self {
+        let mut baseline = baseline.into_iter();
+        if let Some(first) = baseline.next() {
+            self.control = first;
+            self.joint_control = baseline.collect();
+        }
+        self
     }
 
     /// Replace the control world (ITE baseline).
     #[must_use]
     pub fn with_control(mut self, control: Intervention) -> Self {
         self.control = control;
+        self.joint_control = Arc::from([]);
         self
     }
 
     /// Hard-set the control level on the current control (or first intervention) target.
+    ///
+    /// This states a single-intervention baseline: a joint baseline is replaced.
     #[must_use]
     pub fn with_control_level(self, level: f64) -> Self {
         let variable = self
@@ -97,9 +181,42 @@ impl CounterfactualQuery {
             return Err(QueryError::EmptyCounterfactualOutcomes);
         }
         for iv in self.interventions.iter() {
-            iv.validate().map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
+            iv.validate()
+                .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
         }
-        self.control.validate().map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
+        self.control
+            .validate()
+            .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
+        for iv in self.joint_control.iter() {
+            iv.validate()
+                .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
+        }
+        if !self.joint_control.is_empty() {
+            // A joint baseline contrasts like with like: both worlds intervene on the same
+            // set of variables, in any order.
+            let mut active = self.active_variables();
+            let mut control = self.control_variables();
+            active.sort_unstable();
+            control.sort_unstable();
+            if active.is_empty() {
+                return Err(QueryError::AmbiguousInterventionTarget);
+            }
+            if active != control {
+                let at = active
+                    .iter()
+                    .zip(&control)
+                    .position(|(a, c)| a != c)
+                    .unwrap_or_else(|| active.len().min(control.len()));
+                let expected = active
+                    .get(at)
+                    .or(active.last())
+                    .copied()
+                    .ok_or(QueryError::AmbiguousInterventionTarget)?;
+                let got = control.get(at).or(control.last()).copied().unwrap_or(expected);
+                return Err(QueryError::InterventionVariableMismatch { expected, got });
+            }
+            return Ok(());
+        }
         if let Some(active_var) =
             self.interventions.first().and_then(Intervention::primary_variable)
         {

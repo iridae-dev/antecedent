@@ -5,23 +5,10 @@
 use crate::ids::VariableId;
 
 use super::fault::{
-    AssociationFault,
-    AttributeFault,
-    DiscoverFault,
-    HistoryMatchFault,
-    InterferenceFault,
-    InterventionFault,
-    IvBoundsFault,
-    LocalPolynomialRatioFault,
-    LongitudinalRegimeFault,
-    PanelDesignFault,
-    PolicyValueFault,
-    ResponseFault,
-    SequentialContrastFault,
-    SimulateFault,
-    SurvivalFault,
-    TemporalDesignFault,
-    TransportFault,
+    AssociationFault, AttributeFault, DiscoverFault, HistoryMatchFault, InterferenceFault,
+    InterventionFault, IvBoundsFault, LocalPolynomialRatioFault, LongitudinalRegimeFault,
+    PanelDesignFault, PolicyValueFault, ResponseFault, SequentialContrastFault, SimulateFault,
+    SurvivalFault, TemporalDesignFault, TransportFault,
 };
 
 /// Why a randomized-effect declaration is refused. Each variant is one violated
@@ -30,7 +17,9 @@ use super::fault::{
 #[non_exhaustive]
 pub enum RandomizedEffectFault {
     /// Refused: multi-arm contrasts do not combine with receipt adjustment, CUPED, ANCOVA, or exact Fisher inference.
-    #[error("multi-arm contrasts do not combine with receipt adjustment, CUPED, ANCOVA, or exact Fisher inference")]
+    #[error(
+        "multi-arm contrasts do not combine with receipt adjustment, CUPED, ANCOVA, or exact Fisher inference"
+    )]
     MultiArmCombination,
     /// Refused: multi-arm labels, assignment, probabilities, and distinct unit identities must align.
     #[error("multi-arm labels, assignment, probabilities, and distinct unit identities must align")]
@@ -45,19 +34,27 @@ pub enum RandomizedEffectFault {
     #[error("randomization inference requires an unadjusted complete two-arm design")]
     ExactTestDesign,
     /// Refused: CACE/LATE requires Bernoulli assignment, row-aligned treatment receipt, and no CUPED adjustment.
-    #[error("CACE/LATE requires Bernoulli assignment, row-aligned treatment receipt, and no CUPED adjustment")]
+    #[error(
+        "CACE/LATE requires Bernoulli assignment, row-aligned treatment receipt, and no CUPED adjustment"
+    )]
     ReceiptDesign,
     /// Refused: treatment-on-treated requires observed one-sided noncompliance: no control-assigned unit received treatment.
-    #[error("treatment-on-treated requires observed one-sided noncompliance: no control-assigned unit received treatment")]
+    #[error(
+        "treatment-on-treated requires observed one-sided noncompliance: no control-assigned unit received treatment"
+    )]
     TreatmentOnTreatedNoncompliance,
     /// Refused: treatment receipt is only valid for a CACE/LATE or treatment-on-treated query.
     #[error("treatment receipt is only valid for a CACE/LATE or treatment-on-treated query")]
     ReceiptWithoutComplier,
     /// Refused: fixed CUPED requires Bernoulli assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient.
-    #[error("fixed CUPED requires Bernoulli assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient")]
+    #[error(
+        "fixed CUPED requires Bernoulli assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient"
+    )]
     FixedCupedDesign,
     /// Refused: ANCOVA requires distinct pre-assignment covariates, independent unit-level Bernoulli assignment with a common probability, and residual degrees of freedom.
-    #[error("ANCOVA requires distinct pre-assignment covariates, independent unit-level Bernoulli assignment with a common probability, and residual degrees of freedom")]
+    #[error(
+        "ANCOVA requires distinct pre-assignment covariates, independent unit-level Bernoulli assignment with a common probability, and residual degrees of freedom"
+    )]
     AncovaDesign,
     /// Refused: factorial contrasts do not combine with receipt adjustment or CUPED on this route.
     #[error("factorial contrasts do not combine with receipt adjustment or CUPED on this route")]
@@ -114,10 +111,14 @@ pub enum RandomizedEffectFault {
     #[error("stratified assignment must match declared block counts and inclusion probabilities")]
     StratifiedAllocation,
     /// Refused: factorial design requires four cells with at least two units each, aligned second-factor assignment, and distinct labels.
-    #[error("factorial design requires four cells with at least two units each, aligned second-factor assignment, and distinct labels")]
+    #[error(
+        "factorial design requires four cells with at least two units each, aligned second-factor assignment, and distinct labels"
+    )]
     FactorialCells,
     /// Refused: factorial observed cell counts and primary-factor inclusion probabilities must match the fixed four-cell allocation.
-    #[error("factorial observed cell counts and primary-factor inclusion probabilities must match the fixed four-cell allocation")]
+    #[error(
+        "factorial observed cell counts and primary-factor inclusion probabilities must match the fixed four-cell allocation"
+    )]
     FactorialAllocation,
     /// Refused: switchback period labels must be non-empty and aligned with rows.
     #[error("switchback period labels must be non-empty and aligned with rows")]

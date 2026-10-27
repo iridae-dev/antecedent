@@ -510,8 +510,7 @@ mod tests {
         }
         let mut ws = LeastSquaresWorkspace::default();
         let ols = FaerBackend.least_squares(&x, n, 2, &y, &mut ws).unwrap();
-        let ridge =
-            fit_ridge_with(&x, n, 2, &y, 5.0, RidgeIntercept::sniff(&x, n, 2)).unwrap();
+        let ridge = fit_ridge_with(&x, n, 2, &y, 5.0, RidgeIntercept::sniff(&x, n, 2)).unwrap();
         assert!(
             ridge.coefficients[1].abs() < ols.coefficients[1].abs(),
             "ridge={} ols={}",
@@ -998,8 +997,7 @@ mod tests {
         let lambda = 1.0;
         let sxx: f64 = x.iter().map(|v| v * v).sum();
         let sxy: f64 = x.iter().zip(&y).map(|(a, b)| a * b).sum();
-        let fit =
-            fit_ridge_with(&x, n, 1, &y, lambda, RidgeIntercept::sniff(&x, n, 1)).unwrap();
+        let fit = fit_ridge_with(&x, n, 1, &y, lambda, RidgeIntercept::sniff(&x, n, 1)).unwrap();
         let expected = sxy / (sxx + lambda);
         assert!((fit.coefficients[0] - expected).abs() <= 1e-9 * expected.abs());
         assert!(fit.coefficients[0] < 1e-9, "penalized coefficient must be shrunk to ~0");

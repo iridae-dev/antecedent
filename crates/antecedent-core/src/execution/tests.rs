@@ -188,13 +188,7 @@ fn credit_overflow_is_a_typed_error_and_leaves_the_lease() {
         byte_budget: 0,
         threads_free: u32::MAX,
         bytes_free: 0,
-        leases: vec![LeaseSlot {
-            observation: None,
-            id: 7,
-            parent: None,
-            threads: 1,
-            bytes: 0,
-        }],
+        leases: vec![LeaseSlot { observation: None, id: 7, parent: None, threads: 1, bytes: 0 }],
         next_id: 8,
         blocked_waiters: 0,
     };
@@ -322,9 +316,7 @@ fn map_indexed_with_scratch_reuses_one_buffer_per_worker() {
     assert!(built.load(Ordering::SeqCst) <= 4);
     assert!(built.load(Ordering::SeqCst) >= 1);
     assert_eq!(
-        out.iter()
-            .map(|row| *row.last().expect("scratch recorded the index"))
-            .collect::<Vec<_>>(),
+        out.iter().map(|row| *row.last().expect("scratch recorded the index")).collect::<Vec<_>>(),
         (0..8).collect::<Vec<_>>()
     );
     assert!(out.iter().any(|row| row.len() > 1), "a worker reused its scratch");
@@ -341,33 +333,28 @@ fn map_indexed_preserves_order_and_serializes_inner() {
         .unwrap();
     assert_eq!(out, vec![0, 10, 20, 30, 40, 50, 60, 70]);
     let serial = ExecutionContext::for_tests(1);
-    let inner_threads = serial
-        .map_indexed(1, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get()))
-        .unwrap();
+    let inner_threads =
+        serial.map_indexed(1, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get())).unwrap();
     assert_eq!(inner_threads, vec![1]);
     assert_eq!(serial.serial_inner().parallelism.max_threads.get(), 1);
 }
 
 #[test]
 fn map_indexed_fallback_keeps_inner_parallelism_within_admission() {
-    let ctx =
-        ExecutionContext::production(1, 4).with_admission(AdmissionPool::fixed(1, u64::MAX));
+    let ctx = ExecutionContext::production(1, 4).with_admission(AdmissionPool::fixed(1, u64::MAX));
     for n in [1, 8] {
         let threads = ctx
             .map_indexed(n, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get()))
             .unwrap();
         assert_eq!(threads, vec![1; n]);
     }
-    let ctx =
-        ExecutionContext::production(1, 4).with_admission(AdmissionPool::fixed(2, u64::MAX));
-    let threads = ctx
-        .map_indexed(1, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get()))
-        .unwrap();
+    let ctx = ExecutionContext::production(1, 4).with_admission(AdmissionPool::fixed(2, u64::MAX));
+    let threads =
+        ctx.map_indexed(1, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get())).unwrap();
     assert_eq!(threads, vec![2]);
     ctx.cancellation.cancel();
-    let threads = ctx
-        .map_indexed(8, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get()))
-        .unwrap();
+    let threads =
+        ctx.map_indexed(8, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get())).unwrap();
     assert_eq!(threads, vec![1; 8]);
 }
 
@@ -385,8 +372,7 @@ fn map_indexed_stops_at_a_failure_and_reports_the_lowest_index() {
     assert!(evaluated.load(Ordering::Relaxed) <= n - 499, "the failing chunk must not run on");
     // Two failures in different chunks: the lowest index wins on every run.
     for _ in 0..20 {
-        let result =
-            ctx.map_indexed(n, |i, _| if i == 700 || i == 1500 { Err(i) } else { Ok(i) });
+        let result = ctx.map_indexed(n, |i, _| if i == 700 || i == 1500 { Err(i) } else { Ok(i) });
         assert_eq!(result, Err(700));
     }
     // No failure: everything is evaluated, in order.
@@ -517,11 +503,7 @@ fn child_lease_cannot_exceed_parent_remainder() {
     let too_wide = parent.acquire_child(5, 1);
     assert!(matches!(
         too_wide,
-        Err(AdmissionError::ExceedsRemainder {
-            remaining_threads: 4,
-            remaining_bytes: 400,
-            ..
-        })
+        Err(AdmissionError::ExceedsRemainder { remaining_threads: 4, remaining_bytes: 400, .. })
     ));
     assert_eq!(shared.available().threads(), 6);
     let child = parent.acquire_child(3, 100).unwrap();
@@ -568,10 +550,7 @@ fn byte_overflow_is_refused_instead_of_wrapped() {
     assert!(checked_byte_product(u64::MAX, 2).is_none());
     assert!(checked_byte_sum(u64::MAX, 1).is_none());
     assert_eq!(u64::MAX.wrapping_add(1), 0);
-    assert!(matches!(
-        AdmissionRequest::try_sum(1, &[u64::MAX, 1]),
-        Err(AdmissionError::Overflow)
-    ));
+    assert!(matches!(AdmissionRequest::try_sum(1, &[u64::MAX, 1]), Err(AdmissionError::Overflow)));
     assert!(matches!(
         study.acquire_admission_product(1, u64::MAX, 2),
         Err(AdmissionError::Overflow)
@@ -579,10 +558,7 @@ fn byte_overflow_is_refused_instead_of_wrapped() {
     assert_eq!(shared.available().threads(), 2);
     assert_eq!(shared.available().bytes(), 32);
     let parent = study.acquire_admission(1, 32).unwrap();
-    assert!(matches!(
-        parent.acquire_child_product(1, u64::MAX, 2),
-        Err(AdmissionError::Overflow)
-    ));
+    assert!(matches!(parent.acquire_child_product(1, u64::MAX, 2), Err(AdmissionError::Overflow)));
     assert_eq!(parent.remainder().bytes(), 32);
     assert_eq!(shared.available().bytes(), 0);
     drop(parent);
@@ -815,8 +791,7 @@ fn nested_map_indexed_does_not_wait_on_the_outer_lease() {
     let ctx = parallel_context(&shared, 1);
     let output = ctx
         .map_indexed(2, |index, inner| {
-            let nested =
-                inner.map_indexed(2, |inner_index, _inner| Ok::<_, ()>(inner_index))?;
+            let nested = inner.map_indexed(2, |inner_index, _inner| Ok::<_, ()>(inner_index))?;
             Ok::<_, ()>((index, nested))
         })
         .unwrap();
@@ -919,14 +894,8 @@ fn wrapped_byte_product_is_not_admitted() {
     assert_eq!(count.wrapping_mul(2), 0);
     let shared = AdmissionPool::fixed(2, 32);
     let study = ExecutionContext::for_tests(1).with_admission(shared.clone());
-    assert!(matches!(
-        study.acquire_admission_product(1, count, 2),
-        Err(AdmissionError::Overflow)
-    ));
-    assert!(matches!(
-        AdmissionRequest::try_product(1, count, 2),
-        Err(AdmissionError::Overflow)
-    ));
+    assert!(matches!(study.acquire_admission_product(1, count, 2), Err(AdmissionError::Overflow)));
+    assert!(matches!(AdmissionRequest::try_product(1, count, 2), Err(AdmissionError::Overflow)));
     assert_eq!(shared.available(), AdmissionRemainder::new(2, 32));
     assert_eq!(study.memory_limit_bytes(), Some(32));
 }

@@ -72,22 +72,30 @@ impl SequentialContrastQuery {
         sorted.sort_unstable();
         sorted.dedup();
         if sorted.len() != columns.len() {
-            return Err(QueryError::InvalidSequentialContrast(SequentialContrastFault::ColumnsNotDistinct));
+            return Err(QueryError::InvalidSequentialContrast(
+                SequentialContrastFault::ColumnsNotDistinct,
+            ));
         }
         if self.active.iter().chain(&self.control).any(|action| *action > 1) {
-            return Err(QueryError::InvalidSequentialContrast(SequentialContrastFault::RegimeAction));
+            return Err(QueryError::InvalidSequentialContrast(
+                SequentialContrastFault::RegimeAction,
+            ));
         }
         if self.fold_count < 2
             || self.fold_of_row.is_empty()
             || self.fold_of_row.iter().any(|fold| *fold >= self.fold_count)
         {
-            return Err(QueryError::InvalidSequentialContrast(SequentialContrastFault::CrossFitting));
+            return Err(QueryError::InvalidSequentialContrast(
+                SequentialContrastFault::CrossFitting,
+            ));
         }
         if !(self.min_probability.is_finite()
             && self.min_probability > 0.0
             && self.min_probability <= 0.5)
         {
-            return Err(QueryError::InvalidSequentialContrast(SequentialContrastFault::MinProbability));
+            return Err(QueryError::InvalidSequentialContrast(
+                SequentialContrastFault::MinProbability,
+            ));
         }
         Ok(())
     }

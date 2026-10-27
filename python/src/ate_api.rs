@@ -735,18 +735,18 @@ pub(crate) fn ate_result_from_analysis(
     include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
     let effect_authority =
-        result.identification.average_effect().zip(result.estimate.as_effect()).map(
+        result.identification.average_effect().zip(result.estimate().as_effect()).map(
             |(query, effect)| crate::scalar_decision_api::NativeEffectAuthority {
                 names: names.to_vec(),
                 query: query.clone(),
                 status: result.identification.status,
                 ate: effect.ate,
                 has_structural_response: result.structural_response.is_some(),
-                support_status: result.support_status,
+                support_status: result.support_status(),
                 executed_contract: result.executed_contract,
             },
         );
-    let effect = result.estimate.as_effect();
+    let effect = result.estimate().as_effect();
     let certificate_json = crate::identification_details::analysis_to_json(result, names)?;
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
     let posterior_artifact =
@@ -807,7 +807,7 @@ pub(crate) fn ate_result_from_analysis(
         structural_identified_set_interval_method: identified_set.method,
         structural_identified_set_interval_truncated: identified_set.truncated,
         certificate_json,
-        missing_data_json: crate::missing_report::report_json(result.missing_data.as_ref()),
+        missing_data_json: crate::missing_report::report_json(result.missing_data().as_ref()),
         interval_bindings_json: crate::interval_binding_api::bindings_json(result),
         ate: effect.map_or(f64::NAN, |estimate| estimate.ate),
         se_analytic: effect.map_or(f64::NAN, antecedent_estimate::EffectEstimate::se_analytic),
@@ -823,7 +823,7 @@ pub(crate) fn ate_result_from_analysis(
         policy_value: result.policy_value().map(|value| {
             let mut section = crate::policy_api::PolicyValueSection::from(value);
             section.graphless_support_status = result
-                .support_status
+                .support_status()
                 .map(antecedent::support::CellStatus::as_str)
                 .map(str::to_string);
             section
@@ -831,7 +831,7 @@ pub(crate) fn ate_result_from_analysis(
         continuous_dose_response: result.continuous_dose_response().map(|value| {
             let mut section = crate::policy_api::ContinuousDoseResponseSection::from(value);
             section.graphless_support_status = result
-                .support_status
+                .support_status()
                 .map(antecedent::support::CellStatus::as_str)
                 .map(str::to_string);
             section
@@ -1024,7 +1024,7 @@ pub(crate) fn ate_result_from_analysis(
         randomized_effect: result.randomized_effect().map(|value| {
             let mut section = crate::experiment_api::RandomizedEffectSection::from(value);
             section.graphless_support_status = result
-                .support_status
+                .support_status()
                 .map(antecedent::support::CellStatus::as_str)
                 .map(str::to_string);
             section
@@ -1032,7 +1032,7 @@ pub(crate) fn ate_result_from_analysis(
         panel_did: result.panel_did().map(|value| {
             let mut section = crate::quasi_api::PanelDidSection::from(value);
             section.graphless_support_status = result
-                .support_status
+                .support_status()
                 .map(antecedent::support::CellStatus::as_str)
                 .map(str::to_string);
             section
@@ -1042,7 +1042,7 @@ pub(crate) fn ate_result_from_analysis(
         local_polynomial_ratio: result.local_polynomial_ratio().map(|value| {
             let mut section = crate::quasi_api::LocalPolynomialRatioSection::from(value);
             section.graphless_support_status = result
-                .support_status
+                .support_status()
                 .map(antecedent::support::CellStatus::as_str)
                 .map(str::to_string);
             section

@@ -1,8 +1,8 @@
 //! Longitudinal regime value contract for one outcome row per subject.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::fault::LongitudinalRegimeFault;
 use super::QueryError;
+use super::fault::LongitudinalRegimeFault;
 use crate::canonical_encode::{CanonicalEncode, count, encode_flags, encode_u32s, flag};
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
@@ -169,12 +169,14 @@ impl LongitudinalRegimeQuery {
                 .any(|value| value.as_ref().is_none_or(|text| text.trim().is_empty()))
                 || self.method == LongitudinalRegimeMethod::MarginalStructuralModel)
         {
-            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::DynamicRuleIdentity));
+            return Err(QueryError::InvalidLongitudinalRegime(
+                LongitudinalRegimeFault::DynamicRuleIdentity,
+            ));
         }
         let n = self.subject_ids.len();
-        let cells = n
-            .checked_mul(self.periods)
-            .ok_or_else(|| QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::DimensionsOverflow))?;
+        let cells = n.checked_mul(self.periods).ok_or_else(|| {
+            QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::DimensionsOverflow)
+        })?;
         if n < 2
             || self.periods == 0
             || self.treatment_history.len() != cells
@@ -191,33 +193,56 @@ impl LongitudinalRegimeQuery {
             (LongitudinalRegimeMethod::GFormula, Some(q))
                 if q.len() == cells && q.iter().all(|v| v.is_finite()) => {}
             (LongitudinalRegimeMethod::MarginalStructuralModel, None)
-                if self.stabilizing_numerator_probabilities.as_ref().is_some_and(|v|
-                    v.len() == self.periods && v.iter().all(|p| p.is_finite() && *p >= self.minimum_probability && *p <= 1.0 - self.minimum_probability))
-                    && self.outcome_observed.iter().filter(|&&x| x).count() > self.periods + 1 => {}
+                if self.stabilizing_numerator_probabilities.as_ref().is_some_and(|v| {
+                    v.len() == self.periods
+                        && v.iter().all(|p| {
+                            p.is_finite()
+                                && *p >= self.minimum_probability
+                                && *p <= 1.0 - self.minimum_probability
+                        })
+                }) && self.outcome_observed.iter().filter(|&&x| x).count()
+                    > self.periods + 1 => {}
             (LongitudinalRegimeMethod::SequentialDoublyRobust, None)
-                if self.q_predictions.as_ref().is_some_and(|q| q.len() == cells && q.iter().all(|v| v.is_finite()))
+                if self
+                    .q_predictions
+                    .as_ref()
+                    .is_some_and(|q| q.len() == cells && q.iter().all(|v| v.is_finite()))
                     && self.observation_history.as_ref().is_some_and(|o| o.len() == cells)
-                    && self.prediction_fold_ids.as_ref().is_some_and(|f| f.as_ref() == self.fold_ids.as_ref())
+                    && self
+                        .prediction_fold_ids
+                        .as_ref()
+                        .is_some_and(|f| f.as_ref() == self.fold_ids.as_ref())
                     && self.excluded_fold_predictions
-                    && self.fold_ids.iter().collect::<std::collections::HashSet<_>>().len() >= 2
+                    && self.fold_ids.iter().collect::<std::collections::HashSet<_>>().len()
+                        >= 2
                     && self.outcome_observed.iter().any(|&x| x) => {}
-            _ => return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::MethodPredictions)),
+            _ => {
+                return Err(QueryError::InvalidLongitudinalRegime(
+                    LongitudinalRegimeFault::MethodPredictions,
+                ));
+            }
         }
         if self.known_fixed_outcome_predictions && self.method != LongitudinalRegimeMethod::GFormula
         {
-            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::FixedPredictionsNeedGFormula));
+            return Err(QueryError::InvalidLongitudinalRegime(
+                LongitudinalRegimeFault::FixedPredictionsNeedGFormula,
+            ));
         }
         if self.method != LongitudinalRegimeMethod::SequentialDoublyRobust
             && (self.q_predictions.is_some()
                 || self.observation_history.is_some()
                 || self.prediction_fold_ids.is_some())
         {
-            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::SequentialDrFields));
+            return Err(QueryError::InvalidLongitudinalRegime(
+                LongitudinalRegimeFault::SequentialDrFields,
+            ));
         }
         if self.method != LongitudinalRegimeMethod::MarginalStructuralModel
             && self.stabilizing_numerator_probabilities.is_some()
         {
-            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::StabilizingNumerator));
+            return Err(QueryError::InvalidLongitudinalRegime(
+                LongitudinalRegimeFault::StabilizingNumerator,
+            ));
         }
         if let Some(observed) = &self.observation_history {
             for i in 0..n {
@@ -226,7 +251,9 @@ impl LongitudinalRegimeQuery {
                         !observed[i * self.periods + t - 1] && observed[i * self.periods + t]
                     })
                 {
-                    return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::ObservationHistory));
+                    return Err(QueryError::InvalidLongitudinalRegime(
+                        LongitudinalRegimeFault::ObservationHistory,
+                    ));
                 }
             }
         }
@@ -236,12 +263,16 @@ impl LongitudinalRegimeQuery {
             return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::SubjectIds));
         }
         if !self.probabilities_known_by_design && !self.excluded_fold_predictions {
-            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::ProbabilityOwnership));
+            return Err(QueryError::InvalidLongitudinalRegime(
+                LongitudinalRegimeFault::ProbabilityOwnership,
+            ));
         }
         if self.excluded_fold_predictions
             && self.fold_ids.iter().collect::<std::collections::HashSet<_>>().len() < 2
         {
-            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::ExcludedFoldCount));
+            return Err(QueryError::InvalidLongitudinalRegime(
+                LongitudinalRegimeFault::ExcludedFoldCount,
+            ));
         }
         let floor = self.minimum_probability;
         if !(floor.is_finite() && 0.0 < floor && floor <= 0.5)
@@ -251,7 +282,9 @@ impl LongitudinalRegimeQuery {
                 .any(|p| !p.is_finite() || *p < floor || *p > 1.0 - floor)
             || self.censoring_probabilities.iter().any(|p| !p.is_finite() || *p < floor || *p > 1.0)
         {
-            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::PositivityFloor));
+            return Err(QueryError::InvalidLongitudinalRegime(
+                LongitudinalRegimeFault::PositivityFloor,
+            ));
         }
         Ok(())
     }

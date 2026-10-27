@@ -2,12 +2,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeMap;
-use antecedent_core::{ExecutionContext, StreamDomain};
 use crate::ci::block_shuffle::{add_one_pvalue, permutation_null_exceedances, query_stream_salt};
-use crate::ci::gsquared::{discrete_strata, encode_categories, ensure_finite_categories, ensure_permutation_support};
-use crate::ci::types::{CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest, PreparedCiTest, nonparametric_permutation_count, reject_unsupported_block_size, requested_block_size};
+use crate::ci::gsquared::{
+    discrete_strata, encode_categories, ensure_finite_categories, ensure_permutation_support,
+};
+use crate::ci::types::{
+    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    PreparedCiTest, nonparametric_permutation_count, reject_unsupported_block_size,
+    requested_block_size,
+};
 use crate::error::StatsError;
+use antecedent_core::{ExecutionContext, StreamDomain};
+use std::collections::BTreeMap;
 
 /// Symbolic CMI on already-binned symbols (G²-style on symbol pairs); each distinct finite
 /// value is a symbol.

@@ -66,8 +66,7 @@ pub use continuous_dose::{ContinuousDoseResponseQuery, FixedGroupDosePolicy};
 pub use counterfactual::CounterfactualQuery;
 pub use counterfactual_event::{CounterfactualEvent, CounterfactualEventQuery};
 pub use cross_world::{
-    CrossWorldQuery, EdgeRoute, ExogenousCoupling, WorldId, WorldObservation,
-    WorldSpec,
+    CrossWorldQuery, EdgeRoute, ExogenousCoupling, WorldId, WorldObservation, WorldSpec,
 };
 pub use did::{
     DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod, DidResampling,
@@ -80,6 +79,12 @@ pub use discover::{
 };
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::{QueryError, RandomizedEffectFault};
+pub use fault::{
+    AssociationFault, AttributeFault, DiscoverFault, HistoryMatchFault, InterferenceFault,
+    InterventionFault, IvBoundsFault, LocalPolynomialRatioFault, LongitudinalRegimeFault,
+    PanelDesignFault, PolicyValueFault, ResponseFault, SequentialContrastFault, SimulateFault,
+    SurvivalFault, TemporalDesignFault, TransportFault,
+};
 pub use functional::OutcomeFunctional;
 pub use history_match::HistoryMatchQuery;
 pub use interference::{
@@ -98,34 +103,15 @@ pub use policy_value::{
     policy_graphless_coordinate,
 };
 pub use population::{PopulationRegistry, PopulationSelection};
-pub use fault::{
-    AssociationFault,
-    AttributeFault,
-    DiscoverFault,
-    HistoryMatchFault,
-    InterferenceFault,
-    InterventionFault,
-    IvBoundsFault,
-    LocalPolynomialRatioFault,
-    LongitudinalRegimeFault,
-    PanelDesignFault,
-    PolicyValueFault,
-    ResponseFault,
-    SequentialContrastFault,
-    SimulateFault,
-    SurvivalFault,
-    TemporalDesignFault,
-    TransportFault,
-};
 pub use probability_rows::{ProbabilityRows, ProbabilityTable};
 pub use randomized::{
     RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, randomized_graphless_coordinate,
 };
 pub use response::{
     ContinuousDomain, DerivativeScale, DerivativeWeighting, FeedbackDeclaration, GridSpec,
-    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS,
-    ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
-    TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
+    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, ObservationAssumption,
+    ObservationSpec, ResponseFunctional, ResponseQuery, TEMPORAL_OBSERVATION_UNLICENSED,
+    TemporalResponseLicense, TemporalResponseSpec,
 };
 pub use sequential_contrast::SequentialContrastQuery;
 pub use simulate::{SimulateQuery, SimulationTarget};

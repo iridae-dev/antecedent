@@ -13,7 +13,7 @@ use antecedent_estimate::{
 };
 use pyo3::prelude::*;
 
-use crate::{numeric_columns_to_batch, dag_from_named_edges, detach_catch, py_err};
+use crate::{dag_from_named_edges, detach_catch, numeric_columns_to_batch, py_err};
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ObservationAdjustedOutcomeResult {

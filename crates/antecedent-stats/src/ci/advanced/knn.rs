@@ -2,13 +2,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::HashMap;
-use antecedent_core::{ExecutionContext, StreamDomain};
 use crate::ci::block_shuffle::{add_one_pvalue, permutation_null_exceedances, query_stream_salt};
 use crate::ci::gsquared::ensure_permutation_support;
-use crate::ci::types::{CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest, KnnDependenceWorkspace, PreparedCiTest, nonparametric_permutation_count, reject_unsupported_block_size, requested_block_size};
+use crate::ci::types::{
+    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    KnnDependenceWorkspace, PreparedCiTest, nonparametric_permutation_count,
+    reject_unsupported_block_size, requested_block_size,
+};
 use crate::error::StatsError;
 use crate::matching::{MatchingDistance, MatchingIndex};
+use antecedent_core::{ExecutionContext, StreamDomain};
+use std::collections::HashMap;
 
 /// kNN distance dependence CI (permutation null).
 ///

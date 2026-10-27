@@ -1,13 +1,13 @@
 //! Execution context: indexed maps and bounded pipelines.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::admission::{AdmissionError, AdmissionLease, AdmissionRequest, AdmissionWait};
+use super::budget::{NonZeroThreadCount, Parallelism};
+use super::context::ExecutionContext;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::time::Duration;
 use thiserror::Error;
-use super::admission::{AdmissionError, AdmissionLease, AdmissionRequest, AdmissionWait};
-use super::budget::{NonZeroThreadCount, Parallelism};
-use super::context::ExecutionContext;
 
 /// What every spawned worker of one parallel call carries so its work is accounted
 /// under the caller's lease: the lease itself (it stays charged until the workers

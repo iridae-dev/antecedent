@@ -507,7 +507,11 @@ mod tests {
             })
         }
     }
-    fn data(seed: u64, validation: bool, n: usize) -> Vec<SelectionDataBlock<'static, Observation>> {
+    fn data(
+        seed: u64,
+        validation: bool,
+        n: usize,
+    ) -> Vec<SelectionDataBlock<'static, Observation>> {
         let mut rng = antecedent_core::execution::CausalRng::from_seed(seed);
         (0..n)
             .map(|i| {
@@ -519,7 +523,10 @@ mod tests {
                         first: 0,
                         last: 0,
                     },
-                    observations: std::borrow::Cow::Owned(Observation { validation, value: 0.3 + normal }),
+                    observations: std::borrow::Cow::Owned(Observation {
+                        validation,
+                        value: 0.3 + normal,
+                    }),
                 }
             })
             .collect()

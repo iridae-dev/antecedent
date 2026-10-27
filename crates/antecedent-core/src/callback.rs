@@ -297,10 +297,75 @@ impl RecoveryRecord {
     }
 }
 
+/// A failure raised by a foreign callback, kept as structured data.
+///
+/// The native error enums that callback traits return carry one of these (`ModelError`,
+/// `StatsError`, `CallbackError`, ...), so a host binding that retained the foreign
+/// exception can find it again from the error chain by its [`Self::id`], without
+/// parsing any message. [`fmt::Display`] is the readable description only.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallbackFailure {
+    id: Option<u64>,
+    description: String,
+    code: Option<String>,
+}
+
+impl CallbackFailure {
+    /// A failure with its description. `id` names the retained foreign exception, if any;
+    /// `code` is a registered reason code the foreign error itself named, if any.
+    #[must_use]
+    pub fn new(id: Option<u64>, description: impl Into<String>, code: Option<String>) -> Self {
+        Self { id, description: description.into(), code }
+    }
+
+    /// The identity of the retained foreign exception, if one was retained.
+    #[must_use]
+    pub fn id(&self) -> Option<u64> {
+        self.id
+    }
+
+    /// The readable description of the failure.
+    #[must_use]
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    /// The registered reason code the failure names, if any.
+    #[must_use]
+    pub fn code(&self) -> Option<&str> {
+        self.code.as_deref()
+    }
+
+    /// The callback failure carried anywhere in `error`'s source chain (the error itself
+    /// included), if there is one.
+    #[must_use]
+    pub fn in_chain<'a>(error: &'a (dyn std::error::Error + 'static)) -> Option<&'a Self> {
+        let mut current: Option<&'a (dyn std::error::Error + 'static)> = Some(error);
+        while let Some(link) = current {
+            if let Some(found) = link.downcast_ref::<Self>() {
+                return Some(found);
+            }
+            current = link.source();
+        }
+        None
+    }
+}
+
+impl fmt::Display for CallbackFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.description)
+    }
+}
+
+impl std::error::Error for CallbackFailure {}
+
 /// Why a callback call failed.
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum CallbackError {
+    /// The callback itself raised, and the failure is kept as structured data.
+    #[error("{0}")]
+    Failed(#[source] CallbackFailure),
     /// The callback itself raised; `message` is its own error text.
     #[error("{message}")]
     Raised {
@@ -345,7 +410,7 @@ impl CallbackError {
     /// Whether the failure is the callback raising, as opposed to a bad output.
     #[must_use]
     pub fn is_raised(&self) -> bool {
-        matches!(self, Self::Raised { .. })
+        matches!(self, Self::Raised { .. } | Self::Failed(_))
     }
 }
 
@@ -505,6 +570,20 @@ impl Portability {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_callback_failure_round_trips_through_the_error_chain_without_a_message_tag() {
+        let failure = CallbackFailure::new(Some(7), "callback f raised: boom", Some("x".into()));
+        let error = CallbackError::Failed(failure.clone());
+        assert_eq!(error.to_string(), "callback f raised: boom");
+        assert!(error.is_raised());
+        let found = CallbackFailure::in_chain(&error).expect("the failure is in the chain");
+        assert_eq!(found, &failure);
+        assert_eq!((found.id(), found.code()), (Some(7), Some("x")));
+        assert_eq!(found.description(), "callback f raised: boom");
+        let plain = CallbackError::Raised { message: "no id".into() };
+        assert!(CallbackFailure::in_chain(&plain).is_none());
+    }
 
     fn spec(implementation: CallbackImplementation) -> CallbackSpec {
         CallbackSpec {

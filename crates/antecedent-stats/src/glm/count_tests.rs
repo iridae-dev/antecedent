@@ -135,8 +135,7 @@ fn negbin_mom_alpha_matches_pearson_formula() {
     let mu_hat = poisson.coefficients[0].exp();
     assert!((mu_hat - mu).abs() < 1e-8);
     assert!(
-        (expected - ((pearson - (n as f64 - 1.0)).max(0.0) / (n as f64 * mu_hat)).max(1e-8))
-            .abs()
+        (expected - ((pearson - (n as f64 - 1.0)).max(0.0) / (n as f64 * mu_hat)).max(1e-8)).abs()
             < 1e-12
     );
     // Fixed-α fit at that MoM should match default MethodOfMoments path coefficients.

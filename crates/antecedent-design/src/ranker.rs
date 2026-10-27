@@ -18,8 +18,8 @@ use antecedent_core::{
     QueryId, StreamDomain, VariableId,
 };
 use antecedent_kernels::sample_categorical;
-use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 use antecedent_kernels::{chol_solve_into, cholesky_spd_into};
+use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 use antecedent_stats::{Welford, normal_ppf};
 
 use crate::candidate::{CandidateDesign, DesignCost};
@@ -791,7 +791,9 @@ impl ScoringChannels {
                 entropy: None,
                 model_pairs: Vec::new(),
                 // A baseline that cannot be solved was refused by `validate_objective_context`.
-                effect_width_baseline: ctx.effect_width.and_then(|ew| baseline_treatment_se(ew).ok()),
+                effect_width_baseline: ctx
+                    .effect_width
+                    .and_then(|ew| baseline_treatment_se(ew).ok()),
             },
             _ => Self { entropy: None, model_pairs: Vec::new(), effect_width_baseline: None },
         }
@@ -799,9 +801,7 @@ impl ScoringChannels {
 
     /// The channel's exact expectation for `candidate` when it does not depend on the draw.
     pub(crate) fn exact_expectation(&self, candidate: &CandidateDesign) -> Option<f64> {
-        self.entropy
-            .as_ref()
-            .map(|channel| channel.exact_gain(observation_reliability(candidate)))
+        self.entropy.as_ref().map(|channel| channel.exact_gain(observation_reliability(candidate)))
     }
 }
 
@@ -1167,7 +1167,9 @@ fn treatment_se(
     // factorization and one pair of triangular solves, not the full inverse.
     let mut factor = vec![0.0; p * p];
     cholesky_spd_into(xtx, p, &mut factor).map_err(|error| {
-        DesignError::Numerical(format!("{what}: Gram is singular or not positive definite ({error:?})"))
+        DesignError::Numerical(format!(
+            "{what}: Gram is singular or not positive definite ({error:?})"
+        ))
     })?;
     let mut unit = vec![0.0; p];
     unit[treatment_col] = 1.0;

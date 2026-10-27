@@ -40,12 +40,12 @@ pub(crate) fn response_from_retained(
             outcomes,
             adjustment_set,
             names,
-            result.support_status,
+            result.support_status(),
         )?,
         crate::identification_details::analysis_to_json(result, names)?,
         result.logical_plan.identifier.as_deref().map(str::to_owned),
         result.diagnostics.iter().map(|d| format!("{}: {}", d.code, d.message)).collect(),
-        crate::missing_report::report_json(result.missing_data.as_ref()),
+        crate::missing_report::report_json(result.missing_data().as_ref()),
         crate::interval_binding_api::bindings_json(result),
     )
     .with_authority(prepared, prepared.schema(), result, ctx))

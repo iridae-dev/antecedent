@@ -15,9 +15,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::fault::InterventionFault;
 use super::cross_world::{ExogenousCoupling, WorldId, WorldSpec};
 use super::error::QueryError;
+use super::fault::InterventionFault;
 use crate::ids::VariableId;
 
 /// `variable` takes `level` in `world`.
@@ -143,7 +143,9 @@ impl CounterfactualEventQuery {
         outcome_level: f64,
     ) -> Result<Self, QueryError> {
         if treatment == outcome {
-            return Err(QueryError::InvalidIntervention(InterventionFault::TreatmentOutcomeNotDistinct));
+            return Err(QueryError::InvalidIntervention(
+                InterventionFault::TreatmentOutcomeNotDistinct,
+            ));
         }
         if !active.is_finite()
             || !observed.is_finite()

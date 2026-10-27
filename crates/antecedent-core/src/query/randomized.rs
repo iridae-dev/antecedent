@@ -1,9 +1,9 @@
 //! Query contract for two-arm randomized experiments.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::{QueryError, RandomizedEffectFault};
 use super::probability::{probabilities_agree, row_totals_one};
 use super::probability_rows::ProbabilityRows;
+use super::{QueryError, RandomizedEffectFault};
 use crate::canonical_encode::{
     CanonicalEncode, count, encode_flags, encode_usizes, encode_variables, flag,
 };
@@ -398,7 +398,9 @@ impl RandomizedEffectQuery {
                 || !self.ancova_covariates.is_empty()
                 || self.exact_randomization_test
             {
-                return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::MultiArmCombination));
+                return Err(QueryError::RandomizedEffectRefused(
+                    RandomizedEffectFault::MultiArmCombination,
+                ));
             }
             if n < 3
                 || arms.len() < 3
@@ -416,7 +418,9 @@ impl RandomizedEffectQuery {
                 || self.treatment_arms.0 != arms[0]
                 || self.treatment_arms.1 != arms[1]
             {
-                return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::MultiArmAlignment));
+                return Err(QueryError::RandomizedEffectRefused(
+                    RandomizedEffectFault::MultiArmAlignment,
+                ));
             }
             let mut observed = vec![0_usize; arms.len()];
             for i in 0..n {
@@ -429,12 +433,16 @@ impl RandomizedEffectQuery {
                     || self.realized_assignment[i] != (arm != 0)
                     || !probabilities_agree(self.assignment_probabilities[i], row[arm])
                 {
-                    return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::MultiArmProbabilityRows));
+                    return Err(QueryError::RandomizedEffectRefused(
+                        RandomizedEffectFault::MultiArmProbabilityRows,
+                    ));
                 }
                 observed[arm] += 1;
             }
             if observed.contains(&0) {
-                return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::MultiArmPositivity));
+                return Err(QueryError::RandomizedEffectRefused(
+                    RandomizedEffectFault::MultiArmPositivity,
+                ));
             }
             return Ok(());
         }
@@ -444,7 +452,9 @@ impl RandomizedEffectQuery {
                 || self.fixed_cuped.is_some()
                 || !self.ancova_covariates.is_empty())
         {
-            return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::ExactTestDesign));
+            return Err(QueryError::RandomizedEffectRefused(
+                RandomizedEffectFault::ExactTestDesign,
+            ));
         }
         if matches!(
             self.estimand,
@@ -459,7 +469,9 @@ impl RandomizedEffectQuery {
                     .as_ref()
                     .is_none_or(|receipt| receipt.len() != self.realized_assignment.len())
             {
-                return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::ReceiptDesign));
+                return Err(QueryError::RandomizedEffectRefused(
+                    RandomizedEffectFault::ReceiptDesign,
+                ));
             }
             if self.estimand == RandomizedEstimand::TreatmentOnTreated
                 && self.received_treatment.as_ref().is_some_and(|receipt| {
@@ -469,17 +481,23 @@ impl RandomizedEffectQuery {
                         .any(|(received, assigned)| *received && !*assigned)
                 })
             {
-                return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::TreatmentOnTreatedNoncompliance));
+                return Err(QueryError::RandomizedEffectRefused(
+                    RandomizedEffectFault::TreatmentOnTreatedNoncompliance,
+                ));
             }
         } else if self.received_treatment.is_some() {
-            return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::ReceiptWithoutComplier));
+            return Err(QueryError::RandomizedEffectRefused(
+                RandomizedEffectFault::ReceiptWithoutComplier,
+            ));
         }
         if let Some((covariate, coefficient)) = self.fixed_cuped {
             if !matches!(self.design, RandomizationDesign::Bernoulli)
                 || covariate == self.outcome
                 || !coefficient.is_finite()
             {
-                return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::FixedCupedDesign));
+                return Err(QueryError::RandomizedEffectRefused(
+                    RandomizedEffectFault::FixedCupedDesign,
+                ));
             }
         }
         if !self.ancova_covariates.is_empty() {
@@ -495,13 +513,17 @@ impl RandomizedEffectQuery {
                     self.assignment_probabilities.iter().any(|p| !probabilities_agree(*p, *first))
                 })
             {
-                return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::AncovaDesign));
+                return Err(QueryError::RandomizedEffectRefused(
+                    RandomizedEffectFault::AncovaDesign,
+                ));
             }
         }
         if matches!(self.design, RandomizationDesign::Factorial2x2 { .. })
             && (self.received_treatment.is_some() || self.fixed_cuped.is_some())
         {
-            return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::FactorialCombination));
+            return Err(QueryError::RandomizedEffectRefused(
+                RandomizedEffectFault::FactorialCombination,
+            ));
         }
         let n = self.realized_assignment.len();
         if n < 2
@@ -512,7 +534,9 @@ impl RandomizedEffectQuery {
             return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::RowAlignment));
         }
         if self.assignment_probabilities.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p >= 1.0) {
-            return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::AssignmentProbabilityRange));
+            return Err(QueryError::RandomizedEffectRefused(
+                RandomizedEffectFault::AssignmentProbabilityRange,
+            ));
         }
         if self.assignment_units.iter().any(|unit| unit.trim().is_empty())
             || self.outcome_units.iter().any(|unit| unit.trim().is_empty())
@@ -520,14 +544,18 @@ impl RandomizedEffectQuery {
             return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::EmptyUnitLabel));
         }
         if self.outcome_units.iter().collect::<std::collections::HashSet<_>>().len() != n {
-            return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::DuplicateOutcomeUnit));
+            return Err(QueryError::RandomizedEffectRefused(
+                RandomizedEffectFault::DuplicateOutcomeUnit,
+            ));
         }
         if !matches!(
             self.design,
             RandomizationDesign::Cluster { .. } | RandomizationDesign::Switchback { .. }
         ) && self.assignment_units.iter().collect::<std::collections::HashSet<_>>().len() != n
         {
-            return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::DuplicateAssignmentUnit));
+            return Err(QueryError::RandomizedEffectRefused(
+                RandomizedEffectFault::DuplicateAssignmentUnit,
+            ));
         }
         if self.treatment_arms.0.trim().is_empty()
             || self.treatment_arms.1.trim().is_empty()
@@ -545,16 +573,23 @@ impl RandomizedEffectQuery {
             RandomizationDesign::MultiArm { .. } => unreachable!("validated above"),
             RandomizationDesign::Complete { treated_units } => {
                 if *treated_units < 2 || n.saturating_sub(*treated_units) < 2 {
-                    return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::CompleteArmSize));
+                    return Err(QueryError::RandomizedEffectRefused(
+                        RandomizedEffectFault::CompleteArmSize,
+                    ));
                 }
                 if self.realized_assignment.iter().filter(|assigned| **assigned).count()
                     != *treated_units
                 {
-                    return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::CompleteTreatedCount));
+                    return Err(QueryError::RandomizedEffectRefused(
+                        RandomizedEffectFault::CompleteTreatedCount,
+                    ));
                 }
                 let expected = *treated_units as f64 / n as f64;
-                if self.assignment_probabilities.iter().any(|p| !probabilities_agree(*p, expected)) {
-                    return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::CompleteProbability));
+                if self.assignment_probabilities.iter().any(|p| !probabilities_agree(*p, expected))
+                {
+                    return Err(QueryError::RandomizedEffectRefused(
+                        RandomizedEffectFault::CompleteProbability,
+                    ));
                 }
             }
             RandomizationDesign::Cluster { treated_clusters } => {
@@ -568,20 +603,28 @@ impl RandomizedEffectQuery {
                         if prior_assignment != assignment
                             || !probabilities_agree(prior_probability, probability)
                         {
-                            return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::ClusterConstancy));
+                            return Err(QueryError::RandomizedEffectRefused(
+                                RandomizedEffectFault::ClusterConstancy,
+                            ));
                         }
                     }
                 }
                 let total = clusters.len();
                 if *treated_clusters < 2 || total.saturating_sub(*treated_clusters) < 2 {
-                    return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::ClusterArmSize));
+                    return Err(QueryError::RandomizedEffectRefused(
+                        RandomizedEffectFault::ClusterArmSize,
+                    ));
                 }
                 let observed = clusters.values().filter(|(treated, _)| *treated).count();
                 let expected_probability = *treated_clusters as f64 / total as f64;
                 if observed != *treated_clusters
-                    || clusters.values().any(|(_, p)| !probabilities_agree(*p, expected_probability))
+                    || clusters
+                        .values()
+                        .any(|(_, p)| !probabilities_agree(*p, expected_probability))
                 {
-                    return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::ClusterAllocation));
+                    return Err(QueryError::RandomizedEffectRefused(
+                        RandomizedEffectFault::ClusterAllocation,
+                    ));
                 }
             }
             RandomizationDesign::Stratified { blocks, treated_per_row } => {
@@ -589,7 +632,9 @@ impl RandomizedEffectQuery {
                     || treated_per_row.len() != n
                     || blocks.iter().any(|b| b.trim().is_empty())
                 {
-                    return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::StratifiedAlignment));
+                    return Err(QueryError::RandomizedEffectRefused(
+                        RandomizedEffectFault::StratifiedAlignment,
+                    ));
                 }
                 let mut by_block: std::collections::BTreeMap<
                     &str,
@@ -605,7 +650,9 @@ impl RandomizedEffectQuery {
                     if entry.2 != Some(treated_per_row[i])
                         || !probabilities_agree(entry.3, self.assignment_probabilities[i])
                     {
-                        return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::StratifiedConsistency));
+                        return Err(QueryError::RandomizedEffectRefused(
+                            RandomizedEffectFault::StratifiedConsistency,
+                        ));
                     }
                     entry.0 += 1;
                     entry.1 += usize::from(self.realized_assignment[i]);
@@ -613,12 +660,16 @@ impl RandomizedEffectQuery {
                 for (_, (total, treated_observed, treated_declared, probability)) in by_block {
                     let treated_declared = treated_declared.unwrap_or_default();
                     if treated_declared < 2 || total.saturating_sub(treated_declared) < 2 {
-                        return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::StratifiedArmSize));
+                        return Err(QueryError::RandomizedEffectRefused(
+                            RandomizedEffectFault::StratifiedArmSize,
+                        ));
                     }
                     if treated_observed != treated_declared
                         || !probabilities_agree(probability, treated_declared as f64 / total as f64)
                     {
-                        return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::StratifiedAllocation));
+                        return Err(QueryError::RandomizedEffectRefused(
+                            RandomizedEffectFault::StratifiedAllocation,
+                        ));
                     }
                 }
             }
@@ -634,7 +685,9 @@ impl RandomizedEffectQuery {
                     || second_factor_arms.1.trim().is_empty()
                     || second_factor_arms.0 == second_factor_arms.1
                 {
-                    return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::FactorialCells));
+                    return Err(QueryError::RandomizedEffectRefused(
+                        RandomizedEffectFault::FactorialCells,
+                    ));
                 }
                 let mut observed = [0_usize; 4];
                 for (&a, &b) in self.realized_assignment.iter().zip(second_factor_assignment.iter())
@@ -648,23 +701,31 @@ impl RandomizedEffectQuery {
                         .iter()
                         .any(|p| !probabilities_agree(*p, expected_primary))
                 {
-                    return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::FactorialAllocation));
+                    return Err(QueryError::RandomizedEffectRefused(
+                        RandomizedEffectFault::FactorialAllocation,
+                    ));
                 }
             }
             RandomizationDesign::Switchback { periods } => {
                 if periods.len() != n || periods.iter().any(|period| period.trim().is_empty()) {
-                    return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::SwitchbackLabels));
+                    return Err(QueryError::RandomizedEffectRefused(
+                        RandomizedEffectFault::SwitchbackLabels,
+                    ));
                 }
                 let mut pairs = std::collections::HashSet::new();
                 let mut sequences = std::collections::BTreeSet::<&str>::new();
                 for i in 0..n {
                     if !pairs.insert((&*self.assignment_units[i], &*periods[i])) {
-                        return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::SwitchbackDuplicatePeriod));
+                        return Err(QueryError::RandomizedEffectRefused(
+                            RandomizedEffectFault::SwitchbackDuplicatePeriod,
+                        ));
                     }
                     sequences.insert(&self.assignment_units[i]);
                 }
                 if sequences.len() < 2 {
-                    return Err(QueryError::RandomizedEffectRefused(RandomizedEffectFault::SwitchbackSequences));
+                    return Err(QueryError::RandomizedEffectRefused(
+                        RandomizedEffectFault::SwitchbackSequences,
+                    ));
                 }
             }
         }

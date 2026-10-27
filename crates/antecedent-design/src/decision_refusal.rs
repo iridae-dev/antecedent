@@ -212,6 +212,13 @@ impl DesignError {
             .offending(name.clone())
             .supplied(message.clone())
             .build(),
+            Self::CallbackFailed { name, failure } => at(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                "design_refusal.callback",
+            )
+            .offending(name.clone())
+            .supplied(failure.to_string())
+            .build(),
             Self::Cancelled => {
                 at(antecedent_core::reason_code!("cancelled_no_claim"), "design_refusal.cancelled")
                     .build()

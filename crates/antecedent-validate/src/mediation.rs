@@ -215,14 +215,13 @@ pub fn refute_temporal_mediation_with_gaps(
         variable: query.treatment,
         lag: antecedent_core::Lag::from_raw(treatment_lag),
     }];
-    columns.extend(mediators.iter().map(|&variable| LaggedColumn {
-        variable,
-        lag: antecedent_core::Lag::CONTEMPORANEOUS,
-    }));
-    columns.push(LaggedColumn {
-        variable: query.outcome,
-        lag: antecedent_core::Lag::CONTEMPORANEOUS,
-    });
+    columns.extend(
+        mediators
+            .iter()
+            .map(|&variable| LaggedColumn { variable, lag: antecedent_core::Lag::CONTEMPORANEOUS }),
+    );
+    columns
+        .push(LaggedColumn { variable: query.outcome, lag: antecedent_core::Lag::CONTEMPORANEOUS });
     columns.extend_from_slice(adjustment);
     let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(1);
     let mut scan = antecedent_estimate::HistoryScan::plan(data, max_lag, Arc::from(columns))?;

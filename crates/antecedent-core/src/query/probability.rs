@@ -61,7 +61,8 @@ pub(crate) fn within_budget(total: f64, limit: f64) -> bool {
     if !total.is_finite() || !limit.is_finite() {
         return false;
     }
-    total <= limit + COST_ABSOLUTE_TOLERANCE + COST_RELATIVE_TOLERANCE * total.abs().max(limit.abs())
+    total
+        <= limit + COST_ABSOLUTE_TOLERANCE + COST_RELATIVE_TOLERANCE * total.abs().max(limit.abs())
 }
 
 #[cfg(test)]

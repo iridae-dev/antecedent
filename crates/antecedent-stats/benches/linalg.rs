@@ -5,8 +5,8 @@
 )]
 
 use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, RidgeIntercept, SandwichKind, cholesky_spd,
-    coefficient_covariance, fit_ridge_with, fit_wls, form_xtx,
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, RidgeIntercept, SandwichKind,
+    cholesky_spd, coefficient_covariance, fit_ridge_with, fit_wls, form_xtx,
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use faer::Mat;

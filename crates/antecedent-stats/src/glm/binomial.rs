@@ -2,11 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_kernels::{norm_cdf, norm_pdf, sigmoid};
+use super::{
+    GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MEAN_FLOOR, PROB_CLIP, SATURATION_MARGIN,
+    check_prior_weights, design_column, irls_fit, irls_fit_scaled, linear_predictor_into,
+    validate_glm_shape,
+};
 use crate::error::StatsError;
 use crate::gram::{column_is_constant, invert_square};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
-use super::{GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MEAN_FLOOR, PROB_CLIP, SATURATION_MARGIN, check_prior_weights, design_column, irls_fit, irls_fit_scaled, linear_predictor_into, validate_glm_shape};
+use antecedent_kernels::{norm_cdf, norm_pdf, sigmoid};
 
 /// Binomial deviance and separation evidence at `β`.
 pub(super) struct BinomialDiagnostics {
@@ -186,14 +190,22 @@ pub(super) fn fit_probit_weighted(
         return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
     }
     let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
-    let (beta, iterations, converged) =
-        irls_fit_scaled(design, backend, workspace, options, false, Some(&root), None, |eta, yi| {
+    let (beta, iterations, converged) = irls_fit_scaled(
+        design,
+        backend,
+        workspace,
+        options,
+        false,
+        Some(&root),
+        None,
+        |eta, yi| {
             let mu = norm_cdf(eta).clamp(PROB_CLIP, 1.0 - PROB_CLIP);
             let phi = norm_pdf(eta).max(MEAN_FLOOR);
             let denom = (mu * (1.0 - mu)).max(MEAN_FLOOR);
             let w = ((phi * phi) / denom).sqrt();
             (w, (eta + (yi - mu) / phi) * w)
-        })?;
+        },
+    )?;
     finish_binomial(
         GlmFamily::BinomialProbit,
         design,

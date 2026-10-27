@@ -54,12 +54,8 @@ fn parse<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> 
 
 /// The dataset a digest-bound artifact is consumed against: outcome, treatment, covariate names
 /// and covariate columns.
-type LatentClassColumns<'py> = (
-    PyReadonlyArray1<'py, f64>,
-    PyReadonlyArray1<'py, f64>,
-    Vec<String>,
-    Vec<NumericColumn<'py>>,
-);
+type LatentClassColumns<'py> =
+    (PyReadonlyArray1<'py, f64>, PyReadonlyArray1<'py, f64>, Vec<String>, Vec<NumericColumn<'py>>);
 
 /// Fit the mixture on declared columns: `(report json, artifact bytes, refusal json)`; an export
 /// over its byte budget returns the report and the refusal with no artifact.

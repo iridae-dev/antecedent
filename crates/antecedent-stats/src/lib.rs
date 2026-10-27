@@ -73,7 +73,7 @@ pub use covariance::{
     score_coefficient_covariance, symmetric_eigen,
 };
 pub use dcor::distance_correlation;
-pub use describe::{iid_se, mean_and_se, mean_and_sample_variance};
+pub use describe::{iid_se, mean_and_sample_variance, mean_and_se};
 pub use design::{
     BasisKind, CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
     RecordedContrast, RecordedSmooth, StandardizationRecord, StandardizedColumn,

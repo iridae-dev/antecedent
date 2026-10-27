@@ -7,12 +7,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent::gcm::{
-    arrow_strengths, counterfactual_contrasts, interventional_mean, population_do_contrast,
-    simultaneous_hard_counterfactual, CounterfactualEngine, DoSampleResult, KdeDoSampler,
-    McmcDoSampler, MechanismWorkspace, ModelEvaluator, WeightingDoSampler,
-};
 use antecedent::CausalError;
+use antecedent::gcm::{
+    CounterfactualEngine, DoSampleResult, KdeDoSampler, McmcDoSampler, MechanismWorkspace,
+    ModelEvaluator, WeightingDoSampler, arrow_strengths, counterfactual_contrasts,
+    interventional_mean, population_do_contrast, simultaneous_hard_counterfactual,
+};
 use antecedent_core::{Intervention, StreamDomain, Value, VariableId};
 use antecedent_data::{TableView, TabularData};
 use numpy::PyArray1;

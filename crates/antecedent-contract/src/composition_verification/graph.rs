@@ -502,11 +502,7 @@ impl fmt::Display for GraphError {
 impl std::error::Error for GraphError {}
 
 fn text(value: &str, what: &'static str) -> Result<(), GraphError> {
-    if value.trim().is_empty() {
-        Err(GraphError::InvalidText(what))
-    } else {
-        Ok(())
-    }
+    if value.trim().is_empty() { Err(GraphError::InvalidText(what)) } else { Ok(()) }
 }
 
 fn digest(writer: &CanonicalWriter) -> SemanticDigest {

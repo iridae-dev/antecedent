@@ -113,8 +113,8 @@ pub use ranker::{
     ModelLoglikDraws, ScoringChannels,
 };
 pub use repair::{
-    BackdoorRepairFamily, FailedContract, FamilyVerdict, RepairClassification, RepairError, RepairFamily,
-    RepairLimits, RepairObjective, RepairOutcome, RepairReceipt, RepairReport,
+    BackdoorRepairFamily, FailedContract, FamilyVerdict, RepairClassification, RepairError,
+    RepairFamily, RepairLimits, RepairObjective, RepairOutcome, RepairReceipt, RepairReport,
     TransportRepairFamily, repair,
 };
 pub use repair_artifact::{

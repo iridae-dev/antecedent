@@ -149,7 +149,9 @@ impl TargetPopulation {
                 };
                 let keep = RowMask::from_set_rows(n, rows.iter().copied()).map_err(|error| {
                     let RowMaskError::RowOutOfRange { row, .. } = error else {
-                        unreachable!("building from listed rows can only fail on an out-of-range row")
+                        unreachable!(
+                            "building from listed rows can only fail on an out-of-range row"
+                        )
                     };
                     QueryError::PopulationRowOutOfRange { row, n }
                 })?;

@@ -1197,7 +1197,8 @@ fn simulate(
     let mut point = vec![0.0; n];
     // Streaming central moments (Pébay's update through the fourth), so the draw count does not
     // bound memory and a long run keeps the accuracy of a Welford recurrence.
-    let (mut seen, mut mean, mut m2, mut m3, mut m4) = (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
+    let (mut seen, mut mean, mut m2, mut m3, mut m4) =
+        (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
     for _ in 0..draws {
         let mut index = 0;
         while index < n {

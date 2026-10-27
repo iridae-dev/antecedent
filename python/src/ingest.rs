@@ -560,4 +560,3 @@ pub(crate) fn tabular_from_py_columns(
     }
     Ok((numeric_columns_to_batch(&names, &np)?.loaded()?.data, None))
 }
-

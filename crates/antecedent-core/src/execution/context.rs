@@ -1,8 +1,6 @@
 //! Execution context: the context type and its policy-carrying constructors.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
-use std::time::Duration;
 use super::admission::{
     AdmissionError, AdmissionLease, AdmissionPool, AdmissionRequest, AdmissionWait, admit,
 };
@@ -12,6 +10,8 @@ use super::budget::{
 };
 use super::cancel::{CancellationToken, ProgressSink};
 use super::rng::RngFactory;
+use std::sync::Arc;
+use std::time::Duration;
 
 /// Full execution context passed into algorithms.
 #[derive(Clone)]
@@ -269,7 +269,6 @@ impl ExecutionContext {
         self.admit_request(request, wait)
     }
 }
-
 
 impl core::fmt::Debug for ExecutionContext {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

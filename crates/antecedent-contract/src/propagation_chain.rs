@@ -935,7 +935,10 @@ fn check_stage<'a>(
     let mut stage_sources: BTreeSet<String> = BTreeSet::new();
     for input in &stage.inputs {
         let Some(found) = state.facts.get(input.as_str()) else {
-            return Err(malformed("a stage reads only sources and earlier stages", Some(&stage.id)));
+            return Err(malformed(
+                "a stage reads only sources and earlier stages",
+                Some(&stage.id),
+            ));
         };
         if plans.iter().any(|p| p.id == *input && p.class == OperatorClass::Update) {
             return Err(malformed("no stage may read a preposterior update", Some(&stage.id)));

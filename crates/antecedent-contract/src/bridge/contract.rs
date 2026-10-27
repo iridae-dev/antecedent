@@ -43,17 +43,17 @@ use super::refusal::{
     invalid_quantity, mapping_not_allowed, mapping_scope_mismatch, measurement_model_mismatch,
     missing_principal, model_identity_mismatch, model_score_as_probability, population_mismatch,
     predictive_importance_as_causal_effect, proxy_as_construct, regime_mismatch,
-    scientific_endpoint_as_utility, transport_premise_mismatch,
-    transport_premise_missing, transport_premise_unused, value_kind_not_carried, wrong_value_kind,
+    scientific_endpoint_as_utility, transport_premise_mismatch, transport_premise_missing,
+    transport_premise_unused, value_kind_not_carried, wrong_value_kind,
 };
 use crate::ScientificQuantity;
 
 #[path = "draws.rs"]
 mod draws;
-#[path = "propagation.rs"]
-mod propagation;
 #[path = "point_propagation.rs"]
 mod point_propagation;
+#[path = "propagation.rs"]
+mod propagation;
 
 use crate::interface_contract::{
     CalibrationStatus, ContractOperation, DependenceRequirement, EvidenceBasis, InterfaceContract,
@@ -63,11 +63,11 @@ pub use draws::{
     AffineDrawLaw, AffineInnovation, BridgeDrawsSource, BridgedDistributionClaim,
     CorrectionDrawLaw, DrawMapping, DrawsPlan, MappedDrawsSummary, bridged_distribution_claim_id,
 };
+pub(super) use point_propagation::propagate_point;
 pub use point_propagation::{
     NonlinearPropagation, POINT_PROPAGATION_CALIBRATION, POINT_PROPAGATION_LABEL, PointPropagation,
     point_propagation_unavailable,
 };
-pub(super) use point_propagation::propagate_point;
 pub use propagation::{
     AnalyticLaw, EstimandBridge, ExperimentalPrior, ExposureSetting, ImportedExperimentalPrior,
     MappingUncertainty, NonlinearMap, NonlinearMoment, PreservedSupport, PropagatedUncertainty,

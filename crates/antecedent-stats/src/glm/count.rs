@@ -2,9 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::{
+    GlmDesignRef, GlmFit, GlmOptions, MEAN_FLOOR, NbAlphaPolicy, check_prior_weights,
+    irls_fit_scaled, linear_predictor_into, validate_glm_shape,
+};
 use crate::error::StatsError;
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
-use super::{GlmDesignRef, GlmFit, GlmOptions, MEAN_FLOOR, NbAlphaPolicy, check_prior_weights, irls_fit_scaled, linear_predictor_into, validate_glm_shape};
 
 /// Poisson deviance contribution of one row at linear predictor `eta` (log link); `+∞` when
 /// the mean is not representable.

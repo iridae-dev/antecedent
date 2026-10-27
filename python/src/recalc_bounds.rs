@@ -1,8 +1,8 @@
 //! Shared resource-checked extraction for selective-recalculation bridges.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ExecutionContext;
 use crate::NumericColumn;
+use antecedent_core::ExecutionContext;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
 
@@ -38,12 +38,8 @@ pub(crate) fn check_values(
 
 /// Admit the caller's columns: the copy the bridge will make is checked against the memory
 /// budget of `ctx`.
-pub(crate) fn check_columns(
-    columns: &[NumericColumn<'_>],
-    ctx: &ExecutionContext,
-) -> PyResult<()> {
-    let values =
-        columns.iter().try_fold(0usize, |n, c| n.checked_add(c.len()));
+pub(crate) fn check_columns(columns: &[NumericColumn<'_>], ctx: &ExecutionContext) -> PyResult<()> {
+    let values = columns.iter().try_fold(0usize, |n, c| n.checked_add(c.len()));
     check_values(values, 0, ctx)
 }
 

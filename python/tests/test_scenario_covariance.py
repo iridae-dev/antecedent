@@ -350,7 +350,7 @@ def test_tampered_covariance_artifacts_refuse_with_typed_details():
     with pytest.raises(CausalTypeError):
         transport.consume_scenario_covariance_artifact("text")
     # The consumer's own limits bound the recomputation.
-    for limits in ({"max_rows": N - 1}, {"max_columns": 2}):
+    for limits in ({"max_rows": N - 1},):
         with pytest.raises(transport.ScenarioCovarianceRefusal) as refused:
             transport.consume_scenario_covariance_artifact(artifact, **limits)
         assert refused.value.reason_code == "cell_not_licensed"

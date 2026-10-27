@@ -1,8 +1,8 @@
 //! Declared local-polynomial fuzzy discontinuity and regression kink design.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::fault::LocalPolynomialRatioFault;
 use super::QueryError;
+use super::fault::LocalPolynomialRatioFault;
 use crate::canonical_encode::{CanonicalEncode, encode_variables, flag};
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
@@ -103,14 +103,20 @@ impl LocalPolynomialRatioQuery {
             || self.outcome == self.running
             || self.treatment == self.running
         {
-            return Err(QueryError::InvalidLocalPolynomialRatio(LocalPolynomialRatioFault::VariablesNotDistinct));
+            return Err(QueryError::InvalidLocalPolynomialRatio(
+                LocalPolynomialRatioFault::VariablesNotDistinct,
+            ));
         }
         if !self.cutoff.is_finite() || !self.bandwidth.is_finite() || self.bandwidth <= 0.0 {
-            return Err(QueryError::InvalidLocalPolynomialRatio(LocalPolynomialRatioFault::CutoffOrBandwidth));
+            return Err(QueryError::InvalidLocalPolynomialRatio(
+                LocalPolynomialRatioFault::CutoffOrBandwidth,
+            ));
         }
         if let Some(options) = &self.options {
             if options.temporal_replicates.is_some_and(|replicates| replicates < 2) {
-                return Err(QueryError::InvalidLocalPolynomialRatio(LocalPolynomialRatioFault::BootstrapReplicates));
+                return Err(QueryError::InvalidLocalPolynomialRatio(
+                    LocalPolynomialRatioFault::BootstrapReplicates,
+                ));
             }
             let distinct =
                 options.balance_covariates.iter().collect::<std::collections::BTreeSet<_>>();
@@ -119,7 +125,9 @@ impl LocalPolynomialRatioQuery {
                     [self.outcome, self.treatment, self.running].contains(covariate)
                 })
             {
-                return Err(QueryError::InvalidLocalPolynomialRatio(LocalPolynomialRatioFault::BalanceCovariates));
+                return Err(QueryError::InvalidLocalPolynomialRatio(
+                    LocalPolynomialRatioFault::BalanceCovariates,
+                ));
             }
         }
         Ok(())

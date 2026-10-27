@@ -2,7 +2,9 @@
 #![allow(unused_imports)]
 
 use super::*;
-use crate::ci::types::{CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, SignificanceMethod};
+use crate::ci::types::{
+    CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, SignificanceMethod,
+};
 use crate::test_util::centered_uniform as lcg_noise;
 use antecedent_core::derive_stream;
 
@@ -29,10 +31,7 @@ fn knn_rebuilds_index_for_different_pairs_in_one_batch() {
     let out = KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
     let s1 = out.results[0].statistic;
     let s2 = out.results[1].statistic;
-    assert!(
-        (s1 - s2).abs() > 1e-6,
-        "same n/dim pairs must not share a cached index: {s1} vs {s2}"
-    );
+    assert!((s1 - s2).abs() > 1e-6, "same n/dim pairs must not share a cached index: {s1} vs {s2}");
     assert!(s1 > s2, "tight pair should have smaller kth distances: {s1} vs {s2}");
 }
 
@@ -62,8 +61,7 @@ fn knn_null_preserves_yz_dependence() {
     let ps: Vec<f64> = (14..20u64)
         .map(|seed| {
             let ctx = ExecutionContext::for_tests(seed);
-            KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0]
-                .p_value
+            KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0].p_value
         })
         .collect();
     let above = ps.iter().filter(|&&p| p > 0.05).count();
@@ -83,8 +81,7 @@ fn knn_continuous_z_null_type_i_not_near_one() {
     let ci = KnnDependence::new(5);
     let mut rejects = 0u32;
     for t in 0..trials {
-        let mut rng =
-            ctx.rng.stream_for(StreamDomain::StatsCi, derive_stream(0xC11, u64::from(t)));
+        let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, derive_stream(0xC11, u64::from(t)));
         let z: Vec<f64> = (0..n)
             .map(|_| {
                 let u = (rng.next_u64() as f64) / (u64::MAX as f64);
@@ -140,8 +137,7 @@ fn knn_bivariate_z_conditional_null() {
     let ci = KnnDependence::new(5);
     let mut rejects = 0u32;
     for t in 0..trials {
-        let mut rng =
-            ctx.rng.stream_for(StreamDomain::StatsCi, derive_stream(0x2D2, u64::from(t)));
+        let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, derive_stream(0x2D2, u64::from(t)));
         let mut normal = || {
             let u = (rng.next_u64() as f64) / (u64::MAX as f64);
             let v = (rng.next_u64() as f64) / (u64::MAX as f64);
@@ -174,10 +170,7 @@ fn knn_bivariate_z_conditional_null() {
     }
     let rate = f64::from(rejects) / f64::from(trials);
     // alpha + 3 binomial SE at 60 trials is about 0.135.
-    assert!(
-        rate < 0.14,
-        "discrete bivariate-Z kNN type I inflated: {rate} ({rejects}/{trials})"
-    );
+    assert!(rate < 0.14, "discrete bivariate-Z kNN type I inflated: {rate} ({rejects}/{trials})");
 }
 
 #[test]
@@ -207,8 +200,7 @@ fn knn_dependence_runs_beyond_the_former_ten_thousand_row_limit() {
     let x: Vec<f64> = (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
     let y_dep: Vec<f64> =
         x.iter().map(|v| v + 0.3 * antecedent_kernels::standard_normal(&mut rng)).collect();
-    let y_ind: Vec<f64> =
-        (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
+    let y_ind: Vec<f64> = (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
     let cols: [&[f64]; 3] = [&x, &y_dep, &y_ind];
     let queries = [
         CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 },

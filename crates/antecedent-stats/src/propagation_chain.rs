@@ -645,7 +645,9 @@ pub fn validate_spec(n_sources: usize, stages: &[StageSpec]) -> Result<(), Chain
 /// Check an expression's stack discipline before any number is formed.
 fn check_expression(terms: &[ExprTerm], arity: usize) -> Result<(), ChainError> {
     if terms.is_empty() || terms.len() > MAX_EXPRESSION_TERMS {
-        return Err(ChainError::Shape("an expression holds between one and MAX_EXPRESSION_TERMS terms"));
+        return Err(ChainError::Shape(
+            "an expression holds between one and MAX_EXPRESSION_TERMS terms",
+        ));
     }
     let mut depth = 0_usize;
     for term in terms {

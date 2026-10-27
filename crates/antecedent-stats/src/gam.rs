@@ -1225,7 +1225,13 @@ impl PenalizedSmoother {
             for i in 0..k {
                 column[i] = self.xtx[i * k + j];
             }
-            antecedent_kernels::chol_solve_into(&factor.chol, k, &column, &mut y_scratch, &mut solved);
+            antecedent_kernels::chol_solve_into(
+                &factor.chol,
+                k,
+                &column,
+                &mut y_scratch,
+                &mut solved,
+            );
             edf += solved[j];
         }
         edf
@@ -1295,7 +1301,8 @@ impl PencilSpectrum {
     /// `β = L₀⁻ᵀ U t` for eigenbasis coefficients `t`.
     fn coefficients(&self, t: &[f64]) -> Vec<f64> {
         let k = self.m.len();
-        let ut: Vec<f64> = (0..k).map(|r| (0..k).map(|c| self.vectors[r * k + c] * t[c]).sum()).collect();
+        let ut: Vec<f64> =
+            (0..k).map(|r| (0..k).map(|c| self.vectors[r * k + c] * t[c]).sum()).collect();
         let mut beta = vec![0.0; k];
         antecedent_kernels::back_solve_into(&self.chol0, k, &ut, &mut beta);
         beta
@@ -1384,7 +1391,8 @@ fn spectral_gcv_scores(
                 trace += gram / denominator;
             }
             let mean = centering_dot / n;
-            let moment_rss = yty - 2.0 * fit_cross + fit_quad
+            let moment_rss = yty - 2.0 * fit_cross
+                + fit_quad
                 + 2.0 * mean * (sqrt_w_y - centering_dot)
                 + mean * mean * weight_total;
             let edf = (trace - 1.0).max(0.0);
@@ -2465,8 +2473,11 @@ mod tests {
         let n = 70usize;
         let x1 = linspace(n, 0.0, 1.0);
         let w: Vec<f64> = (0..n).map(|i| 0.5 + (i % 4) as f64 * 0.4).collect();
-        let y: Vec<f64> =
-            x1.iter().enumerate().map(|(i, &v)| (4.0 * v).sin() + 0.2 * ((i * 5) % 7) as f64).collect();
+        let y: Vec<f64> = x1
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| (4.0 * v).sin() + 0.2 * ((i * 5) % 7) as f64)
+            .collect();
         let (basis, _) = expand_bspline(&x1, 9, None).unwrap();
         let sqrt_w: Vec<f64> = w.iter().map(|v| v.sqrt()).collect();
         let scaled_basis: Vec<f64> =
@@ -2477,7 +2488,8 @@ mod tests {
         let scores = spectral_gcv_scores(&smoother, spectrum, &scaled_basis, n, &scaled_y, &sqrt_w);
         for (&lambda, &got) in GCV_LAMBDA_GRID.iter().zip(&scores) {
             let factor = smoother.factor(lambda).unwrap();
-            let want = centered_smooth_gcv(&smoother, &factor, &scaled_basis, n, &scaled_y, &sqrt_w);
+            let want =
+                centered_smooth_gcv(&smoother, &factor, &scaled_basis, n, &scaled_y, &sqrt_w);
             assert!((got - want).abs() <= 1e-6 * want.abs(), "λ={lambda}: {got} vs {want}");
         }
     }

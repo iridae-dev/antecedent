@@ -146,7 +146,9 @@ impl TemporalEffectQuery {
             .iter()
             .any(|modifier| *modifier == self.treatment || *modifier == self.outcome)
         {
-            return Err(QueryError::InvalidIntervention(InterventionFault::ModifierIsTreatmentOrOutcome));
+            return Err(QueryError::InvalidIntervention(
+                InterventionFault::ModifierIsTreatmentOrOutcome,
+            ));
         }
         if self.horizon_steps == 0 {
             return Err(QueryError::NonPositiveHorizon);

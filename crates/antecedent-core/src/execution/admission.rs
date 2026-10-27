@@ -1,14 +1,14 @@
 //! Execution context: shared CPU and RAM admission pool and leases.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::cancel::CancelFlag;
+#[cfg(doc)]
+use super::context::ExecutionContext;
 use core::sync::atomic::{AtomicBool, Ordering};
 use std::fmt;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 use thiserror::Error;
-use super::cancel::CancelFlag;
-#[cfg(doc)]
-use super::context::ExecutionContext;
 
 /// CPU slots and RAM bytes requested from an admission budget.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -288,7 +288,10 @@ pub(super) fn reserve(
     Ok((threads, bytes))
 }
 
-pub(super) fn grant_root(state: &mut AdmissionState, request: AdmissionRequest) -> Result<u64, GrantError> {
+pub(super) fn grant_root(
+    state: &mut AdmissionState,
+    request: AdmissionRequest,
+) -> Result<u64, GrantError> {
     let Some(next_id) = state.next_id.checked_add(1) else {
         return Err(GrantError::Overflow);
     };

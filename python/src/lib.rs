@@ -54,8 +54,8 @@ mod compact_export_api;
 mod compiled_route_api;
 mod composition_api;
 mod composition_bundle_api;
-mod composition_verification_api;
 mod composition_effects_api;
+mod composition_verification_api;
 mod contract_refusals_api;
 mod counterfactual_id_api;
 mod cpdag_scenario_api;
@@ -111,6 +111,7 @@ mod ingest;
 mod inspect_receipt_api;
 mod interference_saturation_api;
 mod interrupt;
+mod interval_binding_api;
 mod intrinsic_influence_api;
 mod inverse_outcome_api;
 mod inverse_query_api;
@@ -127,8 +128,8 @@ mod measured_inference_api;
 mod measurement_model_api;
 mod mechanism_composition_api;
 mod mechanism_discrepancy_api;
-mod interval_binding_api;
 mod missing_report;
+mod mixed_decision_api;
 mod msm_sensitivity_api;
 mod multi_level_treatment_api;
 mod name_errors;
@@ -155,12 +156,10 @@ mod program_claims_api;
 mod propagation_chain_api;
 mod proposal_arrival_api;
 mod provider_api;
-mod mixed_decision_api;
 mod published_decision_api;
 mod quasi_api;
 mod recalc_adjusted_api;
 mod recalc_api;
-mod recalc_standing_api;
 mod recalc_bayesian_api;
 mod recalc_bounds;
 mod recalc_cell_api;
@@ -171,6 +170,7 @@ mod recalc_external_api;
 mod recalc_family_api;
 #[cfg(feature = "calibration-internal")]
 mod recalc_joint_bayesian_api;
+mod recalc_standing_api;
 mod recalc_static_api;
 mod recalc_temporal_api;
 mod recipe_logistic_api;
@@ -1288,7 +1288,7 @@ pub(crate) fn shared_study_sections(
         antecedent_core::AssumptionSet::default(),
         antecedent_estimate::OverlapPolicy::ExplicitOverride,
     );
-    let estimate = result.estimate.as_effect().unwrap_or(&absent_effect);
+    let estimate = result.estimate().as_effect().unwrap_or(&absent_effect);
     let resampling = estimate.diagnostics.resampling.as_ref().map(ResamplingSection::from_report);
     // A temporal effect's estimand ids are dense unfolded node ids; read them
     // through the certificate's unfolding coordinates, not as schema ids (a
@@ -1426,7 +1426,7 @@ pub(crate) fn shared_study_sections(
                 disjoint: s.disjoint,
             })
             .or_else(|| {
-                result.candidate_selection.as_ref().map(|s| CandidateSelectionSection {
+                result.candidate_selection().as_ref().map(|s| CandidateSelectionSection {
                     screen_id: s.screen_id.to_string(),
                     procedure: s.procedure.as_str().to_string(),
                     winner_index: s.winner_index,
@@ -1549,10 +1549,10 @@ pub(crate) fn shared_study_sections(
         resampling,
     };
     let (evidence_status, allowlist_reason, allowlist_parent) =
-        evidence_status_parts(result.support_status);
+        evidence_status_parts(result.support_status());
     // A query with no matrix cell (mechanism / unit change) is off the axis by design; say so
     // rather than leaving a reader to mistake it for a licensed cell that was never stamped.
-    let evidence_status = match (evidence_status, result.support_status) {
+    let evidence_status = match (evidence_status, result.support_status()) {
         (None, None) => Some("off_axis".to_owned()),
         (status, _) => status,
     };
@@ -2092,6 +2092,23 @@ mod tests {
             (
                 E::Unsupported { message: "refused: reason=cell_not_licensed: x" },
                 Some("cell_not_licensed"),
+            ),
+            // A structured callback failure names the code it carries; its text is not read.
+            (
+                E::Model(antecedent_model::ModelError::CallbackFailed(
+                    antecedent_core::CallbackFailure::new(
+                        Some(1),
+                        "Python x failed",
+                        Some("route_not_supported".into()),
+                    ),
+                )),
+                Some("route_not_supported"),
+            ),
+            (
+                E::Model(antecedent_model::ModelError::CallbackFailed(
+                    antecedent_core::CallbackFailure::new(None, named.clone(), None),
+                )),
+                None,
             ),
             // An unregistered code is not attached; the variant default stands.
             (E::Compile { message: unregistered }, None),

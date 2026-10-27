@@ -43,13 +43,12 @@ impl BatchCallback for PyBatchCallback {
                 inputs.iter().map(|column| PyArray1::from_slice(py, column).into_any()).collect();
             let arguments = PyTuple::new(py, columns)
                 .map_err(|error| CallbackError::Raised { message: error.to_string() })?;
-            let returned =
-                self.function.bind(py).call1(arguments).map_err(|error| CallbackError::Raised {
-                    message: callback_failure(
-                        &format!("callback {} raised", self.spec.name),
-                        error,
-                    ),
-                })?;
+            let returned = self.function.bind(py).call1(arguments).map_err(|error| {
+                CallbackError::Failed(callback_failure(
+                    &format!("callback {} raised", self.spec.name),
+                    error,
+                ))
+            })?;
             let array = py
                 .import("numpy")
                 .and_then(|numpy| numpy.call_method1("asarray", (returned,)))

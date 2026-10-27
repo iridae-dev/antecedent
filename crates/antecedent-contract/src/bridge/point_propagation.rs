@@ -47,11 +47,11 @@ use super::super::refusal::{
     mapping_uncertainty_missing, nonlinear_mean_not_expectation, propagation_overflow,
     source_dependence_invalid, source_dependence_missing, source_variance_invalid,
 };
+use super::BridgeContract;
 use super::propagation::{
     AnalyticLaw, MappingUncertainty, NonlinearMap, SourceMappingDependence, nonlinear_expectation,
     propagate_affine,
 };
-use super::BridgeContract;
 
 /// How the propagated variance is read: an uncalibrated spread, never an interval.
 pub const POINT_PROPAGATION_LABEL: &str = crate::joint_law_rule::UNCALIBRATED_SPREAD_LABEL;
@@ -423,8 +423,7 @@ pub fn point_propagation_unavailable(
     if !standard_error_supplied {
         return source_variance_invalid("the source claim declared no standard error".to_owned());
     }
-    let affine =
-        matches!(contract.mapping, BridgeMapping::Identity | BridgeMapping::Affine { .. });
+    let affine = matches!(contract.mapping, BridgeMapping::Identity | BridgeMapping::Affine { .. });
     match (&contract.mapping_uncertainty, &contract.source_dependence) {
         (None, _) if affine => mapping_uncertainty_missing(),
         _ => source_dependence_missing(),

@@ -24,7 +24,9 @@ use antecedent_validate::{
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use crate::{numeric_columns_to_batch, detach_catch, py_err, py_execution_context, series_from_batch};
+use crate::{
+    detach_catch, numeric_columns_to_batch, py_err, py_execution_context, series_from_batch,
+};
 
 fn pcmci_from_params(max_lag: u32, alpha: f64, fdr: bool, ci: &str) -> PyResult<Pcmci> {
     let ci_impl = resolve_ci(ci, None).map_err(py_err)?;

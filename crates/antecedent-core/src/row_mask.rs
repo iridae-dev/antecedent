@@ -401,14 +401,8 @@ mod tests {
             both.to_bools(),
             vec![true, false, false, true, false, true, false, false, true]
         );
-        assert_eq!(
-            a.gather_rows(&[8, 0, 2]).unwrap().to_bools(),
-            vec![true, true, false]
-        );
-        assert!(matches!(
-            a.gather(&[9]),
-            Err(RowMaskError::RowOutOfRange { row: 9, len: 9 })
-        ));
+        assert_eq!(a.gather_rows(&[8, 0, 2]).unwrap().to_bools(), vec![true, true, false]);
+        assert!(matches!(a.gather(&[9]), Err(RowMaskError::RowOutOfRange { row: 9, len: 9 })));
         assert_eq!(a.compact(&b).unwrap().to_bools(), vec![true, true, false, true, true]);
         let joined = RowMask::concat(&[&a, &b]).unwrap();
         assert_eq!(joined.len(), 18);

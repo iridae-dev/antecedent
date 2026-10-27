@@ -2,8 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::fault::InterventionFault;
 use super::error::QueryError;
+use super::fault::InterventionFault;
 use crate::canonical_encode::CanonicalEncode;
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;

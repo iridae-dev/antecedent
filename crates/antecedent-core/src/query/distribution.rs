@@ -89,7 +89,8 @@ impl InterventionalDistributionQuery {
             return Err(QueryError::EmptyDistributionOutcomes);
         }
         for iv in self.interventions.iter() {
-            iv.validate().map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
+            iv.validate()
+                .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
         }
         for &y in self.outcomes.iter() {
             if self.interventions.iter().any(|iv| iv.primary_variable() == Some(y)) {

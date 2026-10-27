@@ -2,7 +2,9 @@
 #![allow(unused_imports)]
 
 use super::*;
-use crate::ci::types::{CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, SignificanceMethod};
+use crate::ci::types::{
+    CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, SignificanceMethod,
+};
 use crate::test_util::centered_uniform as lcg_noise;
 use antecedent_core::derive_stream;
 

@@ -306,9 +306,7 @@ impl ProviderTransportSource {
                 "declare a complete provider object with distinct quantities and operations",
             ));
         }
-        if self.assumptions.is_empty()
-            || self.assumptions.iter().any(|a| !text_ok(a))
-        {
+        if self.assumptions.is_empty() || self.assumptions.iter().any(|a| !text_ok(a)) {
             return Err(declare(
                 "provider_transport.assumptions_missing",
                 "name the invariance and selection assumptions the provider's output relies on",

@@ -1854,9 +1854,10 @@ fn verify_candidate(
     }
     let method = parse_method(&candidate.integration)
         .ok_or(DesignRankingArtifactError::InvalidWire("integration method"))?;
-    let recomputed = recompute(candidate, &wire.decision, base, method, max_states).map_err(|slot| {
-        DesignRankingArtifactError::SignalInconsistent { candidate: id.clone(), slot }
-    })?;
+    let recomputed =
+        recompute(candidate, &wire.decision, base, method, max_states).map_err(|slot| {
+            DesignRankingArtifactError::SignalInconsistent { candidate: id.clone(), slot }
+        })?;
     if !close(candidate.evpi, recomputed.evpi) {
         return Err(mismatch("evpi"));
     }

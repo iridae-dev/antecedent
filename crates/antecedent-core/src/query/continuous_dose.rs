@@ -1,8 +1,8 @@
 //! Caller-supplied conditional continuous-dose response design.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::fault::PolicyValueFault;
 use super::QueryError;
+use super::fault::PolicyValueFault;
 use crate::canonical_encode::{CanonicalEncode, count, encode_option};
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
@@ -61,7 +61,9 @@ impl FixedGroupDosePolicy {
                         || !seen.insert(group.as_ref())
                 })
             {
-                return Err(QueryError::InvalidPolicyValue(PolicyValueFault::FixedDoseGroupCoverage));
+                return Err(QueryError::InvalidPolicyValue(
+                    PolicyValueFault::FixedDoseGroupCoverage,
+                ));
             }
         }
         Ok(())
@@ -132,7 +134,9 @@ impl ContinuousDoseResponseQuery {
             || self.min_local_support < 2
             || !matches!(self.density_provenance.as_ref(), "known" | "externally_estimated")
         {
-            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::ContinuousDoseDeclaration));
+            return Err(QueryError::InvalidPolicyValue(
+                PolicyValueFault::ContinuousDoseDeclaration,
+            ));
         }
         if let Some(policy) = &self.fixed_policy {
             policy.validate(&self.baseline_groups)?;

@@ -367,13 +367,18 @@ where
 /// The one owner of which native refusal raises which code: [`IntoCausalPyErr`] attaches
 /// exactly this, so a caller reads `reason_code` off the exception and never parses the
 /// message. A code the error names in its own `reason=<code>:` message wins over the
-/// variant's default; an unregistered code is never attached.
+/// variant's default; an unregistered code is never attached. An error that carries a
+/// structured callback failure names the code that failure carries, and its text is not read.
 pub(crate) fn reason_code_of(error: &RustCausalError) -> Option<String> {
     use antecedent_core::reason_code;
-    let message = error.to_string();
-    let named = reason_code_in_message(&message)
-        .filter(|code| reason_code::is_registered(code))
-        .map(str::to_string);
+    let named = if let Some(failure) = callback_failure_of(error) {
+        failure.code().filter(|code| reason_code::is_registered(code)).map(str::to_string)
+    } else {
+        let message = error.to_string();
+        reason_code_in_message(&message)
+            .filter(|code| reason_code::is_registered(code))
+            .map(str::to_string)
+    };
     let default = match error.peeled() {
         RustCausalError::Graph(e) => Some(if matches!(e, GraphError::UnknownVariableName { .. }) {
             reason_code!("unknown_variable")
@@ -402,6 +407,13 @@ pub(crate) fn reason_code_of(error: &RustCausalError) -> Option<String> {
     named.or_else(|| default.map(str::to_string))
 }
 
+/// The structured callback failure a converted native error carries, if any.
+pub(crate) fn callback_failure_of(
+    error: &RustCausalError,
+) -> Option<&antecedent_core::CallbackFailure> {
+    antecedent_core::CallbackFailure::in_chain(error.peeled())
+}
+
 /// The registered-shape `reason=<code>:` a message opens with, directly or after one
 /// `<label>: ` (a matrix refusal renders its verdict first: `refused: reason=<code>: ...`).
 pub(crate) fn reason_code_in_message(message: &str) -> Option<&str> {
@@ -427,12 +439,17 @@ pub(crate) fn attach_reason_from_message(err: PyErr, message: &str) -> PyErr {
 impl IntoCausalPyErr for RustCausalError {
     fn into_antecedent_py_err(self) -> PyErr {
         let code = reason_code_of(&self);
+        let failure = callback_failure_of(&self).cloned();
         let remedy = self.remedy().map(str::to_owned);
         let fields = self.refusal_fields().map(std::borrow::Cow::into_owned);
         let routes = self.route_diagnostics();
         let err = with_remedy(uncoded_py_err(self), remedy.as_deref());
         let err = preflight_api::with_refusal_fields(err, fields.as_ref());
         let err = with_route_diagnostics(err, &routes);
+        let err = match &failure {
+            Some(failure) => interrupt::with_callback_failure(err, failure),
+            None => err,
+        };
         match code {
             Some(code) => with_default_reason_code(err, &code),
             None => err,

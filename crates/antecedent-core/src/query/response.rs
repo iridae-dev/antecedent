@@ -880,7 +880,9 @@ impl ResponseQuery {
                     DerivativeWeighting::Uniform { lower, upper }
                         if !lower.is_finite() || !upper.is_finite() || lower >= upper =>
                     {
-                        return Err(QueryError::InvalidResponse(ResponseFault::UniformWeightBounds));
+                        return Err(QueryError::InvalidResponse(
+                            ResponseFault::UniformWeightBounds,
+                        ));
                     }
                     DerivativeWeighting::Custom(weights)
                         if weights.is_empty()
@@ -933,9 +935,9 @@ impl ResponseQuery {
                     return Err(QueryError::InvalidResponse(ResponseFault::NoIntervention));
                 }
                 for intervention in interventions.iter() {
-                    intervention
-                        .validate()
-                        .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
+                    intervention.validate().map_err(|e| {
+                        QueryError::InvalidIntervention(InterventionFault::Rejected(e))
+                    })?;
                     if intervention.target_variables().contains(outcome) {
                         return Err(QueryError::TreatmentEqualsOutcome { id: *outcome });
                     }
@@ -956,9 +958,7 @@ impl ResponseQuery {
                     // can address; the execution memory budget bounds
                     // materialization.
                     treatment.grid.point_count().checked_mul(temporal.horizons.len()).ok_or_else(
-                        || {
-                            QueryError::InvalidResponse(ResponseFault::DoseHorizonCellOverflow)
-                        },
+                        || QueryError::InvalidResponse(ResponseFault::DoseHorizonCellOverflow),
                     )?;
                 }
                 ResponseFunctional::InterventionResponse { .. }
@@ -1001,7 +1001,9 @@ impl ResponseQuery {
                     {
                         Ok(())
                     }
-                    _ => Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnlicensed)),
+                    _ => Err(QueryError::InvalidResponse(
+                        ResponseFault::TemporalObservationUnlicensed,
+                    )),
                 }
             }
             ObservationSpec::IntervalCensored { .. } | ObservationSpec::Truncated { .. } => {

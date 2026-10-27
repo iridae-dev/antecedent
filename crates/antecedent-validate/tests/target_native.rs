@@ -259,7 +259,7 @@ fn a_tiny_admission_pool_refuses_and_is_restored() {
     let error =
         run_target_plan(&plan, &AdjustmentRefit::new(simulate(200, 3), 0.0), &config(), &ctx)
             .unwrap_err();
-    assert!(matches!(error, ValidationError::Refused { .. }), "{error:?}");
+    assert!(matches!(error, ValidationError::Resource { .. }), "{error:?}");
     assert_eq!(pool.available(), before);
 }
 

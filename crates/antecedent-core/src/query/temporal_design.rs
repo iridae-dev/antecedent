@@ -486,9 +486,7 @@ impl TemporalDesignQuery {
                     || probabilities.len() != n
                     || assignment.iter().any(|arm| *arm >= arms.len())
                     || probabilities.iter().any(|row| {
-                        row.len() != arms.len()
-                            || !probabilities_valid(row)
-                            || !row_totals_one(row)
+                        row.len() != arms.len() || !probabilities_valid(row) || !row_totals_one(row)
                     })
                 {
                     return Err(invalid(TemporalDesignFault::MultiArmRows));

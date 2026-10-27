@@ -670,7 +670,13 @@ fn tail_evidence_reports_an_effective_sample_size_shortfall_instead_of_failing()
 
     let mut rng = CausalRng::from_seed(5);
     let (batch, report) = sample_conditional_interventional_reported(
-        &model, &[], &evidence, 50, &mut rng, &mut ws, &ctx,
+        &model,
+        &[],
+        &evidence,
+        50,
+        &mut rng,
+        &mut ws,
+        &ctx,
     )
     .unwrap();
     assert_eq!(batch.n_rows, 50);

@@ -9,10 +9,10 @@
 use crate::NumericColumn;
 use crate::compiled_route_api::{ModelSource, RouteRecord, outcome_mismatch};
 use crate::*;
+use antecedent::gcm::NoiseInferenceKind;
 use antecedent::{AttributionOutcome, MechanismProgram, SimulationOutcome};
 use antecedent_core::{AnomalyAttributionQuery, AttributeTarget, ChangeEstimator, ChangeMeasure};
 use antecedent_core::{CausalQuery, MechanismChangeTest, SimulationTarget};
-use antecedent::gcm::NoiseInferenceKind;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 

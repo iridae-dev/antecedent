@@ -181,8 +181,9 @@ pub(crate) fn residual_null_pvalue(
     // `ry` is fixed across replicates: its weighted mean and centred sum of squares are
     // computed once, not once per permutation.
     let fixed = weighted_pearson_fixed_side(policy, ry, w)?.ok_or_else(|| degenerate.clone())?;
-    let observed =
-        weighted_pearson_against_fixed(policy, rx, ry, w, fixed)?.ok_or_else(|| degenerate.clone())?.abs();
+    let observed = weighted_pearson_against_fixed(policy, rx, ry, w, fixed)?
+        .ok_or_else(|| degenerate.clone())?
+        .abs();
     let mut perm = Vec::with_capacity(n);
     let mut shuffled = vec![0.0; n];
     let mut extreme = 0u32;

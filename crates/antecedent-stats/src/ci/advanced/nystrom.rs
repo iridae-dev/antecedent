@@ -2,12 +2,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::gpdc::{
+    GPDC_FACTOR_CACHE, ResidualNull, ensure_residual_information, residual_dcor_permutation_result,
+    standardized_z,
+};
+use crate::ci::block_shuffle::query_stream_salt;
+use crate::ci::types::{
+    CiBatchRequest, CiBatchResult, CiWorkspace, ConditionalIndependenceTest, PreparedCiTest,
+    nonparametric_permutation_count, requested_block_size,
+};
+use crate::error::StatsError;
 use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_kernels::unbiased_index;
-use crate::ci::block_shuffle::query_stream_salt;
-use crate::ci::types::{CiBatchRequest, CiBatchResult, CiWorkspace, ConditionalIndependenceTest, PreparedCiTest, nonparametric_permutation_count, requested_block_size};
-use crate::error::StatsError;
-use super::gpdc::{GPDC_FACTOR_CACHE, ResidualNull, ensure_residual_information, residual_dcor_permutation_result, standardized_z};
 
 /// Largest Nyström rank [`GpdcNystrom`] accepts: the `m × m` normal equations are accumulated
 /// per row block, so memory grows as `m²` times the block count.

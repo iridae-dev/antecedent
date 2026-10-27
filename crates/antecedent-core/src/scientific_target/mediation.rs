@@ -208,11 +208,9 @@ impl MediationTarget {
         premises: impl IntoIterator<Item = CrossWorldPremise>,
     ) -> Result<Self, ScientificTargetError> {
         if let Some(policy) = &schedule {
-            policy
-                .validate()
-                .map_err(|err| ScientificTargetError::InvalidAction {
-                    reason: ActionFault::Intervention(err),
-                })?;
+            policy.validate().map_err(|err| ScientificTargetError::InvalidAction {
+                reason: ActionFault::Intervention(err),
+            })?;
             ensure_policy_within_horizon(policy, &time)?;
         }
         let schedule_matches = matches!(

@@ -21,6 +21,20 @@ fn execution_context(
 }
 
 fn operation_error(error: impl std::error::Error + 'static, ctx: &ExecutionContext) -> PyErr {
+    // A Python callback that raised inside the operation is found by its structured
+    // failure, so the run boundary can restore the original exception as the cause.
+    let failure = antecedent_core::CallbackFailure::in_chain(&error).cloned();
+    let converted = classified_operation_error(error, ctx);
+    match &failure {
+        Some(failure) => crate::interrupt::with_callback_failure(converted, failure),
+        None => converted,
+    }
+}
+
+fn classified_operation_error(
+    error: impl std::error::Error + 'static,
+    ctx: &ExecutionContext,
+) -> PyErr {
     use antecedent_io::cyclic_system_artifact::CyclicArtifactError;
     if ctx.cancellation.is_cancelled() {
         return crate::CausalCancelledError::new_err(error.to_string());
@@ -981,10 +995,12 @@ impl PyCyclicExecution {
         if self.world_view_kind().is_some() {
             return Ok(());
         }
-        Err(scientific_error(antecedent_core::reason_code!("route_not_supported"),
+        Err(scientific_error(
+            antecedent_core::reason_code!("route_not_supported"),
             "cyclic_family.intervention_worlds_unavailable",
-            &format!("family `{}` has no declared intervention worlds",self.owner.family_name()),
-            "declare the worlds as typed interventions with `linear_worlds`, `equilibrium_worlds`, `ode_worlds`, `recovered_linear` or `experimental_recovery`"))
+            &format!("family `{}` has no declared intervention worlds", self.owner.family_name()),
+            "declare the worlds as typed interventions with `linear_worlds`, `equilibrium_worlds`, `ode_worlds`, `recovered_linear` or `experimental_recovery`",
+        ))
     }
 
     fn world_view_kind(&self) -> Option<&'static str> {
@@ -1723,11 +1739,10 @@ impl antecedent_model::local_cyclic::LocalCyclicMechanism for PythonLocalMechani
             self.callback.bind(py).call1((inputs.to_vec(),))?.extract::<(f64, Vec<f64>)>()
         })
         .map_err(|error| {
-            antecedent_model::nonlinear_equilibrium::EquilibriumError::Invalid(format!(
-                "local callback {}: {}",
-                self.id,
-                crate::interrupt::callback_failure("cyclic callback raised", error)
-            ))
+            antecedent_model::nonlinear_equilibrium::EquilibriumError::CallbackFailed {
+                mechanism: self.id.clone(),
+                failure: crate::interrupt::callback_failure("cyclic callback raised", error),
+            }
         })
     }
 }

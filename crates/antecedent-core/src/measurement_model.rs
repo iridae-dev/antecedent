@@ -490,7 +490,9 @@ pub enum ParameterFault {
     #[error("minimum reliability must lie in [0, 1)")]
     ReliabilityFloor,
     /// Refused: repeated measurements need at least two replicated units and a reliability floor in [0, 1)
-    #[error("repeated measurements need at least two replicated units and a reliability floor in [0, 1)")]
+    #[error(
+        "repeated measurements need at least two replicated units and a reliability floor in [0, 1)"
+    )]
     RepeatedMeasurements,
     /// Refused: minimum Youden index must lie in (0, 1)
     #[error("minimum Youden index must lie in (0, 1)")]
@@ -529,13 +531,19 @@ impl ParameterFault {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::ClassicalVariance => "error variance and its standard error must be finite and non-negative",
+            Self::ClassicalVariance => {
+                "error variance and its standard error must be finite and non-negative"
+            }
             Self::ReliabilityFloor => "minimum reliability must lie in [0, 1)",
-            Self::RepeatedMeasurements => "repeated measurements need at least two replicated units and a reliability floor in [0, 1)",
+            Self::RepeatedMeasurements => {
+                "repeated measurements need at least two replicated units and a reliability floor in [0, 1)"
+            }
             Self::YoudenIndex => "minimum Youden index must lie in (0, 1)",
             Self::RateRange => "sensitivity and specificity must lie in [0, 1]",
             Self::RateVariances => "rate variances must be finite and non-negative",
-            Self::ConfusionShape => "a confusion model needs 2 to 16 named levels and a square matrix",
+            Self::ConfusionShape => {
+                "a confusion model needs 2 to 16 named levels and a square matrix"
+            }
             Self::LevelNamesRepeat => "level names repeat",
             Self::ConfusionEntries => "confusion entries must be probabilities",
             Self::ConfusionColumnSums => "each confusion column must sum to one",
@@ -748,7 +756,9 @@ impl MeasurementModel {
         min_reliability: f64,
     ) -> Result<(), MeasurementModelError> {
         if min_replicated_units < 2 || !reliability_floor(min_reliability) {
-            return Err(MeasurementModelError::InvalidParameter(ParameterFault::RepeatedMeasurements));
+            return Err(MeasurementModelError::InvalidParameter(
+                ParameterFault::RepeatedMeasurements,
+            ));
         }
         self.require_non_differential()
     }
@@ -810,12 +820,16 @@ impl MeasurementModel {
         for t in 0..k {
             let sum: f64 = (0..k).map(|j| confusion[j * k + t]).sum();
             if (sum - 1.0).abs() > 1e-9 {
-                return Err(MeasurementModelError::InvalidParameter(ParameterFault::ConfusionColumnSums));
+                return Err(MeasurementModelError::InvalidParameter(
+                    ParameterFault::ConfusionColumnSums,
+                ));
             }
         }
         if let Some(counts) = column_counts {
             if counts.len() != k || counts.contains(&0) {
-                return Err(MeasurementModelError::InvalidParameter(ParameterFault::ValidationCounts));
+                return Err(MeasurementModelError::InvalidParameter(
+                    ParameterFault::ValidationCounts,
+                ));
             }
         }
         if !(max_condition.is_finite() && max_condition >= 1.0) {

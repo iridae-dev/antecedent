@@ -442,10 +442,14 @@ impl EvidenceRegime {
         let measured = unique_variables(measured.into(), "regime measured variables")?;
         match kind {
             RegimeKind::Observational if !interventions.is_empty() => {
-                return Err(QueryError::InvalidTransport(TransportFault::ObservationalWithInterventions));
+                return Err(QueryError::InvalidTransport(
+                    TransportFault::ObservationalWithInterventions,
+                ));
             }
             RegimeKind::Experimental if interventions.is_empty() => {
-                return Err(QueryError::InvalidTransport(TransportFault::ExperimentalWithoutInterventions));
+                return Err(QueryError::InvalidTransport(
+                    TransportFault::ExperimentalWithoutInterventions,
+                ));
             }
             _ => {}
         }
@@ -547,7 +551,9 @@ impl EvidenceRegime {
         }
         if let LawOrigin::ModelArtifact { artifact } = &self.origin {
             if artifact.trim().is_empty() {
-                return Err(QueryError::InvalidTransport(TransportFault::ModelArtifactIdentityEmpty));
+                return Err(QueryError::InvalidTransport(
+                    TransportFault::ModelArtifactIdentityEmpty,
+                ));
             }
         }
         if let LawOrigin::Recovered { derivation } = &self.origin {
@@ -603,7 +609,9 @@ pub(crate) fn project_law(
     projection: &EvidenceProjection,
 ) -> Result<ProjectedLaw, QueryError> {
     match projection {
-        EvidenceProjection::Deintervene { .. } => Err(QueryError::InvalidTransport(TransportFault::DeinterventionNotLicensed)),
+        EvidenceProjection::Deintervene { .. } => {
+            Err(QueryError::InvalidTransport(TransportFault::DeinterventionNotLicensed))
+        }
         EvidenceProjection::Marginalize { drop } => {
             if drop.iter().any(|v| !measured.contains(v) || conditioned_on.contains(v)) {
                 return Err(QueryError::InvalidTransport(TransportFault::MarginalizeUnmeasured));
@@ -623,10 +631,14 @@ pub(crate) fn project_law(
             if !on.is_empty()
                 && matches!(distribution, DistributionAvailability::SeparateMarginals { .. })
             {
-                return Err(QueryError::InvalidTransport(TransportFault::ConditioningNeedsJointLaw));
+                return Err(QueryError::InvalidTransport(
+                    TransportFault::ConditioningNeedsJointLaw,
+                ));
             }
             if on.iter().any(|variable| !measured.contains(variable)) {
-                return Err(QueryError::InvalidTransport(TransportFault::ConditioningNeedsMeasured));
+                return Err(QueryError::InvalidTransport(
+                    TransportFault::ConditioningNeedsMeasured,
+                ));
             }
             let conditioned = conditioned_on
                 .iter()
@@ -951,7 +963,9 @@ impl EvidenceCatalog {
                 // A population or variable no environment declares can never match
                 // anything: reject it instead of letting the evidence read as missing.
                 if !identities.contains(regime.population.as_ref()) {
-                    return Err(QueryError::InvalidTransport(TransportFault::PopulationNotDeclared));
+                    return Err(QueryError::InvalidTransport(
+                        TransportFault::PopulationNotDeclared,
+                    ));
                 }
                 let undeclared = regime
                     .interventions
@@ -980,13 +994,17 @@ impl EvidenceCatalog {
             unique_variables(Arc::clone(&regime.conditioned_on), "conditioning coordinates")?;
             regime.validate_descriptor()?;
             if regime.conditioned_on.iter().any(|v| !regime.measured.contains(v)) {
-                return Err(QueryError::InvalidTransport(TransportFault::ConditioningNeedsCoordinates));
+                return Err(QueryError::InvalidTransport(
+                    TransportFault::ConditioningNeedsCoordinates,
+                ));
             }
             for assignment in regime.intervention_values.iter() {
                 if let Some((domain, _)) = domains.get(&assignment.variable.raw()) {
                     let valid = domain.accepts(&assignment.value);
                     if !valid {
-                        return Err(QueryError::InvalidTransport(TransportFault::InterventionValueDomain));
+                        return Err(QueryError::InvalidTransport(
+                            TransportFault::InterventionValueDomain,
+                        ));
                     }
                 }
             }
@@ -1009,20 +1027,26 @@ impl EvidenceCatalog {
                 Arc::clone(&environment.selection_targets),
             )?;
             if !identities.insert(environment.identity.as_ref()) {
-                return Err(QueryError::InvalidTransport(TransportFault::EnvironmentIdentitiesNotDistinct));
+                return Err(QueryError::InvalidTransport(
+                    TransportFault::EnvironmentIdentitiesNotDistinct,
+                ));
             }
             for coordinate in environment.variables.iter() {
                 if let Some((existing_domain, existing_unit)) =
                     domains.get_mut(&coordinate.variable.raw())
                 {
                     if !existing_domain.compatible_with(&coordinate.domain) {
-                        return Err(QueryError::InvalidTransport(TransportFault::IncompatibleDomains));
+                        return Err(QueryError::InvalidTransport(
+                            TransportFault::IncompatibleDomains,
+                        ));
                     }
                     if *existing_unit != coordinate.unit.as_ref()
                         && existing_unit.is_some()
                         && coordinate.unit.is_some()
                     {
-                        return Err(QueryError::InvalidTransport(TransportFault::IncompatibleUnits));
+                        return Err(QueryError::InvalidTransport(
+                            TransportFault::IncompatibleUnits,
+                        ));
                     }
                     if matches!(existing_domain, VariableDomain::Unspecified) {
                         *existing_domain = &coordinate.domain;
@@ -1315,14 +1339,12 @@ mod tests {
         )
         .unwrap();
         let error = EvidenceCatalog::try_new([source, target], [], [], None).unwrap_err();
-        assert!(
-            matches!(
-                error,
-                QueryError::InvalidTransport(
-                    TransportFault::IncompatibleDomains | TransportFault::IncompatibleUnits
-                )
+        assert!(matches!(
+            error,
+            QueryError::InvalidTransport(
+                TransportFault::IncompatibleDomains | TransportFault::IncompatibleUnits
             )
-        );
+        ));
     }
 
     #[test]
@@ -1444,14 +1466,16 @@ mod tests {
         assert!(build(experimental(1, "trial", &[0])).is_ok());
         // A typo'd population would otherwise read as missing evidence.
         let typo = build(experimental(1, "trail", &[0])).unwrap_err();
-        assert!(
-            matches!(typo, QueryError::InvalidTransport(TransportFault::PopulationNotDeclared))
-        );
+        assert!(matches!(
+            typo,
+            QueryError::InvalidTransport(TransportFault::PopulationNotDeclared)
+        ));
         // Variable 1 is declared by no environment.
         let undeclared = build(experimental(1, "trial", &[1])).unwrap_err();
-        assert!(
-            matches!(undeclared, QueryError::InvalidTransport(TransportFault::VariableNotDeclared))
-        );
+        assert!(matches!(
+            undeclared,
+            QueryError::InvalidTransport(TransportFault::VariableNotDeclared)
+        ));
         // Without environments nothing is declared, so nothing is checked.
         assert!(
             EvidenceCatalog::try_new([], [experimental(1, "anywhere", &[1])], [], None).is_ok()

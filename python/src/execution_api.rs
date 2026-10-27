@@ -12,6 +12,8 @@ pub(crate) struct Policy {
     context: ExecutionContext,
     progress: Option<Arc<dyn antecedent_core::ProgressSink>>,
     cancel: Option<antecedent_core::CancellationToken>,
+    /// Most Python callback failures one run retains for attribution.
+    callback_failure_capacity: usize,
 }
 
 thread_local! {
@@ -20,6 +22,14 @@ thread_local! {
 
 pub(crate) fn capture() -> Option<Arc<Policy>> {
     POLICY.with(|policy| policy.borrow().clone())
+}
+
+/// The callback-failure capacity of the run being started on this thread: the explicit
+/// execution's, else the default.
+pub(crate) fn callback_failure_capacity() -> usize {
+    capture().map_or(crate::interrupt::DEFAULT_CALLBACK_FAILURE_CAPACITY, |policy| {
+        policy.callback_failure_capacity
+    })
 }
 
 pub(crate) struct Guard(Option<Arc<Policy>>);
@@ -60,7 +70,7 @@ pub(crate) struct PythonExecution {
 #[pymethods]
 impl PythonExecution {
     #[new]
-    #[pyo3(signature = (*, seed=1, threads=None, memory_bytes=None, cache="bounded", cache_bytes=Some(crate::PY_DEFAULT_CACHE_MAX_BYTES), kernel="auto", cancel=None, on_progress=None))]
+    #[pyo3(signature = (*, seed=1, threads=None, memory_bytes=None, cache="bounded", cache_bytes=Some(crate::PY_DEFAULT_CACHE_MAX_BYTES), kernel="auto", cancel=None, on_progress=None, callback_failure_capacity=crate::interrupt::DEFAULT_CALLBACK_FAILURE_CAPACITY))]
     fn new(
         seed: u64,
         threads: Option<u32>,
@@ -70,6 +80,7 @@ impl PythonExecution {
         kernel: &str,
         cancel: Option<crate::PyCancellationToken>,
         on_progress: Option<Bound<'_, PyAny>>,
+        callback_failure_capacity: usize,
     ) -> PyResult<Self> {
         if threads == Some(0) {
             return Err(crate::value_err("threads must be positive"));
@@ -100,7 +111,9 @@ impl PythonExecution {
             context.cancellation = cancel.clone();
         }
         let progress = crate::callbacks::progress_sink_from_py(on_progress.as_ref())?;
-        Ok(Self { policy: Arc::new(Policy { context, progress, cancel }) })
+        Ok(Self {
+            policy: Arc::new(Policy { context, progress, cancel, callback_failure_capacity }),
+        })
     }
 
     #[getter]
@@ -132,7 +145,12 @@ mod tests {
 
     fn policy(bytes: u64) -> Arc<Policy> {
         let context = ExecutionContext::for_tests(9).with_memory_limit(Some(bytes));
-        Arc::new(Policy { context, progress: None, cancel: None })
+        Arc::new(Policy {
+            context,
+            progress: None,
+            cancel: None,
+            callback_failure_capacity: crate::interrupt::DEFAULT_CALLBACK_FAILURE_CAPACITY,
+        })
     }
 
     #[test]

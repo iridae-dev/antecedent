@@ -47,7 +47,6 @@ fn near(a: f64, b: f64) -> bool {
     within(a, b, NEAR_TOLERANCE)
 }
 
-
 const REGIMES: [&str; 3] = ["do(a=0)", "do(a=1)", "do(a=2)"];
 const IDS: [&str; 3] = ["a0", "a1", "a2"];
 const A0: [f64; 4] = [1.0, 0.0, 0.0, 0.0];

@@ -319,15 +319,9 @@ fn check_shapes(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Exte
             "every assigned arm must index a declared arm label",
         ));
     }
-    let bad_outcome = declaration
-        .outcomes
-        .iter()
-        .any(|m| m.iter().any(|y| !y.is_finite()));
+    let bad_outcome = declaration.outcomes.iter().any(|m| m.iter().any(|y| !y.is_finite()));
     if bad_outcome {
-        refusals.push(invalid(
-            "adaptive_inference.outcome_invalid",
-            "outcomes must be finite",
-        ));
+        refusals.push(invalid("adaptive_inference.outcome_invalid", "outcomes must be finite"));
     }
     let single = declaration.cell.outcome == super::matrix::OutcomeStructure::SingleOutcome;
     if single && declaration.outcomes.iter().any(|m| m.len() > 1) {

@@ -12,8 +12,8 @@
 
 use crate::cluster::{
     MAX_CLUSTER_DIMENSIONS, MAX_MULTIWAY_WORK, bartlett_weight, effective_nw_lag,
-    intern_cluster_tuples, multiway_work,
-    multiway_subset_masks, panel_hac_meat_matrix, validate_panel_hac,
+    intern_cluster_tuples, multiway_subset_masks, multiway_work, panel_hac_meat_matrix,
+    validate_panel_hac,
 };
 use crate::error::StatsError;
 use crate::gram::{form_xtx, invert_square};

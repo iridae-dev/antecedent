@@ -125,7 +125,9 @@ fn encode_schedule(writer: &mut CanonicalWriter, schedule: &InterventionSequence
 
 fn validate_interventions(interventions: &[Intervention]) -> Result<(), QueryError> {
     for intervention in interventions {
-        intervention.validate().map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
+        intervention
+            .validate()
+            .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
     }
     Ok(())
 }
@@ -266,9 +268,9 @@ impl SimulateQuery {
         match &self.target {
             SimulationTarget::InterventionalSample { interventions, draws, .. } => {
                 for intervention in interventions.iter() {
-                    intervention
-                        .validate()
-                        .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
+                    intervention.validate().map_err(|e| {
+                        QueryError::InvalidIntervention(InterventionFault::Rejected(e))
+                    })?;
                 }
                 if *draws == 0 {
                     return invalid(SimulateFault::SampleDraws);
@@ -277,9 +279,9 @@ impl SimulateQuery {
             }
             SimulationTarget::PolicyValue { interventions, draws, .. } => {
                 for intervention in interventions.iter() {
-                    intervention
-                        .validate()
-                        .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
+                    intervention.validate().map_err(|e| {
+                        QueryError::InvalidIntervention(InterventionFault::Rejected(e))
+                    })?;
                 }
                 if *draws < 2 {
                     return invalid(SimulateFault::PolicyValueDraws);

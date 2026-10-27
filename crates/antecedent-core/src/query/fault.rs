@@ -18,10 +18,14 @@ use super::response::{TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseSpec};
 #[non_exhaustive]
 pub enum AttributeFault {
     /// Refused: intrinsic influence needs at least two outer draws, inner draws and replicate batches
-    #[error("intrinsic influence needs at least two outer draws, inner draws and replicate batches")]
+    #[error(
+        "intrinsic influence needs at least two outer draws, inner draws and replicate batches"
+    )]
     IntrinsicDraws,
     /// Refused: feature relevance needs a finite shift, at least one sample and a positive feature limit
-    #[error("feature relevance needs a finite shift, at least one sample and a positive feature limit")]
+    #[error(
+        "feature relevance needs a finite shift, at least one sample and a positive feature limit"
+    )]
     FeatureRelevanceSampling,
     /// Refused: an anomaly attribution declares no target
     #[error("an anomaly attribution declares no target")]
@@ -68,16 +72,22 @@ pub enum PolicyValueFault {
     #[error("fixed dose rules require observed baseline groups")]
     FixedDoseNoGroups,
     /// Refused: fixed dose rules must name every observed baseline group exactly once with finite targets
-    #[error("fixed dose rules must name every observed baseline group exactly once with finite targets")]
+    #[error(
+        "fixed dose rules must name every observed baseline group exactly once with finite targets"
+    )]
     FixedDoseGroupCoverage,
     /// Refused: continuous-dose response requires distinct columns, aligned non-empty baseline groups, finite targets, positive bandwidth, local support of at least two, and known or externally_estimated density provenance
-    #[error("continuous-dose response requires distinct columns, aligned non-empty baseline groups, finite targets, positive bandwidth, local support of at least two, and known or externally_estimated density provenance")]
+    #[error(
+        "continuous-dose response requires distinct columns, aligned non-empty baseline groups, finite targets, positive bandwidth, local support of at least two, and known or externally_estimated density provenance"
+    )]
     ContinuousDoseDeclaration,
     /// Refused: multi-action policy rows, labels, probabilities, and constraints must align
     #[error("multi-action policy rows, labels, probabilities, and constraints must align")]
     MultiActionAlignment,
     /// Refused: multi-action probabilities must be positive and sum to one; costs and budgets must be finite and non-negative
-    #[error("multi-action probabilities must be positive and sum to one; costs and budgets must be finite and non-negative")]
+    #[error(
+        "multi-action probabilities must be positive and sum to one; costs and budgets must be finite and non-negative"
+    )]
     MultiActionProbabilities,
     /// Refused: policy selects an unavailable action
     #[error("policy selects an unavailable action")]
@@ -86,10 +96,14 @@ pub enum PolicyValueFault {
     #[error("policy exceeds its action capacity or budget")]
     ActionCapacityExceeded,
     /// Refused: multi-action policy must carry only multi-action inputs and unique evaluation subject IDs
-    #[error("multi-action policy must carry only multi-action inputs and unique evaluation subject IDs")]
+    #[error(
+        "multi-action policy must carry only multi-action inputs and unique evaluation subject IDs"
+    )]
     MultiActionInputs,
     /// Refused: policy, outcome predictions, ownership IDs, and assignment must align on at least two rows
-    #[error("policy, outcome predictions, ownership IDs, and assignment must align on at least two rows")]
+    #[error(
+        "policy, outcome predictions, ownership IDs, and assignment must align on at least two rows"
+    )]
     BinaryAlignment,
     /// Refused: randomized propensities must be finite and strictly between zero and one
     #[error("randomized propensities must be finite and strictly between zero and one")]
@@ -104,13 +118,19 @@ pub enum PolicyValueFault {
     #[error("uplift bins and training subjects require a positive bin count")]
     UpliftBinCount,
     /// Refused: uplift bins must cover evaluation rows and each bin; declared training subjects must be unique and disjoint
-    #[error("uplift bins must cover evaluation rows and each bin; declared training subjects must be unique and disjoint")]
+    #[error(
+        "uplift bins must cover evaluation rows and each bin; declared training subjects must be unique and disjoint"
+    )]
     UpliftBinCoverage,
     /// Refused: prediction ownership requires disjoint training IDs or matching excluded-fold metadata
-    #[error("prediction ownership requires disjoint training IDs or matching excluded-fold metadata")]
+    #[error(
+        "prediction ownership requires disjoint training IDs or matching excluded-fold metadata"
+    )]
     PredictionOwnership,
     /// Refused: finite-class regret requires 2–16 fixed IPW candidates, selected-policy equality, and disjoint construction subjects
-    #[error("finite-class regret requires 2–16 fixed IPW candidates, selected-policy equality, and disjoint construction subjects")]
+    #[error(
+        "finite-class regret requires 2–16 fixed IPW candidates, selected-policy equality, and disjoint construction subjects"
+    )]
     FiniteClassRegret,
 }
 
@@ -124,7 +144,9 @@ pub enum InterventionFault {
     #[error("a counterfactual event level must be finite")]
     EventLevelNotFinite,
     /// Refused: a counterfactual event query names at least one world, each addressable by a world index
-    #[error("a counterfactual event query names at least one world, each addressable by a world index")]
+    #[error(
+        "a counterfactual event query names at least one world, each addressable by a world index"
+    )]
     EventWorlds,
     /// Refused: a counterfactual event query needs at least one event
     #[error("a counterfactual event query needs at least one event")]
@@ -212,28 +234,40 @@ pub enum PanelDesignFault {
     #[error("staggered DiD requires a selected cohort and period")]
     StaggeredTarget,
     /// Refused: staggered DiD requires aligned positive periods, nonnegative cohorts, and a post-adoption target with an observed pre-period
-    #[error("staggered DiD requires aligned positive periods, nonnegative cohorts, and a post-adoption target with an observed pre-period")]
+    #[error(
+        "staggered DiD requires aligned positive periods, nonnegative cohorts, and a post-adoption target with an observed pre-period"
+    )]
     StaggeredPeriods,
     /// Refused: a heterogeneity-robust specification requires the staggered heterogeneity-robust or covariate-adjusted design
-    #[error("a heterogeneity-robust specification requires the staggered heterogeneity-robust or covariate-adjusted design")]
+    #[error(
+        "a heterogeneity-robust specification requires the staggered heterogeneity-robust or covariate-adjusted design"
+    )]
     RobustSpecificationDesign,
     /// Refused: the heterogeneity-robust designs require their specification
     #[error("the heterogeneity-robust designs require their specification")]
     RobustDesignSpecification,
     /// Refused: a rollout requires aligned positive periods, non-negative cohorts with at least one treated cohort, and no selected target or supplied nuisance
-    #[error("a rollout requires aligned positive periods, non-negative cohorts with at least one treated cohort, and no selected target or supplied nuisance")]
+    #[error(
+        "a rollout requires aligned positive periods, non-negative cohorts with at least one treated cohort, and no selected target or supplied nuisance"
+    )]
     RolloutPeriods,
     /// Refused: rollout covariates must be distinct baseline columns other than the outcome
     #[error("rollout covariates must be distinct baseline columns other than the outcome")]
     RolloutCovariates,
     /// Refused: a covariate-adjusted two-period DiD needs at least one covariate, the 2x2 estimator and no anticipation
-    #[error("a covariate-adjusted two-period DiD needs at least one covariate, the 2x2 estimator and no anticipation")]
+    #[error(
+        "a covariate-adjusted two-period DiD needs at least one covariate, the 2x2 estimator and no anticipation"
+    )]
     CovariateAdjustedTwoPeriod,
     /// Refused: a whole-procedure resample needs at least two replicates and a rollout or augmented panel design
-    #[error("a whole-procedure resample needs at least two replicates and a rollout or augmented panel design")]
+    #[error(
+        "a whole-procedure resample needs at least two replicates and a rollout or augmented panel design"
+    )]
     WholeProcedureResample,
     /// Refused: synthetic control requires aligned nonempty units, positive periods, and a treated unit with a positive intervention period
-    #[error("synthetic control requires aligned nonempty units, positive periods, and a treated unit with a positive intervention period")]
+    #[error(
+        "synthetic control requires aligned nonempty units, positive periods, and a treated unit with a positive intervention period"
+    )]
     SyntheticControlPanel,
     /// Refused: augmented synthetic control requires a finite positive ridge penalty
     #[error("augmented synthetic control requires a finite positive ridge penalty")]
@@ -245,13 +279,19 @@ pub enum PanelDesignFault {
     #[error("a finite sharp-null effect requires declared uniform single-unit randomization")]
     SharpNullRandomization,
     /// Refused: synthetic adoptions must be distinct named units with positive periods and list the treated unit at its intervention period
-    #[error("synthetic adoptions must be distinct named units with positive periods and list the treated unit at its intervention period")]
+    #[error(
+        "synthetic adoptions must be distinct named units with positive periods and list the treated unit at its intervention period"
+    )]
     SyntheticAdoptions,
     /// Refused: synthetic intervals cannot be combined with a unit-randomization test or a ridge augmentation
-    #[error("synthetic intervals cannot be combined with a unit-randomization test or a ridge augmentation")]
+    #[error(
+        "synthetic intervals cannot be combined with a unit-randomization test or a ridge augmentation"
+    )]
     IntervalWithRandomizationTest,
     /// Refused: conformal synthetic intervals take one treated unit and the simplex synthetic control; use placebo variance for several units or synthetic DiD
-    #[error("conformal synthetic intervals take one treated unit and the simplex synthetic control; use placebo variance for several units or synthetic DiD")]
+    #[error(
+        "conformal synthetic intervals take one treated unit and the simplex synthetic control; use placebo variance for several units or synthetic DiD"
+    )]
     ConformalIntervalDesign,
     /// Refused: placebo-variance synthetic intervals need at least two replicates
     #[error("placebo-variance synthetic intervals need at least two replicates")]
@@ -265,7 +305,9 @@ pub enum PanelDesignFault {
 #[non_exhaustive]
 pub enum HistoryMatchFault {
     /// Refused: declare at least one history column and distinct outcome, treatment, history, period and weight columns
-    #[error("declare at least one history column and distinct outcome, treatment, history, period and weight columns")]
+    #[error(
+        "declare at least one history column and distinct outcome, treatment, history, period and weight columns"
+    )]
     HistoryColumns,
     /// Refused: the caliper must be finite and non-negative
     #[error("the caliper must be finite and non-negative")]
@@ -288,10 +330,14 @@ pub enum InterferenceFault {
     #[error("cluster randomization requires clusters and at least one treated cluster")]
     ClusterTreatedClusters,
     /// Refused: two-stage saturation requires aligned clusters, 0 < low < high < 1, and high_clusters > 0
-    #[error("two-stage saturation requires aligned clusters, 0 < low < high < 1, and high_clusters > 0")]
+    #[error(
+        "two-stage saturation requires aligned clusters, 0 < low < high < 1, and high_clusters > 0"
+    )]
     TwoStageSaturation,
     /// Refused: observational exposure requires aligned positive propensities and an explicit network exchangeability assumption
-    #[error("observational exposure requires aligned positive propensities and an explicit network exchangeability assumption")]
+    #[error(
+        "observational exposure requires aligned positive propensities and an explicit network exchangeability assumption"
+    )]
     ObservedExposure,
     /// Refused: exposure levels must be finite/distinct and probability_draws must be positive
     #[error("exposure levels must be finite/distinct and probability_draws must be positive")]
@@ -325,7 +371,9 @@ pub enum LocalPolynomialRatioFault {
     #[error("a calendar-time block bootstrap needs at least two replicates")]
     BootstrapReplicates,
     /// Refused: balance covariates must be distinct columns other than the outcome, treatment and running variable
-    #[error("balance covariates must be distinct columns other than the outcome, treatment and running variable")]
+    #[error(
+        "balance covariates must be distinct columns other than the outcome, treatment and running variable"
+    )]
     BalanceCovariates,
 }
 
@@ -336,7 +384,9 @@ pub enum LocalPolynomialRatioFault {
 #[non_exhaustive]
 pub enum LongitudinalRegimeFault {
     /// Refused: dynamic rule requires a nonempty ID, version, and provenance and a regime-value method
-    #[error("dynamic rule requires a nonempty ID, version, and provenance and a regime-value method")]
+    #[error(
+        "dynamic rule requires a nonempty ID, version, and provenance and a regime-value method"
+    )]
     DynamicRuleIdentity,
     /// Refused: dimensions overflow
     #[error("dimensions overflow")]
@@ -345,7 +395,9 @@ pub enum LongitudinalRegimeFault {
     #[error("histories, probabilities, outcomes, subjects, and folds must align")]
     Alignment,
     /// Refused: method requires aligned finite predictions, observation history, and subject-owned folds
-    #[error("method requires aligned finite predictions, observation history, and subject-owned folds")]
+    #[error(
+        "method requires aligned finite predictions, observation history, and subject-owned folds"
+    )]
     MethodPredictions,
     /// Refused: known fixed outcome predictions require g_formula
     #[error("known fixed outcome predictions require g_formula")]
@@ -363,7 +415,9 @@ pub enum LongitudinalRegimeFault {
     #[error("subject IDs must be unique and nonempty; one outcome row owns the whole history")]
     SubjectIds,
     /// Refused: probabilities require a known sequential design or subject-level excluded-fold ownership
-    #[error("probabilities require a known sequential design or subject-level excluded-fold ownership")]
+    #[error(
+        "probabilities require a known sequential design or subject-level excluded-fold ownership"
+    )]
     ProbabilityOwnership,
     /// Refused: excluded-fold prediction ownership requires at least two subject folds
     #[error("excluded-fold prediction ownership requires at least two subject folds")]
@@ -440,10 +494,14 @@ pub enum ResponseFault {
     #[error("temporal response dose-by-horizon cell count overflow")]
     DoseHorizonCellOverflow,
     /// Refused: temporal response policy must be pulse or sustained; Dynamic is a TemporalEffect spelling, not a ResponseCurve cell
-    #[error("temporal response policy must be pulse or sustained; Dynamic is a TemporalEffect spelling, not a ResponseCurve cell")]
+    #[error(
+        "temporal response policy must be pulse or sustained; Dynamic is a TemporalEffect spelling, not a ResponseCurve cell"
+    )]
     DynamicPolicyNotACell,
     /// Refused: a smoothed dose-response transport query needs distinct dose and outcome coordinates, a non-empty grid of distinct finite doses, a positive finite bandwidth, a finite dose support lo < hi, distinct population keys and a density provenance
-    #[error("a smoothed dose-response transport query needs distinct dose and outcome coordinates, a non-empty grid of distinct finite doses, a positive finite bandwidth, a finite dose support lo < hi, distinct population keys and a density provenance")]
+    #[error(
+        "a smoothed dose-response transport query needs distinct dose and outcome coordinates, a non-empty grid of distinct finite doses, a positive finite bandwidth, a finite dose support lo < hi, distinct population keys and a density provenance"
+    )]
     SmoothedDoseDeclaration,
     /// Refused: a policy tag other than the licensed pulse and sustained spellings.
     #[error("temporal response policy must be {} or {}; got {}", TemporalResponseSpec::POLICY_PULSE, TemporalResponseSpec::POLICY_SUSTAINED, .got)]
@@ -495,10 +553,14 @@ pub enum SurvivalFault {
     #[error("combined delayed entry and known censoring requires marginal IndependentGiven(())")]
     EntryWithKnownCensoring,
     /// Refused: known censoring requires aligned columns, increasing times from zero through tau, and a positive probability floor
-    #[error("known censoring requires aligned columns, increasing times from zero through tau, and a positive probability floor")]
+    #[error(
+        "known censoring requires aligned columns, increasing times from zero through tau, and a positive probability floor"
+    )]
     KnownCensoring,
     /// Refused: randomized survival requires IndependentGiven; conditional censoring also requires known censoring survival
-    #[error("randomized survival requires IndependentGiven; conditional censoring also requires known censoring survival")]
+    #[error(
+        "randomized survival requires IndependentGiven; conditional censoring also requires known censoring survival"
+    )]
     RandomizedCensoring,
 }
 
@@ -619,10 +681,14 @@ pub enum TransportFault {
 #[non_exhaustive]
 pub enum AssociationFault {
     /// Refused: declare distinct outcome, predictor, conditioning and weight columns; a column cannot take two roles
-    #[error("declare distinct outcome, predictor, conditioning and weight columns; a column cannot take two roles")]
+    #[error(
+        "declare distinct outcome, predictor, conditioning and weight columns; a column cannot take two roles"
+    )]
     ColumnRoles,
     /// Refused: an association measure relates the outcome to exactly one predictor and holds nothing fixed; use coefficients to adjust for conditioning columns
-    #[error("an association measure relates the outcome to exactly one predictor and holds nothing fixed; use coefficients to adjust for conditioning columns")]
+    #[error(
+        "an association measure relates the outcome to exactly one predictor and holds nothing fixed; use coefficients to adjust for conditioning columns"
+    )]
     MeasureShape,
     /// Refused: regression coefficients need at least one predictor
     #[error("regression coefficients need at least one predictor")]
@@ -654,13 +720,17 @@ pub enum DiscoverFault {
     #[error("the GES subset cap must be at least 1")]
     GesSubsetCap,
     /// Refused: a class posterior collapses the graphs of an exact, order-MCMC, structure-MCMC, CI-screened or bounded-lag template posterior; the exact edge marginals list no graphs
-    #[error("a class posterior collapses the graphs of an exact, order-MCMC, structure-MCMC, CI-screened or bounded-lag template posterior; the exact edge marginals list no graphs")]
+    #[error(
+        "a class posterior collapses the graphs of an exact, order-MCMC, structure-MCMC, CI-screened or bounded-lag template posterior; the exact edge marginals list no graphs"
+    )]
     ClassPosteriorBase,
     /// Refused: a stability search draws at least 2 resamples
     #[error("a stability search draws at least 2 resamples")]
     StabilityResamples,
     /// Refused: a stability search re-runs PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, PCMCI+, LPCMCI, J-PCMCI+ or regime PCMCI; a posterior has its own sampling error
-    #[error("a stability search re-runs PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, PCMCI+, LPCMCI, J-PCMCI+ or regime PCMCI; a posterior has its own sampling error")]
+    #[error(
+        "a stability search re-runs PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, PCMCI+, LPCMCI, J-PCMCI+ or regime PCMCI; a posterior has its own sampling error"
+    )]
     StabilityBase,
     /// Refused: a structure search needs at least one variable
     #[error("a structure search needs at least one variable")]
@@ -733,10 +803,14 @@ pub enum SimulateFault {
 #[non_exhaustive]
 pub enum TemporalDesignFault {
     /// Refused: a whole-regime contrast reads the mean of a continuous outcome without a misclassification correction
-    #[error("a whole-regime contrast reads the mean of a continuous outcome without a misclassification correction")]
+    #[error(
+        "a whole-regime contrast reads the mean of a continuous outcome without a misclassification correction"
+    )]
     WholeRegimeMisclassification,
     /// Refused: the active and reference regimes name one action per period, the same number of periods each, and differ in some period
-    #[error("the active and reference regimes name one action per period, the same number of periods each, and differ in some period")]
+    #[error(
+        "the active and reference regimes name one action per period, the same number of periods each, and differ in some period"
+    )]
     RegimeActions,
     /// Refused: unit and period labels must align with at least two rows
     #[error("unit and period labels must align with at least two rows")]
@@ -772,7 +846,9 @@ pub enum TemporalDesignFault {
     #[error("ordered levels are a categorical design")]
     OrderedNeedsCategorical,
     /// Refused: every row needs a realized arm in range and a probability row over every arm summing to one
-    #[error("every row needs a realized arm in range and a probability row over every arm summing to one")]
+    #[error(
+        "every row needs a realized arm in range and a probability row over every arm summing to one"
+    )]
     MultiArmRows,
     /// Refused: both factors and their probabilities must align with the rows and lie in (0, 1)
     #[error("both factors and their probabilities must align with the rows and lie in (0, 1)")]
@@ -781,10 +857,14 @@ pub enum TemporalDesignFault {
     #[error("assignment, probabilities and non-empty cluster labels must align with the rows")]
     InterferenceAssignment,
     /// Refused: doses and positive densities must align with the rows, and the bandwidth must be positive
-    #[error("doses and positive densities must align with the rows, and the bandwidth must be positive")]
+    #[error(
+        "doses and positive densities must align with the rows, and the bandwidth must be positive"
+    )]
     DoseDensities,
     /// Refused: a dose target needs a finite grid, two distinct doses, or a non-negative curvature bound
-    #[error("a dose target needs a finite grid, two distinct doses, or a non-negative curvature bound")]
+    #[error(
+        "a dose target needs a finite grid, two distinct doses, or a non-negative curvature bound"
+    )]
     DoseTarget,
     /// Refused: regime survival reads each period's event (lag 0) up to a positive horizon
     #[error("regime survival reads each period's event (lag 0) up to a positive horizon")]
@@ -796,13 +876,17 @@ pub enum TemporalDesignFault {
     #[error("an outcome misclassification correction applies to the recorded-law arm designs")]
     MisclassificationRecordedLaw,
     /// Refused: outcome, treatment and history columns of an observational excursion must be distinct
-    #[error("outcome, treatment and history columns of an observational excursion must be distinct")]
+    #[error(
+        "outcome, treatment and history columns of an observational excursion must be distinct"
+    )]
     ExcursionColumns,
     /// Refused: a whole-regime contrast reads the outcome at the end of follow-up (lag 0)
     #[error("a whole-regime contrast reads the outcome at the end of follow-up (lag 0)")]
     WholeRegimeLag,
     /// Refused: outcome, treatment and confounder columns of a whole-regime contrast must be distinct
-    #[error("outcome, treatment and confounder columns of a whole-regime contrast must be distinct")]
+    #[error(
+        "outcome, treatment and confounder columns of a whole-regime contrast must be distinct"
+    )]
     WholeRegimeColumns,
 }
 
@@ -818,9 +902,8 @@ mod tests {
             error.to_string(),
             "invalid transport query: source_experiments disagree with the evidence catalog"
         );
-        let error = QueryError::InvalidResponse(ResponseFault::UnsupportedPolicy {
-            got: "dynamic".into(),
-        });
+        let error =
+            QueryError::InvalidResponse(ResponseFault::UnsupportedPolicy { got: "dynamic".into() });
         assert_eq!(
             error.to_string(),
             "invalid response query: temporal response policy must be pulse or sustained; got dynamic"

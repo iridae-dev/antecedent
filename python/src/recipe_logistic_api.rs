@@ -9,8 +9,8 @@
 
 use antecedent::analysis::recipe_glm::{logistic_provider, logistic_standardized_effect};
 use antecedent_core::{ProviderCapability, ProviderDeclaration};
-use antecedent_data::TabularData;
 use antecedent_data::TableView;
+use antecedent_data::TabularData;
 use pyo3::prelude::*;
 
 use crate::transport_common::execution_context;

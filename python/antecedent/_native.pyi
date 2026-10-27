@@ -5244,7 +5244,6 @@ def consume_scenario_covariance_artifact(
     artifact: bytes,
     *,
     max_rows: int = 10_000,
-    max_columns: int = 64,
     max_replicates: int = 2000,
     max_compositions: int = 4_000_000,
     memory_bytes: int | None = None,
@@ -11330,6 +11329,7 @@ class _Execution:
         kernel: str = "auto",
         cancel: CancellationToken | None = None,
         on_progress: Callable[[float, str], None] | None = None,
+        callback_failure_capacity: int = 256,
     ) -> None: ...
     @property
     def available_memory_bytes(self) -> int: ...

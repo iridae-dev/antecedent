@@ -130,10 +130,9 @@ fn pack_posterior(
         lag_masks: Some(
             packed.iter().map(|atom| atom.lagged.to_word().unwrap_or_default()).collect(),
         ),
-        lag_bidirected_masks: (kind == GraphPosteriorAtomKind::TemporalAdmg)
-            .then(|| {
-                packed.iter().map(|atom| atom.confounders.to_word().unwrap_or_default()).collect()
-            }),
+        lag_bidirected_masks: (kind == GraphPosteriorAtomKind::TemporalAdmg).then(|| {
+            packed.iter().map(|atom| atom.confounders.to_word().unwrap_or_default()).collect()
+        }),
         max_lag: Some(max_lag),
         ess,
         atom_kind: kind,
@@ -235,6 +234,7 @@ fn pack_lagged(
             ));
         }
     };
-    *mask = with_lagged_edge(mask.clone(), n, past.1, past.0, now.0, true).map_err(crate::py_msg)?;
+    *mask =
+        with_lagged_edge(mask.clone(), n, past.1, past.0, now.0, true).map_err(crate::py_msg)?;
     Ok(())
 }

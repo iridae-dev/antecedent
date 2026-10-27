@@ -165,11 +165,7 @@ struct AxisId(Arc<str>);
 
 impl AxisId {
     fn try_new(text: &str, axis: PreservationAxis) -> Result<Self, RewriteRefusal> {
-        if is_blank(text) {
-            Err(blank(axis))
-        } else {
-            Ok(Self(Arc::from(text)))
-        }
+        if is_blank(text) { Err(blank(axis)) } else { Ok(Self(Arc::from(text))) }
     }
 
     fn as_str(&self) -> &str {

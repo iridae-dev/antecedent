@@ -12,9 +12,9 @@ use crate::bridge::check_declared_size;
 use antecedent::analysis::temporal_counterfactual::{
     GeneralTemporalCounterfactual, GeneralTemporalCounterfactualArtifactError,
     GeneralTemporalIdentity, GeneralTemporalRequestWire, PopulationRole, RegimeFactorKey,
-    TemporalCounterfactual, TemporalCounterfactualArtifactError,
-    TemporalCounterfactualIdentity, TemporalCounterfactualRequestWire,
-    TransportedCounterfactualPrerequisites, transported_path_specific,
+    TemporalCounterfactual, TemporalCounterfactualArtifactError, TemporalCounterfactualIdentity,
+    TemporalCounterfactualRequestWire, TransportedCounterfactualPrerequisites,
+    transported_path_specific,
 };
 use pyo3::prelude::*;
 

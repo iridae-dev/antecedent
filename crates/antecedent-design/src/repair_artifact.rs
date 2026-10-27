@@ -52,11 +52,11 @@ use antecedent_io_core::transport_catalog_wire::{EvidenceCatalogWire, EvidenceRe
 use antecedent_io_core::wire::{AdmgWire, DagWire};
 use serde::{Deserialize, Serialize};
 
-use crate::plan_common::variable_ids as ids;
 use crate::identification_repair::{
     FrontDoorRepairFamily, HedgeRepairFamily, InstrumentRepairFamily, SensitivityFinding,
     SensitivityMethod, SensitivityRepairFamily,
 };
+use crate::plan_common::variable_ids as ids;
 use crate::repair::{
     BackdoorRepairFamily, FailedContract, FamilyVerdict, REPAIR_DEFAULT_DEPTH,
     REPAIR_MAX_MEMORY_BYTES, REPAIR_MAX_OPERATIONS, REPAIR_RECEIPT_REGIONS, RepairCancelled,

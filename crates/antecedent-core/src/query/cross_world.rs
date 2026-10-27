@@ -14,8 +14,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::fault::InterventionFault;
 use super::error::QueryError;
+use super::fault::InterventionFault;
 use crate::ids::VariableId;
 
 /// Index of a world within one query.
@@ -79,13 +79,17 @@ impl WorldSpec {
                     // One level, one spelling: -0.0 and 0.0 are the same value.
                     Ok((variable, (value + 0.0).to_bits()))
                 } else {
-                    Err(QueryError::InvalidIntervention(InterventionFault::CrossWorldValueNotFinite))
+                    Err(QueryError::InvalidIntervention(
+                        InterventionFault::CrossWorldValueNotFinite,
+                    ))
                 }
             })
             .collect::<Result<_, _>>()?;
         interventions.sort_unstable();
         if interventions.windows(2).any(|w| w[0].0 == w[1].0) {
-            return Err(QueryError::InvalidIntervention(InterventionFault::VariableIntervenedTwice));
+            return Err(QueryError::InvalidIntervention(
+                InterventionFault::VariableIntervenedTwice,
+            ));
         }
         let mut routes: Vec<EdgeRoute> = routes.into_iter().collect();
         routes.sort_unstable();
@@ -196,17 +200,23 @@ impl CrossWorldQuery {
         for (index, world) in self.worlds.iter().enumerate() {
             for route in &world.routes {
                 if route.source.index() >= n || route.source.index() == index {
-                    return Err(QueryError::InvalidIntervention(InterventionFault::RouteUnknownWorld));
+                    return Err(QueryError::InvalidIntervention(
+                        InterventionFault::RouteUnknownWorld,
+                    ));
                 }
             }
         }
         for observation in [self.plus, self.minus] {
             if observation.world.index() >= n {
-                return Err(QueryError::InvalidIntervention(InterventionFault::ObservationUnknownWorld));
+                return Err(QueryError::InvalidIntervention(
+                    InterventionFault::ObservationUnknownWorld,
+                ));
             }
         }
         if self.plus == self.minus {
-            return Err(QueryError::InvalidIntervention(InterventionFault::ContrastObservationsNotDistinct));
+            return Err(QueryError::InvalidIntervention(
+                InterventionFault::ContrastObservationsNotDistinct,
+            ));
         }
         Ok(())
     }
@@ -261,7 +271,9 @@ impl CrossWorldQuery {
         intervened_edges: &[(VariableId, VariableId)],
     ) -> Result<Self, QueryError> {
         if treatment == outcome {
-            return Err(QueryError::InvalidIntervention(InterventionFault::TreatmentOutcomeNotDistinct));
+            return Err(QueryError::InvalidIntervention(
+                InterventionFault::TreatmentOutcomeNotDistinct,
+            ));
         }
         if !control.is_finite()
             || !active.is_finite()
@@ -270,10 +282,9 @@ impl CrossWorldQuery {
             return Err(QueryError::InvalidIntervention(InterventionFault::PathSpecificLevels));
         }
         if let Some(edge) = intervened_edges.iter().find(|e| !graph_edges.contains(e)) {
-            return Err(QueryError::InvalidIntervention(InterventionFault::IntervenedEdgeNotInGraph {
-                parent: edge.0,
-                child: edge.1,
-            }));
+            return Err(QueryError::InvalidIntervention(
+                InterventionFault::IntervenedEdgeNotInGraph { parent: edge.0, child: edge.1 },
+            ));
         }
         let baseline = WorldId::new(0);
         let routes = graph_edges

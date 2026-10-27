@@ -127,7 +127,9 @@ impl TransportQuery {
             catalog.validate()?;
             let derived = catalog.source_experiment_variables(&self.source_population);
             if !same_variable_set(&self.source_experiments, &derived) {
-                return Err(QueryError::InvalidTransport(TransportFault::SourceExperimentsDisagree));
+                return Err(QueryError::InvalidTransport(
+                    TransportFault::SourceExperimentsDisagree,
+                ));
             }
         }
         Ok(())

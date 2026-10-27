@@ -13,8 +13,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
 use super::{
-    conditional_query, intervention_response_query, parse_estimator, parse_identifier, with_graph,
-    PrepareRequest, PyPreparedAnalysis, StaticClassGraph,
+    PrepareRequest, PyPreparedAnalysis, StaticClassGraph, conditional_query,
+    intervention_response_query, parse_estimator, parse_identifier, with_graph,
 };
 use crate::{dag_from_named_edges, graphs, py_err, py_msg, require_named_graph_order};
 
@@ -429,7 +429,7 @@ impl PyPreparedAnalysis {
         let data = req.load_columns(py, columns)?;
         let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
         req.off_gil(py, move |req| {
-            use crate::transport_interference_api::{schema_ids, transport_query, ResponseArgs};
+            use crate::transport_interference_api::{ResponseArgs, schema_ids, transport_query};
             let schema = data.schema().clone();
             let mut query = transport_query(
                 ResponseArgs {
@@ -511,7 +511,7 @@ impl PyPreparedAnalysis {
         req.refuse_population("an interference exposure contrast")?;
         let data = req.load_columns(py, columns)?;
         req.off_gil(py, move |req| {
-            use crate::transport_interference_api::{interference_query, InterferenceArgs};
+            use crate::transport_interference_api::{InterferenceArgs, interference_query};
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let query = interference_query(
                 InterferenceArgs {

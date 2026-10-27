@@ -22,7 +22,7 @@ use antecedent_model::compose::{
 };
 use antecedent_model::observation_query::condition_gaussian;
 use antecedent_model::observation_uncertainty::{
-    redraw_conditional, RedrawPrior, RedrawTarget, RetainedMechanism, TableCountRow, TableCounts,
+    RedrawPrior, RedrawTarget, RetainedMechanism, TableCountRow, TableCounts, redraw_conditional,
 };
 
 /// A splitmix generator with Box-Muller normals and Marsaglia-Tsang gammas,

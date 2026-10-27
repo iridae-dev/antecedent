@@ -32,8 +32,8 @@ use super::declaration::{
 };
 use super::refusal::{
     InterfaceRefusal, calibration_inherited_not_held, calibration_inherited_unfed,
-    cyclic_composition, dependence_unknown, duplicate_component,
-    port_multiply_fed, shared_evidence, unknown_component, unknown_port,
+    cyclic_composition, dependence_unknown, duplicate_component, port_multiply_fed,
+    shared_evidence, unknown_component, unknown_port,
 };
 use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
 

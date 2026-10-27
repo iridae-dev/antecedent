@@ -135,8 +135,9 @@ where
     let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
     let source_batch = crate::numeric_columns_to_batch(names, source_columns)?;
     let target_batch = crate::numeric_columns_to_batch(names, target_columns)?;
-    let discovery_batch =
-        discovery_columns.map(|columns| crate::numeric_columns_to_batch(names, columns)).transpose()?;
+    let discovery_batch = discovery_columns
+        .map(|columns| crate::numeric_columns_to_batch(names, columns))
+        .transpose()?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let ran: Result<(DiscoveredTransportRun, Option<TrialWorkResult<T>>), SelectiveDiscoveryError> =

@@ -57,6 +57,11 @@ pub enum StatsError {
     /// Backend failure.
     #[error("backend error: {0}")]
     Backend(String),
+    /// A foreign callback (a user-supplied conditional-independence test) raised. The
+    /// failure is structured data, so a host binding finds the exception it retained from
+    /// the error chain; the text is the same as the [`Self::Backend`] it replaces.
+    #[error("backend error: {0}")]
+    CallbackFailed(#[source] antecedent_core::CallbackFailure),
     /// The execution context's cancellation token fired before the computation finished.
     #[error("cancelled")]
     Cancelled,
@@ -163,5 +168,15 @@ mod singular_route_tests {
         assert!(record.is_computational_failure());
         assert!(record.unevaluable_mass().is_unreported());
         assert!(StatsError::Shape { message: "x" }.route_diagnostic().is_none());
+    }
+
+    #[test]
+    fn a_callback_failure_round_trips_through_the_stats_error() {
+        use antecedent_core::CallbackFailure;
+        let failure = CallbackFailure::new(Some(9), "Python CI callback failed: boom", None);
+        let error = StatsError::CallbackFailed(failure.clone());
+        assert_eq!(error.to_string(), "backend error: Python CI callback failed: boom");
+        assert_eq!(CallbackFailure::in_chain(&error), Some(&failure));
+        assert!(CallbackFailure::in_chain(&StatsError::Cancelled).is_none());
     }
 }

@@ -8,12 +8,16 @@
 //! engines already poll cooperatively) and the `KeyboardInterrupt` is what the caller gets back.
 //!
 //! Python callables invoked from native code fail with a `PyErr` that would otherwise be reduced
-//! to a message. [`callback_failure`] keeps the original exception under an id its message
-//! carries; [`attribute`] looks it up by that id and re-raises it
+//! to a message. [`callback_failure`] keeps the original exception in the executing run's own
+//! stash and returns a structured [`CallbackFailure`] that the native error enums carry as a
+//! variant (`ModelError::CallbackFailed`, `StatsError::CallbackFailed`, ...). Converting such a
+//! native error to its Python exception ([`with_callback_failure`]) records the failure's id on
+//! the exception; [`attribute`] looks that id up in the run's stash and re-raises the original
 //! (`KeyboardInterrupt`, `SystemExit`, ... unchanged) or chains it as `__cause__` of the domain
 //! error, so tracebacks into user code survive and `except CausalError` cannot swallow an
-//! interrupt. Each native run owns its callback ids and releases any unattributed
-//! failures when the run finishes, including successful fallbacks and signal overrides.
+//! interrupt. No message text is ever parsed. Each native run owns its stash, bounded by the
+//! run policy's callback-failure capacity, and releases any unattributed failures when the run
+//! finishes, including successful fallbacks and signal overrides.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -23,7 +27,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError, Weak};
 use std::time::Duration;
 
-use antecedent_core::{CancellationToken, WeakCancellationToken};
+use antecedent_core::{CallbackFailure, CancellationToken, WeakCancellationToken};
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 
@@ -36,25 +40,39 @@ const POLL: Duration = Duration::from_millis(50);
 /// the 8 MiB a Python main thread has by default, with headroom for the engines' own frames.
 const WORKER_STACK_BYTES: usize = 64 * 1024 * 1024;
 
-/// Retained callback failures. A full map refuses a new id instead of dropping
-/// the oldest, which may still be waiting to be attributed.
-const MAX_STASHED: usize = 256;
+/// Callback failures one run retains when its execution policy names no capacity. A full
+/// stash refuses a new id instead of dropping the oldest, which may still be waiting to be
+/// attributed.
+pub(crate) const DEFAULT_CALLBACK_FAILURE_CAPACITY: usize = 256;
 
 /// Tokens the interrupt loop cancels for one run.
-#[derive(Default)]
 struct Scope {
     own: CancellationToken,
     linked: Mutex<Vec<CancellationToken>>,
-    /// IDs retained by callbacks on this worker, including errors a native fallback
-    /// suppresses or a pending signal supersedes before attribution.
-    failures: Mutex<Vec<u64>>,
+    /// Python exceptions retained by callbacks on this worker, by the id their
+    /// [`CallbackFailure`] carries, including errors a native fallback suppresses or a
+    /// pending signal supersedes before attribution. Owned by this run alone, so only the
+    /// run's own ids are ever eligible for attribution.
+    failures: Mutex<BTreeMap<u64, PyErr>>,
+    /// Most failures `failures` retains; a further failure is reported without an id.
+    capacity: usize,
     /// First observer exception or callback BaseException. Native success/fallback
     /// must not swallow an observer failure or a request to interrupt or exit.
-    /// Bounded independently of STASH.
+    /// Bounded independently of `failures`.
     interruption: Mutex<Option<PyErr>>,
 }
 
 impl Scope {
+    fn new(capacity: usize) -> Self {
+        Self {
+            own: CancellationToken::default(),
+            linked: Mutex::new(Vec::new()),
+            failures: Mutex::new(BTreeMap::new()),
+            capacity,
+            interruption: Mutex::new(None),
+        }
+    }
+
     fn cancel_all(&self) {
         self.own.cancel();
         for token in self.linked.lock().unwrap_or_else(PoisonError::into_inner).iter() {
@@ -63,14 +81,10 @@ impl Scope {
     }
 
     fn release_failures(&self) {
-        let ids =
-            std::mem::take(&mut *self.failures.lock().unwrap_or_else(PoisonError::into_inner));
         // Never release Python exceptions while holding the stash mutex: their
         // destruction may execute Python finalizers and re-enter a callback.
-        let discarded = {
-            let mut stash = STASH.lock().unwrap_or_else(PoisonError::into_inner);
-            ids.into_iter().filter_map(|id| stash.remove(&id)).collect::<Vec<_>>()
-        };
+        let discarded =
+            std::mem::take(&mut *self.failures.lock().unwrap_or_else(PoisonError::into_inner));
         drop(discarded);
         let superseded = self.interruption.lock().unwrap_or_else(PoisonError::into_inner).take();
         drop(superseded);
@@ -255,29 +269,25 @@ pub(crate) fn link(token: &CancellationToken) {
     }
 }
 
-/// Callback failures awaiting attribution, by the id their message carries.
-static STASH: Mutex<BTreeMap<u64, PyErr>> = Mutex::new(BTreeMap::new());
-
 /// Source of callback-failure ids; one id per recorded failure, never reused.
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
-const TAG_OPEN: &str = "[callback failure #";
+/// The attribute that carries a retained failure's id on the Python exception a native error
+/// was converted to.
+const FAILURE_ID_ATTRIBUTE: &str = "_antecedent_callback_failure";
 
-/// Whether another callback failure can be retained without dropping one already stored.
-fn stash_accepts(len: usize) -> bool {
-    len < MAX_STASHED
-}
-
-/// Record the Python exception behind a callback failure and return its domain error message.
-/// Ordinary exceptions receive an id tag for [`attribute`], so concurrent runs cannot
-/// misattribute a traceback. A scoped BaseException cancels the run and is retained
-/// directly, even if native code converts its error into a report.
-pub(crate) fn callback_failure(what: &str, err: PyErr) -> String {
+/// Record the Python exception behind a callback failure and return it as structured data.
+/// An ordinary exception is retained in the executing run's stash under the returned
+/// failure's id, for [`attribute`] to find through [`with_callback_failure`], so concurrent
+/// runs cannot misattribute a traceback. A scoped BaseException cancels the run and is
+/// retained directly, even if native code converts its error into a report. A failure no run
+/// can retain (no executing run, or a full stash) carries no id.
+pub(crate) fn callback_failure(what: &str, err: PyErr) -> CallbackFailure {
     let scope = ACTIVE.with(|active| active.borrow().clone());
     // No run owns an unscoped failure, so there is no later attribution or cleanup
     // boundary at which retaining its Python exception would be safe.
     let Some(scope) = scope else {
-        return unretained_callback_description(&format!("{what}: {err}"));
+        return described(None, format!("{what}: {err}"));
     };
     {
         let interrupts = Python::attach(|py| !err.is_instance_of::<PyException>(py));
@@ -293,25 +303,44 @@ pub(crate) fn callback_failure(what: &str, err: PyErr) -> String {
             };
             drop(discarded);
             scope.cancel_all();
-            return format!("{what}: Python callback interrupted the native run");
+            return described(None, format!("{what}: Python callback interrupted the native run"));
         }
     }
     // Exception __str__ can execute user Python, including another failing
     // callback. Format ordinary errors before locking, even when the stash is full.
     let description = format!("{what}: {err}");
-    let mut stash = STASH.lock().unwrap_or_else(PoisonError::into_inner);
-    if !stash_accepts(stash.len()) {
+    let mut stash = scope.failures.lock().unwrap_or_else(PoisonError::into_inner);
+    if stash.len() >= scope.capacity {
         // The oldest entry may still be waiting for [`attribute`]. Dropping it
-        // would attach this failure's exception to an earlier run. The new
+        // would attach this failure's exception to an earlier failure. The new
         // failure stays in the message and is not given an id.
         drop(stash);
-        return unretained_callback_description(&description);
+        return described(None, description);
     }
     let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
     stash.insert(id, err);
     drop(stash);
-    scope.failures.lock().unwrap_or_else(PoisonError::into_inner).push(id);
-    format!("{description} {TAG_OPEN}{id}]")
+    described(Some(id), description)
+}
+
+/// A failure with its description, naming the registered reason code the foreign error's own
+/// text opens with (directly or after one `<label>: `), if it names one.
+fn described(id: Option<u64>, description: String) -> CallbackFailure {
+    let code = crate::errors::reason_code_in_message(&description)
+        .filter(|code| antecedent_core::reason_code::is_registered(code))
+        .map(str::to_owned);
+    CallbackFailure::new(id, description, code)
+}
+
+/// Record on a converted Python exception which retained failure it stands for, so the run
+/// boundary can restore the original exception as its cause.
+pub(crate) fn with_callback_failure(err: PyErr, failure: &CallbackFailure) -> PyErr {
+    if let Some(id) = failure.id() {
+        Python::attach(|py| {
+            let _ = err.value(py).setattr(FAILURE_ID_ATTRIBUTE, id);
+        });
+    }
+    err
 }
 
 /// Retain an observer's original exception at the executing run boundary.
@@ -341,41 +370,21 @@ pub(crate) fn observer_failure(err: PyErr) -> Result<(), PyErr> {
     Ok(())
 }
 
-/// An outer error that could not retain its original must not attribute a nested
-/// callback's tag copied into its __str__ output. Keep its readable diagnostics,
-/// but neutralize the private lookup syntax before returning the unretained error.
-fn unretained_callback_description(description: &str) -> String {
-    description.replace(TAG_OPEN, "[unretained callback failure #")
-}
-
-/// The callback-failure ids a domain error message carries, in order of appearance.
-fn tagged_ids(text: &str) -> impl Iterator<Item = u64> + '_ {
-    text.match_indices(TAG_OPEN).filter_map(|(at, _)| {
-        let rest = &text[at + TAG_OPEN.len()..];
-        rest.split_once(']')?.0.parse().ok()
-    })
-}
-
-/// Replace a domain error that wraps a callback failure with the Python exception behind it.
+/// Replace a domain error that stands for a callback failure with the Python exception behind it.
 ///
 /// A non-`Exception` (`KeyboardInterrupt`, `SystemExit`, ...) is re-raised as is. An `Exception`
 /// becomes the `__cause__` of the domain error, keeping its type and traceback.
-/// Only this run's registered ids are eligible; nested error descriptions cannot
-/// take precedence over the outer callback's final tag.
+/// Only this run's own retained failures are eligible: an id the run's stash does not hold
+/// (another run's, or one a user exception merely claims) attributes nothing.
 fn attribute(py: Python<'_>, err: PyErr, scope: &Scope) -> PyErr {
     if !err.is_instance_of::<PyException>(py) {
         return err;
     }
-    // Formatting can call Python and register more failures; do it before either
-    // lock. The final owned tag belongs to the outer callback, appended after its
-    // exception's __str__ returned any nested callback's tagged description.
-    let text = err.value(py).to_string();
-    let owned = scope.failures.lock().unwrap_or_else(PoisonError::into_inner).clone();
-    let original = {
-        let mut stash = STASH.lock().unwrap_or_else(PoisonError::into_inner);
-        let id = tagged_ids(&text).filter(|id| owned.contains(id) && stash.contains_key(id)).last();
-        id.and_then(|id| stash.remove(&id))
-    };
+    // Reading the attribute can call Python; do it before taking the stash lock.
+    let id =
+        err.value(py).getattr(FAILURE_ID_ATTRIBUTE).ok().and_then(|id| id.extract::<u64>().ok());
+    let Some(id) = id else { return err };
+    let original = scope.failures.lock().unwrap_or_else(PoisonError::into_inner).remove(&id);
     let Some(original) = original else { return err };
     if original.is_instance_of::<PyException>(py) {
         err.set_cause(py, Some(original));
@@ -395,7 +404,7 @@ where
     F: FnOnce() -> PyResult<T> + Send,
     T: Send,
 {
-    let scope = Arc::new(Scope::default());
+    let scope = Arc::new(Scope::new(crate::execution_api::callback_failure_capacity()));
     scope.linked.lock().unwrap_or_else(PoisonError::into_inner).extend(PENDING.with(|pending| {
         std::mem::take(&mut *pending.borrow_mut())
             .iter()
@@ -459,41 +468,81 @@ where
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the tests raise Python exceptions from callbacks to check how the run attributes them"
+)]
 mod tests {
-    use super::{TAG_OPEN, tagged_ids};
+    use super::{DEFAULT_CALLBACK_FAILURE_CAPACITY, Scope, with_callback_failure};
+    use antecedent_core::CallbackFailure;
 
     #[test]
-    fn a_domain_error_names_its_callback_failures_by_id_not_by_text() {
-        // Two runs whose callbacks fail with byte-identical text carry different ids, so
-        // attribution keyed on the id cannot hand one run the other's exception.
-        let first = format!("Python CI callback failed: ValueError: boom {TAG_OPEN}7]");
-        let second = format!("Python CI callback failed: ValueError: boom {TAG_OPEN}8]");
-        assert_ne!(first, second);
-        assert_eq!(tagged_ids(&first).collect::<Vec<_>>(), vec![7]);
-        assert_eq!(tagged_ids(&second).collect::<Vec<_>>(), vec![8]);
-        let wrapped = format!("discovery failed: backend: {second}");
-        assert_eq!(tagged_ids(&wrapped).collect::<Vec<_>>(), vec![8]);
-        assert_eq!(tagged_ids("no tag here").count(), 0);
-        assert_eq!(tagged_ids(&format!("{TAG_OPEN}not a number]")).count(), 0);
+    fn a_domain_error_names_its_callback_failure_by_id_not_by_text() {
+        use crate::CausalError;
+        use pyo3::prelude::*;
+
+        Python::initialize();
+        Python::attach(|py| {
+            // Two failures with byte-identical text carry different ids, and the id rides
+            // on the converted exception, never in its message.
+            let first = CallbackFailure::new(Some(7), "Python CI callback failed: boom", None);
+            let second = CallbackFailure::new(Some(8), "Python CI callback failed: boom", None);
+            assert_eq!(first.description(), second.description());
+            let converted = with_callback_failure(CausalError::new_err(first.to_string()), &second);
+            assert_eq!(converted.value(py).to_string(), "Python CI callback failed: boom");
+            let id: u64 = converted
+                .value(py)
+                .getattr(super::FAILURE_ID_ATTRIBUTE)
+                .unwrap()
+                .extract()
+                .unwrap();
+            assert_eq!(id, 8);
+            // A failure no run retained names nothing.
+            let unretained = CallbackFailure::new(None, "boom", None);
+            let plain = with_callback_failure(CausalError::new_err("boom"), &unretained);
+            assert!(plain.value(py).getattr(super::FAILURE_ID_ATTRIBUTE).is_err());
+        });
     }
 
     #[test]
     fn a_full_callback_stash_does_not_drop_the_oldest_id() {
-        use super::{MAX_STASHED, stash_accepts};
-        assert!(stash_accepts(0));
-        assert!(stash_accepts(MAX_STASHED - 1));
-        assert!(!stash_accepts(MAX_STASHED));
+        use super::{ACTIVE, callback_failure};
+        use pyo3::exceptions::PyValueError;
+        use pyo3::prelude::*;
+
+        Python::initialize();
+        Python::attach(|_| {
+            let scope = std::sync::Arc::new(Scope::new(2));
+            let _active = super::ActiveGuard(ACTIVE.with(|a| a.replace(Some(scope.clone()))));
+            let first = callback_failure("cb", PyValueError::new_err("one"));
+            let second = callback_failure("cb", PyValueError::new_err("two"));
+            let refused = callback_failure("cb", PyValueError::new_err("three"));
+            assert!(first.id().is_some() && second.id().is_some());
+            assert_eq!(refused.id(), None, "a full stash refuses instead of evicting");
+            assert!(refused.description().contains("three"));
+            let held: Vec<u64> = scope.failures.lock().unwrap().keys().copied().collect();
+            assert_eq!(held, vec![first.id().unwrap(), second.id().unwrap()]);
+        });
+    }
+
+    #[test]
+    fn the_callback_failure_capacity_defaults_and_follows_the_run_policy() {
+        assert_eq!(DEFAULT_CALLBACK_FAILURE_CAPACITY, 256);
+        assert_eq!(
+            crate::execution_api::callback_failure_capacity(),
+            DEFAULT_CALLBACK_FAILURE_CAPACITY
+        );
     }
 
     #[test]
     fn successful_fallbacks_release_callback_exceptions_after_every_run() {
-        use super::{MAX_STASHED, STASH, callback_failure, run};
+        use super::{callback_failure, run};
         use pyo3::exceptions::PyValueError;
         use pyo3::prelude::*;
 
         Python::initialize();
         Python::attach(|py| {
-            for _ in 0..=MAX_STASHED {
+            for _ in 0..=DEFAULT_CALLBACK_FAILURE_CAPACITY {
                 let retained = std::sync::Arc::new(std::sync::Mutex::new(None));
                 let worker_retained = std::sync::Arc::clone(&retained);
                 let id = run(py, || {
@@ -501,22 +550,20 @@ mod tests {
                     // owner still holds its scope after the worker returns.
                     *worker_retained.lock().unwrap() =
                         super::ACTIVE.with(|active| active.borrow().clone());
-                    let message =
+                    let failure =
                         callback_failure("suppressed callback", PyValueError::new_err("boom"));
-                    Ok(tagged_ids(&message)
-                        .next()
-                        .expect("previous runs must release their failures"))
+                    Ok(failure.id().expect("a run's stash always has room at its start"))
                 })
                 .unwrap();
-                assert!(!STASH.lock().unwrap().contains_key(&id));
-                assert!(retained.lock().unwrap().is_some());
+                let scope = retained.lock().unwrap().clone().expect("the worker's scope");
+                assert!(!scope.failures.lock().unwrap().contains_key(&id));
             }
         });
     }
 
     #[test]
     fn callback_base_exceptions_survive_and_superseded_failures_are_released() {
-        use super::{STASH, callback_failure, run};
+        use super::{callback_failure, run, with_callback_failure};
         use crate::CausalError;
         use pyo3::exceptions::{PyKeyboardInterrupt, PySystemExit, PyValueError};
         use pyo3::prelude::*;
@@ -526,22 +573,26 @@ mod tests {
             for original in [PyKeyboardInterrupt::new_err("stop"), PySystemExit::new_err(17)] {
                 let expected = original.clone_ref(py);
                 let error = run::<_, ()>(py, move || {
-                    Err(CausalError::new_err(callback_failure("callback", original)))
+                    let failure = callback_failure("callback", original);
+                    Err(with_callback_failure(CausalError::new_err(failure.to_string()), &failure))
                 })
                 .unwrap_err();
                 assert!(error.value(py).is(expected.value(py)));
             }
-            let id = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-            let recorded = std::sync::Arc::clone(&id);
+            let retained = std::sync::Arc::new(std::sync::Mutex::new(None));
+            let worker_retained = std::sync::Arc::clone(&retained);
             let error = run::<_, ()>(py, move || {
-                let message = callback_failure("discarded callback", PyValueError::new_err("boom"));
-                recorded.store(tagged_ids(&message).next().unwrap(), super::Ordering::Relaxed);
-                // Mirrors run's signal-wins branch: this result carries no callback tag.
+                *worker_retained.lock().unwrap() =
+                    super::ACTIVE.with(|active| active.borrow().clone());
+                let failure = callback_failure("discarded callback", PyValueError::new_err("boom"));
+                assert!(failure.id().is_some());
+                // Mirrors run's signal-wins branch: this result carries no callback id.
                 Err(PyKeyboardInterrupt::new_err("signal wins"))
             })
             .unwrap_err();
             assert!(error.is_instance_of::<PyKeyboardInterrupt>(py));
-            assert!(!STASH.lock().unwrap().contains_key(&id.load(super::Ordering::Relaxed)));
+            let scope = retained.lock().unwrap().clone().expect("the worker's scope");
+            assert!(scope.failures.lock().unwrap().is_empty());
         });
     }
 
@@ -614,7 +665,10 @@ mod tests {
                             let error = run::<_, ()>(py, move || {
                                 let message = callback_failure("callback", original);
                                 barrier.wait();
-                                Err(CausalError::new_err(message))
+                                Err(with_callback_failure(
+                                    CausalError::new_err(message.to_string()),
+                                    &message,
+                                ))
                             })
                             .unwrap_err();
                             let cause =
@@ -1010,8 +1064,8 @@ mod tests {
     }
 
     #[test]
-    fn a_domain_message_cannot_consume_another_live_runs_callback_tag() {
-        use super::{callback_failure, run};
+    fn a_domain_error_cannot_consume_another_live_runs_callback_failure() {
+        use super::{callback_failure, run, with_callback_failure};
         use crate::CausalError;
         use pyo3::exceptions::PyValueError;
         use pyo3::prelude::*;
@@ -1025,24 +1079,31 @@ mod tests {
                     let expected = PyValueError::new_err("owned callback");
                     let original = expected.clone_ref(py);
                     let error = run::<_, ()>(py, move || {
-                        let message = callback_failure("owner", original);
-                        tag_sent.send(message.clone()).unwrap();
+                        let failure = callback_failure("owner", original);
+                        tag_sent.send(failure.clone()).unwrap();
                         // This worker is detached from Python while the other run
-                        // attempts attribution with the still-live owner's tag.
+                        // attempts attribution with the still-live owner's id.
                         owner_released.recv().unwrap();
-                        Err(CausalError::new_err(message))
+                        Err(with_callback_failure(
+                            CausalError::new_err(failure.to_string()),
+                            &failure,
+                        ))
                     })
                     .unwrap_err();
                     assert!(error.cause(py).unwrap().value(py).is(expected.value(py)));
                 });
             });
             let spoofer = threads.spawn(move || {
-                let message = tag_received.recv().unwrap();
+                let foreign = tag_received.recv().unwrap();
                 Python::attach(|py| {
                     let result = run::<_, ()>(py, move || {
-                        Err(CausalError::new_err(format!("unrelated domain error: {message}")))
+                        // An unrelated error that names the other run's failure id.
+                        Err(with_callback_failure(
+                            CausalError::new_err("unrelated domain error"),
+                            &foreign,
+                        ))
                     });
-                    // The foreign tag stayed live throughout attribution. Release its
+                    // The foreign failure stayed live throughout attribution. Release its
                     // owner before any assertion, so a regression fails without leaving
                     // the other native worker waiting for an assertion that panicked.
                     spoof_finished.send(()).unwrap();
@@ -1058,46 +1119,52 @@ mod tests {
 
     #[test]
     fn an_unretained_outer_failure_cannot_attribute_its_nested_callbacks_original() {
-        use super::{callback_failure, run, unretained_callback_description};
+        use super::{callback_failure, run, with_callback_failure};
         use crate::CausalError;
         use pyo3::exceptions::PyValueError;
         use pyo3::prelude::*;
 
         Python::initialize();
         Python::attach(|py| {
-            let id = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-            let recorded = std::sync::Arc::clone(&id);
+            let retained = std::sync::Arc::new(std::sync::Mutex::new(None));
+            let worker_retained = std::sync::Arc::clone(&retained);
             let error = run::<_, ()>(py, move || {
+                *worker_retained.lock().unwrap() =
+                    super::ACTIVE.with(|active| active.borrow().clone());
                 let nested = callback_failure("nested formatting", PyValueError::new_err("inner"));
-                recorded.store(tagged_ids(&nested).next().unwrap(), super::Ordering::Relaxed);
-                // Exercise the exact capacity-refusal transformation, without filling
-                // the process-global stash and competing with concurrently running tests.
-                let description = format!("outer callback: {nested}");
-                let message = unretained_callback_description(&description);
-                assert!(message.contains("inner"));
-                assert_eq!(tagged_ids(&message).count(), 0);
-                Err(CausalError::new_err(message))
+                assert!(nested.id().is_some());
+                // An outer failure that could not retain its original (a full stash) is an
+                // id-less failure; its description may quote the nested one, but only the
+                // outer failure's own (absent) id is ever recorded on the converted error.
+                let outer = antecedent_core::CallbackFailure::new(
+                    None,
+                    format!("outer callback: {nested}"),
+                    None,
+                );
+                assert!(outer.description().contains("inner"));
+                Err(with_callback_failure(CausalError::new_err(outer.to_string()), &outer))
             })
             .unwrap_err();
             assert!(error.is_instance_of::<CausalError>(py));
             assert!(error.cause(py).is_none());
-            assert!(!super::STASH.lock().unwrap().contains_key(&id.load(super::Ordering::Relaxed)));
+            let scope = retained.lock().unwrap().clone().expect("the worker's scope");
+            assert!(scope.failures.lock().unwrap().is_empty());
         });
     }
 
     #[test]
-    fn unscoped_callback_failures_have_no_unowned_retention_tag() {
+    fn unscoped_callback_failures_are_not_retained() {
         use pyo3::Python;
 
         Python::initialize();
         Python::attach(|_| {
             assert!(super::ACTIVE.with(|active| active.borrow().is_none()));
-            let message = super::callback_failure(
+            let failure = super::callback_failure(
                 "unscoped callback",
                 pyo3::exceptions::PyValueError::new_err("plain failure"),
             );
-            assert!(message.contains("plain failure"));
-            assert_eq!(tagged_ids(&message).count(), 0);
+            assert!(failure.description().contains("plain failure"));
+            assert_eq!(failure.id(), None);
         });
     }
 
@@ -1107,11 +1174,12 @@ mod tests {
             "nested exception formatting",
             pyo3::exceptions::PyValueError::new_err("nested"),
         )
+        .to_string()
     }
 
     #[test]
     fn exception_formatting_can_reenter_callback_failure_without_holding_the_stash_lock() {
-        use super::{callback_failure, run};
+        use super::{callback_failure, run, with_callback_failure};
         use crate::CausalError;
         use pyo3::prelude::*;
         use pyo3::types::PyModule;
@@ -1130,19 +1198,20 @@ mod tests {
             let original =
                 PyErr::from_value(module.getattr("ReentrantError").unwrap().call0().unwrap());
             let expected = original.clone_ref(py);
-            let ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-            let recorded = std::sync::Arc::clone(&ids);
+            let retained = std::sync::Arc::new(std::sync::Mutex::new(None));
+            let worker_retained = std::sync::Arc::clone(&retained);
             let error = run::<_, ()>(py, move || {
-                let message = callback_failure("callback", original);
-                *recorded.lock().unwrap() = tagged_ids(&message).collect();
-                Err(CausalError::new_err(message))
+                let scope = super::ACTIVE.with(|active| active.borrow().clone()).unwrap();
+                let failure = callback_failure("callback", original);
+                // The exception's own formatting registered a nested failure too.
+                assert_eq!(scope.failures.lock().unwrap().len(), 2);
+                *worker_retained.lock().unwrap() = Some(scope);
+                Err(with_callback_failure(CausalError::new_err(failure.to_string()), &failure))
             })
             .unwrap_err();
             assert!(error.cause(py).unwrap().value(py).is(expected.value(py)));
-            let ids = ids.lock().unwrap().clone();
-            assert_eq!(ids.len(), 2);
-            let stash = super::STASH.lock().unwrap();
-            assert!(ids.iter().all(|id| !stash.contains_key(id)));
+            let scope = retained.lock().unwrap().clone().expect("the worker's scope");
+            assert!(scope.failures.lock().unwrap().is_empty());
         });
     }
 

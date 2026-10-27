@@ -35,6 +35,11 @@ pub enum ModelError {
         /// Context.
         message: String,
     },
+    /// A foreign callback (a user-supplied mechanism method) raised. The failure is
+    /// structured data, so a host binding finds the exception it retained from the error
+    /// chain; the text is the same as the [`Self::Unsupported`] it replaces.
+    #[error("unsupported: {0}")]
+    CallbackFailed(#[source] antecedent_core::CallbackFailure),
     /// Numerical failure.
     #[error("numerical error: {message}")]
     Numerical {
@@ -92,4 +97,20 @@ pub enum ModelError {
     /// Stats error passthrough.
     #[error(transparent)]
     Stats(#[from] StatsError),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ModelError;
+    use antecedent_core::CallbackFailure;
+
+    #[test]
+    fn a_callback_failure_round_trips_through_the_model_error() {
+        let failure = CallbackFailure::new(Some(3), "Python log_prob failed: boom", None);
+        let error = ModelError::CallbackFailed(failure.clone());
+        assert_eq!(error.to_string(), "unsupported: Python log_prob failed: boom");
+        assert_eq!(CallbackFailure::in_chain(&error), Some(&failure));
+        assert!(CallbackFailure::in_chain(&ModelError::Cancelled).is_none());
+        assert_eq!(error.clone(), error);
+    }
 }

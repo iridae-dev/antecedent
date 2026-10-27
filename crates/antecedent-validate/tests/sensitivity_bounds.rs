@@ -106,7 +106,7 @@ fn the_exact_signed_rank_table_leases_before_allocating() {
     let before = pool.available();
     let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
     let error = rosenbaum_range(scalar(5), &d, &[1.0, 2.0], 0.05, Some(&ctx)).unwrap_err();
-    assert!(matches!(error, ValidationError::Refused { .. }), "{error:?}");
+    assert!(matches!(error, ValidationError::Resource { .. }), "{error:?}");
     assert_eq!(pool.available(), before);
 }
 
