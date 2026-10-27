@@ -434,23 +434,46 @@ fn accepted_counterfactual_matches_explicit() {
 }
 
 #[test]
-fn nested_counterfactual_refuses_before_execution() {
+fn permitting_nested_interventions_preserves_flat_effects() {
     let a = [0.0, 1.0, 2.0];
     let data = TabularData::from_f64_columns([("a", a.as_slice()), ("y", a.as_slice())]).unwrap();
     let mut graph = Dag::with_variables(2);
     graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    let mut query = CounterfactualQuery::new(
-        VariableId::from_raw(1),
-        [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+    let context = ExecutionContext::for_tests(1);
+    let estimate = |allow_nested| {
+        let mut query = CounterfactualQuery::new(
+            VariableId::from_raw(1),
+            [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+        );
+        query.allow_nested = allow_nested;
+        Study::tabular(data.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::Counterfactual(query))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .prepare(&context)
+            .unwrap()
+            .estimate_retained(&context)
+            .unwrap()
+    };
+    let plain = estimate(false);
+    let permitted = estimate(true);
+    let plain = plain.counterfactual().unwrap();
+    let contrasts = permitted.counterfactual_contrasts().unwrap();
+    assert_eq!(contrasts.contrasts.len(), 1);
+    let permitted = contrasts.primary();
+    assert_eq!(permitted.unit_effects.len(), a.len());
+    assert!((plain.mean_ite - 1.0).abs() < 1e-8);
+    assert!((permitted.mean_ite - plain.mean_ite).abs() < 1e-12);
+    assert!(
+        permitted
+            .unit_effects
+            .iter()
+            .zip(plain.unit_effects.iter())
+            .all(|(a, b)| (a - b).abs() < 1e-12)
     );
-    query.allow_nested = true;
-    let result = Study::tabular(data)
-        .graph(graph)
-        .query(CausalQuery::Counterfactual(query))
-        .refute(RefuteSuite::None)
-        .build()
-        .and_then(|study| study.prepare(&ExecutionContext::for_tests(1)));
-    assert!(result.is_err());
 }
 
 /// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.

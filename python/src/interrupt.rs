@@ -874,8 +874,10 @@ mod tests {
                                         .extract::<bool>()
                                         .unwrap()
                                 );
-                                let mut traceback =
-                                    error.value(py).getattr("__traceback__").unwrap();
+                                let mut traceback = error
+                                    .traceback(py)
+                                    .expect("the original validator traceback")
+                                    .into_any();
                                 let mut saw_validator = false;
                                 while !traceback.is_none() {
                                     let function: String = traceback
@@ -997,7 +999,9 @@ mod tests {
                                 })
                                 .unwrap_err();
                                 assert!(error.value(py).is(expected.value(py)));
-                                let traceback = error.value(py).getattr("__traceback__").unwrap();
+                                let traceback = error
+                                    .traceback(py)
+                                    .expect("the original stage observer traceback");
                                 let function: String = traceback
                                     .getattr("tb_frame")
                                     .unwrap()

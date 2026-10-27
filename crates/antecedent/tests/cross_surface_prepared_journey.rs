@@ -166,6 +166,8 @@ fn the_plan_the_report_and_the_artifact_agree_and_survive_a_refresh() {
         // The plan is read before any estimate and executes nothing.
         let view = prepared.plan_view().unwrap();
         let program = view.identity();
+        let statistical = view.statistical().identity();
+        let source = view.scientific().source_digest();
         readings.push((cell, format!("{:?}", view.uncertainty().reading())));
         let before = prepared.report(None, &ctx(), ReportFormat::Markdown).unwrap();
         assert!(before.contains("a contract before execution"), "{label}: {before}");
@@ -201,7 +203,8 @@ fn the_plan_the_report_and_the_artifact_agree_and_survive_a_refresh() {
             assert_close(consumed_contrast(&reencoded), consumed_contrast(&earlier), 1e-12);
         }
 
-        // A refresh moves the data and keeps the program.
+        // A refresh keeps the statistical program. A lowered operation that binds
+        // source rows also changes its identity with those rows.
         let (shifted, truth) = moved_outcome(cell, treatment, outcome, gaussian.effect);
         let refreshed = if cell.horizon {
             let series =
@@ -217,7 +220,14 @@ fn the_plan_the_report_and_the_artifact_agree_and_survive_a_refresh() {
             rebind_estimate(&mut prepared, data, &ctx()).unwrap()
         };
         assert_close(ate(&refreshed), truth, 2.0 * cell.tolerance());
-        assert_eq!(prepared.plan_view().unwrap().identity(), program, "{label}: refresh");
+        let refreshed_view = prepared.plan_view().unwrap();
+        assert_eq!(refreshed_view.statistical().identity(), statistical, "{label}: refresh");
+        if source.is_some() {
+            assert_ne!(refreshed_view.scientific().source_digest(), source, "{label}: source");
+            assert_ne!(refreshed_view.identity(), program, "{label}: source-bound operation");
+        } else {
+            assert_eq!(refreshed_view.identity(), program, "{label}: refresh");
+        }
         let later = prepared.encode_contracted_result(&refreshed, &label, &ctx()).unwrap();
         assert_ne!(later, earlier, "{label}: the refreshed rows are another snapshot");
         assert_close(consumed_contrast(&later), truth, 2.0 * cell.tolerance());

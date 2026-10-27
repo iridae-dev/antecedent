@@ -142,8 +142,13 @@ fn actual_checked_joint_posterior_retention_and_independent_replay() {
     assert_eq!(work.model_fits + work.posterior_draws, 0);
     request.model.priors.varying.provenance = PriorProvenance::Bank {
         bank_id: "oversized-bank".into(),
-        consumed: vec![request.sources[0].identity.clone(); 17],
+        consumed: vec![request.sources[0].identity.clone()],
     };
+    let prior_mean = request.model.priors.varying.mean.clone();
+    request.model.priors.varying.mean.resize(
+        antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_MAX_PARAMETERS + 1,
+        0.0,
+    );
     let (failure, work) =
         count_bayesian_work(|| execute_joint_bayesian_with_receipt(&mut session, &request, &ctx));
     assert!(matches!(
@@ -153,6 +158,7 @@ fn actual_checked_joint_posterior_retention_and_independent_replay() {
         ))
     ));
     assert_eq!(work.model_fits + work.posterior_draws, 0);
+    request.model.priors.varying.mean = prior_mean;
     request.model.priors.varying.provenance = PriorProvenance::Declared;
     assert_eq!(
         execute_joint_bayesian_with_receipt(&mut session, &request, &ctx)

@@ -195,8 +195,8 @@ fn a_mutated_artifact_fails_independent_consumption_with_typed_errors() {
     assert_eq!(typed(refused), TemporalTransportArtifactError::LimitsExceeded("search budget"));
     // A foreign version or feature marker never decodes.
     assert!(matches!(
-        consume(&mutated(&bytes, |w| w.version = 2, false)),
-        Err(IoError::UnsupportedVersion { version: 2 })
+        consume(&mutated(&bytes, |w| w.version = 0, false)),
+        Err(IoError::UnsupportedVersion { version: 0 })
     ));
     assert_eq!(
         typed(consume(&mutated(&bytes, |w| w.required_features = vec!["other".into()], false))),

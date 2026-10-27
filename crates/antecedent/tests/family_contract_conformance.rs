@@ -1133,6 +1133,8 @@ fn refresh_findings(rep: &Rep, prepared: &mut PreparedStudy, found: &mut Finding
     let context = ctx();
     let Some(base) = identities_of(prepared, found) else { return };
     let base_view = prepared.plan_view().ok().map(|view| view.identity());
+    let base_statistical = prepared.plan_view().ok().map(|view| view.statistical().identity());
+    let base_source = prepared.plan_view().ok().and_then(|view| view.scientific().source_digest());
     let base_effect = prepared.estimate_retained(&context).ok().map(|result| result.effect());
     match &rep.retained {
         Retained::Table { same, changed } => {
@@ -1170,10 +1172,24 @@ fn refresh_findings(rep: &Rep, prepared: &mut PreparedStudy, found: &mut Finding
                             ),
                         );
                     }
+                    let view = prepared.plan_view().ok();
                     found.check(
-                        prepared.plan_view().ok().map(|view| view.identity()) == base_view,
-                        "refresh with replaced rows changed the lowered program",
+                        view.as_ref().map(|view| view.statistical().identity()) == base_statistical,
+                        "refresh with replaced rows changed the statistical program",
                     );
+                    if base_source.is_some() {
+                        found.check(
+                            view.as_ref().and_then(|view| view.scientific().source_digest())
+                                != base_source
+                                && view.as_ref().map(|view| view.identity()) != base_view,
+                            "refresh with replaced rows kept the source-bound operation identity",
+                        );
+                    } else {
+                        found.check(
+                            view.as_ref().map(|view| view.identity()) == base_view,
+                            "refresh with replaced rows changed the unbound lowered program",
+                        );
+                    }
                 }
                 Err(error) => found.refused("refresh", &error),
             }

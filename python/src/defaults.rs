@@ -31,13 +31,7 @@ mod tests {
         let mut seed_zero = 0;
         for entry in walk(&root) {
             let text = std::fs::read_to_string(&entry).unwrap();
-            for line in text.lines() {
-                if !line.contains("signature")
-                    && !line.contains("seed=")
-                    && !line.contains("alpha=")
-                {
-                    continue;
-                }
+            for line in signature_attributes(&text) {
                 alpha += line.matches("alpha=0.05").count();
                 if line.contains("alpha=")
                     && !line.contains("alpha=0.05")
@@ -58,6 +52,45 @@ mod tests {
         assert!(seed_one > 0, "expected seed={SEED} literals");
         assert!(seed_zero > 0, "expected seed={SEED_ZERO} literals");
         assert_ne!(SEED, SEED_ZERO);
+    }
+
+    fn signature_attributes(text: &str) -> Vec<String> {
+        let mut attributes = Vec::new();
+        let mut current = None::<String>;
+        for line in text.lines() {
+            if current.is_none() && line.trim_start().starts_with("#[pyo3(") {
+                current = Some(String::new());
+            }
+            if let Some(attribute) = &mut current {
+                attribute.push_str(line);
+                attribute.push('\n');
+                if line.trim_end().ends_with(")]") {
+                    let attribute = current.take().unwrap();
+                    if attribute.contains("signature") {
+                        attributes.push(attribute);
+                    }
+                }
+            }
+        }
+        attributes
+    }
+
+    #[test]
+    fn signature_scan_ignores_runtime_format_strings_and_reads_multiline_attributes() {
+        let source = r#"
+            format!("ModelEvaluation(alpha={})", alpha);
+            #[pyo3(signature = (alpha=0.05, seed=1))]
+            fn first() {}
+            #[pyo3(
+                signature = (alpha=None, seed=0)
+            )]
+            fn second() {}
+        "#;
+        let attributes = signature_attributes(source);
+        assert_eq!(attributes.len(), 2);
+        assert!(attributes[0].contains("alpha=0.05"));
+        assert!(attributes[1].contains("seed=0"));
+        assert!(attributes.iter().all(|attribute| !attribute.contains("ModelEvaluation")));
     }
 
     fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {

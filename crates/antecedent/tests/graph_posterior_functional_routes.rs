@@ -144,9 +144,10 @@ fn admg_of(n: u32, directed: &[(u32, u32)], bidirected: &[(u32, u32)]) -> Admg {
     graph
 }
 
-/// `z -> x`, `z -> y`, `x -> y`, `z <-> x`: conditioning on `z` closes the back door.
+/// `z -> y`, `x -> y`, `z <-> x`: conditioning on `z` closes the back door.
+/// There is no bow, so this atom is representable by the posterior adjacency mask.
 fn confounded_modifier() -> Admg {
-    admg_of(3, &[(0, 1), (0, 2), (1, 2)], &[(0, 1)])
+    admg_of(3, &[(0, 2), (1, 2)], &[(0, 1)])
 }
 
 /// `x -> y` with the modifier outside the mechanism.

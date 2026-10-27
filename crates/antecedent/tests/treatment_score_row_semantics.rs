@@ -20,11 +20,7 @@ fn builder(data: TabularData, policy: Option<MissingPolicy>) -> antecedent::Stud
     let graph = Dag::from_named_edges(schema, &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
     let query =
         AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
-    let mut builder = Study::tabular(data)
-        .graph(graph)
-        .query(query)
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0);
+    let mut builder = Study::tabular(data).graph(graph).query(query).refute(RefuteSuite::None);
     if let Some(policy) = policy {
         builder = builder.missing(MissingDeclaration::new(policy));
     }
@@ -32,7 +28,12 @@ fn builder(data: TabularData, policy: Option<MissingPolicy>) -> antecedent::Stud
 }
 
 fn prepare(data: TabularData, policy: Option<MissingPolicy>) -> antecedent::PreparedStudy {
-    builder(data, policy).build().unwrap().prepare(&ExecutionContext::for_tests(3)).unwrap()
+    builder(data, policy)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ExecutionContext::for_tests(3))
+        .unwrap()
 }
 
 fn spec(rows: Vec<usize>) -> TreatmentScoreSpec {
