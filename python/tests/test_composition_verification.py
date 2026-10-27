@@ -570,6 +570,7 @@ def _shipped_record_id() -> str:
     return str(record_id)
 
 
+@pytest.mark.requires_calibration
 def test_a_declared_record_is_backed_only_by_a_currently_attesting_shipped_record():
     shipped = cv.registry_record_identity(_shipped_record_id())
     assert len(shipped) == 64
@@ -660,6 +661,7 @@ def test_a_shipped_record_backs_a_declaration_exactly_when_the_snapshot_lists_it
     )
 
 
+@pytest.mark.requires_calibration
 def test_the_nodes_whose_calibration_no_shipped_record_backs_are_named():
     # `fit` holds and `reported` inherits a record that is not a shipped one.
     assert sorted(cv.unresolved_registry_calibrations(build())) == ["fit", "reported"]

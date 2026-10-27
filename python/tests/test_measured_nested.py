@@ -28,6 +28,7 @@ def produce(bayesian, shape=1, **changes):
     return tr.binary_nested_markov_fisher_interval(**kwargs)
 
 
+@pytest.mark.requires_calibration
 @pytest.mark.parametrize("bayesian,shape", [(False, 1), (True, 1), (True, 2)])
 def test_normal_nested_all_three_measured_scalars_replay_original_source(bayesian, shape, tmp_path):
     assert hasattr(
@@ -110,6 +111,7 @@ def test_normal_nested_unmeasured_protocol_refusals_are_not_candidate_successes(
         produce(bayesian, execution=Execution(limits=ResourceLimits(memory_bytes=0)))
 
 
+@pytest.mark.requires_calibration
 @pytest.mark.parametrize("bayesian", [False, True])
 def test_normal_nested_measured_artifact_preserves_retained_source_expectations(bayesian, tmp_path):
     measured = produce(bayesian)

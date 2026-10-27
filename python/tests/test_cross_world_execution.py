@@ -234,6 +234,7 @@ def test_action_only_change_reuses_abduction_and_changed_evidence_rebuilds() -> 
     assert d.value == pytest.approx(0.4, abs=1e-12)
 
 
+@pytest.mark.requires_calibration
 def test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record() -> None:
     execution = require_success(cw.seal(_joint_request()))
     with pytest.raises(CausalValueError):

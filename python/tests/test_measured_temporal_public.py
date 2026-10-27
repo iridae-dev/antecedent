@@ -72,6 +72,7 @@ def expected_interval(values, selected, method):
     )
 
 
+@pytest.mark.requires_calibration
 @pytest.mark.parametrize(
     "functional,method",
     [
@@ -135,6 +136,7 @@ def test_normal_checked_source_measured_scalar_independent_math_and_fresh_consum
     replay(result, tmp_path)
 
 
+@pytest.mark.requires_calibration
 def test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_consumer(tmp_path):
     result = temporal_dependent_interval(
         panel(),
@@ -201,6 +203,7 @@ def test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence(
     assert calls == []
 
 
+@pytest.mark.requires_calibration
 @pytest.mark.parametrize("checked", [False, True])
 def test_normal_temporal_measured_artifact_requires_original_source_expectations(checked, tmp_path):
     if checked:

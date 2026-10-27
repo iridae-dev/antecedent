@@ -841,6 +841,7 @@ def test_no_interval_posterior_or_joint_law_is_licensed():
     )
 
 
+@pytest.mark.requires_calibration
 def test_a_scoped_interval_needs_the_source_standard_error_and_a_measured_design():
     import math
 

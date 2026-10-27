@@ -6,7 +6,7 @@ cd "$ROOT"
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/test.sh [dev|rust|integration|scientific|docs|python-test|python|all] [test arguments...]
+Usage: bash scripts/test.sh [dev|rust|integration|scientific|docs|python-test|python|python-software|python-calibration-acceptance|all] [test arguments...]
 
   dev     Run a focused Rust selection with cheap test compilation (opt-level 0).
           Supply a package/target selection; numerical package overrides remain.
@@ -21,6 +21,11 @@ Usage: bash scripts/test.sh [dev|rust|integration|scientific|docs|python-test|py
           Set ANTECEDENT_SKIP_NATIVE_BUILD=1 to reuse an already current extension.
   python-test  Run pytest against the existing extension without sync/rebuild.
           Use after Python/test edits, or after an explicit current native build.
+  python-software  Run pytest without measured-record acceptance assertions.
+          Requires an existing current extension. Deselections are reported.
+  python-calibration-acceptance  Run measured-record acceptance assertions.
+          Requires a current extension and attesting frozen-branch calibration.
+          May execute numerical consumer replays; use only after branch lockdown.
   all     Run workspace tests, doctests, optional feature tests, and Python tests.
 
 Examples:
@@ -42,7 +47,7 @@ suite="${1:-rust}"
 if [[ $# -gt 0 ]]; then shift; fi
 case "$suite" in
   -h|--help) usage; exit 0 ;;
-  dev|rust|integration|scientific|docs|python-test|python|all) ;;
+  dev|rust|integration|scientific|docs|python-test|python|python-software|python-calibration-acceptance|all) ;;
   *) usage >&2; exit 2 ;;
 esac
 if [[ ( "$suite" == all || "$suite" == scientific ) && $# -gt 0 ]]; then
@@ -110,8 +115,13 @@ case "$suite" in
     ;;
   scientific) python3 "$ROOT/scripts/evidence_audit.py" run-scientific ;;
   python) python_tests "$@" ;;
-  python-test)
+  python-test|python-software|python-calibration-acceptance)
     (cd "$ROOT/python" && uv run --no-sync python "$ROOT/scripts/native_build_identity.py" check)
+    if [[ "$suite" == python-software ]]; then
+      set -- "$@" -m 'not requires_calibration'
+    elif [[ "$suite" == python-calibration-acceptance ]]; then
+      set -- "$@" -m requires_calibration
+    fi
     (cd "$ROOT/python" && uv run --no-sync pytest "$@")
     ;;
   all)

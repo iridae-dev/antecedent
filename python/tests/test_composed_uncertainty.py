@@ -161,6 +161,7 @@ def test_spread_of_unpaired_draws_is_refused() -> None:
 # ------------------------------------------------------------------ interval
 
 
+@pytest.mark.requires_calibration
 def test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate() -> None:
     x, y = _pair("snap-enum")
     claim = require_success(jl.aligned_linear_spread("contrast", (1.0, -1.0), x, y))

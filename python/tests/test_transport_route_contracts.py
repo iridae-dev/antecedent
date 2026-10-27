@@ -45,6 +45,7 @@ print(json.dumps(result.inspect(),sort_keys=True))
     return loaded
 
 
+@pytest.mark.requires_calibration
 def test_joint_bayesian_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = joint_options(False, "one")
     measured = tr.joint_bayesian_transport(**source_inputs)
@@ -59,6 +60,7 @@ def test_joint_bayesian_factory_replays_without_producer_inputs(tmp_path):
     assert loaded.route == "joint_bayesian"
 
 
+@pytest.mark.requires_calibration
 def test_learned_joint_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = joint_options(True, "one")
     measured = tr.learned_joint_transport(**source_inputs)
@@ -73,6 +75,7 @@ def test_learned_joint_factory_replays_without_producer_inputs(tmp_path):
     assert loaded.route == "learned_joint"
 
 
+@pytest.mark.requires_calibration
 def test_nested_bayesian_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = {
         "graph": graph(),
@@ -91,6 +94,7 @@ def test_nested_bayesian_factory_replays_without_producer_inputs(tmp_path):
     assert loaded.route == "nested_bayesian"
 
 
+@pytest.mark.requires_calibration
 def test_nested_fisher_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = {"graph": graph(), "regimes": [{"counts": [250] * 16}]}
     measured = tr.binary_nested_markov_fisher_interval(**source_inputs)
@@ -105,6 +109,7 @@ def test_nested_fisher_factory_replays_without_producer_inputs(tmp_path):
     assert loaded.route == "nested_fisher"
 
 
+@pytest.mark.requires_calibration
 def test_direct_temporal_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = {
         "panel": panel(),
@@ -124,6 +129,7 @@ def test_direct_temporal_factory_replays_without_producer_inputs(tmp_path):
     assert loaded.route == "temporal_interval"
 
 
+@pytest.mark.requires_calibration
 def test_sampled_recovery_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = recovery_options()
     measured = tr.sampled_observation_recovery(**source_inputs)

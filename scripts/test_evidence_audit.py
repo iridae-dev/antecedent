@@ -99,6 +99,31 @@ class Classification(unittest.TestCase):
         selected = audit.scientific_rows([row, {**row, "key": "two"}])
         self.assertEqual(len(selected), 1)
         self.assertEqual(selected[0]["evidence_assertion"], "test_truth")
+        with self.assertRaisesRegex(ValueError, "empty"):
+            audit.scientific_rows(
+                [{**row, "evidence_activity": "calibration_acceptance"}]
+            )
+
+    def test_calibration_marker_is_explicit_and_never_a_skip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "test_activity.py"
+            path.write_text(
+                "import pytest\n"
+                "# @pytest.mark.requires_calibration\n"
+                "def test_ordinary():\n    assert 1 == 1\n"
+                "@pytest.mark.requires_calibration\n"
+                "def test_measured():\n    assert 1 == 1\n",
+                encoding="utf-8",
+            )
+            marks = evidence.python_test_markers(path)
+            self.assertNotIn("requires_calibration", marks["test_ordinary"])
+            self.assertIn("requires_calibration", marks["test_measured"])
+            self.assertEqual(evidence.static_python_test(path, "test_measured"), [])
+        runner = (Path(__file__).parents[1] / "scripts/test.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("python_tests --durations=30", runner)
+        self.assertNotIn("pytest.skip", runner)
 
     def test_generator_presence_requires_an_explicit_retained_path(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -314,12 +339,15 @@ class TargetDiscovery(unittest.TestCase):
             package = root / "python"
             (package / "src").mkdir(parents=True)
             (package / "Cargo.toml").write_text(
-                '[package]\nname = "antecedent-py"\n', encoding="utf-8")
+                '[package]\nname = "antecedent-py"\n', encoding="utf-8"
+            )
             path = package / "src/lib.rs"
             path.write_text(
-                '#[cfg(test)] mod tests {\n'
-                '#[test] fn native_boundary() { assert_eq!(reference_value(), 5); }\n'
-                'fn reference_value() -> i32 { 2 + 3 }\n}\n', encoding="utf-8")
+                "#[cfg(test)] mod tests {\n"
+                "#[test] fn native_boundary() { assert_eq!(reference_value(), 5); }\n"
+                "fn reference_value() -> i32 { 2 + 3 }\n}\n",
+                encoding="utf-8",
+            )
             with patch.object(evidence, "ROOT", root):
                 self.assertIn("2 + 3", evidence.rust_closure(path, "native_boundary"))
 

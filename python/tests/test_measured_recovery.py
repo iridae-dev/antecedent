@@ -38,6 +38,7 @@ def options():
     }
 
 
+@pytest.mark.requires_calibration
 def test_normal_recovered_effect_bca_original_source_and_fresh_measured_replay(tmp_path):
     opts = options()
     measured = tr.sampled_observation_recovery(**opts)
@@ -162,6 +163,7 @@ def test_normal_recovery_legacy_scope_fake_authority_and_resource_refusals():
         tr.sampled_observation_recovery(**(opts | {"execution": Execution(cancel=cancelled)}))
 
 
+@pytest.mark.requires_calibration
 def test_normal_sampled_recovery_measured_artifact_requires_original_expected_identity(tmp_path):
     measured = tr.sampled_observation_recovery(**options())
     loaded = MeasuredInference.load(bytes(measured.export()), expected=measured.expected_identity)

@@ -36,6 +36,12 @@ unresolved DOI or title mismatch; explicit `--fetch` uses Crossref/DataCite.
   `bash scripts/test.sh scientific` executes exact cited scientific assertions.
   Statistical smoke checks remain ordinary software tests and are labelled
   separately. Measurements remain with `scripts/measure_calibration.sh`.
+- Python assertions requiring currently attesting measurements carry the explicit
+  `requires_calibration` marker. `python-software` reports those deselections;
+  `python-calibration-acceptance` selects them after lockdown and calibration.
+  Default Python commands and `all` retain them as required assertions: no skip,
+  xfail or fabricated attestation turns an unmeasured branch green.
+  The audit inventories these assertions from their source markers.
 - The learner ATE 200-replicate/four-method coverage study is explicitly ignored
   by ordinary tests and registered in the calibration driver for Q08. Its
   replicate count, truth, bias/coverage bounds and influence assertions remain.
@@ -80,7 +86,7 @@ also has a separate timing/RSS receipt in `registry_timings.json`.
 
 The focused ordinary statistical target passes ten tests, retaining its existing
 ignored fixture writer. The new learner point assertion passes. Thirty-nine
-compiled evidence-gate fault controls and eighteen audit/tooling controls pass.
+compiled evidence-gate fault controls and nineteen audit/tooling controls pass.
 The eight existing independent reference-generator checks pass. The explicit
 DoWhy environment passes all seven public-API comparison tests. These results
 do not grant coverage or license the deferred calibration study.
@@ -91,7 +97,10 @@ The generated report retains every unresolved finding. In particular, other
 external generators remain deleted/unretained, fixtures still need origin
 classification, and algorithm/theorem sections and transitive oracle helpers
 still need method-by-method independence/implementation review. The route
-evidence ledger has twelve existing missing route rows. The calibration surface
+evidence ledger now accounts for all 711 owned routes, including the previously
+missing continuous-conditioning, parameter-spread and measurement bindings.
+Their references distinguish exact conditional laws, uncalibrated posterior
+spread and refusal contracts; no interval status was promoted. The calibration surface
 check also exposes existing cross-facet/stale-allowance findings; no blanket
 allowance or replay waiver was introduced to hide them.
 

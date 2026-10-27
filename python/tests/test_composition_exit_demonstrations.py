@@ -225,6 +225,7 @@ VERMA_NODES = ["X1", "X2", "X3", "X4"]
 VERMA_DIRECTED = [("X1", "X2"), ("X2", "X3"), ("X3", "X4")]
 
 
+@pytest.mark.requires_calibration
 def test_demo_calibrated_bayesian_scalars_and_independent_replay() -> None:
     """Execute measured Bayesian scalars and independently replay their original evidence."""
     from test_measured_joint_transport import options, produce
@@ -326,6 +327,7 @@ def _refusal(call: Any) -> TemporalExtensionRefusal:
     return caught.value
 
 
+@pytest.mark.requires_calibration
 def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> None:
     # Initial-state integration. The enumerated two-step SCM gives R(s0=0) = 0.33, R(s0=1) = 0.46
     # for the sequence (0, 0); the target law P(s0=1) = 0.7 marginalizes to 0.3*0.33 + 0.7*0.46 =

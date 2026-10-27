@@ -336,6 +336,7 @@ def test_every_published_ranking_or_interval_route_is_closed() -> None:
         require_success(dr.publish("not_a_route", result.report.coordinate))
 
 
+@pytest.mark.requires_calibration
 def test_every_published_route_is_licensed_inside_a_measured_coverage_record() -> None:
     # Two candidates, 1000 draws, shared stream, expected-utility selection, level 0.95:
     # inside the measured records (500 to 2000 draws per candidate).

@@ -29,7 +29,11 @@ from evidence_kinds import (
     inline_reference_problems,
     kind_problems,
 )
-from test_evidence import rust_test_declaration_problems, static_python_test
+from test_evidence import (
+    python_test_markers,
+    rust_test_declaration_problems,
+    static_python_test,
+)
 from verify_provenance_citations import CACHE as CITATION_CACHE
 from verify_provenance_citations import verdict as citation_verdict
 
@@ -184,6 +188,18 @@ def claim_rows(root: Path) -> list[dict]:
 def build_report(root: Path) -> dict:
     root = root.resolve()
     claims = claim_rows(root)
+    calibration_acceptance = {
+        (path.relative_to(root).as_posix(), name)
+        for path in root.glob("python/tests/test_*.py")
+        for name, markers in python_test_markers(path).items()
+        if "requires_calibration" in markers
+    }
+    for claim in claims:
+        if (
+            claim.get("evidence_test"),
+            claim.get("evidence_assertion"),
+        ) in calibration_acceptance:
+            claim["evidence_activity"] = "calibration_acceptance"
     fixture_paths = set(root.glob("conformance/**/expected.json"))
     for claim in claims:
         rel = claim.get("known_truth_fixture")
@@ -389,6 +405,14 @@ def build_report(root: Path) -> dict:
             "attestation_verified": False,
         },
         "release_certified": False,
+        "calibration_acceptance_assertions": [
+            {
+                "evidence_test": path,
+                "evidence_assertion": name,
+                "status": "requires_attesting_frozen_branch_measurements",
+            }
+            for path, name in sorted(calibration_acceptance)
+        ],
         "tests": tests,
         "claims": claims,
         "fixtures": fixtures,
@@ -478,6 +502,8 @@ def scientific_rows(claims: list[dict]) -> list[dict]:
     found = {}
     for row in claims:
         if "scientific" not in row["roles"]:
+            continue
+        if row.get("evidence_activity") == "calibration_acceptance":
             continue
         path, assertion = row.get("evidence_test"), row.get("evidence_assertion")
         if path and assertion:

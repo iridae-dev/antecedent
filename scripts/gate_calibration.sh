@@ -1181,6 +1181,8 @@ run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_poster
 run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_posterior_at_twelve_variables
 run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_ten_variables
 run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_twelve_variables
+run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps
+run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps
 
 echo "== coordinates measured at the level the facade publishes (0.95) and at 0.90 =="
 run_suite() {

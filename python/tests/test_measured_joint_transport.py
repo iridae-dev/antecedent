@@ -76,6 +76,7 @@ def produce(learned, kwargs):
     return (tr.learned_joint_transport if learned else tr.joint_bayesian_transport)(**kwargs)
 
 
+@pytest.mark.requires_calibration
 @pytest.mark.parametrize("learned", [False, True])
 @pytest.mark.parametrize("variant", ["one", "independent", "shared", "varying"])
 def test_normal_public_measured_joint_scalar_and_original_source_fresh_replay(

@@ -124,6 +124,7 @@ def test_nested_bayesian_below_measured_row_range_cannot_borrow_fisher_evidence(
     assert_refused(error, "cell_not_licensed", "sample_size_outside_measured_range")
 
 
+@pytest.mark.requires_calibration
 def test_nested_fisher_measured_interval_and_invalid_level():
     from antecedent.inference import MeasuredInference
 

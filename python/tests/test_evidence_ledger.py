@@ -675,6 +675,7 @@ def test_repeated_observation_use_is_flagged_and_stays_flagged_when_cited():
     assert error.reason_code == "evidence_overlap_unknown"
 
 
+@pytest.mark.requires_calibration
 def test_a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record():
     ledger = el.EvidenceLedger()
     sources = [ledger.add_source(data(f"study_{i}", i * 100, (i + 1) * 100)) for i in range(20)]

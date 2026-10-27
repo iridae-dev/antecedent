@@ -546,6 +546,25 @@ def _is_pytest_call(node: ast.AST, attr: str) -> bool:
 
 
 @functools.cache
+def python_test_markers(path: Path) -> dict[str, set[str]]:
+    """Explicit pytest markers on module-level tests, using the shared AST reader."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    module_marks = set()
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "pytestmark"
+            for target in node.targets
+        ):
+            module_marks.update(_mark_names(node.value))
+    return {
+        node.name: module_marks.union(*(_mark_names(d) for d in node.decorator_list))
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name.startswith("test")
+    }
+
+
+@functools.cache
 def static_python_test(path: Path, name: str) -> list[str]:
     """Why `name` in `path` is not a collected, runnable pytest function (empty = it is).
 
