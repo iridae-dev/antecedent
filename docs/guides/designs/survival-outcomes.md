@@ -131,6 +131,40 @@ The target cumulative incidence uses the Aalen-Johansen risk-set recursion. At l
 
 With supplied `G`, `estimate_cumulative_incidence_ipcw(data, competing_query, times=..., censoring_survival=...)` weights target-cause failures and all-cause event-free survival by inverse `G` inside the same recursion. It reports the minimum supplied `G` and event-time risk-set sizes. Fixed known-`G` weights and delayed entry have no simultaneous band.
 
+### Declare the hazard partition for a posterior
+
+For a Bayesian answer, `design_models.PiecewiseHazards` states the model: hazards are constant on each interval of a partition and independent a priori, with a Gamma prior. `cuts` is the partition (its last cut is the restriction horizon and must equal `tau`), `prior_shape` is the prior event count and `prior_rate` the prior time at risk, in the unit of the durations. The partition and prior are part of the answer. The twelve rows below are a small hand-checkable fixture.
+
+```python
+import antecedent
+from antecedent.design_models import PiecewiseHazards
+from antecedent.observation import IndependentGiven
+from antecedent.outcomes import require_success
+from antecedent.survival import SurvivalOutcome
+
+data = {
+    "duration": [0.5, 1.2, 2.5, 3.5, 1.8, 0.9, 0.7, 1.5, 2.2, 3.2, 3.8, 1.1],
+    "event": [1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
+    "treatment": [0.0] * 6 + [1.0] * 6,
+}
+query = SurvivalOutcome(
+    "duration", "event", "treatment", 3.0,
+    randomized=True, observation_assumption=IndependentGiven(()),
+)
+inference = antecedent.Bayesian(
+    backend="conjugate",
+    n_draws=40_000,
+    design_model=PiecewiseHazards(cuts=(1.0, 2.0, 3.0), prior_shape=1.0, prior_rate=1.0),
+)
+result = require_success(
+    antecedent.analyze(data, query=query, inference=inference, execution=antecedent.Execution(seed=11))
+)
+row = result.posterior_row
+row.posterior_mean("survival_difference"), row.credible_interval("survival_difference")
+```
+
+The answer is on `result.posterior_row` (estimator `bayesian.piecewise_survival`), with coordinates `survival_difference` and `rmst_difference`; there is no `result.survival` and no scalar `ate`. The interval is a posterior statement under the declared partition and prior, not a calibrated interval: `row.calibration` is `"unmeasured"` and `row.licensed` is `False`. With a nearly flat prior and a fine partition the posterior tracks the product-limit estimate; with twelve rows the prior matters a great deal and the interval is wide. See [Declare a likelihood and prior](randomized-experiments.md#declare-a-likelihood-and-prior-for-a-bayesian-answer) for the other declarations.
+
 ## When treatment was observed, not randomized
 
 For an observed binary treatment, `observational_survival.survival_effect` estimates the effect on a right-censored event time at a horizon you declare. It needs a declared adjustment set and a declared censoring assumption instead of randomization. Rust: `antecedent::analysis::observational_survival::ObservationalSurvivalEffect`.

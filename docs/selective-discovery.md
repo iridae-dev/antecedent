@@ -148,6 +148,29 @@ the request. Three decisions are recorded:
    contract and are not inferable from data. The contract refuses a second population or
    multi-dataset constraints with `route_not_supported`.
 
+## Hold an accepted graph and estimate from it repeatedly
+
+When you discover a graph once, review it, and then run many estimates, hold it in an `AcceptedGraph` (`antecedent.accepted_graph`). The handle keeps the graph, a `version`, the `algorithm_id` and any background-knowledge identity. Changing the bootstrap, the prior scale, the treatment levels or the latency never re-enters discovery: rediscovery happens only when you call `rediscover`, and `replace` or `review` bump the version explicitly. This differs from one-shot `analyze(..., discovery=...)`, which is a script convenience and is refused under `latency="interactive"`.
+
+The graph below is the structure of a simulated confounded model (`z` confounds `t` and `y`); here it is accepted by hand.
+
+```python
+import antecedent
+from antecedent.execution import Execution
+from antecedent.outcomes import require_success
+
+dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
+accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="hand")
+query = antecedent.AverageEffect(treatment="t", outcome="y")
+
+prepared = accepted.prepare(data, query=query, refute=False, execution=Execution(seed=1))
+prepared.structure_source            # "accepted"
+click = require_success(prepared.estimate())
+click.ate
+```
+
+`data` is your table with columns `z`, `t` and `y`. A study prepared from the handle records `structure_source == "accepted"`; the same graph passed as `graph=` records `"explicit"`. After a discovery run, `AcceptedGraph.from_discovery(result, algorithm_id=algo)` holds the result as a `Dag` when it is fully oriented and as a `Cpdag` otherwise. `accepted.pending` lists the edges still needing an orientation decision (undirected, circle or conflict marks); `accepted.review({("a", "b"): ("tail", "arrow")})` returns a new, version-bumped handle, and a mark that would create a directed cycle is refused. `to_json()` and `AcceptedGraph.from_json` keep the version and edges, and a partly oriented temporal graph refuses to serialize rather than invent orientations.
+
 ## Portable state and resume
 
 `export_state` produces a configuration and stage-identity record, the statistic

@@ -39,6 +39,32 @@ before any byte is read, naming the column to retain. With an edge list or a `Da
 analysis reads the graph's nodes and the columns the query and estimator configuration
 name; other columns, including nested ones, are never decoded.
 
+## Check a column projection or a row filter against the cohort
+
+When you read fewer columns, or push a row filter into your own scan, the result must be the same set of rows the analysis is entitled to: those observed on every closure column. `antecedent.cohort_pushdown` checks that before you rely on it. A cell is observed when it is not `NaN`, `NaT` or `None`; `source` is any mapping of column name to array, so a `TableFile` works and only the closure and kept columns are read.
+
+In the six-row table below, `y` is the target, `w` the weight and `x` a complete-case column; rows 0, 3 and 5 observe all three.
+
+```python
+import numpy as np
+from antecedent import cohort_pushdown as cp
+
+NAN = float("nan")
+source = {
+    "y": np.array([1.0, NAN, 3.0, 4.0, 5.0, 6.0]),
+    "w": np.array([1.0, 1.0, 1.0, 1.0, NAN, 1.0]),
+    "x": np.array([1.0, 2.0, NAN, 4.0, 5.0, 6.0]),
+    "extra": np.array([NAN, 1.0, 1.0, 1.0, 1.0, 1.0]),
+}
+closure = cp.ColumnClosure(target=("y",), weights=("w",), complete_case=("x",))
+
+cp.checked_projection(source, closure, ["y", "w", "x"])      # array([0, 3, 5])
+drop = [False, True, True, False, True, False]
+cp.checked_push_filter(source, closure, "extra", drop)      # array([0, 3, 5])
+```
+
+Both return the cohort's row indices. A projection that drops a required column, or keeps `extra` (completing cases on it would also drop row 0), raises `CausalValueError` naming the column; a filter that would drop a cohort row is refused and names the filter column, which still decides membership. A mask that is not one entry per row is refused too. The check changes nothing about the analysis: it only tells you whether your cheaper read delivers the cohort.
+
 ## Types are kept exactly
 
 | File column | Read as | Missing cells |

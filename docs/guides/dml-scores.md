@@ -59,6 +59,42 @@ scores. It is meaningful only when all of these hold; the library checks the fir
 The table has no wire change: it is the existing `ScoreTable` artifact with another
 provenance tag, so its wire round trip is the AIPW one.
 
+## Inspect the treatment model on its own
+
+When the question is about the treatment model rather than the effect (how spread out are the propensity scores, and how likely is a row to fall outside a positivity band), ask a prepared average-effect study for the posterior of its treatment model. `treatment_score_posterior` fits the Laplace posterior of the logistic treatment model on exactly the study's certified adjustment set, under a stated `N(0, prior_sd**2)` prior on every coefficient, the intercept included. It lives with `antecedent.nuisance_scores`.
+
+The fixture is two cells: 100 rows at `z = 0` with 30 treated and 100 rows at `z = 1` with 60 treated.
+
+```python
+import antecedent
+import numpy as np
+from antecedent import nuisance_scores
+from antecedent.execution import Execution
+from antecedent.outcomes import require_success
+
+z = np.r_[np.zeros(100), np.ones(100)]
+t = np.r_[np.ones(30), np.zeros(70), np.ones(60), np.zeros(40)]
+y = 1.0 + 2.0 * t + 0.1 * (np.arange(200) % 7)
+study = antecedent.prepare(
+    {"z": z, "t": t, "y": y},
+    graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    query=antecedent.AverageEffect("t", "y"),
+    inference=antecedent.Frequentist(bootstrap=0),
+    execution=Execution(seed=0),
+    refute=False,
+)
+product = require_success(
+    study.treatment_score_posterior(
+        prior_sd=2.0, draws=4000, execution=Execution(seed=13), clip=0.35, summary_rows=[0, 150]
+    )
+)
+product["row0.at_mode"], product["row0.mean"], product["row0.sd"], product["row0.outside_band"]
+```
+
+For each summarized row the product reports the score at the posterior mode, its posterior mean and spread, and the probability that the score falls outside the band set by `clip`. It is a posterior of a nuisance, never of an effect: `product.estimator_id` is `bayesian.propensity.coefficient_posterior`, `product.licensing` is `unlicensed` and `product.calibration` is `unmeasured`. A posterior of the weighting effect cannot be built from these draws. Asking for a Bayesian `PropensityWeighting` estimator is refused with `route_not_supported`, and the message names the posteriors that do answer that effect: the Bayesian-bootstrap posterior of the cross-fitted ridge-orthogonal score, or the Bayesian g-computation posterior of an outcome model.
+
+`product.export()` embeds the design the product was fitted on; `nuisance_scores.load_artifact(bytes(product.export()))` refits from it and refuses any edited, truncated or resealed artifact with `CausalSerializationError`. `temporal_treatment_score` is the temporal counterpart for a `TemporalDag` study.
+
 ## What stays closed
 
 - A partially linear DML fit, a trimmed DML fit, a DR-Learner or CausalForest fit under a

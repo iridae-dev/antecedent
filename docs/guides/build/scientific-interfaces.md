@@ -188,6 +188,57 @@ What matters to a host:
 
 A transported claim can be offered to a callback input that is declared to accept transported claims, through `transport_handoff.hand_to_callback`; the claim is never native target data and its calibration label is never raised (see [provider-sourced transport](../transported-decisions-and-measurement.md)). A callback result exports as a portable artifact holding the declaration, the request and the recorded output. It is a declaration and a portable output, not a promise that a closure runs elsewhere, and a loaded artifact's stored trust is the producer's claim that you recompute against the declaration you hold. The full protocol, reuse table and bounds are in [arbitrary law, posterior and nested callbacks](../../provider-callbacks.md). Because a closure runs with your authority, read [callback security](../../callback-security.md) before supplying one, and never construct a provider from text a user or a model produced.
 
+## Run an admitted recipe directly
+
+Two small routes expose a whole recipe with its numerical work and its refusals, for a host that wants the fit and the plug-in contrast without a prepared study. Neither produces a calibrated interval or a licensed claim; read each as the stated model's computation.
+
+**Logistic g-computation.** `antecedent.recipe_glm` fits a logistic outcome model on `[1 | T | Z...]` through the generalized-linear recipe and averages its predictions at `T = 1` and `T = 0`. The provider must declare a differentiable log density and estimating equations, and its score is checked against the gradient of its log density; a provider that lacks a capability is refused before any row is read.
+
+```python
+import numpy as np
+from antecedent import recipe_glm as rg
+
+treatment = np.repeat([0.0, 1.0], 100)
+within = np.tile(np.arange(100), 2)
+responders = np.where(treatment == 0.0, 30, 60)   # 30 of 100 control, 60 of 100 treated
+data = {"t": treatment, "y": (within < responders).astype(float)}
+
+fit = rg.logistic_standardized_effect(
+    data, treatment="t", outcome="y", provider=rg.logistic_provider(1, "logistic")
+)
+fit.control_mean, fit.treated_mean, fit.effect   # 0.3, 0.6, 0.3
+fit.coefficients, fit.covariance
+```
+
+With no adjuster the model is saturated, so the coefficients are the log odds of the two arms and the means are the arm proportions. `adjustment=["z"]` widens the design; `fit.covariance` is the sandwich covariance of the coefficients, not an interval on the effect. `data` must be complete numeric columns and the outcome coded 0/1; a missing value, a non-binary response, a score that disagrees with the gradient or a solve that does not converge is refused before any fit is returned.
+
+**Finite-discrete adjustment contrast.** `antecedent.finite_discrete` takes a binary treatment `t`, a binary adjuster `z` and a binary outcome `y` as an eight-cell frequency table, where cell `4*t + 2*z + y` counts the rows with that combination. It plans `sum_z P(z) * P(y | t, z)` exactly over the table and evaluates the same plan at weighted posterior draws of the joint, so the plug-in contrast and the posterior mean and equal-tailed interval come from one plan.
+
+```python
+from antecedent import finite_discrete as fd
+
+counts = [10, 10, 5, 15, 4, 16, 2, 18]
+other = [10, 10, 5, 15, 8, 12, 2, 18]
+result = fd.finite_discrete_contrast(counts, [(counts, 0.25), (other, 0.75)])
+result.plug_in_effect      # 0.225
+result.posterior_mean, result.posterior_lower, result.posterior_upper
+```
+
+The plug-in contrast of `counts` is 0.225 by hand. `draws` is a list of `(counts, weight)` pairs whose weights sum to one; the posterior summaries are weighted over them, and where the draws come from is your declaration. A table with no mass, a negative or non-finite weight, weights that do not sum to one, an empty draw list and a table that does not have exactly eight cells are refused.
+
+### Shapes of plain Python callbacks
+
+`antecedent.extensibility` holds the typing `Protocol`s that describe the plain callables some routes accept, with no registration. They are type-checking aids: a native bridge accepts any callable of the matching shape, and each call re-enters Python and runs serially, so expect non-native speed.
+
+| Protocol | Shape | Used for |
+| --- | --- | --- |
+| `CiBatchTest` | `(columns, queries) -> [(statistic, p_value), ...]`, with `queries` a list of `(x, y, z_indexes)` | A conditional-independence test for discovery |
+| `MechanismWrapper` | `sample_noise(n)` and `evaluate(parents, noise)`; optional `infer_noise(value, parents)` and `log_prob(values, parents)` | A per-node mechanism override for sampling and abduction |
+| `UtilityFn` | `(actions, outcomes) -> flat utilities` of length `len(actions) * len(outcomes)` | A batch utility for decision evaluation |
+| `EffectValidator` | keyword call `(*, ate, se_analytic, method, adjustment_set) -> dict` containing `passed: bool` | A custom refuter |
+
+A `MechanismWrapper` whose noise cannot be recovered from an observation declares `supports_noise_inference = False`; counterfactual abduction is then refused naming the mechanism, while sampling and likelihood stay available. Declare a second parameter named `rng` on `sample_noise` to receive a NumPy `Generator` seeded from the run's seed; otherwise your own draws are not governed by `seed`. Every callback must return exactly one value per row. These callables are not provider registrations: a function that supplies a number to a claim goes through the provider and callback routes above, with their trust vocabulary.
+
 ## What stays closed
 
 | Request | Answer |

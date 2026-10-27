@@ -208,6 +208,64 @@ at every horizon under autocorrelated innovations. Kennedy-DR regularity and row
 diagnostics below describe the Frequentist estimator, not these Bayesian
 posteriors.
 
+## Ask a derivative or cross-world question over time
+
+`TemporalQuery` attaches temporal geometry (the horizons, a treatment lag, the history length and the policy) to a derivative or an unfolded cross-world query, so the same typed question can be asked of a `TemporalDag`. It wraps `AverageDerivative`, `PointDerivative`, `Elasticity`, `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`, `Counterfactual`, `NestedCounterfactual`, `InterventionalDistribution` or `PathSpecificEffect`; anything else is refused. The wrapped query keeps its meaning: the derivative retains the horizon and policy on its response query, and the cross-world families keep their existing one-lag unfolded mechanism.
+
+The fixture below is simulated: `y` at one period is `3 + 2x + 0.5b` of the previous period, so the average derivative of `y` in `x` at lag 1 is 2.
+
+```python
+import antecedent as ant
+import numpy as np
+from antecedent.graph import TemporalDag
+from antecedent.outcomes import require_success
+from antecedent.query import TemporalQuery
+
+n = 80
+x = 1 + np.sin(np.arange(n) * 0.37)
+b = np.arange(n) % 2
+y, v = np.zeros(n), np.zeros(n)
+y[1:] = 3 + 2 * x[:-1] + 0.5 * b[:-1]
+v[1:] = 1 + x[:-1] - b[:-1]
+data = ant.data.table({"x": x, "b": b, "y": y, "v": v})
+edges = [(a, 1, outcome, 0) for a in ("x", "b") for outcome in ("y", "v")]
+graph = TemporalDag.from_lagged_edges(list(data), edges)
+
+study = ant.prepare(
+    data,
+    graph=graph,
+    query=TemporalQuery(ant.AverageDerivative("x", "y"), max_history_lag=1),
+    inference=ant.Frequentist(bootstrap=0),
+    refute="none",
+    execution=ant.Execution(seed=11),
+)
+result = require_success(study.estimate())
+np.asarray(result.estimate).reshape(-1)   # close to [2.0]
+```
+
+Preparation retains the request and fits nothing; `study.estimate()` runs it, and `load(result.export())` reads back an equal answer. The diagnostics name the temporal geometry. Under `Bayesian(backend="conjugate", ...)` the same query returns a posterior; under `Frequentist(bootstrap=0)` it reports no uncertainty. Geometry that the unfolded cross-world mechanism cannot honour (more than one lag or one horizon) is refused with a message that says so, rather than silently changing the target. `TemporalQuery` does not denote the separately supplied two-slice model of [temporal counterfactuals](cross-world-execution.md).
+
+## Compose several horizons of one temporal claim
+
+A cumulative effect, a contrast between horizons or a peak built from a temporal response has the uncertainty of the realizations that refit all its horizons together. Horizons fit one by one are independent marginals and are never paired by draw index. `antecedent.horizon_composition.compose_horizons` takes joint draws (one column per horizon, row `r` of every column one realization, all under one `alignment_id`) and composes them at a horizon-indexed coordinate. A `JointHorizonDraws` read from a temporal response carries those columns and has a `compose` method with the same arguments.
+
+The columns below are a hand-checkable fixture: horizon 2 is `2x + 1` and horizon 1 is `x` on every realization.
+
+```python
+import numpy as np
+from antecedent.horizon_composition import compose_horizons
+
+x = np.linspace(-8.0, 8.0, 200)
+columns = [x, 2.0 * x + 1.0]
+composed = compose_horizons(
+    [1, 2], columns, evidence_id="series", alignment_id="replicates:200",
+    operation="contrast", coefficients=[-1.0, 1.0],
+)
+composed.variance, composed.label, composed.route
+```
+
+The contrast `h2 - h1` is `x + 1` on every row, so its variance equals the variance of `x`, not the sum of the two marginal variances. `composed.label` is `"uncalibrated_spread"` and `composed.route` is `"aligned_joint_law"`: the result is a labelled spread of the realizations, and no interval or posterior statement is made without a coverage record at the coordinate. `operation` is `sum`, `contrast`, `weighted_sum`, `product`, `nonlinear_functional` or `chained_sampling`. Give `coefficients` (one per horizon) for a linear composition, or `map=` for a nonlinear one such as `lambda values: max(values)`. A map over a linear operation, a map that returns a non-finite value, a coefficient count that differs from the horizon count and repeated horizons are refused, and no composed quantity is returned.
+
 ## Temporal simultaneous bands
 
 A pointwise band covers one (dose, horizon) cell at a time. Temporal

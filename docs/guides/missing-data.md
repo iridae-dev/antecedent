@@ -259,6 +259,34 @@ negative eigenvalues, and the solver scores that matrix exactly. No row is delet
 accounting lists the rows behind every pair and the number of eigenvalues clipped. It needs
 missingness completely at random and at least three rows on every pair.
 
+## Recover a law when one response indicator causes another
+
+Two binary variables `X1`, `X2` may each be observed only when a response indicator `R1`, `R2` is 1, and the second response may depend on the first (`R1 -> R2`, optionally with `X1 -> R2`). `antecedent.recovery_chain` asks whether the joint law `P(X1, X2)` is recoverable from the observed pattern law under the graph you declare, and returns it when it is. This is graph-licensed recovery, not complete-case analysis, missing-at-random adjustment or inverse-probability weighting; in the worked fixture of the tests, the complete-case table differs from the recovered one.
+
+The graph is over `x1`, `x2`, their response indicators `r1`, `r2` and deterministic proxies `p1`, `p2` (`p_i = x_i` when `r_i = 1`, missing when `r_i = 0`), with exactly one response edge. The observed margin is a `PatternLaw`: the 2x2 mass of both observed, the mass of only the first and only the second observed, and the mass of neither.
+
+```python
+from antecedent.recovery_chain import (
+    ChainRoles, PatternLaw, RecoveryChainQuery, decide_chain, recover_chain,
+)
+
+graph = {
+    "nodes": ["x1", "x2", "r1", "r2", "p1", "p2"],
+    "edges": [("x1", "x2"), ("x1", "p1"), ("r1", "p1"), ("x2", "p2"), ("r2", "p2"),
+              ("r1", "r2"), ("x1", "r2")],
+}
+query = RecoveryChainQuery(ChainRoles("x1", "r1", "p1"), ChainRoles("x2", "r2", "p2"))
+
+plan = decide_chain(graph, query)                  # the checked plan, with no data
+law = PatternLaw(both=both, only_first=only_first, only_second=only_second, neither=neither)
+result = recover_chain(graph, query, law)          # `both`, `only_*` and `neither` are your observed masses
+result.law                                         # the recovered 2x2 law P(X1, X2), summing to 1
+```
+
+The pattern-law masses (`both` as a 2x2 nested list, the other three as in the class) are supplied by you from your data and are not shown here. In the executing test they come from an enumerated structural model, and `recover_chain` reproduces the enumerated truth to `1e-12` for either head response and with or without the `X1 -> R2` edge. The answer is point-only (`result.to_dict()["interval"]` reports `status` `point_only`) and does not depend on node order or labels. `result.export()` and `consume_recovery_chain_artifact(...)` recompute the recovered law from the artifact.
+
+Two refusals are different scientific information. A self-censoring edge (`X_i -> R_i`) with every other edge in the class is nonrecoverable, and the refusal carries an exactly verified two-model witness. A graph outside this class (anything other than one response chain) is `route_not_supported`: that says the row does not cover it, not that the law is nonrecoverable. A zero-mass cell or an invalid law is refused as well.
+
 ## Claims
 
 A claim over a result whose policy differs from the route's default carries the policy, the

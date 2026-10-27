@@ -96,6 +96,54 @@ result.cell_means, result.factor_a_effect, result.factor_b_effect, result.intera
 
 This direct utility reports variance upper bounds and no interval.
 
+## Declare a likelihood and prior for a Bayesian answer
+
+A posterior needs a stated likelihood and prior, and a prior alone never identifies a contrast, so no default is supplied. Declare one in `antecedent.design_models` and pass it as `Bayesian(backend="conjugate", design_model=...)`. The declaration is part of the study's inference identity: a different prior is a different answer, and omitting it is refused with `required_option_missing`.
+
+| Declaration | Outcome and prior | Answers |
+| --- | --- | --- |
+| `BernoulliArms(alpha, beta)` | 0/1 outcomes; the same Beta prior on every arm | arm contrasts of a `RandomizedEffect` |
+| `GaussianArms(mean, pseudo_units, variance_shape, variance_scale)` | real outcomes; the same Normal-Inverse-Gamma prior on every arm | arm contrasts of a `RandomizedEffect` |
+| `SwitchbackModel(carryover, dependence, ...)` | Gaussian outcomes within independent switchback sequences | a `SwitchbackEffect`, with declared carryover and within-sequence dependence |
+| `PiecewiseHazards(cuts, prior_shape, prior_rate)` | piecewise-constant hazards, Gamma prior | [survival outcomes](survival-outcomes.md#declare-the-hazard-partition-for-a-posterior) |
+| `QuantileGrid(thresholds, bin_concentration)` | Dirichlet prior on binned outcomes per arm | a quantile outcome functional |
+| `DosePolynomial(support, coefficient_scales, ...)` | per-group polynomial dose response | a fixed group-dose policy |
+
+A two-arm complete randomization with 4 of 10 units treated, under a uniform Beta prior:
+
+```python
+import antecedent as ant
+import numpy as np
+from antecedent import interference
+from antecedent.design_models import BernoulliArms
+from antecedent.outcomes import require_success
+
+assignment = [True, False, False, True, False, True, False, True, False, False]
+outcome = np.asarray([1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0])
+design = ant.experiment.ExperimentDesign(
+    interference.CompleteRandomization(4),
+    assignment,
+    [f"account-{i}" for i in range(10)],
+    [f"row-{i}" for i in range(10)],
+)
+result = require_success(
+    ant.analyze(
+        {"outcome": outcome},
+        query=ant.experiment.RandomizedEffect("outcome", design),
+        inference=ant.Bayesian(
+            backend="conjugate", n_draws=4000, design_model=BernoulliArms(1.0, 1.0)
+        ),
+        execution=ant.Execution(seed=3),
+        refute="none",
+    )
+)
+result.estimate.estimator_id, result.posterior.effect_mean, result.posterior.effect_sd
+```
+
+The default estimator, `bayesian.randomized_finite_population`, answers the same target as the design-based row: the trial's own units. Select `estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION` to ask about the arm means of the sampled population instead; the two have different posterior spreads for the same data, so the diagnostics name which one ran (`estimand=finite_population` or `estimand=superpopulation`). With more than two arms the result reports each action against the reference arm.
+
+A `SwitchbackModel` must name its carryover (`"none"`, `"first_order"`) and its dependence (`"independent"`, `"compound_symmetric"` or `"autoregressive"`, the last two with `rho`). Unrestricted carryover and unspecified dependence are refused with `cell_not_licensed`, and the refusal names the next attempt. A Bayesian result executes without upgrading the claim: `result.evidence_status` is not `"licensed"` and its calibration is read on `result.inspect().calibration`.
+
 ## Variants
 
 - **Precision adjustment.** `RandomizedEffect(..., cuped=FixedCUPED(...))` and `ancova_covariates=(...)` use pre-assignment covariates to reduce variance under independent Bernoulli assignment. The covariates must be measured before assignment; they cannot be post-treatment variables. ANCOVA reports an independent-row HC0 variance. Multi-arm designs do not combine with either.

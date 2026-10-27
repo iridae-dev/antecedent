@@ -153,6 +153,27 @@ infers the node kind from the container when you do not name it, and an artifact
 object whose `export(artifact_id=...)` returns container bytes may be passed instead
 of bytes. A bundle never claims that a serialized result recreates an executable study.
 
+## Read where an imported source came from
+
+A decision input that carries an imported claim keeps the original evidence behind it. `input.source_evidence` (and `Contract.evaluate(...)` results' `source_evidence`) returns an `antecedent.source_evidence.SourceEvidence`, or `None` for a metadata-only source. It exposes what the producer reported and nothing it could mint: imported evidence keeps its original claim and supplies no executable state, no provider trust upgrade, no transformed local support value and no calibration licence.
+
+```python
+evidence = claim.source_evidence      # `claim` is a bound native claim from the steps above
+evidence.coordinates                  # the scientific quantities the source answers
+evidence.diagnostics                  # the producer's diagnostics, with their original scope
+evidence.original_acceptance          # the acceptance record, including unresolved dependencies
+for quantity in evidence.coordinates:
+    for scoped in evidence.diagnostics_at(quantity):
+        scoped.scope, scoped.local_value, scoped.global_values
+loaded = require_success(SourceEvidence.consume(bytes(evidence.export())))
+```
+
+`diagnostics_at(quantity)` re-reads each diagnostic at one coordinate: a per-coordinate diagnostic gives the `local_value` for that coordinate and a global one gives its `global_values`; equal global values at two coordinates remain distinct semantic coordinates. `lineage` lists the original derivation links and `stages_behind("claim")` the stages upstream of one, so you can see which parts of a chain were checked and which are unresolved. `project(contract, actions)` restricts the evidence to the actions of a decision contract and keeps each action's contributing coordinates. `SourceEvidence.consume(...)` replays the source bytes independently, and a changed native source or corrupted envelope is refused.
+
+When a decision functional is taken over a joint-law source, the original request travels as a `functional_source.LawFunctionalArtifact`: the complete original law and functional request. `LawFunctionalArtifact.consume(data, expected_identity=...)` replays the derivation independently, and `resolve_with(actual)` compares the full rows and original source to a freshly issued native claim. Replay issues no native authority; it shows the number follows from the retained law.
+
+`source_projection.SourceProjectionArtifact` carries the original source together with a replayed projection of it: its semantic contract, its attestation, exact quantity coordinates or an affine utility transformation (utility units are declared by you). `consume_source_projection(data, expected_identity=...)` replays it. Numerical replay supplies no native authority, and native source dependencies stay unresolved until a bundle consumer supplies an actual issued native claim.
+
 ## A multi-source example
 
 This example combines native and external responses, a joint-law decision and

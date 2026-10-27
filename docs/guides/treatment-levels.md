@@ -85,3 +85,46 @@ so the 95% interval of the full-population contrast is withheld as `scope_not_as
 (`interval_status`, with the matcher's code in `interval_reason`) until a coverage record
 measured by `multilevel_generalized_propensity_interval` covers the configuration. The pairwise
 target never publishes an interval.
+
+## Compare every level with a reference
+
+When the question is the adjusted effect of each declared level against one declared reference level, `antecedent.categorical_treatment.categorical_effects` dummy-codes the levels (the reference omitted) and fits them jointly, so every contrast uses the full covariance. A level with too few rows refuses by name; nothing is dropped or merged. The rows below are a hand-checkable fixture: the level means are `a` = 2, `b` = 5 and `c` = 9.
+
+```python
+from antecedent.categorical_treatment import categorical_effects
+
+levels = ["c", "a", "b", "c", "b", "a", "c", "b", "c"]
+outcome = [9.0, 1.0, 4.0, 7.0, 6.0, 3.0, 11.0, 5.0, 9.0]
+fit = categorical_effects(
+    outcome, levels, categories=["a", "b", "c"], reference="a", pairs=[("b", "c")]
+)
+fit.effect("b").estimate       # 3.0, effect(b) - effect(a)
+fit.effect("c").estimate       # 7.0
+fit.pair("b", "c").estimate    # 4.0, with a standard error that uses the off-diagonal covariance
+fit.omnibus.p_value            # every level has the reference level's effect
+fit.effect("c").p_holm         # Holm over the declared family of contrasts
+```
+
+Declare `ordered=True` with `categories` in order when the levels are ordered, and `monotonicity="non_decreasing"` (or `"non_increasing"`) to test that the adjusted level effects move in that direction; the order is then part of the estimand and a different order is a different question. The monotonicity p-value is a conservative union-intersection bound, and failing to reject does not prove monotonicity. `adjust={"age": age}` adds covariates. Standard errors, p-values and the monotonicity test are diagnostics with calibration unmeasured (`fit.caveats` says so). `fit.export()` and `consume_categorical_effects(..., expected_identity=fit.identity)` recompute the answer from the retained artifact.
+
+## Estimate several treatments together
+
+`antecedent.vector_treatment.joint_effects` estimates several treatments in one regression that shares one adjustment set and one row snapshot. It returns a named coefficient vector, its full covariance, declared contrasts whose standard errors use that covariance, a Holm adjustment over the declared contrasts and the joint Wald test that every treatment coefficient is zero. A different adjustment set, snapshot or row count, a constant or collinear treatment, or a rank-deficient block is refused.
+
+```python
+from antecedent.vector_treatment import Contrast, joint_effects
+
+x1 = [1.0, 0.0, 1.0, 0.0, 0.0, 1.0]
+x2 = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0]
+y = [3.0, 2.0, 5.0, 1.0, 0.0, 4.0]
+fit = joint_effects(
+    y, {"t1": x1, "t2": x2}, contrasts=[Contrast("diff", {"t1": 1.0, "t2": -1.0})]
+)
+fit.coefficient("t1").estimate    # 2.75
+fit.coefficient("t2").estimate    # 0.75
+fit.contrast("diff").estimate     # 2.0
+fit.contrast("diff").standard_error, fit.contrast("diff").naive_independent_standard_error
+fit.joint_wald.p_value
+```
+
+The contrast's standard error is larger than the naive one here because the two treatment coefficients are negatively correlated; ignoring the off-diagonal would understate the spread. The coefficients are conditional contrasts of one linear model, not a claim that each treatment is separately identified: that rests on the adjustment you declare. As with the categorical route, standard errors and p-values carry calibration `unmeasured`.

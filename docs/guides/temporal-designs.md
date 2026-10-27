@@ -152,6 +152,48 @@ censoring and hazard laws, and evaluates the parametric g-formula per draw with 
 numbers across regimes; the treatment and censoring posteriors report the share of draws below
 the positivity floor.
 
+## Check whether a mechanism changed, and roll fitted dynamics forward
+
+Two standalone queries read the fitted dynamics of a series with lagged edges, without a typed design. Both are unlicensed and report no calibrated coverage; read them as model-conditional diagnostics and projections. They live in `antecedent.temporal_model` and take column names, the columns, and the lagged edges `(cause, lag, effect, 0)`.
+
+`detect_mechanism_change` asks whether the mechanism of a target changed between two row ranges of one series. The simulated series below shifts the intercept of `y` by 5.0 halfway through, so the answer is known.
+
+```python
+import numpy as np
+from antecedent.temporal_model import detect_mechanism_change, rollout_dynamics
+
+EDGES = [("x", 1, "y", 0)]
+n = 300
+rng = np.random.default_rng(4)
+x = np.zeros(n)
+y = np.zeros(n)
+for t in range(1, n):
+    x[t] = 0.5 * x[t - 1] + rng.normal()
+    y[t] = (1.0 if t < n // 2 else 6.0) + 2.0 * x[t - 1] + rng.normal()
+names, cols = ["x", "y"], [x, y]
+
+(found,) = detect_mechanism_change(
+    names, cols, EDGES, ["y"], (0, 150), (150, 300), test="likelihood_ratio"
+)
+found.changed, found.p_value, found.method
+```
+
+The null law is a circular-block permutation of the residuals, so the series' serial dependence stays inside a block; `found.method` names it. `test=` selects `"likelihood_ratio"`, `"mean_difference"`, `"kernel_two_sample"`, `"classifier_two_sample"` or `"change_point"`. For a probability instead of a p-value, pass `posterior_draws=` together with a `change_prior` you declare (it is never assumed; omitting it is refused): the result then has `posterior_probability` and no `p_value`.
+
+`rollout_dynamics` rolls the fitted dynamics forward from the last rows of the series under scheduled interventions and returns the per-step mean of every variable:
+
+```python
+hold = [{"variable": "x", "value": 1.0, "from": 0, "until": 3}]
+rolled = rollout_dynamics(names, cols, EDGES, n_steps=4, interventions=hold)
+rolled.mean(2, "y")   # close to 3.0: y = 1 + 2 * x at the previous step
+uncertain = rollout_dynamics(
+    names, cols, EDGES, n_steps=4, interventions=hold, posterior_draws=10
+)
+uncertain.uncertainty.names, uncertain.uncertainty.sd
+```
+
+`posterior_draws` (block-weight posterior) or `bootstrap_replicates` (circular-block bootstrap) adds `rolled.uncertainty`: the spread over refits of the dynamics for the step means, and, in the `path.step[..]` quantities, one simulated path per refit. A path's summaries are the predictive law of a path, which adds the fitted innovation noise to the refit uncertainty, so they are much wider than the step-mean summaries. The rollout is the fitted model's projection under the interventions you schedule, not an identified effect of those interventions.
+
 ## What is refused, and the remedy
 
 | Refused request | Reason code | Remedy |

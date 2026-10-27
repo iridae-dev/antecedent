@@ -467,6 +467,32 @@ you declare, which is recorded in the ranking's sources. A surface with an assum
 range, or an unevaluated grid point, is refused (`confounder_value.range_surface`,
 `confounder_value.unevaluated_point`).
 
+## Bind a repair and a ranking into proposals, and read a study when it arrives
+
+A repair search says which studies would resolve a failed identification; a ranking says what each is worth for a decision. `proposals.ProposalBundle.build(repaired.export(), ranked.export(), contract=contract)` binds the two for every candidate the ranking values, by identities and digests and never by copy, and `bundle.verify(...)` recomputes every receipt from the two retained artifacts. A receipt describes a hypothetical study (`evidence_state` is `"hypothetical"`): the delta and the derivation it retains are never available evidence. Once the study delivers, two readings are available.
+
+`bundle.on_arrival(candidate, evidence)` re-runs the repair family's own identification on the arrived evidence alone and answers `Verified`, `StillInsufficient` or `Invalidated` (a population or regime other than the premises the derivation was verified under). It is a structural check of what arrived.
+
+`bundle.estimate_arrival(candidate_id, study)` goes on to evaluate actual finite counts through the original checked transport formula. The study is a `proposal_arrival.ArrivedStudy`: the graph, an evidence catalog that keeps the original catalog and adds one available delivered regime with its snapshot binding, the laws that arrived with their `empirical_counts`, and the `assignment` whose mean you want. Distinct treatment worlds are disjoint study arms whose observed counts must sum to the planned sample size.
+
+```python
+from antecedent import Execution
+from antecedent.proposal_arrival import ArrivedStudy, consume_arrival
+
+# bundle, identifier, catalog, graph and laws come from the repair, ranking and
+# evidence-catalog steps above; the executing test builds them in python/tests/test_proposals.py.
+study = ArrivedStudy(graph, catalog, laws, {"x": 1.0})
+result = bundle.estimate_arrival(identifier, study)
+result.mean, result.to_dict()["inference"], result.to_dict()["calibration"]
+
+replay = consume_arrival(
+    bytes(result.export()), expected_proposal=bundle.identity, execution=Execution(seed=77)
+)
+replay.to_dict() == result.to_dict()
+```
+
+In the maintained fixture, arm counts of 200 and 50 against 50 and 200 for a binary outcome give an active mean of 0.8 and a control mean of 0.2 (`assignment={"x": 0.0}` for the control), so the contrast is 0.6. The result is `empirical_point_only` with calibration `unmeasured`: counts give a point value, not an interval. `consume_arrival` replays the original repair and ranking artifacts and the complete raw count providers in a fresh process, and refuses an `expected_proposal` identity that does not match. Changed counts, snapshots, populations, assignments, exactness, budgets or schemas are refused, as is an unrepresented sampling design; a bundle loaded from a dictionary needs the original producer artifacts passed explicitly.
+
 ## Where it fits
 
 Study candidates also come from [identification repair](decisions.md#repair),

@@ -61,6 +61,7 @@ nav:
     - Responses, derivatives and distributions: causal-responses.md
     - Several treatment levels: guides/treatment-levels.md
     - Heterogeneous effects and policies: guides/heterogeneous-effects-and-policies.md
+    - Mediation and latent classes: guides/mediation-and-latent-classes.md
     - Penalized propensity for AIPW: guides/penalized-aipw.md
     - Reuse DML scores to retarget: guides/dml-scores.md
     - Answer and retarget a family of effects: guides/batch-retarget.md

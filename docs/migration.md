@@ -288,7 +288,7 @@ The container format is unchanged, and readers that migrate container sources 0.
 
 | Artifact or value | Applies to artifacts from | Change | What to do |
 | --- | --- | --- | --- |
-| Score-table, candidate-selection and checked-AIPW row ids (`row_index`, `estimate_rows`, `screen_rows`, `rows`) | 2.4.x | Eight-byte ids; there is no four-byte alias. The `score_reuse.row_index` digest hashes them. | Recompute the digest from the eight-byte ids. A retained four-byte digest of a nonempty index is refused. |
+| Score-table, candidate-selection and checked-AIPW row ids (`row_index`, `estimate_rows`, `screen_rows`, `rows`) | 2.4.x | Eight-byte ids; there is no four-byte alias. The `score_reuse.row_index` digest hashes them. | Recompute the digest from the eight-byte ids. A retained four-byte digest of a nonempty index is refused. `antecedent.release_migration.consume_previous_release_artifact` reads a previous-release artifact (row ids, retained score-row digest, carried target digest, recalculation receipt) and refuses a stale digest with the remedy in the message. |
 | Scientific-target digest | 2.4.x | Canonical payload `antecedent.scientific_target.v1` at payload format 3. Worlds and world collections are content-based; caller-chosen ids and the reference flag do not enter. | Recompute from the target. A carried digest that is not that value is refused. |
 | Scientific target wire | 2.4.x | Version 2 adds the general linear form. Readers accept version 1 fixed forms and revalidate them. | A version 1 payload cannot carry a linear form. Unknown wire versions refuse. |
 | Decision export | 2.4.x | Version 2 envelope; `load_decision` needs current authority. | Re-export from the live workflow. Older joint-law artifacts still replay historically. |
