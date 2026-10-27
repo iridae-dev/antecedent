@@ -52,8 +52,8 @@ from .._artifact_protocol import (
 from .._columns import coerce_fields
 from .._refusal import raise_refusal
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution, native_controls
 from ..repair import (
-    CancelToken,
     CandidateGeneration,
     Derivation,
     EvidenceObligation,
@@ -593,6 +593,11 @@ class EvidencePlan:
         )
 
 
+def _run(execution: Execution, operation: Any, *args: Any, **kwargs: Any) -> Any:
+    """Run one native entry under the execution's policy with repair refusals typed."""
+    return _call(execution._call, operation, *args, **kwargs)
+
+
 def evidence_plan(
     contract: FailureContract,
     candidates: Sequence[StudyCandidate],
@@ -600,7 +605,7 @@ def evidence_plan(
     limits: RepairLimits | None = None,
     *,
     value: EvidenceValue | None = None,
-    cancel: CancelToken | None = None,
+    execution: Execution | None = None,
 ) -> EvidencePlan:
     """Verify declared studies on every theorem route and order the options that close the gap.
 
@@ -631,15 +636,17 @@ def evidence_plan(
         value_text = None if value is None else json.dumps(value._wire(), allow_nan=False)
     except ValueError as error:
         raise CausalValueError("a declaration contains a non-finite number") from error
-    stage = _call(
+    execution = Execution() if execution is None else execution
+    stage = _run(
+        execution,
         contract._stage.plan,
         json.dumps([c._wire() for c in candidates]),
         objective,
         max_operations=_count(limits.max_operations, "max_operations"),
         max_depth=_count(limits.max_depth, "max_depth"),
-        memory_bytes=limits.memory_bytes,
+        memory_bytes=execution.limits.memory_bytes,
         value_json=value_text,
-        cancel=cancel,
+        cancel=execution.cancel,
     )
     return EvidencePlan(stage)
 
@@ -649,8 +656,7 @@ def consume_plan(
     *,
     max_operations: int = _CONSUME_MAX_OPERATIONS,
     max_depth: int = _CONSUME_MAX_DEPTH,
-    memory_bytes: int | None = None,
-    cancel: CancelToken | None = None,
+    execution: Execution | None = None,
 ) -> EvidencePlan:
     """Independently replay an exported evidence plan and return it.
 
@@ -667,13 +673,14 @@ def consume_plan(
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    stage = _call(
+    execution = Execution() if execution is None else execution
+    stage = _run(
+        execution,
         _native.consume_evidence_plan,
         artifact,
         max_operations=_count(max_operations, "max_operations"),
         max_depth=_count(max_depth, "max_depth"),
-        memory_bytes=memory_bytes,
-        cancel=cancel,
+        **native_controls(execution, memory="memory_bytes", cancel="cancel"),
     )
     return EvidencePlan(stage)
 
@@ -749,9 +756,8 @@ def rank_studies(
     max_sample_budget: int | None = None,
     monte_carlo: MonteCarlo | None = None,
     rng_seed: int = 0,
-    threads: int | None = None,
     decision_target: str | None = None,
-    cancel: CancelToken | None = None,
+    execution: Execution | None = None,
 ) -> StudyRanking:
     """Rank declared studies by identification gain through a prepared study's contract.
 
@@ -788,7 +794,9 @@ def rank_studies(
             batch_size=monte_carlo.batch_size,
             rank_uncertainty_threshold=monte_carlo.rank_uncertainty_threshold,
         )
-    native_ranking, record = _call(
+    execution = Execution() if execution is None else execution
+    native_ranking, record = _run(
+        execution,
         _native.rank_studies_bound,
         contract._stage,
         _bound_native(study),
@@ -810,10 +818,10 @@ def rank_studies(
         max_cost=max_cost,
         max_sample_budget=max_sample_budget,
         seed=_count(rng_seed, "rng_seed"),
-        threads=threads,
-        memory_bytes=limits.memory_bytes,
+        threads=execution.threads,
+        memory_bytes=execution.limits.memory_bytes,
         decision_target=_target_digest(decision_target),
-        cancel=cancel,
+        cancel=execution.cancel,
         **options,
     )
     facts = json.loads(record)

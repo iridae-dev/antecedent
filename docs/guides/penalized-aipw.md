@@ -32,8 +32,8 @@ result = ant.analyze(
         kind="lasso", lambdas=[2.0, 10.0, 40.0], inner_folds=3,
     )),
 )
-result.estimate.penalized_support      # the covariates the lasso kept on each fold
-result.estimate.penalized_bootstrap    # per-replicate penalties, replicate accounting
+result.value.estimate.penalized_support      # the covariates the lasso kept on each fold
+result.value.estimate.penalized_bootstrap    # per-replicate penalties, replicate accounting
 ```
 
 The shown grids match measured 95% coordinates. The analytic ridge record covers 300–1200

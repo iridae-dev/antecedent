@@ -15,7 +15,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from check_python_capabilities import MANIFEST, ROOT, digest, source_digest
+from check_python_capabilities import EXECUTING, MANIFEST, ROOT, digest, source_digest
 
 
 class JourneyRecorder:
@@ -23,24 +23,34 @@ class JourneyRecorder:
         self.selectors = selectors
         self.collected: list[str] = []
         self.tests: dict[str, dict] = {}
+        self.prefix = ""
 
     def pytest_collection_finish(self, session) -> None:
-        self.collected = [item.nodeid for item in session.items]
+        # Pytest reports node ids relative to its rootdir (python/); the manifest names them from
+        # the repository root, so rebase once here and everywhere below.
+        root = Path(session.config.rootpath).resolve()
+        relative = root.relative_to(ROOT.resolve()).as_posix()
+        self.prefix = "" if relative == "." else relative + "/"
+        self.collected = [self._rebase(item.nodeid) for item in session.items]
+
+    def _rebase(self, nodeid: str) -> str:
+        return nodeid if not self.prefix or nodeid.startswith(self.prefix) else self.prefix + nodeid
 
     def pytest_runtest_logreport(self, report) -> None:
+        nodeid = self._rebase(report.nodeid)
         selector = next(
             (
                 item
                 for item in self.selectors
-                if report.nodeid == item or report.nodeid.startswith(item + "[")
+                if nodeid == item or nodeid.startswith(item + "[")
             ),
             None,
         )
         if selector is None:
             return
         record = self.tests.setdefault(
-            report.nodeid,
-            {"nodeid": report.nodeid, "selector": selector, "outcome": "incomplete"},
+            nodeid,
+            {"nodeid": nodeid, "selector": selector, "outcome": "incomplete"},
         )
         if (
             report.failed
@@ -63,7 +73,7 @@ def main() -> int:
         {
             item["test"]
             for capability in manifest.get("capability", [])
-            if capability["status"] in {"covered", "plumbing"}
+            if capability["status"] in EXECUTING
             for item in capability.get("evidence", [])
         }
     )

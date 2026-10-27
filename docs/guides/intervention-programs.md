@@ -91,20 +91,19 @@ handle = antecedent.prepare(
     data,
     query=PolicyProgramValue([transform("price", maximum(1, 0.85 * generated()))], "demand", n_draws=4000),
     graph=Dag.from_edges(list(data), [("price", "demand"), ("demand", "revenue")]),
-    seed=5,
+    execution=antecedent.Execution(seed=5),
 )
-result = handle.estimate()            # or estimate(seed=9), refresh(new_data)
-result.value                          # equals policy_value on the same model and seed, to the bit
+result = antecedent.estimate(handle)  # or reconfigure(handle, execution=Execution(seed=9)), rebind(handle, data=new_data)
+result.value                          # the policy result; equals policy_value on the same model and seed, to the bit
 result.support                        # simulation / counterfactual / identification decisions
-result.contract.assumptions           # independent noise, fitted mechanisms taken as exact, ...
-result.provenance_id                  # "model.intervention_programs"
-handle.preparation                    # program_compilations stays 1 across every rerun
+result.assumptions                    # independent noise, fitted mechanisms taken as exact, ...
+result.provenance                     # the retained provenance record
 ```
 
 `prepare` fits the model once, compiles the program's overlay against it and resolves the licence of
-each route once (the same `PreparedPolicy` that `prepare_policy` returns); each `estimate` runs the
-policy-value executor on the retained overlay. `refresh(new_data)` refits the model and rebinds the
-program to it: the program is not compiled again (`model_bindings` counts the models it was
+each route once (the same `PreparedPolicy` that `prepare_policy` returns); each `ant.estimate` runs the
+policy-value executor on the retained overlay. `ant.rebind(handle, data=new_data)` refits the model and rebinds the
+program to it on a new branch: the program is not compiled again (`model_bindings` counts the models it was
 resolved against). The value reports the Monte Carlo error of the draws only; the fitted model's
 uncertainty is `"unquantified"`. A hard level is licensed for observational identification too and
 the support decision says so, but the handle always reports the model's value; the identified

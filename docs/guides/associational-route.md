@@ -13,13 +13,13 @@ import antecedent as ant
 from antecedent.descriptive import Association
 
 result = ant.analyze(table, query=Association("y", "x"))
-result.association          # AssociationEstimate
+result.value.association    # AssociationEstimate
 result.answer.kind          # "associational"
 ```
 
 Use it when a causal query was refused and the data still describe something worth stating: pass
-`refused_after=` the refusal (or its reason code) and the description carries the reason beside
-it. The description answers none of what the refusal declined to claim.
+`refused_after=` the refusal's reason code and the description carries the reason beside
+it; `on_refusal="describe"` on the causal call does this for you (see [the fallback guide](fallback.md)). The description answers none of what the refusal declined to claim.
 
 ## The selection rule
 

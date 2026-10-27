@@ -12,8 +12,9 @@ a previous and a requested workflow and says, per stage, whether it is ``reused`
     print(plan.explain())
 
     session = recalc.RecalcSession()
-    first = session.execute(request, seed=7)                    # (plan, receipt, law, decision)
-    again = session.execute(replace(request, utility=Utility(3.0, 0.1)), seed=7)
+    run = Execution(seed=7)
+    first = session.execute(request, execution=run)             # (plan, receipt, law, decision)
+    again = session.execute(replace(request, utility=Utility(3.0, 0.1)), execution=run)
     again.plan.recomputed_computations                          # (Stage.DECISION,)
     again.receipt.totals.fold_fits                              # 0: nothing was refit
     blob = again.receipt.export()                               # portable recalc_receipt_v1
@@ -61,7 +62,8 @@ from ._artifact_protocol import (
     container_bytes,
 )
 from ._refusal import StructuredRefusal, raise_refusal
-from .errors import CausalSerializationError, CausalValueError
+from .errors import CausalSerializationError, CausalTypeError, CausalValueError
+from .execution import Execution, native_controls
 from .outcomes import outcome_operation, require_success
 
 ARTIFACT_KIND = "recalc_receipt_v1"
@@ -958,6 +960,28 @@ def _seed(seed: int) -> int:
     return seed
 
 
+def _execution(execution: Execution | None) -> Execution:
+    """The execution a session entry runs under; ``None`` is the default ``Execution()``."""
+    execution = Execution() if execution is None else execution
+    if not isinstance(execution, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    return execution
+
+
+def _native_controls(execution: Execution, *, resources: bool = True) -> dict[str, Any]:
+    """The native seed and thread keywords an ``Execution`` carries.
+
+    With ``resources`` the memory limit and cancellation token are included; a native entry
+    that takes neither is given the seed and threads only and sees the rest through the
+    execution's ambient policy.
+    """
+    if not resources:
+        return native_controls(execution, seed="seed", threads="threads")
+    return native_controls(
+        execution, seed="seed", threads="threads", cancel="cancel", memory="memory_limit_bytes"
+    )
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class _Arguments:
     names: list[str]
@@ -1082,14 +1106,14 @@ class RecalcSession:
         self,
         request: RecalcRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcPlan:
         """The plan ``request`` would run under, without running it."""
-        a = _arguments(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
-        wire = self._handle.plan(
+        run = _execution(execution)
+        ctl = _native_controls(run)
+        a = _arguments(request, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"])
+        wire = run._call(
+            self._handle.plan,
             a.names,
             a.columns,
             a.edges,
@@ -1099,37 +1123,30 @@ class RecalcSession:
             a.cost,
             target_weights=a.target_weights,
             target_depends_on=a.target_depends_on,
-            seed=_seed(seed),
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            **ctl,
         )
         return RecalcPlan.from_wire(json.loads(wire))
 
-    def prepare(
-        self, request: RecalcRequest, *, seed: int = 1, threads: int | None = None
-    ) -> RecalcPlan:
+    def prepare(self, request: RecalcRequest, *, execution: Execution | None = None) -> RecalcPlan:
         """Name the plan ``request`` would run under; an alias of :meth:`plan`.
 
         Identification and the frozen score table are built by :meth:`execute` exactly when
         this plan says they must be, so there is no separate prepare-only run.
         """
-        return self.plan(request, seed=seed, threads=threads)
+        return self.plan(request, execution=execution)
 
     @outcome_operation
     def execute(
         self,
         request: RecalcRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcResult:
         """Plan, run only what the plan says must run, count the work and seal the receipt.
 
-        ``memory_limit_bytes`` refuses an input copy above the limit with
-        ``recalc.memory_budget_exceeded`` before it is allocated, and ``cancel`` stops the run.
+        The execution's memory limit refuses an input copy above it with
+        ``recalc.memory_budget_exceeded`` before it is allocated, and its cancellation token
+        stops the run.
 
         Raises:
             RecalcRefusal: the plan holds a refused stage (an off-grid or unsupported request,
@@ -1138,8 +1155,11 @@ class RecalcSession:
             RecalcNoLiveState: the plan reuses a derived stage this session cannot back with a
                 live artifact (for example declared portable scores no loader supplies).
         """
-        a = _arguments(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
-        result, artifact, refusal = self._handle.execute(
+        run = _execution(execution)
+        ctl = _native_controls(run)
+        a = _arguments(request, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"])
+        result, artifact, refusal = run._call(
+            self._handle.execute,
             a.names,
             a.columns,
             a.edges,
@@ -1149,10 +1169,7 @@ class RecalcSession:
             a.cost,
             target_weights=a.target_weights,
             target_depends_on=a.target_depends_on,
-            seed=_seed(seed),
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            **ctl,
         )
         raise_refusal(refusal, _refusal_type)
         if result is None or artifact is None:  # pragma: no cover - one of the two is set

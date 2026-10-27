@@ -64,6 +64,7 @@ from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from ._validate import choice, count, real, text
 from .errors import CausalTypeError, StructuredRefusal
+from .execution import Execution, resolve_execution
 from .mechanism_composition import PreparedMechanismComposition
 from .outcomes import outcome_operation
 
@@ -239,7 +240,7 @@ class PreparedDiscretizedComposition(ScientificResult):
 
     @outcome_operation
     def mean_contrast(
-        self, contrast: DiscreteContrast, *, cancel: Any = None
+        self, contrast: DiscreteContrast, *, execution: Execution | None = None
     ) -> DiscretizedContrast:
         """The contrast on the discretized model beside the closed-form Gaussian value at the
         same intervention values and the computed bound.
@@ -248,10 +249,13 @@ class PreparedDiscretizedComposition(ScientificResult):
             DiscretizedCompositionRefusal: an unknown outcome, variable or level, a repeated
                 intervention or cancellation.
         """
+        execution = resolve_execution(execution)
         if not isinstance(contrast, DiscreteContrast):
             raise CausalTypeError("contrast must be a DiscreteContrast")
         info = json.loads(
-            _unwrap(self._handle.mean_contrast(json.dumps(contrast._wire()), cancel=cancel))
+            _unwrap(
+                self._handle.mean_contrast(json.dumps(contrast._wire()), cancel=execution.cancel)
+            )
         )
         return DiscretizedContrast(
             value=float(info["value"]),
@@ -289,15 +293,16 @@ class PreparedDiscretizedComposition(ScientificResult):
         self.uncertainty("bayesian")
 
     def refresh(
-        self, refit: PreparedMechanismComposition, *, cancel: Any = None
+        self, refit: PreparedMechanismComposition, *, execution: Execution | None = None
     ) -> PreparedDiscretizedComposition:
         """Discretize the refit composition again under the declared plan.
 
         A refused refresh leaves this object as it was.
         """
+        execution = resolve_execution(execution)
         if not isinstance(refit, PreparedMechanismComposition):
             raise CausalTypeError("refit must be a PreparedMechanismComposition")
-        handle = _unwrap(self._handle.refresh(refit._handle, cancel=cancel))
+        handle = _unwrap(self._handle.refresh(refit._handle, cancel=execution.cancel))
         return PreparedDiscretizedComposition._of(handle)
 
     @artifact_export
@@ -312,7 +317,7 @@ def discretize(
     levels: Mapping[str, int] | int,
     *,
     method: str = "equal_probability_quantile",
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedDiscretizedComposition:
     """Discretize a linear-Gaussian composition under a declared plan.
 
@@ -327,6 +332,7 @@ def discretize(
             declared support other than the real line, a mechanism loading on a shared latent
             cause, a degenerate marginal, or cancellation.
     """
+    execution = resolve_execution(execution)
     if not isinstance(composition, PreparedMechanismComposition):
         raise CausalTypeError("composition must be a PreparedMechanismComposition")
     choice(method, "method", _METHODS)
@@ -339,7 +345,7 @@ def discretize(
         _native.discretized_composition_prepare(
             composition._handle,
             json.dumps({"method": method, "levels": plan}),
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
     return PreparedDiscretizedComposition._of(handle)
@@ -351,7 +357,7 @@ def discretize(
     replayable=True,
 )
 def consume_discretized_composition(
-    artifact: bytes, expected_identity: str | None = None, *, cancel: Any = None
+    artifact: bytes, expected_identity: str | None = None, *, execution: Execution | None = None
 ) -> PreparedDiscretizedComposition:
     """Consume an exported discretization.
 
@@ -366,10 +372,13 @@ def consume_discretized_composition(
             (``discretized_scm_artifact.identity_mismatch``) or a claimed number that differs from the
             re-derived one.
     """
+    execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     handle = _unwrap(
-        _native.discretized_composition_consume(bytes(artifact), expected_identity, cancel=cancel)
+        _native.discretized_composition_consume(
+            bytes(artifact), expected_identity, cancel=execution.cancel
+        )
     )
     return PreparedDiscretizedComposition._of(handle)

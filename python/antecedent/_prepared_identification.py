@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import partial
 from html import escape
-from typing import Any
+from typing import Any, cast
 
 from ._freeze import freeze, thaw
 from ._prepared_inspection import IdentificationPageKind, InspectionPage, _bounds, _read_page
@@ -276,8 +276,9 @@ class PreparedIdentification:
     def to_dict(self, *, execution: Execution | None = None) -> dict[str, Any]:
         """Materialize this complete native subtree and its schema names explicitly.
 
-        Cancellation follows the selected Execution. This operation does not
-        establish that the native JSON allocation is fully resource-admitted.
+        Native JSON output is quoted exactly and admitted before allocation.
+        Its owner retains that lease through requested Python decoding. The
+        returned Python dict is an explicit caller-owned materialization.
         """
         policy = self.execution if execution is None else execution
         if not isinstance(policy, Execution):
@@ -289,11 +290,19 @@ class PreparedIdentification:
                 "details": thaw(self._unavailable["details"]),
                 "children": [],
             }
-        payload = json.loads(
-            policy._call(self._native.materialize_json, seed=policy.seed, threads=policy.threads)
-        )
-        payload["names"] = self._native.schema_names()
-        return payload
+
+        def materialize() -> dict[str, Any]:
+            native = self._native
+            if hasattr(native, "materialize"):
+                owner = native.materialize(seed=policy.seed, threads=policy.threads)
+                return cast("dict[str, Any]", owner.to_dict())
+            # The learned-trial view serializes its own proof to an admitted JSON string.
+            raw = native.materialize_json(seed=policy.seed, threads=policy.threads)
+            payload = cast("dict[str, Any]", json.loads(raw))
+            payload["names"] = native.schema_names()
+            return payload
+
+        return policy._call(materialize)
 
     def __bool__(self) -> bool:
         raise CausalTypeError(

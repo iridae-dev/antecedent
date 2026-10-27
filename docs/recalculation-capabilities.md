@@ -22,13 +22,13 @@ Numeric mean contrasts stay within each treatment's observed range, with exact o
 
 `AdjustedSession.predict` validates feature names/order against the actual native fit and applies the same treatment-support boundary. Its point-prediction result measures zero model fits; prediction is a separate scoped consumer of the retained model, since the shared planner has no prediction stage. It supplies no prediction interval or residual/sampling state. Reuse shares immutable fitted data instead of copying the full design, and failed refits leave the previous successful session usable.
 
-`receipt.totals.model_fits` counts successful numerical model solves separately from nuisance `fold_fits`; both receipt identity and independent artifact checks bind it. Historical zero-model receipts keep their original wire and digest. An exported adjusted receipt contains no fitted model or training data. `AdjustedSession.resume` rejects portable-fit/score flags as substitutes; explicit supplied-data mode plus an actual raw request refits in a fresh process. A missing fit refuses prediction. The Python bridge has no row, column or value ceiling: it checks the planned input copy (8 bytes per value) against the optional `memory_limit_bytes` before allocating it and refuses with `recalc.memory_budget_exceeded`, and bounds GLM fitting to 1,000 iterations; the native executor checks the same budget for its design and Gram workspace and honours `cancel` before fitting.
+`receipt.totals.model_fits` counts successful numerical model solves separately from nuisance `fold_fits`; both receipt identity and independent artifact checks bind it. Historical zero-model receipts keep their original wire and digest. An exported adjusted receipt contains no fitted model or training data. `AdjustedSession.resume` rejects portable-fit/score flags as substitutes; explicit supplied-data mode plus an actual raw request refits in a fresh process. A missing fit refuses prediction. The Python bridge has no row, column or value ceiling: it checks the planned input copy (8 bytes per value) against the execution's memory limit (`Execution(limits=ResourceLimits(memory_bytes=...))`) before allocating it and refuses with `recalc.memory_budget_exceeded`, and bounds GLM fitting to 1,000 iterations; the native executor checks the same budget for its design and Gram workspace and honours the execution's `cancel` token before fitting.
 
 `recalc_dr.DrSession.execute` retains checked DML AIPW scores or DR-Learner marginal scores and its distinct final CATE model through the existing prepared-study engine and shared planner. The minimum accepts untrimmed, all-observed IID binary treatment with linear/ridge outcome and final models and linear/ridge/logistic treatment learners. Partially linear DML, trimming, automatic learner search and other learners refuse. Complete-case row IDs, graph/query, data, learner configuration, folds and seed bind retained state. Utility-only changes recompute the decision; compatible same-row target weights reuse scores and may depend only on checked adjustment roles. Weights align to the retained complete-case rows. Changed data, causal roles or nuisance configuration recheck or refit.
 
 `DrSession.predict` consumes the retained CATE model with named, ordered features and measures zero fits. Live prediction stays within each feature's observed range; this per-coordinate boundary does not establish joint or conditional positivity. DML scores do not provide a predictor. Predictions and analytic IID score diagnostics remain point-only/unmeasured and supply no validated confidence or prediction interval.
 
-Receipts measure successful nuisance fits, final CATE fits and actual score-table builds independently. Initial preparation and estimation build two score tables while sharing physical nuisance inputs within a bounded execution cache; they do not fit nuisances twice. Cache keys include fold units, kind and seed, and retention shares the existing value budget with at most eight prepared bindings. Cancellation, incompatible requests and failed refits preserve the prior successful session. The Python bridge bounds requests to 20 folds and has no row, column or value ceiling: the planned input copy is checked against the optional `memory_limit_bytes` before allocation (`recalc.memory_budget_exceeded`); native refitting checks cancellation and its workspace budget.
+Receipts measure successful nuisance fits, final CATE fits and actual score-table builds independently. Initial preparation and estimation build two score tables while sharing physical nuisance inputs within a bounded execution cache; they do not fit nuisances twice. Cache keys include fold units, kind and seed, and retention shares the existing value budget with at most eight prepared bindings. Cancellation, incompatible requests and failed refits preserve the prior successful session. The Python bridge bounds requests to 20 folds and has no row, column or value ceiling: the planned input copy is checked against the execution's memory limit before allocation (`recalc.memory_budget_exceeded`); native refitting checks cancellation and its workspace budget.
 
 `DrSession.export_scores` produces the existing independently verified frozen-score object for same-row retargeting, while `export_predictor` produces the existing parent analysis artifact for CATE point prediction. Export retains the producing execution identity. Neither object substitutes for the other. Receipt-only resume has no executable state; an explicit supplied raw-data request refits in a fresh process. Fresh-process tests execute both DML and CATE frozen-score retargeting without fits, and independently decode and predict from the CATE artifact.
 
@@ -59,6 +59,37 @@ Static receipts expose actual `factor_builds`, `program_compilations`, `provider
 `recalc_design.consume_design_result` requires supplied raw data and independently executes checked preparation and estimation. It compares the original artifact's full contract and scientific body, preserving the producing seed and refusing changed data or model declarations even if they happen to give the same point estimate. The returned session contains fresh executed state and a new receipt. Existing historical readers remain unchanged; missing raw data supplies no RD checked-operation license.
 
 `StaticResponseSession.response` exposes the actual retained checked response with no new fitting or factor work. `ProgramBinding.from_response` derives the scientific binding from its original identification; `native_claim` requires opaque producing execution authority and verifies the full projection, canonical declared premises, snapshot and RNG. Caller-created result views or labelled distributions cannot mint native trust. Actual aligned native posterior rows survive when their producer supplies them; a mean-only response remains mean-only. Historical labelled distributions remain readable and unverified at composition.
+
+## What each session declares about its standing
+
+Every recalculation session family states, in its stage identities, how it treats three standing
+inputs: the **calibration** record behind an interval or posterior statement, the **representation**
+(model family and version) a score artifact was built with, and the **coupling** between streams a
+joint statement relies on. `recalc.session_standing(kind)` returns the declaration for a session
+family (`receipt`, `adjusted`, `cell`, `design`, `doubly_robust`, `static`, `temporal`, `bayesian`,
+`joint_bayesian`, `external` or `composite`); a live session exposes the same value as `.standing`.
+
+```python
+from antecedent import recalc
+
+for kind in ("static", "bayesian", "external"):
+    standing = recalc.session_standing(kind)
+    print(kind, standing.calibration.status, standing.coupling.status, standing.representation.status)
+# static not_applicable not_applicable undeclared
+# bayesian declared declared undeclared
+# external undeclared undeclared undeclared
+
+external = recalc.session_standing("external")
+print(external.calibration.finding)    # recalc.standing_undeclared.calibration_folded_into_decision
+```
+
+Each input is a `StandingInput` with one of three statuses. `declared` means a change in the input
+moves the law and the decision and nothing that reads only data. `not_applicable` means the claim
+does not rest on it and `reason` says why (a point-valued family forms no joint statement).
+`undeclared` means the session does not hold what the input names: `finding` names what is missing
+and `remedy` what would make it declarable, so a claim that needs it is not licensed by this
+session's identities alone. No family declares a representation. The declaration states what the
+session's identities do and do not cover; it does not add a calibration record or an interval.
 
 ## Bounded foreign mean callback execution
 
@@ -125,7 +156,7 @@ standing remain unchanged.
 
 ```python
 session = recalc_cell.CellSession()
-session.execute(request, seed=7)
+session.execute(request, execution=Execution(seed=7))
 frozen = session.export_frozen_scores()
 
 # Possibly in a fresh interpreter, from the bytes and the retained identity alone:

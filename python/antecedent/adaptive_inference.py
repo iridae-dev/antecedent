@@ -79,6 +79,7 @@ from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 from .outcomes import Answer, Outcome, outcome_operation, require_success
 
 if TYPE_CHECKING:
@@ -654,14 +655,17 @@ class AdaptiveResult(ScientificResult, Generic[PayloadT]):
 
     @artifact_export
     def export(
-        self, artifact_id: str = "adaptive-result", *, cancel: object = None
+        self, artifact_id: str = "adaptive-result", *, execution: Execution | None = None
     ) -> ExportedArtifact[ConsumedAdaptiveResult]:
         """Export this request under the immutable prepared adaptive contract."""
+        execution = resolve_execution(execution)
         if self._export_session is None or self._export_request is None:
             raise CausalValueError(
                 "this detached adaptive reading has no retained request to export"
             )
-        return self._export_session._export_result(self._export_request, artifact_id, cancel=cancel)
+        return self._export_session._export_result(
+            self._export_request, artifact_id, cancel=execution.cancel
+        )
 
     def to_rows(self) -> list[dict[str, Any]]:
         return [
@@ -810,7 +814,7 @@ class AdaptiveInferenceSession:
         return bool(self._summary["adaptive"])
 
     def derive_procedure(
-        self, elements: ProcedureElements, *, cancel: Any = None
+        self, elements: ProcedureElements, *, execution: Execution | None = None
     ) -> AdaptiveProcedure:
         """The whole data-collection procedure of this experiment.
 
@@ -823,39 +827,42 @@ class AdaptiveInferenceSession:
             AdaptiveInferenceRefusal: one detail per missing element and per disagreement between
                 the elements and the retained contract.
         """
+        execution = resolve_execution(execution)
         if not isinstance(elements, ProcedureElements):
             raise CausalTypeError("elements must be a ProcedureElements")
         wire = _procedure_json(elements.to_wire())
-        handle = _unwrap(_native.adaptive_procedure_from_contract(self._handle, wire, cancel))
+        handle = _unwrap(
+            _native.adaptive_procedure_from_contract(self._handle, wire, execution.cancel)
+        )
         return AdaptiveProcedure(handle)
 
     @overload
     def analyze(
-        self, request: BayesianPosterior, *, cancel: Any = None
+        self, request: BayesianPosterior, *, execution: Execution | None = None
     ) -> Outcome[AdaptiveResult[PosteriorSummary]]: ...
 
     @overload
     def analyze(
-        self, request: PosteriorStopping, *, cancel: Any = None
+        self, request: PosteriorStopping, *, execution: Execution | None = None
     ) -> Outcome[AdaptiveResult[StoppingSummary]]: ...
 
     @overload
     def analyze(
-        self, request: AdaptiveWeighting, *, cancel: Any = None
+        self, request: AdaptiveWeighting, *, execution: Execution | None = None
     ) -> Outcome[AdaptiveResult[WeightingSummary]]: ...
 
     @overload
     def analyze(
-        self, request: ConfidenceSequence, *, cancel: Any = None
+        self, request: ConfidenceSequence, *, execution: Execution | None = None
     ) -> Outcome[AdaptiveResult[SequenceSummary]]: ...
 
     @overload
     def analyze(
-        self, request: GroupSequential, *, cancel: Any = None
+        self, request: GroupSequential, *, execution: Execution | None = None
     ) -> Outcome[AdaptiveResult[SequentialSummary]]: ...
 
     @outcome_operation
-    def analyze(self, request: Request, *, cancel: Any = None) -> AdaptiveResult:
+    def analyze(self, request: Request, *, execution: Execution | None = None) -> AdaptiveResult:
         """Run the paradigm a request names.
 
         Raises:
@@ -863,7 +870,8 @@ class AdaptiveInferenceSession:
                 for, ``adaptive_assumption_violated`` for noncompliance, outcome-dependent delay
                 or a probability below the floor, ``cancelled_no_claim`` on cancellation.
         """
-        wire = _unwrap(self._handle.analyse(_request_json(request), cancel=cancel))
+        execution = resolve_execution(execution)
+        wire = _unwrap(self._handle.analyse(_request_json(request), cancel=execution.cancel))
         result = _result(json.loads(wire))
         from ._freeze import freeze
 
@@ -871,9 +879,12 @@ class AdaptiveInferenceSession:
         object.__setattr__(result, "_export_request", freeze(request))
         return result
 
-    def analyse(self, request: Request, *, cancel: Any = None) -> Outcome[AdaptiveResult[Any]]:
+    def analyse(
+        self, request: Request, *, execution: Execution | None = None
+    ) -> Outcome[AdaptiveResult[Any]]:
         """British spelling of :meth:`analyze`."""
-        return self.analyze(request, cancel=cancel)
+        execution = resolve_execution(execution)
+        return self.analyze(request, execution=execution)
 
     def fixed_sample(self) -> None:
         """Analyse as if the design had been fixed in advance.
@@ -891,7 +902,7 @@ class AdaptiveInferenceSession:
         """
         _raise_if(self._handle.interval())
 
-    def measured_interval(self, request: Request, *, cancel: Any = None) -> Any:
+    def measured_interval(self, request: Request, *, execution: Execution | None = None) -> Any:
         """The interval of one result of a measured procedure cell.
 
         The result is sealed and replayed, its interval is built from the retained history with
@@ -911,9 +922,12 @@ class AdaptiveInferenceSession:
                 threshold, exploration mass or look schedule, or for evidence that is absent or no
                 longer attesting.
         """
+        execution = resolve_execution(execution)
         from ._measured_inference import MeasuredInference
 
-        native = _unwrap(self._handle.measured_interval(_request_json(request), cancel=cancel))
+        native = _unwrap(
+            self._handle.measured_interval(_request_json(request), cancel=execution.cancel)
+        )
         return MeasuredInference._from_native(native)
 
     def interim_evidence(self) -> InterimEvidence:
@@ -940,7 +954,7 @@ class AdaptiveInferenceSession:
         *,
         paradigm: None = None,
         procedure: ParticipantProcedure | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> ExportedArtifact[ConsumedAdaptiveResult]: ...
 
     @overload
@@ -951,7 +965,7 @@ class AdaptiveInferenceSession:
         *,
         paradigm: str,
         procedure: ParticipantProcedure | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> ExportedArtifact[ConsumedMonitoringContract]: ...
 
     @artifact_export
@@ -962,19 +976,20 @@ class AdaptiveInferenceSession:
         *,
         paradigm: str | None = None,
         procedure: ParticipantProcedure | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> ExportedArtifact[ConsumedAdaptiveResult | ConsumedMonitoringContract]:
         """Export one declared result or monitoring contract with its producer identity.
 
         Supply a request for a result, or ``paradigm=`` for a monitoring contract.
         ``procedure=`` carries the participant-level procedure with a contract.
         """
+        execution = resolve_execution(execution)
         if (request is None) == (paradigm is None):
             raise CausalTypeError("supply exactly one of request or paradigm")
         if request is not None:
             if procedure is not None:
                 raise CausalTypeError("procedure is only valid for a monitoring contract")
-            return self._export_result(request, artifact_id, cancel=cancel)
+            return self._export_result(request, artifact_id, cancel=execution.cancel)
         if paradigm is None:
             raise CausalTypeError("paradigm is required for a monitoring contract")
         if procedure is not None:
@@ -1116,7 +1131,7 @@ def consume_adaptive_monitoring_contract_artifact(
     replayable=True,
 )
 def consume_adaptive_inference_result_artifact(
-    artifact: bytes, expected_identity: str | None = None, *, cancel: Any = None
+    artifact: bytes, expected_identity: str | None = None, *, execution: Execution | None = None
 ) -> ConsumedAdaptiveResult:
     """Independently consume an adaptive inference result by replay and recomputation.
 
@@ -1125,11 +1140,14 @@ def consume_adaptive_inference_result_artifact(
             ``adaptive_inference.report_replay_mismatch`` for a stored value that does not
             recompute.
     """
+    execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     handle = _unwrap(
-        _native.adaptive_inference_result_consume(bytes(artifact), expected_identity, cancel)
+        _native.adaptive_inference_result_consume(
+            bytes(artifact), expected_identity, execution.cancel
+        )
     )
     wire = json.loads(handle.summary_json())
     return ConsumedAdaptiveResult(
@@ -1714,9 +1732,10 @@ class AdaptiveProcedure:
         """The validated elements and matrix labels (``family``, ``monitoring``, ...)."""
         return dict(self._summary)
 
-    def law(self, truth: Sequence[float], *, cancel: Any = None) -> ProcedureLaw:
+    def law(self, truth: Sequence[float], *, execution: Execution | None = None) -> ProcedureLaw:
         """The exact law of the terminal state under ``truth`` (one probability per cell)."""
-        wire = json.loads(_unwrap(self._handle.law([float(p) for p in truth], cancel)))
+        execution = resolve_execution(execution)
+        wire = json.loads(_unwrap(self._handle.law([float(p) for p in truth], execution.cancel)))
         return ProcedureLaw(
             procedure_identity=wire["procedure_identity"],
             atoms=tuple(wire["atoms"]),
@@ -1729,9 +1748,10 @@ class AdaptiveProcedure:
         )
 
     def simulate(
-        self, request: WeightingProcedureReport, *, cancel: Any = None
+        self, request: WeightingProcedureReport, *, execution: Execution | None = None
     ) -> ProcedureSimulation:
         """Run the whole procedure under ``request.truth`` and estimate by adaptive weighting."""
+        execution = resolve_execution(execution)
         if not isinstance(request, WeightingProcedureReport):
             raise CausalTypeError("request must be a WeightingProcedureReport")
         wire = json.loads(
@@ -1739,7 +1759,7 @@ class AdaptiveProcedure:
                 self._handle.simulate(
                     [float(p) for p in request.truth],
                     _procedure_json(request._simulation_wire()),
-                    cancel,
+                    execution.cancel,
                 )
             )
         )
@@ -1751,17 +1771,22 @@ class AdaptiveProcedure:
             receipt=wire.get("receipt") or {},
         )
 
-    def report(self, request: ProcedureReportRequest, *, cancel: Any = None) -> ProcedureReport:
+    def report(
+        self, request: ProcedureReportRequest, *, execution: Execution | None = None
+    ) -> ProcedureReport:
         """One paradigm's derived statement.
 
         Raises:
             AdaptiveInferenceRefusal: ``cell_not_licensed`` when the procedure does not meet the
                 paradigm's premise (its detail names which), or the derivation's own refusal.
         """
+        execution = resolve_execution(execution)
         wire = getattr(request, "_wire", None)
         if wire is None:
             raise CausalTypeError("a request is one of the procedure report request classes")
-        payload = json.loads(_unwrap(self._handle.report(_procedure_json(wire()), cancel)))
+        payload = json.loads(
+            _unwrap(self._handle.report(_procedure_json(wire()), execution.cancel))
+        )
         return ProcedureReport(
             paradigm=payload["paradigm"],
             estimand=payload["estimand"],
@@ -2153,11 +2178,12 @@ class RepeatedMeasuresProcedure:
         )
 
     def closed_form(
-        self, arm_means: Sequence[float], *, cancel: Any = None
+        self, arm_means: Sequence[float], *, execution: Execution | None = None
     ) -> RepeatedMeasuresReport:
         """The exact closed forms: unit-summary variance, design effect, exact contrast law."""
+        execution = resolve_execution(execution)
         wire = {"kind": "closed_form", "arm_means": [float(m) for m in arm_means]}
-        return self._report(wire, cancel)
+        return self._report(wire, execution.cancel)
 
     @outcome_operation
     def derive(
@@ -2167,7 +2193,7 @@ class RepeatedMeasuresProcedure:
         replications: int,
         seed: int,
         z: float = 1.96,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> RepeatedMeasuresReport:
         """The whole-procedure simulation under the paradigm of the declared analysis.
 
@@ -2175,6 +2201,7 @@ class RepeatedMeasuresProcedure:
             AdaptiveInferenceRefusal: ``cell_not_licensed`` with the premise's detail when the
                 declared analysis does not meet its paradigm's premise.
         """
+        execution = resolve_execution(execution)
         wire = {
             "kind": "derived",
             "arm_means": [float(m) for m in arm_means],
@@ -2182,7 +2209,7 @@ class RepeatedMeasuresProcedure:
             "seed": int(seed),
             "z": float(z),
         }
-        return self._report(wire, cancel)
+        return self._report(wire, execution.cancel)
 
     def derive_paradigm(
         self,
@@ -2192,9 +2219,10 @@ class RepeatedMeasuresProcedure:
         replications: int,
         seed: int,
         z: float = 1.96,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> RepeatedMeasuresReport:
         """As :meth:`derive`, naming the paradigm asked for; any other is refused."""
+        execution = resolve_execution(execution)
         wire = {
             "kind": "paradigm",
             "paradigm": paradigm,
@@ -2203,14 +2231,15 @@ class RepeatedMeasuresProcedure:
             "seed": int(seed),
             "z": float(z),
         }
-        return self._report(wire, cancel)
+        return self._report(wire, execution.cancel)
 
     def transfer_guarantee(
-        self, cell_id: str, paradigm: str, *, cancel: Any = None
+        self, cell_id: str, paradigm: str, *, execution: Execution | None = None
     ) -> RepeatedMeasuresReport:
         """Ask whether this cell's guarantee may be stated for another cell (it may not)."""
+        execution = resolve_execution(execution)
         wire = {"kind": "cell_transfer", "cell_id": str(cell_id), "paradigm": str(paradigm)}
-        return self._report(wire, cancel)
+        return self._report(wire, execution.cancel)
 
     @outcome_operation
     def posterior(
@@ -2601,8 +2630,7 @@ class ParticipantProcedure:
         seed: int,
         *,
         true_correlation: float | None = None,
-        memory_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> ParticipantSimulation:
         """Run the whole procedure under the arm means ``truth``.
 
@@ -2619,6 +2647,7 @@ class ParticipantProcedure:
                 ``simulation_replications_exceeded`` over the replication bound, or
                 ``cancelled_no_claim``.
         """
+        execution = resolve_execution(execution)
         request = _procedure_json(
             {
                 "replications": int(replications),
@@ -2631,8 +2660,10 @@ class ParticipantProcedure:
                 self._handle.simulate(
                     [float(p) for p in truth],
                     request,
-                    None if memory_bytes is None else int(memory_bytes),
-                    cancel,
+                    None
+                    if execution.limits.memory_bytes is None
+                    else int(execution.limits.memory_bytes),
+                    execution.cancel,
                 )
             )
         )
@@ -2649,26 +2680,27 @@ class ParticipantProcedure:
         seed: int,
         *,
         true_correlation: float | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> ParticipantHistory:
         """Run the procedure once under ``truth`` and retain what happened.
 
         ``true_correlation`` is as in :meth:`simulate`.
         """
+        execution = resolve_execution(execution)
         wire = json.loads(
             _unwrap(
                 self._handle.simulate_history(
                     [float(p) for p in truth],
                     int(seed),
                     None if true_correlation is None else float(true_correlation),
-                    cancel,
+                    execution.cancel,
                 )
             )
         )
         return ParticipantHistory.from_wire(wire)
 
     def read_history(
-        self, history: ParticipantHistory, *, cancel: Any = None
+        self, history: ParticipantHistory, *, execution: Execution | None = None
     ) -> ParticipantReadings:
         """Recompute every look of a retained history under the declared procedure.
 
@@ -2679,10 +2711,11 @@ class ParticipantProcedure:
                 ``adaptive_inference.stopping_not_replayed`` when the procedure continued past, or
                 stopped without, its declared decisions.
         """
+        execution = resolve_execution(execution)
         if not isinstance(history, ParticipantHistory):
             raise CausalTypeError("history must be a ParticipantHistory")
         wire = json.loads(
-            _unwrap(self._handle.read_history(_procedure_json(history.to_wire()), cancel))
+            _unwrap(self._handle.read_history(_procedure_json(history.to_wire()), execution.cancel))
         )
         return ParticipantReadings(
             procedure_identity=wire["procedure_identity"],
@@ -2712,13 +2745,14 @@ class ParticipantProcedure:
         arm_labels: Sequence[str],
         history: ParticipantHistory,
         *,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> AdaptiveInferenceSession:
         """The prepared analysis of the retained contract of a history.
 
         The history is read under the declared procedure first, so only a history that replays
         can be retained. Responses are retained as their success count.
         """
+        execution = resolve_execution(execution)
         if not isinstance(history, ParticipantHistory):
             raise CausalTypeError("history must be a ParticipantHistory")
         handle = _unwrap(
@@ -2726,7 +2760,7 @@ class ParticipantProcedure:
                 label,
                 [str(a) for a in arm_labels],
                 _procedure_json(history.to_wire()),
-                cancel,
+                execution.cancel,
             )
         )
         return AdaptiveInferenceSession(handle)

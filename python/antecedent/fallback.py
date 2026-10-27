@@ -50,6 +50,7 @@ from .errors import (
     CausalResourceError,
     EffectNotIdentified,
 )
+from .execution import Execution, resolve_execution
 
 if TYPE_CHECKING:
     from .design import EvidencePlan
@@ -153,7 +154,7 @@ def _roles_of(query: Any) -> tuple[str, str, tuple[str, ...]] | None:
     if isinstance(query, AverageEffect):
         return query.treatment, query.outcome, ()
     if isinstance(query, ConditionalEffect):
-        return query.treatment, query.outcome, (query.modifier,)
+        return query.treatment, query.outcome, query.modifiers
     return None
 
 
@@ -568,7 +569,7 @@ def fallback_declaration(candidates: Sequence[StudyCandidate] | None) -> dict[st
         "objective": "minimize_cost",
         "max_operations": int(limits.max_operations),
         "max_depth": int(limits.max_depth),
-        "memory_bytes": limits.memory_bytes,
+        "memory_bytes": None,
     }
 
 
@@ -583,8 +584,7 @@ def from_native(
     query: Any,
     graph: Any,
     columns: Sequence[str],
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
     controls: Any = None,
 ) -> AnalysisWithFallback:
     """Read the fallback Rust ran on the refused study as an :class:`AnalysisWithFallback`.
@@ -597,6 +597,7 @@ def from_native(
     from .descriptive import Association
     from .estimation import _Controls, _PreparedEngine
 
+    execution = resolve_execution(execution)
     roles_wire = stage.roles()
     roles = (
         None
@@ -626,8 +627,8 @@ def from_native(
             native,
             kind="average",
             query=description,
-            seed=seed,
-            threads=threads,
+            seed=execution.seed,
+            threads=execution.threads,
             controls=controls if isinstance(controls, _Controls) else None,
         )
         associational = cast("AnalysisResult", engine._wrap(raw))

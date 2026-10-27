@@ -89,6 +89,7 @@ from ._scientific import ScientificResult
 from ._validate import count as _shared_count
 from .discovery import BackgroundKnowledge, Link
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, native_controls
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
@@ -156,6 +157,18 @@ class SelectiveDiscoveryRefusal(StructuredRefusal):
     ``discovery_statistics_invalid``, ``discovered_structure_unresolved``) and a
     ``selective_discovery.*`` ``detail``; ``remedy`` names what would license the request.
     """
+
+
+def _policy(execution: Execution | None) -> Execution:
+    policy = Execution() if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    return policy
+
+
+def _controls(policy: Execution) -> dict[str, Any]:
+    """The threads and cancellation the native selective-discovery entries take."""
+    return native_controls(policy, threads="threads", cancel="cancel")
 
 
 def _raise(payload: str | None) -> None:
@@ -578,13 +591,25 @@ class SelectiveDiscovery(ScientificResult):
         text = self._handle.outcome_json()
         return None if text is None else _outcome(text, self._names)
 
-    def _call(self, which: str, contract: Any, data: Mapping[str, Any], **options: Any) -> str:
+    def _call(
+        self,
+        which: str,
+        contract: Any,
+        data: Mapping[str, Any],
+        *,
+        execution: Execution | None = None,
+    ) -> str:
         if _kind_of(contract) != self._kind:
             raise CausalTypeError(f"a {self._kind} adapter needs a {self._kind} contract")
+        policy = _policy(execution)
         wire = json.dumps(contract.to_wire(), sort_keys=True)
         columns = _columns(contract, data)
-        text, refusal = getattr(self._handle, which)(
-            wire, list(contract.variables), columns, **options
+        text, refusal = policy._call(
+            getattr(self._handle, which),
+            wire,
+            list(contract.variables),
+            columns,
+            **_controls(policy),
         )
         _raise(refusal)
         self._names = tuple(contract.variables)
@@ -596,8 +621,7 @@ class SelectiveDiscovery(ScientificResult):
         contract: StaticContract | TemporalContract,
         data: Mapping[str, Any],
         *,
-        threads: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> RunReport:
         """Discover on ``data`` under ``contract``, reusing retained statistics where it may.
 
@@ -610,18 +634,17 @@ class SelectiveDiscovery(ScientificResult):
             CausalDiscoveryError: the algorithm failed or was cancelled; retained state is
                 unchanged.
         """
-        return _report(self._call("run", contract, data, threads=threads, cancel=cancel))
+        return _report(self._call("run", contract, data, execution=execution))
 
     def plan(
         self,
         contract: StaticContract | TemporalContract,
         data: Mapping[str, Any],
         *,
-        threads: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> tuple[PlanEntry, ...]:
         """What :meth:`run` would reuse, without executing anything."""
-        wire = json.loads(self._call("plan", contract, data, threads=threads, cancel=cancel))
+        wire = json.loads(self._call("plan", contract, data, execution=execution))
         return tuple(
             PlanEntry(e["stage"], e["status"], tuple(e["because"]), e["identity"])
             for e in wire["stages"]
@@ -664,8 +687,7 @@ class SelectiveDiscovery(ScientificResult):
         artifact: bytes,
         expected_identity: str | None = None,
         *,
-        threads: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> tuple[SelectiveDiscovery, RunReport]:
         """Resume from an exported artifact: replay the algorithm over its receipts only.
 
@@ -681,16 +703,17 @@ class SelectiveDiscovery(ScientificResult):
         kind = _kind_of(contract)
         if not isinstance(artifact, (bytes, bytearray, memoryview)):
             raise CausalTypeError("artifact must be bytes")
+        policy = _policy(execution)
         columns = None if data is None else _columns(contract, data)
-        handle, report, refusal = _native.selective_discovery_resume(
+        handle, report, refusal = policy._call(
+            _native.selective_discovery_resume,
             kind,
             json.dumps(contract.to_wire(), sort_keys=True),
             list(contract.variables),
             columns,
             bytes(artifact),
             expected_identity,
-            threads=threads,
-            cancel=cancel,
+            **_controls(policy),
         )
         _raise(refusal)
         assert handle is not None and report is not None
@@ -1000,8 +1023,7 @@ class PerPopulationDiscovery(ScientificResult):
         contract: StaticContract,
         populations: Mapping[str, Mapping[str, Any]],
         *,
-        threads: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> PerPopulationReport:
         """Run ``contract`` on each population's columns.
 
@@ -1021,13 +1043,14 @@ class PerPopulationDiscovery(ScientificResult):
             raise CausalTypeError("populations must map a label to a column mapping")
         labels = [_name(label, "population") for label in populations]
         columns = [_columns(contract, populations[label]) for label in labels]
-        text, refusal = self._handle.run(
+        policy = _policy(execution)
+        text, refusal = policy._call(
+            self._handle.run,
             json.dumps(contract.to_wire(), sort_keys=True),
             labels,
             list(contract.variables),
             columns,
-            threads=threads,
-            cancel=cancel,
+            **_controls(policy),
         )
         _raise(refusal)
         self._names = tuple(contract.variables)
@@ -1379,18 +1402,17 @@ def discover_on_split(
     data: Mapping[str, Any],
     *,
     discovery_fraction: float | None = None,
-    seed: int | None = None,
+    split_seed: int | None = None,
     discovery_rows: Sequence[int] | None = None,
     weights: Sequence[float] | None = None,
     mask: Sequence[bool] | None = None,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> SampleSplit:
     """Split the rows of ``data`` and discover on the discovery part only.
 
     Declare the split either as ``discovery_rows`` (original row indices the discovery part
     takes; every other eligible row is an analysis row) or as ``discovery_fraction`` with
-    ``seed`` (a seeded permutation of the eligible rows; the first ``round(fraction * n)`` of
+    ``split_seed`` (a seeded permutation of the eligible rows; the first ``round(fraction * n)`` of
     them are discovery rows). ``data`` must hold every searched variable as a 1-D float array;
     rows are assumed exchangeable.
 
@@ -1412,32 +1434,33 @@ def discover_on_split(
     if not isinstance(contract, StaticContract):
         raise CausalTypeError("contract must be a StaticContract")
     if discovery_rows is not None:
-        if discovery_fraction is not None or seed is not None:
+        if discovery_fraction is not None or split_seed is not None:
             raise CausalValueError(
-                "declare discovery_rows or discovery_fraction with seed, not both"
+                "declare discovery_rows or discovery_fraction with split_seed, not both"
             )
         rule: dict[str, Any] = {
             "kind": "explicit",
             "discovery_rows": [_count(r, "row") for r in discovery_rows],
         }
     else:
-        if discovery_fraction is None or seed is None:
-            raise CausalValueError("declare discovery_rows, or discovery_fraction with seed")
+        if discovery_fraction is None or split_seed is None:
+            raise CausalValueError("declare discovery_rows, or discovery_fraction with split_seed")
         rule = {
             "kind": "seeded_permutation",
-            "seed": _count(seed, "seed"),
+            "seed": _count(split_seed, "split_seed"),
             "discovery_fraction": float(discovery_fraction),
         }
     columns = _columns(contract, data)
-    handle, report, refusal = _native.sample_split_discover(
+    policy = _policy(execution)
+    handle, report, refusal = policy._call(
+        _native.sample_split_discover,
         json.dumps(contract.to_wire(), sort_keys=True),
         list(contract.variables),
         columns,
         json.dumps(rule, sort_keys=True),
         weights=_weights(weights),
         mask=_mask(mask),
-        threads=threads,
-        cancel=cancel,
+        **_controls(policy),
     )
     _raise(refusal)
     assert handle is not None and report is not None
@@ -1473,7 +1496,7 @@ class SplitEffect:
     _source: bytes = field(repr=False)
     _seed: int = field(repr=False)
 
-    def measure(self, *, threads: int | None = None, cancel: Any = None) -> Any:
+    def measure(self, *, execution: Execution | None = None) -> Any:
         """Replay the source and attest the interval from the current coverage records.
 
         Returns:
@@ -1486,8 +1509,9 @@ class SplitEffect:
         """
         from ._measured_inference import MeasuredInference
 
-        native, refusal = _native.sample_split_effect_measure(
-            self._source, self._seed, threads=threads, cancel=cancel
+        policy = _policy(execution)
+        native, refusal = policy._call(
+            _native.sample_split_effect_measure, self._source, self._seed, **_controls(policy)
         )
         _raise(refusal)
         assert native is not None
@@ -1519,9 +1543,7 @@ def sample_split_effect(
     treatment: str,
     outcome: str,
     split_seed: int,
-    seed: int = 0,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> SplitEffect:
     """Discover on half of the rows and estimate the treatment's effect on the other half.
 
@@ -1540,15 +1562,16 @@ def sample_split_effect(
         CausalDiscoveryError: the discovery algorithm failed or was cancelled.
     """
     names, columns = _effect_columns(data, treatment, outcome)
-    text, source, refusal = _native.sample_split_effect(
+    policy = _policy(execution)
+    text, source, refusal = policy._call(
+        _native.sample_split_effect,
         names,
         columns,
         names.index(treatment),
         names.index(outcome),
         _count(split_seed, "split_seed"),
-        _count(seed, "seed"),
-        threads=threads,
-        cancel=cancel,
+        _count(policy.seed, "seed"),
+        **_controls(policy),
     )
     _raise(refusal)
     assert text is not None and source is not None
@@ -1566,7 +1589,7 @@ def sample_split_effect(
         structure_identity=str(wire["structure_identity"]),
         basis=freeze(wire["basis"]),
         _source=bytes(source),
-        _seed=_count(seed, "seed"),
+        _seed=_count(policy.seed, "seed"),
     )
 
 
@@ -1612,7 +1635,7 @@ class ParentSetEffect:
     _source: bytes = field(repr=False)
     _seed: int = field(repr=False)
 
-    def measure(self, *, threads: int | None = None, cancel: Any = None) -> Any:
+    def measure(self, *, execution: Execution | None = None) -> Any:
         """Replay the source and attest the interval from the current coverage records.
 
         Returns:
@@ -1626,8 +1649,12 @@ class ParentSetEffect:
         """
         from ._measured_inference import MeasuredInference
 
-        native, refusal = _native.sample_split_parent_set_effect_measure(
-            self._source, self._seed, threads=threads, cancel=cancel
+        policy = _policy(execution)
+        native, refusal = policy._call(
+            _native.sample_split_parent_set_effect_measure,
+            self._source,
+            self._seed,
+            **_controls(policy),
         )
         _raise(refusal)
         assert native is not None
@@ -1646,9 +1673,7 @@ def sample_split_parent_set_effect(
     required: Sequence[tuple[str, str]] = (),
     forbidden: Sequence[tuple[str, str]] = (),
     tiers: Sequence[Sequence[str]] = (),
-    seed: int = 0,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ParentSetEffect:
     """Discover on half of the rows and estimate the treatment's effect on the other half,
     accepting the class when the treatment's parent set is unambiguous.
@@ -1704,19 +1729,20 @@ def sample_split_parent_set_effect(
                 "tiers": [[position(v) for v in tier] for tier in tiers],
             }
         )
-    text, source, refusal = _native.sample_split_parent_set_effect(
+    policy = _policy(execution)
+    text, source, refusal = policy._call(
+        _native.sample_split_parent_set_effect,
         names,
         columns,
         names.index(treatment),
         names.index(outcome),
         _count(split_seed, "split_seed"),
-        _count(seed, "seed"),
+        _count(policy.seed, "seed"),
         transformation,
         _count(max_degree, "max_degree"),
         shift,
         knowledge,
-        threads=threads,
-        cancel=cancel,
+        **_controls(policy),
     )
     _raise(refusal)
     assert text is not None and source is not None
@@ -1744,7 +1770,7 @@ def sample_split_parent_set_effect(
         structure_identity=str(wire["structure_identity"]),
         basis=freeze(wire["basis"]),
         _source=bytes(source),
-        _seed=_count(seed, "seed"),
+        _seed=_count(policy.seed, "seed"),
     )
 
 

@@ -72,6 +72,7 @@ from ._artifact_protocol import (
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution, resolve_execution
 from .measurement_models import MeasurementModel
 
 if TYPE_CHECKING:
@@ -779,7 +780,7 @@ def evaluate(
     policy: Policy | ReweightedStaticScores | LearnedFromEvaluationData,
     *,
     max_nodes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PolicyEvaluation:
     """Evaluate a fixed policy by exact enumeration (the sequential g-formula).
 
@@ -787,10 +788,11 @@ def evaluate(
     reachable history without a decision, an unsupported action, a resource budget exceeded or an
     outcome due after the horizon under the ``refuse`` rule.
     """
+    execution = resolve_execution(execution)
     fixed = resolve_policy(policy) if not isinstance(policy, Policy) else policy
     wire = _result(
         _native.sequential_evaluate(
-            _dumps(model.to_wire()), _dumps(fixed.to_wire()), max_nodes, cancel=cancel
+            _dumps(model.to_wire()), _dumps(fixed.to_wire()), max_nodes, cancel=execution.cancel
         )
     )
     return PolicyEvaluation._from_wire(wire)
@@ -831,13 +833,14 @@ def evaluate_off_policy(
     trajectories: Sequence[LoggedTrajectory],
     *,
     max_nodes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> OffPolicyEstimate:
     """Sequential importance weighting of logged trajectories (point-only).
 
     Positivity is checked on every history the target policy reaches; a trajectory identity
     repeated in the log, or inconsistent with the model or logging policy, is refused.
     """
+    execution = resolve_execution(execution)
     wire = _result(
         _native.sequential_off_policy(
             _dumps(model.to_wire()),
@@ -845,23 +848,29 @@ def evaluate_off_policy(
             _dumps(behaviour.to_wire()),
             _dumps([t._wire() for t in trajectories]),
             max_nodes,
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
     return OffPolicyEstimate(**wire)
 
 
 def rollout(
-    model: FiniteModel, policy: Policy, *, seed: int, rollouts: int, cancel: Any = None
+    model: FiniteModel,
+    policy: Policy,
+    *,
+    seed: int,
+    rollouts: int,
+    execution: Execution | None = None,
 ) -> RolloutEstimate:
     """Simulate the policy on common random streams; the error is an uncalibrated diagnostic."""
+    execution = resolve_execution(execution)
     wire = _result(
         _native.sequential_rollout(
             _dumps(model.to_wire()),
             _dumps(policy.to_wire()),
             _count(seed, "seed"),
             _count(rollouts, "rollouts"),
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
     return RolloutEstimate(**wire)
@@ -887,7 +896,7 @@ def compare(
     target_population: str | None = None,
     target_period: str | None = None,
     max_nodes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ComparisonReport:
     """Evaluate named comparisons; with ``collect_action``, score the observation's value.
 
@@ -895,6 +904,7 @@ def compare(
     enumeration. A request for another population or period is refused naming the missing
     transport contract.
     """
+    execution = resolve_execution(execution)
     wire_comparisons = [
         {"label": c.label, "kind": c.kind, "policy": _spec_wire(c.policy)} for c in comparisons
     ]
@@ -920,7 +930,7 @@ def compare(
             voi,
             request,
             max_nodes,
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
     return ComparisonReport(
@@ -953,9 +963,10 @@ def value_of_collecting_evidence(
     commit_actions: Sequence[int],
     *,
     max_nodes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ValueOfEvidence:
     """Score one observation by the design ranker (value of sample information)."""
+    execution = resolve_execution(execution)
     wire = _result(
         _native.sequential_value_of_evidence(
             _dumps(model.to_wire()),
@@ -966,7 +977,7 @@ def value_of_collecting_evidence(
                 }
             ),
             max_nodes,
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
     return ValueOfEvidence._from_wire(wire)
@@ -1110,12 +1121,13 @@ def seal(
     behaviour: Policy | None = None,
     trajectories: Sequence[LoggedTrajectory] = (),
     rollouts: tuple[int, int] | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> EvaluationArtifact:
     """Evaluate and seal a policy, optionally with its off-policy estimate and a rollout.
 
     ``rollouts`` is ``(seed, count)``.
     """
+    execution = resolve_execution(execution)
     off = None
     if behaviour is not None:
         off = _dumps(
@@ -1126,7 +1138,7 @@ def seal(
     roll = None if rollouts is None else _dumps({"seed": rollouts[0], "rollouts": rollouts[1]})
     handle = _unwrap(
         _native.SequentialEvaluationArtifact.seal(
-            _dumps(model.to_wire()), _dumps(policy.to_wire()), off, roll, cancel=cancel
+            _dumps(model.to_wire()), _dumps(policy.to_wire()), off, roll, cancel=execution.cancel
         )
     )
     return EvaluationArtifact(handle)
@@ -1144,13 +1156,14 @@ def consume_artifact(
     model: str | None = None,
     policy: str | None = None,
     evaluation: str | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> EvaluationArtifact:
     """Re-evaluate an artifact and require every stored number to replay bit for bit.
 
     ``model``, ``policy`` and ``evaluation`` are identities the consumer retained independently
     of the bytes; one that differs is refused.
     """
+    execution = resolve_execution(execution)
     data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray)):
         raise CausalTypeError("an artifact is bytes")
@@ -1158,6 +1171,6 @@ def consume_artifact(
     if model is not None or policy is not None or evaluation is not None:
         expected = _dumps({"model": model, "policy": policy, "evaluation": evaluation})
     handle = _unwrap(
-        _native.SequentialEvaluationArtifact.consume(bytes(data), expected, cancel=cancel)
+        _native.SequentialEvaluationArtifact.consume(bytes(data), expected, cancel=execution.cancel)
     )
     return EvaluationArtifact(handle)

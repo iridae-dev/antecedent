@@ -26,6 +26,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution
 
 _PARQUET_SUFFIXES = (".parquet", ".parq", ".pq")
 _IPC_FILE_SUFFIXES = (".arrow", ".feather", ".ipc")
@@ -111,7 +112,8 @@ class TableFile(Mapping[str, NDArray[Any]]):
     :func:`antecedent.data.from_arrow_ipc`. Columns are read on demand: indexing one
     name reads that column; :meth:`read` reads several in one pass. Each read is
     planned from the requested columns only, streams in chunks of ``chunk_rows``
-    rows charged to the admission pool (``memory_limit_bytes``), and is refused
+    rows charged to the admission pool (``execution.limits``), is cancelled by
+    ``execution.cancel``, and is refused
     with the exact quote and the next attempt when the pool cannot hold it.
     """
 
@@ -121,9 +123,13 @@ class TableFile(Mapping[str, NDArray[Any]]):
         *,
         columns: Sequence[str] | None = None,
         chunk_rows: int | None = None,
-        memory_limit_bytes: int | None = None,
+        execution: Execution | None = None,
     ) -> None:
+        if execution is not None and not isinstance(execution, Execution):
+            raise CausalTypeError("execution must be an antecedent.Execution")
+        memory_limit_bytes = None if execution is None else execution.limits.memory_bytes
         self._native = native
+        self._execution = execution
         schema = [TableColumn(*row) for row in native.columns()]
         names = [column.name for column in schema]
         if columns is not None:
@@ -159,7 +165,7 @@ class TableFile(Mapping[str, NDArray[Any]]):
         format: str | None = None,
         columns: Sequence[str] | None = None,
         chunk_rows: int | None = None,
-        memory_limit_bytes: int | None = None,
+        execution: Execution | None = None,
     ) -> TableFile:
         """Open ``path``; the format follows the extension unless ``format`` names it."""
         if not isinstance(path, (str, os.PathLike)):
@@ -169,9 +175,7 @@ class TableFile(Mapping[str, NDArray[Any]]):
             )
         text = os.fspath(path)
         native = _native_class().open(text, _format_of(text, format))
-        return cls(
-            native, columns=columns, chunk_rows=chunk_rows, memory_limit_bytes=memory_limit_bytes
-        )
+        return cls(native, columns=columns, chunk_rows=chunk_rows, execution=execution)
 
     # -- schema -----------------------------------------------------------------
 
@@ -235,6 +239,7 @@ class TableFile(Mapping[str, NDArray[Any]]):
         view._schema = [column for column in self._schema if column.name not in dropped]
         view._chunk_rows = self._chunk_rows
         view._memory_limit_bytes = self._memory_limit_bytes
+        view._execution = self._execution
         view._cache = self._cache
         return view
 
@@ -258,10 +263,21 @@ class TableFile(Mapping[str, NDArray[Any]]):
             self._cache.update(self._read(todo))
         return {name: self._cache[name] for name in dict.fromkeys(wanted)}
 
+    def _controls(self) -> dict[str, Any]:
+        execution = self._execution
+        return {
+            "chunk_rows": self._chunk_rows,
+            "memory_limit_bytes": self._memory_limit_bytes,
+            "cancel": None if execution is None else execution.cancel,
+        }
+
+    def _run(self, operation: Any, *args: Any, **kwargs: Any) -> Any:
+        if self._execution is None:
+            return operation(*args, **kwargs)
+        return self._execution._call(operation, *args, **kwargs)  # noqa: SLF001
+
     def _read(self, names: list[str]) -> dict[str, NDArray[Any]]:
-        raw = self._native.read(
-            names, chunk_rows=self._chunk_rows, memory_limit_bytes=self._memory_limit_bytes
-        )
+        raw = self._run(self._native.read, names, **self._controls())
         return {str(entry["name"]): _to_numpy(entry) for entry in raw["columns"]}
 
     def _visible_readable(self) -> list[str]:
@@ -275,8 +291,8 @@ class TableFile(Mapping[str, NDArray[Any]]):
         and it changes when any value does.
         """
         names = self._visible_readable() if columns is None else [str(n) for n in columns]
-        identity, _rows, _chunks = self._native.content_identity(
-            names, chunk_rows=self._chunk_rows, memory_limit_bytes=self._memory_limit_bytes
+        identity, _rows, _chunks = self._run(
+            self._native.content_identity, names, **self._controls()
         )
         return str(identity)
 
@@ -309,7 +325,8 @@ class TableFile(Mapping[str, NDArray[Any]]):
         missing a covariate, the response or the weight; ``"refuse"`` (the default)
         refuses the first one.
         """
-        raw = self._native.summarize_weighted_gaussian(
+        raw = self._run(
+            self._native.summarize_weighted_gaussian,
             [str(name) for name in covariates],
             str(response),
             weight=None if weight is None else str(weight),
@@ -319,6 +336,7 @@ class TableFile(Mapping[str, NDArray[Any]]):
             ceiling_bytes=None if ceiling_bytes is None else int(ceiling_bytes),
             control=str(control),
             memory_limit_bytes=self._memory_limit_bytes,
+            cancel=self._controls()["cancel"],
         )
         width = len(raw["design_columns"])
         return GaussianSummary(
@@ -381,14 +399,14 @@ def from_parquet(
     columns: Sequence[str] | None = None,
     *,
     chunk_rows: int | None = None,
-    memory_limit_bytes: int | None = None,
+    execution: Execution | None = None,
 ) -> TableFile:
     """Lazy handle on a Parquet file, or on a directory of Parquet files with one schema.
 
     Nothing but the schema and footer is read here. ``columns`` restricts the visible
     columns; an analysis then decodes only the ones it needs. ``chunk_rows`` bounds
-    each chunk (65,536 rows by default) and ``memory_limit_bytes`` bounds the
-    admission pool the chunks are charged to.
+    each chunk (65,536 rows by default); ``execution`` bounds the admission pool the
+    chunks are charged to and cancels a read.
 
     Raises :class:`antecedent.errors.CausalValueError` for an unknown column and the
     native data error for a file that is not a readable Parquet table.
@@ -398,7 +416,7 @@ def from_parquet(
         format="parquet",
         columns=columns,
         chunk_rows=chunk_rows,
-        memory_limit_bytes=memory_limit_bytes,
+        execution=execution,
     )
 
 
@@ -408,7 +426,7 @@ def from_arrow_ipc(
     *,
     stream: bool | None = None,
     chunk_rows: int | None = None,
-    memory_limit_bytes: int | None = None,
+    execution: Execution | None = None,
 ) -> TableFile:
     """Lazy handle on an Arrow IPC file (Feather v2) or, with ``stream=True``, an IPC stream.
 
@@ -424,7 +442,7 @@ def from_arrow_ipc(
         format="arrow_ipc_stream" if stream else "arrow_ipc_file",
         columns=columns,
         chunk_rows=chunk_rows,
-        memory_limit_bytes=memory_limit_bytes,
+        execution=execution,
     )
 
 

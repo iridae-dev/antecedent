@@ -64,6 +64,7 @@ from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count, non_finite_refusal, real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution, resolve_execution
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
@@ -550,11 +551,11 @@ def consume_mediation_artifact(
     artifact: bytes,
     *,
     expected_identity: MediationIdentity | Mapping[str, str] | None = None,
-    memory_limit_bytes: int | None = None,
     treatment: Any = None,
     mediator: Any = None,
     outcome: Any = None,
     covariates: Any = None,
+    execution: Execution | None = None,
 ) -> MediationEffects:
     """Re-estimate an exported mediation artifact and accept only an identical one.
 
@@ -566,13 +567,14 @@ def consume_mediation_artifact(
     Corruption and unknown major versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
 
-    ``memory_limit_bytes`` bounds the re-estimation's planned working set
+    ``execution.limits.memory_bytes`` bounds the re-estimation's planned working set
     (``nonlinear_mediation.memory_budget_exceeded``). An artifact exported with
     ``data_binding="digest"`` holds no rows: pass ``treatment``, ``mediator``, ``outcome`` and
     ``covariates`` (the dataset it was estimated on); any other dataset is refused
     (``IdentityMismatch``, ``data``) and omitting it refuses with
     ``nonlinear_mediation.data_required``.
     """
+    execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
@@ -606,7 +608,7 @@ def consume_mediation_artifact(
             "covariates need treatment, mediator and outcome", reason_code="invalid_argument"
         )
     report, refusal = _consume(
-        data, expected_json, memory_limit_bytes=memory_limit_bytes, data=supplied
+        data, expected_json, memory_limit_bytes=execution.limits.memory_bytes, data=supplied
     )
     raise_refusal(refusal, MediationRefusal)
     if report is None:  # pragma: no cover - the native contract

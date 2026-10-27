@@ -68,6 +68,7 @@ from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "Bernoulli",
@@ -1167,7 +1168,7 @@ def assess(
     comparisons: Sequence[tuple[str, str]] = (),
     require_held_out: bool = False,
     score_interval: tuple[float, str] | None = None,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> PredictiveAssessment:
     """Assess predictive laws against realized observations.
 
@@ -1184,6 +1185,7 @@ def assess(
             unmet held-out requirement (``evidence_double_counted`` / ``evidence_overlap_unknown``)
             or a requested interval (``cell_not_licensed``).
     """
+    execution = resolve_execution(execution)
     if not isinstance(observations, Observations):
         raise CausalTypeError("observations must be an Observations")
     if not isinstance(design, ValidationDesign):
@@ -1218,7 +1220,9 @@ def assess(
     handle = _unwrap(
         _native.predictive_assessment_assess(
             _dumps(spec),
-            seed=_count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
+            seed=_count(
+                execution.seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+            ),
         )
     )
     return PredictiveAssessment(handle)

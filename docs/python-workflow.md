@@ -1,6 +1,6 @@
 # Your first Python analysis
 
-Estimate an effect, check the answer, and reuse the analysis on new data. This guide walks through one analysis: a graph, a query, `analyze`, then `answer.kind`, inspection, and calibration. Transport uses those same verbs. Callers moving names from the published 1.11 release should read the [transport migration](migrations/2.0-transport-day1.md).
+Estimate an effect, check the answer, and reuse the analysis on new data. This guide walks through one analysis: a graph, a query, `analyze`, then `answer.kind`, inspection, and calibration. `analyze` is the one-shot form of the lifecycle `ant.prepare(...)`, `ant.estimate(study)`, `ant.rebind(...)`, `ant.reconfigure(...)`; scientific inference goes in `inference=` and seed, threads, cancellation and limits in `execution=`. Transport uses those same verbs. Callers moving from the previous release should read the [Python migration table](migrations/2.4-to-3.0-python.md).
 
 ## Install
 
@@ -34,10 +34,14 @@ data = {
 graph = [("treatment", "outcome"), ("z", "outcome")]
 query = ant.AverageEffect("treatment", "outcome")
 
-result = ant.analyze(data, graph=graph, query=query, seed=19, bootstrap=25)
+result = ant.analyze(
+    data, graph=graph, query=query,
+    inference=ant.Frequentist(bootstrap=25),
+    execution=ant.Execution(seed=19),
+)
 print("Answer type:", result.answer.kind)
 print("Estimated effect:", result.answer.value)
-print("Calibration:", result.calibration.status)
+print("Calibration:", result.inspect().calibration.status)
 ```
 
 Expect a `point` answer with an estimated effect close to **2**. Sampling noise means it will not be exactly 2. The small bootstrap budget keeps this example quick; it is not a recommended budget for a final analysis.
@@ -56,6 +60,8 @@ Start with `result.answer.kind` before extracting a number:
 | `response` | A curve, surface, or derivative | `result.response` / `result.estimate` |
 | `structured` | Several related results, such as temporal mediation | The query's fields, such as `result.mediation_grid` |
 | `unavailable` | No usable claim | `answer.detail` |
+
+`result` is an `Outcome`. The specialized result a query produces (an `AnalysisResult`, a survival or panel result, a response view) is `result.value`, and its family-specific fields are read there (`result.value.survival`, `result.value.interval_bindings`). `answer`, `inspect()`, `uncertainty`, `support`, `assumptions`, `diagnostics`, `provenance`, `identities`, `export()` and `study` are read on the outcome itself.
 
 Bounds describe what the assumptions determine; they are not a confidence interval. A `partial` answer does not supply an unrestricted scalar or curve. Use the answer interface rather than legacy `.effect` or `.ate` fields, which can warn when a scalar would misrepresent the result.
 
@@ -79,6 +85,16 @@ An identified effect or a passing diagnostic does not establish calibration.
 
 Every reported interval states its calibration: `calibrated` only when a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code; `scope_not_assessed` when a record matches but the execution is outside its scope, the record is a boundary, or the record is stale or non-attesting; `unavailable` with a reason code when no record exists.
 
+Read how each interval was formed from the executed result's interval bindings. They report what the execution did, not what was requested:
+
+<!-- exec: quickstart -->
+```python
+for binding in result.value.interval_bindings:
+    print(binding.method, binding.level, binding.dependence, binding.replicates_ok)
+```
+
+`method` is one of `analytic_se`, `bootstrap_se`, `circular_block_se`, `posterior_quantile`, `unit_posterior_quantile`, `identified_set`, `simultaneous_band`, `anderson_rubin` or `none`. `dependence` names the dependence rule of the construction (`iid`, `cluster`, `serial_hac`, `circular_block:<family>` and so on), and `level` is `None` when no interval was formed. A binding says how an interval was built; calibration, above, says whether a coverage record supports it.
+
 Identities are distinct and stable: every `IdentityDomain` plus `target_weights` is domain-separated and registered in `parity/identity.toml`.
 
 ## Run the same analysis on new data
@@ -100,8 +116,8 @@ The updated estimate should be one unit larger. The original result stays unchan
 
 <!-- exec: quickstart -->
 ```python
-encoded = result.export()
-loaded = ant.load(encoded)
+artifact = result.export()
+loaded = ant.load(bytes(artifact), expected=artifact.expectation)
 print("Acceptance:", loaded.acceptance.status)
 print(loaded.answer)
 ```
@@ -110,20 +126,29 @@ The loaded result keeps the same answer. `acceptance.status` is `verified` when 
 
 ## When an analysis is refused
 
-A refusal explains why the requested analysis cannot run. Keep the explanation visible rather than replacing the answer with a default value:
+A valid question that the declared structure cannot answer returns an `Outcome` carrying a typed refusal, not an exception. Keep the explanation visible rather than replacing the answer with a default value. Here an unmeasured common cause of treatment and outcome is declared as a bidirected edge:
 
 <!-- exec: quickstart -->
 ```python
-try:
-    updated = ant.estimate(ant.rebind(study, data=new_data))
-except ant.CausalError as error:
-    print(error)
-    print(error.report.to_dict())
+confounded = ant.Admg.from_edges(
+    ["treatment", "outcome", "z"],
+    [("treatment", "outcome"), ("z", "outcome")],
+    bidirected=[("treatment", "outcome")],
+)
+refused = ant.analyze(data, graph=confounded, query=query)
+print(refused.accepted, refused.answer.kind, refused.refusal.code)
+
+# Opt in to a labelled noncausal description beside the unchanged refusal.
+described = ant.analyze(data, graph=confounded, query=query, on_refusal="describe")
+print(described.associational.answer.kind)  # "associational": never a causal answer
+print(len(described.evidence_plan.next_actions), "ways to resolve it")
 ```
+
+The refusal is the primary outcome. `described.associational` is a separate outcome and `described.evidence_plan` lists the experiments, measurements or assumptions that would resolve the question. Invalid arguments, cancellation, resource limits and callback failures raise `ant.CausalError` subclasses instead.
 
 | Reason | What to inspect next |
 |---|---|
-| `EffectNotIdentified` | Review the graph and missing causal assumptions. More rows alone cannot fix identification. |
+| `effect_not_identified` | Review the graph and missing causal assumptions. More rows alone cannot fix identification. |
 | `estimator_inference_mismatch` | Check whether the selected estimator supports the requested inference method. |
 | `population_not_estimable` | Check the estimator's supported target populations. Changing the population changes the question. |
 | `score_table_unavailable` | Retargeting needs prepared scores; check the supported retargeting workflow. |

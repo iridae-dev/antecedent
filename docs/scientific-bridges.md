@@ -278,8 +278,8 @@ from antecedent import scientific_bridge as sb
 bridge = sb.prepare_scientific_bridge(contract)      # checks before any number is formed
 claim = bridge.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate))
 claim.value, claim.fit.r_squared, claim.unresolved   # 0.796, 529/535, ("assumption:validation",)
-exported = claim.artifact("surrogate-bridge")
-again = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+exported = claim.export("surrogate-bridge")
+again = sb.consume_scientific_bridge_artifact(bytes(exported), exported.expectation.identity)
 claim.require_value_kind("predictive_law")            # refused: value_kind_substitution
 claim.interval()                                      # refused: cell_not_licensed (unscoped)
 

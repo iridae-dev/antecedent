@@ -34,8 +34,8 @@ the grid, widened by the same bias bound. The band is drawn from ``band_seed`` a
 when the artifact is consumed. Its calibration is unmeasured. The bound is a declaration, not
 something the data establish.
 
-Optional ``threads`` bounds grid workers, ``max_bytes`` bounds execution scratch, and
-``cancel`` accepts a cancellation token. Independent grid fits preserve request order;
+The ``execution`` argument owns the worker threads, the memory limit and cancellation.
+Independent grid fits preserve request order;
 small grids use serial execution. The same controls apply during artifact recomputation.
 
 Rows are independent: clustered, serial or linked rows are outside this row. An observational
@@ -72,6 +72,7 @@ from ._posterior_row import PosteriorRowEstimate
 from ._refusal import raise_refusal
 from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "DoseGridPosteriorResult",
@@ -591,9 +592,7 @@ def dose_functional(
     curvature_bound: float | None = None,
     band_replicates: int = 2000,
     band_seed: int = 1,
-    threads: int | None = None,
-    max_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DoseFunctionalResult:
     """Estimate a randomized-dose smoother functional.
 
@@ -603,6 +602,7 @@ def dose_functional(
     intervals and, on a grid of two or more doses, a simultaneous band. Sampling calibration
     remains unmeasured.
     """
+    execution = resolve_execution(execution)
     return _dose_functional(
         dose,
         outcome,
@@ -617,9 +617,9 @@ def dose_functional(
         curvature_bound=curvature_bound,
         band_replicates=band_replicates,
         band_seed=band_seed,
-        threads=threads,
-        max_bytes=max_bytes,
-        cancel=cancel,
+        threads=execution.threads,
+        max_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
 
 
@@ -635,9 +635,7 @@ def quadratic_dose_functional(
     minimum_local_ess: float = DEFAULT_MINIMUM_LOCAL_ESS,
     claims: DoseClaims | None = None,
     design: Design = "randomized_dose",
-    threads: int | None = None,
-    max_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DoseFunctionalResult:
     """Attest an exact quadratic conditional mean and estimate its named functional.
 
@@ -649,6 +647,7 @@ def quadratic_dose_functional(
     All ordinary support, claim, independence and bandwidth restrictions still apply.
     The premise and its required feature are bound into the replayable artifact.
     """
+    execution = resolve_execution(execution)
     return _dose_functional(
         dose,
         outcome,
@@ -660,9 +659,9 @@ def quadratic_dose_functional(
         minimum_local_ess=minimum_local_ess,
         claims=claims,
         design=design,
-        threads=threads,
-        max_bytes=max_bytes,
-        cancel=cancel,
+        threads=execution.threads,
+        max_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
         quadratic_mean=True,
     )
 
@@ -701,9 +700,7 @@ def consume_dose_grid_artifact(
     *,
     max_rows: int = 100_000,
     max_grid: int = 1_024,
-    threads: int | None = None,
-    max_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DoseFunctionalResult:
     """Recompute an exported dose-grid artifact and accept only an identical one.
 
@@ -717,6 +714,7 @@ def consume_dose_grid_artifact(
     :class:`~antecedent.errors.CausalSerializationError`; a stored table above ``max_rows`` or
     ``max_grid`` refuses (``dose_grid.consumer_limit_exceeded``).
     """
+    execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
@@ -725,9 +723,9 @@ def consume_dose_grid_artifact(
         data,
         max_rows=max_rows,
         max_grid=max_grid,
-        threads=threads,
-        max_bytes=max_bytes,
-        cancel=cancel,
+        threads=execution.threads,
+        max_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
     raise_refusal(refusal, DoseGridRefusal)
     if report is None:  # pragma: no cover - the native contract
@@ -798,9 +796,7 @@ def dose_grid_posterior(
     draws: int = 4_000,
     seed: int = 0,
     design: Design = "randomized_dose",
-    threads: int | None = None,
-    max_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DoseGridPosteriorResult:
     """Joint Bayesian posterior of a named functional of a randomized-dose response curve.
 
@@ -812,13 +808,14 @@ def dose_grid_posterior(
     ``residual_scale``). One coefficient draw gives every grid dose at once, so the covariance
     across the grid is preserved in ``posterior.covariance``.
 
-    ``threads``, ``max_bytes`` and ``cancel`` control execution policy. Refused resources
+    ``execution`` supplies threads, the memory limit and cancellation. Refused resources
     and cancellation raise ``CausalResourceError`` and ``CausalCancelledError``.
 
     Raises :class:`DoseGridRefusal` with ``detail`` one of ``dose_grid.graph_not_certified``
     (observational dose: this row does not adjust), ``dose_grid.unsupported_dose`` (a dose
     outside the observed range, never extrapolated) or ``dose_grid.invalid_request``.
     """
+    execution = resolve_execution(execution)
     if functional not in _FUNCTIONALS:
         raise CausalValueError(f"functional must be one of {_FUNCTIONALS}")
     if design not in _DESIGNS:
@@ -872,9 +869,9 @@ def dose_grid_posterior(
         json.dumps(request, allow_nan=False),
         _column(dose, "dose"),
         _column(outcome, "outcome"),
-        threads=threads,
-        max_bytes=max_bytes,
-        cancel=cancel,
+        threads=execution.threads,
+        max_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
     try:
         raise_refusal(refusal, DoseGridRefusal)
@@ -893,9 +890,7 @@ def consume_dose_grid_posterior_artifact(
     *,
     max_rows: int = 100_000,
     max_grid: int = 1_024,
-    threads: int | None = None,
-    max_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DoseGridPosteriorResult:
     """Recompute an exported dose-grid posterior and accept only an identical one.
 
@@ -906,8 +901,9 @@ def consume_dose_grid_posterior_artifact(
     ``.data_identity_mismatch`` or ``.result_replay_mismatch``) even when the digests were
     resealed. Corruption and unknown versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
-    ``threads``, ``max_bytes`` and ``cancel`` apply to the independent replay.
+    ``execution`` (threads, memory limit, cancellation) applies to the independent replay.
     """
+    execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
@@ -916,9 +912,9 @@ def consume_dose_grid_posterior_artifact(
         data,
         max_rows=max_rows,
         max_grid=max_grid,
-        threads=threads,
-        max_bytes=max_bytes,
-        cancel=cancel,
+        threads=execution.threads,
+        max_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
     try:
         raise_refusal(refusal, DoseGridRefusal)

@@ -20,6 +20,7 @@ from ._artifact_protocol import (
     container_bytes,
 )
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 from .graph import Admg
 from .transport._impl import EvidenceCatalog, ExactDiscreteLaw
 
@@ -74,7 +75,7 @@ def _estimate(
     candidate_id: str,
     study: ArrivedStudy,
     expected_proposal: str,
-    seed: int,
+    execution: Execution | None,
 ) -> ArrivalResult:
     repair_artifact = container_bytes(repair_artifact)
     ranking_artifact = container_bytes(ranking_artifact)
@@ -110,7 +111,9 @@ def _estimate(
         "depth": study.depth,
         "support_rows": study.support_rows,
     }
-    report, artifact = _native.estimate_proposal_arrival(
+    execution = resolve_execution(execution)
+    report, artifact = execution._call(
+        _native.estimate_proposal_arrival,
         study.graph,
         study.catalog,
         list(study.base_laws),
@@ -118,7 +121,7 @@ def _estimate(
         repair_artifact,
         ranking_artifact,
         json.dumps(request, allow_nan=False),
-        seed,
+        execution.seed,
     )
     value = ArrivalResult(str(json.loads(report)["identity"]), report, bytes(artifact))
     if value.proposal_identity != expected_proposal:
@@ -128,7 +131,9 @@ def _estimate(
     return value
 
 
-def consume_arrival(data: bytes, *, expected_proposal: str, seed: int = 3) -> ArrivalResult:
+def consume_arrival(
+    data: bytes, *, expected_proposal: str, execution: Execution | None = None
+) -> ArrivalResult:
     """Replay original consumers and actual raw count providers in a fresh process."""
     data = container_bytes(data)
     if not isinstance(data, bytes):
@@ -137,7 +142,10 @@ def consume_arrival(data: bytes, *, expected_proposal: str, seed: int = 3) -> Ar
         raise CausalValueError(
             "proposal_arrival.bounds_exceeded", reason_code="route_not_supported"
         )
-    report = _native.consume_proposal_arrival(data, expected_proposal, seed)
+    execution = resolve_execution(execution)
+    report = execution._call(
+        _native.consume_proposal_arrival, data, expected_proposal, execution.seed
+    )
     return ArrivalResult(str(json.loads(report)["identity"]), report, data)
 
 

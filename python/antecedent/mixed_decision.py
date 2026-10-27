@@ -47,6 +47,7 @@ from .composition_verification import (
     consume_composition_verification_artifact,
 )
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, native_controls
 
 __all__ = [
     "ActionValue",
@@ -453,8 +454,8 @@ def _decision(wire: Mapping[str, Any]) -> JointDecision:
 class MixedDecisionWorkflow:
     """The fitted routes, the combined decision and the current authority of its sources.
 
-    Build one with :func:`run_mixed_decision`. Execution controls (seed, threads, memory limit,
-    cancellation) are fixed when it is built and apply to every later replay.
+    Build one with :func:`run_mixed_decision`. The execution (seed, threads, memory limit,
+    cancellation) is fixed when it is built and applies to every later replay.
     """
 
     __slots__ = ("_handle",)
@@ -588,10 +589,7 @@ def run_mixed_decision(
     dependence: Dependence | None = None,
     *,
     policy: Policy | None = None,
-    seed: int = 1,
-    threads: int | None = None,
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MixedDecisionWorkflow:
     """Fit every route and the decision at benefit one under ``dependence`` and ``policy``.
 
@@ -606,25 +604,29 @@ def run_mixed_decision(
     chosen = Dependence.independent() if dependence is None else dependence
     if not isinstance(chosen, Dependence):
         raise CausalTypeError("dependence must be a mixed_decision.Dependence")
-    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed < 2**64:
-        raise CausalValueError("seed must be a non-negative 64-bit integer")
     if policy is not None and not isinstance(policy, Policy):
         raise CausalTypeError("policy must be a mixed_decision.Policy")
+    run = Execution() if execution is None else execution
+    if not isinstance(run, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    ctl = native_controls(
+        run, seed="seed", threads="threads", cancel="cancel", memory="memory_limit_bytes"
+    )
+    seed = ctl.pop("seed")
     handle = _unwrap(
-        _native.mixed_decision_execute(
+        run._call(
+            _native.mixed_decision_execute,
             chosen._wire(),
             seed,
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
             policy_json=None if policy is None else policy._wire(),
+            **ctl,
         )
     )
     return MixedDecisionWorkflow(handle)
 
 
 def replay_decision(
-    artifact: bytes, expected_identity: str | None = None, *, seed: int = 1
+    artifact: bytes, expected_identity: str | None = None, *, execution: Execution | None = None
 ) -> tuple[float, float]:
     """Replay the combined ``(mean, variance)`` of an exported decision without current authority.
 
@@ -638,7 +640,10 @@ def replay_decision(
     """
     if expected_identity is not None:
         _name(expected_identity, "expected_identity")
+    run = Execution() if execution is None else execution
+    if not isinstance(run, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
     mean, variance = _unwrap(
-        _native.mixed_decision_replay(_bytes(artifact), expected_identity, seed)
+        run._call(_native.mixed_decision_replay, _bytes(artifact), expected_identity, run.seed)
     )
     return float(mean), float(variance)

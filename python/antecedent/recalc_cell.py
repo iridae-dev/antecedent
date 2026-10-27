@@ -8,9 +8,10 @@ way a fresh interpreter picks the work up.
 over discrete joint binary treatments (the cell-saturated AIPW estimator)::
 
     session = recalc_cell.CellSession()
-    first = session.execute(request, seed=7)        # (plan, receipt, law, decision)
+    run = Execution(seed=7)
+    first = session.execute(request, execution=run)  # (plan, receipt, law, decision)
     first.receipt.totals.fold_fits                  # 25 = 5 folds x (1 propensity + 4 cell fits)
-    again = session.execute(replace(request, utility=Utility(3.0, 0.1)), seed=7)
+    again = session.execute(replace(request, utility=Utility(3.0, 0.1)), execution=run)
     again.receipt.totals.fold_fits                  # 0: only the decision was recomputed
 
 The fit count is read from the estimator's own instrument, which counts every multinomial
@@ -60,6 +61,7 @@ from .errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from .execution import Execution
 from .outcomes import outcome_operation
 from .recalc import (
     Decision,
@@ -77,7 +79,8 @@ from .recalc import (
     TargetWeights,
     Utility,
     _column,
-    _seed,
+    _execution,
+    _native_controls,
     session_standing,
     stage_identity,
 )
@@ -326,8 +329,8 @@ class CellSession:
             return None
         return {arm: np.asarray(values, dtype=np.float64) for arm, values in columns}
 
-    def _call(
-        self, request: CellRequest, seed: int, threads: int | None
+    def _arguments(
+        self, request: CellRequest, run: Execution
     ) -> tuple[tuple[Any, ...], dict[str, Any]]:
         names, columns = _frame(request.data)
         target = request.target
@@ -349,22 +352,20 @@ class CellSession:
                 None if target is None else _column("target weights", target.weights)
             ),
             "target_depends_on": None if target is None else [str(v) for v in target.depends_on],
-            "seed": _seed(seed),
-            "threads": threads,
+            **_native_controls(run, resources=False),
         }
         return positional, keywords
 
-    def plan(
-        self, request: CellRequest, *, seed: int = 1, threads: int | None = None
-    ) -> RecalcPlan:
+    def plan(self, request: CellRequest, *, execution: Execution | None = None) -> RecalcPlan:
         """The plan ``request`` would run under, without running it."""
-        positional, keywords = self._call(request, seed, threads)
-        return RecalcPlan.from_wire(json.loads(self._handle.plan(*positional, **keywords)))
+        run = _execution(execution)
+        positional, keywords = self._arguments(request, run)
+        return RecalcPlan.from_wire(
+            json.loads(run._call(self._handle.plan, *positional, **keywords))
+        )
 
     @outcome_operation
-    def execute(
-        self, request: CellRequest, *, seed: int = 1, threads: int | None = None
-    ) -> RecalcResult:
+    def execute(self, request: CellRequest, *, execution: Execution | None = None) -> RecalcResult:
         """Plan, run only what the plan says must run, count the work and seal the receipt.
 
         Raises:
@@ -373,8 +374,9 @@ class CellSession:
                 ``recalc.invalid_graph``); nothing was fitted.
             RecalcNoLiveState: the plan reuses a stage this session cannot back with live scores.
         """
-        positional, keywords = self._call(request, seed, threads)
-        return _result(*self._handle.execute(*positional, **keywords))
+        run = _execution(execution)
+        positional, keywords = self._arguments(request, run)
+        return _result(*run._call(self._handle.execute, *positional, **keywords))
 
     def export_frozen_scores(self) -> FrozenScores:
         """Export the live cell scores as a portable :class:`FrozenScores` artifact.
@@ -414,13 +416,15 @@ class CrossfitSession:
 
     @outcome_operation
     def execute(
-        self, request: RecalcRequest, *, seed: int = 1, threads: int | None = None
+        self, request: RecalcRequest, *, execution: Execution | None = None
     ) -> RecalcResult:
         """Plan, run only what the plan says must run, count the work and seal the receipt."""
+        run = _execution(execution)
         names, columns = _frame(request.data)
         target = request.target
         return _result(
-            *self._handle.execute(
+            *run._call(
+                self._handle.execute,
                 names,
                 columns,
                 [(str(a), str(b)) for a, b in request.edges],
@@ -432,8 +436,7 @@ class CrossfitSession:
                     None if target is None else _column("target weights", target.weights)
                 ),
                 target_depends_on=(None if target is None else [str(v) for v in target.depends_on]),
-                seed=_seed(seed),
-                threads=threads,
+                **_native_controls(run, resources=False),
             )
         )
 
@@ -638,7 +641,9 @@ class ScoreResumeSession:
         )
 
     @outcome_operation
-    def execute(self, request: CellRequest | RecalcRequest, *, seed: int = 1) -> RecalcResult:
+    def execute(
+        self, request: CellRequest | RecalcRequest, *, execution: Execution | None = None
+    ) -> RecalcResult:
         """Refused: a resumed session holds no data, so it cannot run a request over data.
 
         The request's data is not bound to the artifact's snapshot, so the plan refuses with the
@@ -647,7 +652,7 @@ class ScoreResumeSession:
         Raises:
             ScoreResumeUnavailable: always, before any work.
         """
-        _seed(seed)
+        _execution(execution)
         _frame(request.data)
         unbound = {Stage.DATA_SNAPSHOT: "unbound data supplied to a resumed session"}
         self.retarget(declared_changes=unbound)

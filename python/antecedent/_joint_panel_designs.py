@@ -14,7 +14,9 @@ from ._artifact_protocol import (
     artifact_from_receipt,
     container_bytes,
 )
+from ._panel_execution import run_panel
 from .errors import CausalTypeError
+from .execution import Execution
 
 
 def _json(value: Any) -> str:
@@ -59,7 +61,7 @@ class JointDesignResult:
         fallback: Mapping[str, Any],
         order: list[str] | None = None,
         require_identified: bool = True,
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
         """Population-standardized reference worlds, else the explicit coarser components.
 
@@ -89,8 +91,11 @@ class JointDesignResult:
             **dict(fallback),
         }
         return json.loads(
-            self._handle.attempt_population_reference(
-                _json(declaration), _json(components), **execution
+            run_panel(
+                execution,
+                self._handle.attempt_population_reference,
+                _json(declaration),
+                _json(components),
             )
         )
 
@@ -103,7 +108,7 @@ class JointDesignResult:
         hybrids: list[int],
         order: list[str] | None = None,
         require_identified: bool = True,
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
         """Check sixteen genuine hybrid worlds and propagate original joint uncertainty."""
         declaration = {
@@ -115,7 +120,7 @@ class JointDesignResult:
             "require_identified": require_identified,
         }
         return json.loads(
-            self._handle.decompose_reference_components(_json(declaration), **execution)
+            run_panel(execution, self._handle.decompose_reference_components, _json(declaration))
         )
 
     def decompose_population_reference(
@@ -132,7 +137,7 @@ class JointDesignResult:
         diagram: Mapping[str, Any],
         order: list[str] | None = None,
         require_identified: bool = True,
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
         """Transport supported root-covariate strata under a checked selection diagram.
 
@@ -155,44 +160,52 @@ class JointDesignResult:
             "require_identified": require_identified,
         }
         return json.loads(
-            self._handle.decompose_population_reference(_json(declaration), **execution)
+            run_panel(execution, self._handle.decompose_population_reference, _json(declaration))
         )
 
     def _export_reference_decomposition(
-        self, declaration: Mapping[str, Any], **execution: Any
+        self, declaration: Mapping[str, Any], *, execution: Execution | None = None
     ) -> bytes:
         """Retain an explicit hybrid component recipe and the original native design."""
         return bytes(
-            self._handle.export_reference_decomposition(_json(dict(declaration)), **execution)
+            run_panel(
+                execution, self._handle.export_reference_decomposition, _json(dict(declaration))
+            )
         )
 
     def consume_reference_decomposition_current(
-        self, artifact: bytes, declaration: Mapping[str, Any], **execution: Any
+        self, artifact: bytes, declaration: Mapping[str, Any], *, execution: Execution | None = None
     ) -> dict[str, Any]:
         """Recheck a reference artifact against current data, bindings and scope."""
         artifact = container_bytes(artifact)
         return json.loads(
-            self._handle.consume_reference_decomposition_current(
-                artifact, _json(dict(declaration)), **execution
+            run_panel(
+                execution,
+                self._handle.consume_reference_decomposition_current,
+                artifact,
+                _json(dict(declaration)),
             )
         )
 
     def _export_population_reference(
-        self, declaration: Mapping[str, Any], **execution: Any
+        self, declaration: Mapping[str, Any], *, execution: Execution | None = None
     ) -> bytes:
         """Retain the complete design, component/population laws and transport diagram."""
         return bytes(
-            self._handle.export_population_reference(_json(dict(declaration)), **execution)
+            run_panel(execution, self._handle.export_population_reference, _json(dict(declaration)))
         )
 
     def consume_population_reference_current(
-        self, artifact: bytes, declaration: Mapping[str, Any], **execution: Any
+        self, artifact: bytes, declaration: Mapping[str, Any], *, execution: Execution | None = None
     ) -> dict[str, Any]:
         """Compare caller-current data, components, distributions, diagram and scope."""
         artifact = container_bytes(artifact)
         return json.loads(
-            self._handle.consume_population_reference_current(
-                artifact, _json(dict(declaration)), **execution
+            run_panel(
+                execution,
+                self._handle.consume_population_reference_current,
+                artifact,
+                _json(dict(declaration)),
             )
         )
 
@@ -204,7 +217,7 @@ class JointDesignResult:
             "execution", "reference_decomposition", "population_reference"
         ] = "execution",
         declaration: Mapping[str, Any] | None = None,
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> ExportedArtifact:
         """Retain this execution, or a named reference recipe with its actual declaration."""
         if quantity == "execution":
@@ -216,9 +229,9 @@ class JointDesignResult:
         if declaration is None:
             raise CausalTypeError("reference export requires declaration")
         if quantity == "reference_decomposition":
-            data = self._export_reference_decomposition(declaration, **execution)
+            data = self._export_reference_decomposition(declaration, execution=execution)
         elif quantity == "population_reference":
-            data = self._export_population_reference(declaration, **execution)
+            data = self._export_population_reference(declaration, execution=execution)
         else:
             raise CausalTypeError("unknown joint design export quantity")
         return artifact_from_receipt(self, data)
@@ -238,19 +251,24 @@ class PreparedJointDesign:
         return json.loads(self._handle.proof())
 
     def execute(
-        self, inference: Mapping[str, Any] | str = "frequentist", **execution: Any
+        self,
+        inference: Mapping[str, Any] | str = "frequentist",
+        *,
+        execution: Execution | None = None,
     ) -> JointDesignResult:
         declaration = {"inference": inference} if isinstance(inference, str) else inference
-        return JointDesignResult(self._handle.execute(_json(declaration), **execution))
+        return JointDesignResult(run_panel(execution, self._handle.execute, _json(declaration)))
 
-    def consume_current(self, artifact: bytes, **execution: Any) -> JointDesignResult:
+    def consume_current(
+        self, artifact: bytes, *, execution: Execution | None = None
+    ) -> JointDesignResult:
         """Match current source/design/target before consuming retained evidence."""
         artifact = container_bytes(artifact)
-        return JointDesignResult(self._handle.consume_current(artifact, **execution))
+        return JointDesignResult(run_panel(execution, self._handle.consume_current, artifact))
 
 
 def prepare_joint_design(
-    target: Mapping[str, Any], proof: Mapping[str, Any], **execution: Any
+    target: Mapping[str, Any], proof: Mapping[str, Any], *, execution: Execution | None = None
 ) -> PreparedJointDesign:
     """Compile a ScientificTargetWire and typed version-one joint-design proof.
 
@@ -259,7 +277,7 @@ def prepare_joint_design(
     scientific world IDs. Statistical inference is selected only during execute.
     """
     return PreparedJointDesign(
-        _native.prepare_joint_design(_json(target), _json(proof), **execution)
+        run_panel(execution, _native.prepare_joint_design, _json(target), _json(proof))
     )
 
 
@@ -276,18 +294,20 @@ def target_contrast(target: Mapping[str, Any], contrast: Mapping[str, Any]) -> d
 
 
 def prepare_joint_design_for_panel(
-    panel_result: Any, proof: Mapping[str, Any], **execution: Any
+    panel_result: Any, proof: Mapping[str, Any], *, execution: Execution | None = None
 ) -> PreparedJointDesign:
     """Compile a native design for the exact target of an existing panel result."""
     return PreparedJointDesign(
-        _native.prepare_joint_design_for_panel(panel_result._handle, _json(proof), **execution)
+        run_panel(
+            execution, _native.prepare_joint_design_for_panel, panel_result._handle, _json(proof)
+        )
     )
 
 
-def replay_joint_design(artifact: bytes, **execution: Any) -> dict[str, Any]:
+def replay_joint_design(artifact: bytes, *, execution: Execution | None = None) -> dict[str, Any]:
     """Historical numerical replay, without caller-current scientific authority."""
     artifact = container_bytes(artifact)
-    return json.loads(_native.replay_joint_design(artifact, **execution))
+    return json.loads(run_panel(execution, _native.replay_joint_design, artifact))
 
 
 @dataclass(frozen=True)
@@ -354,18 +374,25 @@ class PreparedNativeJointDesign:
         return json.loads(self._handle.identification())
 
     def execute(
-        self, inference: Mapping[str, Any] | str = "frequentist", **execution: Any
+        self,
+        inference: Mapping[str, Any] | str = "frequentist",
+        *,
+        execution: Execution | None = None,
     ) -> NativeJointDesignResult:
         declaration = {"inference": inference} if isinstance(inference, str) else inference
-        return NativeJointDesignResult(self._handle.execute(_json(declaration), **execution))
+        return NativeJointDesignResult(
+            run_panel(execution, self._handle.execute, _json(declaration))
+        )
 
-    def consume_current(self, artifact: bytes, **execution: Any) -> NativeJointDesignResult:
+    def consume_current(
+        self, artifact: bytes, *, execution: Execution | None = None
+    ) -> NativeJointDesignResult:
         artifact = container_bytes(artifact)
-        return NativeJointDesignResult(self._handle.consume_current(artifact, **execution))
+        return NativeJointDesignResult(run_panel(execution, self._handle.consume_current, artifact))
 
 
 def prepare_native_joint_design(
-    recipe: Mapping[str, Any], **execution: Any
+    recipe: Mapping[str, Any], *, execution: Execution | None = None
 ) -> PreparedNativeJointDesign:
     """Compile any supported joint design through its actual native method owner.
 
@@ -375,23 +402,29 @@ def prepare_native_joint_design(
     cohort and structural-feature meanings instead of converting them to ATEs.
     """
     return PreparedNativeJointDesign(
-        _native.prepare_native_joint_design(_json(recipe), **execution)
+        run_panel(execution, _native.prepare_native_joint_design, _json(recipe))
     )
 
 
-def replay_native_joint_design(artifact: bytes, **execution: Any) -> dict[str, Any]:
+def replay_native_joint_design(
+    artifact: bytes, *, execution: Execution | None = None
+) -> dict[str, Any]:
     """Replay frozen native proof and evidence; current use requires consume_current."""
     artifact = container_bytes(artifact)
-    return json.loads(_native.replay_native_joint_design(artifact, **execution))
+    return json.loads(run_panel(execution, _native.replay_native_joint_design, artifact))
 
 
-def replay_population_reference(artifact: bytes, **execution: Any) -> dict[str, Any]:
+def replay_population_reference(
+    artifact: bytes, *, execution: Execution | None = None
+) -> dict[str, Any]:
     """Independently replay historical population-reference numbers without current authority."""
     artifact = container_bytes(artifact)
-    return json.loads(_native.replay_population_reference(artifact, **execution))
+    return json.loads(run_panel(execution, _native.replay_population_reference, artifact))
 
 
-def replay_reference_decomposition(artifact: bytes, **execution: Any) -> dict[str, Any]:
+def replay_reference_decomposition(
+    artifact: bytes, *, execution: Execution | None = None
+) -> dict[str, Any]:
     """Independently replay historical component numbers without current authority."""
     artifact = container_bytes(artifact)
-    return json.loads(_native.replay_reference_decomposition(artifact, **execution))
+    return json.loads(run_panel(execution, _native.replay_reference_decomposition, artifact))

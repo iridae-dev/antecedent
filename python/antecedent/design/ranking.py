@@ -46,6 +46,7 @@ from .._native import consume_design_ranking as _consume_native
 from .._native import evaluate_design_ranking as _evaluate
 from .._refusal import raise_refusal
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution
 from ..external import LineageLink
 from ._declarations import (
     RESULT_LINK_ID,
@@ -605,7 +606,7 @@ def _native_plan_ranking(
     max_sample_budget: int | None,
     monte_carlo: MonteCarlo | None,
     rng_seed: int,
-    threads: int | None,
+    execution: Execution | None,
     objective: DesignObjective | None = None,
     study: Any = None,
     decision_target: str | None = None,
@@ -628,12 +629,14 @@ def _native_plan_ranking(
         environment_unlocks=environment_unlocks,
         objective=objective,
     )
-    return _native.rank_designs(
+    execution = Execution() if execution is None else execution
+    return execution._call(
+        _native.rank_designs,
         **wire,
         max_cost=max_cost,
         max_sample_budget=max_sample_budget,
         seed=rng_seed,
-        threads=threads,
+        threads=execution.threads,
         **options,
     )
 
@@ -733,7 +736,7 @@ def rank_designs(
     artifact_id: str | None = None,
     monte_carlo: MonteCarlo | None = None,
     rng_seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
     study: PreparedAnalysis[Any] | None = None,
     decision_target: str | None = None,
 ) -> DesignRankingResult:
@@ -769,7 +772,7 @@ def rank_designs(
 
     With both ``decision`` and ``prior``, each candidate must carry a ``plan``; its
     identification probability is reported as ``result.gate`` and candidates below
-    ``min_identification`` are not valued. ``monte_carlo``, ``rng_seed`` and ``threads``
+    ``min_identification`` are not valued. ``monte_carlo``, ``rng_seed`` and ``execution``
     apply to either basis.
 
     **Bound to a prepared study** (``study=``): plan rankings (identification and the native
@@ -829,7 +832,7 @@ def rank_designs(
             artifact_id=artifact_id is not None,
             monte_carlo=monte_carlo is not None,
             rng_seed=rng_seed,
-            threads=threads is not None,
+            execution=execution is not None,
         )
         structural = _rank_structural_result(
             [c for c in candidates if isinstance(c, StructuralCandidate)]
@@ -884,7 +887,7 @@ def rank_designs(
             max_sample_budget=max_sample_budget,
             monte_carlo=monte_carlo,
             rng_seed=rng_seed,
-            threads=threads,
+            execution=execution,
             objective=objective,
             study=study,
             decision_target=decision_target,
@@ -928,7 +931,7 @@ def rank_designs(
         artifact_id="design-ranking" if artifact_id is None else artifact_id,
         monte_carlo=monte_carlo,
         rng_seed=rng_seed,
-        threads=threads,
+        execution=execution,
     )
 
 
@@ -943,7 +946,7 @@ def _rank_plans(
     max_sample_budget: int | None,
     monte_carlo: MonteCarlo | None,
     rng_seed: int,
-    threads: int | None,
+    execution: Execution | None,
     objective: DesignObjective | None = None,
     study: Any = None,
     decision_target: str | None = None,
@@ -960,7 +963,7 @@ def _rank_plans(
         max_sample_budget=max_sample_budget,
         monte_carlo=monte_carlo,
         rng_seed=rng_seed,
-        threads=threads,
+        execution=execution,
         objective=objective,
         study=study,
         decision_target=decision_target,
@@ -1046,7 +1049,7 @@ def _gate(
     threshold: float,
     monte_carlo: MonteCarlo | None,
     rng_seed: int,
-    threads: int | None,
+    execution: Execution | None,
 ) -> IdentificationGate:
     if not math.isfinite(threshold) or not 0.0 <= threshold <= 1.0:
         raise CausalValueError("min_identification must be a probability in [0, 1]")
@@ -1066,7 +1069,7 @@ def _gate(
         max_sample_budget=None,
         monte_carlo=monte_carlo,
         rng_seed=rng_seed,
-        threads=threads,
+        execution=execution,
     )
     baseline = sum(
         w for w, identified in zip(prior.weights, prior.identified, strict=True) if identified
@@ -1105,7 +1108,7 @@ def _rank_value(
     artifact_id: str,
     monte_carlo: MonteCarlo | None,
     rng_seed: int,
-    threads: int | None,
+    execution: Execution | None,
 ) -> DesignRankingResult:
     gate: IdentificationGate | None = None
     if prior is not None:
@@ -1118,7 +1121,7 @@ def _rank_value(
             threshold=min_identification,
             monte_carlo=monte_carlo,
             rng_seed=rng_seed,
-            threads=threads,
+            execution=execution,
         )
         passed = {e.id for e in gate.entries if e.passed}
         studies = [c for c in studies if c.id in passed]

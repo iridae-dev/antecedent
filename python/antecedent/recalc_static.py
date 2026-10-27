@@ -20,6 +20,7 @@ from ._artifact_protocol import ExportedArtifact, artifact_export, artifact_from
 from ._recalc_bounds import _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError
+from .execution import Execution
 from .graph import Admg
 from .outcomes import outcome_operation
 from .recalc import (
@@ -34,8 +35,9 @@ from .recalc import (
     Utility,
     _declared,
     _declared_json,
+    _execution,
+    _native_controls,
     _refusal_type,
-    _seed,
     session_standing,
 )
 from .transport._impl import EvidenceCatalog, ExactDiscreteLaw
@@ -213,13 +215,16 @@ class _Session:
         return session_standing(self._standing_kind)
 
     @artifact_export
-    def export(self, *, seed: int = 1, threads: int | None = None) -> ExportedArtifact:
+    def export(self, *, execution: Execution | None = None) -> ExportedArtifact:
         """Export the retained original engine artifact, independently consumable.
 
         This result artifact supplies no general executable-state resume and no
         calibrated interval license. The shared work receipt exports separately.
         """
-        artifact, error = self._handle.export_result(seed=_seed(seed), threads=threads)
+        run = _execution(execution)
+        artifact, error = run._call(
+            self._handle.export_result, **_native_controls(run, resources=False)
+        )
         raise_refusal(error, _refusal_type)
         if artifact is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("static recalculation exported no artifact")
@@ -259,25 +264,17 @@ class StaticResponseSession(_Session):
         self,
         request: StaticResponseRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcPlan:
+        run = _execution(execution)
+        ctl = _native_controls(run)
         names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
         )
         return RecalcPlan.from_wire(
             json.loads(
-                self._handle.plan(
-                    names,
-                    columns,
-                    request.graph,
-                    _response_spec(request),
-                    seed=_seed(seed),
-                    threads=threads,
-                    memory_limit_bytes=memory_limit_bytes,
-                    cancel=cancel,
+                run._call(
+                    self._handle.plan, names, columns, request.graph, _response_spec(request), **ctl
                 )
             )
         )
@@ -287,25 +284,22 @@ class StaticResponseSession(_Session):
         self,
         request: StaticResponseRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> StaticResult:
-        """Run the invalidated stages under an optional memory limit and cancellation token."""
+        """Run the invalidated stages under the execution's memory limit and cancellation."""
+        run = _execution(execution)
+        ctl = _native_controls(run)
         names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
         )
         return _result(
-            self._handle.execute(
+            run._call(
+                self._handle.execute,
                 names,
                 columns,
                 request.graph,
                 _response_spec(request),
-                seed=_seed(seed),
-                threads=threads,
-                memory_limit_bytes=memory_limit_bytes,
-                cancel=cancel,
+                **ctl,
             )
         )
 
@@ -322,33 +316,35 @@ class MultiSourceSession(_Session):
         return _native.MultiSourceSessionHandle
 
     def plan(
-        self, request: MultiSourceRequest, *, seed: int = 1, threads: int | None = None
+        self, request: MultiSourceRequest, *, execution: Execution | None = None
     ) -> RecalcPlan:
+        run = _execution(execution)
         return RecalcPlan.from_wire(
             json.loads(
-                self._handle.plan(
+                run._call(
+                    self._handle.plan,
                     request.graph,
                     request.catalog,
                     request.laws,
                     _transport_spec(request),
-                    seed=_seed(seed),
-                    threads=threads,
+                    **_native_controls(run, resources=False),
                 )
             )
         )
 
     @outcome_operation
     def execute(
-        self, request: MultiSourceRequest, *, seed: int = 1, threads: int | None = None
+        self, request: MultiSourceRequest, *, execution: Execution | None = None
     ) -> StaticResult:
+        run = _execution(execution)
         return _result(
-            self._handle.execute(
+            run._call(
+                self._handle.execute,
                 request.graph,
                 request.catalog,
                 request.laws,
                 _transport_spec(request),
-                seed=_seed(seed),
-                threads=threads,
+                **_native_controls(run, resources=False),
             )
         )
 

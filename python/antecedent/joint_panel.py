@@ -47,7 +47,9 @@ from ._joint_panel_experiment import (
     replay_native_experiment,
 )
 from ._joint_panel_experiment import acceptance_matrix as experiment_acceptance_matrix
+from ._panel_execution import run_panel
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution
 from .intervention_programs import Expr
 from .outcomes import outcome_operation, require_success
 
@@ -172,14 +174,14 @@ class PanelProgramCertificate:
         return json.loads(self._handle.report())
 
     @artifact_export
-    def export(self, **execution: Any) -> ExportedArtifact:
+    def export(self, *, execution: Execution | None = None) -> ExportedArtifact:
         """Export the frozen response, control bindings and replayable bound proof."""
-        return artifact_from_receipt(self, self._handle.export(**execution))
+        return artifact_from_receipt(self, run_panel(execution, self._handle.export))
 
-    def verify_current(self, artifact: bytes, **execution: Any) -> None:
+    def verify_current(self, artifact: bytes, *, execution: Execution | None = None) -> None:
         """Replay and verify against this exact fitted response and search domain."""
         artifact = container_bytes(artifact)
-        self._handle.verify_current(artifact, **execution)
+        run_panel(execution, self._handle.verify_current, artifact)
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,10 +199,10 @@ class RandomizedProgramSelection:
         """Export original observations, procedure and independently replayable results."""
         return artifact_from_receipt(self, self._handle.export())
 
-    def verify_current(self, artifact: bytes, **execution: Any) -> None:
+    def verify_current(self, artifact: bytes, *, execution: Execution | None = None) -> None:
         """Replay against this exact current observational source and policy."""
         artifact = container_bytes(artifact)
-        self._handle.verify_current(artifact, **execution)
+        run_panel(execution, self._handle.verify_current, artifact)
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,7 +212,11 @@ class PreparedRandomizedProgramSelection:
     _handle: Any
 
     def execute(
-        self, *, repetitions: int = 199, tie_tolerance: float = 0.0, **execution: Any
+        self,
+        *,
+        repetitions: int = 199,
+        tie_tolerance: float = 0.0,
+        execution: Execution | None = None,
     ) -> RandomizedProgramSelection:
         """Repeat generation, fitting, feasibility, search, selection and held-out evaluation.
 
@@ -220,11 +226,16 @@ class PreparedRandomizedProgramSelection:
         Bootstrap diagnostics grant no ordinary-bootstrap coverage claim at ties.
         """
         return RandomizedProgramSelection(
-            self._handle.execute(repetitions=repetitions, tie_tolerance=tie_tolerance, **execution)
+            run_panel(
+                execution,
+                self._handle.execute,
+                repetitions=repetitions,
+                tie_tolerance=tie_tolerance,
+            )
         )
 
     def simultaneous_intervals(
-        self, *, repetitions: int = 199, level: float = 0.95, **execution: Any
+        self, *, repetitions: int = 199, level: float = 0.95, execution: Execution | None = None
     ) -> dict[str, Any]:
         """Joint bootstrap max-statistic intervals over the fixed feasible program set.
 
@@ -233,7 +244,9 @@ class PreparedRandomizedProgramSelection:
         Statistical coverage requires the declared independent-unit bootstrap model.
         """
         return json.loads(
-            self._handle.simultaneous_intervals(repetitions=repetitions, level=level, **execution)
+            run_panel(
+                execution, self._handle.simultaneous_intervals, repetitions=repetitions, level=level
+            )
         )
 
 
@@ -243,7 +256,7 @@ def prepare_randomized_selection(
     training: Sequence[Mapping[str, Any]],
     validation: Sequence[Mapping[str, Any]],
     policy: Mapping[str, Any],
-    **execution: Any,
+    execution: Execution | None = None,
 ) -> PreparedRandomizedProgramSelection:
     """Compile complete-program selection with known randomization and reserved data.
 
@@ -259,7 +272,9 @@ def prepare_randomized_selection(
     known random assignment alone does not establish population transport.
     """
     return PreparedRandomizedProgramSelection(
-        _native.prepare_randomized_program_selection(
+        run_panel(
+            execution,
+            _native.prepare_randomized_program_selection,
             _json(
                 {
                     "design": dict(design),
@@ -268,21 +283,24 @@ def prepare_randomized_selection(
                     "policy": dict(policy),
                 }
             ),
-            **execution,
         )
     )
 
 
-def consume_program_certificate(artifact: bytes, **execution: Any) -> dict[str, Any]:
+def consume_program_certificate(
+    artifact: bytes, *, execution: Execution | None = None
+) -> dict[str, Any]:
     """Independently reconstruct the frozen response and repeat its numerical bound proof."""
     artifact = container_bytes(artifact)
-    return json.loads(_native.consume_panel_program_certificate(artifact, **execution))
+    return json.loads(run_panel(execution, _native.consume_panel_program_certificate, artifact))
 
 
-def consume_randomized_selection(artifact: bytes, **execution: Any) -> dict[str, Any]:
+def consume_randomized_selection(
+    artifact: bytes, *, execution: Execution | None = None
+) -> dict[str, Any]:
     """Replay the original observational selection procedure without current authorization."""
     artifact = container_bytes(artifact)
-    return json.loads(_native.consume_randomized_program_selection(artifact, **execution))
+    return json.loads(run_panel(execution, _native.consume_randomized_program_selection, artifact))
 
 
 @dataclass(frozen=True, slots=True)
@@ -300,10 +318,10 @@ class InstrumentedProgramSelection:
         """Retain original data and the complete procedure for independent replay."""
         return artifact_from_receipt(self, self._handle.export())
 
-    def verify_current(self, artifact: bytes, **execution: Any) -> None:
+    def verify_current(self, artifact: bytes, *, execution: Execution | None = None) -> None:
         """Reject changed data, structural premises, domain or algorithm."""
         artifact = container_bytes(artifact)
-        self._handle.verify_current(artifact, **execution)
+        run_panel(execution, self._handle.verify_current, artifact)
 
 
 def select_instrumented_program(
@@ -311,7 +329,7 @@ def select_instrumented_program(
     *,
     repetitions: int = 199,
     tie_tolerance: float = 0.0,
-    **execution: Any,
+    execution: Execution | None = None,
 ) -> InstrumentedProgramSelection:
     """Fit joint structural features, search raw doses, and evaluate on held-out units.
 
@@ -329,19 +347,22 @@ def select_instrumented_program(
     diagnostics do not establish coverage at ties or grant a calibration license.
     """
     return InstrumentedProgramSelection(
-        _native.select_instrumented_program(
+        run_panel(
+            execution,
+            _native.select_instrumented_program,
             _json(dict(declaration)),
             repetitions=repetitions,
             tie_tolerance=tie_tolerance,
-            **execution,
         )
     )
 
 
-def consume_instrumented_selection(artifact: bytes, **execution: Any) -> dict[str, Any]:
+def consume_instrumented_selection(
+    artifact: bytes, *, execution: Execution | None = None
+) -> dict[str, Any]:
     """Replay the complete structural selection procedure without current authorization."""
     artifact = container_bytes(artifact)
-    return json.loads(_native.consume_instrumented_selection(artifact, **execution))
+    return json.loads(run_panel(execution, _native.consume_instrumented_selection, artifact))
 
 
 @dataclass(frozen=True, slots=True)
@@ -385,9 +406,9 @@ class PanelResult:
         return json.loads(self._handle.scheduled_contrast(_json(functional), level))
 
     @artifact_export
-    def export(self, **execution: Any) -> ExportedArtifact:
+    def export(self, *, execution: Execution | None = None) -> ExportedArtifact:
         """Encode the actual frozen compiler product; performs no second fit."""
-        return artifact_from_receipt(self, bytes(self._handle.export(**execution)))
+        return artifact_from_receipt(self, bytes(run_panel(execution, self._handle.export)))
 
     def certify_program(
         self,
@@ -402,7 +423,7 @@ class PanelResult:
         utility_scale: float = 1.0,
         absolute_gap: float = 1e-4,
         max_splits: int = 10_000,
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> PanelProgramCertificate:
         """Optimize a compiler-derived fitted response with rigorous global bounds.
 
@@ -424,11 +445,11 @@ class PanelResult:
             "options": {"absolute_gap": absolute_gap, "max_splits": max_splits},
         }
         return PanelProgramCertificate(
-            self._handle.certify_program(_json(declaration), **execution)
+            run_panel(execution, self._handle.certify_program, _json(declaration))
         )
 
     def decompose_reference(
-        self, declaration: Mapping[str, Any], **execution: Any
+        self, declaration: Mapping[str, Any], *, execution: Execution | None = None
     ) -> dict[str, Any]:
         """Decompose a response change on the retained joint mechanism law.
 
@@ -443,7 +464,9 @@ class PanelResult:
         order sensitivity and is not a confidence interval. This model-conditional
         reference decomposition does not establish unique causal attribution.
         """
-        return json.loads(self._handle.decompose_reference(_json(declaration), **execution))
+        return json.loads(
+            run_panel(execution, self._handle.decompose_reference, _json(declaration))
+        )
 
     def search_program(
         self,
@@ -464,7 +487,7 @@ class PanelResult:
         step_tolerance: float = 1e-6,
         objective_tolerance: float = 0.0,
         uncertainty: str = "point_means",
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
         """Execute certified search when supported, otherwise bounded best-found search.
 
@@ -496,7 +519,7 @@ class PanelResult:
                 "objective_tolerance": objective_tolerance,
             },
         }
-        return json.loads(self._handle.search_program(_json(declaration), **execution))
+        return json.loads(run_panel(execution, self._handle.search_program, _json(declaration)))
 
     def attempt_explanation(
         self,
@@ -506,7 +529,7 @@ class PanelResult:
         reference_world: int,
         before: tuple[int, int],
         after: tuple[int, int],
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
         """Execute the coarser total response contrast a finer explanation falls back to.
 
@@ -524,14 +547,16 @@ class PanelResult:
             "before": list(before),
             "after": list(after),
         }
-        return json.loads(self._handle.attempt_explanation(_json(declaration), **execution))
+        return json.loads(
+            run_panel(execution, self._handle.attempt_explanation, _json(declaration))
+        )
 
     def attempt_identified_reference(
         self,
         declaration: Mapping[str, Any],
         *,
         fallback: Mapping[str, Any],
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
         """The identified reference decomposition, or the supplied coarser contrast.
 
@@ -542,14 +567,16 @@ class PanelResult:
         numbers and the per-hybrid missing premises retained next to the ``executed`` contrast.
         """
         payload = {"reference": dict(declaration), "fallback": dict(fallback)}
-        return json.loads(self._handle.attempt_identified_reference(_json(payload), **execution))
+        return json.loads(
+            run_panel(execution, self._handle.attempt_identified_reference, _json(payload))
+        )
 
     def attempt_design_adaptive_reference(
         self,
         declaration: Mapping[str, Any],
         *,
         fallback: Mapping[str, Any] | None = None,
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
         """The finest decomposition this design identifies, and the designs that earn the rest.
 
@@ -564,7 +591,7 @@ class PanelResult:
             "fallback": None if fallback is None else dict(fallback),
         }
         return json.loads(
-            self._handle.attempt_design_adaptive_reference(_json(payload), **execution)
+            run_panel(execution, self._handle.attempt_design_adaptive_reference, _json(payload))
         )
 
     def search_declared_programs(
@@ -578,7 +605,7 @@ class PanelResult:
         utility_scale: float = 1.0,
         uncertainty: str = "point_means",
         max_candidates: int = 1024,
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
         """Exhaustively rank this panel's compiled worlds as candidate programs.
 
@@ -601,7 +628,9 @@ class PanelResult:
             "uncertainty": uncertainty,
             "max_candidates": max_candidates,
         }
-        return json.loads(self._handle.search_declared_programs(_json(declaration), **execution))
+        return json.loads(
+            run_panel(execution, self._handle.search_declared_programs, _json(declaration))
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -614,13 +643,15 @@ class PreparedPanel:
         """Inspect source/design obligations without fitting or simulation."""
         return json.loads(self._handle.inspect())
 
-    def estimate(self, **execution: Any) -> PanelResult:
-        """Run the retained Rust program with caller seed/thread/memory/cancel policy."""
-        return PanelResult(self._handle.estimate(**execution))
+    def estimate(self, *, execution: Execution | None = None) -> PanelResult:
+        """Run the retained Rust program under the caller's ``execution``."""
+        return PanelResult(run_panel(execution, self._handle.estimate))
 
-    def retarget(self, worlds: Sequence[Mapping[str, Any]], **execution: Any) -> PreparedPanel:
+    def retarget(
+        self, worlds: Sequence[Mapping[str, Any]], *, execution: Execution | None = None
+    ) -> PreparedPanel:
         """Check replacement worlds against the same source and reuse compatible fits."""
-        return PreparedPanel(self._handle.retarget(_json(list(worlds)), **execution))
+        return PreparedPanel(run_panel(execution, self._handle.retarget, _json(list(worlds))))
 
 
 def prepare(
@@ -641,7 +672,7 @@ def prepare(
     assignment: Mapping[str, Any] | None = None,
     exogenous_context: bool = False,
     family: Mapping[str, Any] | None = None,
-    **execution: Any,
+    execution: Execution | None = None,
 ) -> PreparedPanel:
     """Compile an explicitly declared panel through ``Study.prepare_joint_panel``.
 
@@ -672,7 +703,7 @@ def prepare(
     ``options["inference"]["prior"]["family"]``. A family changes the fitted
     mechanism, never the identification requirements of the target.
 
-    ``seed``, ``threads``, ``max_bytes`` and ``cancel`` are caller execution policy.
+    ``execution`` owns the seed, threads, memory limit and cancellation.
     Neither ``exogenous_context`` nor a finite fit establishes a causal license.
     """
     names = list(dict.fromkeys([*channels, outcome, confounder, season]))
@@ -707,13 +738,13 @@ def prepare(
     selected = _family_declaration(groups, family)
     if selected is not None:
         declaration["family"] = selected
-    return PreparedPanel(_native.prepare_joint_panel(_json(declaration), **execution))
+    return PreparedPanel(run_panel(execution, _native.prepare_joint_panel, _json(declaration)))
 
 
-def consume(artifact: bytes, **execution: Any) -> dict[str, Any]:
+def consume(artifact: bytes, *, execution: Execution | None = None) -> dict[str, Any]:
     """Replay the frozen Rust program in an independent historical consumer."""
     artifact = container_bytes(artifact)
-    return json.loads(_native.consume_joint_panel(artifact, **execution))
+    return json.loads(run_panel(execution, _native.consume_joint_panel, artifact))
 
 
 @dataclass(frozen=True, slots=True)
@@ -762,9 +793,9 @@ class JointResponseLaw:
         )
 
     @artifact_export
-    def export(self, **execution: Any) -> ExportedArtifact:
+    def export(self, *, execution: Execution | None = None) -> ExportedArtifact:
         """Exact compiled inputs and the joint output, for independent replay."""
-        return artifact_from_receipt(self, bytes(self._handle.export(**execution)))
+        return artifact_from_receipt(self, bytes(run_panel(execution, self._handle.export)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -782,9 +813,9 @@ class PreparedJointResponse:
         return dict(json.loads(self._handle.inspect()))
 
     @outcome_operation
-    def execute(self, **execution: Any) -> JointResponseLaw:
+    def execute(self, *, execution: Execution | None = None) -> JointResponseLaw:
         """Fit once if necessary and jointly evaluate every world."""
-        return JointResponseLaw._from_handle(self._handle.execute(**execution))
+        return JointResponseLaw._from_handle(run_panel(execution, self._handle.execute))
 
     @outcome_operation
     def retarget(
@@ -794,17 +825,21 @@ class PreparedJointResponse:
         worlds: Sequence[Mapping[str, Any]],
         contrast: Mapping[str, Any] | None = None,
         units: str = "unspecified",
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> PreparedJointResponse:
         """New world projections over the same source, prior and fit."""
         declaration = _response_declaration(outcome, worlds, contrast, units)
-        return PreparedJointResponse(self._handle.retarget(_json(declaration), **execution))
+        return PreparedJointResponse(
+            run_panel(execution, self._handle.retarget, _json(declaration))
+        )
 
     @outcome_operation
-    def consume_current(self, artifact: bytes, **execution: Any) -> JointResponseLaw:
+    def consume_current(
+        self, artifact: bytes, *, execution: Execution | None = None
+    ) -> JointResponseLaw:
         """Replay an exported result and bind it to this live compiled program."""
         return JointResponseLaw._from_handle(
-            self._handle.consume_current(container_bytes(artifact), **execution)
+            run_panel(execution, self._handle.consume_current, container_bytes(artifact))
         )
 
 

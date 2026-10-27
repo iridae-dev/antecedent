@@ -24,15 +24,9 @@ from .errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from .execution import Execution, native_controls, resolve_execution
 
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
-
-
-def _integer(name: str, value: int, lower: int, upper: int) -> None:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise CausalTypeError(f"{name} must be an integer")
-    if not lower <= value <= upper:
-        raise CausalValueError(f"{name} must be in {lower}..={upper}")
 
 
 def _level(value: float) -> None:
@@ -44,15 +38,6 @@ def _level(value: float) -> None:
         valid = False
     if not valid:
         raise CausalValueError("level must be finite and strictly between zero and one")
-
-
-def _production_limits(
-    memory_limit_bytes: int | None, cancel: _native.CancellationToken | None
-) -> None:
-    if memory_limit_bytes is not None:
-        _integer("memory_limit_bytes", memory_limit_bytes, 0, 2**64 - 1)
-    if cancel is not None and not isinstance(cancel, _native.CancellationToken):
-        raise CausalTypeError("cancel must be a CancellationToken")
 
 
 def _bounded_name(name: str, value: str) -> None:
@@ -269,31 +254,28 @@ class MeasuredInference:
         artifact: bytes,
         *,
         expected: MeasuredInferenceIdentity,
-        max_bytes: int = MAX_ARTIFACT_BYTES,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> MeasuredInference:
+        execution = resolve_execution(execution)
         artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes):
             raise CausalTypeError("artifact must be bytes")
         if not isinstance(expected, MeasuredInferenceIdentity):
             raise CausalTypeError("expected must be a retained MeasuredInferenceIdentity")
-        _integer("max_bytes", max_bytes, 1, MAX_ARTIFACT_BYTES)
-        if len(artifact) > max_bytes:
+        if len(artifact) > MAX_ARTIFACT_BYTES:
             raise CausalValueError("measured inference artifact exceeds the byte bound")
-        _production_limits(memory_limit_bytes, cancel)
         consume = getattr(_native, "consume_measured_inference", None)
         if consume is None:
             raise CausalUnsupportedError(
                 "measured inference native authority unavailable",
                 reason_code="cell_not_licensed",
             )
-        native = consume(
+        native = execution._call(
+            consume,
             artifact,
             json.dumps(expected._wire(), allow_nan=False),
-            max_bytes=max_bytes,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            max_bytes=MAX_ARTIFACT_BYTES,
+            **native_controls(execution, cancel="cancel", memory="memory_limit_bytes"),
         )
         return cls._from_native(native)
 

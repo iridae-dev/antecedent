@@ -108,6 +108,7 @@ from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _shared_count
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 from .outcomes import Answer, outcome_operation
 
 __all__ = [
@@ -1395,16 +1396,17 @@ class PreparedMeasurementModel:
         raise_refusal(self._handle.interval(), MeasurementModelRefusal)
 
     @outcome_operation
-    def estimate(self, *, cancel: Any = None) -> MeasurementEstimate:
+    def estimate(self, *, execution: Execution | None = None) -> MeasurementEstimate:
         """Form the corrected functional from the retained data."""
-        result = _estimate(_unwrap(self._handle.estimate(cancel=cancel)))
+        execution = resolve_execution(execution)
+        result = _estimate(_unwrap(self._handle.estimate(cancel=execution.cancel)))
         from ._freeze import freeze
 
         object.__setattr__(result, "_model", freeze(self.model))
         return result
 
     def estimate_continuous(
-        self, data: ContinuousErrorData, *, cancel: Any = None
+        self, data: ContinuousErrorData, *, execution: Execution | None = None
     ) -> ContinuousMeasurementEstimate:
         """Correct the treatment coefficient for continuous classical measurement error.
 
@@ -1418,34 +1420,41 @@ class PreparedMeasurementModel:
                 ``route_not_supported`` for a logit outcome with the error in the outcome (remedy:
                 the binary misclassification route), and the estimator's other coded refusals.
         """
+        execution = resolve_execution(execution)
         if not isinstance(data, ContinuousErrorData):
             raise CausalTypeError("data must be a ContinuousErrorData")
-        summary = _unwrap(self._handle.estimate_continuous(_dumps(data.to_wire()), cancel=cancel))
+        summary = _unwrap(
+            self._handle.estimate_continuous(_dumps(data.to_wire()), cancel=execution.cancel)
+        )
         return _continuous(json.loads(summary), self._handle)
 
-    def refresh(self, data: MeasurementData, *, cancel: Any = None) -> MeasurementRefresh:
+    def refresh(
+        self, data: MeasurementData, *, execution: Execution | None = None
+    ) -> MeasurementRefresh:
         """Recompute with new outcome-only data of the same question.
 
         Keeps the model and its identities; recomputes the point, standard error and data identity.
         Data of another route family, functional or arm pair is refused (``route_not_supported``).
         """
-        return _refreshed(self._handle.refresh(_dumps(_wire(data)), cancel=cancel))
+        execution = resolve_execution(execution)
+        return _refreshed(self._handle.refresh(_dumps(_wire(data)), cancel=execution.cancel))
 
     def with_validation_parameters(
         self,
         parameters: MeasurementParameters,
         evidence: ParameterEvidence,
         *,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> MeasurementRefresh:
         """Rebuild the model with new validation parameters and evidence, and recompute.
 
         The measurement and evidence identities, and so the model identity, change; every prepare
         check runs again on the new model.
         """
+        execution = resolve_execution(execution)
         return _refreshed(
             self._handle.with_validation_parameters(
-                _dumps(parameters.to_wire()), _dumps(evidence.to_wire()), cancel=cancel
+                _dumps(parameters.to_wire()), _dumps(evidence.to_wire()), cancel=execution.cancel
             )
         )
 
@@ -1499,7 +1508,7 @@ def prepare_measurement_model(
     *,
     provider: ProviderObject | None = None,
     receipt: Any = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedMeasurementModel:
     """Prepare a corrected functional under a declared measurement model.
 
@@ -1511,6 +1520,7 @@ def prepare_measurement_model(
         MeasurementModelRefusal: the first failed check, with its registered ``reason_code``,
             ``measurement_model.*`` ``detail`` and ``remedy``.
     """
+    execution = resolve_execution(execution)
     provider_json = None if provider is None else _dumps(provider.to_wire())
     handle = _unwrap(
         _native.measurement_model_prepare(
@@ -1519,7 +1529,7 @@ def prepare_measurement_model(
             _dumps(_wire(data)),
             provider_json,
             receipt,
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
     return _prepared(handle)
@@ -1806,7 +1816,7 @@ def transport_measurement_model(
     structure: InvarianceDeclaration | DifferentialErrorDeclaration | None = None,
     provider: ProviderObject | None = None,
     receipt: Any = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportedMeasurementEstimate:
     """Carry a measurement model to the population of ``analysis`` and correct ``data`` with it.
 
@@ -1821,6 +1831,7 @@ def transport_measurement_model(
             ``transport_not_certified`` / ``measurement_model.invariance_not_declared``,
             ``differential_error_not_pooled``) and a ``remedy``.
     """
+    execution = resolve_execution(execution)
     provider_json = None if provider is None else _dumps(provider.to_wire())
     handle, receipt_json, refusal = _native.measurement_model_transport(
         _models_wire(models),
@@ -1829,7 +1840,7 @@ def transport_measurement_model(
         _dumps(_wire(data)),
         provider_json,
         receipt,
-        cancel=cancel,
+        cancel=execution.cancel,
     )
     raise_refusal(refusal, MeasurementModelRefusal)
     assert receipt_json is not None
@@ -1918,8 +1929,7 @@ def transport_pooled_differential(
     *,
     target_validation: PopulationValidationCounts | None = None,
     draws: int = 4000,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> PooledDifferentialCorrection:
     """Correct the target's recorded prevalence with error rates that differ by population.
 
@@ -1929,6 +1939,7 @@ def transport_pooled_differential(
     prevalence into the Rogan-Gladen correction. Fewer than two sources, or pooled rates that
     leave the target unidentified, are refused (``differential_error_not_pooled``).
     """
+    execution = resolve_execution(execution)
     section = _native.measurement_pooled_differential_transport(
         [(source.population, *source._counts()) for source in sources],
         _name(target_population, "target_population"),
@@ -1936,8 +1947,8 @@ def transport_pooled_differential(
         _count(observed_total, "observed_total"),
         target_validation=None if target_validation is None else target_validation._counts(),
         draws=_count(draws, "draws"),
-        seed=seed,
-        threads=threads,
+        seed=execution.seed,
+        threads=execution.threads,
     )
     return PooledDifferentialCorrection(
         target_population=section.target_population,

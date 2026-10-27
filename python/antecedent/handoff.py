@@ -803,7 +803,7 @@ def _modifier_set(
 ) -> tuple[str, ...]:
     if modifiers is None:
         single = getattr(query, "modifier", None)
-        many = getattr(query, "effect_modifiers", None)
+        many = getattr(query, "modifiers", None) or getattr(query, "effect_modifiers", None)
         if isinstance(single, str):
             return (single,)
         if many:

@@ -7,7 +7,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from ._cyclic_typed import _with_execution
+from ._cyclic_typed import _limits, _with_execution
 from ._freeze import freeze, thaw
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
@@ -237,8 +237,7 @@ class RecoveredCyclicLaw(ScientificResult):
             handle = self._native.prepare_recovered_worlds(
                 json.dumps(wire, allow_nan=False),
                 outcome_id,
-                max_bytes=None,
-                cancel=None,
+                **_limits(execution),
             )
         except CausalError as error:
             if not is_scientific_refusal(error):

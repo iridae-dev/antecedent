@@ -23,9 +23,19 @@ from .errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from .execution import Execution
 from .inference import Bayesian
 from .outcomes import outcome_operation
-from .recalc import Decision, RecalcPlan, RecalcReceipt, Utility, _refusal_type, _seed
+from .recalc import (
+    Decision,
+    RecalcPlan,
+    RecalcReceipt,
+    Utility,
+    _execution,
+    _native_controls,
+    _refusal_type,
+    _seed,
+)
 from .recalc_static import _Session
 
 if TYPE_CHECKING:
@@ -127,8 +137,7 @@ class BayesianSession(_Session):
         self,
         *,
         quantity: Literal["result", "prior_source"] = "result",
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
     ) -> ExportedArtifact:
         """Source-bound native posterior for independently checked prior transfer.
 
@@ -136,7 +145,7 @@ class BayesianSession(_Session):
         caller posterior metadata and same-source likelihood reuse are refused.
         """
         if quantity == "result":
-            return _Session.export(self, seed=seed, threads=threads)
+            return _Session.export(self, execution=execution)
         if quantity != "prior_source":
             raise CausalTypeError("quantity must be 'result' or 'prior_source'")
         artifact, error = self._handle.export_prior_source()
@@ -149,27 +158,24 @@ class BayesianSession(_Session):
         self,
         request: BayesianRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcPlan:
         from .estimation import _inference_wire
 
+        run = _execution(execution)
+        ctl = _native_controls(run)
         names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
         )
         return RecalcPlan.from_wire(
             json.loads(
-                self._handle.plan(
+                run._call(
+                    self._handle.plan,
                     names,
                     columns,
                     _spec(request),
                     _inference_wire(request.inference),
-                    seed=_seed(seed),
-                    threads=threads,
-                    memory_limit_bytes=memory_limit_bytes,
-                    cancel=cancel,
+                    **ctl,
                 )
             )
         )
@@ -179,27 +185,24 @@ class BayesianSession(_Session):
         self,
         request: BayesianRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> BayesianResult:
-        """Run the invalidated stages under an optional memory limit and cancellation token."""
+        """Run the invalidated stages under the execution's memory limit and cancellation."""
         from .estimation import _inference_wire
 
+        run = _execution(execution)
+        ctl = _native_controls(run)
         names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
         )
         return _result(
-            self._handle.execute(
+            run._call(
+                self._handle.execute,
                 names,
                 columns,
                 _spec(request),
                 _inference_wire(request.inference),
-                seed=_seed(seed),
-                threads=threads,
-                memory_limit_bytes=memory_limit_bytes,
-                cancel=cancel,
+                **ctl,
             )
         )
 
@@ -394,28 +397,20 @@ class JointBayesianSession(_Session):
         self,
         request: JointBayesianRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> JointBayesianResult:
-        """Run the invalidated stages under an optional memory limit and cancellation token.
+        """Run the invalidated stages under the execution's memory limit and cancellation.
 
-        ``seed`` seeds execution; the posterior stream is ``request.seed``. A changed summary or
-        utility recomputes only its own stage; a changed unit, prior or posterior seed refits.
+        The execution's seed seeds execution; the posterior stream is
+        ``request.seed``. A changed summary or utility recomputes only its own stage; a changed unit, prior or posterior seed refits.
         Refusals (a bidirected diagram, an uncertified transport, a prior bank that consumed a
         source unit, oversized work) are typed; resource limits and cancellation raise.
         """
         if not isinstance(request, JointBayesianRequest):
             raise CausalTypeError("request must be a JointBayesianRequest")
+        run = _execution(execution)
         return _joint_result(
-            self._handle.execute(
-                request._spec(),
-                seed=_seed(seed),
-                threads=threads,
-                memory_limit_bytes=memory_limit_bytes,
-                cancel=cancel,
-            )
+            run._call(self._handle.execute, request._spec(), **_native_controls(run))
         )
 
 

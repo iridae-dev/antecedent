@@ -55,6 +55,7 @@ from ._native import proposal_bundle_build as _build
 from ._native import proposal_ranked_candidates as _ranked_candidates
 from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution
 
 EvidenceKindName = Literal["available", "manipulable", "proposed"]
 
@@ -548,7 +549,7 @@ class ProposalBundle:
         candidate_id: str,
         study: Any,
         *,
-        seed: int = 3,
+        execution: Execution | None = None,
         repair_artifact: bytes | None = None,
         ranking_artifact: bytes | None = None,
     ) -> Any:
@@ -575,7 +576,7 @@ class ProposalBundle:
                 "proposal_arrival.original_artifacts_required", reason_code="invalid_argument"
             )
         return _estimate(
-            original_repair, original_ranking, candidate_id, study, self.identity, seed
+            original_repair, original_ranking, candidate_id, study, self.identity, execution
         )
 
     def __repr__(self) -> str:

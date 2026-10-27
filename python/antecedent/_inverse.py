@@ -38,6 +38,7 @@ from typing import Any, Literal
 from . import _native
 from ._validate import real
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution, native_controls, resolve_execution
 from .query import ResponseCurve
 from .results.response import CausalResponseView
 
@@ -466,7 +467,7 @@ def inverse_outcome(
     tolerance: float = 1e-9,
     study_options: Any = None,
     sensitivity: Mapping[str, Any] | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> InverseOutcomeReport:
     """Classify an enumerated action grid against a licensed forward response.
 
@@ -510,7 +511,12 @@ def inverse_outcome(
         "budget": None if budget is None else float(budget),
         "tolerance": float(tolerance),
     }
-    payload = _native.classify_inverse_outcome_stage(**call, cancel=cancel)
+    execution = resolve_execution(execution)
+    payload = execution._call(
+        _native.classify_inverse_outcome_stage,
+        **call,
+        **native_controls(execution, cancel="cancel"),
+    )
     return InverseOutcomeReport(
         query=TargetMean(payload["query"]["threshold"], payload["query"]["direction"]),
         tolerance=payload["tolerance"],

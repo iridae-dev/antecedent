@@ -75,6 +75,61 @@ one prespecified functional per world and draw can use `PreparedStudy::estimate_
 over the same aligned draws in bounded tiles, the tile's rows are reduced and dropped,
 failed slots stay in place, and every reduced value equals projecting the full output.
 
+## Joint worlds from a prepared static response
+
+For a static `InterventionResponse` study whose adjustment proof is retained, `compile_joint_response`
+lowers several worlds onto one shared Gaussian fit and returns their joint law, including the
+cross-world covariance, so a contrast between worlds carries its own standard error rather than
+a difference of marginal intervals.
+
+```python
+import math
+import numpy as np
+import antecedent as ant
+from antecedent import joint_panel
+from antecedent.outcomes import require_success
+
+n = 240
+z = np.array([math.sin(i / 17.0) for i in range(n)])
+t = z + np.array([math.cos(i / 11.0) for i in range(n)])
+y = 1.0 + 2.0 * t + 0.8 * z + 0.1 * np.array([math.sin(i / 3.7) for i in range(n)])
+study = ant.prepare(
+    {"t": t, "y": y, "z": z},
+    graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    query=ant.InterventionResponse("y", intervention=ant.intervention.Set("t", 0.25)),
+    estimator="response.intervention_gcomp",
+    refute="none",
+    inference=ant.Frequentist(bootstrap=0),
+    execution=ant.Execution(seed=4),
+)
+worlds = [
+    {"id": i, "reference": i == 0, "levels": {"t": level}} for i, level in enumerate((-0.5, 0.0, 0.5))
+]
+compiled = require_success(
+    joint_panel.compile_joint_response(
+        study, outcome="y", worlds=worlds,
+        contrast={"kind": "linear", "terms": [[0, -2.0], [1, 1.0], [2, 1.0]], "reference": 0},
+    )
+)
+print(compiled.inspect()["fitted"])            # False: compilation fits nothing
+
+law = require_success(compiled.execute(execution=ant.Execution(seed=7)))
+print(law.means, law.uncertainty, law.calibration)   # sampling_covariance, unmeasured
+value, standard_error = law.contrast                   # one linear functional of the joint law
+
+other = require_success(compiled.retarget(outcome="y", worlds=worlds[:2]))   # reuse the fit
+replayed = require_success(compiled.consume_current(bytes(law.export())))
+assert replayed.means == law.means
+```
+
+Each world assigns exactly the study's intervention coordinates inside their observed range, and a
+level outside it is refused, never extrapolated. The contrast is a `difference` or a `linear`
+combination with an explicit reference. The target keeps the Gaussian-linear,
+fixed-empirical-covariate premise, so worlds whose conditional joint support is not established stay
+model-conditional (`identified_claim` is false). `retarget` reuses the source, prior and fit and moves
+only the world projections; `consume_current` replays an exported law against the same compiled
+program and refuses one made for a different target.
+
 ## Contrasts, time windows and surfaces
 
 General linear contrasts retain finite nonzero world coefficients and an explicit

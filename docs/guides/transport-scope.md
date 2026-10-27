@@ -599,7 +599,7 @@ it is not a second transport engine.
   code from the search's path test), charged to the same budget; the reduced joint
   is built only through the sID engine's verified-derivation path. A stored
   derivation re-runs both checks when it is prepared (`StudyBuilder`, Python
-  `prepare_exact`) and when an artifact is consumed. The conditional values are
+  `ant.prepare` with an `ExactTransportQuery`) and when an artifact is consumed. The conditional values are
   compared with enumerated latent SCMs on every three-node ADMG and a seeded
   four-node sample.
 - **Obstruction.** When sID does not certify the reduced joint (an s-hedge, or

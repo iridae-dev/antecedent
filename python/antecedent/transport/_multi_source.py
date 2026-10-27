@@ -27,8 +27,10 @@ from .._native import (
 )
 from .._validate import names
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg
 from ._consumption import TransportConsumption
+from ._controls import call_native
 from ._impl import EvidenceCatalog, _non_negative, _optional_non_negative
 
 
@@ -117,8 +119,7 @@ def identify_multi_source_z_transport(
     max_operations: int = 4096,
     max_depth: int = 24,
     max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Decide a bounded multi-source query against one catalog of target and source evidence.
 
@@ -150,7 +151,9 @@ def identify_multi_source_z_transport(
         raise CausalTypeError("query must be a MultiSourceZTransportQuery")
     if not isinstance(catalog, EvidenceCatalog):
         raise CausalTypeError("catalog must be an EvidenceCatalog")
-    return _identify_multi_source_z_transport_stage(
+    return call_native(
+        execution,
+        _identify_multi_source_z_transport_stage,
         graph,
         query.target,
         list(query.outcomes),
@@ -168,8 +171,8 @@ def identify_multi_source_z_transport(
         max_operations=_non_negative("max_operations", max_operations),
         max_depth=_non_negative("max_depth", max_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
@@ -188,8 +191,7 @@ def consume_multi_source_z_transport_artifact(
     max_support_rows: int | None = None,
     max_laws: int | None = None,
     max_law_cells: int | None = None,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportConsumption:
     """Independently verify an exported multi-source result and recompute its point.
 
@@ -209,7 +211,9 @@ def consume_multi_source_z_transport_artifact(
         raise CausalTypeError("artifact must be bytes")
     return TransportConsumption.from_checked_json(
         "consume_multi_source_z_transport_artifact",
-        _consume_multi_source_z_transport_artifact(
+        call_native(
+            execution,
+            _consume_multi_source_z_transport_artifact,
             artifact,
             max_search_operations=_non_negative("max_search_operations", max_search_operations),
             max_search_depth=_non_negative("max_search_depth", max_search_depth),
@@ -218,8 +222,8 @@ def consume_multi_source_z_transport_artifact(
             max_support_rows=_optional_non_negative("max_support_rows", max_support_rows),
             max_laws=_optional_non_negative("max_laws", max_laws),
             max_law_cells=_optional_non_negative("max_law_cells", max_law_cells),
-            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-            cancel=cancel,
+            cancel="cancel",
+            memory="memory_bytes",
         ),
     )
 

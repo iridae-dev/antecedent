@@ -153,6 +153,32 @@ antecedent::host::error_family(&error)       // &'static str
 registered code. Python-only narrowings (a type error, a value error, a structured
 refusal) report the coarse family Rust uses.
 
+## Support cells and their neighbors
+
+A host can ask the support matrix about any coordinate (`query:graph:structure:inference:validation`)
+without preparing or fitting anything. `host.support_cells()` lists every licensed coordinate, and
+`host.support_cell_report(coordinate)` classifies one:
+
+```python
+from antecedent import host
+
+cells = host.support_cells()                 # every licensed coordinate; a pure read
+report = host.support_cell_report("TransportQuery:Dag:explicit:Frequentist:none")
+print(report["status"])                      # licensed, refused or not_applicable
+print(report["message"][:60])                # the blocker text; None for a licensed cell
+nearest = report["neighbors"][0]
+print(nearest["coordinate"], nearest["changed"], nearest["required_action"])
+assert nearest["coordinate"] in cells
+assert host.support_cell_report(nearest["coordinate"])["status"] == "licensed"
+```
+
+`neighbors` are the licensed cells of the same graph class that change explicit premises, nearest
+first. Each names the `changed` axes (`axis`, `from`, `to`) and the `required_action` a caller
+would take. They are alternatives the caller chooses between, never an automatic fallback, and a
+licensed cell has none. A malformed coordinate or an axis value outside the matrix raises
+`CausalValueError`. Licensing a cell does not establish empirical support or interval calibration;
+see the [support matrix](support-matrix.md).
+
 ## Resources, cancellation and callbacks
 
 ### Threads and resource leases
@@ -160,7 +186,7 @@ refusal) report the coarse family Rust uses.
 Parallelism is a budget on an execution context, not a global setting.
 
 * A study runs under an `ExecutionContext` (`ExecutionContext::production(seed, threads)`
-  in Rust, `threads=` in Python). `threads` omitted or `0` takes
+  in Rust, `ant.Execution(threads=...)` in Python). `threads` omitted or `0` takes
   `min(available_parallelism, 16)`; an explicit positive value pins the study to that many
   workers even above the cap. Nested parallel work inside a worker sees one thread, so
   a budget is never multiplied.
@@ -183,7 +209,7 @@ Parallelism is a budget on an execution context, not a global setting.
 
 ### Cancellation
 
-Cancellation is cooperative. A host holds a `CancellationToken` (the `cancel=` argument in
+Cancellation is cooperative. A host holds a `CancellationToken` (`ant.Execution(cancel=token)` in
 Python, the context's `cancellation` field in Rust), passes it with the call, and calls
 `cancel()` from any thread.
 The engines poll it at named boundaries (table scans, solvers, resampling, search, chains,
@@ -229,9 +255,9 @@ pin them are in [callback security](callback-security.md); the behavior is in
 An artifact is a checksummed container: bytes, not code. Loading never runs a callback,
 never recreates a live study and never imports anything the bytes name.
 
-* Keep the expectation apart from the bytes. `result.artifact()` returns the bytes
-  (`.data`) and a typed `.expectation`; store the expectation in a record the artifact's
-  producer cannot rewrite. `ant.load(bytes, expected=expectation)` binds the load to that
+* Keep the expectation apart from the bytes. `result.export()` returns a typed
+  `ExportedArtifact` whose `bytes(artifact)` are the encoding and whose `.expectation` is the identity; store the expectation in a record the artifact's
+  producer cannot rewrite. `ant.load(bytes(artifact), expected=expectation)` binds the load to that
   identity; container metadata never supplies it. In Rust, `consume_analysis_result`
   returns the decoded record and an `AcceptanceReport`.
 * Read acceptance, not just success. A load that decodes can still be partial. Use
@@ -244,8 +270,8 @@ never recreates a live study and never imports anything the bytes name.
 * Bound untrusted input. Every consumer length-bounds a container before use and refuses
   unknown fields; do not widen a bound to accept a large upload. Reject oversized input
   before calling the library.
-* A loaded result is immutable. To change anything, compile and run again; `refresh`
-  re-executes the same program on new data and keeps the earlier result fixed.
+* A loaded result is immutable. To change anything, compile and run again; `ant.rebind` followed by
+  `ant.estimate` re-executes the same program on new data and keeps the earlier result fixed.
 * Staleness is a question for the host, not a timer in the library. Compare new data with a
   stored artifact or plan with the staleness diagnostics and act on the typed
   recommendation (reuse, refresh, re-identify, refuse); see [staleness](guides/staleness.md).

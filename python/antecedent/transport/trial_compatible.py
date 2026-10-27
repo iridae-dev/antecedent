@@ -46,6 +46,7 @@ from .._refusal import raise_refusal
 from .._scientific import ScientificResult
 from .._validate import count
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution
 from ..selective_discovery import (
     Outcome,
     RunReport,
@@ -55,6 +56,7 @@ from ..selective_discovery import (
     _outcome,
     _report,
 )
+from ._controls import call_native
 from .discovered import (
     MemberEstimate,
     TransportAnswer,
@@ -278,8 +280,7 @@ def estimate_trial_compatible_discovered_transport(
     member_bound: int | None = None,
     bootstrap_replicates: int = 0,
     discovery: Mapping[str, Any] | None = None,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TrialCompatibleEstimate:
     """Refine the discovered class with the randomized binary trial in ``source``, then estimate.
 
@@ -310,21 +311,22 @@ def estimate_trial_compatible_discovered_transport(
         bootstrap_replicates,
         discovery,
     )
-    body, refusal, discovery_text, discovery_refusal, artifact = (
-        _native.discovered_transport_trial_estimate_run(
-            request["contract_json"],
-            request["names"],
-            request["source_columns"],
-            request["target_columns"],
-            request["query_json"],
-            request["selection_targets"],
-            _check_alpha(alpha),
-            request["member_bound"],
-            request["bootstrap_replicates"],
-            discovery_columns=request["discovery_columns"],
-            threads=threads,
-            cancel=cancel,
-        )
+    body, refusal, discovery_text, discovery_refusal, artifact = call_native(
+        execution,
+        _native.discovered_transport_trial_estimate_run,
+        request["contract_json"],
+        request["names"],
+        request["source_columns"],
+        request["target_columns"],
+        request["query_json"],
+        request["selection_targets"],
+        _check_alpha(alpha),
+        request["member_bound"],
+        request["bootstrap_replicates"],
+        discovery_columns=request["discovery_columns"],
+        cancel="cancel",
+        memory=None,
+        threads="threads",
     )
     found, report = _found(discovery_text, discovery_refusal, names)
     _raise_transport(refusal, names, outcome=found, report=report)
@@ -351,7 +353,7 @@ def estimate_trial_compatible_discovered_transport(
     identity=(),
 )
 def verify_trial_compatible_transport_estimate(
-    artifact: bytes, *, seed: int = 0
+    artifact: bytes, *, execution: Execution | None = None
 ) -> VerifiedTrialEstimate:
     """Replay an exported estimate: the test, every graph decision and every retained grid.
 
@@ -362,7 +364,14 @@ def verify_trial_compatible_transport_estimate(
     if not isinstance(artifact, (bytes, bytearray)):
         raise CausalTypeError("artifact must be bytes")
     wire = json.loads(
-        _native.verify_trial_compatible_transport_estimate_artifact(bytes(artifact), seed=seed)
+        call_native(
+            execution,
+            _native.verify_trial_compatible_transport_estimate_artifact,
+            bytes(artifact),
+            cancel=None,
+            memory=None,
+            seed="seed",
+        )
     )
     return VerifiedTrialEstimate(
         answer=_answer(wire["answer"]),
@@ -413,8 +422,7 @@ def estimate_trial_compatible_transport_confidence_set(
     member_bound: int | None = None,
     bootstrap_replicates: int = 200,
     discovery: Mapping[str, Any] | None = None,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TrialConfidenceSet:
     """Compute the whole-procedure set of the binary treatment mean contrast.
 
@@ -444,23 +452,24 @@ def estimate_trial_compatible_transport_confidence_set(
         bootstrap_replicates,
         discovery,
     )
-    body, refusal, discovery_text, discovery_refusal, artifact = (
-        _native.discovered_transport_trial_confidence_set_run(
-            request["contract_json"],
-            request["names"],
-            request["source_columns"],
-            request["target_columns"],
-            request["query_json"],
-            request["selection_targets"],
-            _check_alpha(alpha),
-            lower,
-            upper,
-            request["member_bound"],
-            request["bootstrap_replicates"],
-            discovery_columns=request["discovery_columns"],
-            threads=threads,
-            cancel=cancel,
-        )
+    body, refusal, discovery_text, discovery_refusal, artifact = call_native(
+        execution,
+        _native.discovered_transport_trial_confidence_set_run,
+        request["contract_json"],
+        request["names"],
+        request["source_columns"],
+        request["target_columns"],
+        request["query_json"],
+        request["selection_targets"],
+        _check_alpha(alpha),
+        lower,
+        upper,
+        request["member_bound"],
+        request["bootstrap_replicates"],
+        discovery_columns=request["discovery_columns"],
+        cancel="cancel",
+        memory=None,
+        threads="threads",
     )
     found, report = _found(discovery_text, discovery_refusal, names)
     _raise_transport(refusal, names, outcome=found, report=report)
@@ -492,8 +501,7 @@ def verify_trial_compatible_transport_confidence_set_against(
     member_bound: int | None = None,
     bootstrap_replicates: int = 200,
     discovery: Mapping[str, Any] | None = None,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TrialConfidenceSet:
     """Replay a set receipt against the original contract, columns, support, level and seed.
 
@@ -523,24 +531,25 @@ def verify_trial_compatible_transport_confidence_set_against(
         bootstrap_replicates,
         discovery,
     )
-    body, refusal, discovery_text, discovery_refusal, artifact = (
-        _native.verify_trial_confidence_set_against_inputs(
-            bytes(receipt),
-            request["contract_json"],
-            request["names"],
-            request["source_columns"],
-            request["target_columns"],
-            request["query_json"],
-            request["selection_targets"],
-            _check_alpha(alpha),
-            lower,
-            upper,
-            request["member_bound"],
-            request["bootstrap_replicates"],
-            discovery_columns=request["discovery_columns"],
-            threads=threads,
-            cancel=cancel,
-        )
+    body, refusal, discovery_text, discovery_refusal, artifact = call_native(
+        execution,
+        _native.verify_trial_confidence_set_against_inputs,
+        bytes(receipt),
+        request["contract_json"],
+        request["names"],
+        request["source_columns"],
+        request["target_columns"],
+        request["query_json"],
+        request["selection_targets"],
+        _check_alpha(alpha),
+        lower,
+        upper,
+        request["member_bound"],
+        request["bootstrap_replicates"],
+        discovery_columns=request["discovery_columns"],
+        cancel="cancel",
+        memory=None,
+        threads="threads",
     )
     found, report = _found(discovery_text, discovery_refusal, names)
     _raise_transport(refusal, names, outcome=found, report=report)

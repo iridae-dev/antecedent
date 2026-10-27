@@ -68,8 +68,10 @@ from .._native import (
 )
 from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
+from ..execution import Execution
 from ..graph import Admg, Cpdag, Pag
-from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative, _optional_non_negative
+from ._controls import call_native, resolve
+from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative
 from ._scenarios import _wire
 
 CPDAG_SCOPE: Final = "cpdag_completion_scenarios_structural_envelope"
@@ -456,8 +458,7 @@ def cpdag_completion_scenarios(
     max_operations: int = 10_000_000,
     max_evaluation_depth: int = 256,
     max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> CpdagScenarioResult:
     """Enumerate every DAG completion of ``cpdag`` and decide each against its own evidence.
 
@@ -485,7 +486,9 @@ def cpdag_completion_scenarios(
     mode, declared = _evidence_wire(evidence)
     if any(not isinstance(c, VariableCoordinate) for c in coordinates):
         raise CausalTypeError("coordinates must be VariableCoordinate values")
-    run, refused = _cpdag_stage(
+    stage, refused = call_native(
+        execution,
+        _cpdag_stage,
         graph,
         _wire(tuple(coordinates)),
         list(outcomes),
@@ -501,10 +504,10 @@ def cpdag_completion_scenarios(
         max_operations=_non_negative("max_operations", max_operations),
         max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
-    run = _unpack((run, refused), CpdagScenarioRefusal)
+    run = _unpack((stage, refused), CpdagScenarioRefusal)
     return _result(json.loads(run.payload_json), run=run)
 
 
@@ -523,8 +526,7 @@ def consume_cpdag_scenarios_artifact(
     max_evaluation_depth: int = 256,
     max_support_rows: int = 1_000_000,
     max_laws: int = 256,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> CpdagScenarioResult:
     """Independently replay an exported completion report.
 
@@ -538,7 +540,9 @@ def consume_cpdag_scenarios_artifact(
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    payload, refused = _consume_cpdag(
+    payload, refused = call_native(
+        execution,
+        _consume_cpdag,
         artifact,
         max_steps=_non_negative("max_steps", max_steps),
         max_depth=_non_negative("max_depth", max_depth),
@@ -546,8 +550,8 @@ def consume_cpdag_scenarios_artifact(
         max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
         max_laws=_non_negative("max_laws", max_laws),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
     payload = _unpack((payload, refused), CpdagScenarioRefusal)
     return _result(json.loads(payload), artifact=artifact)
@@ -837,17 +841,15 @@ def scenario_shared_covariance(
     *,
     method: str = "shared_row_bootstrap",
     replicates: int = 2000,
-    seed: int = 0,
     max_failure_fraction: float = 0.0,
     max_compositions: int = 4_000_000,
     max_failure_mass: float = 0.0,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ScenarioCovarianceResult:
     """The joint covariance of ``scenarios``' estimates over the shared rows of ``table``.
 
     ``shared_row_bootstrap`` draws ``replicates`` whole-row resamples under
-    ``seed``: one replicate id and one row selection are shared by every
+    the execution's seed: one replicate id and one row selection are shared by every
     scenario, a replicate where any estimator fails is dropped for all scenarios
     (counted; refused above ``max_failure_fraction``), and the result is
     bit-reproducible under the seed. ``exact_enumeration`` enumerates every
@@ -867,6 +869,8 @@ def scenario_shared_covariance(
     declared = tuple(scenarios)
     if any(not isinstance(s, ScenarioEstimator) for s in declared):
         raise CausalTypeError("scenarios must be ScenarioEstimator values")
+    execution = resolve(execution)
+    seed = execution.seed
     label = table.snapshot_label()
     spec = {
         "table": table._wire(),
@@ -884,12 +888,10 @@ def scenario_shared_covariance(
             method, replicates, seed, max_failure_fraction, max_compositions, max_failure_mass
         ),
     }
-    run, refused = _covariance_stage(
-        json.dumps(spec),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+    stage, refused = call_native(
+        execution, _covariance_stage, json.dumps(spec), cancel="cancel", memory="memory_bytes"
     )
-    run = _unpack((run, refused), ScenarioCovarianceRefusal)
+    run = _unpack((stage, refused), ScenarioCovarianceRefusal)
     return _covariance_result(json.loads(run.payload_json), run=run)
 
 
@@ -906,8 +908,7 @@ def consume_scenario_covariance_artifact(
     max_columns: int = 64,
     max_replicates: int = 2000,
     max_compositions: int = 4_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ScenarioCovarianceResult:
     """Independently recompute an exported covariance.
 
@@ -920,14 +921,16 @@ def consume_scenario_covariance_artifact(
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    payload, refused = _consume_covariance(
+    payload, refused = call_native(
+        execution,
+        _consume_covariance,
         artifact,
         max_rows=_non_negative("max_rows", max_rows),
         max_columns=_non_negative("max_columns", max_columns),
         max_replicates=_non_negative("max_replicates", max_replicates),
         max_compositions=_non_negative("max_compositions", max_compositions),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
     payload = _unpack((payload, refused), ScenarioCovarianceRefusal)
     return _covariance_result(json.loads(payload), artifact=artifact)

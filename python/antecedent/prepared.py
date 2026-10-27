@@ -519,9 +519,17 @@ def prepare(
         else getattr(inference, "bootstrap", None)
     )
 
+    # Every transport query but the ordinary trial-IPW design cell lowers through its own
+    # family engine, which streams no stages and runs no worker pool.
+    family_transport = transport and not isinstance(query, (TransportQuery, TrialAipwQuery))
+
     def build() -> Any:
         from .extensibility import ProviderQuery
 
+        if family_transport:
+            from ._transport_lifecycle import refuse_inapplicable_controls
+
+            refuse_inapplicable_controls(policy, threads=False)
         if isinstance(query, ProviderQuery):
             from ._prepared_provider import PreparedProvider
 
@@ -544,22 +552,15 @@ def prepare(
             evidence_candidates=None if transport else evidence_candidates,
             bootstrap=bootstrap,
             latency=getattr(inference, "profile", None),
-            # Legacy transport lowering rejects ordinary loose controls. The
+            # The family transport lowering rejects ordinary loose controls. The
             # active Execution owns its native context; execution forks bind
-            # the requested RNG/thread policy before any statistical run.
+            # the requested RNG policy before any statistical run. Controls the family
+            # cannot honour were refused above; progress is reported around each estimate.
             seed=policy.seed,
-            # The typed provider families have no thread policy to honour: the declared
-            # Execution threads reach the native preparation, which refuses them.
-            threads=None
-            if transport
-            and not isinstance(
-                query,
-                (ExactTransportQuery, StatisticalTransportQuery, TransportResponseGridQuery),
-            )
-            else policy.threads,
+            threads=policy.threads,
             cancel=policy.cancel,
-            on_progress=None if transport else policy.on_progress,
-            on_stage=None if transport else policy.on_stage,
+            on_progress=None if family_transport else policy.on_progress,
+            on_stage=None if family_transport else policy.on_stage,
         )
 
     prepared = capture_outcome(policy._call, build)
@@ -589,6 +590,14 @@ def _fork(study: PreparedAnalysis[Any]) -> Any:
     engine._last_result = None
     engine._seed = study.execution.seed
     engine._threads = study.execution.threads
+    if engine._transport is not None:
+        from ._transport_lifecycle import refuse_inapplicable_controls
+
+        # A family transport engine honours cancellation natively; its progress is reported
+        # around the estimate, and the controls it cannot honour are refused, never dropped.
+        refuse_inapplicable_controls(study.execution, threads=False)
+        engine._controls = _Controls(cancel=study.execution.cancel)
+        return engine
     engine._controls = _Controls(
         cancel=study.execution.cancel,
         on_progress=study.execution.on_progress,
@@ -624,8 +633,18 @@ def estimate(study: Any) -> Outcome[Any]:
     engine = _fork(study)
     from .errors import CausalError
 
+    estimate_engine = engine.estimate
+    if getattr(engine, "_transport", None) is not None:
+        observer = study.execution
+
+        def estimate_engine() -> Any:
+            observer._report_progress(0.0, "estimate")
+            result = engine.estimate()
+            observer._report_progress(1.0, "estimate")
+            return result
+
     try:
-        outcome = capture_outcome(study.execution._call, engine.estimate)
+        outcome = capture_outcome(study.execution._call, estimate_engine)
     except CausalError as error:
         # Keep the same operational exception and traceback, while exposing
         # the public immutable branch rather than its private engine header.
@@ -684,8 +703,7 @@ def _finish_outcome(study: PreparedAnalysis[T], outcome: Outcome[T]) -> Outcome[
             query=study.query,
             graph=declarations.get("graph"),
             columns=table_names(study._data),
-            seed=study.execution.seed,
-            threads=study.execution.threads,
+            execution=study.execution,
             controls=_Controls(
                 cancel=study.execution.cancel,
                 on_progress=study.execution.on_progress,
@@ -1069,6 +1087,9 @@ def reconfigure(study: Any, **declarations: Any) -> Any:
         engine = copy.copy(study._engine)
         if engine._native is not None:
             if engine._transport is not None:
+                from ._transport_lifecycle import refuse_inapplicable_controls
+
+                refuse_inapplicable_controls(policy, threads=False)
                 engine._native = policy._call(engine._native.fork, seed=policy.seed)
             else:
                 engine._native = policy._call(

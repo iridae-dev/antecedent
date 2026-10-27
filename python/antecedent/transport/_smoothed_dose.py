@@ -48,6 +48,7 @@ from ..execution import Execution
 from ..graph import Admg
 from ..learners import Linear, Logistic, _learner_wire
 from ..outcomes import Outcome, capture_outcome
+from ._controls import call_native
 from ._impl import SelectionDiagram
 from ._learned_continuous import EstimatorMenu, _frozen, _menu, _thaw
 
@@ -570,8 +571,7 @@ def consume_smoothed_dose(
     *,
     max_rows: int | None = None,
     max_features: int | None = None,
-    max_memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> SmoothedDoseEstimate:
     """Independently verify an exported grid and replay it.
 
@@ -582,30 +582,28 @@ def consume_smoothed_dose(
     do not enter the point (the seed, the sampling design, support thresholds the stored
     rows still pass) are bound only against unsealed edits.
 
-    ``max_rows`` and ``max_features`` cap the artifact's size; ``max_memory_bytes``
+    ``max_rows`` and ``max_features`` cap the artifact's size; the execution's memory limit
     lowers the mandatory 512 MiB (536,870,912 bytes) cap on the replay workspace estimate (refused with
-    ``CausalResourceError`` before any replay work); ``cancel`` is polled before every
+    ``CausalResourceError`` before any replay work); its cancellation token is polled before every
     quadrature chunk of the replay.
     """
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    for label, value in (
-        ("max_rows", max_rows),
-        ("max_features", max_features),
-        ("max_memory_bytes", max_memory_bytes),
-    ):
+    for label, value in (("max_rows", max_rows), ("max_features", max_features)):
         if value is not None and (
             not isinstance(value, int) or isinstance(value, bool) or value < 0
         ):
             raise CausalValueError(f"{label} must be a non-negative integer or None")
     return _estimate(
-        _native.consume_smoothed_dose(
+        call_native(
+            execution,
+            _native.consume_smoothed_dose,
             artifact,
             max_rows=max_rows,
             max_features=max_features,
-            max_memory_bytes=max_memory_bytes,
-            cancel=cancel,
+            cancel="cancel",
+            memory="max_memory_bytes",
         )
     )
 

@@ -24,10 +24,60 @@ from ._native import (
     Contribution,
     FeatureRelevance,
     MechanismChangeDetection,
-    attribute_paths,
-    mechanism_change_detection,
-    rank_root_causes,
 )
+from .execution import Execution, native_controls
+
+
+def _run(execution: Execution | None, operation: Any, /, *args: Any, **kwargs: Any) -> Any:
+    runner = Execution() if execution is None else execution
+    return runner._call(operation, *args, **kwargs)
+
+
+def _ctl(execution: Execution | None) -> dict[str, Any]:
+    return native_controls(execution, seed="seed", threads="threads")
+
+
+def attribute_paths(
+    names: list[str],
+    columns: Sequence[Any],
+    edges: list[tuple[str, str]],
+    sources: list[str],
+    outcome: str,
+    *,
+    max_paths: int = 64,
+    max_len: int = 16,
+    execution: Execution | None = None,
+) -> ChangeAttributionResult:
+    """Path-wise attribution of ``outcome`` to ``sources`` on a model fitted to the data."""
+    return _run(
+        execution, _native.attribute_paths, names, columns, edges, sources, outcome,
+        max_paths=max_paths, max_len=max_len, **_ctl(execution),
+    )  # fmt: skip
+
+
+def mechanism_change_detection(
+    names: list[str],
+    columns: Sequence[Any],
+    edges: list[tuple[str, str]],
+    baseline_start: int,
+    baseline_end: int,
+    comparison_start: int,
+    comparison_end: int,
+    *,
+    execution: Execution | None = None,
+) -> list[MechanismChangeDetection]:
+    """Two-sample test of each mechanism between a baseline and a comparison row range."""
+    return _run(
+        execution, _native.mechanism_change_detection, names, columns, edges, baseline_start,
+        baseline_end, comparison_start, comparison_end, **_ctl(execution),
+    )  # fmt: skip
+
+
+def rank_root_causes(
+    attribution: ChangeAttributionResult, *, execution: Execution | None = None
+) -> list[Contribution]:
+    """Rank the contributions of a change attribution, largest first."""
+    return _run(execution, _native.rank_root_causes, attribution, **_ctl(execution))
 
 
 @dataclass(frozen=True)
@@ -87,11 +137,12 @@ def _uncertainty(
     *,
     posterior_draws: int,
     bootstrap_replicates: int,
-    seed: int,
-    threads: int | None,
+    execution: Execution | None,
 ) -> AttributionUncertainty:
     raw = json.loads(
-        _native.attribution_uncertainty(
+        _run(
+            execution,
+            _native.attribution_uncertainty,
             list(names),
             list(columns),
             [(str(a), str(b)) for a, b in edges],
@@ -99,8 +150,7 @@ def _uncertainty(
             json.dumps(params),
             posterior_draws=posterior_draws,
             bootstrap_replicates=bootstrap_replicates,
-            seed=seed,
-            threads=threads,
+            **_ctl(execution),
         )
     )
     posterior = raw.get("posterior")
@@ -154,8 +204,7 @@ def attribute_distribution_change(
     comparison_end: int,
     *,
     n_samples: int = 500,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
     posterior_draws: int = 0,
     bootstrap_replicates: int = 0,
     root_causes: bool = False,
@@ -166,9 +215,11 @@ def attribute_distribution_change(
     :class:`AttributionWithUncertainty` (``root_causes=True`` asks for the same quantities as
     the ranked root-cause attribution).
     """
-    point = _native.attribute_distribution_change(
+    point = _run(
+        execution, _native.attribute_distribution_change,
         names, columns, edges, outcome, baseline_start, baseline_end, comparison_start,
-        comparison_end, n_samples=n_samples, seed=seed, threads=threads,
+        comparison_end, n_samples=n_samples,
+        **_ctl(execution),
     )  # fmt: skip
     if not _wants(posterior_draws, bootstrap_replicates):
         return point
@@ -184,7 +235,7 @@ def attribute_distribution_change(
         "root_causes" if root_causes else "distribution_change",
         names, columns, edges, params,
         posterior_draws=posterior_draws, bootstrap_replicates=bootstrap_replicates,
-        seed=seed, threads=threads,
+        execution=execution,
     )  # fmt: skip
     return _combine(point, uncertainty)
 
@@ -200,15 +251,16 @@ def attribute_distribution_change_robust(
     comparison_end: int,
     *,
     n_samples: int = 500,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
     posterior_draws: int = 0,
     bootstrap_replicates: int = 0,
 ) -> Any:
     """Robust distribution-change attribution; see :func:`attribute_distribution_change`."""
-    point = _native.attribute_distribution_change_robust(
+    point = _run(
+        execution, _native.attribute_distribution_change_robust,
         names, columns, edges, outcome, baseline_start, baseline_end, comparison_start,
-        comparison_end, n_samples=n_samples, seed=seed, threads=threads,
+        comparison_end, n_samples=n_samples,
+        **_ctl(execution),
     )  # fmt: skip
     if not _wants(posterior_draws, bootstrap_replicates):
         return point
@@ -225,7 +277,7 @@ def attribute_distribution_change_robust(
         _uncertainty(
             "robust_change", names, columns, edges, params,
             posterior_draws=posterior_draws, bootstrap_replicates=bootstrap_replicates,
-            seed=seed, threads=threads,
+            execution=execution,
         ),
     )  # fmt: skip
 
@@ -242,16 +294,16 @@ def attribute_structure_change(
     comparison_end: int,
     *,
     n_samples: int = 500,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
     posterior_draws: int = 0,
     bootstrap_replicates: int = 0,
 ) -> Any:
     """Structure-change attribution; see :func:`attribute_distribution_change`."""
-    point = _native.attribute_structure_change(
+    point = _run(
+        execution, _native.attribute_structure_change,
         names, columns, baseline_edges, comparison_edges, outcome, baseline_start,
-        baseline_end, comparison_start, comparison_end, n_samples=n_samples, seed=seed,
-        threads=threads,
+        baseline_end, comparison_start, comparison_end, n_samples=n_samples,
+        **_ctl(execution),
     )  # fmt: skip
     if not _wants(posterior_draws, bootstrap_replicates):
         return point
@@ -269,7 +321,7 @@ def attribute_structure_change(
         _uncertainty(
             "structure_change", names, columns, baseline_edges, params,
             posterior_draws=posterior_draws, bootstrap_replicates=bootstrap_replicates,
-            seed=seed, threads=threads,
+            execution=execution,
         ),
     )  # fmt: skip
 
@@ -284,16 +336,17 @@ def attribute_path_specific(
     path_nodes: list[str] | None = None,
     max_paths: int = 64,
     max_len: int = 16,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
     posterior_draws: int = 0,
     bootstrap_replicates: int = 0,
 ) -> Any:
     """Path decomposition of ``treatment`` on ``outcome``; see
     :func:`attribute_distribution_change` for the uncertainty options."""
-    point = _native.attribute_path_specific(
+    point = _run(
+        execution, _native.attribute_path_specific,
         names, columns, edges, treatment, outcome, path_nodes=path_nodes,
-        max_paths=max_paths, max_len=max_len, seed=seed, threads=threads,
+        max_paths=max_paths, max_len=max_len,
+        **_ctl(execution),
     )  # fmt: skip
     if not _wants(posterior_draws, bootstrap_replicates):
         return point
@@ -309,7 +362,7 @@ def attribute_path_specific(
         _uncertainty(
             "paths", names, columns, edges, params,
             posterior_draws=posterior_draws, bootstrap_replicates=bootstrap_replicates,
-            seed=seed, threads=threads,
+            execution=execution,
         ),
     )  # fmt: skip
 
@@ -322,15 +375,15 @@ def attribute_feature_relevance(
     *,
     delta: float = 1.0,
     n_samples: int = 200,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
     posterior_draws: int = 0,
     bootstrap_replicates: int = 0,
 ) -> Any:
     """Interventional feature relevance; see :func:`attribute_distribution_change`."""
-    point = _native.attribute_feature_relevance(
-        names, columns, edges, outcome, delta=delta, n_samples=n_samples, seed=seed,
-        threads=threads,
+    point = _run(
+        execution, _native.attribute_feature_relevance,
+        names, columns, edges, outcome, delta=delta, n_samples=n_samples,
+        **_ctl(execution),
     )  # fmt: skip
     if not _wants(posterior_draws, bootstrap_replicates):
         return point
@@ -340,7 +393,7 @@ def attribute_feature_relevance(
         _uncertainty(
             "feature_relevance", names, columns, edges, params,
             posterior_draws=posterior_draws, bootstrap_replicates=bootstrap_replicates,
-            seed=seed, threads=threads,
+            execution=execution,
         ),
     )  # fmt: skip
 
@@ -352,8 +405,7 @@ def anomaly_attribution(
     outcomes: list[str],
     *,
     max_units: int = 0,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
     posterior_draws: int = 0,
     bootstrap_replicates: int = 0,
 ) -> Any:
@@ -368,7 +420,7 @@ def anomaly_attribution(
         _uncertainty(
             "anomaly", names, columns, edges, params,
             posterior_draws=posterior_draws, bootstrap_replicates=bootstrap_replicates,
-            seed=seed, threads=threads,
+            execution=execution,
         ),
     )  # fmt: skip
 
@@ -380,16 +432,17 @@ def attribute_unit_change(
     outcome: str,
     *,
     max_units: int = 0,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
     posterior_draws: int = 0,
     bootstrap_replicates: int = 0,
 ) -> Any:
     """Unit-level change attribution; the uncertainty is that of each input's mean
     contribution. See :func:`attribute_distribution_change`."""
-    point = _native.attribute_unit_change(
-        names, columns, edges, outcome, max_units=max_units, seed=seed, threads=threads
-    )
+    point = _run(
+        execution, _native.attribute_unit_change,
+        names, columns, edges, outcome, max_units=max_units,
+        **_ctl(execution),
+    )  # fmt: skip
     if not _wants(posterior_draws, bootstrap_replicates):
         return point
     params = {"outcome": outcome, "max_units": max_units}
@@ -398,7 +451,7 @@ def attribute_unit_change(
         _uncertainty(
             "unit_change", names, columns, edges, params,
             posterior_draws=posterior_draws, bootstrap_replicates=bootstrap_replicates,
-            seed=seed, threads=threads,
+            execution=execution,
         ),
     )  # fmt: skip
 
@@ -412,8 +465,7 @@ def attribution_uncertainty(
     *,
     posterior_draws: int = 0,
     bootstrap_replicates: int = 0,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> AttributionUncertainty:
     """The uncertainty of an attribution of ``kind`` (``distribution_change``,
     ``root_causes``, ``robust_change``, ``structure_change``, ``paths``, ``feature_relevance``,
@@ -423,7 +475,7 @@ def attribution_uncertainty(
     return _uncertainty(
         kind, names, columns, edges, params,
         posterior_draws=posterior_draws, bootstrap_replicates=bootstrap_replicates,
-        seed=seed, threads=threads,
+        execution=execution,
     )  # fmt: skip
 
 
@@ -438,8 +490,7 @@ def attribute_root_causes(
     comparison_end: int,
     *,
     n_samples: int = 500,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
     posterior_draws: int = 0,
     bootstrap_replicates: int = 0,
 ) -> Any:
@@ -448,11 +499,13 @@ def attribute_root_causes(
     Without an uncertainty option this returns the ranked contributions; with one it returns an
     :class:`AttributionWithUncertainty` whose ``result`` is that ranking.
     """
-    attribution = _native.attribute_distribution_change(
+    attribution = _run(
+        execution, _native.attribute_distribution_change,
         names, columns, edges, outcome, baseline_start, baseline_end, comparison_start,
-        comparison_end, n_samples=n_samples, seed=seed, threads=threads,
+        comparison_end, n_samples=n_samples,
+        **_ctl(execution),
     )  # fmt: skip
-    ranks = _native.rank_root_causes(attribution, seed=seed, threads=threads)
+    ranks = _run(execution, _native.rank_root_causes, attribution, **_ctl(execution))
     if not _wants(posterior_draws, bootstrap_replicates):
         return ranks
     params = {
@@ -468,7 +521,7 @@ def attribute_root_causes(
         _uncertainty(
             "root_causes", names, columns, edges, params,
             posterior_draws=posterior_draws, bootstrap_replicates=bootstrap_replicates,
-            seed=seed, threads=threads,
+            execution=execution,
         ),
     )  # fmt: skip
 

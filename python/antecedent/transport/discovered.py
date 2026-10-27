@@ -85,6 +85,7 @@ from .._refusal import raise_refusal
 from .._scientific import ScientificResult
 from .._validate import count
 from ..errors import CausalTypeError, CausalValueError, StructuredRefusal
+from ..execution import Execution
 from ..selective_discovery import (
     Outcome,
     RunReport,
@@ -95,6 +96,7 @@ from ..selective_discovery import (
     _outcome,
     _report,
 )
+from ._controls import call_native
 
 __all__ = [
     "DiscoveredTransport",
@@ -386,8 +388,7 @@ def discover_and_transport(
     target_population: str = "target",
     source_experiments: Sequence[str] = (),
     member_bound: int | None = None,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DiscoveredTransport:
     """Discover on ``data`` under ``contract``, then request the envelope across its class.
 
@@ -416,17 +417,18 @@ def discover_and_transport(
     )
     targets = _target_ids(names, selection_targets)
     bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
-    envelope_text, transport_refusal, discovery_text, discovery_refusal = (
-        _native.discovered_transport_run(
-            json.dumps(contract.to_wire(), sort_keys=True),
-            list(names),
-            _columns(contract, data),
-            query,
-            targets,
-            bound,
-            threads=threads,
-            cancel=cancel,
-        )
+    envelope_text, transport_refusal, discovery_text, discovery_refusal = call_native(
+        execution,
+        _native.discovered_transport_run,
+        json.dumps(contract.to_wire(), sort_keys=True),
+        list(names),
+        _columns(contract, data),
+        query,
+        targets,
+        bound,
+        cancel="cancel",
+        memory=None,
+        threads="threads",
     )
     raise_refusal(discovery_refusal, SelectiveDiscoveryRefusal)
     assert discovery_text is not None
@@ -530,8 +532,7 @@ def estimate_discovered_transport(
     target_population: str = "target",
     member_bound: int | None = None,
     bootstrap_replicates: int = 0,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DiscoveredTransportEstimate:
     """Discover on ``source``, enumerate the class, and estimate the transported response.
 
@@ -564,19 +565,20 @@ def estimate_discovered_transport(
     targets = _target_ids(names, selection_targets)
     bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
     replicates = count(bootstrap_replicates, "bootstrap_replicates", minimum=0)
-    estimate_text, refusal, discovery_text, discovery_refusal, artifact = (
-        _native.discovered_transport_estimate_run(
-            json.dumps(contract.to_wire(), sort_keys=True),
-            list(names),
-            _columns(contract, source),
-            _columns(contract, target),
-            query,
-            targets,
-            bound,
-            replicates,
-            threads=threads,
-            cancel=cancel,
-        )
+    estimate_text, refusal, discovery_text, discovery_refusal, artifact = call_native(
+        execution,
+        _native.discovered_transport_estimate_run,
+        json.dumps(contract.to_wire(), sort_keys=True),
+        list(names),
+        _columns(contract, source),
+        _columns(contract, target),
+        query,
+        targets,
+        bound,
+        replicates,
+        cancel="cancel",
+        memory=None,
+        threads="threads",
     )
     raise_refusal(discovery_refusal, SelectiveDiscoveryRefusal)
     assert discovery_text is not None
@@ -625,7 +627,9 @@ def _estimate_of(
     resumable=False,
     identity=(),
 )
-def verify_discovered_transport_estimate(artifact: bytes, *, seed: int = 0) -> VerifiedEstimate:
+def verify_discovered_transport_estimate(
+    artifact: bytes, *, execution: Execution | None = None
+) -> VerifiedEstimate:
     """Replay an exported estimate and return the answer it recomputes.
 
     Every member's transport grid is consumed with its embedded proof and tables, the mean at
@@ -638,7 +642,14 @@ def verify_discovered_transport_estimate(artifact: bytes, *, seed: int = 0) -> V
     if not isinstance(artifact, (bytes, bytearray)):
         raise CausalTypeError("artifact must be bytes")
     wire = json.loads(
-        _native.verify_discovered_transport_estimate_artifact(bytes(artifact), seed=seed)
+        call_native(
+            execution,
+            _native.verify_discovered_transport_estimate_artifact,
+            bytes(artifact),
+            cancel=None,
+            memory=None,
+            seed="seed",
+        )
     )
     return VerifiedEstimate(
         answer=_answer(wire["answer"]),
@@ -848,8 +859,7 @@ def estimate_discovered_temporal_transport(
     member_bound: int | None = None,
     bootstrap_replicates: int = 0,
     block_length: int | None = None,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DiscoveredTransportEstimate:
     """Discover on the ``source`` series, unroll the class at ``horizon_steps`` and estimate.
 
@@ -884,22 +894,23 @@ def estimate_discovered_temporal_transport(
     bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
     replicates = count(bootstrap_replicates, "bootstrap_replicates", minimum=0)
     block = None if block_length is None else count(block_length, "block_length", minimum=1)
-    estimate_text, refusal, discovery_text, discovery_refusal, artifact = (
-        _native.discovered_temporal_transport_estimate_run(
-            json.dumps(contract.to_wire(), sort_keys=True),
-            list(names),
-            _columns(contract, source),
-            _columns(contract, target),
-            query,
-            _target_ids(names, selection_targets),
-            steps,
-            window,
-            bound,
-            replicates,
-            block,
-            threads=threads,
-            cancel=cancel,
-        )
+    estimate_text, refusal, discovery_text, discovery_refusal, artifact = call_native(
+        execution,
+        _native.discovered_temporal_transport_estimate_run,
+        json.dumps(contract.to_wire(), sort_keys=True),
+        list(names),
+        _columns(contract, source),
+        _columns(contract, target),
+        query,
+        _target_ids(names, selection_targets),
+        steps,
+        window,
+        bound,
+        replicates,
+        block,
+        cancel="cancel",
+        memory=None,
+        threads="threads",
     )
     raise_refusal(discovery_refusal, SelectiveDiscoveryRefusal)
     assert discovery_text is not None

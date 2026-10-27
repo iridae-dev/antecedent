@@ -215,6 +215,47 @@ ranked.gate.rejected      # ids that failed the gate and were left out of the va
 A candidate without a plan under `prior=` raises `CausalValueError` ("needs a
 plan"). Identifiability is a gate, not a score: it never mixes into the value.
 
+## Binding a ranking to a prepared study, and previewing it
+
+Pass a prepared study as `study=` to bind the ranking to that study's identification contract. A
+plan that leaves the study structurally unidentified is reported as an `unlicensed_candidate`
+violation, is never scored, and keeps the position it was declared at. `decision_target=` must name
+the study's own target digest. `design.preview_ranking(study, plans, prior=...)` reads the same
+obligations and violations without scoring or fitting anything.
+
+```python
+import numpy as np
+import antecedent as ant
+from antecedent import design
+
+n = 120
+z = np.sin(np.arange(n) / 7.0)
+t = (z + np.cos(np.arange(n) / 5.0) > 0).astype(float)
+study = ant.prepare(
+    {"t": t, "y": 1.0 + 2.0 * t + 0.5 * z, "z": z},
+    graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    query=ant.AverageEffect("t", "y"),
+    refute="none",
+    inference=ant.Frequentist(bootstrap=0),
+    execution=ant.Execution(seed=3),
+)
+prior = design.StructurePrior((3.0, 1.0), (True, False), (1, 2))
+plans = [design.Sampling(1, id="unchanged"), design.Measurement((5,), id="unlock")]
+
+preview = design.preview_ranking(study, plans, prior=prior, variable_unlocks={0: [5]})
+print([o.id for o in preview.obligations])
+print(preview.unidentified_mass, [(v.id, v.constraint) for v in preview.violations])
+
+ranked = design.rank_designs(plans, prior=prior, variable_unlocks={0: [5]}, study=study)
+print(ranked.candidate("unlock").score, [v.id for v in ranked.violations])
+```
+
+The preview lists the declared check obligations (`design.update_rule` and the others), the
+unidentified mass of the structure prior, and the plans the objective cannot score; `unresolved`
+says that a required utility cannot be evaluated and a ranking would be incomplete. Previewing a
+study without an identification product, or an identification ranking whose structure prior
+renormalizes the identified mass of the study's contract, is refused.
+
 ## Reading a value ranking
 
 Each `CandidateValue` has `evsi`, `evpi` (the upper bound), `net_value` (when a

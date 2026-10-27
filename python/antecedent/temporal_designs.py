@@ -74,6 +74,7 @@ from antecedent._temporal_design import (
     TwoArmExcursion,
 )
 from antecedent.errors import CausalValueError
+from antecedent.execution import Execution, resolve_execution
 
 __all__ = [
     "DoseExcursion",
@@ -157,8 +158,7 @@ def estimate_temporal_design(
     n_draws: int | None = None,
     prior_scale: float = 10.0,
     bootstrap: int | None = None,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> TemporalDesignResult:
     """Estimate the excursion contrasts of a sequentially randomized design, or regime survival.
 
@@ -169,6 +169,7 @@ def estimate_temporal_design(
     (at least 99); every
     other design refuses it.
     """
+    execution = resolve_execution(execution)
     if inference not in ("frequentist", "bayesian"):
         raise CausalValueError(
             "inference must be 'frequentist' or 'bayesian'", reason_code="invalid_argument"
@@ -215,11 +216,11 @@ def estimate_temporal_design(
             int(misclassification[2]),
             int(misclassification[3]),
         ),
-        seed=seed,
-        threads=threads,
+        seed=execution.seed,
+        threads=execution.threads,
         options=options,
     )
-    result = prepared.estimate(names, columns, seed=seed, threads=threads)
+    result = prepared.estimate(names, columns, seed=execution.seed, threads=execution.threads)
     section = result.temporal_design
     if section is None:
         raise CausalValueError(

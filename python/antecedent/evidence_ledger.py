@@ -70,6 +70,7 @@ from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 from .outcomes import outcome_operation
 
 __all__ = [
@@ -914,7 +915,7 @@ class EvidenceLedger(ScientificResult):
         *,
         covariance: Sequence[float] | None = None,
         replaces: str | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> SynthesisOutcome:
         """Pool the summaries of two or more studies.
 
@@ -923,6 +924,7 @@ class EvidenceLedger(ScientificResult):
         cross terms or the sources are known and disjoint, and is preserved by generalized least
         squares. Point-only.
         """
+        execution = resolve_execution(execution)
         request = {
             "label": label,
             "summaries": [s.to_wire() for s in summaries],
@@ -938,7 +940,9 @@ class EvidenceLedger(ScientificResult):
         )
         return _outcome(
             _unwrap(
-                self._handle.pool_summaries(_dumps(request), _dumps(dependence), cancel=cancel)
+                self._handle.pool_summaries(
+                    _dumps(request), _dumps(dependence), cancel=execution.cancel
+                )
             ),
             ledger=self,
         )
@@ -951,7 +955,7 @@ class EvidenceLedger(ScientificResult):
         *,
         method: str = "dersimonian_laird",
         replaces: str | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> SynthesisOutcome:
         """Pool independent study estimates about a common population mean.
 
@@ -963,13 +967,14 @@ class EvidenceLedger(ScientificResult):
         Independence requires known disjoint observations. This call is point-only;
         :meth:`pooled_interval` requires evidence for the exact interval method.
         """
+        execution = resolve_execution(execution)
         request = {
             "label": label,
             "summaries": [s.to_wire() for s in summaries],
             "replaces": replaces,
         }
         return _outcome(
-            _unwrap(self._handle.random_effects(_dumps(request), method, cancel=cancel)),
+            _unwrap(self._handle.random_effects(_dumps(request), method, cancel=execution.cancel)),
             ledger=self,
         )
 
@@ -983,7 +988,7 @@ class EvidenceLedger(ScientificResult):
         tau_prior: TauPrior,
         priors: Sequence[str] = (),
         replaces: str | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> SynthesisOutcome:
         """Hierarchical normal-normal borrowing with a declared finite prior on ``tau``.
 
@@ -991,6 +996,7 @@ class EvidenceLedger(ScientificResult):
         disjoint from them (a prior built from the likelihood's own data is double counting).
         Point-only: a posterior mean and variance, not a calibrated interval.
         """
+        execution = resolve_execution(execution)
         request = {
             "label": label,
             "priors": _ids(priors, "prior"),
@@ -1000,7 +1006,7 @@ class EvidenceLedger(ScientificResult):
             "replaces": replaces,
         }
         return _outcome(
-            _unwrap(self._handle.hierarchical_borrowing(_dumps(request), cancel=cancel)),
+            _unwrap(self._handle.hierarchical_borrowing(_dumps(request), cancel=execution.cancel)),
             ledger=self,
         )
 
@@ -1013,7 +1019,7 @@ class EvidenceLedger(ScientificResult):
         rho_lo: float,
         rho_hi: float,
         replaces: str | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> SynthesisOutcome:
         """The pooled estimate and variance as a common pairwise correlation ranges over
         ``[rho_lo, rho_hi]``: exact extremes, labelled an assumption range.
@@ -1021,6 +1027,7 @@ class EvidenceLedger(ScientificResult):
         Never a point, interval or posterior, and it does not turn unknown dependence into
         independence.
         """
+        execution = resolve_execution(execution)
         request = {
             "label": label,
             "studies": [s.to_wire() for s in studies],
@@ -1029,7 +1036,8 @@ class EvidenceLedger(ScientificResult):
             "replaces": replaces,
         }
         return _outcome(
-            _unwrap(self._handle.dependence_range(_dumps(request), cancel=cancel)), ledger=self
+            _unwrap(self._handle.dependence_range(_dumps(request), cancel=execution.cancel)),
+            ledger=self,
         )
 
     def transport_claim(

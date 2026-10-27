@@ -63,6 +63,7 @@ from ._artifact_protocol import (
 from ._columns import coerce_fields
 from ._validate import count, names, text
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
+from .execution import Execution, resolve_execution
 from .graph import Admg, Dag
 from .joint_distribution import ScientificQuantity
 from .transport._impl import EvidenceCatalog
@@ -678,13 +679,14 @@ class ZTransportContract:
     failure_snapshot: bytes
     max_steps: int = 100_000
     max_depth: int = 256
-    memory_bytes: int | None = None
+    execution: Execution | None = field(default=None, repr=False, compare=False)
     _stage: Any = field(init=False, repr=False, compare=False, default=None)
 
     def __post_init__(self) -> None:
         names = _names(self.names, "names", allow_empty=False)
         if not isinstance(self.failure_snapshot, bytes):
             raise CausalTypeError("failure_snapshot must be bytes from a z-transport stage")
+        execution = resolve_execution(self.execution)
         coerce_fields(self, names=names)
         coerce_fields(
             self,
@@ -694,7 +696,7 @@ class ZTransportContract:
                 self.failure_snapshot,
                 max_steps=_count(self.max_steps, "max_steps"),
                 max_depth=_count(self.max_depth, "max_depth"),
-                memory_bytes=self.memory_bytes,
+                memory_bytes=execution.limits.memory_bytes,
             ),
         )
 
@@ -705,13 +707,18 @@ class ZTransportContract:
         *,
         catalog: EvidenceCatalog,
         names: Sequence[str],
+        execution: Execution | None = None,
     ) -> ZTransportContract:
         """Use the actual identification stage's checked failure snapshot."""
         if not callable(getattr(identification, "failure_snapshot", None)):
             raise CausalTypeError("from_identification requires a z-transport identification stage")
         if not isinstance(catalog, EvidenceCatalog):
             raise CausalTypeError("catalog must be EvidenceCatalog")
-        return cls(names=names, failure_snapshot=bytes(identification.failure_snapshot(catalog)))
+        return cls(
+            names=names,
+            failure_snapshot=bytes(identification.failure_snapshot(catalog)),
+            execution=execution,
+        )
 
     @property
     def family(self) -> str:
@@ -1388,14 +1395,13 @@ class RepairLimits:
     """Declared bounds of the subset search.
 
     ``max_operations`` bounds the subsets evaluated, ``max_depth`` the largest
-    subset size (at most four) and ``memory_bytes`` the live-state memory. A bound
-    that stops the search is reported as ``exhausted`` with every unevaluated
+    subset size (at most four). The live-state memory limit belongs to the
+    ``Execution`` the search runs under. A bound that stops the search is reported as ``exhausted`` with every unevaluated
     subset listed; subsets beyond ``max_depth`` are never examined and say so.
     """
 
     max_operations: int = 4096
     max_depth: int = 3
-    memory_bytes: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1664,7 +1670,7 @@ def repair(
     objective: Literal["minimize_cost", "minimize_sample_budget"] = "minimize_cost",
     limits: RepairLimits | None = None,
     *,
-    cancel: CancelToken | None = None,
+    execution: Execution | None = None,
 ) -> RepairResult:
     """Which candidates, singly or in bounded subsets, repair the failed contract.
 
@@ -1698,14 +1704,15 @@ def repair(
     if objective not in _OBJECTIVES:
         raise CausalValueError(f"objective must be one of {', '.join(_OBJECTIVES)}")
     limits = RepairLimits() if limits is None else limits
+    execution = resolve_execution(execution)
     stage = _call(
         contract._stage.repair,
         json.dumps([c._wire() for c in candidates]),
         objective,
         max_operations=_count(limits.max_operations, "max_operations"),
         max_depth=_count(limits.max_depth, "max_depth"),
-        memory_bytes=limits.memory_bytes,
-        cancel=cancel,
+        memory_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
     return RepairResult(stage)
 
@@ -1715,8 +1722,7 @@ def consume(
     *,
     max_operations: int = _CONSUME_MAX_OPERATIONS,
     max_depth: int = _CONSUME_MAX_DEPTH,
-    memory_bytes: int | None = None,
-    cancel: CancelToken | None = None,
+    execution: Execution | None = None,
 ) -> RepairResult:
     """Independently replay an exported repair report and return it.
 
@@ -1732,6 +1738,7 @@ def consume(
     honestly, nor does it check that arriving studies will deliver their declared
     evidence.
     """
+    execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
@@ -1740,8 +1747,8 @@ def consume(
         artifact,
         max_operations=_count(max_operations, "max_operations"),
         max_depth=_count(max_depth, "max_depth"),
-        memory_bytes=memory_bytes,
-        cancel=cancel,
+        memory_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
     return RepairResult(stage)
 

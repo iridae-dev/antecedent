@@ -5,18 +5,16 @@ Rust and Python expose the **same capabilities** with idiomatic shapes on each s
 
 ## The shape
 
-The day-1 workflow has five verbs:
+The day-1 lifecycle is one immutable chain: prepare, estimate, branch, export.
 
-- `analyze(data, graph=..., query=...)` — identify, then estimate, retaining a reusable study on ordinary prepared routes.
-- `prepare(data, graph=..., query=...)` — stop after preparation; call `.estimate()` on retained data.
-- `load(result.export())` — consume a portable execution through semantic verification.
-- `identify(graph=..., query=...)` — identify only; returns a staged
-  `Identification` that can continue into `.estimate(data)`; then call `result.refute(...)`
-  while retaining the resolved strategy and query. The one-shot execution
-  pipeline deterministically rechecks identification before estimation.
-- `estimate(identification, data, ...)` — the module-level mirror of
-  `Identification.estimate`, for callers that already hold a staged
-  `Identification`.
+- `prepare(data, graph=..., query=..., inference=..., execution=...)` — validate, identify and own the inputs; nothing is fitted. Returns an immutable prepared study (`study.inspect()`, `study.report()`).
+- `estimate(study)` — execute once and return a typed `Outcome` (`.value`, `.answer`, `.inspect()`, `.export()`, `.refusal`). The study is unchanged, so executing it again gives an independent outcome.
+- `rebind(study, data=...)` / `reconfigure(study, ...)` — branch a new immutable study on new observations or new declarations; `branch.reuse` names what was retained or invalidated.
+- `analyze(data, ...)` — the one-shot `estimate(prepare(...))`; the outcome retains its study as `outcome.study`.
+- `load(artifact, expected=...)` — consume a portable execution through semantic verification.
+- `identify(graph=..., query=...)` — identify only; the staged `Identification` continues with `.prepare(data, ...)` or the one-shot `.estimate(data, ...)`.
+
+Scientific declarations go in `inference=Frequentist(...)` / `Bayesian(...)` (bootstrap or draws, `profile=`); seed, threads, cancellation, resource limits and observers go in one reusable `execution=Execution(...)`. A valid question that the declared structure cannot answer returns an `Outcome` with a typed `refusal` (or, with `on_refusal="describe"`, the same refusal beside a labelled `associational` outcome and an `evidence_plan`); invalid arguments and operational failures raise.
 
 The root namespace (`import antecedent`) has an explicit `__all__` contract. Specialized families live on their stage modules; the namespace tests check the exported names directly.
 Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
@@ -70,7 +68,7 @@ response-family queries
 (`AnomalyAttribution` with its `AnomalyReference`, `ChangeAttribution`) plus the
 design query (`InterferenceQuery`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
 `TemporalDag`); the inference / identifier / estimator / latency / refute selectors
-(`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`);
+(`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`, with `Execution` and `ResourceLimits` for the execution policy);
 the structural mass type `ClassPrior`; the two
 error names most callers catch (`CausalError`, `ReviewRequired`); the root-exported stage
 modules themselves; and `__version__`.
@@ -194,8 +192,8 @@ Discovery algorithms follow the same rule: what used to be sixteen free
 `run()` (and, where a holdable graph artifact makes sense, `.accept()`):
 
 ```python
-result = antecedent.discovery.PC(alpha=0.05).run(data, seed=1)
-accepted = antecedent.discovery.PC(alpha=0.05).accept(data, seed=1)  # -> AcceptedGraph
+result = antecedent.discovery.PC(alpha=0.05).run(data, execution=antecedent.Execution(seed=1))
+accepted = antecedent.discovery.PC(alpha=0.05).accept(data, execution=antecedent.Execution(seed=1))  # -> AcceptedGraph
 ```
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the

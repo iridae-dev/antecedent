@@ -21,6 +21,9 @@ def query_phrase(query: object) -> str:
         if mediators:
             via = ", ".join(str(item) for item in mediators)
             return f"{name} of {outcome} from {treatment} via {via}"
+        modifiers = getattr(query, "modifiers", None)
+        if modifiers:
+            return f"{name} of {outcome} from {treatment} given {', '.join(modifiers)}"
         modifier = getattr(query, "modifier", None)
         if isinstance(modifier, str):
             return f"{name} of {outcome} from {treatment} given {modifier}"

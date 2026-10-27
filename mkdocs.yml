@@ -73,6 +73,8 @@ nav:
     - Configured batches and batch retarget: guides/batch-retarget.md
     - Cross-fitted DML scores and retarget covariance: guides/dml-scores.md
     - Staleness and drift diagnostics: guides/staleness.md
+    - Retained refresh and state publication: guides/retained-refresh.md
+    - Structural estimands from a fitted model: guides/gcm-estimands.md
     - Plan view: guides/plan-view.md
     - Readable report: guides/report.md
     - Sequentially randomized designs and regime survival: guides/temporal-designs.md
@@ -114,6 +116,7 @@ nav:
     - Decisions: decisions.md
     - Decisions, design, repair and estimator breadth: decisions-breadth.md
     - Design ranking: design-ranking.md
+    - Mixed-evidence decisions: guides/mixed-decisions.md
     - Power and sample size: guides/power-and-sample-size.md
     - Sensitivity and robustness: sensitivity-and-robustness.md
     - Transport and counterfactuals: transport-counterfactuals.md

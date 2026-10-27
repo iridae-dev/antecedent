@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from ._data import as_columns
-from ._native import fit_gcm_accepted
+from .counterfactual import _fit_gcm_accepted
 from .discovery import (
     FCI,
     GES,
@@ -23,6 +23,7 @@ from .discovery import (
     discovery_to_dag,
     run_static_discovery,
 )
+from .execution import Execution
 from .graph_falsification import GraphFalsification, MarkovImplicationTest, evaluate_graph
 from .intrinsic_influence import (
     ComponentUncertainty,
@@ -35,22 +36,21 @@ from .intrinsic_influence import (
 )
 
 
-def _run_static_discovery(data, discovery, *, seed: int, threads: int | None):
+def _run_static_discovery(data, discovery, *, execution: Execution | None):
     if isinstance(discovery, (FCI, RFCI)):
         algo = "fci" if isinstance(discovery, FCI) else "rfci"
         raise ValueError(
             f"{algo}: fit_gcm_discovered requires a fully oriented DAG; "
             "use PC/GES/LiNGAM/NOTEARS, or orient the PAG and call fit_gcm directly"
         )
-    return run_static_discovery(data, discovery, seed=seed, threads=threads)
+    return run_static_discovery(data, discovery, execution=execution)
 
 
 def fit_gcm_discovered(
     data: Any,
     *,
     discovery: PC | GES | LiNGAM | NOTEARS,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ):
     """Discover structure, accept it as a DAG through the review gate, then fit.
 
@@ -60,11 +60,11 @@ def fit_gcm_discovered(
     attribution on it carries ``structure_provenance.*`` (method, inference, query,
     data snapshot, program and claim) — attribution does not discover.
     """
-    result, _algo = _run_static_discovery(data, discovery, seed=seed, threads=threads)
+    result, _algo = _run_static_discovery(data, discovery, execution=execution)
     dag = discovery_to_dag(result)
     names, columns = as_columns(data)
     edges = list(dag.edges())
-    fitted, _accepted_edges = fit_gcm_accepted(names, columns, result, threads=threads)
+    fitted, _accepted_edges = _fit_gcm_accepted(names, columns, result, execution=execution)
     return fitted, edges
 
 
@@ -76,8 +76,7 @@ def attribute_paths_discovered(
     outcome: str,
     max_paths: int = 64,
     max_len: int = 16,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ):
     """``fit_gcm_discovered`` then ``FittedGcm.attribute_paths``. Returns ``(result, graph_edges)``.
 
@@ -86,14 +85,13 @@ def attribute_paths_discovered(
     function, which would otherwise silently re-fit the GCM from scratch —
     ``fit_gcm_discovered`` already paid for one fit; this reuses it.
     """
-    fitted, edges = fit_gcm_discovered(data, discovery=discovery, seed=seed, threads=threads)
+    fitted, edges = fit_gcm_discovered(data, discovery=discovery, execution=execution)
     result = fitted.attribute_paths(
         list(sources),
         outcome,
         max_paths=max_paths,
         max_len=max_len,
-        seed=seed,
-        threads=threads,
+        execution=execution,
     )
     return result, edges
 
@@ -104,15 +102,14 @@ def anomaly_attribution_discovered(
     discovery: PC | GES | LiNGAM | NOTEARS,
     outcomes: Sequence[str],
     max_units: int = 0,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ):
     """``fit_gcm_discovered`` then ``FittedGcm.anomaly_attribution``. Returns ``(result, graph_edges)``.
 
     See :func:`attribute_paths_discovered` for why this calls the fitted
     model's own method rather than the module-level free function.
     """
-    fitted, edges = fit_gcm_discovered(data, discovery=discovery, seed=seed, threads=threads)
+    fitted, edges = fit_gcm_discovered(data, discovery=discovery, execution=execution)
     result = fitted.anomaly_attribution(list(outcomes), max_units=max_units)
     return result, edges
 
@@ -127,15 +124,14 @@ def attribute_distribution_change_discovered(
     comparison_start: int,
     comparison_end: int,
     n_samples: int = 500,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ):
     """Compose discover → DAG → ``FittedGcm.attribute_distribution_change``.
 
     See :func:`attribute_paths_discovered` for why this calls the fitted
     model's own method rather than the module-level free function.
     """
-    fitted, edges = fit_gcm_discovered(data, discovery=discovery, seed=seed, threads=threads)
+    fitted, edges = fit_gcm_discovered(data, discovery=discovery, execution=execution)
     result = fitted.attribute_distribution_change(
         outcome,
         baseline_start,
@@ -143,8 +139,7 @@ def attribute_distribution_change_discovered(
         comparison_start,
         comparison_end,
         n_samples=n_samples,
-        seed=seed,
-        threads=threads,
+        execution=execution,
     )
     return result, edges
 

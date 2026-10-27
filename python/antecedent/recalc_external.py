@@ -25,6 +25,7 @@ from ._artifact_protocol import (
 from ._recalc_bounds import _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
+from .execution import Execution
 from .external import BoundExternalClaim, ExternalSpec, ProviderObject, Response
 from .outcomes import outcome_operation
 from .program_claims import ProgramBinding
@@ -33,6 +34,8 @@ from .recalc import (
     RecalcReceipt,
     RecalcRefusal,
     SessionStanding,
+    _execution,
+    _native_controls,
     _seed,
     session_standing,
 )
@@ -204,18 +207,18 @@ class ExternalCallbackSession:
         request: ExternalCallbackRequest,
         *,
         provider: CallbackProvider | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcPlan:
-        names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
-        )
-        result, error = self._handle.plan(
+        run = _execution(execution)
+        limit, cancel = run.limits.memory_bytes, run.cancel
+        names, columns = _columns(request.data, memory_limit_bytes=limit, cancel=cancel)
+        result, error = run._call(
+            self._handle.plan,
             names,
             columns,
             request._wire(),
             provider is not None,
-            memory_limit_bytes=memory_limit_bytes,
+            memory_limit_bytes=limit,
             cancel=cancel,
         )
         raise_refusal(error, ExternalCallbackRefusal)
@@ -228,21 +231,21 @@ class ExternalCallbackSession:
         request: ExternalCallbackRequest,
         *,
         provider: CallbackProvider | None = None,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> ExternalCallbackResult:
+        run = _execution(execution)
+        # The posterior stream is the request's declared seed, not the execution's.
+        ctl = {k: v for k, v in _native_controls(run).items() if k != "seed"}
         names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
         )
-        wire, receipt, claim, error = self._handle.execute(
+        wire, receipt, claim, error = run._call(
+            self._handle.execute,
             names,
             columns,
             request._wire(),
             None if provider is None else provider._handle,
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            **ctl,
         )
         raise_refusal(error, ExternalCallbackRefusal)
         if wire is None or receipt is None or claim is None:
@@ -268,19 +271,19 @@ class ExternalCallbackSession:
         artifact: bytes,
         request: ExternalCallbackRequest,
         *,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> ExternalCallbackSession:
+        run = _execution(execution)
+        limit, cancel = run.limits.memory_bytes, run.cancel
         artifact = container_bytes(artifact)
-        names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
-        )
-        handle, error = _native.ExternalCallbackSessionHandle.resume(
+        names, columns = _columns(request.data, memory_limit_bytes=limit, cancel=cancel)
+        handle, error = run._call(
+            _native.ExternalCallbackSessionHandle.resume,
             artifact,
             names,
             columns,
             request._wire(),
-            memory_limit_bytes=memory_limit_bytes,
+            memory_limit_bytes=limit,
             cancel=cancel,
         )
         raise_refusal(error, ExternalCallbackRefusal)

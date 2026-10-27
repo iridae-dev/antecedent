@@ -41,6 +41,28 @@ class TransportLifecycle:
         return self.wrap(native, raw)
 
 
+def refuse_inapplicable_controls(execution: Any, *, threads: bool) -> None:
+    """Refuse the physical controls a transport route cannot honour, before any work.
+
+    Cancellation and the memory limit reach the native transport engines; ``on_progress``
+    reports the start and end of each estimate. Transport engines stream no stages, and only
+    the typed provider families run a worker pool, so ``on_stage`` and (elsewhere) ``threads``
+    are typed refusals instead of being dropped.
+    """
+    if execution.on_stage is not None:
+        raise CausalUnsupportedError(
+            "Execution.on_stage does not apply to transport queries: transport engines stream "
+            "no stages (use on_progress, which reports the start and end of each estimate)",
+            reason_code="option_not_applicable",
+        )
+    if execution.threads is not None and not threads:
+        raise CausalUnsupportedError(
+            "Execution.threads does not apply to this transport query: only the typed exact, "
+            "statistical and response-grid transport queries run a worker pool",
+            reason_code="option_not_applicable",
+        )
+
+
 def transport_lifecycle(kind: str) -> TransportLifecycle | None:
     from .transport._impl import (
         _exact_distribution,

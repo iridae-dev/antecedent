@@ -28,7 +28,7 @@ from .discovery import (
     run_temporal_discovery,
 )
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, PendingEdge
-from .execution import Execution
+from .execution import Execution, native_controls
 from .graph import (
     Admg,
     Cpdag,
@@ -289,15 +289,14 @@ class AcceptedGraph:
         data: Any,
         discovery: _SingleTableDiscovery,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
     ) -> AcceptedGraph:
         """User-triggered rediscovery; never called by estimate / prepare."""
         if isinstance(discovery, (PCMCI, PCMCIPlus, LPCMCI)):
-            result, algo = run_temporal_discovery(data, discovery, seed=seed, threads=threads)
+            result, algo = run_temporal_discovery(data, discovery, execution=execution)
             graph: _GraphTypes = _result_to_temporal_graph(result, algo)
         else:
-            result, algo = run_static_discovery(data, discovery, seed=seed, threads=threads)
+            result, algo = run_static_discovery(data, discovery, execution=execution)
             graph = _result_to_graph(result, algo)
         return AcceptedGraph(
             graph,
@@ -494,8 +493,7 @@ def accept_discovery(
     config: _AnyDiscovery,
     data: Any,
     *,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
     accept_discovered: bool = True,
     regimes: Sequence[int] | None = None,
 ) -> AcceptedGraph:
@@ -543,8 +541,11 @@ def accept_discovery(
         from ._data import as_columns
         from ._native import accept_rpcmci
 
+        execution_policy = Execution() if execution is None else execution
+
         names, columns = as_columns(data)
-        graph = accept_rpcmci(
+        graph = execution_policy._call(
+            accept_rpcmci,
             names,
             columns,
             regimes=[int(r) for r in regimes],
@@ -552,8 +553,7 @@ def accept_discovery(
             alpha=config.alpha,
             fdr=config.fdr,
             ci=config.ci if isinstance(config.ci, str) else None,
-            seed=seed,
-            threads=threads,
+            **native_controls(execution_policy, seed="seed", threads="threads", cancel="cancel"),
             max_cond_size=config.max_cond_size,
             accept_discovered=accept_discovered,
         )
@@ -569,14 +569,13 @@ def accept_discovery(
             names, env_columns = list(data.names), [list(cols) for cols in data.unit_columns]
         else:
             names, env_columns = as_multi_env_columns(list(data))
-        result = config.run(names, env_columns, seed=seed, threads=threads)
+        result = config.run(names, env_columns, execution=execution)
     else:
         from ._coerce import discovery_table
 
         result = config.run(
             discovery_table(data, temporal=isinstance(config, (PCMCI, PCMCIPlus, LPCMCI))),
-            seed=seed,
-            threads=threads,
+            execution=execution,
         )
     accept = getattr(result, "accepted_graph", None)
     if accept is None:

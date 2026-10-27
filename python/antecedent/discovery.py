@@ -100,7 +100,7 @@ from ._native import (
 )
 from ._validate import count as _count
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
-from .execution import Execution
+from .execution import Execution, native_controls
 
 # Re-exported. The definitions live in `graph`, a leaf importing only `_native` and
 # `errors`, so `_coerce` can reach `cpdag_oriented_edges` without importing this module.
@@ -111,6 +111,42 @@ if TYPE_CHECKING:
     from .graph import Dag
 
 CiSpec = str | Callable[..., Sequence[tuple[float, float]]]
+
+# Natives that cannot observe a cancellation token directly; the execution's ambient
+# policy still reaches them through ``Execution._call``.
+_NATIVE_WITHOUT_CANCEL = frozenset(
+    {
+        "discover_exact_dag_posterior",
+        "discover_pag_mcmc",
+        "discover_exact_pag_posterior",
+        "discover_exact_dag_marginals",
+        "discover_order_mcmc",
+        "discover_structure_mcmc",
+        "discover_ci_screened_posterior",
+        "discover_dbn_posterior",
+    }
+)
+
+
+def _run_native(
+    execution: Execution | None, native: Callable[..., Any], /, *args: Any, **kwargs: Any
+) -> Any:
+    """Run one native discovery under ``execution``'s seed, threads, cancellation and policy."""
+    policy = Execution() if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    controls = native_controls(
+        policy,
+        seed="seed",
+        threads="threads",
+        cancel=None if native.__name__ in _NATIVE_WITHOUT_CANCEL else "cancel",
+    )
+    if callable(kwargs.get("ci")):
+        # A Python test callback is serialized to one worker by the native entry; the
+        # ambient execution policy would replace that parallelism, so the controls are
+        # passed directly and the run is not entered under the ambient policy.
+        return native(*args, **controls, **kwargs)
+    return policy._call(native, *args, **controls, **kwargs)
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,16 +334,16 @@ class PC:
             self.knowledge,
         )
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
+    def run(self, data: Any, *, execution: Execution | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
         with _named_positions(names):
-            return _discover_pc(
+            return _run_native(
+                execution,
+                _discover_pc,
                 names,
                 cols,
                 alpha=self.alpha,
                 fdr=self.fdr,
-                seed=seed,
-                threads=threads,
                 ci=self.ci,
                 max_cond_size=self.max_cond_size,
                 **_knowledge_kwargs(self.knowledge, names),
@@ -317,8 +353,7 @@ class PC:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -327,8 +362,7 @@ class PC:
         return accept_discovery(
             self,
             data,
-            seed=seed,
-            threads=threads,
+            execution=execution,
             accept_discovered=accept_discovered,
         )
 
@@ -362,23 +396,22 @@ class PCMCI:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
         names, cols, unit_lengths = coerce_temporal_data(data)
         with _named_positions(names):
-            return _discover_pcmci(
+            return _run_native(
+                execution,
+                _discover_pcmci,
                 names,
                 cols,
                 unit_lengths=unit_lengths,
                 max_lag=self.max_lag,
                 alpha=self.alpha,
                 fdr=self.fdr,
-                seed=seed,
                 ci=self.ci,
                 weights=weights,
-                threads=threads,
                 max_cond_size=self.max_cond_size,
                 **_knowledge_kwargs(self.knowledge, names),
             )
@@ -387,8 +420,7 @@ class PCMCI:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -397,8 +429,7 @@ class PCMCI:
         return accept_discovery(
             self,
             data,
-            seed=seed,
-            threads=threads,
+            execution=execution,
             accept_discovered=accept_discovered,
         )
 
@@ -436,23 +467,22 @@ class PCMCIPlus:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
         names, cols, unit_lengths = coerce_temporal_data(data)
         with _named_positions(names):
-            return _discover_pcmci_plus(
+            return _run_native(
+                execution,
+                _discover_pcmci_plus,
                 names,
                 cols,
                 unit_lengths=unit_lengths,
                 max_lag=self.max_lag,
                 alpha=self.alpha,
                 fdr=self.fdr,
-                seed=seed,
                 ci=self.ci,
                 weights=weights,
-                threads=threads,
                 max_cond_size=self.max_cond_size,
                 **_knowledge_kwargs(self.knowledge, names),
             )
@@ -461,8 +491,7 @@ class PCMCIPlus:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -471,8 +500,7 @@ class PCMCIPlus:
         return accept_discovery(
             self,
             data,
-            seed=seed,
-            threads=threads,
+            execution=execution,
             accept_discovered=accept_discovered,
         )
 
@@ -502,22 +530,21 @@ class LPCMCI:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
         names, cols, unit_lengths = coerce_temporal_data(data)
-        return _discover_lpcmci(
+        return _run_native(
+            execution,
+            _discover_lpcmci,
             names,
             cols,
             unit_lengths=unit_lengths,
             max_lag=self.max_lag,
             alpha=self.alpha,
             fdr=self.fdr,
-            seed=seed,
             ci=self.ci,
             weights=weights,
-            threads=threads,
             max_cond_size=self.max_cond_size,
         )
 
@@ -525,8 +552,7 @@ class LPCMCI:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -535,8 +561,7 @@ class LPCMCI:
         return accept_discovery(
             self,
             data,
-            seed=seed,
-            threads=threads,
+            execution=execution,
             accept_discovered=accept_discovered,
         )
 
@@ -579,8 +604,7 @@ class JPCMCIPlus:
         names: list[str],
         env_columns: Sequence[Sequence[Any]],
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         weights: list[float] | None = None,
     ) -> PcmciDiscoveryResult:
         """Multi-environment discovery: takes ``names``/``env_columns`` directly.
@@ -593,16 +617,16 @@ class JPCMCIPlus:
         ``env_columns`` with :func:`antecedent._data.as_multi_env_columns` or
         :func:`antecedent.data.multi_env`.
         """
-        return _discover_jpcmci_plus(
+        return _run_native(
+            execution,
+            _discover_jpcmci_plus,
             list(names),
             [list(cols) for cols in env_columns],
             max_lag=self.max_lag,
             alpha=self.alpha,
             fdr=self.fdr,
-            seed=seed,
             ci=self.ci,
             weights=weights,
-            threads=threads,
             context_names=list(self.context_names) if self.context_names else None,
             include_space_dummy=self.include_space_dummy,
             include_time_dummy=self.include_time_dummy,
@@ -616,8 +640,7 @@ class JPCMCIPlus:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -626,8 +649,7 @@ class JPCMCIPlus:
         return accept_discovery(
             self,
             data,
-            seed=seed,
-            threads=threads,
+            execution=execution,
             accept_discovered=accept_discovered,
         )
 
@@ -663,8 +685,7 @@ class RPCMCI:
         data: Any,
         *,
         regimes: Sequence[int],
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         weights: list[float] | None = None,
     ) -> RpcmciDiscoverySummary:
         """``regimes`` is required (length = series length); no silent half-split.
@@ -672,17 +693,17 @@ class RPCMCI:
         Call ``two_regime_half_split(len(series))`` for an explicit two-regime mid-point split.
         """
         names, cols = coerce_data(data, temporal=True)
-        return _discover_rpcmci(
+        return _run_native(
+            execution,
+            _discover_rpcmci,
             names,
             cols,
             regimes=list(regimes),
             max_lag=self.max_lag,
             alpha=self.alpha,
             fdr=self.fdr,
-            seed=seed,
             ci=self.ci,
             weights=weights,
-            threads=threads,
             max_cond_size=self.max_cond_size,
         )
 
@@ -691,8 +712,7 @@ class RPCMCI:
         data: Any,
         *,
         regimes: Sequence[int] | None = None,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate.
@@ -704,8 +724,7 @@ class RPCMCI:
         return accept_discovery(
             self,
             data,
-            seed=seed,
-            threads=threads,
+            execution=execution,
             accept_discovered=accept_discovered,
             regimes=regimes,
         )
@@ -736,16 +755,16 @@ class GES:
             self.knowledge,
         )
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
+    def run(self, data: Any, *, execution: Execution | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
         with _named_positions(names):
-            return _discover_ges(
+            return _run_native(
+                execution,
+                _discover_ges,
                 names,
                 cols,
                 alpha=self.alpha,
                 fdr=self.fdr,
-                seed=seed,
-                threads=threads,
                 ci=self.ci,
                 max_cond_size=self.max_cond_size,
                 screen_pc=self.screen_pc,
@@ -757,8 +776,7 @@ class GES:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -767,8 +785,7 @@ class GES:
         return accept_discovery(
             self,
             data,
-            seed=seed,
-            threads=threads,
+            execution=execution,
             accept_discovered=accept_discovered,
         )
 
@@ -791,23 +808,22 @@ class LiNGAM:
             "ci": "parcorr",
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
+    def run(self, data: Any, *, execution: Execution | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
-        return _discover_lingam(
+        return _run_native(
+            execution,
+            _discover_lingam,
             names,
             cols,
             prune_threshold=self.prune_threshold,
-            seed=seed,
             max_cond_size=self.max_cond_size,
-            threads=threads,
         )
 
     def accept(
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -816,8 +832,7 @@ class LiNGAM:
         return accept_discovery(
             self,
             data,
-            seed=seed,
-            threads=threads,
+            execution=execution,
             accept_discovered=accept_discovered,
         )
 
@@ -868,17 +883,17 @@ class NOTEARS:
             wire["missing"] = self.missing
         return wire
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
+    def run(self, data: Any, *, execution: Execution | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
-        return _discover_notears(
+        return _run_native(
+            execution,
+            _discover_notears,
             names,
             cols,
             l1=self.l1,
             threshold=self.threshold,
             standardize=self.standardize,
-            seed=seed,
             max_cond_size=self.max_cond_size,
-            threads=threads,
             missing=self.missing,
         )
 
@@ -886,8 +901,7 @@ class NOTEARS:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -896,8 +910,7 @@ class NOTEARS:
         return accept_discovery(
             self,
             data,
-            seed=seed,
-            threads=threads,
+            execution=execution,
             accept_discovered=accept_discovered,
         )
 
@@ -925,16 +938,16 @@ class FCI:
             self.knowledge,
         )
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
+    def run(self, data: Any, *, execution: Execution | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
         with _named_positions(names):
-            return _discover_fci(
+            return _run_native(
+                execution,
+                _discover_fci,
                 names,
                 cols,
                 alpha=self.alpha,
                 fdr=self.fdr,
-                seed=seed,
-                threads=threads,
                 ci=self.ci,
                 max_cond_size=self.max_cond_size,
                 **_knowledge_kwargs(self.knowledge, names),
@@ -944,8 +957,7 @@ class FCI:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -954,8 +966,7 @@ class FCI:
         return accept_discovery(
             self,
             data,
-            seed=seed,
-            threads=threads,
+            execution=execution,
             accept_discovered=accept_discovered,
         )
 
@@ -983,16 +994,16 @@ class RFCI:
             self.knowledge,
         )
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
+    def run(self, data: Any, *, execution: Execution | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
         with _named_positions(names):
-            return _discover_rfci(
+            return _run_native(
+                execution,
+                _discover_rfci,
                 names,
                 cols,
                 alpha=self.alpha,
                 fdr=self.fdr,
-                seed=seed,
-                threads=threads,
                 ci=self.ci,
                 max_cond_size=self.max_cond_size,
                 **_knowledge_kwargs(self.knowledge, names),
@@ -1002,8 +1013,7 @@ class RFCI:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -1012,8 +1022,7 @@ class RFCI:
         return accept_discovery(
             self,
             data,
-            seed=seed,
-            threads=threads,
+            execution=execution,
             accept_discovered=accept_discovered,
         )
 
@@ -1086,12 +1095,12 @@ class ExactDagPosterior:
         return {"algorithm": "exact_dag_posterior"}
 
     def run(
-        self, data: Any, *, seed: int = 1, threads: int | None = None
+        self, data: Any, *, execution: Execution | None = None
     ) -> GraphPosterior | ExactDagMarginals:
         names, cols = coerce_data(data)
         if len(names) <= EXACT_ENUMERATION_MAX_VARIABLES:
-            return _discover_exact_dag_posterior(names, cols, seed=seed, threads=threads)
-        flat, log_evidence = _discover_exact_dag_marginals(names, cols, seed=seed, threads=threads)
+            return _run_native(execution, _discover_exact_dag_posterior, names, cols)
+        flat, log_evidence = _run_native(execution, _discover_exact_dag_marginals, names, cols)
         n = len(names)
         matrix = tuple(tuple(flat[i * n : (i + 1) * n]) for i in range(n))
         return ExactDagMarginals(list(names), n, log_evidence, matrix)
@@ -1118,9 +1127,9 @@ class ExactPagPosterior:
     def _wire(self) -> dict[str, Any]:
         return {"algorithm": "exact_pag_posterior"}
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
+    def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
         names, cols = coerce_data(data)
-        return _discover_exact_pag_posterior(names, cols, seed=seed, threads=threads)
+        return _run_native(execution, _discover_exact_pag_posterior, names, cols)
 
 
 @dataclass(frozen=True)
@@ -1154,17 +1163,17 @@ class PagMcmc:
             "thin": self.thin,
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
+    def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
         names, cols = coerce_data(data)
-        return _discover_pag_mcmc(
+        return _run_native(
+            execution,
+            _discover_pag_mcmc,
             names,
             cols,
             n_chains=self.n_chains,
             n_warmup=self.n_warmup,
             n_draws=self.n_draws,
             thin=self.thin,
-            seed=seed,
-            threads=threads,
         )
 
 
@@ -1207,9 +1216,11 @@ class OrderMcmc:
             **({} if self.noise == "gaussian" else {"noise": self.noise}),
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
+    def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
         names, cols = coerce_data(data)
-        return _discover_order_mcmc(
+        return _run_native(
+            execution,
+            _discover_order_mcmc,
             names,
             cols,
             noise=self.noise,
@@ -1218,8 +1229,6 @@ class OrderMcmc:
             n_draws=self.n_draws,
             thin=self.thin,
             require_diagnostics_gate=self.require_diagnostics_gate,
-            seed=seed,
-            threads=threads,
             max_parents=self.max_parents,
         )
 
@@ -1254,17 +1263,17 @@ class StructureMcmc:
             **({} if self.max_parents is None else {"max_parents": self.max_parents}),
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
+    def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
         names, cols = coerce_data(data)
-        return _discover_structure_mcmc(
+        return _run_native(
+            execution,
+            _discover_structure_mcmc,
             names,
             cols,
             n_chains=self.n_chains,
             n_warmup=self.n_warmup,
             n_draws=self.n_draws,
             thin=self.thin,
-            seed=seed,
-            threads=threads,
             max_parents=self.max_parents,
         )
 
@@ -1298,9 +1307,11 @@ class CiScreenedPosterior:
             "thin": self.thin,
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
+    def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
         names, cols = coerce_data(data)
-        return _discover_ci_screened_posterior(
+        return _run_native(
+            execution,
+            _discover_ci_screened_posterior,
             names,
             cols,
             alpha=self.alpha,
@@ -1312,8 +1323,6 @@ class CiScreenedPosterior:
             n_warmup=self.n_warmup,
             n_draws=self.n_draws,
             thin=self.thin,
-            seed=seed,
-            threads=threads,
         )
 
 
@@ -1350,9 +1359,11 @@ class DbnPosterior:
             "mcmc_draws": self.n_draws,
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
+    def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
         names, cols, unit_lengths = coerce_temporal_data(data)
-        return _discover_dbn_posterior(
+        return _run_native(
+            execution,
+            _discover_dbn_posterior,
             names,
             cols,
             unit_lengths=unit_lengths,
@@ -1361,8 +1372,6 @@ class DbnPosterior:
             n_chains=self.n_chains,
             n_warmup=self.n_warmup,
             n_draws=self.n_draws,
-            seed=seed,
-            threads=threads,
         )
 
 
@@ -1406,11 +1415,13 @@ class EquivalenceClassPosterior:
     def _wire(self) -> dict[str, Any]:
         return {"algorithm": "class_posterior", "base": self.base._wire()}
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
+    def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
         base = self.base
         if isinstance(base, DbnPosterior):
             names, cols, unit_lengths = coerce_temporal_data(data)
-            return _discover_dbn_posterior(
+            return _run_native(
+                execution,
+                _discover_dbn_posterior,
                 names,
                 cols,
                 unit_lengths=unit_lengths,
@@ -1419,8 +1430,6 @@ class EquivalenceClassPosterior:
                 n_chains=base.n_chains,
                 n_warmup=base.n_warmup,
                 n_draws=base.n_draws,
-                seed=seed,
-                threads=threads,
                 equivalence_classes=True,
             )
         names, cols = coerce_data(data)
@@ -1432,11 +1441,13 @@ class EquivalenceClassPosterior:
                     "Next attempt: use OrderMcmc or StructureMcmc as base",
                     reason_code="option_not_applicable",
                 )
-            return _discover_exact_dag_posterior(
-                names, cols, seed=seed, threads=threads, equivalence_classes=True
+            return _run_native(
+                execution, _discover_exact_dag_posterior, names, cols, equivalence_classes=True
             )
         if isinstance(base, OrderMcmc):
-            return _discover_order_mcmc(
+            return _run_native(
+                execution,
+                _discover_order_mcmc,
                 names,
                 cols,
                 n_chains=base.n_chains,
@@ -1445,13 +1456,13 @@ class EquivalenceClassPosterior:
                 thin=base.thin,
                 require_diagnostics_gate=base.require_diagnostics_gate,
                 **({} if base.max_parents is None else {"max_parents": base.max_parents}),
-                seed=seed,
-                threads=threads,
                 equivalence_classes=True,
                 noise=base.noise,
             )
         if isinstance(base, StructureMcmc):
-            return _discover_structure_mcmc(
+            return _run_native(
+                execution,
+                _discover_structure_mcmc,
                 names,
                 cols,
                 n_chains=base.n_chains,
@@ -1459,11 +1470,11 @@ class EquivalenceClassPosterior:
                 n_draws=base.n_draws,
                 thin=base.thin,
                 **({} if base.max_parents is None else {"max_parents": base.max_parents}),
-                seed=seed,
-                threads=threads,
                 equivalence_classes=True,
             )
-        return _discover_ci_screened_posterior(
+        return _run_native(
+            execution,
+            _discover_ci_screened_posterior,
             names,
             cols,
             alpha=base.alpha,
@@ -1475,8 +1486,6 @@ class EquivalenceClassPosterior:
             n_warmup=base.n_warmup,
             n_draws=base.n_draws,
             thin=base.thin,
-            seed=seed,
-            threads=threads,
             equivalence_classes=True,
         )
 
@@ -1540,8 +1549,7 @@ class BootstrapStability:
         self,
         data: Any,
         *,
-        seed: int = 1,
-        threads: int | None = None,
+        execution: Execution | None = None,
         regimes: Sequence[int] | None = None,
     ) -> StructureStabilityResult | RegimeStabilityResult:
         """Re-run the search and tabulate what it returned.
@@ -1559,10 +1567,12 @@ class BootstrapStability:
                 "re-entered once per resample. Next attempt: pass the test by name",
                 reason_code="option_not_applicable",
             )
-        common: dict[str, Any] = {"replicates": self.replicates, "seed": seed, "threads": threads}
+        common: dict[str, Any] = {"replicates": self.replicates}
         if isinstance(base, JPCMCIPlus):
             names, env_columns = data
-            return _discover_jpcmci_plus_stability(
+            return _run_native(
+                execution,
+                _discover_jpcmci_plus_stability,
                 list(names),
                 [list(cols) for cols in env_columns],
                 max_lag=base.max_lag,
@@ -1580,7 +1590,9 @@ class BootstrapStability:
                     reason_code="required_option_missing",
                 )
             names, cols = coerce_data(data, temporal=True)
-            return _discover_rpcmci_stability(
+            return _run_native(
+                execution,
+                _discover_rpcmci_stability,
                 names,
                 cols,
                 regimes=list(regimes),
@@ -1594,7 +1606,9 @@ class BootstrapStability:
         if isinstance(base, (PCMCI, PCMCIPlus, LPCMCI)):
             names, cols, unit_lengths = coerce_temporal_data(data)
             with _named_positions(names):
-                return _discover_bootstrap_stability(
+                return _run_native(
+                    execution,
+                    _discover_bootstrap_stability,
                     names,
                     cols,
                     base="lpcmci"
@@ -1613,7 +1627,9 @@ class BootstrapStability:
                 )
         names, cols = coerce_data(data)
         if isinstance(base, LiNGAM):
-            return _discover_bootstrap_stability(
+            return _run_native(
+                execution,
+                _discover_bootstrap_stability,
                 names,
                 cols,
                 base="direct_lingam",
@@ -1622,7 +1638,9 @@ class BootstrapStability:
                 **common,
             )
         if isinstance(base, NOTEARS):
-            return _discover_bootstrap_stability(
+            return _run_native(
+                execution,
+                _discover_bootstrap_stability,
                 names,
                 cols,
                 base="notears",
@@ -1637,7 +1655,9 @@ class BootstrapStability:
         if isinstance(base, GES):
             extra = {"screen_pc": base.screen_pc, "max_subset": base.max_subset}
         with _named_positions(names):
-            return _discover_bootstrap_stability(
+            return _run_native(
+                execution,
+                _discover_bootstrap_stability,
                 names,
                 cols,
                 base=base.kind,
@@ -1722,6 +1742,7 @@ def discover(
         regimes=regimes,
         seed=policy.seed,
         threads=policy.threads,
+        execution=policy,
         controls=_Controls(
             cancel=policy.cancel,
             on_progress=policy.on_progress,
@@ -1734,8 +1755,7 @@ def run_static_discovery(
     data: Any,
     discovery: StaticDiscovery,
     *,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> tuple[DiscoveryResult, str]:
     """Dispatch a static discovery config to its ``run()``.
 
@@ -1744,20 +1764,19 @@ def run_static_discovery(
     """
     if not isinstance(discovery, _STATIC_DISCOVERY_TYPES):
         raise CausalTypeError(f"unsupported static discovery type: {type(discovery)!r}")
-    return discovery.run(data, seed=seed, threads=threads), discovery.algorithm_id
+    return discovery.run(data), discovery.algorithm_id
 
 
 def run_temporal_discovery(
     data: Any,
     discovery: TemporalDiscovery,
     *,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> tuple[DiscoveryResult, str]:
     """Dispatch a PCMCI-family discovery config to its ``run()``."""
     if not isinstance(discovery, _TEMPORAL_DISCOVERY_TYPES):
         raise CausalTypeError(f"unsupported temporal discovery type: {type(discovery)!r}")
-    return discovery.run(data, seed=seed, threads=threads), discovery.algorithm_id
+    return discovery.run(data), discovery.algorithm_id
 
 
 def discovery_algorithm(discovery: Any) -> dict[str, Any]:

@@ -20,13 +20,13 @@ and no interference. Staggered adoption and missing waves are refused by this
 query; repeated cross sections use its explicit sampling mode.
 
 The retained route serves balanced panels and repeated cross sections through
-`result.panel_did`. It defaults to subject clusters and accepts an optional
+`result.value.panel_did`. It defaults to subject clusters and accepts an optional
 higher-level cluster column. `estimate_group_time_att` uses the same cluster
 score contract for post-adoption cohort-period contrasts.
 
 `antecedent.prepare(data, query=StaggeredAdoption(..., event_study=True))` and
 `antecedent.analyze(...)` retain all cohort-specific event-time contrasts in
-one native `Study`. The result's `panel_did.effects` holds the full curve,
+one native `Study`. The result value's `panel_did.effects` holds the full curve,
 including descriptive pre-adoption contrasts.
 It uses the immediately
 pre-adoption period (`g - 1`) as the reference and cohort 0 as the never-treated
@@ -39,13 +39,13 @@ from antecedent.quasi import StaggeredAdoption
 
 query = StaggeredAdoption("outcome", "subject", "period", "cohort", event_study=True)
 result = antecedent.analyze(data, query=query)
-effects = result.panel_did.effects
+effects = result.value.panel_did.effects
 ```
 
 The retained result and artifact bind the subject, cohort, period, and cluster
-vectors. A prepared analysis requires the same design rows on refresh. The
+vectors. A prepared analysis requires the same design rows on rebind. The
 top-level scalar is the first post-adoption contrast in cohort/period order;
-the full event study is `result.panel_did.effects`.
+the full event study is `result.value.panel_did.effects`.
 
 Supported post-adoption contrasts have separate pointwise 95% cluster intervals
 when each side has at least 24 independent clusters and a positive standard

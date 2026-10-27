@@ -56,6 +56,7 @@ from ._native import (
     verify_callback_recovery,
 )
 from .errors import CausalUnsupportedError, CausalValueError
+from .execution import Execution
 from .intervention_programs import Program, _programs
 from .intervention_programs import _text as _program_text
 
@@ -515,15 +516,14 @@ def sample_do(
     *,
     interventions: Mapping[str, float] | None = None,
     shifts: Mapping[str, float] | None = None,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Interventional draws from a fitted model with callback programs applied.
 
     Each program's callback runs once for the whole batch of ``n`` draws, after the variables it
     reads are computed. ``interventions`` and ``shifts`` are as in ``FittedGcm.sample_do``; a
     node given two directives is refused (``policy_directive_conflict``). Draws are a function of
-    ``seed`` and the callbacks.
+    the execution's seed and the callbacks.
     """
     programs = tuple(programs)
     for program in programs:
@@ -533,8 +533,7 @@ def sample_do(
         dict(interventions or {}),
         n,
         shifts=None if shifts is None else dict(shifts),
-        seed=seed,
-        threads=threads,
+        execution=execution,
         programs=[program._native() for program in programs],
     )
 

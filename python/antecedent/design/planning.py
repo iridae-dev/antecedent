@@ -44,6 +44,7 @@ from typing import Any, Literal
 
 from .. import _native
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution, native_controls
 from .plans import Experiment, Sampling
 
 __all__ = [
@@ -845,8 +846,7 @@ def plan_experiment(
     goal: Goal,
     *,
     simulation: Simulation | None = None,
-    threads: int = 1,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PlanningResult:
     """Compile and solve a plan; simulate it when ``simulation`` is declared.
 
@@ -856,8 +856,14 @@ def plan_experiment(
     pool cannot hold.
     """
     request = _request(design, assumptions, criterion, goal, simulation)
-    threads = _integer(threads, "threads", minimum=1)
-    return _result(json.loads(_native.plan_experiment_py(request, threads, cancel)))
+    execution = Execution() if execution is None else execution
+    controls = native_controls(execution, threads="threads", cancel="cancel")
+    threads = 1 if controls["threads"] is None else controls["threads"]
+    return _result(
+        json.loads(
+            execution._call(_native.plan_experiment_py, request, threads, controls["cancel"])
+        )
+    )
 
 
 def sample_size(
@@ -867,7 +873,7 @@ def sample_size(
     *,
     max_units: int = 10_000_000,
     simulation: Simulation | None = None,
-    threads: int = 1,
+    execution: Execution | None = None,
 ) -> PlanningResult:
     """Smallest size whose criterion (default 80 percent power) reaches its target."""
     return plan_experiment(
@@ -876,7 +882,7 @@ def sample_size(
         Power() if criterion is None else criterion,
         SampleSize(max_units),
         simulation=simulation,
-        threads=threads,
+        execution=execution,
     )
 
 
@@ -887,7 +893,7 @@ def operating_characteristics(
     criterion: Criterion | None = None,
     *,
     simulation: Simulation | None = None,
-    threads: int = 1,
+    execution: Execution | None = None,
 ) -> PlanningResult:
     """The criterion (default power) of the design at ``units`` randomization units."""
     return plan_experiment(
@@ -896,7 +902,7 @@ def operating_characteristics(
         Power() if criterion is None else criterion,
         Evaluate(units),
         simulation=simulation,
-        threads=threads,
+        execution=execution,
     )
 
 
@@ -907,7 +913,7 @@ def minimum_detectable_effect(
     power: float = 0.8,
     *,
     simulation: Simulation | None = None,
-    threads: int = 1,
+    execution: Execution | None = None,
 ) -> PlanningResult:
     """Smallest effect detected with ``power`` at ``units``; read it from ``result.effect``."""
     return plan_experiment(
@@ -916,7 +922,7 @@ def minimum_detectable_effect(
         Power(power),
         MinimumDetectableEffect(units),
         simulation=simulation,
-        threads=threads,
+        execution=execution,
     )
 
 

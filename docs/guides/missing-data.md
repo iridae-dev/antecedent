@@ -6,9 +6,9 @@ what happened to the rows.
 
 ```python
 result = ant.analyze(data, query=query, missing="complete_case")
-result.missing_data.policy         # "complete_case"
-result.missing_data.assumption     # the assumption the policy needs
-result.missing_data.accounting     # rows total / kept / dropped, per variable, per reason
+result.value.missing_data.policy         # "complete_case"
+result.value.missing_data.assumption     # the assumption the policy needs
+result.value.missing_data.accounting     # rows total / kept / dropped, per variable, per reason
 ```
 
 ## Defaults and policies
@@ -189,7 +189,7 @@ a Student t with the Barnard-Rubin degrees of freedom when the estimator has a f
 complete-data degrees of freedom (`n − p` for linear adjustment), Rubin's large-sample
 degrees of freedom otherwise. Bayesian fits are stacked: the posterior draws of every
 completed table form one equal-weight mixture, and the between-imputation variance of the
-per-table posterior means is reported as its own axis. `result.missing_data.imputation`
+per-table posterior means is reported as its own axis. `result.value.missing_data.imputation`
 carries the specification, the unit the parameter draws resampled, the cells imputed per
 variable, every table's estimate and the variance components; the claim carries the
 specification and the pooled components among its evidence, and the specification enters the

@@ -670,7 +670,7 @@ class _PrepareRoute:
                 self.columns,
                 query.treatment,
                 query.outcome,
-                query.modifier,
+                list(query.modifiers),
                 control_level=query.control_level,
                 active_level=query.active_level,
                 outcome_functional=coerce_outcome_functional(
@@ -2225,7 +2225,7 @@ class _PrepareRoute:
             [] if class_graph else _static_edges(graph),
             query.treatment,
             query.outcome,
-            query.modifier,
+            list(query.modifiers),
             graph=graph if class_graph else None,
             control_level=query.control_level,
             active_level=query.active_level,
@@ -2917,7 +2917,7 @@ def _check_quantile_functional(
     ):
         raise CausalUnsupportedError(
             "quantiles require Frequentist AllObserved AIPW AverageEffect, binary "
-            "ConditionalEffect with one modifier, or cell-AIPW joint response; use prepare + "
+            "ConditionalEffect (one modifier or a modifier set), or cell-AIPW joint response; use prepare + "
             "retarget for score-table target weights",
             reason_code="route_not_supported",
         )

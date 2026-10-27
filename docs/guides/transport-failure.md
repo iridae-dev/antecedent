@@ -11,7 +11,7 @@ A not-certified transport outcome is a conservative refusal, not a proof of impo
 | Theorem-scoped impossibility | `ident.certificate["identification_status"] == "proven_non_transportable"` | Combined complementary sources in [the meta-grid example](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/transport_meta_grid.py) |
 | Missing evidence | `ident.inspect().support`, `answer.kind="unavailable"` | Full vs partial catalog in the same meta-grid example |
 | Local support / positivity | `result.support` | Fixture family `transport_support_local` |
-| Uncalibrated / unavailable interval | `result.calibration`, `inspect().uncertainty` | Exact law (no interval) beside [statistical bootstrap](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/rust/transport_statistical.rs) |
+| Uncalibrated / unavailable interval | `result.inspect().calibration`, `inspect().uncertainty` | Exact law (no interval) beside [statistical bootstrap](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/rust/transport_statistical.rs) |
 | Budget exhaustion | raised `transport.identification_budget`, or a stage whose `identification_status` is `budget_cancel` | Same query under default `SidLimits`; fixture `transport_budget_refusal` |
 
 ## Not certified
@@ -86,7 +86,7 @@ stored proof against the original diagram and query before reporting leaves.
 catalog. `delta.preview(catalog)` makes a temporary structural preview for
 re-identification; the source catalog and its prepared analyses retain their
 original evidence status. A preview has no data snapshot, so actual results
-must enter through the ordinary prepare and refresh path.
+must enter through the ordinary prepare and rebind path.
 
 ## Local support / positivity
 
@@ -106,7 +106,7 @@ assignment on the same grid.
 
 Exact supplied laws report no sampling interval. The empirical-table
 `StudyBuilder` path publishes a pointwise percentile bootstrap that is
-nominal unless a coverage record is bound. Read `result.calibration` and
+nominal unless a coverage record is bound. Read `result.inspect().calibration` and
 `inspect().uncertainty`. Do not infer coverage from a parent estimator name.
 
 ## Budget exhaustion

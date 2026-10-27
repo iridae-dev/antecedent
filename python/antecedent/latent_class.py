@@ -60,6 +60,7 @@ from ._native import evaluate_latent_class_effects as _evaluate
 from ._refusal import raise_refusal
 from ._validate import count, non_finite_refusal, real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "LatentClass",
@@ -511,10 +512,10 @@ def consume_latent_class_artifact(
     artifact: bytes,
     *,
     expected_identity: LatentClassIdentity | Mapping[str, str] | None = None,
-    memory_limit_bytes: int | None = None,
     outcome: Any = None,
     treatment: Any = None,
     covariates: Any = None,
+    execution: Execution | None = None,
 ) -> LatentClassEffects:
     """Refit an exported latent-class artifact and accept only an identical one.
 
@@ -527,12 +528,13 @@ def consume_latent_class_artifact(
     Corruption and unknown major versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
 
-    ``memory_limit_bytes`` bounds the refit's planned working set
+    ``execution.limits.memory_bytes`` bounds the refit's planned working set
     (``latent_class.memory_budget_exceeded``). An artifact exported with
     ``data_binding="digest"`` holds no rows: pass ``outcome``, ``treatment`` and ``covariates``
     (the dataset it was fitted on); any other dataset is refused (``IdentityMismatch``, ``data``)
     and omitting it refuses with ``latent_class.data_required``.
     """
+    execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
@@ -558,7 +560,7 @@ def consume_latent_class_artifact(
             "covariates need outcome and treatment", reason_code="invalid_argument"
         )
     report, refusal = _consume(
-        data, expected_json, memory_limit_bytes=memory_limit_bytes, data=supplied
+        data, expected_json, memory_limit_bytes=execution.limits.memory_bytes, data=supplied
     )
     raise_refusal(refusal, LatentClassRefusal)
     if report is None:  # pragma: no cover - the native contract

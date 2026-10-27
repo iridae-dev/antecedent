@@ -18,7 +18,7 @@ from antecedent.temporal_designs import TwoArmExcursion
 result = antecedent.analyze(
     table, query=TwoArmExcursion("y", "unit", "period", assignment="a", probability="p", lag=1)
 )
-result.temporal_design  # TemporalDesignEstimate
+result.value.temporal_design  # TemporalDesignEstimate
 ```
 
 `TwoArmExcursion`, `MultiArmExcursion` (one probability column per arm), `FactorialExcursion`,
@@ -28,7 +28,7 @@ result.temporal_design  # TemporalDesignEstimate
 structured (`unlicensed_temporal_design_<uncertainty>`), and `load(result.export())`
 reads back an equal `temporal_design`. `TemporalDesignEstimate.bootstrap_standard_error` is the
 whole-procedure bootstrap standard deviation (frequentist regime survival and the quantile
-functional); `posterior_standard_deviation` is set for a Bayesian result. A refreshed table must
+functional); `posterior_standard_deviation` is set for a Bayesian result. A rebound table must
 repeat the units, periods and recorded assignment law.
 
 ## The excursion target

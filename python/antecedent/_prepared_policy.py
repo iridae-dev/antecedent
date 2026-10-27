@@ -145,8 +145,7 @@ class PreparedPolicyAnalysis:
         value = policy.value(
             query.outcome,
             n=query.n_draws,
-            seed=self.execution.seed,
-            threads=self.execution.threads,
+            execution=self.execution,
         )
         conditional = tuple(
             f"{route} licence: {decision.assumption}"

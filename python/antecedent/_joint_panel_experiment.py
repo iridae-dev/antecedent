@@ -17,7 +17,9 @@ from ._artifact_protocol import (
     artifact_from_receipt,
     container_bytes,
 )
+from ._panel_execution import run_panel
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution
 
 
 def acceptance_matrix() -> dict[str, Any]:
@@ -55,7 +57,7 @@ def condition(
     mapping: str,
     prior_origins: Sequence[str] = (),
     functional: Any = "terminal_mean",
-    **execution: Any,
+    execution: Execution | None = None,
 ) -> PanelExperiment:
     from .evidence_ledger import EvidenceLedger
     from .scientific_bridge import BridgeContract
@@ -77,8 +79,11 @@ def condition(
         "prior_origins": list(prior_origins),
     }
     return PanelExperiment(
-        handle.condition_experiment(
-            json.dumps(declaration, allow_nan=False), ledger._handle, **execution
+        run_panel(
+            execution,
+            handle.condition_experiment,
+            json.dumps(declaration, allow_nan=False),
+            ledger._handle,
         )
     )
 
@@ -99,8 +104,9 @@ def condition_native(
     binding_json = json.dumps(dict(binding), allow_nan=False)
 
     class BoundNativeTarget:
-        def condition_experiment(self, payload: str, ledger: Any, **execution: Any) -> Any:
-            return handle.condition_native_experiment(binding_json, payload, ledger, **execution)
+        def condition_experiment(self, payload: str, ledger: Any, **controls: Any) -> Any:
+            # ``condition`` supplies the execution's native controls through ``run_panel``.
+            return handle.condition_native_experiment(binding_json, payload, ledger, **controls)
 
     return condition(BoundNativeTarget(), **declaration)
 
@@ -197,7 +203,7 @@ class PanelExperiment:
         candidates: Sequence[Mapping[str, Any]],
         ledger: Any,
         replicates: int = 199,
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
         """Rank Gaussian future samples using affine utilities over whole response rows.
 
@@ -207,11 +213,12 @@ class PanelExperiment:
         """
         declaration = {"actions": list(actions), "candidates": list(candidates)}
         return json.loads(
-            self._handle.rank_next_samples(
+            run_panel(
+                execution,
+                self._handle.rank_next_samples,
                 json.dumps(declaration, allow_nan=False),
                 ledger._handle,
                 replicates=replicates,
-                **execution,
             )
         )
 
@@ -222,7 +229,7 @@ class PanelExperiment:
         studies: Sequence[PanelFutureStudy],
         ledger: Any,
         replicates: int = 199,
-        **execution: Any,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
         """Rank candidate studies, each possibly in a regime other than the observed one.
 
@@ -247,23 +254,28 @@ class PanelExperiment:
             wires.append(study._wire())
         declaration = {"actions": list(actions), "studies": wires}
         return json.loads(
-            rank(
+            run_panel(
+                execution,
+                rank,
                 json.dumps(declaration, allow_nan=False),
                 ledger._handle,
                 replicates=replicates,
-                **execution,
             )
         )
 
     @artifact_export
-    def export(self, ledger: Any, **execution: Any) -> ExportedArtifact:
+    def export(self, ledger: Any, *, execution: Execution | None = None) -> ExportedArtifact:
         """Export the complete original frozen panel and declared experiment inputs."""
-        return artifact_from_receipt(self, bytes(self._handle.export(ledger._handle, **execution)))
+        return artifact_from_receipt(
+            self, bytes(run_panel(execution, self._handle.export, ledger._handle))
+        )
 
-    def verify_current(self, artifact: bytes, ledger: Any, **execution: Any) -> None:
+    def verify_current(
+        self, artifact: bytes, ledger: Any, *, execution: Execution | None = None
+    ) -> None:
         """Bind replay to this update and the caller's current evidence authority."""
         artifact = container_bytes(artifact)
-        self._handle.verify_current(artifact, ledger._handle, **execution)
+        run_panel(execution, self._handle.verify_current, artifact, ledger._handle)
 
 
 @dataclass(frozen=True, slots=True)
@@ -301,15 +313,19 @@ class HistoricalPanelExperiment:
         )
 
 
-def replay_design_experiment(artifact: bytes, **execution: Any) -> HistoricalPanelExperiment:
+def replay_design_experiment(
+    artifact: bytes, *, execution: Execution | None = None
+) -> HistoricalPanelExperiment:
     """Historical replay of an experiment exported from a population design result."""
     return HistoricalPanelExperiment._from_json(
-        _native.replay_joint_law_experiment(container_bytes(artifact), **execution)
+        run_panel(execution, _native.replay_joint_law_experiment, container_bytes(artifact))
     )
 
 
-def replay_native_experiment(artifact: bytes, **execution: Any) -> HistoricalPanelExperiment:
+def replay_native_experiment(
+    artifact: bytes, *, execution: Execution | None = None
+) -> HistoricalPanelExperiment:
     """Historical replay of a method-native experiment, re-executing its original design."""
     return HistoricalPanelExperiment._from_json(
-        _native.replay_native_joint_experiment(container_bytes(artifact), **execution)
+        run_panel(execution, _native.replay_native_joint_experiment, container_bytes(artifact))
     )

@@ -30,6 +30,7 @@ from ..._native import (
     roundtrip_expr_arena as _roundtrip_expr_arena,
 )
 from ...errors import CausalTypeError, CausalValueError
+from ...execution import Execution
 from ...graph import Admg
 from ...query import (
     AverageDerivative,
@@ -41,6 +42,7 @@ from ...query import (
     SemiElasticity,
 )
 from .._consumption import TransportConsumption
+from .._controls import call_native
 from .._status import identification_status as _canonical_status
 from .catalog import (
     EvidenceCatalog,
@@ -371,8 +373,7 @@ def identify_z_transport(
     max_steps: int = 100_000,
     max_depth: int = 256,
     max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Create a native stage for bounded single-source z-transport search.
 
@@ -389,7 +390,9 @@ def identify_z_transport(
         raise CausalTypeError("transport.identify_z_transport requires graph=Admg(...)")
     if not isinstance(query, ZTransportQuery):
         raise CausalTypeError("query must be a ZTransportQuery")
-    return _identify_z_transport_stage(
+    return call_native(
+        execution,
+        _identify_z_transport_stage,
         graph,
         list(query.diagram.selections),
         query.diagram.source,
@@ -401,8 +404,8 @@ def identify_z_transport(
         max_steps=_non_negative("max_steps", max_steps),
         max_depth=_non_negative("max_depth", max_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
@@ -414,7 +417,6 @@ class _ReplayLimits(TypedDict):
     max_support_rows: int | None
     max_laws: int | None
     max_law_cells: int | None
-    memory_bytes: int | None
 
 
 def _consume_limits(
@@ -423,7 +425,6 @@ def _consume_limits(
     max_support_rows: int | None,
     max_laws: int | None,
     max_law_cells: int | None,
-    memory_bytes: int | None,
 ) -> _ReplayLimits:
     """Validated consumer-side replay limits; ``None`` keeps the native default."""
     return {
@@ -432,7 +433,6 @@ def _consume_limits(
         "max_support_rows": _optional_non_negative("max_support_rows", max_support_rows),
         "max_laws": _optional_non_negative("max_laws", max_laws),
         "max_law_cells": _optional_non_negative("max_law_cells", max_law_cells),
-        "memory_bytes": _optional_non_negative("memory_bytes", memory_bytes),
     }
 
 
@@ -449,8 +449,7 @@ def consume_z_transport_artifact(
     max_support_rows: int | None = None,
     max_laws: int | None = None,
     max_law_cells: int | None = None,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportConsumption:
     """Independently verify and recompute an exported point-only zTR result.
 
@@ -464,12 +463,13 @@ def consume_z_transport_artifact(
         raise CausalTypeError("artifact must be bytes")
     return TransportConsumption.from_checked_json(
         "consume_z_transport_artifact",
-        _consume_z_transport_artifact(
+        call_native(
+            execution,
+            _consume_z_transport_artifact,
             artifact,
-            **_consume_limits(
-                max_operations, max_depth, max_support_rows, max_laws, max_law_cells, memory_bytes
-            ),
-            cancel=cancel,
+            **_consume_limits(max_operations, max_depth, max_support_rows, max_laws, max_law_cells),
+            cancel="cancel",
+            memory="memory_bytes",
         ),
     )
 
@@ -481,7 +481,7 @@ def plan_z_transport_evidence(
     *,
     failure_snapshot: bytes | None = None,
     max_evaluated: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> tuple[dict[str, Any], tuple[Any, ...]]:
     """Assess candidates against a stage's frozen failure and catalog.
 
@@ -499,12 +499,15 @@ def plan_z_transport_evidence(
         raise CausalTypeError("failure_snapshot must be bytes")
     if max_evaluated is not None and _non_negative("max_evaluated", max_evaluated) == 0:
         raise CausalValueError("max_evaluated must be at least one")
-    report, proposals = stage.plan_evidence(
+    report, proposals = call_native(
+        execution,
+        stage.plan_evidence,
         catalog,
         list(candidates),
         failure_snapshot,
         max_evaluated=max_evaluated,
-        cancel=cancel,
+        cancel="cancel",
+        memory=None,
     )
     return json.loads(report), tuple(proposals)
 
@@ -523,8 +526,7 @@ def consume_z_transport_sensitivity_artifact(
     max_support_rows: int | None = None,
     max_laws: int | None = None,
     max_law_cells: int | None = None,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportConsumption:
     """Independently verify and recompute a portable zTR sensitivity range.
 
@@ -536,12 +538,13 @@ def consume_z_transport_sensitivity_artifact(
         raise CausalTypeError("artifact must be bytes")
     return TransportConsumption.from_checked_mapping(
         "z_transport_sensitivity",
-        _consume_z_transport_sensitivity_artifact(
+        call_native(
+            execution,
+            _consume_z_transport_sensitivity_artifact,
             artifact,
-            **_consume_limits(
-                max_operations, max_depth, max_support_rows, max_laws, max_law_cells, memory_bytes
-            ),
-            cancel=cancel,
+            **_consume_limits(max_operations, max_depth, max_support_rows, max_laws, max_law_cells),
+            cancel="cancel",
+            memory="memory_bytes",
         ),
     )
 
@@ -560,8 +563,7 @@ def replay_z_transport_proposal(
     *,
     max_steps: int = 100_000,
     max_depth: int = 256,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportConsumption:
     """Independently replay a portable hypothetical zTR study proposal.
 
@@ -571,12 +573,14 @@ def replay_z_transport_proposal(
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("proposal artifact must be bytes")
-    _replay_z_transport_proposal(
+    call_native(
+        execution,
+        _replay_z_transport_proposal,
         artifact,
         max_steps=_non_negative("max_steps", max_steps),
         max_depth=_non_negative("max_depth", max_depth),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
     return TransportConsumption.from_checked_mapping("z_transport_proposal", {})
 

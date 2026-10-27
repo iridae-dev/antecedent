@@ -47,6 +47,7 @@ from ._native import NativePreparedCounterfactualId as _NativePrepared
 from ._native import consume_counterfactual_id_artifact_native as _consume
 from ._native import prepare_counterfactual_id_native as _prepare
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution, resolve_execution
 from .graph import Admg, Dag
 
 __all__ = [
@@ -136,13 +137,14 @@ class PreparedEffectOnTreated:
         *,
         probabilities: Sequence[float] | None = None,
         counts: Sequence[int] | None = None,
-        seed: int = 1,
+        execution: Execution | None = None,
     ) -> EffectOnTreated:
         """Evaluate on a law: ``probabilities`` (exact) or ``counts`` (empirical).
 
         The cells are row-major over ``names`` (last fastest), each variable's
         levels in the prepared order. Exactly one of the two is given.
         """
+        execution = resolve_execution(execution)
         if (probabilities is None) == (counts is None):
             raise CausalValueError(
                 "counterfactual_id.invalid_query: give exactly one of probabilities or counts",
@@ -152,7 +154,7 @@ class PreparedEffectOnTreated:
             self._native.evaluate(
                 probabilities=None if probabilities is None else [float(p) for p in probabilities],
                 counts=None if counts is None else [int(c) for c in counts],
-                seed=seed,
+                seed=execution.seed,
             )
         )
 
@@ -192,8 +194,7 @@ def prepare_effect_on_treated(
     uncertainty: str | None = None,
     operations: int = 20_000,
     depth: int = 48,
-    seed: int = 1,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedEffectOnTreated:
     """Decide ``P(outcome_{treatment = active} = outcome_level | treatment = observed)``.
 
@@ -204,6 +205,7 @@ def prepare_effect_on_treated(
     ``transport_budget_cancel`` (``counterfactual_id.budget``) and its receipt,
     never a verdict.
     """
+    execution = resolve_execution(execution)
     names, directed, bidirected = _graph_edges(graph)
     if not isinstance(levels, Mapping):
         raise CausalTypeError("levels must map each variable name to its levels")
@@ -234,14 +236,14 @@ def prepare_effect_on_treated(
         operations=operations,
         depth=depth,
         interval_requested=uncertainty is not None,
-        seed=seed,
-        cancel=cancel,
+        seed=execution.seed,
+        cancel=execution.cancel,
     )
     return PreparedEffectOnTreated(native, names, level_lists)
 
 
 def consume_counterfactual_id_artifact(
-    artifact: bytes, *, seed: int = 1, expected_data_digest: str | None = None
+    artifact: bytes, *, expected_data_digest: str | None = None, execution: Execution | None = None
 ) -> EffectOnTreated:
     """Replay an exported artifact and accept only an identical derivation and point.
 
@@ -255,9 +257,12 @@ def consume_counterfactual_id_artifact(
     a bug shared by the engine and the consumer (which re-derives with the same
     engine, so such a bug replays identically).
     """
+    execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_data_digest is not None and not isinstance(expected_data_digest, str):
         raise CausalTypeError("expected_data_digest must be a string or None")
-    return _effect(_consume(bytes(artifact), seed=seed, expected_data_digest=expected_data_digest))
+    return _effect(
+        _consume(bytes(artifact), seed=execution.seed, expected_data_digest=expected_data_digest)
+    )

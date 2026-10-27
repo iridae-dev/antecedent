@@ -38,9 +38,11 @@ from .._native import (
 )
 from .._native import identify_observation_recovery_stage as _identify_observation_recovery
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg
 from ._consumption import TransportConsumption
-from ._impl import EvidenceCatalog, _non_negative, _optional_non_negative
+from ._controls import call_native
+from ._impl import EvidenceCatalog, _non_negative
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,8 +95,7 @@ def identify_observation_recovery(
     effect_graph: Admg | None = None,
     max_operations: int = 50_000,
     max_depth: int = 32,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Decide recovery once; the stage's ``outcome`` is ``recovered`` or ``nonrecoverable``.
 
@@ -117,7 +118,9 @@ def identify_observation_recovery(
         raise CausalTypeError("effect_graph must be an Admg")
     if (effect_outcomes is None) != (effect_treatments is None):
         raise CausalValueError("give both effect_outcomes and effect_treatments, or neither")
-    return _identify_observation_recovery(
+    return call_native(
+        execution,
+        _identify_observation_recovery,
         graph,
         query.population,
         query.observed_regime,
@@ -129,8 +132,8 @@ def identify_observation_recovery(
         effect_graph=effect_graph,
         max_operations=_non_negative("max_operations", max_operations),
         max_depth=_non_negative("max_depth", max_depth),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
@@ -147,8 +150,7 @@ def consume_observation_recovery_artifact(
     max_operations: int = 10_000_000,
     max_depth: int = 256,
     max_requests: int = 64,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportConsumption:
     """Independently verify an exported recovery and recompute it bit for bit.
 
@@ -161,15 +163,17 @@ def consume_observation_recovery_artifact(
         raise CausalTypeError("artifact must be bytes")
     return TransportConsumption.from_checked_json(
         "consume_observation_recovery_artifact",
-        _consume_observation_recovery_artifact(
+        call_native(
+            execution,
+            _consume_observation_recovery_artifact,
             artifact,
             max_search_operations=_non_negative("max_search_operations", max_search_operations),
             max_search_depth=_non_negative("max_search_depth", max_search_depth),
             max_operations=_non_negative("max_operations", max_operations),
             max_depth=_non_negative("max_depth", max_depth),
             max_requests=_non_negative("max_requests", max_requests),
-            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-            cancel=cancel,
+            cancel="cancel",
+            memory="memory_bytes",
         ),
     )
 

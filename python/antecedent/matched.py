@@ -41,10 +41,10 @@ from ._artifact_protocol import (
     container_bytes,
 )
 from ._digest import canonical_digest
-from ._native import CancellationToken
 from ._native import matched_case_control_odds_ratio as _matched_case_control_odds_ratio
 from ._scientific import ScientificResult
 from .errors import CausalResourceError, CausalSerializationError, CausalTypeError
+from .execution import Execution, resolve_execution
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
@@ -162,7 +162,7 @@ def matched_case_control_odds_ratio(
     sampling: str,
     estimand: str = "conditional_odds_ratio",
     level: float | None = None,
-    cancel: CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MatchedCaseControlResult:
     """Conditional odds ratio of matched sets by exact conditional likelihood.
 
@@ -171,6 +171,7 @@ def matched_case_control_odds_ratio(
     must be ``"matched_case_control"`` (sets sampled on the outcome). ``level`` exists
     only so that asking for an interval is a typed refusal.
     """
+    execution = resolve_execution(execution)
     labels = [str(s) for s in stratum]
     case_values = _floats("case", case)
     exposed_values = _floats("exposed", exposed)
@@ -181,7 +182,7 @@ def matched_case_control_odds_ratio(
         sampling=sampling,
         estimand=estimand,
         interval=level is not None,
-        cancel=cancel,
+        cancel=execution.cancel,
     )
     log_or, odds_ratio, total, informative, concordant, degenerate, singleton = estimate
     return MatchedCaseControlResult(
@@ -243,7 +244,7 @@ def replay_matched_case_control(
     *,
     expected_identity: str | None = None,
     max_rows: int = _MAX_REPLAY_ROWS,
-    cancel: CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MatchedCaseControlResult:
     """Re-derive an exported result from its stored sufficient statistic.
 
@@ -253,6 +254,7 @@ def replay_matched_case_control(
     :class:`~antecedent.errors.CausalSerializationError`; one that would expand past
     ``max_rows`` rows is refused with ``CausalResourceError`` before any work.
     """
+    execution = resolve_execution(execution)
     artifact = (
         container_bytes(artifact)
         if isinstance(artifact, (bytes, bytearray, memoryview, ExportedArtifact))
@@ -290,7 +292,7 @@ def replay_matched_case_control(
         exposed=exposed,
         sampling=body["sampling"],
         estimand=body["estimand"],
-        cancel=cancel,
+        execution=execution,
     )
     if (
         again.log_odds_ratio != body["log_odds_ratio"]

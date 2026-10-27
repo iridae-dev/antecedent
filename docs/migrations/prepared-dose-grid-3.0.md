@@ -10,8 +10,8 @@ policy refits. Execution uses caller admission and cancellation policies.
 
 Rust convenience evaluation and artifact consumption delegate to the same
 compiled owner. Python `dose_grid_posterior` and
-`consume_dose_grid_posterior_artifact` accept optional `threads`, `max_bytes` and
-`cancel` arguments. Resource and cancellation refusals use the existing typed
+`consume_dose_grid_posterior_artifact` accept an optional `execution=`
+(`Execution(threads=..., limits=ResourceLimits(memory_bytes=...), cancel=...)`). Resource and cancellation refusals use the existing typed
 Python errors. Omitting those arguments preserves the default execution policy.
 
 Artifact encoding is separate from compilation and numerical execution. Existing

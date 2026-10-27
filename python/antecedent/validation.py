@@ -27,7 +27,7 @@ from . import _native
 from ._data import as_columns, as_multi_env_columns
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
-from .execution import Execution
+from .execution import Execution, native_controls
 from .outcomes import Answer, Outcome, outcome_operation, require_success
 
 if TYPE_CHECKING:
@@ -128,21 +128,36 @@ from ._native import (
 )
 
 
+def _run(
+    fn: Callable[..., dict[str, Any]], execution: Execution | None, *args: Any, **kwargs: Any
+) -> dict[str, Any]:
+    """Run one native validator under the execution's policy and physical controls."""
+    execution = Execution() if execution is None else execution
+    return execution._call(
+        fn, *args, **kwargs, **native_controls(execution, seed="seed", threads="threads")
+    )
+
+
 def _with_columns(
     fn: Callable[..., dict[str, Any]],
     data: Mapping[str, Any] | Any,
     *args: Any,
+    execution: Execution | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     names, columns = as_columns(data)
-    return fn(names, columns, *args, **kwargs)
+    return _run(fn, execution, names, columns, *args, **kwargs)
 
 
 def _with_multi_env(
-    fn: Callable[..., dict[str, Any]], data: Sequence[Mapping[str, Any] | Any], **kwargs: Any
+    fn: Callable[..., dict[str, Any]],
+    data: Sequence[Mapping[str, Any] | Any],
+    *,
+    execution: Execution | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
     names, env_columns = as_multi_env_columns(data)
-    return fn(names, env_columns, **kwargs)
+    return _run(fn, execution, names, env_columns, **kwargs)
 
 
 def validate_pcmci_block_bootstrap(
@@ -154,8 +169,7 @@ def validate_pcmci_block_bootstrap(
     ci: str = "parcorr",
     replicates: int = 20,
     block_size: int = 20,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_pcmci_block_bootstrap,
@@ -166,8 +180,7 @@ def validate_pcmci_block_bootstrap(
         ci=ci,
         replicates=replicates,
         block_size=block_size,
-        seed=seed,
-        threads=threads,
+        execution=execution,
     )
 
 
@@ -180,8 +193,7 @@ def validate_pcmci_false_positive(
     ci: str = "parcorr",
     transform: str = "permute",
     replicates: int = 20,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_pcmci_false_positive,
@@ -192,8 +204,7 @@ def validate_pcmci_false_positive(
         ci=ci,
         transform=transform,
         replicates=replicates,
-        seed=seed,
-        threads=threads,
+        execution=execution,
     )
 
 
@@ -204,8 +215,7 @@ def validate_pcmci_alpha_sensitivity(
     max_lag: int = 1,
     fdr: bool = False,
     ci: str = "parcorr",
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_pcmci_alpha_sensitivity,
@@ -214,8 +224,7 @@ def validate_pcmci_alpha_sensitivity(
         max_lag=max_lag,
         fdr=fdr,
         ci=ci,
-        seed=seed,
-        threads=threads,
+        execution=execution,
     )
 
 
@@ -226,8 +235,7 @@ def validate_pcmci_lag_sensitivity(
     alpha: float = 0.05,
     fdr: bool = False,
     ci: str = "parcorr",
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_pcmci_lag_sensitivity,
@@ -236,8 +244,7 @@ def validate_pcmci_lag_sensitivity(
         alpha=alpha,
         fdr=fdr,
         ci=ci,
-        seed=seed,
-        threads=threads,
+        execution=execution,
     )
 
 
@@ -248,8 +255,7 @@ def validate_pcmci_ci_sensitivity(
     max_lag: int = 1,
     alpha: float = 0.05,
     fdr: bool = False,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_pcmci_ci_sensitivity,
@@ -258,8 +264,7 @@ def validate_pcmci_ci_sensitivity(
         max_lag=max_lag,
         alpha=alpha,
         fdr=fdr,
-        seed=seed,
-        threads=threads,
+        execution=execution,
     )
 
 
@@ -272,8 +277,7 @@ def validate_pcmci_plus_orientation(
     ci: str = "parcorr",
     replicates: int = 20,
     block_size: int = 20,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_pcmci_plus_orientation,
@@ -284,8 +288,7 @@ def validate_pcmci_plus_orientation(
         ci=ci,
         replicates=replicates,
         block_size=block_size,
-        seed=seed,
-        threads=threads,
+        execution=execution,
     )
 
 
@@ -298,10 +301,11 @@ def validate_synthetic_null_calibration(
     n_sim: int = 20,
     n_obs: int = 100,
     n_vars: int = 3,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
-    return _validate_synthetic_null_calibration(
+    return _run(
+        _validate_synthetic_null_calibration,
+        execution,
         max_lag=max_lag,
         alpha=alpha,
         fdr=fdr,
@@ -309,8 +313,6 @@ def validate_synthetic_null_calibration(
         n_sim=n_sim,
         n_obs=n_obs,
         n_vars=n_vars,
-        seed=seed,
-        threads=threads,
     )
 
 
@@ -322,8 +324,7 @@ def validate_environment_holdout(
     fdr: bool = False,
     ci: str = "parcorr",
     n_discovery: int = 1,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
     return _with_multi_env(
         _validate_environment_holdout,
@@ -333,8 +334,7 @@ def validate_environment_holdout(
         fdr=fdr,
         ci=ci,
         n_discovery=n_discovery,
-        seed=seed,
-        threads=threads,
+        execution=execution,
     )
 
 
@@ -348,8 +348,7 @@ def validate_regime_stability(
     ci: str = "parcorr",
     replicates: int = 10,
     block_size: int = 20,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_regime_stability,
@@ -361,8 +360,7 @@ def validate_regime_stability(
         ci=ci,
         replicates=replicates,
         block_size=block_size,
-        seed=seed,
-        threads=threads,
+        execution=execution,
     )
 
 
@@ -1249,12 +1247,12 @@ def msm_parameter_sensitivity_refit(
     labels: Sequence[str],
     *,
     replicates: int = 200,
-    seed: int = 1,
     q: float = 1.0,
     alpha: float = 0.05,
     r2yz_extreme: float = 1.0,
     temporal: bool = False,
     target_source: str | None = None,
+    execution: Execution | None = None,
 ) -> SensitivityResult:
     """Partial-R2 sensitivity of marginal structural model parameters with estimated weights.
 
@@ -1266,9 +1264,11 @@ def msm_parameter_sensitivity_refit(
     ``fixed_weight_standard_error`` is the robust error that holds them fixed (conservative for
     an estimated denominator model).
     """
+    execution = Execution() if execution is None else execution
     return _sensitivity(
         "msm_parameters_refit",
-        _sensitivity_msm_parameters_refit(
+        execution._call(
+            _sensitivity_msm_parameters_refit,
             [float(v) for v in outcome],
             [[float(v) for v in column] for column in exposures],
             [[float(v) for v in column] for column in treatments],
@@ -1276,7 +1276,7 @@ def msm_parameter_sensitivity_refit(
             [[[float(v) for v in column] for column in block] for block in denominators],
             [str(label) for label in labels],
             replicates=int(replicates),
-            seed=int(seed),
+            **native_controls(execution, seed="seed"),
             q=q,
             alpha=alpha,
             r2yz_extreme=r2yz_extreme,

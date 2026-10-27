@@ -64,6 +64,7 @@ from ._native import consume_vector_treatment_artifact as _consume
 from ._native import evaluate_vector_treatment as _evaluate
 from ._refusal import StructuredRefusal
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "Coefficient",
@@ -511,7 +512,7 @@ def consume_joint_effects(
     artifact: bytes,
     *,
     expected_identity: VectorTreatmentIdentity | Mapping[str, str] | None = None,
-    memory_limit_bytes: int | None = None,
+    execution: Execution | None = None,
 ) -> JointEffects:
     """Recompute an exported joint-fit artifact and accept only an identical one.
 
@@ -524,8 +525,9 @@ def consume_joint_effects(
     ``vector_treatment.wrong_contract``). Corruption and unknown major versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
 
-    ``memory_limit_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
+    ``execution.limits.memory_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
     """
+    execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
@@ -538,7 +540,9 @@ def consume_joint_effects(
     else:
         raise CausalTypeError("expected_identity must be a VectorTreatmentIdentity or a mapping")
     data = bytes(artifact)
-    report, refusal = _consume(data, expected_json, memory_limit_bytes=memory_limit_bytes)
+    report, refusal = _consume(
+        data, expected_json, memory_limit_bytes=execution.limits.memory_bytes
+    )
     if refusal is not None:
         raise VectorTreatmentRefusal(json.loads(refusal))
     if report is None:  # pragma: no cover - the native contract

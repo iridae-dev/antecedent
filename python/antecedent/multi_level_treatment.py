@@ -54,6 +54,7 @@ import numpy as np
 
 from ._native import evaluate_multi_level_treatment as _evaluate
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 
 __all__ = ["LevelMean", "LevelRows", "MultiLevelEffect", "MultiLevelInterval", "multi_level_effect"]
 
@@ -175,7 +176,7 @@ def multi_level_effect(
     levels: Sequence[float] | None = None,
     adjust: Mapping[str, Sequence[float]] | None = None,
     folds: int | None = None,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> MultiLevelEffect:
     """Estimate ``E[Y(active)] - E[Y(control)]`` for a multi-level observational treatment.
 
@@ -183,14 +184,15 @@ def multi_level_effect(
     covariates the caller declares sufficient for adjustment. ``target`` chooses the population
     (see the module docstring) and has no default. ``levels`` is the declared level set,
     required for ``"full_population"`` and containing ``active`` and ``control``. ``folds`` is
-    the cross-fit fold count of the full-population fit (default 5) and ``seed`` seeds the fold
-    plan. A ``NaN`` is a missing cell: its row is dropped from the complete cases.
+    the cross-fit fold count of the full-population fit (default 5) and the
+    seed of ``execution`` seeds the fold plan. A ``NaN`` is a missing cell: its row is dropped from the complete cases.
 
     Raises:
         CausalValueError: A malformed argument.
         CausalUnsupportedError: A refusal with a registered ``reason_code`` such as
             ``treatment_level_undeclared`` or ``arm_not_populated``.
     """
+    execution = resolve_execution(execution)
     if target not in _TARGETS:
         raise CausalValueError(f"target must be one of {_TARGETS}, got {target!r}")
     if target == "full_population" and levels is None:
@@ -199,7 +201,7 @@ def multi_level_effect(
         "target": target,
         "active": float(active),
         "control": float(control),
-        "seed": int(seed),
+        "seed": execution.seed,
     }
     if levels is not None:
         declaration["levels"] = _column(levels, "levels")

@@ -22,6 +22,7 @@ from numpy.typing import NDArray
 
 from . import _native
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 
 __all__ = ["LogisticFit", "LogisticProvider", "logistic_provider", "logistic_standardized_effect"]
 
@@ -65,7 +66,7 @@ def logistic_standardized_effect(
     outcome: str,
     adjustment: Sequence[str] = (),
     provider: LogisticProvider,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> LogisticFit:
     """Fit the logistic outcome model and average its predictions at ``T = 1`` and ``T = 0``.
 
@@ -78,6 +79,7 @@ def logistic_standardized_effect(
             is not 0/1, the score disagrees with the log-density gradient, the solve does not
             converge or the provider lacks a declared or answered capability.
     """
+    execution = resolve_execution(execution)
     if not isinstance(data, Mapping):
         raise CausalTypeError("data must be a mapping of column name to array")
     if not isinstance(provider, _native.LogisticProvider):
@@ -93,7 +95,7 @@ def logistic_standardized_effect(
         columns.append((name, [float(v) for v in values]))
     effect, treated, control, coefficients, covariance, iterations, rows = (
         _native.recipe_logistic_standardized_effect(
-            columns, treatment, outcome, list(adjustment), provider, cancel
+            columns, treatment, outcome, list(adjustment), provider, execution.cancel
         )
     )
     width = len(coefficients)

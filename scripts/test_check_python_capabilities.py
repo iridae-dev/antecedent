@@ -242,6 +242,34 @@ class CapabilityGateTests(unittest.TestCase):
         problems, _ = check(self.root, {"schema": 1, "capability": [row]}, inventory)
         self.assertTrue(any("unknown Rust type antecedent::Missing" in p for p in problems))
 
+    def test_a_deferred_row_still_needs_executing_evidence_for_what_it_does_not_wait_for(self):
+        (self.root / "parity/public_api").mkdir()
+        snapshot = "pub fn <antecedent::Study>::fn inspect(&self) -> Report\n"
+        (self.root / "parity/public_api/antecedent.txt").write_text(snapshot, encoding="utf-8")
+        (self.root / "parity/python_facade_surface.toml").write_text("entry=[]\n", encoding="utf-8")
+        row = {
+            "id": "measured",
+            "rust": ["<antecedent::Study>::inspect"],
+            "status": "deferred",
+            "owner": "integration",
+            "behavior": "a measured interval",
+            "required_dimensions": ["success", "refusal"],
+            "deferred_dimensions": ["success"],
+            "deferred_to": "calibration measurement of the coverage record",
+            "python": "antecedent",
+        }
+        inventory = {"schema": 1, "items": rust_surface(snapshot)}
+        problems, gaps = check(self.root, {"schema": 1, "capability": [row]}, inventory)
+        self.assertTrue(any("no executing evidence" in p for p in problems))
+        self.assertFalse([gap for gap in gaps if gap.startswith("measured")])
+        row["deferred_dimensions"] = ["success", "refusal"]
+        problems, _ = check(self.root, {"schema": 1, "capability": [row]}, inventory)
+        self.assertTrue(any("strict subset" in p for p in problems))
+        row["deferred_dimensions"] = ["success"]
+        row["deferred_to"] = ""
+        problems, _ = check(self.root, {"schema": 1, "capability": [row]}, inventory)
+        self.assertTrue(any("names what it waits for" in p for p in problems))
+
     def test_inherent_methods_and_export_edges_are_inventory(self):
         snapshot = (
             "pub fn <antecedent::Study>::fn inspect(&self) -> Report\n"

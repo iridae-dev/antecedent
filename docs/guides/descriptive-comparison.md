@@ -105,7 +105,7 @@ published.
   came from the same rows.
 * The pass over the rows observes cancellation at the first row, every 4096 rows and once
   after the pass (Rust `raw_contrast` and `compare_raw_adjusted` take an `ExecutionContext`;
-  Python `raw_vs_adjusted` and `raw_reporting_transform` take `cancel=`). A cancelled pass is
+  Python `raw_vs_adjusted` and `raw_reporting_transform` read it from `execution=`). A cancelled pass is
   `cancelled_no_claim` (`descriptive_comparison.cancelled`) with no contrast, never a verdict
   on the data.
 

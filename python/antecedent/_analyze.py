@@ -769,6 +769,7 @@ def analyze(
         if stage is None:
             raise
         from ._names import table_names
+        from .execution import Execution
 
         return fallback.from_native(
             error,
@@ -776,8 +777,7 @@ def analyze(
             query=query,
             graph=graph,
             columns=table_names(data),
-            seed=seed,
-            threads=threads,
+            execution=Execution(seed=seed, threads=threads),
         )
     if return_posterior_artifact:
         from .errors import CausalUnsupportedError as _Unsupported

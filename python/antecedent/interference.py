@@ -16,6 +16,7 @@ from ._native import (
 )
 from ._native import estimate_saturation_interference as _estimate_saturation_interference
 from .errors import CausalEstimateError, CausalTypeError, CausalValueError
+from .execution import Execution, native_controls
 
 
 @dataclass(frozen=True, slots=True)
@@ -440,12 +441,12 @@ def estimate(
     assignment: Sequence[bool],
     edges: Sequence[NetworkEdge | tuple[int, int] | tuple[int, int, float]],
     query: InterferenceQuery,
-    seed: int = 1,
+    execution: Execution | None = None,
 ) -> InterferenceEstimate:
     """Estimate a known randomized exposure contrast on a fixed unit network.
 
     This is an unlicensed utility: every assignment
-    design and exposure mapping, and ``seed`` as the exposure-probability Monte
+    design and exposure mapping, and ``execution`` carries the exposure-probability Monte
     Carlo seed. It calls the interference estimator directly and returns bare
     numbers, with no study, contract, export or calibration slot.
     ``antecedent.analyze(data, graph=[], query=InterferenceQuery(..., network=,
@@ -519,7 +520,9 @@ def estimate(
     to_cluster_count = (
         len({cluster_labels[i] for i in to_rows}) if cluster_labels is not None else None
     )
-    raw = _estimate_network_interference(
+    execution = Execution() if execution is None else execution
+    raw = execution._call(
+        _estimate_network_interference,
         columns[outcome_index],
         list(assignment),
         edge_values,
@@ -527,7 +530,7 @@ def estimate(
         from_level=(query.functional.from_.own, query.functional.from_.neighbors),
         to_level=(query.functional.to.own, query.functional.to.neighbors),
         probability_draws=query.probability_draws,
-        seed=seed,
+        **native_controls(execution, seed="seed"),
         **_assignment_args(query.assignment),
     )
     return InterferenceEstimate(

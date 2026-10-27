@@ -196,8 +196,8 @@ result.publish("ranking_probability")   # raises cell_not_licensed outside a mea
 `coupling` and `within_stream` default to `"unknown"` and are refused until
 declared. `dr.rank`, `dr.publish`, `DecisionReliability.export` and
 `dr.consume_decision_reliability_artifact` mirror the Rust routes. `result.export()`
-returns bytes; `result.artifact()` retains the same bytes, required digest expectations
-and immutable export metadata. `ant.load(envelope, expected=envelope.expectation)`
+returns a typed `ExportedArtifact` (`bytes(artifact)` exposes the encoding) that retains required
+digest expectations and immutable export metadata. `ant.load(artifact, expected=artifact.expectation)`
 uses the specialized native consumer. Inspecting stored metadata alone does not bind
 those expectations independently.
 

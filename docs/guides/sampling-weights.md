@@ -25,8 +25,8 @@ that cannot honour the contract refuses the weights (`option_not_applicable`,
 `weights` names a numeric column of the table passed to `analyze` / `prepare`, or gives one
 weight per row. The weights belong to the original rows: a row dropped as incomplete or outside
 the target population takes its weight with it, so a weight is never shifted onto another
-row. A named column is frozen at prepare like a cluster column, and a refreshed table whose
-weights changed is refused (`study.reprepare(data)` declares the new ones).
+row. A named column is frozen at prepare like a cluster column, and a rebound table whose
+weights changed is refused (`ant.prepare(data, ...)` declares the new ones).
 
 Rust: `with_sampling_weights(SamplingWeights::new(weights)?)` on `LinearAdjustmentAte`,
 `PropensityWeighting`, `PropensityStratification`, `PropensityMatching` and `AipwAte`; the

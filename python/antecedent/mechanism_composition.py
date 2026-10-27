@@ -88,8 +88,9 @@ from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
+from .counterfactual import native_gcm
 from .errors import CausalTypeError, CausalValueError
-from .execution import Execution
+from .execution import Execution, resolve_execution
 from .outcomes import Answer, outcome_operation
 
 __all__ = [
@@ -468,7 +469,11 @@ class Mechanism:
         """
         target = variable if variable is not None else declaration.output.variable_id
         source = json.loads(
-            _unwrap(_native.mechanism_composition_fitted_source(model, _name(target, "variable")))
+            _unwrap(
+                _native.mechanism_composition_fitted_source(
+                    native_gcm(model), _name(target, "variable")
+                )
+            )
         )
         return cls(
             declaration=declaration,
@@ -555,7 +560,9 @@ class MechanismRefit:
         """A refit read from a model fitted on new data."""
         source = json.loads(
             _unwrap(
-                _native.mechanism_composition_fitted_source(model, _name(variable_id, "variable"))
+                _native.mechanism_composition_fitted_source(
+                    native_gcm(model), _name(variable_id, "variable")
+                )
             )
         )
         return cls(
@@ -1018,14 +1025,15 @@ class PreparedMechanismComposition(ScientificResult):
         interventions: Mapping[str, float] | None = None,
         *,
         n_rows: int,
-        seed: int = 0,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> dict[str, np.ndarray]:
         """Draw ``n_rows`` units from the (possibly intervened) joint model.
 
         The noise of each variable is keyed by its name, so a variable's draws do not depend on
-        the other variables or their order. The same ``seed`` gives the same table.
+        the other variables or their order. The seed of ``execution``
+        fixes the table: the same seed gives the same table.
         """
+        execution = resolve_execution(execution)
         wire = {"interventions": _pairs(interventions or {}, "variable")}
         for pair in wire["interventions"]:
             pair[1] = _number(pair[1], "intervention value")
@@ -1035,8 +1043,8 @@ class PreparedMechanismComposition(ScientificResult):
                 _count(
                     n_rows, "n_rows", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
                 ),
-                _count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
-                cancel=cancel,
+                execution.seed,
+                cancel=execution.cancel,
             )
         )
         return {
@@ -1046,11 +1054,12 @@ class PreparedMechanismComposition(ScientificResult):
 
     @outcome_operation
     def finite_law(
-        self, interventions: Mapping[str, str] | None = None, *, cancel: Any = None
+        self, interventions: Mapping[str, str] | None = None, *, execution: Execution | None = None
     ) -> FiniteLaw:
         """The exact finite joint law under ``do(interventions)`` by truncated factorization."""
+        execution = resolve_execution(execution)
         wire = {"interventions": _pairs(interventions or {}, "variable")}
-        law = json.loads(_unwrap(self._handle.finite_law(_dumps(wire), cancel=cancel)))
+        law = json.loads(_unwrap(self._handle.finite_law(_dumps(wire), cancel=execution.cancel)))
         return FiniteLaw(
             variables=tuple(law["variables"]),
             levels=tuple(tuple(levels) for levels in law["levels"]),
@@ -1062,7 +1071,7 @@ class PreparedMechanismComposition(ScientificResult):
         refits: Sequence[MechanismRefit],
         dependence: Dependence | None = None,
         *,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> PreparedMechanismComposition:
         """Replace the named mechanisms with their refits and recompile.
 
@@ -1071,17 +1080,18 @@ class PreparedMechanismComposition(ScientificResult):
         law or cross-covariance describes the estimates it was declared for); omitted, it keeps an
         earlier declaration only when still valid.
         """
+        execution = resolve_execution(execution)
         handle = _unwrap(
             self._handle.refresh_mechanisms(
                 _dumps([r.to_wire() for r in refits]),
                 None if dependence is None else _dumps(dependence.to_wire()),
-                cancel=cancel,
+                cancel=execution.cancel,
             )
         )
         return _prepared(handle, self._scope)
 
     def transport_to(
-        self, transport: MechanismTransport, *, cancel: Any = None
+        self, transport: MechanismTransport, *, execution: Execution | None = None
     ) -> TransportedMechanismComposition:
         """Carry this composition's fitted mechanisms into a target population's model.
 
@@ -1097,10 +1107,11 @@ class PreparedMechanismComposition(ScientificResult):
             MechanismCompositionRefusal: every unmet premise, each with a registered code and a
                 ``mechanism_transport.*`` (or ``mechanism_composition.*``) detail.
         """
+        execution = resolve_execution(execution)
         if not isinstance(transport, MechanismTransport):
             raise CausalTypeError("transport must be a MechanismTransport")
         handle, receipt = _unwrap(
-            self._handle.transport_to(_dumps(transport.to_wire()), cancel=cancel)
+            self._handle.transport_to(_dumps(transport.to_wire()), cancel=execution.cancel)
         )
         return _transported(handle, receipt, self._scope)
 
@@ -1149,15 +1160,16 @@ class PreparedMechanismComposition(ScientificResult):
         levels: Mapping[str, int] | int,
         *,
         method: str = "equal_probability_quantile",
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> Any:
         """Discretize a linear-Gaussian composition into an executable finite model.
 
         See :func:`antecedent.discretized_composition.discretize`.
         """
+        execution = resolve_execution(execution)
         from .discretized_composition import discretize
 
-        return discretize(self, levels, method=method, cancel=cancel)
+        return discretize(self, levels, method=method, execution=execution)
 
     @artifact_export
     def export(
@@ -1165,7 +1177,7 @@ class PreparedMechanismComposition(ScientificResult):
         query: MeanContrast | Mapping[str, object],
         *,
         outcome: str | None = None,
-        cancel: object = None,
+        execution: Execution | None = None,
     ) -> ExportedArtifact[ConsumedComposition]:
         """Seal the premises and one query into a ``mechanism_composition_v1`` artifact.
 
@@ -1174,8 +1186,11 @@ class PreparedMechanismComposition(ScientificResult):
         of the linear-Gaussian composition, or, with level names, the distribution of one outcome
         of a finite composition). An uncertainty claim without a declared joint law is refused.
         """
+        execution = resolve_execution(execution)
         wire = _query_wire(self.family, query, outcome)
-        artifact, digest, result = _unwrap(self._handle.export(_dumps(wire), cancel=cancel))
+        artifact, digest, result = _unwrap(
+            self._handle.export(_dumps(wire), cancel=execution.cancel)
+        )
         return artifact_from_receipt(
             self,
             CompositionExport(
@@ -1239,7 +1254,7 @@ def compose_mechanisms(
     admissions: Sequence[Admission] = (),
     dependence: Dependence | None = None,
     admit_declared_mechanisms: bool = False,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedMechanismComposition:
     """Prepare a declared composition of independently fitted mechanisms.
 
@@ -1254,6 +1269,7 @@ def compose_mechanisms(
         MechanismCompositionRefusal: every defect found, each with a registered code, a namespaced
             detail and the declaration that would license the composition.
     """
+    execution = resolve_execution(execution)
     listed = list(mechanisms)
     if not all(isinstance(m, Mechanism) for m in listed):
         raise CausalTypeError("mechanisms must be Mechanism objects")
@@ -1271,7 +1287,7 @@ def compose_mechanisms(
         "dependence": (dependence or Dependence.unknown()).to_wire(),
         "admit_declared_mechanisms": bool(admit_declared_mechanisms),
     }
-    handle = _unwrap(_native.mechanism_composition_prepare(_dumps(wire), cancel=cancel))
+    handle = _unwrap(_native.mechanism_composition_prepare(_dumps(wire), cancel=execution.cancel))
     return _prepared(
         handle,
         {
@@ -1291,7 +1307,7 @@ def consume_mechanism_composition_artifact(
     artifact: bytes,
     expected_identity: str | None = None,
     *,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ConsumedComposition:
     """Independently consume a composition artifact.
 
@@ -1306,12 +1322,15 @@ def consume_mechanism_composition_artifact(
             compose, and ``mechanism_composition.artifact_invalid`` for corrupt or unsupported
             bytes.
     """
+    execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     wire = json.loads(
         _unwrap(
-            _native.mechanism_composition_consume(bytes(artifact), expected_identity, cancel=cancel)
+            _native.mechanism_composition_consume(
+                bytes(artifact), expected_identity, cancel=execution.cancel
+            )
         )
     )
     from ._artifact_protocol import inspect_artifact
@@ -1581,15 +1600,18 @@ class TransportedMechanismComposition(ScientificResult):
         query: MeanContrast | Mapping[str, object],
         *,
         outcome: str | None = None,
-        cancel: object = None,
+        execution: Execution | None = None,
     ) -> ExportedArtifact[ConsumedComposition]:
         """Seal the transported premises (with the diagram and invariances) and one query.
 
         The artifact is the existing ``mechanism_composition_v1`` one;
         :func:`consume_mechanism_composition_artifact` recompiles it under the coherence checker.
         """
+        execution = resolve_execution(execution)
         wire = _query_wire("linear_gaussian", query, outcome)
-        artifact, digest, result = _unwrap(self._handle.export(_dumps(wire), cancel=cancel))
+        artifact, digest, result = _unwrap(
+            self._handle.export(_dumps(wire), cancel=execution.cancel)
+        )
         return artifact_from_receipt(
             self,
             CompositionExport(

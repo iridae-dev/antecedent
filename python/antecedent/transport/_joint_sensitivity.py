@@ -35,8 +35,12 @@ from .._native import (
 from .._native import export_z_transport_joint_sensitivity as _export_joint
 from .._native import z_transport_joint_sensitivity as _joint
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution
 from ._consumption import TransportConsumption
+from ._controls import call_native, resolve
 from ._impl import _non_negative, _optional_non_negative
+
+_SEARCH_MEMORY = 64 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,8 +52,9 @@ class JointDeviation:
     other names (``treatment_mechanism``, ``fixed_graph_parent``,
     ``fixed_graph_conditional``, ``source_target_discrepancy``) exist so that their requests refuse with a
     reason code instead of being ignored. ``total_budget`` (a coupled budget)
-    always refuses. At most two factors may be declared. ``max_memory_bytes``
-    (default 64 MiB) may not exceed 512 MiB (``joint_sensitivity.bounds_exceeded``).
+    always refuses. At most two factors may be declared. The search's live-state
+    memory is the execution's memory limit, at most 64 MiB when that is unset or larger
+    (``joint_sensitivity.bounds_exceeded`` above 512 MiB).
     A non-finite ``decision_threshold`` raises ``CausalValueError`` with
     ``reason_code == "invalid_argument"`` (``joint_sensitivity.invalid_threshold``).
     """
@@ -61,7 +66,6 @@ class JointDeviation:
     frontier_points: int = 17
     max_operations: int = 100_000
     max_depth: int = 64
-    max_memory_bytes: int = 64 * 1024 * 1024
     _pairs: tuple[tuple[str, float], ...] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -81,7 +85,9 @@ class JointDeviation:
             )
         coerce_fields(self, _pairs=tuple(pairs))
 
-    def _kwargs(self) -> dict[str, Any]:
+    def _kwargs(self, execution: Execution | None = None) -> dict[str, Any]:
+        limit = resolve(execution).limits.memory_bytes
+        search_memory = _SEARCH_MEMORY if limit is None else min(limit, _SEARCH_MEMORY)
         return {
             "decision_threshold": self.decision_threshold,
             "total_budget": self.total_budget,
@@ -89,7 +95,7 @@ class JointDeviation:
             "frontier_points": _non_negative("frontier_points", self.frontier_points),
             "max_operations": _non_negative("max_operations", self.max_operations),
             "max_depth": _non_negative("max_depth", self.max_depth),
-            "max_memory_bytes": _non_negative("max_memory_bytes", self.max_memory_bytes),
+            "max_memory_bytes": search_memory,
         }
 
 
@@ -111,8 +117,7 @@ def joint_mechanism_sensitivity(
     stage: Any,
     deviation: JointDeviation,
     *,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
     """Exact joint assumption range of a prepared stage's retained surrogate formula.
 
@@ -121,12 +126,14 @@ def joint_mechanism_sensitivity(
     and ``uncertainty["status"] == "withheld"``.
     """
     deviation = _deviation(deviation)
-    return _joint(
+    return call_native(
+        execution,
+        _joint,
         _stage(stage),
         list(deviation._pairs),
-        **deviation._kwargs(),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        **deviation._kwargs(execution),
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
@@ -135,8 +142,7 @@ def export_joint_mechanism_sensitivity(
     stage: Any,
     deviation: JointDeviation,
     *,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ExportedArtifact[Any]:
     """Export the stage's last execution with a checked joint analysis (artifact v3).
 
@@ -147,12 +153,14 @@ def export_joint_mechanism_sensitivity(
     return artifact_from_receipt(
         stage,
         bytes(
-            _export_joint(
+            call_native(
+                execution,
+                _export_joint,
                 _stage(stage),
                 list(deviation._pairs),
-                **deviation._kwargs(),
-                memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-                cancel=cancel,
+                **deviation._kwargs(execution),
+                cancel="cancel",
+                memory="memory_bytes",
             )
         ),
     )
@@ -175,8 +183,7 @@ def consume_joint_mechanism_sensitivity_artifact(
     max_search_operations: int = 100_000,
     max_search_depth: int = 64,
     max_memory_bytes: int = 64 * 1024 * 1024,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportConsumption:
     """Independently verify a joint sensitivity artifact under the consumer's limits.
 
@@ -188,7 +195,9 @@ def consume_joint_mechanism_sensitivity_artifact(
         raise CausalTypeError("artifact must be bytes")
     return TransportConsumption.from_checked_mapping(
         "joint_mechanism_sensitivity",
-        _consume_joint_artifact(
+        call_native(
+            execution,
+            _consume_joint_artifact,
             artifact,
             max_operations=_non_negative("max_operations", max_operations),
             max_depth=_non_negative("max_depth", max_depth),
@@ -198,7 +207,7 @@ def consume_joint_mechanism_sensitivity_artifact(
             max_search_operations=_non_negative("max_search_operations", max_search_operations),
             max_search_depth=_non_negative("max_search_depth", max_search_depth),
             max_memory_bytes=_non_negative("max_memory_bytes", max_memory_bytes),
-            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-            cancel=cancel,
+            cancel="cancel",
+            memory="memory_bytes",
         ),
     )

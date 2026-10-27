@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import _native
+from .execution import Execution, resolve_execution
 
 LaggedEdge = tuple[str, int, str, int]
 
@@ -81,8 +82,7 @@ def detect_mechanism_change(
     significance: float = 0.05,
     posterior_draws: int = 0,
     change_prior: float | None = None,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> tuple[MechanismChange, ...]:
     """Test the mechanisms of ``targets`` for a change between two row ranges of one series.
 
@@ -91,6 +91,7 @@ def detect_mechanism_change(
     (``change_point`` is the known-split mean-and-variance likelihood ratio, also with a block null). Under ``posterior_draws`` a ``change_prior`` in (0, 1)
     is required.
     """
+    execution = resolve_execution(execution)
     params: dict[str, Any] = {
         "targets": list(targets),
         "baseline_start": baseline[0],
@@ -106,7 +107,7 @@ def detect_mechanism_change(
         _native.temporal_model_query(
             list(names), list(columns), [(str(a), int(b), str(c), int(d)) for a, b, c, d in lagged_edges],
             "mechanism_change", json.dumps(params),
-            posterior_draws=posterior_draws, seed=seed, threads=threads,
+            posterior_draws=posterior_draws, seed=execution.seed, threads=execution.threads,
         )
     )  # fmt: skip
     return tuple(MechanismChange(**entry) for entry in raw["detections"])
@@ -122,28 +123,28 @@ def rollout_dynamics(
     interventions: Sequence[dict[str, Any]] = (),
     posterior_draws: int = 0,
     bootstrap_replicates: int = 0,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> Rollout:
     """Roll the fitted dynamics forward ``n_steps`` from the last rows of the series.
 
     Each intervention is ``{"variable": name, "value": v, "from": first_step, "until": last_step}``
     and holds the variable at ``v`` over those steps.
     """
+    execution = resolve_execution(execution)
     if posterior_draws and bootstrap_replicates:
         raise ValueError("ask for posterior_draws or bootstrap_replicates, not both")
     params = {
         "n_steps": n_steps,
         "n_rows": n_rows,
         "interventions": list(interventions),
-        "seed": seed,
+        "seed": execution.seed,
     }
     raw = json.loads(
         _native.temporal_model_query(
             list(names), list(columns), [(str(a), int(b), str(c), int(d)) for a, b, c, d in lagged_edges],
             "rollout", json.dumps(params),
             posterior_draws=posterior_draws, bootstrap_replicates=bootstrap_replicates,
-            seed=seed, threads=threads,
+            seed=execution.seed, threads=execution.threads,
         )
     )  # fmt: skip
     uncertainty = None

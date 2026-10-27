@@ -661,7 +661,7 @@ def _uses_structure_identify(graph: object, query: object) -> bool:
 
 
 class _IdentifyStructureKwargs(TypedDict, total=False):
-    modifier: str
+    modifiers: list[str]
     policy: str
     treatment_lag: int
     horizon_steps: int
@@ -774,7 +774,7 @@ def _identify_typed_graph(
     elif isinstance(query, ConditionalEffect):
         kind = "conditional"
         treatment, outcome = query.treatment, query.outcome
-        extra = {"modifier": query.modifier}
+        extra = {"modifiers": list(query.modifiers)}
     elif isinstance(query, PulseEffect):
         kind = "pulse"
         treatment, outcome = query.treatment, query.outcome

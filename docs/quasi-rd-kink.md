@@ -36,7 +36,7 @@ continuity tests.
 
 `analyze(data, query=FuzzyRegressionDiscontinuity(...))` and the matching
 `RegressionKink` query now use this same Rust kernel through retained
-`PreparedAnalysis.prepare` / `estimate`. The prepared query fixes the cutoff,
+`ant.prepare` / `ant.estimate`. The prepared query fixes the cutoff,
 bandwidth, variable names, and jump-versus-kink contrast. The result's
 `local_polynomial_ratio` section reports the bias-corrected point estimate,
 reduced form, first stage, cutoff, bandwidth, contrast type, local sample

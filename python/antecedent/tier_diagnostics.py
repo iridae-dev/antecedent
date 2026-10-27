@@ -38,6 +38,7 @@ from typing import Any
 
 from ._scientific import ScientificResult
 from .errors import CausalTypeError
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "Availability",
@@ -135,7 +136,7 @@ def _design(wire: Mapping[str, Any]) -> TierDesign:
     )
 
 
-def tier_diagnostics(result: Any, *, cancel: Any = None) -> TierDiagnostics:
+def tier_diagnostics(result: Any, *, execution: Execution | None = None) -> TierDiagnostics:
     """Read the tier diagnostics of the most recent estimate of a tiered study.
 
     Args:
@@ -149,6 +150,7 @@ def tier_diagnostics(result: Any, *, cancel: Any = None) -> TierDiagnostics:
             average-effect result, or the read was cancelled (see the module notes).
         CausalTypeError: ``result`` carries no prepared study.
     """
+    execution = resolve_execution(execution)
     study = getattr(result, "study", result)
     native = getattr(getattr(study, "_engine", study), "_native", None)
     reader = getattr(native, "tier_diagnostics_json", None)
@@ -156,7 +158,7 @@ def tier_diagnostics(result: Any, *, cancel: Any = None) -> TierDiagnostics:
         raise CausalTypeError(
             "tier_diagnostics needs the AnalysisResult or PreparedAnalysis of an estimated study"
         )
-    wire = json.loads(reader(cancel=cancel))
+    wire = json.loads(reader(cancel=execution.cancel))
     return TierDiagnostics(
         design=_design(wire["design"]),
         overlap=_availability(wire["overlap"]),

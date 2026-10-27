@@ -170,6 +170,50 @@ is one scoring surface. The replicates are drawn at parameters fitted to the
 observed rows: declare the fit set accordingly, and an assessment of the rows
 the posterior was conditioned on is `in_sample`.
 
+In Python, declare the replicates on the study with
+`Bayesian(predictive_replicates=ReplicateBounds(n_sims, max_rows))` and read them back
+from the executed result. The fit builds `n_sims` replicates (capped by the posterior
+draws it holds) of every design row for a design of at most `max_rows` rows, and the
+`Execution` memory limit must admit them for as long as the result holds them. A study that
+did not declare them refuses `posterior_replicates` with `option_not_applicable`.
+
+```python
+import numpy as np
+import antecedent as ant
+from antecedent import predictive_assessment as pa
+
+rng = np.random.default_rng(41)
+z = rng.normal(size=60)
+t = (z + rng.normal(size=60) > 0).astype(float)
+data = {"z": z, "t": t, "y": 1.5 * t + z + 0.5 * rng.normal(size=60)}
+
+outcome = ant.analyze(
+    data,
+    graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    query=ant.AverageEffect("t", "y"),
+    inference=ant.Bayesian(n_draws=300, predictive_replicates=pa.ReplicateBounds(120, 500)),
+    execution=ant.Execution(seed=5),
+    refute="none",
+)
+replicates = pa.posterior_replicates(outcome.value)    # PosteriorReplicates: one law per design row
+assessment = pa.assess(
+    replicates.observations(),
+    [replicates.predictor()],
+    pa.ValidationDesign.held_out_split(),
+    scores=("crps",),
+    dependence=pa.Dependence.iid(),
+)
+scored = assessment.report.predictor("posterior_predictive")
+print(scored.score("crps").mean, scored.overlap.label)   # in_sample
+```
+
+The replicates are fitted to the very rows they are scored on, so `replicates.predictor()`
+declares an in-sample fit. Passing `require_held_out=True` to `pa.assess` refuses it
+(`evidence_double_counted`, `predictive_assessment.in_sample`), and a fit declared with
+`FitDeclaration.undeclared(...)` is refused as `evidence_overlap_unknown`. A score is a
+point value, a good in-sample score is not predictive validity, and a target other than the
+one the laws describe is refused rather than converted.
+
 ## Artifact
 
 `predictive_assessment_v1` stores the laws, the observations (in canonical case

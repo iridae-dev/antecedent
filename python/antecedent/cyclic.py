@@ -67,6 +67,7 @@ from ._cyclic_typed import (
     World,
     WorldAnswer,
     WorldSelector,
+    _limits,
     _seed,
     _with_execution,
     prepare_experimental_recovery,
@@ -270,7 +271,8 @@ class CyclicResult(ScientificResult):
     @_with_execution
     def export(self, *, execution: Execution | None = None) -> ExportedArtifact:
         """Encode the retained native result only at this explicit boundary."""
-        return artifact_from_receipt(self, self._native.export(max_bytes=None, cancel=None))
+        assert execution is not None  # _with_execution resolves the retained policy.
+        return artifact_from_receipt(self, self._native.export(**_limits(execution)))
 
     def assumptions(self, *, offset: int = 0, limit: int = 64):
         from ._cyclic_read_models import native_page
@@ -334,8 +336,7 @@ class CyclicResult(ScientificResult):
                     allow_nan=False,
                 ),
                 json.dumps(wire, allow_nan=False),
-                max_bytes=None,
-                cancel=None,
+                **_limits(execution),
             ),
             execution=execution,
             _prepared=self._prepared,
@@ -356,12 +357,9 @@ def consume_artifact(
 ) -> CyclicResult:
     """Check identity/integrity and recompute in Rust, including any retained fit."""
     assert execution is not None
-    max_bytes = None
-    cancel = None
+    limits = _limits(execution)
     artifact = container_bytes(artifact)
-    owner, facts = _native.consume_cyclic_system(
-        artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
-    )
+    owner, facts = _native.consume_cyclic_system(artifact, expected_identity, **limits)
     return CyclicResult(owner, facts, execution=execution)
 
 
@@ -575,8 +573,7 @@ class PreparedCyclicSystem:
         execution: Execution | None = None,
     ):
         assert execution is not None
-        max_bytes = None
-        cancel = None
+        limits = _limits(execution)
         dimension = len(request["model"]["equations"])
         noise = _cyclic_numeric_rows(request["noise"], dimension)
         metadata = dict(request, noise=[])
@@ -588,8 +585,7 @@ class PreparedCyclicSystem:
             json.dumps(metadata, allow_nan=False),
             noise,
             observations,
-            max_bytes=max_bytes,
-            cancel=cancel,
+            **limits,
         )
         result = object.__new__(cls)
         object.__setattr__(result, "request_json", None)
@@ -636,8 +632,7 @@ class PreparedCyclicSystem:
         """
         assert execution is not None
         handle = self._handle.to_family(
-            max_bytes=None,
-            cancel=None,
+            **_limits(execution),
         )
         request = json.loads(self.request_json)
         return PreparedCyclicFamily._from_handle(
@@ -688,8 +683,7 @@ class PreparedCyclicSystem:
         handle = self._handle.refresh_buffers(
             json.dumps([dict(row, values=[]) for row in rows], allow_nan=False),
             observations,
-            max_bytes=None,
-            cancel=None,
+            **_limits(execution),
         )
         result = object.__new__(PreparedCyclicSystem)
         object.__setattr__(result, "request_json", None)
@@ -705,7 +699,7 @@ class PreparedCyclicSystem:
     ) -> CyclicResult:
         """Execute the retained native product and produce its independent replay artifact."""
         assert execution is not None
-        owner, facts = self._handle.execute(max_bytes=None, cancel=None)
+        owner, facts = self._handle.execute(**_limits(execution))
         return CyclicResult(owner, facts, self, execution)
 
     @outcome_operation
@@ -737,8 +731,7 @@ class PreparedCyclicSystem:
                 draws,
                 proposal_scale,
                 seed,
-                max_bytes=None,
-                cancel=None,
+                **_limits(execution),
             )
         )
         return result
@@ -914,11 +907,10 @@ class PreparedCyclicFamily:
         without intervention worlds raises :class:`CyclicRefusal` naming the typed families.
         """
         assert execution is not None
-        max_bytes = None
-        cancel = None
+        limits = _limits(execution)
         with self._lock:
             self._prepare(execution=execution)
-            owner, facts = self._handle.execute(max_bytes=max_bytes, cancel=cancel)
+            owner, facts = self._handle.execute(**limits)
         return CyclicInterventions._from_native(
             owner, self.variable_names, facts, self, execution=execution
         )
@@ -942,8 +934,7 @@ class PreparedCyclicFamily:
         :class:`DynamicQuantitySelector`); a recovered law's port follows its draw origin.
         """
         assert execution is not None
-        max_bytes = None
-        cancel = None
+        limits = _limits(execution)
         wire = [
             item._wire(self.variable_names) if hasattr(item, "_wire") else item
             for item in selectors
@@ -957,8 +948,7 @@ class PreparedCyclicFamily:
                     allow_nan=False,
                 ),
                 json.dumps(wire, allow_nan=False),
-                max_bytes=max_bytes,
-                cancel=cancel,
+                **limits,
             ),
             execution=execution,
             _prepared=self,
@@ -1188,17 +1178,14 @@ class PreparedCyclicFamily:
         execution: Execution | None = None,
     ) -> None:
         assert execution is not None
-        max_bytes = None
-        cancel = None
+        limits = _limits(execution)
         if self._scientific_refusal is not None:
             self._scientific_refusal.raise_error()
         if self._handle is None:
             object.__setattr__(
                 self,
                 "_handle",
-                _native.prepare_cyclic_family(
-                    self.request_json, max_bytes=max_bytes, cancel=cancel
-                ),
+                _native.prepare_cyclic_family(self.request_json, **limits),
             )
 
     @outcome_operation
@@ -1210,11 +1197,10 @@ class PreparedCyclicFamily:
     ) -> CyclicResult:
         """Execute the retained program and encode its result, reusing compatible fits."""
         assert execution is not None
-        max_bytes = None
-        cancel = None
+        limits = _limits(execution)
         with self._lock:
             self._prepare(execution=execution)
-            owner, facts = self._handle.execute(max_bytes=max_bytes, cancel=cancel)
+            owner, facts = self._handle.execute(**limits)
         return CyclicResult(owner, facts, self, execution)
 
 
@@ -1269,12 +1255,9 @@ def consume_family_artifact(
 ) -> CyclicResult:
     """Recompute a dynamic/constraint answer with independent identity checking."""
     assert execution is not None
-    max_bytes = None
-    cancel = None
+    limits = _limits(execution)
     artifact = container_bytes(artifact)
-    owner, facts = _native.consume_cyclic_family(
-        artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
-    )
+    owner, facts = _native.consume_cyclic_family(artifact, expected_identity, **limits)
     return CyclicResult(owner, facts, execution=execution)
 
 
@@ -2400,8 +2383,7 @@ class LocalCyclicModel:
         Rust checks residuals, derivative shapes, cancellation and call budgets.
         """
         assert execution is not None
-        max_bytes = None
-        cancel = None
+        limits = _limits(execution)
         request = {
             "mechanisms": [(m.id, m.reads) for m in self.mechanisms],
             "noise": noise,
@@ -2418,8 +2400,7 @@ class LocalCyclicModel:
             _native.execute_local_cyclic(
                 json.dumps(request, allow_nan=False),
                 [m.callback for m in self.mechanisms],
-                max_bytes=max_bytes,
-                cancel=cancel,
+                **limits,
             )
         )
 
@@ -2546,11 +2527,8 @@ class CyclicEvidence:
     ) -> ExportedArtifact:
         """Export original source and projection, preserving replay and uncertainty meaning."""
         assert execution is not None
-        max_bytes = None
-        cancel = None
-        return artifact_from_receipt(
-            self, bytes(self._handle.export(max_bytes=max_bytes, cancel=cancel))
-        )
+        limits = _limits(execution)
+        return artifact_from_receipt(self, bytes(self._handle.export(**limits)))
 
     @_with_execution
     @outcome_operation
@@ -2571,6 +2549,7 @@ class CyclicEvidence:
         from .joint_distribution import JointDistributionArtifact
         from .outcomes import Outcome, require_success
 
+        assert execution is not None  # _with_execution resolves the retained policy.
         if dependence not in (None, "aligned", "independent"):
             raise CausalValueError("dependence must be aligned or independent")
         if len(others) > 256:
@@ -2584,8 +2563,7 @@ class CyclicEvidence:
             self._handle.joint_law(
                 others=[item._handle for item in selected],
                 dependence=dependence,
-                max_bytes=None,
-                cancel=None,
+                **_limits(execution),
             )
         )
 
@@ -2625,13 +2603,10 @@ def consume_evidence(
 ) -> CyclicEvidence:
     """Independently replay a cyclic source and recheck its entire evidence projection."""
     assert execution is not None
-    max_bytes = None
-    cancel = None
+    limits = _limits(execution)
     artifact = container_bytes(artifact)
     return CyclicEvidence(
-        _native.consume_cyclic_evidence(
-            artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
-        ),
+        _native.consume_cyclic_evidence(artifact, expected_identity, **limits),
         execution=execution,
     )
 

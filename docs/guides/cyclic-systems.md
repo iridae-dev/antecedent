@@ -19,6 +19,7 @@ interventions; `World(0)` is the system as specified.
 
 ```python
 from antecedent.cyclic import LinearCyclicModel, Set, World
+from antecedent.outcomes import require_success
 
 model = LinearCyclicModel.from_direct_effects(
     ["A", "B"],
@@ -31,7 +32,7 @@ prepared = model.worlds(
     source_id="specification",
     certifying_evidence=["bench-derivation"],
 )
-answers = prepared.interventions()
+answers = require_success(prepared.interventions())
 print(answers[0].mean("B"), answers[1].mean("B"))
 ```
 
@@ -65,9 +66,9 @@ feedback = EquilibriumModel(
     ),
     (1.0, 0.0, 0.0, 1.0),
 )
-worlds = feedback.worlds(
+worlds = require_success(feedback.worlds(
     [World(0), World(1, Set("a", 2.0))], [[0.0, 0.0], [1.0, 0.0]]
-).interventions()
+).interventions())
 print(worlds[0].draws("b"), worlds[1].draws("b"))
 ```
 

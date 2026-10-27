@@ -12,12 +12,11 @@ from typing import Any, Literal, TypeVar
 from . import _native
 from ._native import (
     CancellationToken,
-    CausalState,
     GraphScoreCache,
     RollingMechanismDiagnostics,
-    antecedent_state_append,
 )
 from .errors import CausalStateError, CausalTypeError, CausalValueError
+from .execution import CachePolicy, Execution
 
 __all__ = [
     "CancellationToken",
@@ -50,6 +49,90 @@ _LAYERS = (
     "data_snapshot",
 )
 _OPTIONAL_LAYERS = ("identification_product", "program")
+
+
+_UNBOUNDED_CACHE_BYTES = 2**64 - 1
+
+
+def _execution(execution: Execution | None) -> Execution:
+    execution = Execution() if execution is None else execution
+    if not isinstance(execution, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    return execution
+
+
+def _cache_bytes(execution: Execution | None) -> int:
+    """The result-cache byte budget an execution's cache policy grants."""
+    policy: CachePolicy = _execution(execution).cache
+    if policy.mode == "disabled":
+        return 0
+    if policy.mode == "unbounded":
+        return _UNBOUNDED_CACHE_BYTES
+    assert policy.max_bytes is not None
+    return policy.max_bytes
+
+
+class CausalState:
+    """What a data or premise event made stale, with a result cache bounded by an execution.
+
+    ``execution.cache`` sets the cache byte budget (a disabled cache admits nothing, an
+    unbounded one is limited only by the machine). The state records staleness and never
+    recomputes; every operation of the native state is available unchanged.
+    """
+
+    __slots__ = ("_execution", "_native")
+
+    def __init__(self, execution: Execution | None = None) -> None:
+        self._execution = None if execution is None else _execution(execution)
+        self._native = _native.CausalState(_cache_bytes(execution))
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        member = getattr(self._native, name)
+        run = self._execution
+        if run is None or not callable(member):
+            return member
+
+        def call(*args: Any, **kwargs: Any) -> Any:
+            return run._call(member, *args, **kwargs)  # noqa: SLF001
+
+        return call
+
+    def particle_filter_init(
+        self,
+        key: str,
+        n_particles: int,
+        *,
+        a: float = 0.9,
+        process_std: float = 0.3,
+        obs_std: float = 0.5,
+        execution: Execution | None = None,
+    ) -> None:
+        """Start a bootstrap particle filter whose stream is seeded by ``execution``."""
+        run = _execution(self._execution if execution is None else execution)
+        run._call(  # noqa: SLF001
+            self._native.particle_filter_init,
+            key,
+            n_particles,
+            a=a,
+            process_std=process_std,
+            obs_std=obs_std,
+            seed=run.seed,
+        )
+
+    def __repr__(self) -> str:
+        return f"<CausalState version={self._native.version}>"
+
+
+def antecedent_state_append(
+    n_appends: int = 2, *, execution: Execution | None = None
+) -> tuple[int, int]:
+    """Append synthetic batches to a fresh state and report ``(version, stale_count)``."""
+    run = _execution(execution)
+    return run._call(  # noqa: SLF001
+        _native.antecedent_state_append, n_appends, cache_bytes=_cache_bytes(run)
+    )
 
 
 def _identity_layers(identities: Any) -> dict[str, str | None]:
@@ -100,7 +183,7 @@ def publish_recomputed_results(
     if not isinstance(state, CausalState):
         raise CausalTypeError("state must be a CausalState")
     bound = [(int(query), _identity_layers(ids), int(nbytes)) for query, ids, nbytes in updates]
-    state.publish_recomputed(int(expected_version), bound)
+    state._native.publish_recomputed(int(expected_version), bound)  # noqa: SLF001
 
 
 # --------------------------------------------------------------------------- retained refresh

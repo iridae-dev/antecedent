@@ -70,6 +70,15 @@ def _seed():
     return 0 if execution is None else execution.seed
 
 
+def _limits(execution: Execution) -> dict[str, Any]:
+    """The native byte limit and cancellation token an execution carries.
+
+    A native cyclic entry takes both explicitly, so the execution's memory limit and token
+    are what bound and stop the run, not only the ambient policy.
+    """
+    return {"max_bytes": execution.limits.memory_bytes, "cancel": execution.cancel}
+
+
 def _with_execution(operation):
     """Bind native context and retain the reusable policy on prepared branches."""
     call_signature = signature(operation)
@@ -309,8 +318,7 @@ def _compiled(
 ) -> PreparedCyclicFamily:
     """Compile now and retain native scientific refusal without executing a model."""
     assert execution is not None
-    max_bytes = None
-    cancel = None
+    limits = _limits(execution)
     from .cyclic import PreparedCyclicFamily
 
     request_json = json.dumps(request, allow_nan=False)
@@ -320,7 +328,7 @@ def _compiled(
         else _native.prepare_cyclic_family
     )
     try:
-        handle = prepare(request_json, max_bytes=max_bytes, cancel=cancel)
+        handle = prepare(request_json, **limits)
     except CausalError as error:
         if not is_scientific_refusal(error):
             raise
@@ -761,15 +769,14 @@ class WorldAnswer(ScientificResult):
         """Compose this selected native world through declared units and population."""
         from .cyclic import CyclicEvidence
 
+        assert execution is not None  # _with_execution resolves the retained policy.
         self._position(variable)
         selector = WorldSelector(self.world, variable, time)._wire(self._names)
         handle = self._native.evidence(
             json.dumps(schema._wire() if hasattr(schema, "_wire") else schema, allow_nan=False),
             json.dumps([selector], allow_nan=False),
-            max_bytes=None,
-            cancel=None,
+            **_limits(execution),
         )
-        assert execution is not None  # _with_execution resolves the retained policy.
         return CyclicEvidence(handle, execution=execution, _prepared=self._prepared)
 
 
@@ -930,13 +937,12 @@ class RecoveredWorldAnswer(ScientificResult):
             raise CausalValueError(
                 "select response without draw, or within_draw with an explicit draw"
             )
+        assert execution is not None  # _with_execution resolves the retained policy.
         handle = self._native.evidence(
             json.dumps(schema._wire() if hasattr(schema, "_wire") else schema, allow_nan=False),
             json.dumps([wire], allow_nan=False),
-            max_bytes=None,
-            cancel=None,
+            **_limits(execution),
         )
-        assert execution is not None  # _with_execution resolves the retained policy.
         return CyclicEvidence(handle, execution=execution, _prepared=self._prepared)
 
 

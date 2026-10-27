@@ -47,12 +47,14 @@ from numpy.typing import NDArray
 from . import _native
 from ._artifact_protocol import ArtifactAcceptance, container_bytes
 from ._scientific import ScientificResult
+from .counterfactual import FittedGcm, native_gcm
 from .errors import (
     CausalSerializationError,
     CausalTypeError,
     CausalUnsupportedError,
     CausalValueError,
 )
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "Expr",
@@ -292,31 +294,35 @@ def _programs(text: str) -> tuple[Program, ...]:
 
 
 def sample_policy(
-    fitted: _native.FittedGcm,
+    fitted: FittedGcm,
     programs: Sequence[Program],
     n: int,
     *,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> _native.GcmSampleResult:
     """Draw ``n`` rows from ``fitted`` with ``programs`` applied (forward ancestral sampling)."""
-    return _native.sample_policy(fitted, _text(programs), n, seed, threads)
+    execution = resolve_execution(execution)
+    return _native.sample_policy(
+        native_gcm(fitted), _text(programs), n, execution.seed, execution.threads
+    )
 
 
 def counterfactual_policy(
-    fitted: _native.FittedGcm,
+    fitted: FittedGcm,
     programs: Sequence[Program],
     outcomes: Sequence[str],
     *,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> dict[str, NDArray[np.float64]]:
     """Each factual row's ``outcomes`` had ``programs`` applied, on its own abduced noise."""
-    return _native.counterfactual_policy(fitted, _text(programs), list(outcomes), seed, threads)
+    execution = resolve_execution(execution)
+    return _native.counterfactual_policy(
+        native_gcm(fitted), _text(programs), list(outcomes), execution.seed, execution.threads
+    )
 
 
 def sample_temporal_policy(
-    fitted: _native.FittedGcm,
+    fitted: FittedGcm,
     programs: Sequence[Program],
     *,
     n_rows: int,
@@ -324,8 +330,7 @@ def sample_temporal_policy(
     window: int,
     start: int = 0,
     history: Sequence[Mapping[str, Sequence[float]]] | None = None,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> list[_native.GcmSampleResult]:
     """Roll ``fitted`` out for ``n_steps`` steps with ``programs`` active from step ``start``.
 
@@ -333,24 +338,32 @@ def sample_temporal_policy(
     zero, most recent first, as ``{variable: values}`` over every variable. A look-back that
     reaches before the first available step is refused (``policy_history_unavailable``).
     """
+    execution = resolve_execution(execution)
     steps = None
     if history is not None:
         steps = [{name: [float(v) for v in values] for name, values in h.items()} for h in history]
     return _native.sample_temporal_policy(
-        fitted, _text(programs), n_rows, n_steps, window, seed, start, steps, threads
+        native_gcm(fitted),
+        _text(programs),
+        n_rows,
+        n_steps,
+        window,
+        execution.seed,
+        start,
+        steps,
+        execution.threads,
     )
 
 
 def counterfactual_temporal_policy(
-    fitted: _native.FittedGcm,
+    fitted: FittedGcm,
     programs: Sequence[Program],
     steps: Sequence[Mapping[str, Sequence[float]]],
     *,
     window: int,
     start: int = 0,
     history: Sequence[Mapping[str, Sequence[float]]] | None = None,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> list[_native.GcmSampleResult]:
     """Replay a factual panel under ``programs`` active from step ``start``, step by step.
 
@@ -363,6 +376,7 @@ def counterfactual_temporal_policy(
     reaches before the first available step is refused (``policy_history_unavailable``).
     The abduction's rank-preservation disclosure applies as on the static route.
     """
+    execution = resolve_execution(execution)
     if not steps:
         raise CausalValueError("pass at least one panel step")
     tables = [
@@ -375,7 +389,14 @@ def counterfactual_temporal_policy(
             {name: [float(v) for v in values] for name, values in h.items()} for h in history
         ]
     return _native.counterfactual_temporal_policy(
-        fitted, _text(programs), tables, window, seed, start, previous, threads
+        native_gcm(fitted),
+        _text(programs),
+        tables,
+        window,
+        execution.seed,
+        start,
+        previous,
+        execution.threads,
     )
 
 
@@ -579,24 +600,23 @@ def _support(fields: Mapping[str, Mapping[str, Any]]) -> PolicySupport:
     )
 
 
-def policy_support(fitted: _native.FittedGcm, programs: Sequence[Program]) -> PolicySupport:
+def policy_support(fitted: FittedGcm, programs: Sequence[Program]) -> PolicySupport:
     """The licence of each route for ``programs`` on ``fitted``, before anything runs.
 
     A refusal on a route names its registered reason code; for example a transform of the
     generated value is licensed for simulation and counterfactual execution and refused for
     observational identification with ``policy_route_not_licensed``.
     """
-    return _support(_native.policy_support(fitted, _text(programs)))
+    return _support(_native.policy_support(native_gcm(fitted), _text(programs)))
 
 
 def policy_value(
-    fitted: _native.FittedGcm,
+    fitted: FittedGcm,
     programs: Sequence[Program],
     outcome: str,
     *,
     n: int,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> PolicyValueResult:
     """Value of ``programs`` on ``outcome`` under the fitted model.
 
@@ -604,7 +624,12 @@ def policy_value(
     intervention, and reports both means and their paired difference with the simulation error.
     A policy the simulation route refuses is refused here with the same reason code.
     """
-    return _value(_native.policy_value(fitted, _text(programs), outcome, n, seed, threads))
+    execution = resolve_execution(execution)
+    return _value(
+        _native.policy_value(
+            native_gcm(fitted), _text(programs), outcome, n, execution.seed, execution.threads
+        )
+    )
 
 
 def _value(fields: Mapping[str, Any]) -> PolicyValueResult:
@@ -625,8 +650,8 @@ class PreparedPolicy:
 
     __slots__ = ("_native",)
 
-    def __init__(self, fitted: _native.FittedGcm, programs: Sequence[Program]) -> None:
-        self._native = _native.PreparedPolicy(fitted, _text(programs))
+    def __init__(self, fitted: FittedGcm, programs: Sequence[Program]) -> None:
+        self._native = _native.PreparedPolicy(native_gcm(fitted), _text(programs))
 
     @property
     def identity(self) -> str | None:
@@ -653,7 +678,7 @@ class PreparedPolicy:
         """How many fitted models the program's overlay and licence were resolved against."""
         return int(self._native.model_bindings)
 
-    def rebind(self, fitted: _native.FittedGcm) -> PreparedPolicy:
+    def rebind(self, fitted: FittedGcm) -> PreparedPolicy:
         """The same program bound to another fitted model over the same variables.
 
         For a model refitted on refreshed data: the overlay and the licence are resolved against
@@ -661,29 +686,30 @@ class PreparedPolicy:
         unchanged, :attr:`model_bindings` grows by one).
         """
         rebound = object.__new__(PreparedPolicy)
-        rebound._native = self._native.rebind(fitted)
+        rebound._native = self._native.rebind(native_gcm(fitted))
         return rebound
 
-    def sample(
-        self, n: int, *, seed: int = 0, threads: int | None = None
-    ) -> _native.GcmSampleResult:
+    def sample(self, n: int, *, execution: Execution | None = None) -> _native.GcmSampleResult:
         """Draw ``n`` rows under the program."""
-        return self._native.sample(n, seed, threads)
+        execution = resolve_execution(execution)
+        return self._native.sample(n, execution.seed, execution.threads)
 
     def counterfactual(
-        self, outcomes: Sequence[str], *, seed: int = 0, threads: int | None = None
+        self, outcomes: Sequence[str], *, execution: Execution | None = None
     ) -> dict[str, NDArray[np.float64]]:
         """Each factual row's ``outcomes`` had the program been applied, on its own noise."""
-        return self._native.counterfactual(list(outcomes), seed, threads)
+        execution = resolve_execution(execution)
+        return self._native.counterfactual(list(outcomes), execution.seed, execution.threads)
 
     def value(
-        self, outcome: str, *, n: int, seed: int = 0, threads: int | None = None
+        self, outcome: str, *, n: int, execution: Execution | None = None
     ) -> PolicyValueResult:
         """The program's value on ``outcome`` (see :func:`policy_value`)."""
-        return _value(self._native.value(outcome, n, seed, threads))
+        execution = resolve_execution(execution)
+        return _value(self._native.value(outcome, n, execution.seed, execution.threads))
 
 
-def prepare_policy(fitted: _native.FittedGcm, programs: Sequence[Program]) -> PreparedPolicy:
+def prepare_policy(fitted: FittedGcm, programs: Sequence[Program]) -> PreparedPolicy:
     """Compile and license ``programs`` once on ``fitted``; see :class:`PreparedPolicy`."""
     return PreparedPolicy(fitted, programs)
 

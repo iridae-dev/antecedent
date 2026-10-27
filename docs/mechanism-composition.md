@@ -125,7 +125,7 @@ mean contrast and requires its compatible scientific coordinate. The canonical
 queries. It does not carry the model's law or independent marginal variances as joint
 decision uncertainty.
 
-`prepared.export(query, ...)` returns bytes; `prepared.artifact(query, ...)` returns
-the same query-selected bytes, expectation and immutable export metadata. Shared
+`prepared.export(query, ...)` returns a typed `ExportedArtifact` with the query-selected
+bytes, expectation and immutable export metadata. Shared
 `ant.load(...)` invokes `consume_mechanism_composition_artifact`, preserving its checks
 and typed consumed result.

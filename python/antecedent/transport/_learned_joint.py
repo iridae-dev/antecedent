@@ -16,8 +16,10 @@ from .._measured_inference import MeasuredInference
 from .._native import learned_joint_transport_closed as _learned_joint_transport_closed
 from .._validate import names
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg
 from ._closed_pilots import _has_bidirected_edge
+from ._controls import resolve
 from ._impl import TransportIdentification, _non_negative
 from ._joint_posterior import (
     JointTransportPriors,
@@ -79,7 +81,6 @@ def learned_joint_transport(
     sharing: Sharing = "independent_varying_blocks",
     basis_degree: int = 2,
     draws: int = 4000,
-    seed: int = 0,
     identification: TransportIdentification | None = None,
     priors: JointTransportPriors | None = None,
     treatment: str = "a",
@@ -87,8 +88,7 @@ def learned_joint_transport(
     max_unsupported_mass: float = 0.0,
     conflict_z_threshold: float = 3.0,
     level: float = 0.95,
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference:
     """Return the measured target-effect scalar under the declared joint model.
 
@@ -116,6 +116,8 @@ def learned_joint_transport(
     declared = "admg" if graph is not None and _has_bidirected_edge(graph) else graph_class
     _non_negative("basis_degree", basis_degree)
     _non_negative("draws", draws)
+    execution = resolve(execution)
+    seed = execution.seed
     _non_negative("seed", seed)
     if (
         getattr(_native, "joint_transport_measured", None) is not None
@@ -133,8 +135,7 @@ def learned_joint_transport(
             raise CausalTypeError("candidate transport needs explicit complete priors")
         return _measured(
             level=level,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            execution=execution,
             sources=sources,
             target=target,
             features=feature_names,

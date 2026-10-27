@@ -260,7 +260,7 @@ Additive companions only. No `CausalProgram` builder. No second taxonomy.
 | `IDENTITY_FORMAT` / `IDENTITY_FORMAT_TAG` | `antecedent-core` | Encoding version beside every digest |
 | `SlotAvailability`, four reasoning slots, `ReasoningView` | `antecedent-core` | Projects `IdentificationResult`, `support::classify`, result uncertainty, `AssumptionRecord` |
 | `ObligationRecord` / scope / kind | `antecedent-core` | Extends `AssumptionRecord`; not a parallel assumption list |
-| `TransformIntent`, `TransformEffect`, `TransformationReport` | `antecedent-core` | Preview/apply compose `PreparedStudy::{refresh,retarget}` |
+| `TransformIntent`, `TransformEffect`, `TransformationReport` | `antecedent-core` | Preview/apply compose `PreparedStudy::{rebind_data,retarget}` |
 | `ClaimEnvelope`, `AcceptanceReport`, `HandoffReceipt` | `antecedent-core` | Portable claim over contract + one execution |
 | `RequestIdentity`, `ExecutionReceipt`, `ExecutionRequestState` | `antecedent-core` | Host request identity around `ExecutionContext` |
 | `CausalContract` | `antecedent` | Companion of `Study` / `PreparedStudy` |

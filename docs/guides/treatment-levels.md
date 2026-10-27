@@ -29,7 +29,7 @@ A string- or category-coded column is declared by its labels:
 `AverageEffect("t", "y", control_level="a", active_level="b")`. Both levels must be labels (or
 both numbers). The labels are mapped to the arm codes before preparation and the contrast runs
 the same declared-level path as numeric levels, so `a/b`, `0/1`, `1/2` and `10/20` codings of the
-same units give bit-identical estimates. The declaration is frozen with the study: `refresh`
+same units give bit-identical estimates. The declaration is frozen with the study: `ant.rebind`
 encodes a new table by the same labels, and a row at any other label is refused
 (`treatment_level_undeclared`, listing the observed levels) rather than dropped.
 `result.estimand_text` states the contrast with the declared levels, for example

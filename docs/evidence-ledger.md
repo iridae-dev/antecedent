@@ -149,10 +149,10 @@ syntheses and refuses another retained identity.
 
 ### Python persistence and composition
 
-`ledger.export(...)` returns bytes. `ledger.artifact(...)` returns the same bytes
-and identity expectation with carried/not-carried export receipts in immutable
+`ledger.export(...)` returns a typed `ExportedArtifact`: `bytes(artifact)` are the container,
+`.expectation` the identity to retain, and carried/not-carried export receipts sit in immutable
 `.metadata`; no summary is silently promoted to a replayable synthesis.
-`ant.load(envelope, expected=envelope.expectation)` uses the existing ledger replay
+`ant.load(bytes(artifact), expected=artifact.expectation)` uses the existing ledger replay
 consumer. Retain the expectation separately from the container.
 
 A scalar `SynthesisOutcome` can use `outcome.as_mean_source(quantity=...)` for

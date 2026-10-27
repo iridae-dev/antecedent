@@ -50,9 +50,9 @@ result = ant.analyze(units, graph=[], query=query)
 ```
 
 The selection diagram and trial column bindings, and the network and realized
-assignment, freeze at prepare. The data is what a refresh replaces: a
-transport refresh reads the trial columns from the new rows, and an
-interference refresh executes on new outcomes under the frozen design. The
+assignment, freeze at prepare. The data is what `ant.rebind` replaces: a
+rebound transport study reads the trial columns from the new rows, and an
+interference branch executes on new outcomes under the frozen design. The
 transported IPW is `result.estimate.ate` with its selection and treatment
 overlap on `result.transport_overlap`; the Horvitz–Thompson contrast is
 `result.estimate.ate` with the Hájek estimate, conservative variance and
@@ -61,7 +61,7 @@ exposure-probability methods on `result.interference`.
 A design-defined estimand has no score table to reweight, so
 `study.retarget(...)` refuses (`reason_code="population_not_estimable"`); there
 is no refuter suite for it, so a second-click `study.refute(...)` and a positive
-`bootstrap=` refuse (`option_not_applicable`). On `analyze` a construction
+`Frequentist(bootstrap=...)` refuse (`option_not_applicable`). On `analyze` a construction
 outside the licensed cell — a transported derivative or other inner functional,
 RecursiveFactorization, complete or cluster randomization, or another exposure
 mapping — refuses with `construction_not_licensed`, because a licensed claim

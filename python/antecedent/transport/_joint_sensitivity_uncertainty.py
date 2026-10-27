@@ -11,7 +11,8 @@ from __future__ import annotations
 from typing import Any
 
 from .._native import z_transport_joint_sensitivity_interval as _joint_interval
-from ._impl import _optional_non_negative
+from ..execution import Execution
+from ._controls import call_native
 from ._joint_sensitivity import JointDeviation, _deviation, _stage
 
 __all__ = ["joint_mechanism_sensitivity_interval"]
@@ -23,8 +24,7 @@ def joint_mechanism_sensitivity_interval(
     *,
     replicates: int = 199,
     level: float = 0.95,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> tuple[float, float, str]:
     """Conservative endpoint percentile bootstrap of the joint range.
 
@@ -33,13 +33,15 @@ def joint_mechanism_sensitivity_interval(
     (``joint_sensitivity.bounds_exceeded``).
     """
     deviation = _deviation(deviation)
-    lower, upper, coverage_target = _joint_interval(
+    lower, upper, coverage_target = call_native(
+        execution,
+        _joint_interval,
         _stage(stage),
         list(deviation._pairs),
         replicates=replicates,
         level=level,
         decision_threshold=deviation.decision_threshold,
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
     return (lower, upper, coverage_target)

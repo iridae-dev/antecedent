@@ -19,7 +19,7 @@ print(orders.num_rows)     # from the Parquet footer; None for Arrow IPC
 result = ant.analyze(orders, query=ant.AverageEffect("t", "y"), graph=[("z", "t"), ("z", "y"), ("t", "y")])
 ```
 
-`analyze`, `prepare`, and a prepared study's `estimate(new_data)` and `refresh(new_data)`
+`analyze`, `prepare`, and `ant.rebind(study, data=...)`
 also take the path itself (`"orders.parquet"`, a `pathlib.Path`, or a directory). A path
 whose extension is not `.parquet`, `.parq`, `.pq`, `.arrow`, `.feather`, `.ipc` or
 `.arrows`, and that is not a directory, is refused with `reason_code="invalid_argument"`.
@@ -61,7 +61,7 @@ appearance. Null cells are validity masks: a missing float cell is invalid and h
 
 Each chunk (65,536 rows by default; `chunk_rows=`) is charged to the admission pool
 before it is decoded and again before its library-owned columns are built.
-`memory_limit_bytes=` bounds that pool. When the pool cannot hold one chunk the read is
+`execution=Execution(limits=ResourceLimits(memory_bytes=...))` bounds that pool, and the execution's `cancel` token stops a read. When the pool cannot hold one chunk the read is
 refused with the bytes needed, the bytes available and the next attempt (a smaller
 chunk, or a larger pool); nothing stays charged. Arrow IPC record batches keep the
 size their writer chose, so a batch larger than the chunk quote is charged as soon as

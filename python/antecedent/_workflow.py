@@ -488,6 +488,12 @@ def _load(
             "external_callback_v1",
         ):
             return load_scientific(encoded, expected=expected, context=context, execution=execution)
+    if execution is not None and execution.cancel is not None and execution.cancel.is_cancelled():
+        # Decoding an analysis result performs no admitted native work that could observe the
+        # token, so a cancelled caller is refused before the artifact is consumed.
+        from .errors import CausalCancelledError
+
+        raise CausalCancelledError("cancelled before load")
     result = _load_analysis(encoded)
     if isinstance(expected, ArtifactExpectation):
         actual_kind = (

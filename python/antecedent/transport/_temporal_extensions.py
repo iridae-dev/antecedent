@@ -42,7 +42,7 @@ from .._artifact_protocol import (
     container_bytes,
 )
 from .._columns import coerce_fields
-from .._measured_inference import MeasuredInference, _production_limits
+from .._measured_inference import MeasuredInference
 from .._native import (
     consume_temporal_initial_state_artifact as _consume_initial_state,
 )
@@ -58,6 +58,8 @@ from .._native import (
 from .._refusal import raise_refusal
 from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalValueError, StructuredRefusal
+from ..execution import Execution
+from ._controls import call_native, resolve
 
 MARGINALIZED_LABEL = "marginalized_initial_state"
 FIXED_LABEL = "fixed_initial_state"
@@ -645,13 +647,11 @@ def temporal_dependent_interval(
     fixed_state: int | None = None,
     target_law: InitialStateLaw | int | None = None,
     replicates: int = 500,
-    seed: int = 0,
     level: float = 0.95,
     method: Literal["studentized"] = "studentized",
     min_units: int = 20,
     max_failed_fraction: float = 0.05,
-    memory_limit_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference:
     """Measured 95% whole-unit response with complete balanced binary histories.
 
@@ -660,6 +660,7 @@ def temporal_dependent_interval(
     full interval receipt are independently replayed. Other histories, laws
     and methods refuse rather than borrowing this construction's evidence.
     """
+    execution = resolve(execution)
     return cast(
         MeasuredInference,
         _temporal_interval_entry(
@@ -669,14 +670,13 @@ def temporal_dependent_interval(
             fixed_state=fixed_state,
             target_law=target_law,
             replicates=replicates,
-            seed=seed,
+            seed=execution.seed,
             level=level,
             method=method,
             min_units=min_units,
             max_failed_fraction=max_failed_fraction,
             measured=True,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            execution=execution,
         ),
     )
 
@@ -704,11 +704,10 @@ def _temporal_interval_entry(
     min_units: int = 20,
     max_failed_fraction: float = 0.05,
     measured: bool,
-    memory_limit_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference | TemporalIntervalCandidate:
     """Shared source validation; candidate and measured authority remain separate."""
-    _production_limits(memory_limit_bytes, cancel)
+    execution = resolve(execution)
     if method != "studentized":
         raise CausalValueError("direct temporal intervals require method='studentized'")
     if not isinstance(panel, TemporalUnitPanel):
@@ -739,9 +738,12 @@ def _temporal_interval_entry(
         float(max_failed_fraction),
     )
     if candidate is not None:
-        native, refusal = candidate(
+        native, refusal = call_native(
+            execution,
+            candidate,
             *arguments,
-            **({"memory_limit_bytes": memory_limit_bytes, "cancel": cancel} if measured else {}),
+            cancel="cancel" if measured else None,
+            memory="memory_limit_bytes" if measured else None,
         )
         raise_refusal(refusal, TemporalExtensionRefusal)
         return (

@@ -115,6 +115,9 @@ Continue with the [Python workflow](docs/python-workflow.md), [Rust quickstart](
 | Derive uncertainty of composed, adaptive and decision-reliability results | [Composed uncertainty](docs/guides/composed-uncertainty.md), [adaptive procedures](docs/guides/adaptive-procedure-uncertainty.md), [what these routes do not do](docs/user-facing-limits.md) |
 | Make decisions from causal results or external evidence | [Result lifecycle](docs/lifecycle.md), [decisions](docs/decisions.md), [external evidence](docs/external-science.md) |
 | Rank studies by objective, information value and cost | [Study ranking](docs/design-ranking.md) |
+| Combine a trial, a temporal effect and a cost model into one decision | [Mixed-evidence decisions](docs/guides/mixed-decisions.md) |
+| Keep results current as data change | [Retained refresh and state publication](docs/guides/retained-refresh.md), [staleness and rebinding](docs/guides/staleness.md) |
+| Explore a fitted structural model (edge strengths, `do` contrasts, counterfactual contrasts) | [Structural estimands](docs/guides/gcm-estimands.md) |
 | Recalculate an analysis and inspect reuse | [Selective recalculation](docs/recalculation-capabilities.md) |
 | Explore sensitivity, structural scenarios and composition | [Sensitivity and robustness](docs/sensitivity-and-robustness.md), [composition](docs/composition.md) |
 
@@ -126,7 +129,7 @@ Identification, empirical support and uncertainty stay separate:
 
 - **Identification** depends on the graph, design and evidence. More observations cannot repair a missing causal assumption.
 - **Diagnostics** assess data and estimator fit; they do not prove the causal model.
-- **Calibration:** `result.calibration.status == "calibrated"` means a record matches the execution and scope, and <!-- generated:claim:calibrated_slot_means_a_current_matching_record:begin -->the record still attests the current code.<!-- generated:claim:calibrated_slot_means_a_current_matching_record:end --> Implemented intervals are not automatically calibrated.
+- **Calibration:** `result.inspect().calibration.status == "calibrated"` means a record matches the execution and scope, and <!-- generated:claim:calibrated_slot_means_a_current_matching_record:begin -->the record still attests the current code.<!-- generated:claim:calibrated_slot_means_a_current_matching_record:end --> Implemented intervals are not automatically calibrated.
 - **Structural and sensitivity ranges** describe variation over assumptions, not sampling confidence intervals. CATE predictions do not imply pointwise confidence intervals.
 - **Artifact acceptance** separates independent verification from declarations and operations that cannot be replayed.
 

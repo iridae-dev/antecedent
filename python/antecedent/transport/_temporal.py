@@ -25,9 +25,11 @@ from .._native import (
 )
 from .._native import prepare_temporal_transport_stage as _prepare_temporal_transport_stage
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg, Cpdag, Pag
 from ._consumption import TransportConsumption
-from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative, _optional_non_negative
+from ._controls import call_native
+from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative
 
 HORIZON = 2
 
@@ -211,8 +213,7 @@ def prepare_temporal_transport_sequence(
     max_operations: int = 10_000_000,
     max_evaluation_depth: int = 256,
     max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Decide the whole sequence once, as one longitudinal intervention, and compile it.
 
@@ -239,7 +240,9 @@ def prepare_temporal_transport_sequence(
         raise CausalTypeError("spec must be a TemporalSequenceSpec")
     if not isinstance(catalog, EvidenceCatalog):
         raise CausalTypeError("catalog must be an EvidenceCatalog")
-    return _prepare_temporal_transport_stage(
+    return call_native(
+        execution,
+        _prepare_temporal_transport_stage,
         spec.graph,
         list(spec.selections),
         (
@@ -260,8 +263,8 @@ def prepare_temporal_transport_sequence(
         max_operations=_non_negative("max_operations", max_operations),
         max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
@@ -279,8 +282,7 @@ def consume_temporal_transport_artifact(
     max_evaluation_depth: int = 256,
     max_support_rows: int = 1_000_000,
     max_laws: int = 256,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportConsumption:
     """Independently replay an exported two-step sequence report.
 
@@ -294,7 +296,9 @@ def consume_temporal_transport_artifact(
         raise CausalTypeError("artifact must be bytes")
     return TransportConsumption.from_checked_json(
         "consume_temporal_transport_artifact",
-        _consume_temporal_transport_artifact(
+        call_native(
+            execution,
+            _consume_temporal_transport_artifact,
             artifact,
             max_steps=_non_negative("max_steps", max_steps),
             max_depth=_non_negative("max_depth", max_depth),
@@ -302,8 +306,8 @@ def consume_temporal_transport_artifact(
             max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
             max_support_rows=_non_negative("max_support_rows", max_support_rows),
             max_laws=_non_negative("max_laws", max_laws),
-            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-            cancel=cancel,
+            cancel="cancel",
+            memory="memory_bytes",
         ),
     )
 

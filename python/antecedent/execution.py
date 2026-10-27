@@ -126,3 +126,44 @@ class Execution:
                 # Preserve its operational origin through composed outcome calls.
                 object.__setattr__(error, "_antecedent_operational_callback", True)
                 raise
+
+
+def resolve_execution(execution: Execution | None) -> Execution:
+    """The execution a public entry runs under: the supplied one, else the default."""
+    execution = Execution() if execution is None else execution
+    if not isinstance(execution, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    return execution
+
+
+def native_controls(
+    execution: Execution | None,
+    *,
+    seed: str | None = None,
+    threads: str | None = None,
+    cancel: str | None = None,
+    memory: str | None = None,
+    on_progress: str | None = None,
+) -> dict[str, Any]:
+    """The loose control keywords one native entry takes, read from an ``Execution``.
+
+    Each argument names the native keyword that receives the matching control; a control
+    left as ``None`` is not passed. ``execution=None`` means the default ``Execution()``.
+    Public entries take ``execution=`` only and translate it here, so a physical control
+    has exactly one owner and one spelling.
+    """
+    execution = Execution() if execution is None else execution
+    if not isinstance(execution, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    controls: dict[str, Any] = {}
+    if seed is not None:
+        controls[seed] = execution.seed
+    if threads is not None:
+        controls[threads] = execution.threads
+    if cancel is not None:
+        controls[cancel] = execution.cancel
+    if memory is not None:
+        controls[memory] = execution.limits.memory_bytes
+    if on_progress is not None:
+        controls[on_progress] = execution.on_progress
+    return controls

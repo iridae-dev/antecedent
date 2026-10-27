@@ -14,7 +14,7 @@ from functools import partial
 from typing import Any, Literal, cast
 
 from .. import _native
-from .._measured_inference import MeasuredInference, _production_limits
+from .._measured_inference import MeasuredInference
 from .._native import binary_nested_markov_closed as _binary_nested_markov_closed
 from .._native import joint_bayesian_transport_closed as _joint_bayesian_transport_closed
 from .._native import (
@@ -22,7 +22,9 @@ from .._native import (
 )
 from .._validate import names
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg
+from ._controls import call_native, resolve
 from ._impl import TransportIdentification, _non_negative
 from ._joint_posterior import (
     JointTransportPriors,
@@ -82,7 +84,6 @@ def joint_bayesian_transport(
     varying: str = "intercept",
     sharing: str = "independent_varying_blocks",
     draws: int = 4000,
-    seed: int = 0,
     identification: TransportIdentification | None = None,
     priors: JointTransportPriors | None = None,
     treatment: str = "a",
@@ -90,8 +91,7 @@ def joint_bayesian_transport(
     max_unsupported_mass: float = 0.0,
     conflict_z_threshold: float = 3.0,
     level: float = 0.95,
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference:
     """Return native-authorized measured inference for the target-effect scalar.
 
@@ -118,6 +118,8 @@ def joint_bayesian_transport(
             raise CausalTypeError(f"{name} must be a string")
     declared = "admg" if graph is not None and _has_bidirected_edge(graph) else graph_class
     _non_negative("draws", draws)
+    execution = resolve(execution)
+    seed = execution.seed
     _non_negative("seed", seed)
     if (
         getattr(_native, "joint_transport_measured", None) is not None
@@ -135,8 +137,7 @@ def joint_bayesian_transport(
             raise CausalTypeError("candidate transport needs explicit complete priors")
         return _measured(
             level=level,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            execution=execution,
             sources=sources,
             target=target,
             features=feature_names,
@@ -278,9 +279,7 @@ def binary_nested_markov(
     max_iterations: int = 50_000,
     tolerance: float = 1e-11,
     prior: NestedMarkovPrior | None = None,
-    seed: int = 0,
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference:
     """Measured mean0, mean1 and contrast95 under the fixed full-11D posterior pilot.
 
@@ -289,6 +288,7 @@ def binary_nested_markov(
     interior model design; it does not license arbitrary prior or model coverage.
     The underlying continuous posterior artifact retains unmeasured standing.
     """
+    execution = resolve(execution)
     return cast(
         MeasuredInference,
         _nested_posterior_entry(
@@ -297,10 +297,9 @@ def binary_nested_markov(
             max_iterations=max_iterations,
             tolerance=tolerance,
             prior=prior,
-            seed=seed,
+            seed=execution.seed,
             measured=True,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            execution=execution,
         ),
     )
 
@@ -319,11 +318,10 @@ def _nested_posterior_entry(
     prior: NestedMarkovPrior | None = None,
     seed: int = 0,
     measured: bool,
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference | NestedMarkovPosteriorCandidate:
     """Shared original-domain validation and separate native authority dispatch."""
-    _production_limits(memory_limit_bytes, cancel)
+    execution = resolve(execution)
     arguments = _nested_arguments(graph, regimes, max_iterations, tolerance)
     if prior is None:
         prior = NestedMarkovPrior()
@@ -348,14 +346,17 @@ def _nested_posterior_entry(
     )
     if candidate is not None:
         alpha, beta = prior._wire()
-        native = candidate(
+        native = call_native(
+            execution,
+            candidate,
             *arguments,
             max_iterations,
             tolerance,
             alpha,
             beta,
             seed,
-            **({"memory_limit_bytes": memory_limit_bytes, "cancel": cancel} if measured else {}),
+            cancel="cancel" if measured else None,
+            memory="memory_limit_bytes" if measured else None,
         )
         return (
             MeasuredInference._from_native(native)
@@ -386,8 +387,7 @@ def binary_nested_markov_fisher_interval(
     nominal_level: float = 0.95,
     max_iterations: int = 50_000,
     tolerance: float = 1e-11,
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference:
     """Native-authorized Fisher/delta mean0, mean1 and contrast intervals.
 
@@ -405,8 +405,7 @@ def binary_nested_markov_fisher_interval(
             max_iterations=max_iterations,
             tolerance=tolerance,
             measured=True,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            execution=execution,
         ),
     )
 
@@ -424,11 +423,10 @@ def _nested_fisher_entry(
     max_iterations: int = 50_000,
     tolerance: float = 1e-11,
     measured: bool,
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference | NestedFisherCandidate:
     """Shared original-domain validation and separate native authority dispatch."""
-    _production_limits(memory_limit_bytes, cancel)
+    execution = resolve(execution)
     if isinstance(nominal_level, bool) or not isinstance(nominal_level, (int, float)):
         raise CausalTypeError("nominal_level must be a number")
     try:
@@ -454,12 +452,15 @@ def _nested_fisher_entry(
         None,
     )
     if candidate is not None:
-        native = candidate(
+        native = call_native(
+            execution,
+            candidate,
             *arguments,
             nominal_level,
             max_iterations,
             tolerance,
-            **({"memory_limit_bytes": memory_limit_bytes, "cancel": cancel} if measured else {}),
+            cancel="cancel" if measured else None,
+            memory="memory_limit_bytes" if measured else None,
         )
         return (
             MeasuredInference._from_native(native)
@@ -479,10 +480,8 @@ def sampled_observation_recovery(
     rows: Sequence[Sequence[int]],
     snapshot: str,
     replicates: int = 2000,
-    seed: int = 0,
     interval_method: Literal["bootstrap_bca"] = "bootstrap_bca",
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference:
     """Measured recovered-effect scalar with original native recovery proof.
 
@@ -492,6 +491,7 @@ def sampled_observation_recovery(
     and complete attempted-work receipt. The original recovery artifact and numerical
     diagnostics stay unmeasured.
     """
+    execution = resolve(execution)
     return cast(
         MeasuredInference,
         _sampled_recovery_entry(
@@ -500,11 +500,10 @@ def sampled_observation_recovery(
             rows=rows,
             snapshot=snapshot,
             replicates=replicates,
-            seed=seed,
+            seed=execution.seed,
             interval_method=interval_method,
             measured=True,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            execution=execution,
         ),
     )
 
@@ -524,11 +523,10 @@ def _sampled_recovery_entry(
     seed: int = 0,
     interval_method: Literal["bootstrap_bca"] = "bootstrap_bca",
     measured: bool,
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference | SampledRecoveryCandidate:
     """Original query/row validation with distinct native authority dispatch."""
-    _production_limits(memory_limit_bytes, cancel)
+    execution = resolve(execution)
     if not isinstance(stage, _native.ObservationRecoveryStage):
         raise CausalTypeError("stage must retain an original native recovery stage")
     if interval_method != "bootstrap_bca":
@@ -570,7 +568,9 @@ def _sampled_recovery_entry(
             or candidate is None
         ):
             raise
-        produced = candidate(
+        produced = call_native(
+            execution,
+            candidate,
             query.population,
             query.observed_regime,
             [(p.variable, p.response, p.proxy) for p in query.partially_observed],
@@ -580,7 +580,8 @@ def _sampled_recovery_entry(
             replicates,
             seed,
             interval_method,
-            **({"memory_limit_bytes": memory_limit_bytes, "cancel": cancel} if measured else {}),
+            cancel="cancel" if measured else None,
+            memory="memory_limit_bytes" if measured else None,
         )
         if measured:
             return MeasuredInference._from_native(produced)

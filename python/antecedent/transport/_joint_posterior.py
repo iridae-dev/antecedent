@@ -23,10 +23,12 @@ from .._artifact_protocol import (
 )
 from .._columns import coerce_fields
 from .._data import to_f64
-from .._measured_inference import MeasuredInference, _level, _production_limits
+from .._measured_inference import MeasuredInference, _level
 from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ._candidate_data import detached, freeze
+from ._controls import call_native
 from ._impl import TransportIdentification
 
 
@@ -382,11 +384,9 @@ def _candidate(**kwargs: Any) -> JointTransportPosterior:
 def _measured(
     *,
     level: float = 0.95,
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
     **kwargs: Any,
 ) -> MeasuredInference:
-    _production_limits(memory_limit_bytes, cancel)
     _level(level)
     text = _request_json(**kwargs)
     producer = getattr(_native, "joint_transport_measured", None)
@@ -395,13 +395,14 @@ def _measured(
             "joint_transport.route_frozen: measured native authority unavailable",
             reason_code="cell_not_licensed",
         )
-    native = producer(
+    native = call_native(
+        execution,
+        producer,
         kwargs["identification"]._native,
         text,
         kwargs["learned"],
         level=level,
-        memory_limit_bytes=memory_limit_bytes,
-        cancel=cancel,
+        memory="memory_limit_bytes",
     )
     return MeasuredInference._from_native(native)
 

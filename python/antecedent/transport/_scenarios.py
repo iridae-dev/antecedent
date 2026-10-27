@@ -32,9 +32,11 @@ from .._native import (
 )
 from .._native import prepare_transport_scenarios_stage as _prepare_transport_scenarios_stage
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg, Cpdag, Pag
 from ._consumption import TransportConsumption
-from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative, _optional_non_negative
+from ._controls import call_native
+from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative
 from ._temporal import _wire
 
 MAX_SCENARIOS = 64
@@ -150,8 +152,7 @@ def prepare_transport_scenarios(
     max_operations: int = 10_000_000,
     max_evaluation_depth: int = 256,
     max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Decide every scenario once and compile each identified one.
 
@@ -206,7 +207,9 @@ def prepare_transport_scenarios(
         raise CausalTypeError("catalog must be an EvidenceCatalog")
     if isinstance(conditioned_on, str):
         raise CausalTypeError("conditioned_on must be a sequence of variable names")
-    return _prepare_transport_scenarios_stage(
+    return call_native(
+        execution,
+        _prepare_transport_scenarios_stage,
         [
             (
                 s.name,
@@ -231,8 +234,8 @@ def prepare_transport_scenarios(
         max_operations=_non_negative("max_operations", max_operations),
         max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
@@ -250,8 +253,7 @@ def consume_transport_scenarios_artifact(
     max_evaluation_depth: int = 256,
     max_support_rows: int = 1_000_000,
     max_laws: int = 256,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportConsumption:
     """Independently replay an exported scenario report.
 
@@ -268,7 +270,9 @@ def consume_transport_scenarios_artifact(
         raise CausalTypeError("artifact must be bytes")
     return TransportConsumption.from_checked_json(
         "consume_transport_scenarios_artifact",
-        _consume_transport_scenarios_artifact(
+        call_native(
+            execution,
+            _consume_transport_scenarios_artifact,
             artifact,
             max_steps=_non_negative("max_steps", max_steps),
             max_depth=_non_negative("max_depth", max_depth),
@@ -276,8 +280,8 @@ def consume_transport_scenarios_artifact(
             max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
             max_support_rows=_non_negative("max_support_rows", max_support_rows),
             max_laws=_non_negative("max_laws", max_laws),
-            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-            cancel=cancel,
+            cancel="cancel",
+            memory="memory_bytes",
         ),
     )
 

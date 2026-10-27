@@ -35,6 +35,7 @@ from ._native import (
 )
 from .accepted_graph import AcceptedGraph
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution, native_controls, resolve_execution
 from .graph import Dag
 
 __all__ = [
@@ -179,7 +180,7 @@ def path_specific_effect(
     *,
     mechanism: str = "linear_gaussian",
     uncertainty: str | None = None,
-    seed: int = 1,
+    execution: Execution | None = None,
 ) -> CrossWorldEffect:
     """Evaluate a path-specific edge contrast on ``graph`` and ``data``.
 
@@ -194,8 +195,10 @@ def path_specific_effect(
     if mechanism not in _MECHANISMS:
         raise CausalValueError(f"mechanism must be one of {_MECHANISMS}")
     names, columns = as_columns(data)
+    execution = resolve_execution(execution)
     return _effect(
-        _evaluate(
+        execution._call(
+            _evaluate,
             names,
             columns,
             list(graph.edges()),
@@ -206,13 +209,16 @@ def path_specific_effect(
             list(intervention.edges),
             mechanism=mechanism,
             interval_requested=uncertainty is not None,
-            seed=seed,
+            **native_controls(execution, seed="seed"),
         )
     )
 
 
 def consume_cross_world_artifact(
-    artifact: bytes, *, seed: int = 1, expected_data_digest: str | None = None
+    artifact: bytes,
+    *,
+    expected_data_digest: str | None = None,
+    execution: Execution | None = None,
 ) -> CrossWorldEffect:
     """Replay an exported artifact from its stored premises and accept only an identical one.
 
@@ -229,4 +235,12 @@ def consume_cross_world_artifact(
         raise CausalTypeError("artifact must be bytes")
     if expected_data_digest is not None and not isinstance(expected_data_digest, str):
         raise CausalTypeError("expected_data_digest must be a string")
-    return _effect(_consume(bytes(artifact), seed=seed, expected_data_digest=expected_data_digest))
+    execution = resolve_execution(execution)
+    return _effect(
+        execution._call(
+            _consume,
+            bytes(artifact),
+            expected_data_digest=expected_data_digest,
+            **native_controls(execution, seed="seed"),
+        )
+    )

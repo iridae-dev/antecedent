@@ -1,7 +1,7 @@
 # Synthetic control point utility
 
 `antecedent.quasi.SyntheticControl` runs through graphless `analyze` and
-`PreparedAnalysis.prepare`, reporting `result.synthetic_control`. The native
+`ant.prepare` / `ant.estimate`, reporting `result.value.synthetic_control`. The native
 Rust calculation fits one treated unit
 in a balanced panel. The pre-period fit chooses nonnegative donor weights that sum to one by
 projected gradient descent on squared outcome error. The reported effect is
@@ -21,7 +21,7 @@ combination of observed donors being a valid untreated counterfactual. The
 fit RMSE is reported without an acceptance threshold; a small pre-fit error
 does not verify those assumptions.
 
-The retained result is available as `result.synthetic_control`. The prepared
+The retained result is available as `result.value.synthetic_control`. The prepared
 study freezes unit and period row order; refreshing with changed design labels
 is refused. The result and point-only uncertainty semantics round-trip through
 the contracted artifact. Synthetic DiD has its own retained result section.
@@ -65,7 +65,7 @@ result = analyze(
         augmentation_ridge=1.0,
     ),
 )
-adjusted_effect = result.synthetic_control.estimate
+adjusted_effect = result.value.synthetic_control.estimate
 ```
 
 Additional unit-level covariate adjustment remains unavailable.

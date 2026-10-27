@@ -67,6 +67,7 @@ from ._native import evaluate_categorical_treatment as _evaluate
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
@@ -745,7 +746,7 @@ def consume_categorical_effects(
     artifact: bytes,
     *,
     expected_identity: CategoricalTreatmentIdentity | Mapping[str, str] | None = None,
-    memory_limit_bytes: int | None = None,
+    execution: Execution | None = None,
 ) -> CategoricalEffects:
     """Recompute an exported categorical artifact and accept only an identical one.
 
@@ -757,8 +758,9 @@ def consume_categorical_effects(
     ``route_not_supported``, ``categorical_treatment.wrong_contract``). Corruption and unknown
     major versions raise :class:`~antecedent.errors.CausalSerializationError`.
 
-    ``memory_limit_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
+    ``execution.limits.memory_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
     """
+    execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
@@ -773,7 +775,9 @@ def consume_categorical_effects(
             "expected_identity must be a CategoricalTreatmentIdentity or a mapping"
         )
     data = bytes(artifact)
-    report, refusal = _consume(data, expected_json, memory_limit_bytes=memory_limit_bytes)
+    report, refusal = _consume(
+        data, expected_json, memory_limit_bytes=execution.limits.memory_bytes
+    )
     if refusal is not None:
         raise CategoricalTreatmentRefusal(json.loads(refusal))
     if report is None:  # pragma: no cover - the native contract

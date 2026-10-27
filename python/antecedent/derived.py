@@ -49,7 +49,8 @@ from typing import Any
 
 from . import _native
 from ._data import ingest_columns
-from .errors import CausalValueError
+from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, native_controls
 from .preflight import PreflightReport
 from .preflight import _report as _preflight_report
 
@@ -339,15 +340,20 @@ def _result(raw: Mapping[str, Any]) -> JointCellsResult:
     )
 
 
+def _policy(execution: Execution | None) -> Execution:
+    policy = Execution() if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    return policy
+
+
 def check_derived_treatment(
     data: Mapping[str, Any] | Any,
     declaration: DerivedTreatment,
     *,
     outcome: str,
     adjustment: Sequence[str],
-    seed: int = 1,
-    threads: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> DerivedTreatmentPlan:
     """Check a declaration against the table and the proposed adjustment set.
 
@@ -355,15 +361,15 @@ def check_derived_treatment(
     ``refusal_fields.implicated_columns``) for every refusal listed in the module docstring.
     """
     names, columns = ingest_columns(data)
-    raw = _native.derived_treatment_check_json(
+    policy = _policy(execution)
+    raw = policy._call(
+        _native.derived_treatment_check_json,
         names,
         columns,
         declaration.to_json(),
         outcome,
         list(adjustment),
-        seed=seed,
-        threads=threads,
-        cancel=cancel,
+        **native_controls(policy, seed="seed", threads="threads", cancel="cancel"),
     )
     return _plan(json.loads(raw))
 
@@ -380,15 +386,13 @@ def factorized_joint_cells(
     penalties: Sequence[float] | None = None,
     inner_folds: int = 5,
     folds: int = 5,
-    seed: int = 1,
     clip: float = 0.01,
     min_cell_ess: float = 10.0,
     normalization_tolerance: float = 1e-9,
     ordering_tolerance_sd: float = 0.05,
     contrasts: Sequence[str] = (),
     level: float | None = None,
-    threads: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> JointCellsResult:
     """Estimate the cells of a declared joint-cell treatment (point only).
 
@@ -409,7 +413,9 @@ def factorized_joint_cells(
             "penalties tune the ridge_logistic nuisance only; a declared learner takes none"
         )
     names, columns = ingest_columns(data)
-    raw = _native.factorized_joint_cells_json(
+    policy = _policy(execution)
+    raw = policy._call(
+        _native.factorized_joint_cells_json,
         names,
         columns,
         declaration.to_json(),
@@ -421,15 +427,13 @@ def factorized_joint_cells(
         penalties=None if penalties is None else [float(p) for p in penalties],
         inner_folds=inner_folds,
         folds=folds,
-        seed=seed,
         clip=clip,
         min_cell_ess=min_cell_ess,
         normalization_tolerance=normalization_tolerance,
         ordering_tolerance_sd=ordering_tolerance_sd,
         contrasts=list(contrasts),
         interval=level is not None,
-        threads=threads,
-        cancel=cancel,
+        **native_controls(policy, seed="seed", threads="threads", cancel="cancel"),
     )
     return _result(json.loads(raw))
 

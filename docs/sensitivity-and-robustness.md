@@ -89,11 +89,11 @@ of 0 or 1), `stratum_mass`, `outcome_law`, `invalid_threshold`, `invalid_toleran
 and `bounds_exceeded` (`lambda_max` above 1000). All raise `MsmSensitivityRefusal`,
 a `StructuredRefusal`.
 
-For an analysis result, supply a sample explicitly rather than rebuilding laws
+For an analysis outcome (`ate_result = ant.analyze(...)`), supply a sample explicitly rather than rebuilding laws
 from an aggregate ATE:
 
 ```python
-sample_bounds = ate_result.msm_sensitivity(data=sample, lambda_max=3.0)
+sample_bounds = ate_result.value.msm_sensitivity(data=sample, lambda_max=3.0)
 assert sample_bounds.input_basis == "empirical_plugin"
 ```
 
@@ -141,15 +141,15 @@ artifact = result.to_sensitivity_artifact(
     causal_contract_id="checked-contract",
 )
 decided = sd.decide(artifact.contract(), artifact)
-decided.kind                  # "invariant_action": treat leads at every Lambda in [1, 2]
-decided.invariant_action      # "treat"
+decided.value.kind                  # "invariant_action": treat leads at every Lambda in [1, 2]
+decided.value.invariant_action      # "treat"
 ```
 
-`decided.kind` is one of:
+`decided.value.kind` is one of:
 
 - `invariant_action`: one action leads at every evaluated point and every range
   vertex;
-- `assumption_dependent`: the leader switches. `decided.switch` gives the
+- `assumption_dependent`: the leader switches. `decided.value.switch` gives the
   `from_actions`, `to_actions`, the `bracket` and whether the crossing is `exact`
   (a tie on a grid point) or interpolated, which is labelled an interpolation;
 - `no_robust_action`: the best action depends on where inside the range the

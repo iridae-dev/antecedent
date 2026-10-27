@@ -10,22 +10,22 @@ Format 0.4 was the durable-artifact wire freeze for package 1.0.0. A wire
 change advances the format and provides migration from prior stable versions;
 the package-version bump itself does not change artifact bytes.
 
-## Python persistence in 2.4
+## Python persistence
 
-Scientific `export(...)` returns container bytes. Write them with `Path.write_bytes`
-and read them with `Path.read_bytes`; persistence does not take file paths implicitly.
-`artifact(...)` returns an immutable `ant.artifacts.ExportedArtifact[T]`: the same
-bytes in `.data`, a `.kind`, a typed `.expectation` when available, and family-specific
-`.metadata`. Ledger carried/not-carried receipts remain in this metadata. Operations
-that select a query or record retain their explicit selection arguments.
+`outcome.export(...)` returns an immutable `ant.artifacts.ExportedArtifact[T]`: the container
+bytes (`bytes(artifact)` or `.data`), a `.kind`, a typed `.expectation` when available, and
+family-specific `.metadata`. Write them with `Path.write_bytes` and read them with
+`Path.read_bytes`; persistence does not take file paths implicitly. Ledger carried/not-carried
+receipts remain in this metadata. Operations that select a query or record retain their explicit
+selection arguments (`quantity=`).
 
 ```python
 import antecedent as ant
 
-envelope = result.artifact()
-path.write_bytes(envelope.data)
+artifact = result.export()
+path.write_bytes(bytes(artifact))
 # Store this expectation in an independent trusted record, separate from the bytes.
-expected = envelope.expectation
+expected = artifact.expectation
 metadata = ant.artifacts.inspect(path.read_bytes())
 loaded = ant.load(path.read_bytes(), expected=expected)
 ```
@@ -45,7 +45,7 @@ errors. Consumed read models are recursively immutable, and `to_dict()` produces
 independent JSON-safe editable copy.
 
 See [the notebook-to-system journey](guides/notebook-to-system.md) and
-[the 2.4 migration guide](migrations/2.4-python-ux.md).
+[the Python migration table](migrations/2.4-to-3.0-python.md).
 
 <a id="package-15-payloads"></a>
 
@@ -263,23 +263,22 @@ claim. See the [workflow guide](python-workflow.md) for retention boundaries.
 ### Posterior and query payloads for stage consumers
 
 `Bayesian(prior_from=...)` and the prior catalog consume a posterior payload,
-not a full `analysis_result` archive. Export it from the retained study immediately
-after the source fit, before any subsequent estimate or refresh:
+not a full `analysis_result` archive. Select it from the completed outcome with
+`quantity="posterior"`; no refit happens, and the source outcome is unchanged:
 
 ```python
 source = ant.analyze(data, graph=graph, query=query, inference=ant.Bayesian())
-posterior_bytes = source.study.export_artifact()
+posterior = source.export(quantity="posterior")
 next_result = ant.analyze(
     independent_data, graph=graph, query=query,
-    inference=ant.Bayesian(prior_from=posterior_bytes),
+    inference=ant.Bayesian(prior_from=posterior),
 )
-query_bytes = source.study.export_artifact(payload="query")
+query_artifact = source.export(quantity="query")
 ```
 
-The lower-level `PreparedAnalysis.export_artifact()` exports the last fitted scalar Bayesian
-posterior, response result, or static result (mediation contrast or unit
-ITE) without refitting. Use
-`export_artifact(payload="query")` for the frozen original query, including its
+`export(quantity="posterior")` selects the fitted scalar Bayesian posterior, response
+result, or static result (mediation contrast or unit ITE) without refitting.
+`export(quantity="query")` selects the frozen original query, including its
 query kind and original schema variable IDs rather than an identification-time
 rewrite. Conditional queries and temporal pulse/sustained policies therefore
 retain their original meaning across the language boundary.
@@ -321,23 +320,22 @@ Discovery is evidence and is **not** on the interactive estimate path. Preferred
 spreadsheet / dashboard spine:
 
 ```text
-discover_* once  →  AcceptedGraph (versioned) / JSON hold
-  →  analyze(graph=..., latency="interactive") once → result.study
-  →  study.estimate() or estimate(rebind(study, data=new_data))
-  →  rediscover only on an explicit AcceptedGraph.rediscover call
+ant.discovery.discover(data, method=..., accept_discovered=True)  once  →  AcceptedGraph
+  →  ant.prepare(data, graph=accepted, query=..., inference=ant.Frequentist(profile="interactive"))
+  →  outcome = ant.estimate(study)
+  →  ant.estimate(ant.rebind(study, data=new_data))
+  →  rediscover only by calling ant.discovery.discover again
 ```
 
 Static graphs: Dag / Cpdag / Pag / Admg. Temporal completions: `TemporalDag`
 (and reviewed `TemporalCpdag` / `TemporalPag`) from PCMCI / PCMCI+ / LPCMCI —
 estimate-only pulse clicks never re-run discovery.
 
-One-shot `analyze(..., discovery=...)` remains a **script** convenience
-(Standard/Report or no latency tier). Combining `discovery=` with
-`latency="interactive"` raises `CausalUnsupportedError`. The guard lives in
-Python (`antecedent/_analyze.py`, gated by `test_discovery_interactive_guard`);
-the Rust builder cannot express the combination at all — an accepted graph is
-just a static graph by build time. See `examples/python/discover_then_estimate.py`
-and `parity/discovery.toml` capability `discovery.ux.artifact_first`.
+Discovery is always an explicit, executed step. `ant.prepare` and `ant.analyze` refuse an
+unexecuted discovery configuration and name `ant.discovery.discover` as the remedy; with
+`accept_discovered=False` pending review raises `ReviewRequired`. See
+`examples/python/discover_then_estimate.py` and `parity/discovery.toml` capability
+`discovery.ux.artifact_first`.
 
 ## Source-bound workflow artifacts
 

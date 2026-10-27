@@ -13,6 +13,7 @@ from typing import Any, Literal
 
 from ._data import as_columns
 from ._native import evaluate_graph as _evaluate_graph
+from .execution import Execution, native_controls
 
 
 @dataclass(frozen=True)
@@ -84,9 +85,7 @@ def evaluate_graph(
     max_ci_tests: int | None = None,
     ci_replicates: int = 199,
     permutation_seed: int | None = None,
-    seed: int = 0,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> GraphFalsification:
     """Falsify a DAG against data by graph-node permutation; no model is fitted.
 
@@ -102,15 +101,18 @@ def evaluate_graph(
     ``max_equivalent_share`` (default: ``significance``) is the share of relabellings that may be
     Markov equivalent to the graph before the comparison is called uninformative. ``max_ci_tests``
     bounds the distinct independence tests; results are cached across relabellings.
-    ``permutation_seed`` seeds the relabelling stream (default: ``seed``). ``cancel`` is an
-    ``antecedent.state.CancellationToken``; cancelling it yields an ``"incomplete"`` result.
+    ``permutation_seed`` seeds the relabelling stream (default: the execution's seed). Cancelling
+    the execution's token yields an ``"incomplete"`` result.
 
     This is not a likelihood diagnostic: nothing is fitted and no outcome is shuffled. See
     ``limitations`` on the result for what the verdict does not establish.
     """
     names, columns = as_columns(data)
+    ctl = native_controls(execution, seed="seed", threads="threads", cancel="cancel")
+    runner = Execution() if execution is None else execution
     raw = json.loads(
-        _evaluate_graph(
+        runner._call(
+            _evaluate_graph,
             names,
             columns,
             [(str(a), str(b)) for a, b in edges],
@@ -123,9 +125,7 @@ def evaluate_graph(
             max_ci_tests=max_ci_tests,
             ci_replicates=ci_replicates,
             permutation_seed=permutation_seed,
-            seed=seed,
-            threads=threads,
-            cancel=cancel,
+            **ctl,
         )
     )
     evidence = tuple(

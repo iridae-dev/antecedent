@@ -20,21 +20,23 @@ graph = ant.Admg.from_edges(
 )
 query = ant.AverageEffect("t", "y")
 
-# Default: the refusal is raised, exactly as before.
-#   ant.analyze(data, graph=graph, query=query)   -> EffectNotIdentified
+# Default: the refusal is the answer.
+refused = ant.analyze(data, graph=graph, query=query)
+print(refused.accepted, refused.refusal.code)   # False effect_not_identified
 
 outcome = ant.analyze(data, graph=graph, query=query, on_refusal="describe")
-outcome.refusal           # the unchanged EffectNotIdentified (code, remedy, report)
-outcome.associational     # a labelled-noncausal result: outcome.associational.answer.kind
+outcome.refusal           # the unchanged refusal (code, remedy, fields)
+outcome.associational     # a labelled-noncausal outcome: outcome.associational.answer.kind
 outcome.evidence_plan     # obligations, next actions, templates (and a ranked plan)
-print(outcome.explain())
+print(ant.fallback.described(outcome).explain())
 ```
 
 ## What comes back
 
-`analyze(..., on_refusal="describe")` returns an `AnalysisWithFallback` only when the causal
+`analyze(..., on_refusal="describe")` returns the refusal `Outcome` with the two extra parts attached only when the causal
 query is refused for identification (`effect_not_identified`, `cross_world_not_identified`). A
-query that succeeds returns its ordinary result. A search a budget stopped, a cancellation, a
+query that succeeds returns its ordinary outcome. `antecedent.fallback.described(outcome)` reads the refusal,
+association and evidence plan together as an `AnalysisWithFallback` for `explain()`, `report()` and `to_dict()`. A search a budget stopped, a cancellation, a
 resource limit, an invalid argument and every data or estimation error are raised exactly as
 without the option.
 
@@ -91,7 +93,7 @@ The associational result is **not an answer to the causal question.** It describ
 law of the columns, with whatever confounding, selection and reverse direction that carries. It is
 not the effect of an intervention, it is not identified, and it ranks no action; a scientific
 bridge refuses it wherever a causal quantity is required. `repr`, `explain()` and `report()` of the
-returned object say so, and the host record (`antecedent.host.fallback_response`) shows
+described object say so, and the host record (`antecedent.host.fallback_response`) shows
 `causal_status: unsupported` beside the status of the noncausal claim.
 
 ## From Rust

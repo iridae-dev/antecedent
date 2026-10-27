@@ -19,7 +19,7 @@ Use [support lookup](support-lookup.md) to filter exact graph-based cells, or [t
 
 These are starting points, not permission to combine arbitrary options. The [full support matrix](support-matrix.md#licensed-cells) is the authoritative list. Its [refusal reasons](support-matrix.md#refusal-reasons) explain excluded combinations. `n/a` means the combination does not define a valid question.
 
-For an analysis you have configured, `ant.prepare(...)` checks identification without estimating. Use `study.inspect()` to read what is known before calling `study.estimate()`. Preparation itself can refuse an unsupported request; see [handling refusals](python-workflow.md#when-an-analysis-is-refused).
+For an analysis you have configured, `ant.prepare(...)` checks identification without estimating. Use `study.inspect()` to read what is known before calling `ant.estimate(study)`. Preparation itself can refuse an unsupported request; see [handling refusals](python-workflow.md#when-an-analysis-is-refused).
 
 Specialized decision, ranking, recalculation and measured-inference adapters
 have their own checked contracts; they do not add arbitrary combinations to the

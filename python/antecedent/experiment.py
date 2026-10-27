@@ -15,6 +15,7 @@ from ._native import estimate_stratified_effect as _estimate_stratified_effect
 from ._native import estimate_switchback_effect as _estimate_switchback_effect
 from ._native import exact_randomization_test as _exact_randomization_test
 from .errors import CausalUnsupportedError, CausalValueError
+from .execution import Execution
 from .interference import (
     BernoulliAssignment,
     ClusterRandomization,
@@ -645,7 +646,9 @@ class RandomizedEffect:
             realized_assignment=self.design.realized_assignment,
         )
 
-    def estimate(self, data: object, *, seed: int = 1) -> RandomizedExperimentEstimate:
+    def estimate(
+        self, data: object, *, execution: Execution | None = None
+    ) -> RandomizedExperimentEstimate:
         """Run the native randomization estimator and retain the design record.
 
         This direct estimator utility supports the underlying Bernoulli,
@@ -703,7 +706,7 @@ class RandomizedEffect:
                 assignment=realized,
                 edges=(),
                 query=self.to_interference_query(),
-                seed=seed,
+                execution=execution,
             )
             effect = estimated.contrast.horvitz_thompson
             variance_bound = estimated.contrast.conservative_variance

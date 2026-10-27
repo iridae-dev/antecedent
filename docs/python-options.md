@@ -8,7 +8,7 @@ Use this page when you need to configure or integrate an analysis.
 ```python
 study = ant.prepare(data, graph=graph, query=query, execution=ant.Execution(seed=19))
 report = study.inspect()        # includes cached identification; does not estimate
-result = study.estimate()      # uses retained data and preparation's seed/threads
+result = ant.estimate(study)   # uses the owned data and the execution declared at preparation
 ```
 
 ### Ask a policy question
@@ -356,9 +356,10 @@ renderer.
 | `result.export()` | The explicitly selected scientific product | A typed artifact |
 
 Earlier studies, outcomes, and exported bytes stay unchanged. Inspect
-`branch.reuse` for retained and invalidated work. A scientific branch can
-explicitly reprepare when native reuse is unsupported; it cannot silently
-substitute another scientific method. Streaming and adaptive sessions keep
+`branch.reuse` for retained and invalidated work. When native reuse is unsupported
+(for example a changed frozen design), `ant.rebind` refuses and names the remedy:
+call `ant.prepare` again with the new declarations. A branch never silently
+substitutes another scientific method. Streaming and adaptive sessions keep
 their explicitly stateful domain interfaces.
 
 ## Software and agent consumers

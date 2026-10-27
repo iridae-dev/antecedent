@@ -60,6 +60,7 @@ from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 from .joint_distribution import JointDistributionArtifact
 from .outcomes import Answer, Outcome, outcome_operation, require_success
 
@@ -136,6 +137,11 @@ def _floats(values: Sequence[float] | np.ndarray, what: str) -> list[float]:
     if not np.all(np.isfinite(array)):
         raise CausalValueError(f"{what} must be finite")
     return [float(v) for v in array]
+
+
+def _cancel(execution: Execution | None) -> Any:
+    """The cancellation token of ``execution`` (the default execution has none)."""
+    return resolve_execution(execution).cancel
 
 
 @dataclass(repr=False, frozen=True)
@@ -430,7 +436,7 @@ class PropagationClaim(ScientificResult):
 
     @outcome_operation
     def check_composed_interval(
-        self, construction: str, *, evidence_rows: int, cancel: Any = None
+        self, construction: str, *, evidence_rows: int, execution: Execution | None = None
     ) -> ComposedInterval:
         """The interval reading, licensed only by an attesting registry record at this coordinate.
 
@@ -453,7 +459,7 @@ class PropagationClaim(ScientificResult):
             self._bytes,
             _text(construction, "construction"),
             rows,
-            cancel,
+            _cancel(execution),
         )
         _refuse(refusal)
         assert licence is not None
@@ -530,7 +536,7 @@ def aligned_functional(
     y: PropagationDraws,
     functional: str,
     *,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PropagationClaim:
     """``E[g(X, Y)]`` under the aligned joint law of two artifact columns.
 
@@ -547,7 +553,7 @@ def aligned_functional(
     ya, yc = y._require_artifact()
     return _claim(
         _native.joint_law_aligned_functional(
-            operation, x.id, xa, xc, y.id, ya, yc, functional, cancel
+            operation, x.id, xa, xc, y.id, ya, yc, functional, _cancel(execution)
         )
     )
 
@@ -559,7 +565,7 @@ def aligned_linear(
     x: PropagationDraws,
     y: PropagationDraws,
     *,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PropagationClaim:
     """Mean and variance of ``a X + b Y`` from two aligned artifact columns."""
     a = _real(coefficients[0], "coefficients[0]")
@@ -567,7 +573,9 @@ def aligned_linear(
     xa, xc = x._require_artifact()
     ya, yc = y._require_artifact()
     return _claim(
-        _native.joint_law_aligned_linear(operation, a, b, x.id, xa, xc, y.id, ya, yc, cancel)
+        _native.joint_law_aligned_linear(
+            operation, a, b, x.id, xa, xc, y.id, ya, yc, _cancel(execution)
+        )
     )
 
 
@@ -580,7 +588,7 @@ def linear_moments(
     *,
     dependence: str,
     covariance_id: str | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PropagationClaim:
     """Mean and variance of ``sum a_i X_i`` from means and a covariance (delta method, exact).
 
@@ -600,14 +608,17 @@ def linear_moments(
             [float(v) for v in matrix.ravel()],
             dependence,
             covariance_id,
-            cancel,
+            _cancel(execution),
         )
     )
 
 
 @outcome_operation
 def mixture(
-    components: Sequence[MixtureComponent], *, weights_declared: bool = True, cancel: Any = None
+    components: Sequence[MixtureComponent],
+    *,
+    weights_declared: bool = True,
+    execution: Execution | None = None,
 ) -> PropagationClaim:
     """Mean and variance of a finite mixture with known weights (law of total variance).
 
@@ -616,7 +627,7 @@ def mixture(
     """
     items = [c._wire() for c in components]
     if weights_declared:
-        return _claim(_native.joint_law_mixture(json.dumps(items), cancel))
+        return _claim(_native.joint_law_mixture(json.dumps(items), _cancel(execution)))
     return _claim(
         _native.joint_law_mixture_undeclared(
             json.dumps([i["id"] for i in items]),
@@ -634,7 +645,7 @@ def dependence_envelope(
     x: PropagationDraws,
     y: PropagationDraws,
     *,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PropagationClaim:
     """The structural envelope of a functional of two unpaired marginals.
 
@@ -651,7 +662,7 @@ def dependence_envelope(
             y.id,
             y.evidence_id,
             [float(v) for v in y.values],
-            cancel,
+            _cancel(execution),
         )
     )
 
@@ -670,7 +681,7 @@ def correlation_range(
     rho_hi: float,
     a: float = 1.0,
     b: float = 1.0,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PropagationClaim:
     """Ranges of ``E[XY]``, ``Cov`` and ``Var(aX + bY)`` over a declared correlation range.
 
@@ -691,7 +702,7 @@ def correlation_range(
             _real(b, "b"),
             _real(rho_lo, "rho_lo"),
             _real(rho_hi, "rho_hi"),
-            cancel,
+            _cancel(execution),
         )
     )
 
@@ -703,7 +714,7 @@ def spread(
     y: PropagationDraws,
     functional: str,
     *,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PropagationClaim:
     """The spread of ``g(X, Y)`` under the aligned joint law of two artifact columns.
 
@@ -715,7 +726,9 @@ def spread(
     xa, xc = x._require_artifact()
     ya, yc = y._require_artifact()
     return _claim(
-        _native.joint_law_spread(operation, x.id, xa, xc, y.id, ya, yc, functional, cancel)
+        _native.joint_law_spread(
+            operation, x.id, xa, xc, y.id, ya, yc, functional, _cancel(execution)
+        )
     )
 
 
@@ -726,7 +739,7 @@ def aligned_linear_spread(
     x: PropagationDraws,
     y: PropagationDraws,
     *,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PropagationClaim:
     """The variance (and covariance) of ``a X + b Y`` from aligned columns, as a spread."""
     a = _real(coefficients[0], "coefficients[0]")
@@ -734,7 +747,9 @@ def aligned_linear_spread(
     xa, xc = x._require_artifact()
     ya, yc = y._require_artifact()
     return _claim(
-        _native.joint_law_aligned_linear_spread(operation, a, b, x.id, xa, xc, y.id, ya, yc, cancel)
+        _native.joint_law_aligned_linear_spread(
+            operation, a, b, x.id, xa, xc, y.id, ya, yc, _cancel(execution)
+        )
     )
 
 
@@ -747,7 +762,7 @@ def linear_moments_spread(
     *,
     dependence: str,
     covariance_id: str | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PropagationClaim:
     """The variance of ``sum a_i X_i`` under a covariance, as a spread (``uncalibrated_spread``)."""
     matrix = np.asarray(covariance, dtype=np.float64)
@@ -762,7 +777,7 @@ def linear_moments_spread(
             [float(v) for v in matrix.ravel()],
             dependence,
             covariance_id,
-            cancel,
+            _cancel(execution),
         )
     )
 
@@ -777,7 +792,7 @@ def composed_exceedance(
     threshold: float,
     cutoff: float,
     band_level: float = 0.95,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PropagationClaim:
     """``P(g(X, Y) > threshold)`` from aligned draws with its Monte Carlo band and a verdict.
 
@@ -803,20 +818,20 @@ def composed_exceedance(
             _real(threshold, "threshold"),
             _real(cutoff, "cutoff"),
             _real(band_level, "band_level"),
-            cancel,
+            _cancel(execution),
         )
     )
 
 
 @outcome_operation
 def mixture_exceedance(
-    components: Sequence[MixtureDraws], *, threshold: float, cancel: Any = None
+    components: Sequence[MixtureDraws], *, threshold: float, execution: Execution | None = None
 ) -> PropagationClaim:
     """``P(X > threshold)`` of a known-weight mixture of draw sets (components never paired)."""
     items = [c._wire() for c in components]
     return _claim(
         _native.joint_law_mixture_exceedance(
-            json.dumps(items), _real(threshold, "threshold"), cancel
+            json.dumps(items), _real(threshold, "threshold"), _cancel(execution)
         )
     )
 
@@ -828,7 +843,7 @@ def transported_spread(
     *,
     dependence: str = "covariance",
     covariance_id: str | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Outcome[PropagationClaim]:
     """The spread of a transported claim from its pieces and their covariance.
 
@@ -845,7 +860,7 @@ def transported_spread(
         covariance,
         dependence=dependence,
         covariance_id=covariance_id,
-        cancel=cancel,
+        execution=execution,
     )
 
 
@@ -856,7 +871,7 @@ def transported_spread_aligned(
     transport_functional: PropagationDraws,
     *,
     coefficients: Sequence[float] = (1.0, 1.0, 1.0),
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PropagationClaim:
     """The spread of a transported claim from the aligned draws of its three pieces.
 
@@ -878,7 +893,7 @@ def transported_spread_aligned(
             fa,
             fc,
             _floats(list(coefficients), "coefficients"),
-            cancel,
+            _cancel(execution),
         )
     )
 
@@ -891,7 +906,7 @@ def transported_spread_aligned(
     input="data",
 )
 def consume_joint_law_propagation_artifact(
-    data: bytes, *, expected_identity: str | None = None, cancel: Any = None
+    data: bytes, *, expected_identity: str | None = None, execution: Execution | None = None
 ) -> ConsumedJointLawPropagation:
     """Verify an artifact, re-run the rule and replay the result to identical bits.
 
@@ -902,7 +917,7 @@ def consume_joint_law_propagation_artifact(
     data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError("data must be bytes")
-    summary, refusal = _native.joint_law_consume(bytes(data), expected_identity, cancel)
+    summary, refusal = _native.joint_law_consume(bytes(data), expected_identity, _cancel(execution))
     _refuse(refusal)
     assert summary is not None
     info = json.loads(summary)

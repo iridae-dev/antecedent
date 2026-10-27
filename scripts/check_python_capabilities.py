@@ -20,6 +20,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = Path("parity/python_api_pass/capabilities.toml")
 SURFACE = Path("parity/python_api_pass/rust_surface.json")
+#: Statuses whose cited journeys must execute. A deferred row cites the journeys that do not
+#: depend on the measurement it waits for (the typed refusal while unmeasured, for example).
+EXECUTING = {"covered", "plumbing", "deferred"}
+
+#: Rows deferred in the last `check` call: (id, deferred_to, deferred dimensions). They are
+#: reported beside the unresolved gaps and never counted as closed capabilities.
+LAST_DEFERRED: list[tuple[str, str, list[str]]] = []
+
 DIMENSIONS = {
     "success",
     "inspection",
@@ -296,7 +304,7 @@ def execution_problems(root: Path, manifest: dict, execution: dict) -> list[str]
     required_selectors = {
         evidence["test"]
         for capability in manifest.get("capability", [])
-        if capability.get("status") in {"covered", "plumbing"}
+        if capability.get("status") in EXECUTING
         for evidence in capability.get("evidence", [])
     }
     if set(execution.get("selected", [])) != required_selectors:
@@ -310,7 +318,7 @@ def execution_problems(root: Path, manifest: dict, execution: dict) -> list[str]
     if execution.get("exit_code") != 0:
         problems.append("executing journey run failed")
     for capability in manifest.get("capability", []):
-        if capability.get("status") not in {"covered", "plumbing"}:
+        if capability.get("status") not in EXECUTING:
             continue
         for evidence in capability.get("evidence", []):
             matches = [test for test in observed if test.get("selector") == evidence["test"]]
@@ -347,6 +355,7 @@ def check(
     execution: dict | None = None,
 ) -> tuple[list[str], list[str]]:
     problems, gaps = [], []
+    LAST_DEFERRED.clear()
     if manifest.get("schema") != 1 or inventory.get("schema") != 1:
         problems.append("unsupported manifest/inventory schema")
     actual = current_surface(root)
@@ -366,7 +375,7 @@ def check(
             problems.append(f"duplicate or empty capability id: {label}")
         seen.add(label)
         status = cap.get("status")
-        if status not in {"covered", "plumbing", "gap"}:
+        if status not in {"covered", "plumbing", "gap", "deferred"}:
             problems.append(f"{label}: invalid status")
         for legacy in cap.get("legacy_internal", []):
             if legacy not in cap.get("rust", []):
@@ -409,6 +418,17 @@ def check(
             for item in evidence:
                 problems.extend(f"{label}: {p}" for p in evidence_problems(root, item))
                 delivered.update(item.get("dimensions", []))
+            if status == "deferred":
+                waits = set(cap.get("deferred_dimensions", []))
+                target = str(cap.get("deferred_to", "")).strip()
+                if not target or not waits or waits - required or not (waits < required):
+                    problems.append(
+                        f"{label}: a deferred row names what it waits for (deferred_to) and a "
+                        "strict subset of its required dimensions (deferred_dimensions)"
+                    )
+                else:
+                    LAST_DEFERRED.append((label, target, sorted(waits)))
+                    required = required - waits
             if required - delivered:
                 problems.append(
                     f"{label}: missing semantic dimensions {sorted(required - delivered)}"
@@ -457,7 +477,12 @@ def main() -> int:
     if args.list_gaps:
         for gap in gaps:
             print(f"GAP: {gap}")
-    print(f"Integrity findings: {len(problems)}; unresolved capability/surface gaps: {len(gaps)}")
+    for label, target, waits in LAST_DEFERRED:
+        print(f"DEFERRED: {label}: waits for {target} ({', '.join(waits)})")
+    print(
+        f"Integrity findings: {len(problems)}; unresolved capability/surface gaps: {len(gaps)}; "
+        f"deferred to calibration or attestation: {len(LAST_DEFERRED)}"
+    )
     print("Inventory integrity alone is not capability completion or runtime evidence.")
     return bool(problems)
 

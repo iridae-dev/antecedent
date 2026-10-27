@@ -58,11 +58,11 @@ from ._from_raw import (
     _missing_data_from_raw,
     _wrap_ate,
 )
+from ._mediation_summary import mediation_effects_summary
 from ._native import (
     MediationEffectsSummary,
     _identify_ate,
     _identify_ate_admg,
-    mediation_effects_summary,
 )
 from ._study_lifecycle import guard_design, replay_declaration, retain, retain_preparation
 from ._table_file import coerce_table_source
@@ -79,6 +79,7 @@ from .errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from .execution import Execution
 from .experiment import (
     ComplierEffect,
     RandomizedEffect,
@@ -944,6 +945,7 @@ def _accept_live_discovery(
     seed: int,
     threads: int | None,
     controls: _Controls,
+    execution: Execution | None = None,
 ) -> Any:
     """Run a live discovery config once and accept it through its review gate.
 
@@ -965,8 +967,9 @@ def _accept_live_discovery(
     labelled = {"regimes": regimes} if isinstance(discovery, RPCMCI) else {}
     accepted = discovery.accept(
         data,
-        seed=seed,
-        threads=threads,
+        execution=execution
+        if execution is not None
+        else Execution(seed=seed, threads=threads, cancel=token),
         accept_discovered=accept_discovered,
         **labelled,
     )

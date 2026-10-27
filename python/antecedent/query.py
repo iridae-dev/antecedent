@@ -17,31 +17,7 @@ from typing import Literal
 from ._columns import coerce_fields
 from ._native import temporal_response_spec as _native_temporal_response_spec
 from ._validate import count as _count
-from .errors import CausalUnsupportedError, CausalValueError
-
-# Rust names the capability. Python appends the call.
-_ADJUSTMENT_HANDOFF_CAPABILITY = "capability: adjustment handoff"
-_ADJUSTMENT_HANDOFF_CALL = "antecedent.handoff.econml(result, modifiers=[...])"
-
-
-def _append_adjustment_handoff_call(remedy: str) -> str:
-    if _ADJUSTMENT_HANDOFF_CAPABILITY in remedy and _ADJUSTMENT_HANDOFF_CALL not in remedy:
-        return remedy.replace(
-            _ADJUSTMENT_HANDOFF_CAPABILITY,
-            f"{_ADJUSTMENT_HANDOFF_CAPABILITY} ({_ADJUSTMENT_HANDOFF_CALL})",
-            1,
-        )
-    return remedy
-
-
-# What a multi-modifier ``ConditionalEffect`` refusal names instead.
-_CONDITIONAL_MULTI_MODIFIER_REMEDY = _append_adjustment_handoff_call(
-    "the frequentist interaction regression fits one modifier; for several "
-    "modifiers use the Bayesian conditional estimator "
-    "(EstimatorId::BayesianConditional), or hand the identified adjustment set "
-    "to an external CATE learner (capability: adjustment handoff), or fit one "
-    "ConditionalEffect per modifier"
-)
+from .errors import CausalValueError
 
 
 def _require_name(field_name: str, value: str) -> None:
@@ -473,16 +449,20 @@ class PathSpecificEffect:
 
 @dataclass(frozen=True, slots=True)
 class ConditionalEffect:
-    """Conditional / context average effect with a single effect modifier.
+    """Conditional / context average effect given one effect modifier or a set of them.
 
-    The frequentist interaction regression (and its calibrated interval) fits
-    one modifier, so a sequence of modifiers is refused with a ``remedy``
-    naming the routes that take a modifier set.
+    ``modifier`` is a column name or a non-empty sequence of distinct column
+    names; :attr:`modifiers` is the normalized tuple. The frequentist
+    interaction regression fits the whole set (the vector generalization of
+    the one-modifier model), but its interval's coverage is measured for one
+    modifier only, so a result for a modifier set carries the assumption
+    ``conditional.joint_modifier_interval_uncalibrated``. Empty, repeated or
+    non-string modifiers raise ``CausalValueError``.
     """
 
     treatment: str
     outcome: str
-    modifier: str
+    modifier: str | Sequence[str]
     _: KW_ONLY
     control_level: float = 0.0
     active_level: float = 1.0
@@ -491,11 +471,28 @@ class ConditionalEffect:
     kind: Literal["conditional"] = field(default="conditional", init=False, repr=False)
 
     def __post_init__(self) -> None:
-        if not isinstance(self.modifier, str) and isinstance(self.modifier, Sequence):
-            raise CausalUnsupportedError(
-                "ConditionalEffect takes one modifier column",
-                remedy=_CONDITIONAL_MULTI_MODIFIER_REMEDY,
+        raw = self.modifier
+        if isinstance(raw, str):
+            names: tuple[str, ...] = (raw,)
+        elif isinstance(raw, Sequence):
+            names = tuple(raw)
+        else:
+            raise CausalValueError(
+                "ConditionalEffect modifier must be a column name or a sequence of column names"
             )
+        if not names:
+            raise CausalValueError("ConditionalEffect modifier must name at least one column")
+        for name in names:
+            _require_name("ConditionalEffect modifier", name)
+        if len(set(names)) != len(names):
+            raise CausalValueError("ConditionalEffect modifiers must be distinct column names")
+        object.__setattr__(self, "modifier", names[0] if isinstance(raw, str) else names)
+
+    @property
+    def modifiers(self) -> tuple[str, ...]:
+        """The effect modifiers as a tuple of column names."""
+        raw = self.modifier
+        return (raw,) if isinstance(raw, str) else tuple(raw)
 
 
 @dataclass(frozen=True, slots=True)

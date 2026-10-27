@@ -59,6 +59,6 @@ For exact public boundaries, consult the [support matrix](support-matrix.md).
 An implemented capability is not automatically a licensed analysis, and a
 licensed analysis does not establish that a real-world causal model is true.
 
-Read `result.calibration`: status `calibrated` requires a coverage record that matches the execution and attests the executing code. See the [measured-inference guide](population-time-uncertainty.md).
+Read `result.inspect().calibration`: status `calibrated` requires a coverage record that matches the execution and attests the executing code. See the [measured-inference guide](population-time-uncertainty.md).
 
-Newer surfaces have their own guides: [cyclic systems](guides/cyclic-systems.md), [joint intervention responses](guides/joint-intervention-responses.md), [design ranking](design-ranking.md), [staleness and refresh](guides/staleness.md), the [readable report](guides/report.md), [embedding](embedding.md) and [large tables](guides/large-tables.md). Moving from the previous release: [migration](migration/from_previous_release.md).
+Newer surfaces have their own guides: [cyclic systems](guides/cyclic-systems.md), [joint intervention responses](guides/joint-intervention-responses.md), [design ranking](design-ranking.md), [staleness and rebinding](guides/staleness.md), [retained refresh and state publication](guides/retained-refresh.md), [mixed-evidence decisions](guides/mixed-decisions.md), [structural estimands from a fitted model](guides/gcm-estimands.md), the [readable report](guides/report.md), [embedding](embedding.md) and [large tables](guides/large-tables.md). Moving from the previous release: [Python migration table](migrations/2.4-to-3.0-python.md) and [migration](migration/from_previous_release.md).

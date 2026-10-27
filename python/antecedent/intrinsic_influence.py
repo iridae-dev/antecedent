@@ -24,6 +24,8 @@ from typing import Any, Literal
 
 from ._data import as_columns
 from ._native import attribute_intrinsic_influence as _attribute_intrinsic_influence
+from .counterfactual import FittedGcm, native_gcm
+from .execution import Execution, native_controls
 
 Component = Literal["permutation_sampling", "simulation", "mechanism_fit", "whole_procedure"]
 
@@ -141,9 +143,7 @@ def intrinsic_influence(
     posterior_draws: int = 0,
     level: float = 0.95,
     max_sources: int = 64,
-    seed: int = 0,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> IntrinsicInfluence:
     """Attribute the variance of ``target`` to the noise terms of its ancestors and itself.
 
@@ -166,8 +166,11 @@ def intrinsic_influence(
     Dirichlet-weighted refits, the Bayesian counterpart, and returns their ``posterior``.
     """
     names, columns = as_columns(data)
+    ctl = native_controls(execution, seed="seed", threads="threads", cancel="cancel")
     raw = json.loads(
-        _attribute_intrinsic_influence(
+        _run(
+            execution,
+            _attribute_intrinsic_influence,
             names,
             columns,
             [(str(a), str(b)) for a, b in edges],
@@ -187,12 +190,19 @@ def intrinsic_influence(
             posterior_draws=posterior_draws,
             level=level,
             max_sources=max_sources,
-            seed=seed,
-            threads=threads,
-            cancel=cancel,
+            **ctl,
         )
     )
     return _influence(raw)
+
+
+def _run(execution: Execution | None, operation: Any, /, *args: Any, **kwargs: Any) -> Any:
+    runner = Execution() if execution is None else execution
+    return runner._call(operation, *args, **kwargs)
+
+
+def _fitted(fitted: Any) -> FittedGcm:
+    return fitted if isinstance(fitted, FittedGcm) else FittedGcm(native_gcm(fitted))
 
 
 def _influence(raw: dict[str, Any]) -> IntrinsicInfluence:
@@ -223,7 +233,7 @@ def _influence(raw: dict[str, Any]) -> IntrinsicInfluence:
 
 
 def fitted_intrinsic_influence(
-    fitted: Any,
+    fitted: FittedGcm,
     target: str,
     *,
     independent_noise: bool = False,
@@ -237,9 +247,7 @@ def fitted_intrinsic_influence(
     posterior_draws: int = 0,
     level: float = 0.95,
     max_sources: int = 64,
-    seed: int = 0,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> IntrinsicInfluence:
     """:func:`intrinsic_influence` on an already fitted model, without refitting it.
 
@@ -248,7 +256,7 @@ def fitted_intrinsic_influence(
     it was fitted from. Arguments and refusals are those of :func:`intrinsic_influence`.
     """
     raw = json.loads(
-        fitted.attribute_intrinsic_influence(
+        _fitted(fitted).attribute_intrinsic_influence(
             target,
             independent_noise=independent_noise,
             bidirected_edges=(
@@ -265,9 +273,7 @@ def fitted_intrinsic_influence(
             posterior_draws=posterior_draws,
             level=level,
             max_sources=max_sources,
-            seed=seed,
-            threads=threads,
-            cancel=cancel,
+            execution=execution,
         )
     )
     return _influence(raw)

@@ -12,10 +12,10 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
 
 from . import _native
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 
 __all__ = ["FiniteDiscreteContrast", "finite_discrete_contrast"]
 
@@ -55,7 +55,7 @@ def finite_discrete_contrast(
     counts: Sequence[int],
     draws: Sequence[tuple[Sequence[int], float]],
     *,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> FiniteDiscreteContrast:
     """Plan the adjustment over ``counts`` and evaluate it at weighted posterior ``draws``.
 
@@ -64,6 +64,7 @@ def finite_discrete_contrast(
     one. A table with no mass, a table too large to read back, a weight that is negative or not
     finite, or weights that do not sum to one are refused.
     """
+    execution = resolve_execution(execution)
     table = _cells(counts, "counts")
     weighted = []
     for item in draws:
@@ -74,7 +75,7 @@ def finite_discrete_contrast(
             raise CausalValueError("each posterior draw weight must be finite")
         weighted.append((_cells(cells, "each posterior draw"), float(weight)))
     effect, mean, lower, upper, rows, plans = _native.finite_discrete_adjustment_contrast(
-        table, weighted, cancel
+        table, weighted, execution.cancel
     )
     return FiniteDiscreteContrast(
         plug_in_effect=effect,

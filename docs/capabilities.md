@@ -10,6 +10,13 @@ handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-
 and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
+
+Reading convention: `ant.analyze(...)` and `ant.estimate(study)` return an `Outcome`.
+Where this inventory names a field of the specialized result (`result.survival`,
+`result.panel_did`, `result.longitudinal_regime`, `result.interference` and similar),
+read it on the outcome's value (`outcome.value.survival`); `outcome.answer`,
+`outcome.inspect()`, `outcome.uncertainty`, `outcome.support`, `outcome.provenance`,
+`outcome.export()` and `outcome.study` live on the outcome itself.
 The [lifecycle](lifecycle.md) connects native and external claims to
 decisions, study ranking and portable bundles; [measured scalar adapters](population-time-uncertainty.md)
 license specified Bayesian, nested-Markov, temporal and recovery intervals under
@@ -19,7 +26,7 @@ separate source-bound contracts, without adding arbitrary analysis-grid cells.
 
 The [notebook-to-system journey](guides/notebook-to-system.md) connects retained
 identification, staged execution and durable consumption. Studies expose
-`identification`, `inspect_plan()`, `last_result` and explicit `reprepare(...)`;
+`identification` and `inspect()` before execution; each `ant.estimate(study)` returns its own immutable `Outcome`, and a changed design needs a new `ant.prepare(...)`;
 all named design rebinding paths protect the prepared assignment and ID bindings.
 Results support deferred refutation against their retained execution snapshot.
 
@@ -31,7 +38,7 @@ session ownership and transfer through explicit export/resume.
 
 `results.MeanSource` unifies checked mean handoffs into decision and inverse queries.
 Producer-specific `as_mean_source(...)` adapters require missing scientific declarations
-and preserve point-only standing. `export()` writes bytes, `artifact()` retains typed
+and preserve point-only standing. `export()` returns a typed `ExportedArtifact` (bytes via `bytes(artifact)`) retaining
 expectations and export metadata, `artifacts.inspect()` reads metadata, and shared
 `load(..., expected=..., context=...)` delegates to existing scientific consumers.
 These conventions add no laws, intervals, calibration evidence or analysis-grid licenses.
@@ -140,23 +147,23 @@ Do not edit this block by hand.
 | Query | Licensed | n/a | Refused |
 |---|---:|---:|---:|
 | AnomalyAttribution | 4 | 36 | 140 |
-| AverageDerivative | 20 | 68 | 92 |
-| AverageEffect | 94 | 86 | 0 |
+| AverageDerivative | 20 | 36 | 124 |
+| AverageEffect | 94 | 32 | 54 |
 | ChangeAttribution | 4 | 36 | 140 |
 | ConditionalEffect | 58 | 90 | 32 |
 | Counterfactual | 20 | 36 | 124 |
-| DirectionalDerivative | 20 | 68 | 92 |
-| Elasticity | 20 | 68 | 92 |
+| DirectionalDerivative | 20 | 36 | 124 |
+| Elasticity | 20 | 36 | 124 |
 | InterventionalDistribution | 36 | 36 | 108 |
-| InterventionResponse | 99 | 81 | 0 |
+| InterventionResponse | 99 | 34 | 47 |
 | MediationEffect | 12 | 90 | 78 |
 | NestedCounterfactualEffect | 18 | 36 | 126 |
 | PathSpecificEffect | 28 | 36 | 116 |
-| PointDerivative | 20 | 68 | 92 |
+| PointDerivative | 20 | 36 | 124 |
 | PulseEffect | 54 | 108 | 18 |
 | ResponseCurve | 48 | 116 | 16 |
-| ResponseJacobian | 20 | 68 | 92 |
-| SemiElasticity | 20 | 68 | 92 |
+| ResponseJacobian | 20 | 36 | 124 |
+| SemiElasticity | 20 | 36 | 124 |
 | SustainedEffect | 54 | 108 | 18 |
 | TemporalConditionalPulse | 16 | 108 | 56 |
 | TemporalConditionalSustained | 16 | 108 | 56 |
@@ -528,7 +535,7 @@ Implemented identification strategies:
 * sharp binary-IV Balke–Pearl ATE bounds by response-type enumeration, run as the
   compiled `IvBounds` study (`analyze(data, query=quasi.IvBounds(...))`): three 0/1
   columns and an optional weight column give an identified set, never a point, with an
-  Imbens–Manski row-bootstrap interval (`bootstrap=`) or a Bayesian-bootstrap endpoint
+  Imbens–Manski row-bootstrap interval (`Frequentist(bootstrap=...)`) or a Bayesian-bootstrap endpoint
   posterior. It is partially identified (claim kind `bounds`), executes unlicensed, and no
   coverage record measures its interval;
 * noncausal associations, run as the compiled `Association` study
@@ -635,12 +642,13 @@ TemporalCpdag/Pag cells retain completion identified sets; DAG-posterior cells
 retain atom probabilities and unidentified mass.
 `ConditionalEffect` is licensed on `Dag`, `Cpdag`, and `Pag`. The public
 license is that matrix, not this page. The frequentist interaction regression
-(`conditional.linear.adjustment`) fits one modifier, and its calibration record
-covers that one-modifier coordinate only; over several modifiers it refuses and
-names, in the refusal's `remedy`, the routes that take a modifier set: the
-Bayesian conditional estimator (`conditional.bayesian`, Rust) and the EconML
-handoff (`antecedent.handoff.econml(result, modifiers=[...])`). The Python
-`ConditionalEffect` query carries one modifier column.
+(`conditional.linear.adjustment`) fits one modifier or a modifier set; its
+calibration record covers the one-modifier coordinate only, so a result for a
+set carries the assumption `conditional.joint_modifier_interval_uncalibrated`.
+The Python `ConditionalEffect` query takes `modifier` as a column name or a
+non-empty sequence of distinct names (`query.modifiers` is the normalized tuple);
+empty, repeated or non-string modifiers raise `CausalValueError`. The Bayesian
+conditional estimator (`conditional.bayesian`) also fits a modifier set.
 
 Three of these carry parametric scope conditions that the estimator cannot check
 at runtime:
@@ -1093,7 +1101,7 @@ multi_result = ant.analyze(
     {"outcome": outcome},
     query=ant.experiment.RandomizedEffect("outcome", multi_arm),
 )
-contrasts = multi_result.randomized_effect.multi_arm_contrasts
+contrasts = multi_result.value.randomized_effect.multi_arm_contrasts
 ```
 
 Multi-source meta-transport and cyclic/equilibrium models remain outside the
@@ -1175,7 +1183,7 @@ Horvitz–Thompson evaluation, per-action capacity, availability, cost, and
 assignment chance, and supplied outcome predictions. Its
 recommendations, costs, capacity, budget, action availability, nuisance
 predictions, and subject ownership are checked on the prepared evaluation
-rows. A new evaluation sample requires a new prepare; `refresh(new_data)` is
+rows. A new evaluation sample requires a new prepare; `ant.rebind(study, data=new_data)` is
 refused because those row-bound inputs cannot be verified against replacement
 rows. The result reports paired row-score standard errors under independent
 evaluation subjects. For fixed recommendations on independently sampled,
@@ -1402,7 +1410,7 @@ subject and the subject's complete binary treatment history in graphless
 action matrix, known sequential randomization probabilities, optional
 censoring probabilities and observed-outcome flags, unique subject IDs, and
 one fold ID per subject. The study freezes these design facts, reports the
-regime value and weight diagnostics, and refreshes only the aligned outcome
+regime value and weight diagnostics, and rebinds only the aligned outcome
 rows. The answer is point-only with no effect or interval placeholder.
 Caller-estimated probabilities are refused on this retained path, and no
 support-matrix license or cross-fitting claim is made.
@@ -1555,7 +1563,7 @@ query = ant.regimes.LongitudinalRegime.marginal_structural_model(
     censoring_probabilities=conditional_remaining_observed_probability,
 )
 retained = ant.analyze({"terminal_outcome": terminal_outcome}, query=query)
-period_effects = retained.longitudinal_regime.period_effects
+period_effects = retained.value.longitudinal_regime.period_effects
 ```
 
 ## External estimator handoff and provider contracts
@@ -1938,7 +1946,7 @@ Progress sinks receive an `identify.compute` label exactly when identification
 is computed, so a prepared click's reuse is observable rather than merely
 flagged. Prepared graph and query identity are immutable; a changed graph or query
 requires a new prepare cycle, so no cache can cross coordinate boundaries. A
-same-schema data refresh may reuse structural identification but still
+same-schema `ant.rebind` may reuse structural identification but still
 re-estimates from the replacement data.
 
 ## Data support

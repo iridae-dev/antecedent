@@ -69,6 +69,7 @@ from . import _native
 from ._refusal import raise_refusal
 from ._validate import real, text
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 from .joint_distribution import ScientificQuantity
 from .transported_response import TransportedResponse, TransportedResponseRefusal
 
@@ -287,7 +288,7 @@ def from_policy(
     provider_id: str,
     max_nodes: int | None = None,
     target_utility: TargetUtility | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportedConstruction:
     """A fixed policy's value in another population, as a transported response.
 
@@ -306,6 +307,7 @@ def from_policy(
             the source's support, a target equal to the source, a coordinate not in the target
             population, and every sequential-evaluation refusal of the policy.
     """
+    execution = resolve_execution(execution)
     model_json, policy_json = _model_and_policy(model, policy)
     if diagram is not None and not isinstance(diagram, SelectionDiagram):
         raise CausalTypeError("diagram must be a SelectionDiagram")
@@ -320,7 +322,7 @@ def from_policy(
             _provider(provider_id),
             max_nodes,
             _utility_json(target_utility),
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
 
@@ -400,7 +402,7 @@ def from_period_shift(
     coordinate: ScientificQuantity,
     provider_id: str,
     max_nodes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportedConstruction:
     """A fixed policy's value in another period, as a transported response.
 
@@ -415,6 +417,7 @@ def from_period_shift(
             observation or utility, a target period equal to the source's, and a coordinate not
             in the target period.
     """
+    execution = resolve_execution(execution)
     model_json, policy_json = _model_and_policy(model, policy)
     if not isinstance(target, TargetPeriod):
         raise CausalTypeError("target must be a TargetPeriod")
@@ -430,7 +433,7 @@ def from_period_shift(
             _quantity(coordinate),
             _provider(provider_id),
             max_nodes,
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
 
@@ -551,7 +554,7 @@ def verify_policy(
     diagram: SelectionDiagram | None,
     max_nodes: int | None = None,
     target_utility: TargetUtility | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> None:
     """Re-derive a transported policy evaluation and compare it bit for bit.
 
@@ -563,6 +566,7 @@ def verify_policy(
         TransportedResponseRefusal: every refusal of :func:`from_policy`, and
             ``transported_policy.value_mismatch`` when a stored value or identity does not replay.
     """
+    execution = resolve_execution(execution)
     model_json, policy_json = _model_and_policy(model, policy)
     if diagram is not None and not isinstance(diagram, SelectionDiagram):
         raise CausalTypeError("diagram must be a SelectionDiagram")
@@ -575,7 +579,7 @@ def verify_policy(
         _stored(evaluation, "policy"),
         max_nodes,
         _utility_json(target_utility),
-        cancel=cancel,
+        cancel=execution.cancel,
     )
     raise_refusal(refusal, TransportedResponseRefusal)
 
@@ -589,7 +593,7 @@ def verify_period_shift(
     target_initial: Sequence[float] | None,
     invariance: InvarianceDeclaration | None,
     max_nodes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> None:
     """Re-derive a period-shift evaluation and compare it bit for bit.
 
@@ -598,6 +602,7 @@ def verify_period_shift(
             ``temporal_policy_transport.value_mismatch`` when a stored value or identity does
             not replay.
     """
+    execution = resolve_execution(execution)
     model_json, policy_json = _model_and_policy(model, policy)
     if not isinstance(target, TargetPeriod):
         raise CausalTypeError("target must be a TargetPeriod")
@@ -611,7 +616,7 @@ def verify_period_shift(
         None if invariance is None else _dumps(invariance._wire()),
         _stored(evaluation, "temporal_policy"),
         max_nodes,
-        cancel=cancel,
+        cancel=execution.cancel,
     )
     raise_refusal(refusal, TransportedResponseRefusal)
 

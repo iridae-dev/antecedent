@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import _native
+from .execution import Execution, native_controls, resolve_execution
 
 
 @dataclass(frozen=True)
@@ -57,7 +58,7 @@ class JointHorizonDraws:
         operation: str = "weighted_sum",
         coefficients: Sequence[float] | None = None,
         map: Callable[[list[float]], float] | None = None,
-        seed: int = 0,
+        execution: Execution | None = None,
     ) -> ComposedHorizons:
         """Compose these draws with :func:`compose_horizons`."""
         import numpy as np
@@ -70,7 +71,7 @@ class JointHorizonDraws:
             operation=operation,
             coefficients=coefficients,
             map=map,
-            seed=seed,
+            execution=execution,
         )
 
 
@@ -83,15 +84,17 @@ def compose_horizons(
     operation: str = "weighted_sum",
     coefficients: Sequence[float] | None = None,
     map: Callable[[list[float]], float] | None = None,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> ComposedHorizons:
     """Compose the joint draws of ``horizons`` by ``coefficients`` (linear) or ``map`` (nonlinear).
 
     ``operation`` names the propagation operation (``sum``, ``contrast``, ``weighted_sum``,
     ``product``, ``nonlinear_functional`` or ``chained_sampling``).
     """
+    execution = resolve_execution(execution)
     raw = json.loads(
-        _native.compose_horizon_draws(
+        execution._call(
+            _native.compose_horizon_draws,
             [int(h) for h in horizons],
             list(columns),
             evidence_id,
@@ -99,7 +102,7 @@ def compose_horizons(
             operation,
             coefficients=None if coefficients is None else [float(c) for c in coefficients],
             map=map,
-            seed=seed,
+            **native_controls(execution, seed="seed"),
         )
     )
     return ComposedHorizons(

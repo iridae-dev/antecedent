@@ -30,15 +30,17 @@ study = antecedent.prepare(
     query=antecedent.AverageEffect("t", "y"),
     estimator="aipw",
     refute="none",
-    bootstrap=0,
+    inference=antecedent.Frequentist(bootstrap=0),
 )
 weights = np.exp(-0.5 * ((z - 0.5) / 0.8) ** 2)
-all_observed = study.retarget(np.ones(n), depends_on=[])
-local = study.retarget(weights, depends_on=["z"])
-print("AllObserved ATE:", all_observed.estimate.ate)
-print("Weighted ATE:", local.estimate.ate)
-print("Weighted analytic SE:", local.estimate.se_analytic)
-assert np.isfinite(local.estimate.ate)
+executed = antecedent.estimate(study)  # fits the nuisances once and freezes the scores
+completed = executed.study
+all_observed = completed.retarget(np.ones(n), depends_on=[])
+local = completed.retarget(weights, depends_on=["z"])
+print("AllObserved ATE:", all_observed.value.estimate.ate)
+print("Weighted ATE:", local.value.estimate.ate)
+print("Weighted analytic SE:", local.value.estimate.se_analytic)
+assert np.isfinite(local.value.estimate.ate)
 ```
 
 `retarget` averages frozen cross-fitted scores with the supplied weights. It does
@@ -50,17 +52,17 @@ nuisance convergence rates. `refute="none"` keeps this example focused on the
 estimator; it does not establish that the causal assumptions hold.
 
 Weights must align with the retained score rows. Here all rows are complete. If
-rows were dropped, inspect `study.estimate().estimate.score_table.row_index`
-and align weights to those original row indices. `estimate(new_data)` refits on
-new data under the prepared identification contract; `refresh(new_data)` also
-replaces retained data and scores after success. A one-call `antecedent.analyze(...)`
-result offers the same handle as `result.study`.
+rows were dropped, inspect `executed.value.estimate.score_table.row_index`
+and align weights to those original row indices. `antecedent.estimate(antecedent.rebind(study, data=new_data))`
+refits on new data under the prepared identification contract and leaves `study` and its
+scores unchanged. A one-call `antecedent.analyze(...)` outcome offers the same handle as
+`outcome.study`.
 
 A nonconstant-weight retarget exports under a `RowWeights` target whose
 `target_weights` identity binds the weight bits, row count, data snapshot, score
 table and `depends_on`; the weights travel in the artifact and consume re-derives
 the identity. Re-executing those weights on a different snapshot raises
-`row_weights_bound_to_snapshot` (`PreparedAnalysis.reexecute_retarget`, Rust
+`row_weights_bound_to_snapshot` (`study.reexecute_retarget`, Rust
 `PreparedStudy::reexecute_retarget`); the prepared plan itself keeps
 re-estimating, since the binding belongs to the retargeted result.
 Calibration availability is explicit in that report.
@@ -80,10 +82,10 @@ cdf_study = antecedent.prepare(
     ),
     estimator="aipw",
     refute="none",
-    bootstrap=0,
+    inference=antecedent.Frequentist(bootstrap=0),
 )
-cdf_result = cdf_study.retarget(weights, depends_on=["z"])
-estimate = cdf_result.estimate
+cdf_result = antecedent.estimate(cdf_study).study.retarget(weights, depends_on=["z"])
+estimate = cdf_result.value.estimate
 assert cdf_result.answer.value is None  # a CDF grid is not one scalar effect
 assert estimate.score_table is not None
 assert estimate.score_inference is not None
@@ -130,7 +132,7 @@ quantiles. The licensed query families are:
 | Query | Quantile meaning | Estimation contract |
 | --- | --- | --- |
 | `AverageEffect` | Active minus control quantile | Explicit Frequentist `aipw`, DAG or CoDetermined |
-| Binary `ConditionalEffect` with one modifier | Difference of quantiles of arm CDFs standardized over the retained modifier distribution | Frequentist DAG, CPDAG, or PAG; aligned atom influences and zero unidentified mass |
+| Binary `ConditionalEffect` with one modifier or a modifier set | Difference of quantiles of arm CDFs standardized over the retained modifier distribution | Frequentist DAG, CPDAG, or PAG; aligned atom influences and zero unidentified mass |
 | Discrete joint `InterventionResponse` | Quantile level in the requested joint cell | Explicit Frequentist `cell.aipw`, DAG or CoDetermined |
 
 These start from AllObserved. Average and joint score-table plans also support
@@ -150,9 +152,9 @@ conditional_median = antecedent.analyze(
     graph=graph,
     query=antecedent.ConditionalEffect("t", "y", "z", outcome_functional=Quantile(0.5)),
     refute="none",
-    bootstrap=0,
+    inference=antecedent.Frequentist(bootstrap=0),
 )
-print("Modifier-standardized median effect:", conditional_median.estimate.ate)
+print("Modifier-standardized median effect:", conditional_median.value.estimate.ate)
 ```
 
 ## Estimate a non-additive joint response
@@ -176,12 +178,12 @@ joint = antecedent.analyze(
     query=InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 1.0)]),
     estimator="cell.aipw",
     refute="none",
-    bootstrap=0,
+    inference=antecedent.Frequentist(bootstrap=0),
 )
-print("E[Y | do(t1=1, t2=1)]:", joint.estimate)
-print("Analytic SE:", joint.uncertainty.standard_error)
-assert np.isfinite(joint.estimate)
-assert joint.uncertainty.standard_error is not None
+print("E[Y | do(t1=1, t2=1)]:", joint.value.estimate)
+print("Analytic SE:", joint.value.uncertainty.standard_error)
+assert np.isfinite(joint.value.estimate)
+assert joint.value.uncertainty.standard_error is not None
 ```
 
 For a joint quantile level, pass the functional on the response query:
@@ -196,9 +198,9 @@ joint_median = antecedent.analyze(
     ),
     estimator="cell.aipw",
     refute="none",
-    bootstrap=0,
+    inference=antecedent.Frequentist(bootstrap=0),
 )
-print("Median under the joint intervention:", joint_median.estimate)
+print("Median under the joint intervention:", joint_median.value.estimate)
 ```
 
 This is a response level in the requested cell, including cells containing a

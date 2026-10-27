@@ -19,7 +19,9 @@ from .._artifact_protocol import (
 from .._columns import coerce_fields
 from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ._candidate_data import detached, freeze
+from ._controls import call_native
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,8 +132,7 @@ class SampledRecoveryCandidate(ScientificResult):
         expected: SampledRecoveryIdentity,
         max_rows: int = 100_000,
         max_replicates: int = 2000,
-        memory_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> SampledRecoveryCandidate:
         """Independently re-identify and rerun whole-row bootstrap under expectations."""
         artifact = container_bytes(artifact)
@@ -145,27 +146,19 @@ class SampledRecoveryCandidate(ScientificResult):
         ):
             if isinstance(value, bool) or not isinstance(value, int) or not 0 < value <= ceiling:
                 raise CausalValueError(f"{name} must be an integer in 1..={ceiling}")
-        if memory_bytes is not None and (
-            isinstance(memory_bytes, bool)
-            or not isinstance(memory_bytes, int)
-            or not 0 <= memory_bytes <= 2**64 - 1
-        ):
-            raise CausalValueError("memory_bytes must fit an unsigned 64-bit integer")
-        if cancel is not None and not isinstance(cancel, _native.CancellationToken):
-            raise CausalTypeError("cancel must be a CancellationToken")
         consume = getattr(_native, "consume_sampled_recovery_candidate", None)
         if consume is None:
             raise CausalUnsupportedError(
                 "sampled_recovery.route_frozen: private candidate replay requires calibration-internal",
                 reason_code="cell_not_licensed",
             )
-        payload = consume(
+        payload = call_native(
+            execution,
+            consume,
             artifact,
             expected.premises_digest,
             expected.data_digest,
             max_rows=max_rows,
             max_replicates=max_replicates,
-            memory_bytes=memory_bytes,
-            cancel=cancel,
         )
         return cls._from_native(payload, artifact)

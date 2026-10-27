@@ -5,7 +5,7 @@ two-arm, individually randomized studies with right-censored follow-up. The
 `prepare` / `analyze` flow computes arm-specific Kaplan–Meier step curves and
 restricted mean survival time (RMST) through a user-specified horizon. A
 declared treatment assignment is required before the result is described as
-causal. The result exposes `result.survival`, a structured answer and a
+causal. The result exposes `result.value.survival`, a structured answer and a
 portable study artifact:
 
 ```python
@@ -21,8 +21,8 @@ query = antecedent.survival.SurvivalOutcome(
     observation_assumption=IndependentGiven(()),
 )
 result = antecedent.analyze(data, query=query)
-result.survival.rmst_difference
-result.survival.times, result.survival.control_survival, result.survival.treated_survival
+result.value.survival.rmst_difference
+result.value.survival.times, result.value.survival.control_survival, result.value.survival.treated_survival
 ```
 
 The unweighted route requires `randomized=True` and `IndependentGiven(())` for
@@ -39,13 +39,17 @@ reported but cannot be verified from the table.
 The default route is point-only. The `prepare` / `analyze`
 route can compute **pointwise** two-sided 95% percentile intervals for the
 RMST treatment-minus-control contrast and the survival-probability contrast
-at `tau` when `bootstrap` is explicitly requested:
+at `tau` when `Frequentist(bootstrap=...)` is explicitly requested:
 
 ```python
-result = antecedent.analyze(data, query=query, bootstrap=399, seed=17)
-result.survival.rmst_difference_interval
-result.survival.survival_at_tau_difference_interval
-result.survival.bootstrap_replicates_ok
+result = antecedent.analyze(
+    data, query=query,
+    inference=antecedent.Frequentist(bootstrap=399),
+    execution=antecedent.Execution(seed=17),
+)
+result.value.survival.rmst_difference_interval
+result.value.survival.survival_at_tau_difference_interval
+result.value.survival.bootstrap_replicates_ok
 ```
 
 The native estimator resamples whole subjects separately within the two
@@ -60,13 +64,13 @@ count. The support matrix still treats these survival queries as outside its
 licensed axes, so the Python result labels this interval available but
 unlicensed. Longitudinal or observational survival estimands remain unsupported.
 
-For the unweighted retained route, `bootstrap=399` also gives a **simultaneous**
+For the unweighted retained route, `Frequentist(bootstrap=399)` also gives a **simultaneous**
 95% band across the full reported survival-difference curve when each arm has
 at least 80 subjects and at least 399 valid replicates satisfy the estimator's
 support contract (at least 90% of requested draws):
 
 ```python
-band = result.survival.difference_band
+band = result.value.survival.difference_band
 band.times, band.difference, band.lower, band.upper
 ```
 
@@ -127,11 +131,11 @@ query = antecedent.survival.SurvivalOutcome(
     ),
 )
 result = antecedent.analyze(data, query=query)
-result.survival.rmst_difference
+result.value.survival.rmst_difference
 ```
 
 The study artifact freezes the grid, column identities, positivity floor, and
-conditioning variables. Prepared refresh reads the censoring columns from the
+conditioning variables. A rebound study reads the censoring columns from the
 new table in the same row order. This path also supports competing-risk
 cumulative incidence. The retained route also combines known censoring survival
 with delayed entry when `IndependentGiven(())` declares marginally independent
@@ -140,7 +144,7 @@ entry, exit, event cause, and fixed censoring-survival row together in resamples
 Conditional entry remains unsupported. The direct IPCW utilities do not accept
 delayed entry.
 
-For retained IPCW survival, `bootstrap=399` produces the same RMST and
+For retained IPCW survival, `Frequentist(bootstrap=399)` produces the same RMST and
 fixed-horizon pointwise intervals. The supplied censoring probabilities stay
 with their subject in every resample; they are **held fixed**, never refit.
 The result and artifact label them
@@ -162,7 +166,7 @@ consistency, and no interference.
 For combined delayed entry and fixed known censoring, the observation claim is
 the marginal empty-variable form and the supplied censoring probabilities must
 be correct. This combined retained route reports the same scalar pointwise
-intervals with `bootstrap=299`; the censoring probabilities are held fixed.
+intervals with `Frequentist(bootstrap=299)`; the censoring probabilities are held fixed.
 Separate 400-study known-truth fixtures covered the RMST contrast in 383,
 survival at `tau` in 376, and target-cause incidence in 386 studies. It reports
 no simultaneous curve band and does not include uncertainty from fitting `G`.
@@ -176,7 +180,7 @@ distinct observed causes, a present target cause, both randomized arms through
 `tau`, and the same time-grid and positivity checks. The result reports minimum
 event-time risk-set sizes and minimum supplied `G`. Its direct utility remains
 point-only; the retained route offers a pointwise interval for the target-cause
-incidence difference at `tau` under `bootstrap=399`. A 240-study known-G,
+incidence difference at `tau` under `Frequentist(bootstrap=399)`. A 240-study known-G,
 two-event-time, two-cause repeated-sampling fixture checks its nominal 95%
 interval against an analytic truth with a 90% empirical-coverage floor.
 Unweighted competing-risk incidence differences also expose the simultaneous
@@ -216,7 +220,7 @@ as an RMST from the origin.
 The empty `IndependentGiven(())` claim asserts marginal independent entry and
 right censoring; it does not verify either condition. Conditional delayed entry
 and interval censoring remain refused. The retained unweighted route accepts
-`bootstrap=299` for pointwise RMST and fixed-horizon survival or target-cause
+`Frequentist(bootstrap=299)` for pointwise RMST and fixed-horizon survival or target-cause
 incidence contrasts: resampling keeps each subject's entry and exit together and
 recomputes counting-process risk sets. In a 400-study left-truncated survival
 fixture with independent entry, the RMST and survival-at-`tau` intervals covered

@@ -11,13 +11,15 @@ import antecedent as ant
 from antecedent.inverse import Action, TargetMean, inverse_outcome
 
 grid = [0.0, 0.5, 1.0, 1.5, 2.0]
-forward = ant.prepare(
+study = ant.prepare(
     data, graph=edges, query=ant.ResponseCurve("t", "y", grid=grid),
-    estimator="response.kennedy_dr", refute="none", bootstrap=0,
-).estimate(data)
+    estimator="response.kennedy_dr", refute="none",
+    inference=ant.Frequentist(bootstrap=0),
+)
+forward = ant.estimate(study)      # an Outcome; its .value is the forward response view
 
 report = inverse_outcome(
-    forward,
+    forward.value,
     query=TargetMean(threshold=3.0),                      # E[Y^do(a)] >= 3.0
     actions=[Action(f"dose_{a}", a, cost=a, constraints={"in_stock": a <= 1.5}) for a in grid],
     budget=1.6,

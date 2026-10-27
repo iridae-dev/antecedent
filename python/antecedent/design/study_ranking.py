@@ -34,6 +34,7 @@ import numpy as np
 from .. import _native
 from .._refusal import raise_refusal
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution, native_controls
 from ._declarations import (
     Candidate,
     CostMap,
@@ -57,6 +58,11 @@ __all__ = [
     "compile_for_study",
     "evaluate_for_study",
 ]
+
+
+def _call(execution: Execution | None, operation: Any, *args: Any, **kwargs: Any) -> Any:
+    """Run one native entry under the execution's policy (default ``Execution()``)."""
+    return (Execution() if execution is None else execution)._call(operation, *args, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -187,8 +193,7 @@ def compile_for_study(
     max_candidates: int = 1024,
     monte_carlo: MonteCarlo | None = None,
     rng_seed: int = 0,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> StudyProgram:
     """Compile ``study`` as the state belief of the declared EVSI evaluation.
 
@@ -198,7 +203,7 @@ def compile_for_study(
     Raises:
         DesignRankingRefusal: the study publishes no parameter posterior
             (``distribution_meaning_mismatch``, naming the Bayesian realization), the request
-            is incoherent, or the Monte Carlo store does not fit ``memory_bytes``.
+            is incoherent, or the Monte Carlo store does not fit the execution's memory limit.
     """
     names, columns, edges, treatment, outcome = study._arguments()
     request = _request(
@@ -215,7 +220,9 @@ def compile_for_study(
         monte_carlo,
         rng_seed,
     )
-    text, refusal = _native.compile_design_ranking_for_study(
+    text, refusal = _call(
+        execution,
+        _native.compile_design_ranking_for_study,
         request,
         names,
         columns,
@@ -223,8 +230,7 @@ def compile_for_study(
         treatment,
         outcome,
         checked_prior=decision.prior._checked,
-        memory_bytes=memory_bytes,
-        cancel=cancel,
+        **native_controls(execution, memory="memory_bytes", cancel="cancel"),
         **_study_options(study),
     )
     raise_refusal(refusal, _refusal_type)
@@ -260,8 +266,7 @@ def evaluate_for_study(
     artifact_id: str = "design-ranking",
     monte_carlo: MonteCarlo | None = None,
     rng_seed: int = 0,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> StudyRanking:
     """Evaluate the request bound to the lowered program of ``study`` compiled for it.
 
@@ -286,7 +291,9 @@ def evaluate_for_study(
         monte_carlo,
         rng_seed,
     )
-    body, artifact, program, refusal = _native.evaluate_design_ranking_for_study(
+    body, artifact, program, refusal = _call(
+        execution,
+        _native.evaluate_design_ranking_for_study,
         request,
         artifact_id,
         names,
@@ -295,8 +302,7 @@ def evaluate_for_study(
         treatment,
         outcome,
         checked_prior=decision.prior._checked,
-        memory_bytes=memory_bytes,
-        cancel=cancel,
+        **native_controls(execution, memory="memory_bytes", cancel="cancel"),
         **_study_options(study),
     )
     raise_refusal(refusal, _refusal_type)
@@ -364,8 +370,7 @@ def compile_decision_for_study(
     carrier: str = "parameter_posterior",
     *,
     chance_threshold: float = 1.0,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DecisionProgram:
     """Compile ``study`` for the terminal ``decision``, demanding ``carrier`` of its answer.
 
@@ -387,7 +392,9 @@ def compile_decision_for_study(
     if carrier not in _CARRIERS:
         raise CausalValueError(f"carrier must be one of {_CARRIERS}, got {carrier!r}")
     names, columns, edges, treatment, outcome = study._arguments()
-    text, refusal = _native.compile_decision_for_study(
+    text, refusal = _call(
+        execution,
+        _native.compile_decision_for_study,
         carrier,
         decision._identity(),
         decision._units(),
@@ -399,8 +406,7 @@ def compile_decision_for_study(
         treatment,
         outcome,
         chance_threshold=float(chance_threshold),
-        memory_bytes=memory_bytes,
-        cancel=cancel,
+        **native_controls(execution, memory="memory_bytes", cancel="cancel"),
         **_study_options(study),
     )
     raise_refusal(refusal, _refusal_type)

@@ -60,6 +60,7 @@ import numpy as np
 
 from ._native import evaluate_observational_policy as _evaluate
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 
 __all__ = ["ActionValue", "ObservationalPolicyValue", "ReferenceComparison", "policy_value"]
 
@@ -181,7 +182,7 @@ def policy_value(
     adjust: Mapping[str, Sequence[float]] | None = None,
     folds: int | None = None,
     min_propensity: float | None = None,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> ObservationalPolicyValue:
     """Estimate the value of a treatment policy from observational data.
 
@@ -196,8 +197,8 @@ def policy_value(
     probabilities of a randomized design and replaces the fitted propensity model: one
     probability per action in ``support`` order (e.g. ``[0.5, 0.5]``), or one column per action
     with a value per row. ``folds`` is the cross-fit fold count (default 5),
-    ``min_propensity`` the positivity floor of every declared action and ``seed`` seeds the
-    folds or the held-out split. A ``NaN`` is a missing cell: its row is dropped from the
+    ``min_propensity`` the positivity floor of every declared action and ``execution.seed``
+    seeds the folds or the held-out split. A ``NaN`` is a missing cell: its row is dropped from the
     complete cases and counted in ``rows_dropped_missing``.
 
     Raises:
@@ -206,7 +207,8 @@ def policy_value(
             ``required_option_missing``, ``policy_learned_on_evaluation_rows``,
             ``positivity_violated`` or ``treatment_level_undeclared``.
     """
-    declaration: dict[str, Any] = {"seed": int(seed)}
+    execution = resolve_execution(execution)
+    declaration: dict[str, Any] = {"seed": execution.seed}
     if support is not None:
         declaration["support"] = _column(support, "support")
     if objective is not None:
@@ -235,7 +237,8 @@ def policy_value(
         declaration["min_propensity"] = float(min_propensity)
     adjustment = dict(adjust or {})
     report = json.loads(
-        _evaluate(
+        execution._call(
+            _evaluate,
             _column(outcome, "outcome"),
             _column(treatment, "treatment"),
             list(adjustment),

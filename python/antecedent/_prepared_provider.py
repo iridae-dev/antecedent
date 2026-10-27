@@ -11,7 +11,12 @@ from typing import Any
 
 from ._study_lifecycle import retain
 from ._table_snapshot import Table, table
-from .errors import CausalUnsupportedError, CausalValueError
+from .errors import (
+    CausalCancelledError,
+    CausalResourceError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 from .execution import CachePolicy, Execution
 from .extensibility import ProviderQuery, _digest, _spec_evidence, providers
 from .outcomes import Outcome, capture_outcome, require_success
@@ -28,20 +33,34 @@ def _inapplicable(name: str) -> None:
 
 
 def _check_execution(policy: Execution) -> None:
-    # This protocol has no seed, worker, budget, observer or cancellation hooks.
-    # Accept only the baseline policy, without promising to seed provider code.
+    # The provider's own execute(request) is Python code, so a seed, worker count, cache
+    # or kernel choice has nothing to bind and is a typed refusal. Cancellation, the memory
+    # limit and progress observers are honoured around the provider call; there are no
+    # native stages to stream, so on_stage is refused too.
     for name, changed in (
         ("execution.seed", policy.seed != 1),
         ("execution.threads", policy.threads is not None),
-        ("execution.limits", policy.limits.memory_bytes is not None),
         ("execution.cache", policy.cache != CachePolicy()),
         ("execution.kernels", policy.kernels != "auto"),
-        ("execution.cancel", policy.cancel is not None),
-        ("execution.on_progress", policy.on_progress is not None),
         ("execution.on_stage", policy.on_stage is not None),
     ):
         if changed:
             _inapplicable(name)
+
+
+def _check_cancelled(execution: Execution, where: str) -> None:
+    if execution.cancel is not None and execution.cancel.is_cancelled():
+        raise CausalCancelledError(f"cancelled {where}")
+
+
+def _admitted_bytes(result: Any) -> int:
+    """Bytes the retained provider output occupies: arrays and both artifact payloads."""
+    total = int(result.estimate.nbytes)
+    if result.uncertainty is not None:
+        total += int(result.uncertainty.nbytes)
+    for payload in (result.artifact, result.host_artifact):
+        total += 0 if payload is None else len(payload)
+    return total
 
 
 def _callback_identity(provider: Any) -> tuple[Any, Any]:
@@ -140,11 +159,26 @@ class PreparedProvider:
         return capture_outcome(self._estimate)
 
     def _estimate(self) -> ProviderAnalysisResult:
+        execution = self.execution
         self._check_provider()
+        _check_cancelled(execution, "before the provider executed")
+        execution._report_progress(0.0, "provider.execute")
         result = require_success(
-            providers.execute(self._query.provider, {"data": self._data, **self._query.request})
+            execution._call(
+                providers.execute, self._query.provider, {"data": self._data, **self._query.request}
+            )
         )
         self._check_provider()
+        # A provider runs uninterruptibly Python code: a cancellation raised while it ran is
+        # honoured before its output is admitted, and the memory limit bounds that output.
+        _check_cancelled(execution, "while the provider executed")
+        limit = execution.limits.memory_bytes
+        if limit is not None and _admitted_bytes(result) > limit:
+            raise CausalResourceError(
+                f"provider output occupies {_admitted_bytes(result)} bytes, above the "
+                f"execution memory limit of {limit} bytes"
+            )
+        execution._report_progress(1.0, "provider.execute")
         output = ProviderAnalysisResult(
             provider_name=self._query.provider,
             query_family=self._spec.query_family,
@@ -186,7 +220,7 @@ class PreparedProvider:
                 "provider": self._query.provider,
                 "query_family": spec.query_family,
                 "spec_digest": self._spec_digest,
-                "execution_controls": "provider_owned; baseline Execution only",
+                "execution_controls": "provider_owned; cancel, memory limit and on_progress honoured",
             },
             operations=("inspect", "estimate", "rebind", "reconfigure"),
         )

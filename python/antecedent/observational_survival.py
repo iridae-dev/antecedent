@@ -52,6 +52,7 @@ import numpy as np
 
 from ._native import evaluate_observational_survival as _evaluate
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "ArmSurvival",
@@ -185,7 +186,7 @@ def survival_effect(
     folds: int | None = None,
     min_propensity: float | None = None,
     min_censoring_survival: float | None = None,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> ObservationalSurvivalEffect:
     """Estimate survival probability and restricted mean survival time differences.
 
@@ -196,7 +197,7 @@ def survival_effect(
     declared (see the module docstring). ``adjust`` maps column names to the covariates the
     caller declares sufficient for adjustment. ``folds`` is the cross-fit fold count
     (default 5), ``min_propensity`` and ``min_censoring_survival`` the positivity floors and
-    ``seed`` seeds the fold plan. A ``NaN`` is a missing cell: its row is dropped from the
+    ``execution``'s seed seeds the fold plan. A ``NaN`` is a missing cell: its row is dropped from the
     complete cases and counted in ``rows_dropped_missing``.
 
     Raises:
@@ -205,10 +206,11 @@ def survival_effect(
             ``required_option_missing`` (no horizon or censoring assumption),
             ``positivity_violated`` or ``treatment_level_undeclared``.
     """
+    execution = resolve_execution(execution)
     declaration: dict[str, Any] = {
         "active": float(active),
         "control": float(control),
-        "seed": int(seed),
+        "seed": execution.seed,
     }
     if horizon is not None:
         declaration["horizon"] = float(horizon)

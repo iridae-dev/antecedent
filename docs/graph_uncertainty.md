@@ -178,7 +178,7 @@ before projecting a scalar:
 
 ```python
 result = analyze(...)
-posterior = result.posterior  # may be None on some Frequentist routes
+posterior = result.value.posterior  # may be None on some Frequentist routes
 mass = posterior.unidentified_mass if posterior is not None else None
 ```
 

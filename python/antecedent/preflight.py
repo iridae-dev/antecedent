@@ -554,16 +554,17 @@ def preflight(
     adjustment: Sequence[str],
     control: float = 0.0,
     active: float = 1.0,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> PreflightReport:
     """Fit-free preflight of a declared binary-effect design, before any study is prepared.
 
     A design a nuisance fit would refuse cannot be prepared, so this is the entry point for
     one; ``PreparedAnalysis.diagnose`` reports the same checks on a prepared plan.
     """
+    run = _table_execution(execution)
     names, columns = ingest_columns(data)
-    raw = _native.preflight_json(
+    raw = run._call(
+        _native.preflight_json,
         names,
         columns,
         treatment,
@@ -571,8 +572,8 @@ def preflight(
         list(adjustment),
         control,
         active,
-        seed=seed,
-        threads=threads,
+        seed=run.seed,
+        threads=run.threads,
     )
     return _report(json.loads(raw))
 
@@ -585,16 +586,17 @@ def fit_diagnostics(
     adjustment: Sequence[str],
     control: float = 0.0,
     active: float = 1.0,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> NuisanceFitDiagnostics:
     """Fit a diagnostic propensity model for a declared binary-effect design.
 
     Not preflight: the fit is part of the evidence. A failure before any score exists comes
     back as ``status == "absent"`` with the reason, not as an exception.
     """
+    run = _table_execution(execution)
     names, columns = ingest_columns(data)
-    raw = _native.fit_diagnostics_json(
+    raw = run._call(
+        _native.fit_diagnostics_json,
         names,
         columns,
         treatment,
@@ -602,8 +604,8 @@ def fit_diagnostics(
         list(adjustment),
         control,
         active,
-        seed=seed,
-        threads=threads,
+        seed=run.seed,
+        threads=run.threads,
     )
     return _fit_diagnostics(json.loads(raw))
 
@@ -636,8 +638,7 @@ def plan_rank_drop(
     priority: Sequence[str] | None = None,
     control: float = 0.0,
     active: float = 1.0,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> RankDropPlan: ...
 
 
@@ -650,8 +651,6 @@ def plan_rank_drop(
     priority: Sequence[str] | None = None,
     control: float = 0.0,
     active: float = 1.0,
-    seed: int | None = None,
-    threads: int | None = None,
     execution: Execution | None = None,
 ) -> RankDropPlan | tuple[RankDropPlan, ...]:
     """Plan an opt-in rank-deficiency drop under a declared column priority.
@@ -663,11 +662,12 @@ def plan_rank_drop(
     treatment or outcome is involved or the priority does not cover the adjustment set.
 
     A canonical prepared study supplies its native certified design directly. Pass only
-    ``priority`` and, optionally, ``execution``; manual roles and loose execution controls
-    would conflict with its retained declarations. Batch studies return one plan per query.
+    ``priority`` and, optionally, ``execution`` (the study's own by default); manual roles
+    would conflict with its retained declarations. A table takes ``execution`` too, with the
+    default ``Execution()``. Batch studies return one plan per query.
     """
     if _is_prepared(data):
-        if any(value is not None for value in (treatment, outcome, adjustment, seed, threads)) or (
+        if any(value is not None for value in (treatment, outcome, adjustment)) or (
             control != 0.0 or active != 1.0
         ):
             raise CausalTypeError(
@@ -681,12 +681,12 @@ def plan_rank_drop(
         return policy._call(
             plan_rank_drop_prepared, native, priority, seed=policy.seed, threads=policy.threads
         )
-    if execution is not None:
-        raise CausalTypeError("execution applies to a prepared rank-drop plan")
+    run = _table_execution(execution)
     if treatment is None or outcome is None or adjustment is None:
         raise CausalTypeError("an unprepared design requires treatment, outcome and adjustment")
     names, columns = ingest_columns(data)
-    raw = _native.rank_drop_json(
+    raw = run._call(
+        _native.rank_drop_json,
         names,
         columns,
         treatment,
@@ -695,8 +695,8 @@ def plan_rank_drop(
         None if priority is None else list(priority),
         control,
         active,
-        seed=1 if seed is None else seed,
-        threads=threads,
+        seed=run.seed,
+        threads=run.threads,
     )
     return _plan(json.loads(raw))
 
@@ -711,8 +711,7 @@ def estimate_with_rank_drop(
     priority: Sequence[str] | None = None,
     control: float = 0.0,
     active: float = 1.0,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> RankDropEstimate:
     """Estimate on the span-preserving reduced adjustment set of a declared rank drop.
 
@@ -724,9 +723,11 @@ def estimate_with_rank_drop(
     original design, or the cross-fitted propensity separates on the reduced design;
     ``route_not_supported`` for any other estimator.
     """
+    run = _table_execution(execution)
     names, columns = ingest_columns(data)
     raw = json.loads(
-        _native.estimate_with_rank_drop_json(
+        run._call(
+            _native.estimate_with_rank_drop_json,
             names,
             columns,
             treatment,
@@ -736,8 +737,8 @@ def estimate_with_rank_drop(
             None if priority is None else list(priority),
             control,
             active,
-            seed=seed,
-            threads=threads,
+            seed=run.seed,
+            threads=run.threads,
         )
     )
     return RankDropEstimate(
@@ -748,6 +749,14 @@ def estimate_with_rank_drop(
         ate=raw["ate"],
         note=raw["note"],
     )
+
+
+def _table_execution(execution: Execution | None) -> Execution:
+    """The execution a table-path entry runs under; ``None`` is the default ``Execution()``."""
+    run = Execution() if execution is None else execution
+    if not isinstance(run, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    return run
 
 
 def _call(native: Any, method: str, *args: Any, **kwargs: Any) -> Any:

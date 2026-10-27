@@ -56,6 +56,7 @@ from ._artifact_protocol import (
 )
 from ._refusal import StructuredRefusal, raise_refusal
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 from .outcomes import outcome_operation
 
 __all__ = [
@@ -659,20 +660,26 @@ class PropagationChain:
         return list(stages)
 
     @outcome_operation
-    def withdraw(self, source: str, *, cancel: Any = None) -> PropagationChain:
+    def withdraw(self, source: str, *, execution: Execution | None = None) -> PropagationChain:
         """Withdraw ``source``: stages that depend on it are invalidated and carry no number."""
+        execution = resolve_execution(execution)
         change = json.dumps({"change": "withdraw", "source": _text(source, "source")})
-        return _chain(_native.propagation_chain_change(self._record, change, cancel))
+        return _chain(_native.propagation_chain_change(self._record, change, execution.cancel))
 
     @outcome_operation
     def reweight(
-        self, source: str, log_weights: Sequence[float] | np.ndarray, *, cancel: Any = None
+        self,
+        source: str,
+        log_weights: Sequence[float] | np.ndarray,
+        *,
+        execution: Execution | None = None,
     ) -> PropagationChain:
         """Re-weight the rows of ``source`` (an assumption about it changed).
 
         Stages that depend on it are summarized under the new weights; every other stage keeps its
         stored numbers bit for bit. ``log_weights`` is one finite log importance weight per row.
         """
+        execution = resolve_execution(execution)
         change = json.dumps(
             {
                 "change": "reweight",
@@ -680,7 +687,7 @@ class PropagationChain:
                 "log_weights": [_bits(v) for v in _floats(log_weights, "log_weights")],
             }
         )
-        return _chain(_native.propagation_chain_change(self._record, change, cancel))
+        return _chain(_native.propagation_chain_change(self._record, change, execution.cancel))
 
     def interval(self) -> None:
         """Always raises ``uncertainty_representation_insufficient``: a component interval does not cover the
@@ -770,7 +777,7 @@ def propagate(
     output: str,
     reading: str = "spread",
     construction: str = "joint_draws",
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PropagationChain:
     """Check a declared chain, compute every stage and seal the record.
 
@@ -779,8 +786,9 @@ def propagate(
     carries whatever dependence the sources have) or ``independent_product`` (the table is the
     product of independent sources, licensed only for sources that share no factor).
     """
+    execution = resolve_execution(execution)
     record = _declaration(sources, stages, output, reading, construction)
-    return _chain(_native.propagation_chain_seal(json.dumps(record), cancel))
+    return _chain(_native.propagation_chain_seal(json.dumps(record), execution.cancel))
 
 
 def plan_view(
@@ -790,7 +798,7 @@ def plan_view(
     output: str,
     reading: str = "spread",
     construction: str = "joint_draws",
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
     """Compile a declared chain and view every layer of its lowered program.
 
@@ -799,8 +807,9 @@ def plan_view(
     identification of overlap, and the program identity :meth:`PropagationChain.program_identity`
     will carry once the chain executes.
     """
+    execution = resolve_execution(execution)
     record = _declaration(sources, stages, output, reading, construction)
-    view, refusal = _native.propagation_chain_plan_view(json.dumps(record), cancel)
+    view, refusal = _native.propagation_chain_plan_view(json.dumps(record), execution.cancel)
     _refuse(refusal)
     assert view is not None
     return dict(json.loads(view))
@@ -808,12 +817,15 @@ def plan_view(
 
 @outcome_operation
 def consume_propagation_chain(
-    data: bytes, *, expected_identity: str | None = None, cancel: Any = None
+    data: bytes, *, expected_identity: str | None = None, execution: Execution | None = None
 ) -> ConsumedPropagationChain:
     """Independently consume an exported record: the rule is checked again and every stage is
     replayed to identical bits. Any edit is refused, resealed or not."""
+    execution = resolve_execution(execution)
     data = container_bytes(data)
-    replayed, refusal = _native.propagation_chain_consume(bytes(data), expected_identity, cancel)
+    replayed, refusal = _native.propagation_chain_consume(
+        bytes(data), expected_identity, execution.cancel
+    )
     _refuse(refusal)
     assert replayed is not None
     body = json.loads(replayed)
@@ -914,7 +926,7 @@ def family_table(
     covariance: Sequence[Sequence[float]] | np.ndarray | None = None,
     ledger: Any = None,
     rows: int = 1597,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> FamilyTable:
     """Turn family estimates into one aligned joint-draw table carrying their dependence.
 
@@ -949,8 +961,6 @@ def family_table(
         raise CausalTypeError("ledger must be an EvidenceLedger")
     if isinstance(rows, bool) or not isinstance(rows, int) or rows < 1:
         raise CausalValueError("rows must be a positive integer")
-    if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
-        raise CausalValueError("seed must be a non-negative integer")
     parts, refusal = _native.propagation_chain_family_table(
         _text(alignment, "alignment"),
         [e._wire() for e in estimates],
@@ -958,7 +968,7 @@ def family_table(
         flat,
         None if ledger is None else ledger._handle,
         rows,
-        seed,
+        resolve_execution(execution).seed,
     )
     _refuse(refusal)
     assert parts is not None

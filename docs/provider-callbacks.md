@@ -177,8 +177,8 @@ input use check that owner and the stored declaration, request and output identi
 a foreign execution or a tampered object is refused. Integer history indices are local
 to the receiving session, even when another session has the same index.
 
-`execution.export()` returns bytes from its owning session. `execution.artifact()`
-returns the bytes plus an independently retainable identity expectation and immutable
-metadata. `ant.load(bytes, expected=...)` consumes without running any provider. Transfer
+`execution.export()` returns a typed artifact from its owning session: the bytes plus an
+independently retainable identity expectation and immutable metadata.
+`ant.load(bytes(artifact), expected=artifact.expectation)` consumes without running any provider. Transfer
 to another live session uses explicit `session.resume(...)` with that expectation;
 provider replacement still follows the existing declaration and replay contract.

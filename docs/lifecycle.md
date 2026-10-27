@@ -81,7 +81,7 @@ a = rng.normal(size=400)
 data = {"a": a, "y": 2.0 * a + rng.normal(scale=0.2, size=400)}
 
 result = analyze(data, query=ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]), graph=[("a", "y")])
-print(result.claim())            # what the result is, in words
+print(result.value.claim())      # what the result is, in words
 
 low = ScientificQuantity.from_response_dose(result, -0.5, outcome_units="mmHg")
 high = ScientificQuantity.from_response_dose(result, 0.5, outcome_units="mmHg")
@@ -96,7 +96,7 @@ contract = decision.Contract(
 )
 
 decided = contract.evaluate(result)
-decided.selected                 # ("high",): E[Y | do(a=0.5)] is about +1, do(a=-0.5) about -1
+decided.value.selected           # ("high",): E[Y | do(a=0.5)] is about +1, do(a=-0.5) about -1
 ```
 
 What this decision is and is not:
@@ -191,8 +191,8 @@ contract = decision.Contract(
     target_population="target",
 )
 result = contract.evaluate(claim)
-result.selected                   # ("treat",): 2 * 5 - 1 = 9 against 2 * 1 - 1 = 1
-result.stages_behind()            # includes causal_contract, external_provider, claim
+result.value.selected             # ("treat",): 2 * 5 - 1 = 9 against 2 * 1 - 1 = 1
+result.value.stages_behind()            # includes causal_contract, external_provider, claim
 ```
 
 The decision is labelled **point-only attested**. It carries the claim's lineage
@@ -323,7 +323,7 @@ for the base class, the families and the common remedies.
 
 | Step | Object | Label it carries |
 | --- | --- | --- |
-| Analyze | `analyze(...)` result | the result's own claim; read `result.claim()` and `result.calibration` |
+| Analyze | `analyze(...)` result | the result's own claim; read `result.value.claim()` and `result.inspect().calibration` |
 | Bind | `BoundExternalClaim` | externally attested (`verified_extension` only with an exact-request receipt); never native |
 | Decide | `Decision` | point-only; no interval, coverage or probability claim |
 | Sensitivity | `MsmResult`, `SensitivityArtifact` | assumption range, calibration unmeasured |

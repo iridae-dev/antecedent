@@ -23,9 +23,17 @@ from .composition import SupportedDecision, _supported_from_wire
 from .decision import Contract
 from .design import StructuralCandidate, StructuralEntry
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution
 from .outcomes import Answer, outcome_operation, require_success
 from .program_claims import ProgramBinding
-from .recalc import RecalcPlan, RecalcReceipt, SessionStanding, _seed, session_standing
+from .recalc import (
+    RecalcPlan,
+    RecalcReceipt,
+    SessionStanding,
+    _execution,
+    _native_controls,
+    session_standing,
+)
 from .recalc_external import CallbackProvider, ExternalCallbackRefusal, ExternalCallbackRequest
 from .recalc_static import StaticResponseRequest, StaticResponseSession, _response_spec
 
@@ -275,12 +283,14 @@ class CompositeSession:
         self,
         request: CompositeRequest,
         *,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcPlan:
-        wire, error = self._handle.plan(
-            _payload(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel),
-            memory_limit_bytes=memory_limit_bytes,
+        run = _execution(execution)
+        limit, cancel = run.limits.memory_bytes, run.cancel
+        wire, error = run._call(
+            self._handle.plan,
+            _payload(request, memory_limit_bytes=limit, cancel=cancel),
+            memory_limit_bytes=limit,
             cancel=cancel,
         )
         raise_refusal(error, ExternalCallbackRefusal)
@@ -293,22 +303,19 @@ class CompositeSession:
         request: CompositeRequest,
         *,
         providers: Mapping[int, CallbackProvider],
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> CompositeResult:
         if len(providers) > 2 or any(
             not isinstance(value, CallbackProvider) for value in providers.values()
         ):
             raise CausalTypeError("providers must map at most two branches to CallbackProvider")
-        wire, receipt, error = self._handle.execute(
-            _payload(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel),
+        run = _execution(execution)
+        ctl = _native_controls(run)
+        wire, receipt, error = run._call(
+            self._handle.execute,
+            _payload(request, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]),
             {branch: provider._handle for branch, provider in providers.items()},
-            seed=_seed(seed),
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            **ctl,
         )
         raise_refusal(error, ExternalCallbackRefusal)
         assert wire is not None and receipt is not None

@@ -76,6 +76,7 @@ from ._measured_inference import MeasuredInference
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "Assigned",
@@ -183,6 +184,11 @@ def _assignment(values: Mapping[str, Any], what: str) -> list[list[str]]:
 
 
 # --------------------------------------------------------------------------- slots
+
+
+def _cancel(execution: Execution | None) -> Any:
+    """The cancellation token of ``execution`` (the default execution has none)."""
+    return resolve_execution(execution).cancel
 
 
 @dataclass(frozen=True, slots=True)
@@ -628,7 +634,7 @@ def condition_on(
     outcome: str,
     given: Sequence[Slot] | Mapping[str, Any] | None = None,
     *,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ObservationClaim:
     """``P(outcome | recorded values)`` on a composed finite model.
 
@@ -647,7 +653,9 @@ def condition_on(
         "interventions": [],
     }
     return _claim(
-        _native.observation_query_observe(_handle(composition), _dumps(wire), cancel=cancel)
+        _native.observation_query_observe(
+            _handle(composition), _dumps(wire), cancel=_cancel(execution)
+        )
     )
 
 
@@ -657,7 +665,7 @@ def intervene_on(
     interventions: Mapping[str, Any],
     *,
     given: Sequence[Slot] | Mapping[str, Any] | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ObservationClaim:
     """``P(outcome | do(interventions))``, or ``P(outcome | do(interventions), given)``.
 
@@ -677,7 +685,9 @@ def intervene_on(
         "interventions": _assignment(interventions, "interventions"),
     }
     return _claim(
-        _native.observation_query_observe(_handle(composition), _dumps(wire), cancel=cancel)
+        _native.observation_query_observe(
+            _handle(composition), _dumps(wire), cancel=_cancel(execution)
+        )
     )
 
 
@@ -686,7 +696,7 @@ def condition_versus_intervene(
     outcome: str,
     assignment: Mapping[str, Any],
     *,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ObservationClaim:
     """Both laws of one assignment from one model, never substituted for each other."""
     return _claim(
@@ -694,7 +704,7 @@ def condition_versus_intervene(
             _handle(composition),
             _name(outcome, "outcome"),
             _dumps(_assignment(assignment, "assignment")),
-            cancel=cancel,
+            cancel=_cancel(execution),
         )
     )
 
@@ -713,7 +723,7 @@ def condition_on_values(
     observed: Mapping[str, float] | None = None,
     *,
     interventions: Mapping[str, float] | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ObservationClaim:
     """``P(outcome | observed values)`` or ``P(outcome | do(...), observed values)`` on a
     linear-Gaussian composition.
@@ -739,7 +749,9 @@ def condition_on_values(
         },
     }
     return _claim(
-        _native.observation_query_observe(_handle(composition), _dumps(wire), cancel=cancel)
+        _native.observation_query_observe(
+            _handle(composition), _dumps(wire), cancel=_cancel(execution)
+        )
     )
 
 
@@ -826,9 +838,8 @@ def parameter_uncertainty(
     interventions: Mapping[str, Any] | None = None,
     observed_values: Mapping[str, float] | None = None,
     draws: int = 2000,
-    seed: int = 0,
     prior: RedrawPrior | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ObservationClaim:
     """The parameter uncertainty of a conditional query, by retained-data redraw.
 
@@ -868,11 +879,11 @@ def parameter_uncertainty(
         "retained": [item.to_wire() for item in retained],
         "prior": (prior or RedrawPrior()).to_wire(),
         "draws": _count(draws, "draws"),
-        "seed": _count(seed, "seed"),
+        "seed": resolve_execution(execution).seed,
     }
     return _claim(
         _native.observation_query_observe_with_uncertainty(
-            _handle(composition), _dumps(request), _dumps(uncertainty), cancel=cancel
+            _handle(composition), _dumps(request), _dumps(uncertainty), cancel=_cancel(execution)
         )
     )
 
@@ -886,7 +897,7 @@ def threshold_crossing(
     threshold: float,
     direction: str = "raise",
     background: Sequence[Slot] | Mapping[str, Any] | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ObservationClaim:
     """The observed levels of ``signal`` that move ``P(outcome = outcome_level)`` to a level.
 
@@ -903,7 +914,9 @@ def threshold_crossing(
         "direction": _choice(direction, "direction", _DIRECTIONS),
     }
     return _claim(
-        _native.observation_query_threshold(_handle(composition), _dumps(wire), cancel=cancel)
+        _native.observation_query_threshold(
+            _handle(composition), _dumps(wire), cancel=_cancel(execution)
+        )
     )
 
 
@@ -918,7 +931,7 @@ def finite_posterior(
     observations: Sequence[str],
     *,
     basis: str = "declared_model",
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ObservationClaim:
     """Posterior of a declared finite hypothesis space after exchangeable observations.
 
@@ -938,7 +951,7 @@ def finite_posterior(
             _dumps(wire),
             [_name(o, "observation") for o in observations],
             _choice(basis, "basis", _BASES),
-            cancel=cancel,
+            cancel=_cancel(execution),
         )
     )
 
@@ -950,7 +963,7 @@ def conjugate_posterior(
     successes: int,
     failures: int,
     basis: str = "declared_model",
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ObservationClaim:
     """Beta-Bernoulli posterior and the predictive probability of the next success."""
     return _claim(
@@ -960,13 +973,13 @@ def conjugate_posterior(
             _count(successes, "successes"),
             _count(failures, "failures"),
             _choice(basis, "basis", _BASES),
-            cancel=cancel,
+            cancel=_cancel(execution),
         )
     )
 
 
 def required_bayes_factor(
-    prior: float, level: float, *, direction: str = "raise", cancel: Any = None
+    prior: float, level: float, *, direction: str = "raise", execution: Execution | None = None
 ) -> ObservationClaim:
     """The Bayes factor that moves a probability from ``prior`` to ``level``."""
     return _claim(
@@ -974,7 +987,7 @@ def required_bayes_factor(
             _number(prior, "prior"),
             _number(level, "level"),
             _choice(direction, "direction", _DIRECTIONS),
-            cancel=cancel,
+            cancel=_cancel(execution),
         )
     )
 
@@ -988,7 +1001,7 @@ def required_observations_binary_signal(
     direction: str = "raise",
     max_observations: int = 10_000,
     basis: str = "declared_model",
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ObservationClaim:
     """The fewest conditionally independent readings of a binary signal that reach ``level``.
 
@@ -1006,7 +1019,7 @@ def required_observations_binary_signal(
             _number(rate_given_complement, "rate_given_complement"),
             _count(max_observations, "max_observations"),
             _choice(basis, "basis", _BASES),
-            cancel=cancel,
+            cancel=_cancel(execution),
         )
     )
 
@@ -1019,7 +1032,7 @@ def required_observations_conjugate(
     direction: str = "raise",
     max_observations: int = 10_000,
     basis: str = "declared_model",
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ObservationClaim:
     """The fewest consecutive successes (raise) or failures (lower) that reach a predictive level."""
     return _claim(
@@ -1030,7 +1043,7 @@ def required_observations_conjugate(
             _choice(direction, "direction", _DIRECTIONS),
             _count(max_observations, "max_observations"),
             _choice(basis, "basis", _BASES),
-            cancel=cancel,
+            cancel=_cancel(execution),
         )
     )
 
@@ -1047,7 +1060,7 @@ def consume_observation_query_artifact(
     artifact: bytes,
     expected_identity: str | None = None,
     *,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ConsumedObservationClaim:
     """Independently consume an ``observation_query_v1`` artifact.
 
@@ -1065,7 +1078,9 @@ def consume_observation_query_artifact(
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     raw = _unwrap(
-        _native.observation_query_consume(bytes(artifact), expected_identity, cancel=cancel)
+        _native.observation_query_consume(
+            bytes(artifact), expected_identity, cancel=_cancel(execution)
+        )
     )
     wire = json.loads(raw)
     claim = ObservationClaim(
@@ -1118,7 +1133,9 @@ class CountFittedObservation(ScientificResult):
         """The retained counts and question (canonical bytes)."""
         return artifact_from_receipt(self, self._source)
 
-    def interval(self, *, level: float = 0.95, cancel: Any = None) -> MeasuredInference:
+    def interval(
+        self, *, level: float = 0.95, execution: Execution | None = None
+    ) -> MeasuredInference:
         """The measured posterior interval at ``level`` (0.90 and 0.95 are measured).
 
         Raises:
@@ -1126,7 +1143,7 @@ class CountFittedObservation(ScientificResult):
                 record governs this construction (level, prior, draws, rows, sample size).
         """
         measured, refusal = _native.count_fitted_observation_interval(
-            self._source, _number(level, "level"), cancel=cancel
+            self._source, _number(level, "level"), cancel=_cancel(execution)
         )
         raise_refusal(refusal, ObservationQueryRefusal)
         if measured is None:  # pragma: no cover - the native contract
@@ -1134,10 +1151,10 @@ class CountFittedObservation(ScientificResult):
         return MeasuredInference._from_native(measured)
 
     def calibrated_probability(
-        self, *, level: float = 0.95, cancel: Any = None
+        self, *, level: float = 0.95, execution: Execution | None = None
     ) -> MeasuredInference:
         """The calibration claim of the posterior probability: the same measured interval."""
-        return self.interval(level=level, cancel=cancel)
+        return self.interval(level=level, execution=execution)
 
 
 def count_fitted_observation(
@@ -1150,8 +1167,8 @@ def count_fitted_observation(
     target: str,
     target_level: str,
     evidence: Mapping[str, str] | None = None,
-    seed: int | None = None,
     draws: int | None = None,
+    execution: Execution | None = None,
 ) -> CountFittedObservation:
     """Retain tables fitted to counts and ask ``P(target = target_level | evidence)``.
 
@@ -1188,7 +1205,7 @@ def count_fitted_observation(
         _name(target, "target"),
         _name(target_level, "target_level"),
         _dumps([[k, v] for k, v in (evidence or {}).items()]),
-        seed,
+        resolve_execution(execution).seed,
         None if draws is None else _count(draws, "draws"),
     )
     raise_refusal(refusal, ObservationQueryRefusal)

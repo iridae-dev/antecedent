@@ -55,13 +55,13 @@ from ._artifact_protocol import (
     container_bytes,
 )
 from ._digest import canonical_digest
-from ._native import CancellationToken
 from ._native import attribute_gap_to_columns as _attribute_gap_to_columns
 from ._native import raw_vs_adjusted as _raw_vs_adjusted
 from ._native import transform_mean_pair as _transform_mean_pair
 from ._native import transform_raw_arms as _transform_raw_arms
 from ._scientific import ScientificResult
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
@@ -273,15 +273,16 @@ def raw_vs_adjusted(
     active: float = 1.0,
     control: float = 0.0,
     population: str = "all_observed",
-    cancel: CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> DescriptiveComparison:
     """Set the unadjusted contrast beside an adjusted estimate of the same estimand coding.
 
     ``treatment`` is coded exactly 0/1. The adjusted estimate must be a difference of means
     (``adjusted_scale="mean_difference"``) at ``active=1`` versus ``control=0`` on the
     ``population="all_observed"``; any other coding is refused rather than compared. A cancelled
-    ``cancel`` token stops the pass over the rows with ``cancelled_no_claim`` and no comparison.
+    ``Execution(cancel=...)`` token stops the pass over the rows with ``cancelled_no_claim`` and no comparison.
     """
+    execution = resolve_execution(execution)
     (n1, mean1, m2_1), (n0, mean0, m2_0), difference, se, gap = _raw_vs_adjusted(
         _floats("outcome", outcome),
         _floats("treatment", treatment),
@@ -291,7 +292,7 @@ def raw_vs_adjusted(
         active=float(active),
         control=float(control),
         all_observed=population == "all_observed",
-        cancel=cancel,
+        cancel=execution.cancel,
     )
     return DescriptiveComparison(
         active=ArmSummary(n=n1, mean=mean1, sum_squares=m2_1),
@@ -392,7 +393,7 @@ def raw_reporting_transform(
     treatment: Iterable[Any],
     scales: Sequence[str] = _SCALES[1:],
     level: float | None = None,
-    cancel: CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> ReportingTransform:
     """Put the raw arm means of a 0/1-treatment sample on declared scales.
 
@@ -400,13 +401,14 @@ def raw_reporting_transform(
     covariance is ``diag(s1^2/n1, s0^2/n0)``; an arm of fewer than two rows has no sample
     variance and the covariance is then unavailable. Descriptive, like the raw contrast.
     """
+    execution = resolve_execution(execution)
     names = _scales(scales)
     _, _, raw = _transform_raw_arms(
         _floats("outcome", outcome),
         _floats("treatment", treatment),
         names,
         interval=level is not None,
-        cancel=cancel,
+        cancel=execution.cancel,
     )
     return _transform(names, raw, ("invalid_argument", "descriptive_comparison.arm_too_small"))
 

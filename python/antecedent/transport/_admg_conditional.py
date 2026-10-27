@@ -34,8 +34,10 @@ from .._native import (
     identify_admg_conditional_transport_stage as _identify_admg_conditional_stage,
 )
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg
 from ._consumption import TransportConsumption
+from ._controls import call_native
 from ._impl import EvidenceCatalog, SelectionDiagram, _non_negative, _optional_non_negative
 from ._multi_source import _names
 
@@ -79,8 +81,7 @@ def identify_admg_conditional_transport(
     max_operations: int = 4096,
     max_depth: int = 24,
     max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Decide a bounded ADMG conditional transport query once.
 
@@ -107,7 +108,9 @@ def identify_admg_conditional_transport(
         raise CausalTypeError("query must be a ConditionalTransportQuery")
     if not isinstance(catalog, EvidenceCatalog):
         raise CausalTypeError("catalog must be an EvidenceCatalog")
-    return _identify_admg_conditional_stage(
+    return call_native(
+        execution,
+        _identify_admg_conditional_stage,
         graph,
         query.diagram.source,
         query.diagram.target,
@@ -119,8 +122,8 @@ def identify_admg_conditional_transport(
         max_operations=_non_negative("max_operations", max_operations),
         max_depth=_non_negative("max_depth", max_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
@@ -139,8 +142,7 @@ def consume_admg_conditional_transport_artifact(
     max_support_rows: int | None = None,
     max_laws: int | None = None,
     max_law_cells: int | None = None,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportConsumption:
     """Verify an exported conditional result and recompute its points.
 
@@ -159,7 +161,9 @@ def consume_admg_conditional_transport_artifact(
         raise CausalTypeError("artifact must be bytes")
     return TransportConsumption.from_checked_json(
         "consume_admg_conditional_transport_artifact",
-        _consume_admg_conditional_artifact(
+        call_native(
+            execution,
+            _consume_admg_conditional_artifact,
             artifact,
             max_search_operations=_non_negative("max_search_operations", max_search_operations),
             max_search_depth=_non_negative("max_search_depth", max_search_depth),
@@ -168,8 +172,8 @@ def consume_admg_conditional_transport_artifact(
             max_support_rows=_optional_non_negative("max_support_rows", max_support_rows),
             max_laws=_optional_non_negative("max_laws", max_laws),
             max_law_cells=_optional_non_negative("max_law_cells", max_law_cells),
-            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-            cancel=cancel,
+            cancel="cancel",
+            memory="memory_bytes",
         ),
     )
 
@@ -181,7 +185,9 @@ def consume_admg_conditional_transport_artifact(
     identity=(),
 )
 def consume_admg_conditional_obstruction_artifact(
-    artifact: bytes, *, cancel: Any = None
+    artifact: bytes,
+    *,
+    execution: Execution | None = None,
 ) -> TransportConsumption:
     """Re-verify an exported proven obstruction and return it as JSON.
 
@@ -196,7 +202,9 @@ def consume_admg_conditional_obstruction_artifact(
         raise CausalTypeError("artifact must be bytes")
     return TransportConsumption.from_checked_json(
         "admg_conditional_obstruction",
-        _consume_admg_conditional_obstruction(artifact, cancel=cancel),
+        call_native(
+            execution, _consume_admg_conditional_obstruction, artifact, cancel="cancel", memory=None
+        ),
     )
 
 

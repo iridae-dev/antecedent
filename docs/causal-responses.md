@@ -81,14 +81,15 @@ A response result deliberately keeps four judgments separate:
 Inspect warnings and diagnostics even when a numerical estimate is present:
 
 ```python
-print(result.identification)
-print(result.identification.horizon_adjustment_sets)
-print(result.support.status)
-print(result.support.point_status)
-print(result.support.warnings)
-print(result.uncertainty.kind)
-print(result.provenance)
-print(result.evidence_status)
+view = result.value                    # the specialized response view of the Outcome
+print(view.identification)
+print(view.identification.horizon_adjustment_sets)
+print(view.support.status)
+print(view.support.point_status)
+print(view.support.warnings)
+print(view.uncertainty.kind)
+print(view.provenance)
+print(view.evidence_status)
 ```
 
 Every successful analysis has `evidence_status == "licensed"`.
@@ -143,7 +144,7 @@ estimation path as a hand-authored DAG. The artifact version does not change on
 an estimate click.
 
 `Cpdag` and `Pag` response queries are licensed through the same completion
-envelope as ATE: `analyze()` and `PreparedAnalysis` mass-weight identified
+envelope as ATE: `analyze()` and prepared studies mass-weight identified
 completions and keep the runtime class. Each completion is identified by
 (generalized) adjustment first. A single-treatment response on a completion
 with no adjustment set then falls back to Shpitser–Pearl ID: on a `Cpdag`
@@ -185,10 +186,10 @@ result = antecedent.analyze(
 study = result.study
 report = result.inspect().to_dict()
 response_bytes = result.export()
-loaded = antecedent.load(response_bytes)
+loaded = antecedent.load(bytes(response_bytes), expected=response_bytes.expectation)
 assert loaded.acceptance.verified or loaded.acceptance.sealed
 assert loaded.answer == result.answer
-repeated = study.estimate()
+repeated = antecedent.estimate(study)
 ```
 
 Explicit and accepted DAGs, TemporalDAGs, CPDAGs, and PAGs are licensed for
@@ -334,30 +335,34 @@ when any cell reads fewer than 15 effective rows.
   identified set (no class band; each completion atom keeps its own pointwise and
   simultaneous band, calibrated against that atom's own probability limit).
 
-In Python, `bootstrap=` on `analyze(...)` and `prepare(...)` is
+In Python, `Frequentist(bootstrap=...)` on `analyze(...)` and `prepare(...)` is
 the replicate count for Frequentist temporal `ResponseCurve` /
 `InterventionResponse` (TemporalDag surfaces and TemporalCpdag/Pag completion
-atoms). An explicit count always wins. Omitted, it follows the `latency` tier
-as prepared Pulse / Sustained do: `interactive` 0, `standard` 199, `report` 200.
-`analyze()` without a `latency` uses 199, so a band is published; the prepared
-API's default `interactive` tier publishes the point surface only. `bootstrap=0`
-returns the point surface with `uncertainty.kind == "none"`, the withheld-band
-message in `support.warnings`, and `estimate.temporal_response.band_withheld: …`
-in `diagnostics`. The seed drives the replicates, so a fixed `seed=` reproduces
-the band. The simultaneous band is `result.simultaneous_band` (`None` when none
+atoms). An explicit count always wins. Omitted, it follows
+`Frequentist(profile=...)` as prepared Pulse / Sustained do: `interactive` 0,
+`standard` 199, `report` 200. Declare the count explicitly when you need a band.
+`bootstrap=0` returns the point surface with `uncertainty.kind == "none"`, the
+withheld-band message in `support.warnings`, and
+`estimate.temporal_response.band_withheld: …` in `diagnostics`. The seed on
+`Execution(seed=...)` drives the replicates, so a fixed seed reproduces the band.
+The simultaneous band is `result.value.simultaneous_band` (`None` when none
 was published), rebuilt from the support diagnostics above. Its `lower` / `upper`
 rows match `uncertainty.lower` / `uncertainty.upper`; `critical` and `replicates`
 come from `response.simultaneous_band.critical`:
 
 ```python
-result = antecedent.analyze(data, graph=lagged_edges, query=surface, bootstrap=200, seed=7)
-result.uncertainty.lower, result.uncertainty.upper   # pointwise 95% band
-band = result.simultaneous_band                     # whole-grid 95% band
+result = antecedent.analyze(
+    data, graph=lagged_edges, query=surface,
+    inference=antecedent.Frequentist(bootstrap=200),
+    execution=antecedent.Execution(seed=7),
+)
+result.value.uncertainty.lower, result.value.uncertainty.upper   # pointwise 95% band
+band = result.value.simultaneous_band               # whole-grid 95% band
 band.lower, band.upper, band.critical, band.replicates
 ```
 
 Bayesian responses (posterior intervals), static responses, and `cell.aipw`
-refuse a positive `bootstrap=` rather than ignoring it.
+refuse a positive `Frequentist(bootstrap=...)` rather than ignoring it.
 
 Coverage of these bands on linear-Gaussian DGPs with iid and AR(1) residuals
 is measured by `crates/antecedent/tests/temporal_response_calibration.rs`

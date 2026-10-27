@@ -20,6 +20,7 @@ from numpy.typing import ArrayLike
 from . import _native
 from ._columns import coerce_fields, hold_unresolved, resolved
 from .errors import CausalValueError
+from .execution import Execution, resolve_execution
 
 HistoryPolicy: TypeAlias = Callable[[int, tuple[bool, ...], tuple[tuple[float, ...], ...]], bool]
 Regime: TypeAlias = Sequence[bool] | HistoryPolicy
@@ -1112,7 +1113,7 @@ def trajectory_survival_bootstrap(
     control: Sequence[bool],
     minimum_probability: float = 0.05,
     replicates: int = 999,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> TrajectorySurvivalIntervals:
     """Percentile subject-bootstrap intervals of the weighted product-limit contrast.
 
@@ -1121,6 +1122,7 @@ def trajectory_survival_bootstrap(
     treatment probabilities and censoring weights. For a credible interval see
     :func:`trajectory_hazard_credible_interval`, which refuses.
     """
+    execution = resolve_execution(execution)
     data = _trajectories(
         treatment, event, at_risk, treatment_probability, censoring_weight, minimum_probability
     )
@@ -1129,7 +1131,7 @@ def trajectory_survival_bootstrap(
         [bool(a) for a in active],
         [bool(c) for c in control],
         int(replicates),
-        int(seed),
+        int(execution.seed),
     )
     return TrajectorySurvivalIntervals((low, high), (rmst_low, rmst_high), requested, ok)
 
