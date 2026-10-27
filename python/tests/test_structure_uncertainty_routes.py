@@ -371,6 +371,41 @@ def test_a_ci_screened_posterior_samples_only_the_skeleton_the_screen_keeps():
         CiScreenedPosterior(soft_weight="bogus").run(data, seed=3)  # type: ignore[arg-type]
 
 
+def test_the_screen_weight_is_recorded_in_the_contract_without_changing_the_sampled_posterior():
+    rng = np.random.default_rng(12)
+    n = 400
+    x = rng.uniform(-1.0, 1.0, size=n)
+    z = x + 0.5 * rng.uniform(-1.0, 1.0, size=n)
+    y = z + 0.5 * rng.uniform(-1.0, 1.0, size=n)
+    data = {"x": x, "y": y, "z": z}
+
+    runs = {
+        weight: CiScreenedPosterior(
+            alpha=0.01, soft_weight=weight, n_chains=2, n_warmup=300, n_draws=600
+        ).run(data, seed=3)
+        for weight in ("none", "bayes_factor", "posterior_dependence")
+    }
+    methods = {}
+    for weight, post in runs.items():
+        record = post.inspect()
+        # The declared weight is the contract's method, spelled by the native query.
+        assert record["method"] == f'{{"ci_screened_posterior":{{"weight":"{weight}"}}}}'
+        methods[weight] = (record["target"], record["lowered_program"])
+    # Each weight is another declared target and another lowered program ...
+    assert len({target for target, _ in methods.values()}) == 3
+    assert len({program for _, program in methods.values()}) == 3
+    # ... but the soft weight is a proposal diagnostic: the Gaussian-BIC posterior over the
+    # screened skeleton is the same sample (same seed, same screened proposals).
+    reference = runs["none"]
+    for post in runs.values():
+        assert post.adjacency == reference.adjacency
+        assert post.edge_marginal_matrix() == reference.edge_marginal_matrix()
+        assert post.edge_marginal_matrix()[0][1] == 0.0
+
+    with pytest.raises(CausalValueError, match="soft_weight"):
+        CiScreenedPosterior(soft_weight="bogus").run(data, seed=3)  # type: ignore[arg-type]
+
+
 def test_a_pcmci_run_reports_the_statistic_and_p_value_of_each_retained_link():
     names, cols = _series_rows(seed=7, n=600)
     series = dict(zip(names, cols, strict=True))

@@ -594,3 +594,56 @@ def test_transport_catalog_survives_prepared_execution_and_export() -> None:
     assert "dependencies.checked_transport_trial_operation" in loaded.acceptance.unresolved
     assert loaded.answer == result.answer
     assert result.as_point() == pytest.approx(result.estimate.ate)
+
+
+def test_a_poor_selection_overlap_design_reports_its_weights_diagnostic_and_round_trips():
+    """Supplying near-zero selection probabilities for a quarter of the trial rows makes their
+    selection-odds weights ``(1 - s) / s = 49`` extreme. The reported selection overlap equals
+    the min/max probability, Kish effective sample size and extreme-weight count computed here
+    from the supplied column, and the same diagnostic round-trips through the canonical
+    transport-estimate artifact."""
+    from antecedent import artifacts
+
+    data = _transport_data(400, 1)
+    trial = data["trial"] != 0.0
+    selection = data["s"].copy()
+    selection[np.flatnonzero(trial)[::4]] = 0.02
+    data["s"] = selection
+    result = require_success(ant.analyze(data, graph=_transport_graph(), query=_transport_query()))
+
+    overlap = result.transport_overlap
+    assert overlap is not None
+    probabilities = selection[trial]
+    weights = (1.0 - probabilities) / probabilities
+    assert overlap.selection.probability_min == pytest.approx(0.02)
+    assert overlap.selection.probability_max == pytest.approx(float(probabilities.max()))
+    assert overlap.selection.effective_sample_size == pytest.approx(
+        float(weights.sum() ** 2 / (weights**2).sum()), rel=1e-9
+    )
+    assert overlap.selection.extreme_weight_count == int((weights > 10.0).sum()) > 0
+    # Treatment overlap is the design's constant 0.5 and is reported separately.
+    assert overlap.treatment.extreme_weight_count == 0
+    assert overlap.treatment.probability_min == overlap.treatment.probability_max == 0.5
+
+    payload = {
+        "ipw": float(result.estimate.ate),
+        "aipw": None,
+        "selection_overlap": {
+            "probability_min": overlap.selection.probability_min,
+            "probability_max": overlap.selection.probability_max,
+            "effective_sample_size": overlap.selection.effective_sample_size,
+            "extreme_weight_count": overlap.selection.extreme_weight_count,
+        },
+        "treatment_overlap": {
+            "probability_min": overlap.treatment.probability_min,
+            "probability_max": overlap.treatment.probability_max,
+            "effective_sample_size": overlap.treatment.effective_sample_size,
+            "extreme_weight_count": overlap.treatment.extreme_weight_count,
+        },
+    }
+    decoded = artifacts.loads(
+        artifacts.dumps(
+            "transport_estimate", payload, variable_names=TRANSPORT_NAMES, artifact_id="overlap"
+        )
+    )
+    assert decoded.to_dict()["payload"] == payload

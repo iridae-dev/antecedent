@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import math
+
 import antecedent
 import numpy as np
+import pytest
 from antecedent.outcomes import require_success
 
 
@@ -72,3 +75,70 @@ def test_handle_temporal_mediation_bayesian_uses_staged_estimator():
     assert result.estimate.estimator_id == "temporal.mediation.bayesian"
     assert result.posterior is not None
     assert np.isfinite(result.ate)
+
+
+def _mediated_series(n: int = 300):
+    """``m = 0.8 t[-1]`` and ``y = 0.25 t[-1] + 0.55 m``: mediated 0.44, direct 0.25."""
+    index = np.arange(n, dtype=np.float64)
+    treatment = np.sin(index * 0.31)
+    mediator = 0.8 * np.roll(treatment, 1) + 0.1 * np.sin(index * 0.51)
+    outcome = 0.25 * np.roll(treatment, 1) + 0.55 * mediator + 0.01 * np.cos(index * 0.19)
+    return {"t": treatment, "m": mediator, "y": outcome}
+
+
+def _lagged_edges():
+    return [("t", 1, "m", 0), ("t", 1, "y", 0), ("m", 0, "y", 0)]
+
+
+def test_a_dag_mediation_slice_states_its_identification_and_a_frequentist_uncertainty():
+    result = require_success(
+        antecedent.analyze(
+            _mediated_series(),
+            graph=antecedent.TemporalDag.from_lagged_edges(["t", "m", "y"], _lagged_edges()),
+            query=antecedent.TemporalMediationEffect("t", "m", "y", horizons=[1]),
+            inference=antecedent.Frequentist(bootstrap=0),
+            refute=False,
+            execution=antecedent.Execution(seed=3),
+        )
+    )
+    (slice_,) = list(result.mediation_grid)
+    assert slice_.horizon == 1
+    assert "Identified" in slice_.identification_status
+    assert slice_.method
+    assert all(isinstance(pair, tuple) and len(pair) == 2 for pair in slice_.adjustment)
+    # The generating coefficients give mediated 0.8 * 0.55 and direct 0.25.
+    assert slice_.mediated == pytest.approx(0.44, abs=0.02)
+    assert slice_.effect == pytest.approx(slice_.mediated, abs=1e-12)
+    if math.isfinite(slice_.total) and math.isfinite(slice_.direct):
+        assert slice_.direct == pytest.approx(0.25, abs=0.02)
+        assert slice_.total == pytest.approx(slice_.direct + slice_.mediated, abs=1e-9)
+    assert slice_.uncertainty_kind == "frequentist_pointwise"
+    assert slice_.q025 is None and slice_.q975 is None
+    # A DAG has no completion range.
+    assert slice_.identified_lower is None and slice_.identified_upper is None
+
+
+def test_a_class_mediation_slice_reports_its_completion_range_and_a_bayesian_interval():
+    graph = antecedent.graph.TemporalCpdag.from_lagged_edges(["t", "m", "y"], _lagged_edges(), [])
+    result = require_success(
+        antecedent.analyze(
+            _mediated_series(),
+            graph=graph,
+            query=antecedent.TemporalMediationEffect("t", "m", "y", horizons=[1]),
+            inference=antecedent.Bayesian(n_draws=256, backend="conjugate"),
+            class_prior=antecedent.ClassPrior.from_ordered([1.0]),
+            refute=False,
+            execution=antecedent.Execution(seed=5),
+        )
+    )
+    (slice_,) = list(result.mediation_grid)
+    assert slice_.uncertainty_kind == "bayesian_pointwise"
+    assert slice_.standard_deviation is not None and slice_.standard_deviation > 0.0
+    assert slice_.q025 < slice_.effect < slice_.q975
+    # One completion: the identified set is the single completion-specific point effect, which
+    # is the generating mediated effect 0.8 * 0.55.
+    assert slice_.identified_lower is not None
+    assert slice_.identified_lower == pytest.approx(slice_.identified_upper, abs=1e-12)
+    assert slice_.identified_lower == pytest.approx(0.44, abs=0.02)
+    assert slice_.effect == pytest.approx(slice_.identified_lower, abs=0.02)
+    assert result.mediation_grid.joint_posterior is False

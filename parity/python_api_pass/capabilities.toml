@@ -774,14 +774,34 @@ assertion_contract = "A prepared plan diagnoses and counts its cost from the cer
 
 [[capability]]
 id = "analysis.api.posterior_predictive_predictor"
-rust = ["antecedent::analysis::api::posterior_predictive_predictor", "antecedent::analysis::predictive_assessment::posterior_predictive_predictor"]
-rust_types = []
+rust = ["antecedent::analysis::api::posterior_predictive_predictor", "antecedent::analysis::predictive_assessment::posterior_predictive_predictor", "<antecedent::StudyBuilder>::bayesian_predictive_replicates", "<antecedent::StudyResult>::predictive_replicates", "<antecedent::RetainedPredictiveReplicates>::predictor", "<antecedent::RetainedPredictiveReplicates>::outcomes", "<antecedent::RetainedPredictiveReplicates>::rows"]
+rust_types = ["antecedent::RetainedPredictiveReplicates"]
 status = "gap"
 owner = "Python API integration: antecedent::analysis::api"
 behavior = "antecedent::analysis::api::posterior_predictive_predictor: Builds the predictor laws of a Bayesian posterior predictive check from the Rust-typed prepared Bayesian problem and posterior it just fitted; Python never holds those objects between the fit and the check. The predictor-law surface Python reaches is antecedent.predictive_assessment.replicate_laws, which lifts the draw-major replicates a check reports into the same one scoring surface (CRPS and PIT) under a declared fit."
 required_dimensions = ["success", "refusal"]
 gap = "No Python route yet. posterior_predictive_predictor needs the PreparedBayesianProblem (design rows) and the CausalPosterior draws of one fitted Bayesian study; the immutable Python Result retains neither (only summaries, the encoded posterior artifact and the predictive-check statistics), and replicates are n_sims x n_rows values, too large to retain on every result. Delivering the route needs a bounded opt-in on the Bayesian declaration that makes the native study build the predictor laws at fit time (admitted against Execution memory) and hand them to antecedent.predictive_assessment as Predictor(LawSource native, FitDeclaration of the conditioning rows), with a test comparing the scored CRPS with an independent numpy CRPS of the returned replicates and refusing an undeclared fit."
 legacy_internal = ["antecedent::analysis::api::posterior_predictive_predictor"]
+[[capability.evidence]]
+test = "python/tests/test_predictive_assessment.py::test_a_declared_bayesian_fit_retains_replicates_the_one_scoring_surface_scores"
+assertion_scopes = ["test_a_declared_bayesian_fit_retains_replicates_the_one_scoring_surface_scores"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The retained laws cover exactly the 60 fitted rows (source rows 0..59, observed outcomes equal the data, target y/analysis sample, model bayesian.gcomp) with 120 draws each; the replicate mean of a row matches the independently computed least-squares fitted value (mean absolute deviation below 0.1) and the replicate spread matches the residual standard deviation (25 percent); the CRPS the one scoring surface reports equals an independently coded pure-Python sample CRPS of the returned replicates to 1e-9, and the assessment is labelled in_sample with every row shared."
+[[capability.evidence]]
+test = "python/tests/test_predictive_assessment.py::test_replicates_fitted_to_the_scored_rows_are_refused_as_held_out"
+assertion_scopes = ["test_replicates_fitted_to_the_scored_rows_are_refused_as_held_out", "expect", "refused"]
+dimensions = ["refusal", "controls"]
+assertion_contract = "Requiring held-out observations refuses the default fit declaration (all fitted rows) with evidence_double_counted predictive_assessment.in_sample, refuses an undeclared fit with evidence_overlap_unknown predictive_assessment.overlap_unknown, and a target other than the laws' own is refused quantity_semantics_mismatch rather than converted."
+[[capability.evidence]]
+test = "python/tests/test_predictive_assessment.py::test_replicates_are_retained_only_when_declared_and_within_the_row_bound"
+assertion_scopes = ["test_replicates_are_retained_only_when_declared_and_within_the_row_bound"]
+dimensions = ["refusal", "controls", "branch"]
+assertion_contract = "Without the declaration the result retains nothing and posterior_replicates raises option_not_applicable; a design of 60 rows under max_rows=59 is refused invalid_argument naming max_rows while max_rows=60 is accepted and yields 60 laws; zero n_sims or max_rows and a non-ReplicateBounds declaration are rejected as invalid values."
+[[capability.evidence]]
+test = "python/tests/test_predictive_assessment.py::test_retained_replicates_are_admitted_against_the_execution_memory"
+assertion_scopes = ["test_retained_replicates_are_admitted_against_the_execution_memory"]
+dimensions = ["refusal", "controls", "lifecycle"]
+assertion_contract = "Under a 70 kB Execution pool the same study without the declaration succeeds near the 1.5 effect while the declaration raises CausalResourceError because the 120 x 60 replicate matrix and its transient copy cannot both be admitted; a 10 MB pool retains the 60 laws."
 
 [[capability]]
 id = "analysis.api.preflight_design"
@@ -6630,13 +6650,29 @@ assertion_contract = "A short coordinate and an off-matrix axis value raise a va
 
 [[capability]]
 id = "report.render_fallback_report"
-rust = ["antecedent::report::render_fallback_report"]
-status = "gap"
+rust = ["antecedent::report::render_fallback_report", "antecedent::report::render_fallback_input", "<antecedent::report::FallbackReportInput>::of"]
+rust_types = ["antecedent::report::FallbackAssociationInput", "antecedent::report::FallbackEvidenceInput", "antecedent::report::FallbackFigures", "antecedent::report::FallbackObligationInput", "antecedent::report::FallbackOptionInput", "antecedent::report::FallbackRankingInput", "antecedent::report::FallbackReportInput"]
+status = "plumbing"
 owner = "Python API integration: antecedent::report"
-behavior = "antecedent::report::render_fallback_report: public fn capability; trace its actual consuming workflow and invariant"
-gap = "Rust render_fallback_report reads a Rust AnalysisWithFallback (a Study::analyze_with_fallback product) and AnalysisWithFallback.report in Python renders its own Markdown from Python-held parts; the two cannot be unified without either a native analyze_with_fallback binding (unrouted.12) producing the Rust value, or re-expressing the renderer over a plain sections value that Python fills (Markdown and HTML). Not done in this pass; the Python text diverges from the Rust text (no association figures, no HTML)."
+behavior = "antecedent::report::render_fallback_report: the Markdown or HTML report of a refusal beside its noncausal description and evidence plan. Rust writes the whole document (wording, escaping, layout): for a fallback Study::analyze_with_fallback produced it reads its own AnalysisWithFallback into a FallbackReportInput (FallbackReportInput::of) and renders it with render_fallback_input; an AnalysisWithFallback assembled by hand in Python hands the same renderer the plain values of its parts."
 python = "antecedent.fallback.AnalysisWithFallback.report"
+composed_caller = "AnalysisWithFallback.report -> refusal.fallback (native FallbackStage.report) -> antecedent::report::render_fallback_report -> FallbackReportInput::of -> render_fallback_input; a hand-assembled AnalysisWithFallback -> fallback._native.render_fallback_report -> render_fallback_input"
 required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_descriptive_fallback.py::test_the_report_reads_every_figure_from_the_description_and_renders_markdown_and_html"
+assertion_scopes = ["test_the_report_reads_every_figure_from_the_description_and_renders_markdown_and_html"]
+dimensions = ["success", "inspection", "branch", "refusal"]
+assertion_contract = "The report of an unmeasured-confounder refusal (read by Rust from the fallback it ran on the refused study) has the three sections, the unchanged refusal facts, the claim kind and not_claimed identification, the selection rule, the row count 240 and the treatment coefficient equal to the description's own figure and to the independent OLS coefficient within 1e-6, the obligation table and next actions, and renders as one script-free HTML document reproducibly; another format refuses with CausalValueError."
+[[capability.evidence]]
+test = "python/tests/test_descriptive_fallback.py::test_the_report_lists_the_ranked_plan_and_states_why_a_part_is_unavailable"
+assertion_scopes = ["test_the_report_lists_the_ranked_plan_and_states_why_a_part_is_unavailable"]
+dimensions = ["success", "branch", "refusal"]
+assertion_contract = "A hedge with declared candidates reports the ranked plan row (rank, route, randomized trial, verified_sufficient, cost 9 usd) and the other declared study; a hand-assembled fallback whose association form and graph class are unavailable states both parts as unavailable with their stable fallback.* details through the plain-values renderer."
+[[capability.evidence]]
+test = "python/tests/test_descriptive_fallback.py::test_the_returned_object_states_plainly_that_it_is_not_a_causal_answer"
+assertion_scopes = ["test_the_returned_object_states_plainly_that_it_is_not_a_causal_answer"]
+dimensions = ["success", "inspection"]
+assertion_contract = "repr, explain, report and notice all state that the result is not an answer to the causal question, and the report carries the escaped effect_not_identified reason code and the Ranks actions: no and Is an intervention effect: no facts."
 
 [[capability]]
 id = "report.render_report"
@@ -6677,12 +6713,43 @@ assertion_contract = "Hostile variable names are HTML-escaped and markdown-escap
 [[capability]]
 id = "result.circular_block_dependence"
 rust = ["antecedent::result::circular_block_dependence"]
-status = "gap"
+status = "plumbing"
 owner = "Python API integration: antecedent::result"
-behavior = "antecedent::result::circular_block_dependence: public fn capability; trace its actual consuming workflow and invariant"
-gap = "Still no Python read-model: antecedent::result::circular_block_dependence labels the dependence of a circular-block SE inside StudyResult::primary_interval_binding / reported_interval_bindings, and those bindings reach Python only inside the sealed calibration-basis key (CalibrationKeyWire.dependence) which no binding returns; the compiled-route claim() map in python/src/compiled_route_api.rs carries only claim_id, kind, value and calibration_status. Needs the claim/analysis result to expose the reported interval bindings (method, se_kind, level, dependence, replicates) as a typed read-model on the Python outcome, then one test per block family (single_window, mediation, sequential, mixture, row_block) asserting the label from a temporal bootstrap analyze run."
-required_dimensions = ["success", "refusal"]
+behavior = "antecedent::result::circular_block_dependence labels the dependence rule of a circular-block SE inside StudyResult::primary_interval_binding; the reported interval bindings are returned to Python as AnalysisResult.interval_bindings (IntervalBindingView.dependence / block_family)."
+python = "antecedent.prepared.PreparedAnalysis"
+composed_caller = "antecedent.analyze -> PreparedAnalysis.estimate -> native AteAnalysisResult.interval_bindings_json (python/src/interval_binding_api.rs::bindings_json over StudyResult::reported_interval_bindings, which labels block intervals with result::circular_block_dependence) -> _from_raw._interval_bindings_from_raw -> AnalysisResult.interval_bindings[0].dependence"
+required_dimensions = ["success", "branch"]
 legacy_internal = ["antecedent::result::circular_block_dependence"]
+[[capability.evidence]]
+test = "python/tests/test_interval_bindings.py::test_a_single_window_fit_reports_a_single_window_circular_block_interval"
+assertion_scopes = ["test_a_single_window_fit_reports_a_single_window_circular_block_interval", "_assert_block_interval", "_primary"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A Frequentist bootstrap pulse effect on a TemporalDag reports a circular_block_se primary interval at level 0.95 labelled circular_block:single_window, with 0 < replicates_ok <= 40 and no posterior draws."
+[[capability.evidence]]
+test = "python/tests/test_interval_bindings.py::test_a_sequential_window_reports_a_sequential_circular_block_interval"
+assertion_scopes = ["test_a_sequential_window_reports_a_sequential_circular_block_interval", "_assert_block_interval", "_primary"]
+dimensions = ["success", "branch"]
+assertion_contract = "A two-step sustained window reports circular_block_se labelled circular_block:sequential."
+[[capability.evidence]]
+test = "python/tests/test_interval_bindings.py::test_a_temporal_mediation_reports_a_mediation_circular_block_interval"
+assertion_scopes = ["test_a_temporal_mediation_reports_a_mediation_circular_block_interval", "_assert_block_interval", "_primary"]
+dimensions = ["success", "branch"]
+assertion_contract = "A bootstrap temporal mediation reports circular_block_se labelled circular_block:mediation."
+[[capability.evidence]]
+test = "python/tests/test_interval_bindings.py::test_a_graph_posterior_mixture_reports_a_mixture_circular_block_interval"
+assertion_scopes = ["test_a_graph_posterior_mixture_reports_a_mixture_circular_block_interval", "_assert_block_interval", "_primary"]
+dimensions = ["success", "branch"]
+assertion_contract = "A Frequentist DBN graph-posterior pulse mixture reports circular_block_se labelled circular_block:mixture."
+[[capability.evidence]]
+test = "python/tests/test_interval_bindings.py::test_a_temporal_admg_window_reports_a_row_block_circular_block_interval"
+assertion_scopes = ["test_a_temporal_admg_window_reports_a_row_block_circular_block_interval", "_assert_block_interval", "_primary"]
+dimensions = ["success", "branch"]
+assertion_contract = "A bootstrap pulse window on a TemporalAdmg reports circular_block_se labelled circular_block:row_block."
+[[capability.evidence]]
+test = "python/tests/test_interval_bindings.py::test_without_replicates_no_block_interval_is_reported"
+assertion_scopes = ["test_without_replicates_no_block_interval_is_reported", "_primary"]
+dimensions = ["branch", "inspection"]
+assertion_contract = "With bootstrap=0 the same single-window fit reports method none, no level, no block family and no replicate count: no circular-block label is invented for an interval that was not formed."
 
 [[capability]]
 id = "result.reported_se_interval_z"
@@ -10322,8 +10389,8 @@ assertion_contract = "An unsupported target region withdraws only the target and
 
 [[capability]]
 id = "analysis.decision_contract_facade.evaluate_transported"
-rust = ["export:antecedent::analysis::TransportReceipt", "export:antecedent::analysis::TransportedRoute", "export:antecedent::analysis::TransportedDecision", "export:antecedent::analysis::TransportedValue", "export:antecedent::analysis::SupportPolicy", "export:antecedent::analysis::TransportedDemand", "export:antecedent::analysis::contract_needs_law", "export:antecedent::analysis::TransportDeclaration", "export:antecedent::analysis::TransportedRepresentation", "export:antecedent::analysis::TransportedResponse", "export:antecedent::analysis::TransportedRefusal", "export:antecedent::analysis::evaluate_transported_decision"]
-rust_types = ["antecedent::BoundDecisionContract", "antecedent::CausalContract"]
+rust = ["export:antecedent::analysis::TransportReceipt", "export:antecedent::analysis::TransportedRoute", "export:antecedent::analysis::TransportedDecision", "export:antecedent::analysis::TransportedValue", "export:antecedent::analysis::SupportPolicy", "export:antecedent::analysis::TransportedDemand", "export:antecedent::analysis::contract_needs_law", "export:antecedent::analysis::TransportDeclaration", "export:antecedent::analysis::TransportedRepresentation", "export:antecedent::analysis::TransportedResponse", "export:antecedent::analysis::TransportedRefusal", "export:antecedent::analysis::evaluate_transported_decision", "<antecedent::analysis::BoundTransportedDecision>::decision", "<antecedent::analysis::BoundTransportedDecision>::receipt", "<antecedent::analysis::BoundTransportedDecision>::bound_identity", "<antecedent::analysis::BoundTransportedDecision>::causal_target", "<antecedent::analysis::BoundTransportedDecision>::causal_identification", "<antecedent::analysis::BoundTransportedDecision>::identity", "<antecedent::analysis::BoundTransportedDecision>::inspect"]
+rust_types = ["antecedent::BoundDecisionContract", "antecedent::CausalContract", "antecedent::analysis::BoundTransportedDecision", "antecedent::analysis::BoundTransportedDecision#eb6497eb0974", "antecedent::analysis::TransportedDecisionInspection"]
 status = "covered"
 owner = "Python API integration: antecedent::analysis::decision_contract_facade"
 behavior = "evaluate_transported binds an admissible decision contract to the target and identification identities of a prepared analysis' causal contract and decides it on a transported response under a support policy."
@@ -10432,8 +10499,8 @@ assertion_contract = "Coverage levels 0, 1, -0.1, NaN and infinity are rejected 
 
 [[capability]]
 id = "analysis.joint_sensitivity.joint_mechanism_sensitivity"
-rust = ["export:antecedent::analysis::api::JointOutcomeWire"]
-rust_types = ["antecedent::JointPerturbationWire", "antecedent::JointSensitivityBodyWire"]
+rust = ["export:antecedent::analysis::api::JointOutcomeWire", "<antecedent::JointSensitivityArtifactWire>::checked", "<antecedent::JointSensitivityArtifactWire>::checked_with_limits", "<antecedent::JointSensitivityArtifactWire>::export"]
+rust_types = ["antecedent::JointPerturbationWire", "antecedent::JointSensitivityBodyWire", "antecedent::JointOutcomeWire"]
 status = "covered"
 owner = "Python API integration: antecedent::analysis::joint_sensitivity"
 behavior = "joint_mechanism_sensitivity computes the exact assumption range of a registered surrogate z-transport estimand under a joint deviation of two mechanism factors, with a frontier, axis tipping points and a receipt; the sealed artifact is replayed by an independent consumer."
@@ -11359,8 +11426,8 @@ assertion_contract = "A treatment column that is not the threshold rule is refus
 
 [[capability]]
 id = "analysis.joint_sensitivity.consume_artifact"
-rust = ["export:antecedent::analysis::api::JOINT_SENSITIVITY_ARTIFACT_VERSION", "export:antecedent::analysis::JOINT_SENSITIVITY_ARTIFACT_VERSION", "export:antecedent::analysis::api::JointSensitivityArtifactWire", "export:antecedent::analysis::JointSensitivityArtifactWire"]
-rust_types = ["antecedent::JointProvenanceWire", "antecedent::JointSensitivityConsumeLimits"]
+rust = ["export:antecedent::analysis::api::JOINT_SENSITIVITY_ARTIFACT_VERSION", "export:antecedent::analysis::JOINT_SENSITIVITY_ARTIFACT_VERSION", "export:antecedent::analysis::api::JointSensitivityArtifactWire", "export:antecedent::analysis::JointSensitivityArtifactWire", "<antecedent::JointSensitivityArtifactWire>::consume_with_limits", "<antecedent::JointSensitivityArtifactWire>::computed_premises_digest", "<antecedent::JointSensitivityArtifactWire>::computed_data_digest"]
+rust_types = ["antecedent::JointProvenanceWire", "antecedent::JointSensitivityConsumeLimits", "antecedent::JointSensitivityArtifactWire"]
 status = "covered"
 owner = "Python API integration: antecedent::analysis::joint_sensitivity"
 behavior = "Joint mechanism-sensitivity artifact: provenance recorded at export and independent replay under the consumer's own operation, depth, support, law and search limits."
@@ -13012,7 +13079,7 @@ assertion_contract = "The canonical load keeps the ranking sealed and unreplayab
 
 [[capability]]
 id = "analysis.sensitivity_source.SourceBackedSensitivity"
-rust = []
+rust = ["<antecedent::JointSensitivityArtifactWire>::consume"]
 rust_types = ["antecedent::analysis::sensitivity_source::SourceBackedSensitivity", "antecedent::analysis::sensitivity_source::SourceLimits", "antecedent::JointFactorWire", "antecedent::JointSamplingWire"]
 status = "covered"
 owner = "Python API integration: analysis"
@@ -13494,13 +13561,28 @@ assertion_contract = "The state identity a Python provider reports through its s
 [[capability]]
 id = "unrouted.05"
 rust = []
-rust_types = ["antecedent::IntoSharedPlan", "antecedent::PublishedScalarUncertainty", "antecedent::ScreenSplitReceipt"]
-status = "gap"
+rust_types = ["antecedent::PublishedScalarUncertainty", "antecedent::ScreenSplitReceipt"]
+status = "plumbing"
 owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: Public Rust helper with no Python route: no python/src binding, Python module or Python test mentions it (dispatch plan sharing conversion, published scalar uncertainty selection, candidate-screen spl"
-gap = "IntoSharedPlan (dispatch plan sharing conversion), PublishedScalarUncertainty (result uncertainty selection read by contract/claim/wire/reasoning/four_way) and ScreenSplitReceipt (candidate_screen_units split receipt) are consumed by Rust dispatch and wire code with no Python-visible object; each needs a binding that returns it from a Python journey (shared plan reuse, published uncertainty on a result, candidate-screen split receipt) and was not started in this pass."
-python = "antecedent.prepared.PreparedAnalysis"
+behavior = "PublishedScalarUncertainty is the one rule that selects the standard error and interval label a result publishes (bootstrap SE preferred over analytic, Anderson-Rubin sets without an SE, withheld otherwise); ScreenSplitReceipt records the seed, unit kind, unit counts and unit digest of a generated candidate-screen split. Both reach Python on results the journeys already return."
+python = "antecedent._batch.CandidateScreen.from_units"
+composed_caller = "CandidateScreen.from_units -> _native.candidate_screen_from_units -> ScreenSplitReceipt -> _batch.ScreenSplitReceipt (CandidateScreen.receipt); ant.analyze -> estimate wire -> PublishedScalarUncertainty::select -> reasoning.uncertainty.payload.standard_error and claim calibration interval_method"
 required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_interval_bindings.py::test_the_published_standard_error_is_the_selected_one_and_matches_the_ols_oracle"
+assertion_scopes = ["test_the_published_standard_error_is_the_selected_one_and_matches_the_ols_oracle"]
+dimensions = ["success", "branch", "inspection"]
+assertion_contract = "Without replicates the published standard error is the analytic one, equal to the independent homoskedastic OLS standard error within 1e-9 relative and labelled analytic_se; with 30 replicates the published one is the bootstrap standard error, different from the analytic one, labelled bootstrap_se."
+[[capability.evidence]]
+test = "python/tests/test_cluster_dml.py::test_the_entity_screen_split_never_shares_an_entity_and_records_seed_and_digest"
+assertion_scopes = ["test_the_entity_screen_split_never_shares_an_entity_and_records_seed_and_digest"]
+dimensions = ["success", "controls", "inspection"]
+assertion_contract = "The entity split's receipt records seed 5, unit kind entity, 30 units dealt 15 and 15 whose entity counts match the halves, a 64-hex unit digest equal to the one in the screen id and independent of row order, and a screen declared from row lists has no receipt."
+[[capability.evidence]]
+test = "python/tests/test_cluster_dml.py::test_the_dyad_screen_split_keeps_connected_endpoints_together_and_refuses_one_component"
+assertion_scopes = ["test_the_dyad_screen_split_keeps_connected_endpoints_together_and_refuses_one_component"]
+dimensions = ["branch", "inspection"]
+assertion_contract = "The dyad split's receipt records seed 3, unit kind dyad_component and 14 connected components (one chain, one star, twelve pairs) split into screen and estimate units that sum to 14."
 
 [[capability]]
 id = "unrouted.06"
@@ -13639,36 +13721,75 @@ assertion_contract = "The certified trial-to-target transport study publishes ki
 
 [[capability]]
 id = "unrouted.12"
-rust = []
+rust = ["<antecedent::Study>::fallback_candidate_names"]
 rust_types = ["antecedent::FallbackRequest", "antecedent::RankedPlan"]
-status = "gap"
+status = "plumbing"
 owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: reachability: Rust analyze_with_fallback / FallbackRequest / RankedPlan are not called by python/src; antecedent.fallback.describe composes the associational part and the evidence plan itself through "
-gap = "Rust analyze_with_fallback / FallbackRequest / RankedPlan are not bound; antecedent.fallback.describe composes the associational part and the evidence plan through the evidence-plan binding. Needs a native fallback binding (Study::analyze_with_fallback on a prepared study) that describe() calls, then fallback.py reads its products; not started."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
+behavior = "Study::analyze_with_fallback(&FallbackRequest, ctx) is the descriptive-fallback entry. The native prepare keeps the study it refused for identification when the caller declared on_refusal=\"describe\", builds a FallbackRequest from the declared candidate studies (spelled in the names of the failure, Study::fallback_candidate_names), runs analyze_with_fallback on it and attaches the resulting FallbackStage to the unchanged refusal; Python reads the associational study and result, the obligations, next actions, templates and RankedPlan (not requested, ranked or unavailable) from it and composes none of them."
+python = "antecedent.prepared.analyze"
+composed_caller = "prepared.analyze/prepare(on_refusal=\"describe\", evidence_candidates=) -> estimation._PreparedEngine.prepare options[\"fallback\"] -> native PrepareRequest::compile_with -> fallback_stage_api::describe_refusal -> Study::analyze_with_fallback(FallbackRequest) -> FallbackStage on the raised refusal -> fallback.from_native -> Outcome.associational / Outcome.evidence_plan"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_descriptive_fallback.py::test_the_description_is_the_fallback_rust_ran_on_the_refused_study"
+assertion_scopes = ["test_the_description_is_the_fallback_rust_ran_on_the_refused_study"]
+dimensions = ["success", "inspection", "branch", "refusal"]
+assertion_contract = "Without the option the raised refusal carries no fallback; with it the refusal carries the stage whose roles (y, t, [z], measured_parents_of_treatment_and_declared_modifiers), obligation ids and next-action ids equal what the Python objects report, whose ranking is not_requested without candidates and ranked (outcome closing) with a declared randomized trial and survey on a hedge, and whose parts are all available."
+[[capability.evidence]]
+test = "python/tests/test_descriptive_fallback.py::test_a_hedge_returns_the_refusal_the_description_and_a_ranked_plan"
+assertion_scopes = ["test_a_hedge_returns_the_refusal_the_description_and_a_ranked_plan"]
+dimensions = ["success", "branch"]
+assertion_contract = "On a hedge with a declared randomized trial and a cheaper survey, the ranked plan's best option is the trial with gate verified_sufficient, the survey is never verified_sufficient, the description holds no adjustment column and retains effect_not_identified, and a next action asks for an experiment."
+[[capability.evidence]]
+test = "python/tests/test_evidence_plan_study.py::test_a_hedge_is_answered_by_an_experiment_and_a_cheaper_survey_cannot_answer_it"
+assertion_scopes = ["test_a_hedge_is_answered_by_an_experiment_and_a_cheaper_survey_cannot_answer_it", "_described", "_assert_gate_then_cost", "_assert_replays"]
+dimensions = ["success", "branch", "refusal", "artifact"]
+assertion_contract = "The six evidence-gathering actions of a hedge, a randomized trial ranked best and verified_sufficient with outcome closing, the survey never sufficient, gate-then-cost ordering and an exported plan that replays to the same identity; studies declared in two cost units make the ranked plan unavailable with design_cost_units_mismatch (RankedPlan::Unavailable)."
 
 [[capability]]
 id = "unrouted.13"
 rust = []
 rust_types = ["antecedent::analysis::recalc_receipt::RecalcSessionKind", "antecedent::analysis::recalc_receipt::SessionStanding", "antecedent::analysis::recalc_receipt::StandingInputDeclaration"]
-status = "gap"
+status = "covered"
 owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: No Python route: RecalcSessionKind::standing is called only by Rust tests; no binding or recalc session exposes the standing declarations."
-gap = "RecalcSessionKind::standing / SessionStanding / StandingInputDeclaration are used by recalc_receipt and the Rust standing tests (recalc_bayesian_standing.rs) only; Python recalc receipts expose totals but not the session standing declarations. Needs a receipt read-model binding (standing declarations of a session kind) and a Python test; not started."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
+behavior = "RecalcSessionKind::standing states, per recalculation session family, whether the calibration record, the representation and the coupling enter the stage identities (declared), do not apply (a point law, no joint statement) or cannot be declared (with the finding and the remedy); recalc.session_standing and the standing property of every recalc session read it."
+python = "antecedent.recalc.session_standing"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_recalc.py::test_each_session_family_declares_its_standing_inputs_and_says_why_it_does_not"
+assertion_scopes = ["test_each_session_family_declares_its_standing_inputs_and_says_why_it_does_not"]
+dimensions = ["success", "inspection", "branch", "refusal"]
+assertion_contract = "The Bayesian families declare calibration and coupling; the seven point-valued families report not_applicable with the point-value and single-stream reasons; the external and composite families report the calibration_folded_into_decision and callback_metadata_establishes_no_coupling findings with remedies; every family reports the representation_version_not_held finding; an unknown family refuses with CausalValueError."
+[[capability.evidence]]
+test = "python/tests/test_recalc.py::test_live_sessions_report_the_standing_of_their_family"
+assertion_scopes = ["test_live_sessions_report_the_standing_of_their_family"]
+dimensions = ["lifecycle", "inspection"]
+assertion_contract = "Each constructed session (receipt, cross-fit, adjusted, cell, design, doubly robust, static, multi-source, temporal and Bayesian) reports the standing of its own family, and the Bayesian session's calibration is declared where the AIPW session's is not applicable."
 
 [[capability]]
 id = "unrouted.14"
 rust = []
 rust_types = ["antecedent::result::IntervalBinding"]
-status = "gap"
+status = "plumbing"
 owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: No Python route: IntervalBinding is assembled inside StudyResult claim and calibration-basis construction and no binding returns or accepts it."
-gap = "Still no Python read-model: IntervalBinding is assembled in StudyResult::primary_interval_binding / reported_interval_bindings and consumed only by calibration_bases_with; the Python outcome exposes neither the bindings nor the calibration bases. Same blocker as result.circular_block_dependence: one typed read-model of the reported bindings on the analyze outcome plus a per-method test (analytic, bootstrap, circular block, posterior quantile)."
+behavior = "IntervalBinding (method, SE kind, level, dependence rule, replicate and draw counts) is serialized by python/src/interval_binding_api.rs for every interval an execution reported and read back as AnalysisResult.interval_bindings / CausalResponseView.interval_bindings (IntervalBindingView)."
 python = "antecedent.prepared.PreparedAnalysis"
+composed_caller = "antecedent.analyze -> PreparedAnalysis.estimate -> native interval_bindings_json (interval_binding_api::bindings_json over StudyResult::reported_interval_bindings) -> _from_raw._interval_bindings_from_raw -> IntervalBindingView"
 required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_interval_bindings.py::test_analytic_bootstrap_and_posterior_intervals_name_their_own_construction"
+assertion_scopes = ["test_analytic_bootstrap_and_posterior_intervals_name_their_own_construction", "_primary"]
+dimensions = ["success", "inspection", "branch"]
+assertion_contract = "An analytic-SE fit reports analytic_se at 0.95 with dependence iid and no replicates; a bootstrap fit reports bootstrap_se with 0 < replicates_ok <= 30; a conjugate Bayesian fit reports posterior_quantile with posterior_draws == 64."
+[[capability.evidence]]
+test = "python/tests/test_interval_bindings.py::test_the_view_reads_the_native_json_without_rederiving_it"
+assertion_scopes = ["test_the_view_reads_the_native_json_without_rederiving_it"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The view built from the native JSON preserves method, level (None when no interval), dependence, block family, replicate ok/failed counts and tolerates a missing payload as the empty tuple."
+[[capability.evidence]]
+test = "python/tests/test_interval_bindings.py::test_a_single_window_fit_reports_a_single_window_circular_block_interval"
+assertion_scopes = ["test_a_single_window_fit_reports_a_single_window_circular_block_interval", "_assert_block_interval", "_primary"]
+dimensions = ["success"]
+assertion_contract = "The circular-block binding of a single-window fit carries its method, level, dependence label and replicate count."
 
 [[capability]]
 id = "unrouted.15"
@@ -13709,12 +13830,16 @@ assertion_contract = "For three claims over n retained rows the cost reports zer
 id = "unrouted.17"
 rust = []
 rust_types = ["antecedent::result::ImputationExtra"]
-status = "gap"
+status = "covered"
 owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: Reachable only on mediation and joint-CDF imputation answers (ImputationExtraView.extras) and no executing Python test asserts extras: needs a test, not a binding."
-gap = "ImputationExtra reaches Python as ImputationExtraView.extras (_from_raw.py) on a Bayesian mediation (decomposition components) imputation answer; no executing Python test asserts extras. Needs a test with a Bayesian mediation analysis under MissingPolicy.multiple_imputation asserting label/points/point/between (between = sample variance of points, point = their mean). Not written because the fixture could not be run in this pass."
+behavior = "ImputationExtra reaches Python as ImputationExtraView on ImputationView.vector.extras: a quantity with no published variance (the mediation components) pooled by its mean over the completed tables, with the between-imputation variance."
 python = "antecedent.prepared.PreparedAnalysis"
 required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_missing_imputation_routes.py::test_a_bayesian_mediation_pools_its_components_by_mean_with_their_between_variance"
+assertion_scopes = ["test_a_bayesian_mediation_pools_its_components_by_mean_with_their_between_variance"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A Bayesian static mediation under six multiple imputations reports extras total/direct/mediated; each point equals the mean of its six per-table points, between equals their ddof=1 sample variance (numpy), the pooled component equals the mediation view's, and total = direct + mediated on every table."
 
 [[capability]]
 id = "unrouted.18"
@@ -13802,23 +13927,31 @@ assertion_contract = "Negative or non-finite coefficients, no coefficients, an e
 id = "unrouted.22"
 rust = []
 rust_types = ["antecedent::ExactFactorRequirement"]
-status = "gap"
+status = "covered"
 owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: No Python route: the required distribution leaves of an exact transport bound are built in transport_common for the exact study and no binding exposes the exact study inspection."
-gap = "No Python route: ExactFactorRequirement (the distribution leaves an exact transport bound requires) is built in transport_common for the exact study and no binding exposes an exact-study inspection. Needs a typed inspection of the exact transport study's required factors on the Python transport outcome and a test asserting them for a known exact-transport query."
+behavior = "The required distribution leaves of an exact transport bound are published by the exact study inspection as support.payload.required_factors (population, regime, measured, conditioning and intervened axes) and are matched by the support checked on execution."
 python = "antecedent.prepared.PreparedAnalysis"
 required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_transport_exact.py::test_the_required_factors_name_their_population_regime_axes_and_interventions"
+assertion_scopes = ["test_the_required_factors_name_their_population_regime_axes_and_interventions"]
+dimensions = ["success", "inspection", "lifecycle"]
+assertion_contract = "The observational exact study requires the joint P(x, y) of target regime 0; the experimental-source study requires P(y | do(x)) of source regime 1 with bindings (source,1),(target,0) and no factor support before execution; after estimation (y=1 mass 0.225 from the supplied law) the same factors are retained and exactly the required expression is checked for x=1, y in {0,1}."
 
 [[capability]]
 id = "unrouted.23"
 rust = []
 rust_types = ["antecedent::CheckedTemporalClassMediationInfo"]
-status = "gap"
+status = "covered"
 owner = "Python API integration: unrouted public Rust items"
 behavior = "The checked temporal class mediation record is projected into PreparedAnalysis.plan_view().operation (scientific targets per horizon, graph class, structure source, masses, proof signature)."
 python = "antecedent.prepared.PreparedAnalysis"
-gap = "Projected by operation_detail as temporal_class_mediation, but no Python test prepares and estimates a temporal class mediation study and asserts plan_view().operation: it needs a temporal CPDAG or graph-posterior mediation query fixture."
 required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_operation_inspection_records.py::test_temporal_class_mediation_publishes_its_class_proof_and_per_horizon_targets"
+assertion_scopes = ["test_temporal_class_mediation_publishes_its_class_proof_and_per_horizon_targets"]
+dimensions = ["success", "inspection"]
+assertion_contract = "Preparing and estimating a TemporalMediationEffect on a TemporalCpdag (one and two horizons) publishes kind temporal_class_mediation with graph_class TemporalCpdag, explicit structure source, the horizons, identified mass 1 plus unidentified 0, a TemporalCpdag proof signature, and one identified scientific target per horizon; the source preparation keeps the generic estimator_route record."
 
 [[capability]]
 id = "unrouted.24"
@@ -13839,23 +13972,32 @@ assertion_contract = "Compiled worlds fit nothing until executed; world means eq
 id = "unrouted.25"
 rust = []
 rust_types = ["antecedent::StructuralAggregationPolicy"]
-status = "gap"
+status = "plumbing"
 owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: No Python route: the aggregation policy of structural atoms is reached only as diagnostic text of graph-dependent responses and no binding returns the enum."
-gap = "StructuralAggregationPolicy is applied inside many execute/* posterior routes (admg_posterior, class_posterior, atom_mix, envelope helpers) and only reaches Python as diagnostic text; needs a typed aggregation-policy field on the graph-dependent response view returned by those routes, with a Python test pinning it; not started."
+behavior = "StructuralResponseMixture::aggregation_policy (set by the atom mixing and class/DBN posterior routes) is returned as AnalysisResult.structural_aggregation_policy and ResponseEnvelopeView.aggregation_policy."
 python = "antecedent.prepared.PreparedAnalysis"
+composed_caller = "antecedent.analyze -> PreparedAnalysis.estimate -> native SharedStudySections.structural_aggregation_policy (python/src/lib.rs) / ResponseAnalysisResult.aggregation_policy (python/src/response_api.rs) -> _from_raw / estimation response view"
 required_dimensions = ["success"]
-
-[[capability]]
-id = "unrouted.26"
-rust = []
-rust_types = ["antecedent::gcm::ContrastSetResult", "antecedent::gcm::OutcomeContrast"]
-status = "gap"
-owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: ContrastSetResult and gcm::OutcomeContrast are produced only by the #[doc(hidden)] gcm::counterfactual_contrasts, which no binding in python/src calls and no Python module reaches; only a Rust unit te"
-gap = "No Python route: gcm::counterfactual_contrasts (ContrastSetResult, gcm::OutcomeContrast) is the multi-outcome / simultaneous-intervention shared-abduction contrast and is not bound in python/src/gcm_api.rs; the Python facade's single-outcome path refuses with a message that points at it (crates/antecedent/src/gcm.rs, execute_helpers_parametric.rs). A scientific capability: needs a GcmHandle method taking several outcomes and a hard-intervention set, returning per-unit contrasts with the noise inference, and a test against closed-form linear-Gaussian counterfactual contrasts."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_structural_aggregation_policy.py::test_atoms_naming_one_estimand_are_mixed_by_probability"
+assertion_scopes = ["test_atoms_naming_one_estimand_are_mixed_by_probability"]
+dimensions = ["success", "branch"]
+assertion_contract = "A graph posterior whose two atoms name one estimand reports same_estimand_weighted_mean, equal to the policy stated by the structural_aggregation diagnostic, and publishes the scalar (about 2.0, identified mass 1)."
+[[capability.evidence]]
+test = "python/tests/test_structural_aggregation_policy.py::test_atoms_naming_different_estimands_are_never_mixed_into_a_scalar"
+assertion_scopes = ["test_atoms_naming_different_estimands_are_never_mixed_into_a_scalar"]
+dimensions = ["success", "branch", "refusal"]
+assertion_contract = "Atoms with different adjustment sets report graph_dependent_atoms (matching the diagnostic), publish no scalar (estimate.ate is None) and an identified set (about 2.0 up to the confounded value) instead."
+[[capability.evidence]]
+test = "python/tests/test_structural_aggregation_policy.py::test_a_route_that_aggregates_nothing_reports_no_policy"
+assertion_scopes = ["test_a_route_that_aggregates_nothing_reports_no_policy"]
+dimensions = ["branch", "inspection"]
+assertion_contract = "A single fixed graph aggregates nothing: the policy is None and no aggregation diagnostic is emitted."
+[[capability.evidence]]
+test = "python/tests/test_structural_aggregation_policy.py::test_a_temporal_class_posterior_response_view_reports_its_policy"
+assertion_scopes = ["test_a_temporal_class_posterior_response_view_reports_its_policy"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The response view of a temporal class graph posterior carries aggregation_policy same_estimand_weighted_mean on its envelope, equal to the diagnostic's policy, with posterior_probability weights and identified mass 1."
 
 [[capability]]
 id = "unrouted.27"
@@ -15404,16 +15546,6 @@ dimensions = ["success"]
 assertion_contract = "A half-split run over a lag-1 series returns a summary with at least one regime id."
 
 [[capability]]
-id = "unrouted.31"
-rust = ["export:antecedent::gcm::ModelEvaluator", "export:antecedent::gcm::PolicyRoute", "export:antecedent::gcm::TemporalPlan", "export:antecedent::gcm::population_do_contrast", "export:antecedent::gcm::simultaneous_hard_counterfactual", "export:antecedent::graph::is_mec_member", "export:antecedent::identify::SHedgeCertificate", "export:antecedent::identify::SidStepRecord", "export:antecedent::support::GraphlessSupportKey"]
-status = "gap"
-owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: Rust core and attribution items with no Python binding or Python caller anywhere in python/antecedent or python/src (grep of the name finds nothing): the Python surface reaches no equivalent scientifi"
-gap = "ModelEvaluator, PolicyRoute, TemporalPlan, population_do_contrast, simultaneous_hard_counterfactual, is_mec_member, SHedgeCertificate, SidStepRecord and GraphlessSupportKey have no Python binding or caller; each is a distinct scientific object (GCM evaluation, population contrast, MEC membership, hedge certificate, SID step record, graphless support key) needing its own binding and test; not started."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
-
-[[capability]]
 id = "unrouted.32"
 rust = ["export:antecedent::state::GraphEvidenceStore", "export:antecedent::state::LocalScoreCache", "export:antecedent::state::ParentSetOp", "export:antecedent::state::RollingMechanismDiagnostics"]
 status = "covered"
@@ -15450,12 +15582,26 @@ assertion_contract = "Refreshing an empty window, a wrong-width row, a non-finit
 [[capability]]
 id = "unrouted.33"
 rust = ["export:antecedent::estimate::TransportOverlapDiagnostic", "export:antecedent::io::transport_effect_to_wire"]
-status = "gap"
+status = "covered"
 owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: Transport nuisance overlap diagnostics and the transport-effect wire encoder are reached only inside native estimation and artifact canonicalisation; no Python value carries them and no row's test ass"
-gap = "No Python route: TransportOverlapDiagnostic and io::transport_effect_to_wire are reached only inside native transport estimation and artifact canonicalisation; no Python outcome carries the nuisance overlap diagnostic. Needs the diagnostic (overlap summary per nuisance) surfaced on the transport estimate outcome and a test with a known poor-overlap design."
+behavior = "TransportOverlapDiagnostic is returned on the transport outcome as AnalysisResult.transport_overlap (selection and treatment overlap) and io::transport_effect_to_wire canonicalises the transport-estimate artifact payload."
 python = "antecedent.prepared.PreparedAnalysis"
 required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_transport_interference_lifecycle.py::test_a_poor_selection_overlap_design_reports_its_weights_diagnostic_and_round_trips"
+assertion_scopes = ["test_a_poor_selection_overlap_design_reports_its_weights_diagnostic_and_round_trips"]
+dimensions = ["success", "inspection", "artifact"]
+assertion_contract = "With 0.02 selection probability on a quarter of the trial rows the reported selection overlap equals numpy min/max of the supplied column, the Kish effective sample size of the odds weights (1-s)/s and the count of weights above 10 (47); treatment overlap stays the constant 0.5 with no extreme weights; the same diagnostic round-trips through the canonical transport_estimate artifact."
+[[capability.evidence]]
+test = "python/tests/test_causal_artifacts.py::test_transport_and_interference_result_artifacts"
+assertion_scopes = ["test_transport_and_interference_result_artifacts"]
+dimensions = ["artifact"]
+assertion_contract = "A transport_estimate payload (ipw, aipw, selection and treatment overlap) re-encodes through the native canonical wire and decodes to the identical payload."
+[[capability.evidence]]
+test = "python/tests/test_transport_interference_lifecycle.py::test_route_transport_tabular_explicit"
+assertion_scopes = ["test_route_transport_tabular_explicit"]
+dimensions = ["success", "inspection", "lifecycle"]
+assertion_contract = "The licensed transport cell retains its study and reports treatment overlap 0.5/0.5 and a selection minimum equal to the supplied trial minimum."
 
 [[capability]]
 id = "unrouted.34"
@@ -15476,26 +15622,6 @@ test = "python/tests/test_prior_predictive.py::test_predictive_checks_flag_a_pri
 assertion_scopes = ["test_predictive_checks_flag_a_prior_that_pins_the_coefficients_far_from_the_data"]
 dimensions = ["branch", "refusal"]
 assertion_contract = "Both kinds are independently flagged (p below 0.1, predictive mean under half the observed mean) when the prior pins coefficients at zero, so the kind distinguishes two separately computed checks."
-
-[[capability]]
-id = "unrouted.35"
-rust = ["export:antecedent::gcm::CounterfactualEngine", "export:antecedent::gcm::DoSampleResult", "export:antecedent::gcm::McmcDoSampler", "export:antecedent::gcm::root_cause_rank"]
-status = "gap"
-owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: No Python route: CounterfactualEngine, DoSampleResult and McmcDoSampler and root_cause_rank are named by no binding or Python module."
-gap = "No binding or Python module names CounterfactualEngine, DoSampleResult, McmcDoSampler or root_cause_rank. gcm_api.rs binds sample_do and rank_root_causes through the facade; the open work is to route the sampler choice (weighting, kde, mcmc) and the engine/rank entry points from the Python GCM handle and test each against a closed-form linear-Gaussian interventional mean and root-cause ranking."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
-
-[[capability]]
-id = "unrouted.36"
-rust = ["export:antecedent::identify::SHedgeRecord", "export:antecedent::identify::TemporalMediationIdentifier"]
-status = "gap"
-owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: No Python route: SHedgeRecord and TemporalMediationIdentifier are named by no binding or Python module."
-gap = "No Python route: SHedgeRecord (S-hedge witness) and TemporalMediationIdentifier are named by no binding or Python module. Needs the identification outcome to expose the hedge witness record on a non-identified query and the temporal mediation identifier on temporal mediation, with tests on a textbook hedge graph and a known identified temporal mediation."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
 
 [[capability]]
 id = "unrouted.38"
@@ -15530,36 +15656,6 @@ test = "python/tests/test_graph_interchange.py::test_pag_completions_resolve_eve
 assertion_scopes = ["test_pag_completions_resolve_every_circle_and_keep_the_unshielded_collider"]
 dimensions = ["success", "inspection", "controls", "refusal"]
 assertion_contract = "The PAG a o-> c <-o b yields exactly the four tail/arrow completions, each circle-free with the arrowheads at c kept and a, b non-adjacent, audit circle_sites 2 and not capped; max_completions=2 yields two and reports capped with four represented; max_completions=0 raises CausalValueError and a non-Pag raises CausalTypeError."
-
-[[capability]]
-id = "unrouted.40"
-rust = ["export:antecedent::identify::SelectionForest"]
-status = "gap"
-owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: SelectionForest is the negative-witness subgraph of the sid identifier; python/src and python/antecedent never name it and no Python object exposes it."
-gap = "No Python route: SelectionForest (negative witness of the SID identifier) is named by no binding or Python module; needs the SID refusal to expose the forest and a test on a known non-identifiable selection-bias query."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
-
-[[capability]]
-id = "unrouted.41"
-rust = ["export:antecedent::estimate::TemporalMediationIdentifiedSet"]
-status = "gap"
-owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: The completion-specific mediation identified set is produced only by the temporal class/PAG mediation executors; no Python view or test constructs it (test_temporal_mediation.py asserts the DAG decomp"
-gap = "No Python view or test constructs TemporalMediationIdentifiedSet (completion-specific identified set of the temporal class/PAG mediation executors); test_temporal_mediation.py asserts the DAG decomposition only. Needs a class/PAG temporal mediation run exposing the identified set and a test with a known interval."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
-
-[[capability]]
-id = "unrouted.42"
-rust = ["export:antecedent::gcm::StructuralCausalModel"]
-status = "gap"
-owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: StructuralCausalModel is defined in antecedent-model compile.rs and only re-exported by antecedent::gcm; python/src and python/antecedent never name it and no Python call builds an SCM from assignment"
-gap = "StructuralCausalModel is defined in antecedent-model compile.rs and re-exported by antecedent::gcm; python/src and python/antecedent never name it and no Python call builds an SCM from assignments. Needs a Python constructor of the SCM from a declarative assignment list (gcm_api mechanism program) and a sampling test against its closed form."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
 
 [[capability]]
 id = "unrouted.43"
@@ -15641,44 +15737,29 @@ dimensions = ["success", "refusal"]
 assertion_contract = "The Laplace-BIC family's full_score equals the incremental total; self parents, unknown nodes, ragged or non-finite data and unknown families are refused."
 
 [[capability]]
-id = "unrouted.48"
-rust = ["export:antecedent::estimate::ConditionalLinearAdjustment", "export:antecedent::estimate::TemporalEffectSurface", "export:antecedent::estimate::TemporalMediationUncertainty"]
-status = "gap"
-owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: Rust-only estimator and effect-surface types: the Python caller reaches them only through generic analyze routes with no row naming them"
-gap = "Rust-only estimator and effect-surface types: ConditionalLinearAdjustment, TemporalEffectSurface and TemporalMediationUncertainty are reached by generic analyze routes with no row or test naming them. Needs per-type plumbing rows with a composed_caller and tests against closed-form conditional linear effects, an effect surface over horizons and a mediation uncertainty."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
-
-[[capability]]
-id = "unrouted.49"
-rust = ["export:antecedent::gcm::ArrowStrength", "export:antecedent::gcm::ModelCollection", "export:antecedent::gcm::WeightingDoSampler"]
-status = "gap"
-owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: No Python route: arrow strengths, weighting do-sampler and model collection are public Rust items with no binding or Python caller"
-gap = "No Python route: ArrowStrength, ModelCollection and WeightingDoSampler are public Rust items with no binding or Python caller; arrow strengths need a GCM method and a test against the closed-form linear-Gaussian strength."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
-
-[[capability]]
-id = "unrouted.50"
-rust = ["export:antecedent::identify::SidDerivationRecord", "export:antecedent::identify::verify_s_hedge"]
-status = "gap"
-owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: No Python route: S-hedge witness verification and SID derivation records are not bound"
-gap = "No Python route: verify_s_hedge (witness verification) and SidDerivationRecord are not bound; needs the SID identification outcome to expose the derivation record and a verifier call with a test on a textbook hedge."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
-
-[[capability]]
 id = "unrouted.51"
 rust = ["export:antecedent::query::ScreenWeight", "export:antecedent::validate::SerialDiscrepancy"]
-status = "gap"
+status = "plumbing"
 owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: No Python route: no screened-posterior weighting declaration and no serial-discrepancy statistic is exposed to Python"
-gap = "No Python route: ScreenWeight (screened-posterior weighting declaration) and validate::SerialDiscrepancy (serial-discrepancy statistic) are exposed to Python by no binding; needs a Python declaration for the screen weight on screened posteriors and the statistic on validation, with tests against hand-computed values."
-python = "antecedent.prepared.PreparedAnalysis"
+behavior = "ScreenWeight is the soft CI weight a screened-posterior discovery declares (none, bayes_factor, posterior_dependence) and is recorded in the contract method; SerialDiscrepancy is the lag-1 residual autocorrelation axis of the full-suite temporal posterior predictive check, reported in the posterior_predictive refutation."
+python = "antecedent.discovery.CiScreenedPosterior"
+composed_caller = "CiScreenedPosterior(soft_weight=...).run -> _native.discover_ci_screened_posterior -> DiscoverySpec::ci_screened_posterior -> ScreenWeight -> GraphPosterior.inspect()['method']; ant.analyze(PulseEffect, Bayesian, refute='full') -> check_temporal -> SerialDiscrepancy -> validation.reports posterior_predictive failure_condition"
 required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_structure_uncertainty_routes.py::test_the_screen_weight_is_recorded_in_the_contract_without_changing_the_sampled_posterior"
+assertion_scopes = ["test_the_screen_weight_is_recorded_in_the_contract_without_changing_the_sampled_posterior"]
+dimensions = ["success", "inspection", "controls", "refusal"]
+assertion_contract = "Each of the three soft weights is recorded as the contract method {ci_screened_posterior:{weight}} with its own target and lowered program, the sampled Gaussian-BIC posterior and its skeleton (x-y edge marginal 0) are identical across weights, and an unknown weight refuses with CausalValueError."
+[[capability.evidence]]
+test = "python/tests/test_temporal_bayesian_pulse.py::test_the_serial_discrepancy_of_the_full_suite_reports_lag_one_residual_autocorrelation"
+assertion_scopes = ["test_the_serial_discrepancy_of_the_full_suite_reports_lag_one_residual_autocorrelation"]
+dimensions = ["success", "inspection", "branch"]
+assertion_contract = "On an AR(0.85) outcome residual the full suite's posterior predictive report states the lag-1 residual autocorrelation equal to the independent regression-residual statistic within 0.03, a replicated value near zero and the tempering factor kappa above 1; the cheap suite carries no serial finding."
+[[capability.evidence]]
+test = "python/tests/test_temporal_bayesian_pulse.py::test_the_serial_discrepancy_is_silent_on_exchangeable_residuals"
+assertion_scopes = ["test_the_serial_discrepancy_is_silent_on_exchangeable_residuals"]
+dimensions = ["branch"]
+assertion_contract = "With iid residuals the full-suite posterior predictive report states no serial-dependence failure."
 
 [[capability]]
 id = "unrouted.52"
@@ -15696,11 +15777,11 @@ assertion_contract = "An exported artifact replays every world bit for bit and r
 
 [[capability]]
 id = "unrouted.53"
-rust = ["export:antecedent::coverage_records_data", "export:antecedent::gcm::KdeDoSampler", "export:antecedent::gcm::arrow_strengths", "export:antecedent::gcm::interventional_mean", "export:antecedent::identify::ProbabilityMass", "export:antecedent::io::AnalysisResultConsumption", "export:antecedent::query::SearchBounds"]
+rust = ["export:antecedent::coverage_records_data"]
 status = "gap"
 owner = "Python API integration: unrouted public Rust items"
-behavior = "Public Rust items with no Python route: no Python route: Rust-only helper that no python/src binding or python/antecedent name references (do-sampler, arrow-strength, identification mass, search-bound and calibration-record helpers)"
-gap = "No Python route: Rust-only helpers with no python/src binding or python/antecedent name: coverage_records_data, KdeDoSampler, gcm::arrow_strengths, gcm::interventional_mean, identify::ProbabilityMass, io::AnalysisResultConsumption, query::SearchBounds. Calibration-record helpers (coverage_records_data) belong to the calibration owner; the GCM items share the unrouted.35/49 blocker; ProbabilityMass and SearchBounds need identification outcomes to expose the mass and the declared search bound."
+behavior = "Public Rust helper building the calibration coverage records data; owned by the calibration record work."
+gap = "coverage_records_data is a calibration-record helper (antecedent_io_core::calibration) consumed by the contract section and the support-matrix doc generators; it belongs to the calibration owner and is left for that work (all other items of this row are routed in their own rows)."
 python = "antecedent.prepared.PreparedAnalysis"
 required_dimensions = ["success"]
 
@@ -15812,22 +15893,36 @@ assertion_contract = "A prior with scale 0.01 puts the observed outcome mean (ab
 id = "unrouted.01b"
 rust = []
 rust_types = ["antecedent::analysis::CheckedBayesianClassConditionalInfo", "antecedent::CheckedBayesianSpecialistInfo", "antecedent::analysis::CheckedClassGraphPosteriorEffectInfo", "antecedent::analysis::CheckedDerivativeResponseInfo", "antecedent::CheckedTemporalMediationTargetInfo"]
-status = "gap"
+status = "covered"
 owner = "Python API integration: unrouted public Rust items"
-behavior = "Retained-operation inspection records whose fields python/src/prepared_api/operation_detail.rs projects into PreparedAnalysis.plan_view().operation, without a passing study that reads them."
+behavior = "Retained-operation inspection records whose fields python/src/prepared_api/operation_detail.rs projects into PreparedAnalysis.plan_view().operation, read by passing prepare+estimate studies."
 python = "antecedent.prepared.PreparedAnalysis"
-gap = "Projected by operation_detail (bayesian_class_conditional, bayesian_specialist, class_graph_posterior_effect, derivative_response, and the per-horizon targets of temporal_class_mediation) but no Python test prepares and estimates a study of these routes and asserts plan_view().operation: it needs a Bayesian conditional-effect query on a CPDAG/PAG, a Bayesian IV or sharp-RD study, a class graph posterior, a derivative response query and a temporal class mediation query as fixtures."
 required_dimensions = ["success"]
-
-[[capability]]
-id = "lifecycle.engine_refresh"
-rust = ["<antecedent::PreparedStudy>::refresh"]
-status = "gap"
-owner = "Python API integration"
-behavior = "Retired mutate-and-execute data replacement on a prepared study; the public Python lifecycle replaces data with rebind and executes explicitly."
-python = "antecedent.estimation.PreparedAnalysis.refresh"
-gap = "PreparedStudy::refresh is the retired mutate-and-execute path: no public Python verb calls it (rebind -> PreparedStudy::rebind_data replaces it) and only the private engine refresh/_click(refresh=True) path and native PreparedAnalysis.refresh/refresh_response reach it. It cannot be narrowed here because about thirty Rust integration tests (crates/antecedent/tests/*route_evidence.rs, compiler_consistency.rs, decision_exit_gate.rs, ...) call it; removing it means moving each of them to rebind_data plus estimate and deleting the engine refresh path in python/antecedent/estimation.py and python/src/prepared_api/execute.rs."
-required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_operation_inspection_records.py::test_bayesian_class_conditional_route_publishes_its_class_and_completion_mass"
+assertion_scopes = ["test_bayesian_class_conditional_route_publishes_its_class_and_completion_mass", "_estimated_operation"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A Bayesian conditional effect on a CPDAG publishes bayesian_class_conditional with graph class Cpdag, adjustment set [z], one completion carrying identified mass 1 and unresolved mass 0, and its 64-draw inference."
+[[capability.evidence]]
+test = "python/tests/test_operation_inspection_records.py::test_bayesian_specialist_route_publishes_its_identifier_estimator_and_draw_budget"
+assertion_scopes = ["test_bayesian_specialist_route_publishes_its_identifier_estimator_and_draw_budget", "_estimated_operation"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A Bayesian joint-linear IV study publishes bayesian_specialist with identifier iv, estimator iv.bayesian_joint_linear, 64 draws, prior scale 10 and no RD record."
+[[capability.evidence]]
+test = "python/tests/test_operation_inspection_records.py::test_class_graph_posterior_effect_publishes_its_atoms_weights_and_identification"
+assertion_scopes = ["test_class_graph_posterior_effect_publishes_its_atoms_weights_and_identification", "_estimated_operation"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A graph posterior of two equal CPDAGs publishes class_graph_posterior_effect with weights [0.7, 0.3], two graph keys, both atoms Identified, one shared proved class atom and a positive bootstrap count."
+[[capability.evidence]]
+test = "python/tests/test_operation_inspection_records.py::test_derivative_response_publishes_its_adjustment_and_cell_budget"
+assertion_scopes = ["test_derivative_response_publishes_its_adjustment_and_cell_budget", "_estimated_operation"]
+dimensions = ["success", "inspection"]
+assertion_contract = "An AverageDerivative query publishes derivative_response with response.backdoor / response.riesz_ade, adjustment set [z] and a positive derivative cell budget."
+[[capability.evidence]]
+test = "python/tests/test_operation_inspection_records.py::test_temporal_class_mediation_publishes_its_class_proof_and_per_horizon_targets"
+assertion_scopes = ["test_temporal_class_mediation_publishes_its_class_proof_and_per_horizon_targets"]
+dimensions = ["success", "inspection"]
+assertion_contract = "Each horizon of a temporal class mediation publishes its own scientific target (horizon, completion index and weights, identification status) in horizon order."
 
 [[capability]]
 id = "analysis.inverse_query.evaluate_inverse_query"
@@ -15858,3 +15953,430 @@ test = "python/tests/test_inverse_query.py::test_nonlinear_utility_inverts_on_a_
 assertion_scopes = ["test_nonlinear_utility_inverts_on_a_joint_law_and_refuses_independent_marginals"]
 dimensions = ["refusal"]
 assertion_contract = "A nonlinear utility inverts on a joint law and refuses independent marginals through the sealed functional engine."
+
+[[capability]]
+id = "gcm.fitted.arrow_strengths"
+rust = ["export:antecedent::gcm::ArrowStrength", "export:antecedent::gcm::arrow_strengths"]
+status = "covered"
+owner = "Python API integration: antecedent::gcm"
+behavior = "FittedGcm.arrow_strengths: the model-implied strength coefficient^2 * Var(parent) of every edge of a linear-Gaussian fit, with the signed coefficient kept."
+python = "antecedent.model.fit_gcm"
+required_dimensions = ["success", "inspection"]
+[[capability.evidence]]
+test = "python/tests/test_gcm_rich_returns.py::test_arrow_strengths_match_the_closed_form_linear_gaussian_strengths"
+assertion_scopes = ["test_arrow_strengths_match_the_closed_form_linear_gaussian_strengths"]
+dimensions = ["success", "inspection", "branch"]
+assertion_contract = "On x -> m -> y plus x -> y with known coefficients 0.8, 0.5, 0.2, the three edges are reported with fitted coefficients within 0.03 of the truth and strengths equal to coefficient^2 * model-implied Var(parent) (0.64, 0.25*0.73, 0.04, Var(m)=0.73 propagated through the graph); flipping the direct coefficient negative flips the reported coefficient sign while the strength stays non-negative."
+
+[[capability]]
+id = "gcm.fitted.population_do_contrast"
+rust = ["export:antecedent::gcm::population_do_contrast"]
+status = "covered"
+owner = "Python API integration: antecedent::gcm"
+behavior = "FittedGcm.population_do_contrast: E[child | do(parent = mean + delta/2)] - E[child | do(parent = mean - delta/2)] with common random numbers and its paired Monte Carlo standard error."
+python = "antecedent.model.fit_gcm"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_gcm_rich_returns.py::test_population_do_contrast_is_the_total_effect_with_zero_common_noise_error"
+assertion_scopes = ["test_population_do_contrast_is_the_total_effect_with_zero_common_noise_error"]
+dimensions = ["success", "controls", "refusal"]
+assertion_contract = "The contrast of x on y equals the structural total effect 0.5*0.8+0.2=0.6 within 0.05 with a paired standard error of 0 (common random numbers cancel additive noise), doubles exactly with delta, is exactly zero against the causal direction (x is a root), and max_units below the row count or an unknown variable are refused with CausalError."
+
+[[capability]]
+id = "gcm.fitted.counterfactual_contrasts"
+rust = []
+rust_types = ["antecedent::gcm::ContrastSetResult", "antecedent::gcm::OutcomeContrast"]
+status = "covered"
+owner = "Python API integration: antecedent::gcm"
+behavior = "FittedGcm.counterfactual_contrasts: abduce once, then the per-unit contrast of several outcomes between two worlds of simultaneous hard interventions, with the noise-inference kind."
+python = "antecedent.model.fit_gcm"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_gcm_rich_returns.py::test_counterfactual_contrasts_share_one_abduction_across_outcomes_and_joint_worlds"
+assertion_scopes = ["test_counterfactual_contrasts_share_one_abduction_across_outcomes_and_joint_worlds"]
+dimensions = ["success", "inspection", "controls", "refusal"]
+assertion_contract = "Outcomes m and y between do(x=1) and do(x=0) have mean effects 0.8 and 0.6; the y contrast equals counterfactual_ite on the same seed unit by unit and carries the same noise inference; additive noise gives identical unit effects; a joint world {x:1,m:2} vs {x:0,m:0} gives 0.5*2+0.2=1.2; an empty outcome list, an empty world and an unknown outcome are refused."
+
+[[capability]]
+id = "gcm.fitted.simultaneous_counterfactual"
+rust = ["export:antecedent::gcm::CounterfactualEngine", "export:antecedent::gcm::simultaneous_hard_counterfactual"]
+status = "covered"
+owner = "Python API integration: antecedent::gcm"
+behavior = "FittedGcm.simultaneous_counterfactual: the mean of an outcome when two disjoint hard-intervention sets hold at once on the abduced units, through the counterfactual engine."
+python = "antecedent.model.fit_gcm"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_gcm_rich_returns.py::test_simultaneous_counterfactual_applies_both_intervention_sets_to_the_abduced_units"
+assertion_scopes = ["test_simultaneous_counterfactual_applies_both_intervention_sets_to_the_abduced_units"]
+dimensions = ["success", "branch", "refusal"]
+assertion_contract = "y under {x:1} and {m:2} simultaneously equals 0.5*2+0.2*1=1.2 within 0.05, the two sets are interchangeable, and overlapping targets are refused with CausalError."
+
+[[capability]]
+id = "gcm.fitted.interventional_mean"
+rust = ["export:antecedent::gcm::interventional_mean"]
+status = "covered"
+owner = "Python API integration: antecedent::gcm"
+behavior = "FittedGcm.interventional_mean: the mean of an outcome under hard interventions from ancestral draws."
+python = "antecedent.model.fit_gcm"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_gcm_rich_returns.py::test_interventional_mean_recovers_the_structural_mean_under_do"
+assertion_scopes = ["test_interventional_mean_recovers_the_structural_mean_under_do"]
+dimensions = ["success", "controls", "refusal"]
+assertion_contract = "do(x=2) gives y mean 0.5*(1+1.6)+0.4=1.7 within 0.05, a unit step in x moves it by the total effect 0.6, a fixed seed reproduces the value exactly, and an unknown outcome is refused."
+
+[[capability]]
+id = "gcm.fitted.do_sample"
+rust = ["export:antecedent::gcm::DoSampleResult", "export:antecedent::gcm::KdeDoSampler", "export:antecedent::gcm::McmcDoSampler", "export:antecedent::gcm::WeightingDoSampler"]
+status = "covered"
+owner = "Python API integration: antecedent::gcm"
+behavior = "FittedGcm.do_sample: the weighting, kernel-density and Metropolis-Hastings do-samplers returning a typed DoSample (values, weights, mean, accept rate, bandwidth, effective sample size, density)."
+python = "antecedent.model.fit_gcm"
+required_dimensions = ["success", "refusal", "branch"]
+[[capability.evidence]]
+test = "python/tests/test_gcm_rich_returns.py::test_the_kde_and_mcmc_do_samplers_sample_the_interventional_law"
+assertion_scopes = ["test_the_kde_and_mcmc_do_samplers_sample_the_interventional_law"]
+dimensions = ["success", "inspection", "controls", "branch", "refusal"]
+assertion_contract = "Under do(x=2) the KDE sampler returns do_kde draws with mean 1.7 and sd sqrt(0.0325), uniform 1/n weights, a positive bandwidth that an explicit bandwidth overrides, and a density that integrates to 1 and peaks at the mean; the MCMC sampler returns do_mcmc draws with mean 1.7 and an accept rate in (0,1) noted as mh_accept_rate; an unknown sampler or outcome is refused."
+[[capability.evidence]]
+test = "python/tests/test_gcm_rich_returns.py::test_the_weighting_do_sampler_reweights_observed_rows_toward_the_intervention"
+assertion_scopes = ["test_the_weighting_do_sampler_reweights_observed_rows_toward_the_intervention"]
+dimensions = ["success", "inspection", "controls", "branch", "refusal"]
+assertion_contract = "A root treatment matched inside a window returns unit weights and the local outcome mean 2.3 with no ESS; exact matching of a continuous treatment finds no unit and is refused; a confounded treatment returns normalized importance weights (sum 1), an effective sample size in (1, n] and the interventional mean 2.1 within 0.25; two interventions are refused."
+
+[[capability]]
+id = "gcm.fitted.evaluate"
+rust = ["export:antecedent::gcm::ModelEvaluator"]
+status = "covered"
+owner = "Python API integration: antecedent::gcm"
+behavior = "FittedGcm.evaluate: the in-sample likelihood, residual-independence and local-Markov falsification report with a shuffled-outcome baseline."
+python = "antecedent.model.fit_gcm"
+required_dimensions = ["success", "refusal", "branch"]
+[[capability.evidence]]
+test = "python/tests/test_gcm_rich_returns.py::test_model_evaluation_falsifies_a_graph_that_omits_a_strong_edge"
+assertion_scopes = ["test_model_evaluation_falsifies_a_graph_that_omits_a_strong_edge"]
+dimensions = ["success", "inspection", "branch", "refusal"]
+assertion_contract = "The correct graph has a finite in-sample log-likelihood above its shuffled baseline, no zero-probability rows and is not falsified; dropping the strong x -> y edge falsifies the model with a local Markov p-value below 1e-6 and a worse likelihood; alpha=0 is refused."
+
+[[capability]]
+id = "attribution.root_cause_rank"
+rust = ["export:antecedent::gcm::root_cause_rank"]
+status = "plumbing"
+owner = "Python API integration: antecedent::attribution"
+behavior = "Root-cause ranking of a change attribution: components ordered by absolute contribution."
+python = "antecedent.attribution.attribute_root_causes"
+composed_caller = "attribution.attribute_root_causes -> _native.rank_root_causes -> antecedent::gcm::rank_root_causes -> antecedent_attribution::root_cause_rank"
+required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_gcm_rich_returns.py::test_root_cause_ranking_puts_the_shifted_mechanism_first_in_descending_score"
+assertion_scopes = ["test_root_cause_ranking_puts_the_shifted_mechanism_first_in_descending_score"]
+dimensions = ["success", "inspection"]
+assertion_contract = "With only x's mechanism shifted between the windows, the ranking lists x first with a score more than five times the other component's, covers both components, and is sorted by non-negative score in descending order."
+
+[[capability]]
+id = "policy.support.route"
+rust = ["export:antecedent::gcm::PolicyRoute"]
+status = "plumbing"
+owner = "Python API integration: antecedent::gcm"
+behavior = "The licence of a policy on each execution route (simulation, counterfactual execution, observational identification)."
+python = "antecedent.intervention_programs.policy_support"
+composed_caller = "intervention_programs.policy_support -> _native.policy_support -> support_dict -> PolicySupport::decision(PolicyRoute::{Simulation, CounterfactualExecution, ObservationalIdentification})"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_intervention_programs.py::test_policy_support_licenses_each_execution_route_separately"
+assertion_scopes = ["test_policy_support_licenses_each_execution_route_separately"]
+dimensions = ["success", "branch", "refusal"]
+assertion_contract = "A transform of the generated value is licensed for simulation and counterfactual execution and refused for observational identification with policy_route_not_licensed; a hard level is licensed on all three routes with no reason code; an assignment reading another variable is simulation-only."
+
+[[capability]]
+id = "policy.temporal_plan"
+rust = ["export:antecedent::gcm::TemporalPlan"]
+status = "plumbing"
+owner = "Python API integration: antecedent::gcm"
+behavior = "The temporal rollout plan (schedule, steps, units, look-back window, initial history) a lagged policy runs under."
+python = "antecedent.intervention_programs.sample_temporal_policy"
+composed_caller = "intervention_programs.sample_temporal_policy -> _native.sample_temporal_policy -> SimulationTarget::TemporalRollout -> structural_route TemporalPlan -> antecedent_model::rollout_temporal"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_intervention_programs.py::test_a_lagged_policy_matches_the_hand_recursion_over_time"
+assertion_scopes = ["test_a_lagged_policy_matches_the_hand_recursion_over_time"]
+dimensions = ["success", "controls", "lifecycle"]
+assertion_contract = "A lagged price recursion rolled out for 10 steps from a supplied history equals the hand recursion max(10, 0.85*previous) exactly at every step, so the plan's schedule, window and history are honoured."
+[[capability.evidence]]
+test = "python/tests/test_intervention_programs.py::test_a_look_back_before_the_first_step_is_refused"
+assertion_scopes = ["test_a_look_back_before_the_first_step_is_refused"]
+dimensions = ["refusal"]
+assertion_contract = "A look-back deeper than the available history is refused with policy_history_unavailable on the temporal and the single-step routes."
+
+[[capability]]
+id = "graph.cpdag.is_mec_member"
+rust = ["export:antecedent::graph::is_mec_member"]
+status = "covered"
+owner = "Python API integration: antecedent::graph"
+behavior = "Cpdag.is_mec_member: whether a DAG belongs to the CPDAG's Markov equivalence class (same skeleton, same unshielded colliders, every compelled edge present)."
+python = "antecedent.graph.Cpdag"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_gcm_rich_returns.py::test_a_cpdag_tests_dag_membership_in_its_markov_equivalence_class"
+assertion_scopes = ["test_a_cpdag_tests_dag_membership_in_its_markov_equivalence_class"]
+dimensions = ["success", "branch", "refusal"]
+assertion_contract = "The undirected chain a-b-c admits a->b->c and the fork b->a,b->c but not the collider a->b<-c; a compelled collider CPDAG admits only the collider; membership is matched by node name, not order; a DAG over other variables is refused."
+
+[[capability]]
+id = "identify.sid.s_hedge"
+rust = ["export:antecedent::identify::SHedgeCertificate", "export:antecedent::identify::SHedgeRecord", "export:antecedent::identify::SelectionForest", "export:antecedent::identify::verify_s_hedge"]
+status = "plumbing"
+owner = "Python API integration: antecedent::identify"
+behavior = "The single-source s-hedge obstruction: the larger and smaller selection forests whose existence, once verified, proves a transport query non-identifiable."
+python = "antecedent.transport.advanced.identify_admg_conditional_transport"
+composed_caller = "transport.advanced.identify_classical / identify_admg_conditional_transport -> identify_classical_transport (verify_s_hedge) -> ClassicalTransportResult::ProvenNonTransportable(SHedgeCertificate) -> to_record (SHedgeRecord, SelectionForest)"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_transport_admg_conditional.py::test_the_proven_obstruction_names_an_s_hedge_of_nested_forests_with_shared_roots"
+assertion_scopes = ["test_the_proven_obstruction_names_an_s_hedge_of_nested_forests_with_shared_roots"]
+dimensions = ["success", "inspection", "branch"]
+assertion_contract = "On x -> y -> w with x <-> y and selection on y the candidate hedge has a larger forest meeting the intervention set and a nested smaller forest missing it, equal non-empty roots, at most one child per node, edges drawn from the graph, and a verified witness; without selection no hedge is reported."
+[[capability.evidence]]
+test = "python/tests/test_transport_admg_conditional.py::test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes"
+assertion_scopes = ["test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes"]
+dimensions = ["refusal", "artifact", "controls"]
+assertion_contract = "The proven obstruction refuses preparation with transport_proven_non_transportable, exports and re-verifies its witness from bytes, refuses tampered bytes, and a budget stop is a receipt rather than a verdict."
+[[capability.evidence]]
+test = "python/tests/test_transport_exact.py::test_classical_negative_is_scoped_to_selected_source"
+assertion_scopes = ["test_classical_negative_is_scoped_to_selected_source"]
+dimensions = ["success", "refusal"]
+assertion_contract = "The classical single-source query x -> y with x <-> y and selection on y is proven non-transportable by a verified s-hedge and carries no formula."
+
+[[capability]]
+id = "identify.sid.derivation_record"
+rust = ["export:antecedent::identify::SidDerivationRecord", "export:antecedent::identify::SidStepRecord"]
+status = "plumbing"
+owner = "Python API integration: antecedent::identify"
+behavior = "The portable record of a checked single-source derivation: its step graph, rules, dependencies and the factor leaves each step requires."
+python = "antecedent.transport.advanced.inspect_proof_graph"
+composed_caller = "transport.advanced.identify_classical -> ClassicalTransportDerivation::to_record (SidDerivationRecord, SidStepRecord) -> inspect_proof_graph -> TransportProof::inspect"
+required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_transport_exact.py::test_the_checked_proof_graph_of_a_frontdoor_derivation_is_a_closed_rooted_rule_graph"
+assertion_scopes = ["test_the_checked_proof_graph_of_a_frontdoor_derivation_is_a_closed_rooted_rule_graph"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The front-door derivation's proof graph is closed (every dependency is a listed earlier step), has exactly one root, names a rule per step, ties each step's factor leaves to the required factors, and with an empty catalog every factor fails to bind."
+[[capability.evidence]]
+test = "python/tests/test_transport_exact.py::test_checked_proof_graph_names_factor_binding_failure"
+assertion_scopes = ["test_checked_proof_graph_names_factor_binding_failure"]
+dimensions = ["inspection", "refusal"]
+assertion_contract = "With no evidence regime the proof graph's factors all name a binding failure and no supplier."
+
+[[capability]]
+id = "support.graphless_license"
+rust = ["export:antecedent::support::GraphlessSupportKey"]
+status = "plumbing"
+owner = "Python API integration: antecedent::support"
+behavior = "The exact graphless design/method/inference license every graph-free checked analysis is classified under before it publishes an interval."
+python = "antecedent.analyze"
+composed_caller = "antecedent.analyze(PanelDifferenceInDifferences / MultiActionPolicyValue) -> checked_* graphless executors -> classify_graphless(GraphlessSupportKey) -> support_status"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_quasi_did.py::test_supported_repeated_cross_section_did_has_exact_graphless_license"
+assertion_scopes = ["test_supported_repeated_cross_section_did_has_exact_graphless_license"]
+dimensions = ["success", "artifact"]
+assertion_contract = "A supported repeated cross-section DID recovers the effect 2.0 with a published interval, reports support_status licensed, and the loaded artifact states graphless_support_status licensed."
+[[capability.evidence]]
+test = "python/tests/test_doubly_robust_policy.py::test_retained_multi_action_cate_interval_and_sparse_refusal"
+assertion_scopes = ["test_retained_multi_action_cate_interval_and_sparse_refusal"]
+dimensions = ["success", "branch", "refusal", "artifact"]
+assertion_contract = "A well-supported multi-action CATE is licensed with pointwise 95% intervals covering the truths 1.0 and 3.0 and the loaded artifact states licensed; the same query on 299 rows is outside the license and publishes point-only values with no interval."
+
+[[capability]]
+id = "identify.envelope.probability_mass"
+rust = ["export:antecedent::identify::ProbabilityMass"]
+status = "plumbing"
+owner = "Python API integration: antecedent::identify"
+behavior = "The probability mass attached to each graph or completion of an identification envelope, preserved separately for identified and unidentified cases."
+python = "antecedent.prepare"
+composed_caller = "antecedent.prepare(graph class, ClassPrior) -> class executor -> GraphIdentificationCase.weight (ProbabilityMass) -> IdentificationEnvelope identified/unidentified weight -> result.envelope"
+required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_temporal_class_bayesian_envelope.py::test_class_curve_prior_withholds_conditional_when_unidentified_mass"
+assertion_scopes = ["test_class_curve_prior_withholds_conditional_when_unidentified_mass"]
+dimensions = ["success", "branch"]
+assertion_contract = "A caller class prior placing 0.4 on the first completion and the rest on others leaves strictly positive unidentified mass in the envelope and the artifact, and the conditional-on-identified response is withheld."
+[[capability.evidence]]
+test = "python/tests/test_temporal_class_bayesian_envelope.py::test_class_curve_prior_survives_artifact_roundtrip"
+assertion_scopes = ["test_class_curve_prior_survives_artifact_roundtrip"]
+dimensions = ["success", "artifact"]
+assertion_contract = "A fully identified class prior reports identified mass 1 and a conditional response, and the structural response round-trips through the artifact unchanged."
+
+[[capability]]
+id = "io.analysis_result_consumption"
+rust = ["export:antecedent::io::AnalysisResultConsumption"]
+status = "plumbing"
+owner = "Python API integration: antecedent::io"
+behavior = "Independent consumption of a composite analysis-result artifact: decoded header and body, contract section, acceptance and artifact digest."
+python = "antecedent.recalc_design.consume_design_result"
+composed_caller = "recalc_design.consume_design_result -> consume_design_with_data -> antecedent_io::consume_analysis_result -> AnalysisResultConsumption{header, body, contract, acceptance}"
+required_dimensions = ["success", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_recalc_design.py::test_design_source_backed_replay_and_mismatch_refusals_fresh_process"
+assertion_scopes = ["test_design_source_backed_replay_and_mismatch_refusals_fresh_process", "refused"]
+dimensions = ["success", "refusal", "artifact", "lifecycle"]
+assertion_contract = "An exported design artifact is consumed with the raw data to rebuild a live session whose law equals the original and whose rerun does no work; without data, with altered data, with another seed, or (for RD) another bandwidth it is refused with the registered recalc codes."
+
+[[capability]]
+id = "query.search_bounds"
+rust = ["export:antecedent::query::SearchBounds"]
+status = "plumbing"
+owner = "Python API integration: antecedent::query"
+behavior = "The bounds a structure search runs under (alpha, conditioning-set bound, lag bound, MCMC schedule, configuration digest), which are part of the discovery query's identity."
+python = "antecedent.discovery.PC.run"
+composed_caller = "PC.run -> _native.discover_pc -> structure_route StructureSearch::query -> DiscoverQuery{bounds: SearchBounds} -> claim id"
+required_dimensions = ["success", "controls"]
+[[capability.evidence]]
+test = "python/tests/test_compiled_structure_routes.py::test_search_bounds_are_part_of_the_discovery_query_identity"
+assertion_scopes = ["test_search_bounds_are_part_of_the_discovery_query_identity"]
+dimensions = ["success", "controls"]
+assertion_contract = "Repeating a discovery reproduces its claim id, while changing alpha, the conditioning-set bound or the PCMCI+ lag bound each yields a different claim id."
+
+[[capability]]
+id = "estimate.conditional.linear_adjustment"
+rust = ["export:antecedent::estimate::ConditionalLinearAdjustment"]
+status = "plumbing"
+owner = "Python API integration: antecedent::estimate"
+behavior = "The frequentist conditional effect: a cross-fitted linear interaction adjustment at the mean effect modifier, one modifier per query."
+python = "antecedent.analyze"
+composed_caller = "antecedent.analyze(ConditionalEffect, Frequentist) -> checked_conditional -> ConditionalLinearAdjustment::estimate"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_conditional_effect.py::test_the_frequentist_conditional_effect_is_the_linear_adjustment_with_one_modifier"
+assertion_scopes = ["test_the_frequentist_conditional_effect_is_the_linear_adjustment_with_one_modifier"]
+dimensions = ["success", "inspection", "refusal"]
+assertion_contract = "On a noise-free interaction design the estimate is the effect at the mean modifier 2+0.5*mean(w)=3 within 0.1, is labelled conditional.linear.adjustment, and a modifier set is refused with CausalUnsupportedError and a remedy."
+[[capability.evidence]]
+test = "python/tests/test_conditional_effect.py::test_conditional_effect_recovers_interaction"
+assertion_scopes = ["test_conditional_effect_recovers_interaction"]
+dimensions = ["success"]
+assertion_contract = "The frequentist ConditionalEffect recovers the interaction effect 3.0 within 0.3."
+
+[[capability]]
+id = "identify.temporal_mediation.identifier"
+rust = ["export:antecedent::identify::TemporalMediationIdentifier"]
+status = "plumbing"
+owner = "Python API integration: antecedent::identify"
+behavior = "Per-horizon identification of a temporal mediation query: the unfolded adjustment set, identification status and method of every horizon."
+python = "antecedent.analyze"
+composed_caller = "antecedent.analyze(TemporalMediationEffect) -> prepare_identification -> TemporalMediationIdentifier::identify -> mediation_grid slices"
+required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_temporal_mediation.py::test_a_dag_mediation_slice_states_its_identification_and_a_frequentist_uncertainty"
+assertion_scopes = ["test_a_dag_mediation_slice_states_its_identification_and_a_frequentist_uncertainty"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The horizon-1 slice of a lagged DAG is identified, names its method and adjustment pairs, and its estimate recovers the generating mediated effect 0.44 (direct 0.25, total = direct + mediated)."
+[[capability.evidence]]
+test = "python/tests/test_temporal_mediation.py::test_temporal_mediation_decomposition"
+assertion_scopes = ["test_temporal_mediation_decomposition"]
+dimensions = ["success"]
+assertion_contract = "A mediated-only DGP reports a positive mediated effect and a total that equals direct plus mediated within tolerance."
+
+[[capability]]
+id = "estimate.temporal_mediation.uncertainty"
+rust = ["export:antecedent::estimate::TemporalMediationUncertainty"]
+status = "plumbing"
+owner = "Python API integration: antecedent::estimate"
+behavior = "The uncertainty a temporal mediation horizon honestly retains: frequentist pointwise/block-bootstrap standard error, Bayesian pointwise summaries, or none."
+python = "antecedent.analyze"
+composed_caller = "antecedent.analyze(TemporalMediationEffect) -> TemporalMediationSlice.uncertainty -> mediation_uncertainty_projection -> TemporalMediationGridView"
+required_dimensions = ["success", "branch"]
+[[capability.evidence]]
+test = "python/tests/test_temporal_mediation.py::test_a_dag_mediation_slice_states_its_identification_and_a_frequentist_uncertainty"
+assertion_scopes = ["test_a_dag_mediation_slice_states_its_identification_and_a_frequentist_uncertainty"]
+dimensions = ["success", "branch"]
+assertion_contract = "A frequentist slice reports uncertainty kind frequentist_pointwise with no posterior quantiles."
+[[capability.evidence]]
+test = "python/tests/test_temporal_mediation.py::test_a_class_mediation_slice_reports_its_completion_range_and_a_bayesian_interval"
+assertion_scopes = ["test_a_class_mediation_slice_reports_its_completion_range_and_a_bayesian_interval"]
+dimensions = ["success", "branch", "inspection"]
+assertion_contract = "A Bayesian class slice reports bayesian_pointwise with a positive posterior standard deviation and an equal-tail interval that contains the posterior mean, and the grid states it is not a joint posterior."
+
+[[capability]]
+id = "estimate.temporal_mediation.identified_set"
+rust = ["export:antecedent::estimate::TemporalMediationIdentifiedSet"]
+status = "plumbing"
+owner = "Python API integration: antecedent::estimate"
+behavior = "The closed interval of completion-specific mediation point effects of a temporal graph class."
+python = "antecedent.analyze"
+composed_caller = "antecedent.analyze(TemporalMediationEffect, graph class) -> TemporalMediationSlice.identified_set -> AteAnalysisResult.mediation_identified_lower/upper -> TemporalMediationSliceView"
+required_dimensions = ["success", "branch"]
+[[capability.evidence]]
+test = "python/tests/test_temporal_mediation.py::test_a_class_mediation_slice_reports_its_completion_range_and_a_bayesian_interval"
+assertion_scopes = ["test_a_class_mediation_slice_reports_its_completion_range_and_a_bayesian_interval"]
+dimensions = ["success", "branch"]
+assertion_contract = "A class graph with a single completion reports a degenerate identified set whose lower and upper ends equal the generating mediated effect 0.44 within 0.02; a DAG slice reports none."
+[[capability.evidence]]
+test = "python/tests/test_temporal_mediation.py::test_a_dag_mediation_slice_states_its_identification_and_a_frequentist_uncertainty"
+assertion_scopes = ["test_a_dag_mediation_slice_states_its_identification_and_a_frequentist_uncertainty"]
+dimensions = ["branch"]
+assertion_contract = "A DAG mediation slice has no completion range (identified_lower and identified_upper are None)."
+
+[[capability]]
+id = "estimate.temporal_mediation.effect_surface"
+rust = ["export:antecedent::estimate::TemporalEffectSurface"]
+status = "covered"
+owner = "Python API integration: antecedent::estimate"
+behavior = "mediation_effects_summary: the total, direct and mediated temporal effects of a treatment through a mediator, refusing an absent component."
+python = "antecedent.estimation.mediation_effects_summary"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_gcm_rich_returns.py::test_mediation_effects_summary_decomposes_a_known_total_effect"
+assertion_scopes = ["test_mediation_effects_summary_decomposes_a_known_total_effect"]
+dimensions = ["success", "refusal"]
+assertion_contract = "On t -> m -> y plus t -> y with coefficients 0.8, 0.5, 0.2 the summary gives total 0.6, direct 0.2 and mediated 0.4 within 0.08 and total = direct + mediated within 1e-9; an unknown variable is refused with CausalDataError."
+
+[[capability]]
+id = "analysis.policy_value.retained_analysis"
+rust = []
+rust_types = ["antecedent::PolicyValueEstimate"]
+status = "covered"
+owner = "Python API integration: analysis"
+behavior = "A randomized-assignment policy value (doubly robust with declared outcome predictions, or inverse-propensity weighted without nuisance predictions) is analyzed through the retained prepared route: the typed PolicyValueEstimate carries the policy, reference and incremental values, their score standard errors, the declared capacity, budget and availability limits and an optional finite-class regret, and exports as an answer artifact that loads back."
+python = "antecedent.analyze"
+required_dimensions = ["success", "inspection", "artifact", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_doubly_robust_policy.py::test_retained_randomized_ipw_policy_needs_no_nuisance_predictions"
+assertion_scopes = ["test_retained_randomized_ipw_policy_needs_no_nuisance_predictions"]
+dimensions = ["success", "inspection", "artifact", "refusal"]
+assertion_contract = "The IPW policy on outcomes 1,3,1,3 with propensity 0.5 has value 4.0, reference 1.0 and incremental value 3.0, equals the direct evaluate_policy call, reports prediction ownership no_outcome_nuisance_predictions and the independent-subjects IPW uncertainty, the loaded artifact answer repeats that uncertainty, and mu0 without mu1 or predictions without training ids are refused."
+[[capability.evidence]]
+test = "python/tests/test_doubly_robust_policy.py::test_retained_policy_value_honors_capacity_budget_and_availability"
+assertion_scopes = ["test_retained_policy_value_honors_capacity_budget_and_availability"]
+dimensions = ["success", "controls", "refusal", "lifecycle", "artifact"]
+assertion_contract = "A capacity 4, cost 0.25, budget 1.0 policy over the available rows has value 5.875 and exports an answer artifact that loads with the same structured value; rebinding the evaluation-bound study to new data is refused, and a capacity, budget or availability the policy violates is refused."
+[[capability.evidence]]
+test = "python/tests/test_doubly_robust_policy.py::test_retained_finite_class_regret_has_simultaneous_bound_and_artifact"
+assertion_scopes = ["test_retained_finite_class_regret_has_simultaneous_bound_and_artifact"]
+dimensions = ["branch", "artifact", "refusal"]
+assertion_contract = "The finite-class regret against the best of four prespecified candidates is positive with an interval containing it and a licensed support status, the loaded artifact keeps the selected index 1, and regret training ids that overlap the evaluation ids are refused."
+
+# --- surface items claimed by the rows that execute them ---
+
+[[assign]]
+row = "analysis.joint_sensitivity.joint_mechanism_sensitivity"
+rust_types = ["antecedent::JointOutcomeWire"]
+rust = ["<antecedent::JointSensitivityArtifactWire>::checked", "<antecedent::JointSensitivityArtifactWire>::checked_with_limits", "<antecedent::JointSensitivityArtifactWire>::export"]
+reason = "Exporting the joint range replays the baseline artifact through JointSensitivityArtifactWire::checked (which delegates to checked_with_limits), seals the JointOutcomeWire range and frontier, and serializes it with export; the row's export test recomputes the closed-form range from those bytes."
+
+[[assign]]
+row = "analysis.joint_sensitivity.consume_artifact"
+rust_types = ["antecedent::JointSensitivityArtifactWire"]
+rust = ["<antecedent::JointSensitivityArtifactWire>::consume_with_limits", "<antecedent::JointSensitivityArtifactWire>::computed_premises_digest", "<antecedent::JointSensitivityArtifactWire>::computed_data_digest"]
+reason = "The consumer binding calls consume_with_limits under the consumer's own limits, which recomputes both digests with computed_premises_digest and computed_data_digest before replaying the body; the row's tests assert both digests, the closed-form replay, the consumer-limit refusal and the tamper refusals."
+
+[[assign]]
+row = "analysis.sensitivity_source.SourceBackedSensitivity"
+rust = ["<antecedent::JointSensitivityArtifactWire>::consume"]
+reason = "A source-backed sensitivity artifact replays its complete original source with the default-limit consume, whose result is the checked joint source the row's tests verify against the exported surface."
+
+[[assign]]
+row = "analysis.decision_contract_facade.evaluate_transported"
+rust_types = ["antecedent::analysis::BoundTransportedDecision", "antecedent::analysis::BoundTransportedDecision#eb6497eb0974", "antecedent::analysis::TransportedDecisionInspection"]
+rust = ["<antecedent::analysis::BoundTransportedDecision>::decision", "<antecedent::analysis::BoundTransportedDecision>::receipt", "<antecedent::analysis::BoundTransportedDecision>::bound_identity", "<antecedent::analysis::BoundTransportedDecision>::causal_target", "<antecedent::analysis::BoundTransportedDecision>::causal_identification", "<antecedent::analysis::BoundTransportedDecision>::identity", "<antecedent::analysis::BoundTransportedDecision>::inspect"]
+reason = "evaluate_transported returns the BoundTransportedDecision whose decision, receipt, bound identity, causal target and identification identities, canonical identity and TransportedDecisionInspection (point_only claim, not native target data) the binding reads and the row's first test asserts, including the identity moving with the response while the bound identities stay stable."

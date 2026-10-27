@@ -341,3 +341,43 @@ def test_the_joint_normal_model_has_no_lagged_form_on_a_series():
 def test_the_wald_view_treats_a_missing_denominator_as_the_chi_square_reference():
     wald = ImputationWaldView(null=(0.0,), statistic=1.0, df_numerator=1.0, df_denominator=math.inf)
     assert math.isinf(wald.df_denominator)
+
+
+def test_a_bayesian_mediation_pools_its_components_by_mean_with_their_between_variance():
+    """Total, direct and mediated effects have no published variance under multiple imputation:
+    each is pooled by its mean over the completed tables and carries the sample variance of its
+    per-table values, computed here independently of the library."""
+    rng = np.random.default_rng(7)
+    n = 400
+    t = (rng.random(n) < 0.5).astype(float)
+    m = 0.8 * t + rng.normal(scale=0.5, size=n)
+    y = 0.5 * m + 0.3 * t + rng.normal(scale=0.5, size=n)
+    y = np.where(rng.random(n) < 0.15, np.nan, y)
+    imputations = 6
+    result = require_success(
+        ant.analyze(
+            {"t": t, "m": m, "y": y},
+            graph=[("t", "m"), ("m", "y"), ("t", "y")],
+            query=ant.MediationEffect("t", "y", mediators=["m"]),
+            inference=ant.Bayesian(backend="conjugate", n_draws=200),
+            missing=_policy(imputations=imputations),
+            refute=False,
+            execution=ant.Execution(seed=3, threads=1),
+        )
+    )
+    imputation = result.missing_data.imputation
+    assert imputation is not None and imputation.imputations == imputations
+    extras = {extra.label: extra for extra in imputation.vector.extras}
+    assert set(extras) == {"total", "direct", "mediated"}
+    for label, extra in extras.items():
+        values = np.asarray(extra.points)
+        assert len(values) == imputations
+        assert extra.point == pytest.approx(values.mean(), rel=1e-12)
+        assert extra.between == pytest.approx(values.var(ddof=1), rel=1e-9)
+        assert extra.between > 0.0
+        # The pooled component is the one the mediation view reports.
+        assert getattr(result.mediation, label) == pytest.approx(extra.point, rel=1e-9)
+    # Each completed table decomposes additively: total = direct + mediated.
+    totals = np.asarray(extras["total"].points)
+    parts = np.asarray(extras["direct"].points) + np.asarray(extras["mediated"].points)
+    np.testing.assert_allclose(totals, parts, rtol=0, atol=1e-6)

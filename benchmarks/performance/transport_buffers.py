@@ -117,8 +117,10 @@ def main():
     def refresh(study):
         if args.output_route == "legacy":
             study._native.refresh(data)
-        else:
-            study.refresh(data)
+            return study
+        import antecedent as ant
+
+        return ant.rebind(study, data=data)
 
     prepared = prepare(data)
     expected = estimate(prepared)
@@ -139,8 +141,8 @@ def main():
         if args.mode == "refresh":
 
             def call():
-                refresh(prepared)
-                return prepared, estimate(prepared)
+                branch = refresh(prepared)
+                return branch, estimate(branch)
         elif args.mode == "cold":
 
             def call():

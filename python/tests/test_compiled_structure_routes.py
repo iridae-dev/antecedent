@@ -66,6 +66,21 @@ def test_static_discovery_states_its_contract(run):
     ]
 
 
+def test_search_bounds_are_part_of_the_discovery_query_identity():
+    names, cols = _static_rows()
+    base = _native.discover_pc(names, cols, alpha=0.05, max_cond_size=1, seed=1)
+    same = _native.discover_pc(names, cols, alpha=0.05, max_cond_size=1, seed=1)
+    stricter = _native.discover_pc(names, cols, alpha=0.01, max_cond_size=1, seed=1)
+    deeper = _native.discover_pc(names, cols, alpha=0.05, max_cond_size=2, seed=1)
+    assert base.claim["claim_id"] == same.claim["claim_id"]
+    claims = {r.claim["claim_id"] for r in (base, stricter, deeper)}
+    assert len(claims) == 3, "alpha and the conditioning-set bound each change the query"
+    series_names, series_cols = _series_rows()
+    lag_one = _native.discover_pcmci_plus(series_names, series_cols, max_lag=1, seed=1)
+    lag_two = _native.discover_pcmci_plus(series_names, series_cols, max_lag=2, seed=1)
+    assert lag_one.claim["claim_id"] != lag_two.claim["claim_id"]
+
+
 def test_pcmci_plus_states_its_contract():
     names, cols = _series_rows()
     first = _native.discover_pcmci_plus(names, cols, max_lag=1, seed=1)

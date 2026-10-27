@@ -563,3 +563,82 @@ def test_the_plan_explains_each_status_with_its_determining_dependency() -> None
     # Planning ran nothing: the session still reuses against its last run.
     assert session.identities == known
     assert session.is_live
+
+
+def test_each_session_family_declares_its_standing_inputs_and_says_why_it_does_not() -> None:
+    from antecedent.recalc import SessionStanding, StandingInput, session_standing
+
+    # Bayesian families rest their claim on a calibration record and a coupling, so both enter
+    # the stage identities; the representation is declared by no family.
+    representation = StandingInput(
+        "undeclared",
+        finding="recalc.standing_undeclared.representation_version_not_held",
+        remedy=session_standing("bayesian").representation.remedy,
+    )
+    assert representation.remedy is not None
+    assert "score artifact identity then moves" in representation.remedy
+    for kind in ("bayesian", "joint_bayesian"):
+        standing = session_standing(kind)
+        assert isinstance(standing, SessionStanding) and standing.kind == kind
+        assert standing.calibration == StandingInput("declared")
+        assert standing.coupling == StandingInput("declared")
+        assert standing.representation == representation
+
+    # A point-valued law has no calibration to declare and forms no joint statement.
+    for kind in ("receipt", "adjusted", "cell", "design", "doubly_robust", "static", "temporal"):
+        standing = session_standing(kind)
+        assert standing.calibration.status == "not_applicable"
+        assert standing.calibration.reason is not None
+        assert "point value" in standing.calibration.reason
+        assert standing.coupling.status == "not_applicable"
+        assert standing.coupling.reason is not None
+        assert "more than one sampled stream" in standing.coupling.reason
+        assert standing.representation == representation
+
+    # Providers' output carries no calibration or coupling the session holds: findings, not silence.
+    for kind in ("external", "composite"):
+        standing = session_standing(kind)
+        assert standing.calibration.status == "undeclared"
+        assert standing.calibration.finding == (
+            "recalc.standing_undeclared.calibration_folded_into_decision"
+        )
+        assert standing.coupling.status == "undeclared"
+        assert standing.coupling.finding == (
+            "recalc.standing_undeclared.callback_metadata_establishes_no_coupling"
+        )
+        assert standing.coupling.remedy is not None and "coupling" in standing.coupling.remedy
+
+    with pytest.raises(CausalValueError, match="kind must be one of"):
+        session_standing("not_a_family")  # type: ignore[arg-type]
+
+
+def test_live_sessions_report_the_standing_of_their_family() -> None:
+    from antecedent.recalc import session_standing
+    from antecedent.recalc_adjusted import AdjustedSession
+    from antecedent.recalc_bayesian import BayesianSession
+    from antecedent.recalc_cell import CellSession, CrossfitSession
+    from antecedent.recalc_design import DesignSession
+    from antecedent.recalc_dr import DrSession
+    from antecedent.recalc_static import MultiSourceSession, StaticResponseSession
+    from antecedent.recalc_temporal import TemporalSession
+
+    expected = {
+        RecalcSession: "receipt",
+        CrossfitSession: "receipt",
+        AdjustedSession: "adjusted",
+        CellSession: "cell",
+        DesignSession: "design",
+        DrSession: "doubly_robust",
+        StaticResponseSession: "static",
+        MultiSourceSession: "static",
+        TemporalSession: "temporal",
+        BayesianSession: "bayesian",
+    }
+    for session_type, kind in expected.items():
+        session = session_type()
+        assert session.standing == session_standing(kind), session_type.__name__
+        assert session.standing.kind == kind
+    # A declared family differs from a point-valued one: the Bayesian session declares its
+    # calibration where the AIPW session reports a point law.
+    assert BayesianSession().standing.calibration.status == "declared"
+    assert RecalcSession().standing.calibration.status == "not_applicable"

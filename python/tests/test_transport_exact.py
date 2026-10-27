@@ -828,3 +828,116 @@ def test_hypothetical_catalog_delta_does_not_change_supplied_evidence():
     assert not base.has_available_experiment("source", ["z"])
     assert preview.has_available_experiment("source", ["z"])
     assert proposal.proposed_regimes[0].evidence_kind == "proposed"
+
+
+def test_the_checked_proof_graph_of_a_frontdoor_derivation_is_a_closed_rooted_rule_graph():
+    graph = Admg.from_edges(["x", "m", "y"], [("x", "m"), ("m", "y")], [("x", "y")])
+    identified = transport.identify_classical(
+        graph,
+        transport.SelectionDiagram("source", "target", ["y"]),
+        outcomes=["y"],
+        treatments=["x"],
+    )
+    assert "sid.line8" in identified.rules
+    view = transport.inspect_proof_graph(identified, transport.EvidenceCatalog(regimes=[]))
+    steps = {step["index"]: step for step in view["steps"]}
+    assert len(steps) == len(view["steps"]) >= 2
+    referenced = set()
+    for index, step in steps.items():
+        assert step["rule"]
+        # Every dependency is a step of the same graph that was derived before it.
+        assert set(step["children"]) <= set(steps)
+        assert all(child < index for child in step["children"])
+        referenced.update(step["children"])
+    # Exactly one step is nobody's dependency: the root.
+    assert len(set(steps) - referenced) == 1
+    factor_nodes = {factor["expression_node"] for factor in view["factors"]}
+    assert factor_nodes
+    assert all(set(step["factor_nodes"]) <= factor_nodes for step in steps.values())
+    # With no evidence in the catalog every required factor fails to bind.
+    assert all(factor["binding_failure"] for factor in view["factors"])
+    assert all(factor["supplied_by"] is None for factor in view["factors"])
+
+
+def _experimental_source_study():
+    graph = Admg.from_edges(["u", "x", "y"], [("u", "x"), ("u", "y"), ("x", "y")])
+    identified = transport.identify_classical(
+        graph,
+        transport.SelectionDiagram("source", "target", ["x"]),
+        outcomes=["y"],
+        treatments=["x"],
+    )
+    catalog = transport.EvidenceCatalog(
+        regimes=[
+            transport.EvidenceRegime(
+                "trial", "source", kind="experimental", interventions=["x"], measured=["u", "y"]
+            ),
+            transport.EvidenceRegime("population", "target", measured=["u"]),
+        ],
+        bindings=[
+            transport.RegimeBinding(
+                "trial", "source-snapshot", schema_names=["u", "y"], sampling="independent"
+            ),
+            transport.RegimeBinding(
+                "population", "target-snapshot", schema_names=["u"], sampling="independent"
+            ),
+        ],
+        target_sampling="supplied_population_law",
+    )
+    source = transport.ExactDiscreteLaw(
+        "source",
+        "trial",
+        (("u", (0.0, 1.0)), ("y", (0.0, 1.0))),
+        (0.6, 0.15, 0.175, 0.075),
+        "source-snapshot",
+        interventions=(("x", 1.0),),
+    )
+    target = transport.ExactDiscreteLaw(
+        "target", "population", (("u", (0.0, 1.0)),), (0.75, 0.25), "target-snapshot"
+    )
+    data = transport.ExactTransportData((source, target))
+    return exact_study(identified, catalog, data, {"x": 1.0})
+
+
+def test_the_required_factors_name_their_population_regime_axes_and_interventions():
+    """Each required distribution leaf of the bound formula is published before any
+    evaluation: the population and regime it is read from, its measured axes, conditioning and
+    intervened axes. Execution then reports the support it checked for exactly those leaves."""
+    # Observational target law: the leaf is the joint P(x, y) of regime 0, nothing intervened.
+    identified, catalog, data = fixture()
+    study = exact_study(identified, catalog, data, {"x": 1.0})
+    (factor,) = study.inspect().support.payload["required_factors"]
+    assert (factor["population"], factor["regime"]) == ("target", 0)
+    assert tuple(factor["variables"]) == ("x", "y")
+    assert tuple(factor["conditioned_on"]) == () and tuple(factor["interventions"]) == ()
+
+    # Experimental source law: the leaf is P(y | do(x)) of the source regime.
+    study = _experimental_source_study()
+    before = study.inspect()
+    (factor,) = before.support.payload["required_factors"]
+    assert (factor["population"], factor["regime"]) == ("source", 1)
+    assert tuple(factor["variables"]) == ("y",)
+    assert tuple(factor["interventions"]) == ("x",)
+    assert tuple(factor["conditioned_on"]) == ()
+    assert [binding[:2] for binding in before.support.payload["bindings"]] == [
+        ("source", 1),
+        ("target", 0),
+    ]
+    assert before.support.payload["factor_support"] == ()
+
+    outcome = _ant_api.estimate(study)
+    result = require_success(outcome)
+    # Independent oracle: P(y=1 | do(x=1)) is the y=1 mass of the supplied source law.
+    assert result.mean("y") == pytest.approx(0.15 + 0.075)
+    after = outcome.study.inspect()
+    assert after.support.available and after.support.summary == "exact_factor_support_checked"
+    assert tuple(after.support.payload["required_factors"]) == tuple(
+        before.support.payload["required_factors"]
+    )
+    checked = after.support.payload["factor_support"]
+    assert {row["expression"] for row in checked} == {factor["expression"]}
+    assert all(row["status"] == "checked" for row in checked)
+    assert {tuple(row["assignment"].items()) for row in checked} == {
+        (("x", 1.0), ("y", 0.0)),
+        (("x", 1.0), ("y", 1.0)),
+    }

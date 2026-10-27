@@ -5,7 +5,7 @@ Appending data does not rerun queries: call refresh_results explicitly and
 check the version before displaying results together.
 
 For a full re-estimate on a fixed graph and question, retain result.study
-from analyze(...) and call study.refresh(new_data) instead."""
+from analyze(...) and call antecedent.estimate(antecedent.rebind(study, data=new_data)) instead."""
 
 from __future__ import annotations
 

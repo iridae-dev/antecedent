@@ -10797,6 +10797,7 @@ pub field antecedent_io_core::BayesianBindingWire::draw_controls: core::option::
 pub field antecedent_io_core::BayesianBindingWire::external_compose: core::option::Option<antecedent_io_core::ExternalComposeIdentityWire>
 pub field antecedent_io_core::BayesianBindingWire::likelihood: alloc::string::String
 pub field antecedent_io_core::BayesianBindingWire::n_draws: u64
+pub field antecedent_io_core::BayesianBindingWire::predictive_replicates: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::BayesianBindingWire::prior: core::option::Option<antecedent_io_core::PriorSetIdentityWire>
 pub field antecedent_io_core::BayesianBindingWire::prior_artifact: core::option::Option<antecedent_io_core::PayloadDigestWire>
 pub field antecedent_io_core::BayesianBindingWire::prior_mapping: core::option::Option<antecedent_io_core::PriorMappingIdentityWire>

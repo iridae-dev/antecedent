@@ -2800,10 +2800,6 @@
       "declaration": "pub fn <antecedent::PreparedStudy>::fn reexecute_retarget(&self, section: &antecedent_io_core::contract_section::TargetWeightsSectionWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>",
       "kind": "method"
     },
-    "<antecedent::PreparedStudy>::refresh": {
-      "declaration": "pub fn <antecedent::PreparedStudy>::fn refresh(&mut self, data: antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>",
-      "kind": "method"
-    },
     "<antecedent::PreparedStudy>::refresh_multi_env": {
       "declaration": "pub fn <antecedent::PreparedStudy>::fn refresh_multi_env(&mut self, data: antecedent_data::multi_env::MultiEnvironmentData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>",
       "kind": "method"
@@ -3324,6 +3320,18 @@
       "declaration": "pub fn <antecedent::ResultPayload>::const fn unit_change(&self) -> core::option::Option<&antecedent_attribution::result::UnitChangeResult>",
       "kind": "method"
     },
+    "<antecedent::RetainedPredictiveReplicates>::outcomes": {
+      "declaration": "pub fn <antecedent::RetainedPredictiveReplicates>::fn outcomes(&self) -> &[antecedent_validate::predictive_assessment::law::Outcome]",
+      "kind": "method"
+    },
+    "<antecedent::RetainedPredictiveReplicates>::predictor": {
+      "declaration": "pub fn <antecedent::RetainedPredictiveReplicates>::fn predictor(&self) -> &antecedent_validate::predictive_assessment::law::PredictorLaws",
+      "kind": "method"
+    },
+    "<antecedent::RetainedPredictiveReplicates>::rows": {
+      "declaration": "pub fn <antecedent::RetainedPredictiveReplicates>::fn rows(&self) -> &[usize]",
+      "kind": "method"
+    },
     "<antecedent::ReviewKind>::as_str": {
       "declaration": "pub fn <antecedent::ReviewKind>::const fn as_str(&self) -> &'static str",
       "kind": "method"
@@ -3581,11 +3589,15 @@
       "kind": "method"
     },
     "<antecedent::Study>::execute": {
-      "declaration": "pub fn <antecedent::Study>::fn execute(&self, physical: impl antecedent::IntoSharedPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>",
+      "declaration": "pub fn <antecedent::Study>::fn execute(&self, physical: &antecedent::planner::PhysicalExecutionPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>",
       "kind": "method"
     },
     "<antecedent::Study>::failure_capability": {
       "declaration": "pub fn <antecedent::Study>::fn failure_capability(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_contract::capability::OperationReport, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>",
+      "kind": "method"
+    },
+    "<antecedent::Study>::fallback_candidate_names": {
+      "declaration": "pub fn <antecedent::Study>::fn fallback_candidate_names(&self) -> core::option::Option<alloc::vec::Vec<alloc::string::String>>",
       "kind": "method"
     },
     "<antecedent::Study>::identify_only": {
@@ -3686,6 +3698,10 @@
     },
     "<antecedent::StudyBuilder>::bayesian_design_model": {
       "declaration": "pub fn <antecedent::StudyBuilder>::fn bayesian_design_model(self, model: antecedent::DesignPosteriorModel) -> Self",
+      "kind": "method"
+    },
+    "<antecedent::StudyBuilder>::bayesian_predictive_replicates": {
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn bayesian_predictive_replicates(self, n_sims: u32, max_rows: u32) -> Self",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::bayesian_white_innovation": {
@@ -4190,6 +4206,10 @@
     },
     "<antecedent::StudyResult>::posterior_row": {
       "declaration": "pub fn <antecedent::StudyResult>::fn posterior_row(&self) -> core::option::Option<&antecedent::PosteriorRowEstimate>",
+      "kind": "method"
+    },
+    "<antecedent::StudyResult>::predictive_replicates": {
+      "declaration": "pub fn <antecedent::StudyResult>::fn predictive_replicates(&self) -> core::option::Option<&antecedent::RetainedPredictiveReplicates>",
       "kind": "method"
     },
     "<antecedent::StudyResult>::primary_interval_binding": {
@@ -9988,6 +10008,10 @@
       "declaration": "pub fn <antecedent::planner::statistical::StatisticalProgram>::const fn resampling(&self) -> core::option::Option<antecedent::planner::statistical::ResamplingPlan>",
       "kind": "method"
     },
+    "<antecedent::report::FallbackReportInput>::of": {
+      "declaration": "pub fn <antecedent::report::FallbackReportInput>::fn of(fallback: &antecedent::AnalysisWithFallback) -> Self",
+      "kind": "method"
+    },
     "<antecedent::report::ReportFormat>::as_str": {
       "declaration": "pub fn <antecedent::report::ReportFormat>::const fn as_str(self) -> &'static str",
       "kind": "method"
@@ -10314,6 +10338,10 @@
     },
     "antecedent::BayesianConfig": {
       "declaration": "pub struct antecedent::BayesianConfig",
+      "kind": "type"
+    },
+    "antecedent::BayesianConfig#6195dd8ff0d4": {
+      "declaration": "pub struct antecedent::BayesianConfig has private fields",
       "kind": "type"
     },
     "antecedent::BetweenStudy": {
@@ -10824,10 +10852,6 @@
       "declaration": "pub trait antecedent::IntoGraphInput",
       "kind": "type"
     },
-    "antecedent::IntoSharedPlan": {
-      "declaration": "pub trait antecedent::IntoSharedPlan",
-      "kind": "type"
-    },
     "antecedent::InverseOutcomeError": {
       "declaration": "pub struct antecedent::InverseOutcomeError",
       "kind": "type"
@@ -11294,6 +11318,14 @@
     },
     "antecedent::ResultPayload": {
       "declaration": "pub enum antecedent::ResultPayload",
+      "kind": "type"
+    },
+    "antecedent::RetainedPredictiveReplicates": {
+      "declaration": "pub struct antecedent::RetainedPredictiveReplicates",
+      "kind": "type"
+    },
+    "antecedent::RetainedPredictiveReplicates#254d358db89f": {
+      "declaration": "pub struct antecedent::RetainedPredictiveReplicates has private fields",
       "kind": "type"
     },
     "antecedent::RetargetClaim": {
@@ -16412,6 +16444,34 @@
       "declaration": "pub fn antecedent::refused_message(cell: antecedent::SupportCell) -> &'static str",
       "kind": "function"
     },
+    "antecedent::report::FallbackAssociationInput": {
+      "declaration": "pub struct antecedent::report::FallbackAssociationInput",
+      "kind": "type"
+    },
+    "antecedent::report::FallbackEvidenceInput": {
+      "declaration": "pub struct antecedent::report::FallbackEvidenceInput",
+      "kind": "type"
+    },
+    "antecedent::report::FallbackFigures": {
+      "declaration": "pub struct antecedent::report::FallbackFigures",
+      "kind": "type"
+    },
+    "antecedent::report::FallbackObligationInput": {
+      "declaration": "pub struct antecedent::report::FallbackObligationInput",
+      "kind": "type"
+    },
+    "antecedent::report::FallbackOptionInput": {
+      "declaration": "pub struct antecedent::report::FallbackOptionInput",
+      "kind": "type"
+    },
+    "antecedent::report::FallbackRankingInput": {
+      "declaration": "pub enum antecedent::report::FallbackRankingInput",
+      "kind": "type"
+    },
+    "antecedent::report::FallbackReportInput": {
+      "declaration": "pub struct antecedent::report::FallbackReportInput",
+      "kind": "type"
+    },
     "antecedent::report::ReportFormat": {
       "declaration": "pub enum antecedent::report::ReportFormat",
       "kind": "type"
@@ -16423,6 +16483,10 @@
     "antecedent::report::ReportInput#283b132d5935": {
       "declaration": "pub struct antecedent::report::ReportInput<'a>",
       "kind": "type"
+    },
+    "antecedent::report::render_fallback_input": {
+      "declaration": "pub fn antecedent::report::render_fallback_input(input: &antecedent::report::FallbackReportInput, format: antecedent::report::ReportFormat) -> alloc::string::String",
+      "kind": "function"
     },
     "antecedent::report::render_fallback_report": {
       "declaration": "pub fn antecedent::report::render_fallback_report(fallback: &antecedent::AnalysisWithFallback, format: antecedent::report::ReportFormat) -> alloc::string::String",
@@ -17873,11 +17937,6 @@
       "kind": "reexport",
       "target": "antecedent::InterventionMeaning"
     },
-    "export:antecedent::analysis::IntoSharedPlan": {
-      "declaration": "pub use antecedent::analysis::IntoSharedPlan = antecedent::IntoSharedPlan",
-      "kind": "reexport",
-      "target": "antecedent::IntoSharedPlan"
-    },
     "export:antecedent::analysis::InverseOutcomeError": {
       "declaration": "pub use antecedent::analysis::InverseOutcomeError = antecedent::InverseOutcomeError",
       "kind": "reexport",
@@ -18302,6 +18361,11 @@
       "declaration": "pub use antecedent::analysis::ReplayReceipt = decision_contract_facade::ReplayReceipt",
       "kind": "reexport",
       "target": "decision_contract_facade::ReplayReceipt"
+    },
+    "export:antecedent::analysis::RetainedPredictiveReplicates": {
+      "declaration": "pub use antecedent::analysis::RetainedPredictiveReplicates = antecedent::RetainedPredictiveReplicates",
+      "kind": "reexport",
+      "target": "antecedent::RetainedPredictiveReplicates"
     },
     "export:antecedent::analysis::RetargetClaim": {
       "declaration": "pub use antecedent::analysis::RetargetClaim = antecedent::RetargetClaim",
@@ -19583,11 +19647,6 @@
       "kind": "reexport",
       "target": "antecedent::InterventionMeaning"
     },
-    "export:antecedent::analysis::api::IntoSharedPlan": {
-      "declaration": "pub use antecedent::analysis::api::IntoSharedPlan = antecedent::IntoSharedPlan",
-      "kind": "reexport",
-      "target": "antecedent::IntoSharedPlan"
-    },
     "export:antecedent::analysis::api::InverseOutcomeError": {
       "declaration": "pub use antecedent::analysis::api::InverseOutcomeError = antecedent::InverseOutcomeError",
       "kind": "reexport",
@@ -20017,6 +20076,11 @@
       "declaration": "pub use antecedent::analysis::api::ReplayReceipt = super::ReplayReceipt",
       "kind": "reexport",
       "target": "super::ReplayReceipt"
+    },
+    "export:antecedent::analysis::api::RetainedPredictiveReplicates": {
+      "declaration": "pub use antecedent::analysis::api::RetainedPredictiveReplicates = antecedent::RetainedPredictiveReplicates",
+      "kind": "reexport",
+      "target": "antecedent::RetainedPredictiveReplicates"
     },
     "export:antecedent::analysis::api::RetargetClaim": {
       "declaration": "pub use antecedent::analysis::api::RetargetClaim = antecedent::RetargetClaim",
@@ -25043,6 +25107,11 @@
       "kind": "reexport",
       "target": "antecedent_validate::predictive_assessment::RealizedObservations"
     },
+    "export:antecedent::analysis::predictive_assessment::RetainedPredictiveReplicates": {
+      "declaration": "pub use antecedent::analysis::predictive_assessment::RetainedPredictiveReplicates = antecedent::RetainedPredictiveReplicates",
+      "kind": "reexport",
+      "target": "antecedent::RetainedPredictiveReplicates"
+    },
     "export:antecedent::analysis::predictive_assessment::ScoreDifference": {
       "declaration": "pub use antecedent::analysis::predictive_assessment::ScoreDifference = antecedent_validate::predictive_assessment::ScoreDifference",
       "kind": "reexport",
@@ -29543,11 +29612,6 @@
       "kind": "reexport",
       "target": "antecedent_model::MechanismWorkspace"
     },
-    "export:antecedent::gcm::ModelCollection": {
-      "declaration": "pub use antecedent::gcm::ModelCollection = antecedent_model::ModelCollection",
-      "kind": "reexport",
-      "target": "antecedent_model::ModelCollection"
-    },
     "export:antecedent::gcm::ModelError": {
       "declaration": "pub use antecedent::gcm::ModelError = antecedent_model::ModelError",
       "kind": "reexport",
@@ -29652,11 +29716,6 @@
       "declaration": "pub use antecedent::gcm::SourceInfluence = antecedent_attribution::SourceInfluence",
       "kind": "reexport",
       "target": "antecedent_attribution::SourceInfluence"
-    },
-    "export:antecedent::gcm::StructuralCausalModel": {
-      "declaration": "pub use antecedent::gcm::StructuralCausalModel = antecedent_model::StructuralCausalModel",
-      "kind": "reexport",
-      "target": "antecedent_model::StructuralCausalModel"
     },
     "export:antecedent::gcm::StructureChangeOptions": {
       "declaration": "pub use antecedent::gcm::StructureChangeOptions = antecedent_attribution::StructureChangeOptions",

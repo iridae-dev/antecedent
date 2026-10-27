@@ -479,6 +479,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "prepared",
     },
     "AnalysisResult": {
+        "interval_bindings",
+        "structural_aggregation_policy",
         "association",
         "iv_bounds",
         "history_match",
@@ -626,6 +628,7 @@ SNAPSHOT: dict[str, set[str]] = {
     # Estimator options: the Bayesian likelihood, the temporal history cap and
     # the propensity overlap policy are reviewed surface, like the verbs.
     "Bayesian": {
+        "predictive_replicates",
         "backend",
         "design_model",
         "white_innovation",

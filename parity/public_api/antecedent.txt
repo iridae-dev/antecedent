@@ -118,6 +118,8 @@
 #[non_exhaustive] pub struct antecedent::result::IntervalBinding
 #[non_exhaustive] pub struct antecedent::result::MissingDataReport
 impl !core::marker::Freeze for antecedent::AcceptedGraph [auto]
+impl !core::marker::Freeze for antecedent::AnalysisWithFallback [auto]
+impl !core::marker::Freeze for antecedent::AssociationalFallback [auto]
 impl !core::marker::Freeze for antecedent::DiscoveredStructure [auto]
 impl !core::marker::Freeze for antecedent::DiscoveryPayload [auto]
 impl !core::marker::Freeze for antecedent::StudyBuilder [auto]
@@ -125,10 +127,13 @@ impl !core::marker::Freeze for antecedent::analysis::discovered_transport::Disco
 impl !core::marker::Freeze for antecedent::analysis::file_table::FileGaussianSummary [auto]
 impl !core::marker::Freeze for antecedent::analysis::sample_split_analysis::SplitDiscovery [auto]
 impl !core::marker::Freeze for antecedent::planner::PhysicalExecutionPlan [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::AnalysisWithFallback [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::AssociationalFallback [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::BatchStudy [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::CompiledExecution [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::CompletedBatch [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::DiscoverySpec [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::FallbackOutcome [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::InterferenceSpec [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::JointResponseResult [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::PreparedBatch [auto]
@@ -165,10 +170,13 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::sample_s
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::DiscoverParams [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::StaticDiscoverParams [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::FittedGcm [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent::AnalysisWithFallback [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent::AssociationalFallback [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::BatchStudy [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::CompiledExecution [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::CompletedBatch [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::DiscoverySpec [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent::FallbackOutcome [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::InterferenceSpec [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::JointResponseResult [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::MechanismProgram [auto]
@@ -221,10 +229,6 @@ impl antecedent::IntoGraphInput for antecedent_graph::pag::Pag
 impl antecedent::IntoGraphInput for antecedent_graph::temporal::TemporalDag
 impl antecedent::IntoGraphInput for antecedent_graph::temporal_admg::TemporalAdmg
 impl antecedent::IntoGraphInput for antecedent_graph::temporal_pag::TemporalPag
-impl antecedent::IntoSharedPlan for &alloc::sync::Arc<antecedent::planner::PhysicalExecutionPlan>
-impl antecedent::IntoSharedPlan for &antecedent::planner::PhysicalExecutionPlan
-impl antecedent::IntoSharedPlan for alloc::sync::Arc<antecedent::planner::PhysicalExecutionPlan>
-impl antecedent::IntoSharedPlan for antecedent::planner::PhysicalExecutionPlan
 impl antecedent_core::refusal::Refused for antecedent::analysis::DecisionCarrierError
 impl antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure<antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit> for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest
 impl antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure<antecedent_estimate::joint_design::randomized::JointRandomizedUnit> for antecedent::analysis::joint_panel::selection::PreparedRandomizedSelection
@@ -438,6 +442,7 @@ impl core::clone::Clone for antecedent::RankReport
 impl core::clone::Clone for antecedent::RdConfig
 impl core::clone::Clone for antecedent::RefuteSuite
 impl core::clone::Clone for antecedent::ResultPayload
+impl core::clone::Clone for antecedent::RetainedPredictiveReplicates
 impl core::clone::Clone for antecedent::RetargetClaim
 impl core::clone::Clone for antecedent::RetargetContrast
 impl core::clone::Clone for antecedent::RetargetCostEstimate
@@ -1035,6 +1040,13 @@ impl core::clone::Clone for antecedent::planner::statistical::ResampleUnit
 impl core::clone::Clone for antecedent::planner::statistical::ResamplingMethod
 impl core::clone::Clone for antecedent::planner::statistical::ResamplingPlan
 impl core::clone::Clone for antecedent::planner::statistical::StatisticalProgram
+impl core::clone::Clone for antecedent::report::FallbackAssociationInput
+impl core::clone::Clone for antecedent::report::FallbackEvidenceInput
+impl core::clone::Clone for antecedent::report::FallbackFigures
+impl core::clone::Clone for antecedent::report::FallbackObligationInput
+impl core::clone::Clone for antecedent::report::FallbackOptionInput
+impl core::clone::Clone for antecedent::report::FallbackRankingInput
+impl core::clone::Clone for antecedent::report::FallbackReportInput
 impl core::clone::Clone for antecedent::report::ReportFormat
 impl core::clone::Clone for antecedent::result::ImputationExtra
 impl core::clone::Clone for antecedent::result::ImputationReport
@@ -1760,6 +1772,13 @@ impl core::cmp::PartialEq for antecedent::planner::statistical::Realization
 impl core::cmp::PartialEq for antecedent::planner::statistical::ResampleUnit
 impl core::cmp::PartialEq for antecedent::planner::statistical::ResamplingMethod
 impl core::cmp::PartialEq for antecedent::planner::statistical::ResamplingPlan
+impl core::cmp::PartialEq for antecedent::report::FallbackAssociationInput
+impl core::cmp::PartialEq for antecedent::report::FallbackEvidenceInput
+impl core::cmp::PartialEq for antecedent::report::FallbackFigures
+impl core::cmp::PartialEq for antecedent::report::FallbackObligationInput
+impl core::cmp::PartialEq for antecedent::report::FallbackOptionInput
+impl core::cmp::PartialEq for antecedent::report::FallbackRankingInput
+impl core::cmp::PartialEq for antecedent::report::FallbackReportInput
 impl core::cmp::PartialEq for antecedent::report::ReportFormat
 impl core::cmp::PartialEq for antecedent::result::ImputationExtra
 impl core::cmp::PartialEq for antecedent::result::ImputationReport
@@ -2208,6 +2227,7 @@ impl core::fmt::Debug for antecedent::RankedPlan
 impl core::fmt::Debug for antecedent::RdConfig
 impl core::fmt::Debug for antecedent::RefuteSuite
 impl core::fmt::Debug for antecedent::ResultPayload
+impl core::fmt::Debug for antecedent::RetainedPredictiveReplicates
 impl core::fmt::Debug for antecedent::RetargetClaim
 impl core::fmt::Debug for antecedent::RetargetContrast
 impl core::fmt::Debug for antecedent::RetargetCostEstimate
@@ -2826,6 +2846,13 @@ impl core::fmt::Debug for antecedent::planner::statistical::ResampleUnit
 impl core::fmt::Debug for antecedent::planner::statistical::ResamplingMethod
 impl core::fmt::Debug for antecedent::planner::statistical::ResamplingPlan
 impl core::fmt::Debug for antecedent::planner::statistical::StatisticalProgram
+impl core::fmt::Debug for antecedent::report::FallbackAssociationInput
+impl core::fmt::Debug for antecedent::report::FallbackEvidenceInput
+impl core::fmt::Debug for antecedent::report::FallbackFigures
+impl core::fmt::Debug for antecedent::report::FallbackObligationInput
+impl core::fmt::Debug for antecedent::report::FallbackOptionInput
+impl core::fmt::Debug for antecedent::report::FallbackRankingInput
+impl core::fmt::Debug for antecedent::report::FallbackReportInput
 impl core::fmt::Debug for antecedent::report::ReportFormat
 impl core::fmt::Debug for antecedent::result::ImputationExtra
 impl core::fmt::Debug for antecedent::result::ImputationReport
@@ -3127,11 +3154,9 @@ impl core::marker::Freeze for antecedent::AdaptiveInferenceRefusal [auto]
 impl core::marker::Freeze for antecedent::AdaptiveInferenceSession [auto]
 impl core::marker::Freeze for antecedent::AdmgConditionalResult [auto]
 impl core::marker::Freeze for antecedent::AnalysisIdentification [auto]
-impl core::marker::Freeze for antecedent::AnalysisWithFallback [auto]
 impl core::marker::Freeze for antecedent::ArmCount [auto]
 impl core::marker::Freeze for antecedent::ArmSpec [auto]
 impl core::marker::Freeze for antecedent::ArmWeightEss [auto]
-impl core::marker::Freeze for antecedent::AssociationalFallback [auto]
 impl core::marker::Freeze for antecedent::AttributionOutcome [auto]
 impl core::marker::Freeze for antecedent::AttributionPayload [auto]
 impl core::marker::Freeze for antecedent::BandMember [auto]
@@ -3332,6 +3357,7 @@ impl core::marker::Freeze for antecedent::RdConfig [auto]
 impl core::marker::Freeze for antecedent::RecoveryEvaluation [auto]
 impl core::marker::Freeze for antecedent::RefuteSuite [auto]
 impl core::marker::Freeze for antecedent::ResultPayload [auto]
+impl core::marker::Freeze for antecedent::RetainedPredictiveReplicates [auto]
 impl core::marker::Freeze for antecedent::RetargetClaim [auto]
 impl core::marker::Freeze for antecedent::RetargetContrast [auto]
 impl core::marker::Freeze for antecedent::RetargetCostEstimate [auto]
@@ -3963,6 +3989,13 @@ impl core::marker::Freeze for antecedent::planner::statistical::ResampleUnit [au
 impl core::marker::Freeze for antecedent::planner::statistical::ResamplingMethod [auto]
 impl core::marker::Freeze for antecedent::planner::statistical::ResamplingPlan [auto]
 impl core::marker::Freeze for antecedent::planner::statistical::StatisticalProgram [auto]
+impl core::marker::Freeze for antecedent::report::FallbackAssociationInput [auto]
+impl core::marker::Freeze for antecedent::report::FallbackEvidenceInput [auto]
+impl core::marker::Freeze for antecedent::report::FallbackFigures [auto]
+impl core::marker::Freeze for antecedent::report::FallbackObligationInput [auto]
+impl core::marker::Freeze for antecedent::report::FallbackOptionInput [auto]
+impl core::marker::Freeze for antecedent::report::FallbackRankingInput [auto]
+impl core::marker::Freeze for antecedent::report::FallbackReportInput [auto]
 impl core::marker::Freeze for antecedent::report::ReportFormat [auto]
 impl core::marker::Freeze for antecedent::result::ImputationExtra [auto]
 impl core::marker::Freeze for antecedent::result::ImputationReport [auto]
@@ -4203,6 +4236,7 @@ impl core::marker::Send for antecedent::RdConfig [auto]
 impl core::marker::Send for antecedent::RecoveryEvaluation [auto]
 impl core::marker::Send for antecedent::RefuteSuite [auto]
 impl core::marker::Send for antecedent::ResultPayload [auto]
+impl core::marker::Send for antecedent::RetainedPredictiveReplicates [auto]
 impl core::marker::Send for antecedent::RetargetClaim [auto]
 impl core::marker::Send for antecedent::RetargetContrast [auto]
 impl core::marker::Send for antecedent::RetargetCostEstimate [auto]
@@ -4839,6 +4873,13 @@ impl core::marker::Send for antecedent::planner::statistical::ResampleUnit [auto
 impl core::marker::Send for antecedent::planner::statistical::ResamplingMethod [auto]
 impl core::marker::Send for antecedent::planner::statistical::ResamplingPlan [auto]
 impl core::marker::Send for antecedent::planner::statistical::StatisticalProgram [auto]
+impl core::marker::Send for antecedent::report::FallbackAssociationInput [auto]
+impl core::marker::Send for antecedent::report::FallbackEvidenceInput [auto]
+impl core::marker::Send for antecedent::report::FallbackFigures [auto]
+impl core::marker::Send for antecedent::report::FallbackObligationInput [auto]
+impl core::marker::Send for antecedent::report::FallbackOptionInput [auto]
+impl core::marker::Send for antecedent::report::FallbackRankingInput [auto]
+impl core::marker::Send for antecedent::report::FallbackReportInput [auto]
 impl core::marker::Send for antecedent::report::ReportFormat [auto]
 impl core::marker::Send for antecedent::result::ImputationExtra [auto]
 impl core::marker::Send for antecedent::result::ImputationReport [auto]
@@ -5360,6 +5401,13 @@ impl core::marker::StructuralPartialEq for antecedent::planner::statistical::Rea
 impl core::marker::StructuralPartialEq for antecedent::planner::statistical::ResampleUnit
 impl core::marker::StructuralPartialEq for antecedent::planner::statistical::ResamplingMethod
 impl core::marker::StructuralPartialEq for antecedent::planner::statistical::ResamplingPlan
+impl core::marker::StructuralPartialEq for antecedent::report::FallbackAssociationInput
+impl core::marker::StructuralPartialEq for antecedent::report::FallbackEvidenceInput
+impl core::marker::StructuralPartialEq for antecedent::report::FallbackFigures
+impl core::marker::StructuralPartialEq for antecedent::report::FallbackObligationInput
+impl core::marker::StructuralPartialEq for antecedent::report::FallbackOptionInput
+impl core::marker::StructuralPartialEq for antecedent::report::FallbackRankingInput
+impl core::marker::StructuralPartialEq for antecedent::report::FallbackReportInput
 impl core::marker::StructuralPartialEq for antecedent::report::ReportFormat
 impl core::marker::StructuralPartialEq for antecedent::result::InterferenceInference
 impl core::marker::StructuralPartialEq for antecedent::result::InterferencePointwiseInterval
@@ -5590,6 +5638,7 @@ impl core::marker::Sync for antecedent::RdConfig [auto]
 impl core::marker::Sync for antecedent::RecoveryEvaluation [auto]
 impl core::marker::Sync for antecedent::RefuteSuite [auto]
 impl core::marker::Sync for antecedent::ResultPayload [auto]
+impl core::marker::Sync for antecedent::RetainedPredictiveReplicates [auto]
 impl core::marker::Sync for antecedent::RetargetClaim [auto]
 impl core::marker::Sync for antecedent::RetargetContrast [auto]
 impl core::marker::Sync for antecedent::RetargetCostEstimate [auto]
@@ -6226,6 +6275,13 @@ impl core::marker::Sync for antecedent::planner::statistical::ResampleUnit [auto
 impl core::marker::Sync for antecedent::planner::statistical::ResamplingMethod [auto]
 impl core::marker::Sync for antecedent::planner::statistical::ResamplingPlan [auto]
 impl core::marker::Sync for antecedent::planner::statistical::StatisticalProgram [auto]
+impl core::marker::Sync for antecedent::report::FallbackAssociationInput [auto]
+impl core::marker::Sync for antecedent::report::FallbackEvidenceInput [auto]
+impl core::marker::Sync for antecedent::report::FallbackFigures [auto]
+impl core::marker::Sync for antecedent::report::FallbackObligationInput [auto]
+impl core::marker::Sync for antecedent::report::FallbackOptionInput [auto]
+impl core::marker::Sync for antecedent::report::FallbackRankingInput [auto]
+impl core::marker::Sync for antecedent::report::FallbackReportInput [auto]
 impl core::marker::Sync for antecedent::report::ReportFormat [auto]
 impl core::marker::Sync for antecedent::result::ImputationExtra [auto]
 impl core::marker::Sync for antecedent::result::ImputationReport [auto]
@@ -6466,6 +6522,7 @@ impl core::marker::Unpin for antecedent::RdConfig [auto]
 impl core::marker::Unpin for antecedent::RecoveryEvaluation [auto]
 impl core::marker::Unpin for antecedent::RefuteSuite [auto]
 impl core::marker::Unpin for antecedent::ResultPayload [auto]
+impl core::marker::Unpin for antecedent::RetainedPredictiveReplicates [auto]
 impl core::marker::Unpin for antecedent::RetargetClaim [auto]
 impl core::marker::Unpin for antecedent::RetargetContrast [auto]
 impl core::marker::Unpin for antecedent::RetargetCostEstimate [auto]
@@ -7102,6 +7159,13 @@ impl core::marker::Unpin for antecedent::planner::statistical::ResampleUnit [aut
 impl core::marker::Unpin for antecedent::planner::statistical::ResamplingMethod [auto]
 impl core::marker::Unpin for antecedent::planner::statistical::ResamplingPlan [auto]
 impl core::marker::Unpin for antecedent::planner::statistical::StatisticalProgram [auto]
+impl core::marker::Unpin for antecedent::report::FallbackAssociationInput [auto]
+impl core::marker::Unpin for antecedent::report::FallbackEvidenceInput [auto]
+impl core::marker::Unpin for antecedent::report::FallbackFigures [auto]
+impl core::marker::Unpin for antecedent::report::FallbackObligationInput [auto]
+impl core::marker::Unpin for antecedent::report::FallbackOptionInput [auto]
+impl core::marker::Unpin for antecedent::report::FallbackRankingInput [auto]
+impl core::marker::Unpin for antecedent::report::FallbackReportInput [auto]
 impl core::marker::Unpin for antecedent::report::ReportFormat [auto]
 impl core::marker::Unpin for antecedent::result::ImputationExtra [auto]
 impl core::marker::Unpin for antecedent::result::ImputationReport [auto]
@@ -7140,11 +7204,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::AdaptiveInferenceRe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::AdaptiveInferenceSession [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::AdmgConditionalResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::AnalysisIdentification [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent::AnalysisWithFallback [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ArmCount [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ArmSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ArmWeightEss [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent::AssociationalFallback [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::AttributionOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::AttributionPayload
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::BandMember [auto]
@@ -7236,7 +7298,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ExactStudyInspectio
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ExactStudyResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ExclusionRule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ExecutedContract [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent::FallbackOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::FallbackPart [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::FallbackRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::FallbackRoles [auto]
@@ -7340,6 +7401,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::RdConfig [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::RecoveryEvaluation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::RefuteSuite [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ResultPayload [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::RetainedPredictiveReplicates [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::RetargetClaim [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::RetargetContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::RetargetCostEstimate [auto]
@@ -7943,6 +8005,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::statistica
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::statistical::ResamplingMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::statistical::ResamplingPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::statistical::StatisticalProgram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::report::FallbackAssociationInput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::report::FallbackEvidenceInput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::report::FallbackFigures [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::report::FallbackObligationInput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::report::FallbackOptionInput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::report::FallbackRankingInput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::report::FallbackReportInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::report::ReportFormat [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::ImputationExtra [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::ImputationReport [auto]
@@ -7976,11 +8045,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::AdaptiveInferenceRefus
 impl core::panic::unwind_safe::UnwindSafe for antecedent::AdaptiveInferenceSession [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::AdmgConditionalResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::AnalysisIdentification [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent::AnalysisWithFallback [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ArmCount [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ArmSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ArmWeightEss [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent::AssociationalFallback [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::AttributionOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::AttributionPayload
 impl core::panic::unwind_safe::UnwindSafe for antecedent::BandMember [auto]
@@ -8072,7 +8139,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::ExactStudyInspection [
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ExactStudyResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ExclusionRule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ExecutedContract [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent::FallbackOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::FallbackPart [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::FallbackRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::FallbackRoles [auto]
@@ -8175,6 +8241,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::RdConfig [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::RecoveryEvaluation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::RefuteSuite [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ResultPayload [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::RetainedPredictiveReplicates [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::RetargetClaim [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::RetargetContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::RetargetCostEstimate [auto]
@@ -8778,6 +8845,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::statistical::
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::statistical::ResamplingMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::statistical::ResamplingPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::statistical::StatisticalProgram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::report::FallbackAssociationInput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::report::FallbackEvidenceInput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::report::FallbackFigures [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::report::FallbackObligationInput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::report::FallbackOptionInput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::report::FallbackRankingInput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::report::FallbackReportInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::report::ReportFormat [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::ImputationExtra [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::ImputationReport [auto]
@@ -9436,6 +9510,7 @@ pub enum antecedent::planner::statistical::PosteriorAlgorithm
 pub enum antecedent::planner::statistical::Realization
 pub enum antecedent::planner::statistical::ResampleUnit
 pub enum antecedent::planner::statistical::ResamplingMethod
+pub enum antecedent::report::FallbackRankingInput
 pub enum antecedent::retained_refresh::RefreshFamily
 pub enum antecedent::retained_refresh::RefreshMutation
 pub enum antecedent::retained_refresh::RefreshResult
@@ -9480,6 +9555,7 @@ pub field antecedent::ArmWeightEss::ess: f64
 pub field antecedent::ArmWeightEss::label: alloc::string::String
 pub field antecedent::ArmWeightEss::rows: usize
 pub field antecedent::AssociationalFallback::claim: antecedent_contract::claim::ClaimEnvelope
+pub field antecedent::AssociationalFallback::prepared: antecedent::PreparedStudy
 pub field antecedent::AssociationalFallback::result: antecedent::StudyResult
 pub field antecedent::AssociationalFallback::roles: antecedent::FallbackRoles
 pub field antecedent::AttributionPayload::mechanisms: alloc::sync::Arc<[antecedent_model::registry::MechanismAssignment]>
@@ -9785,6 +9861,7 @@ pub field antecedent::EvidenceNeeds::candidate_templates: antecedent_design::can
 pub field antecedent::EvidenceNeeds::names: alloc::vec::Vec<alloc::string::String>
 pub field antecedent::EvidenceNeeds::next_actions: alloc::vec::Vec<antecedent_contract::capability::NextAction>
 pub field antecedent::EvidenceNeeds::obligations: alloc::vec::Vec<antecedent_contract::evidence_obligation::EvidenceObligation>
+pub field antecedent::EvidenceNeeds::observed: alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub field antecedent::EvidenceNeeds::ranking: antecedent::RankedPlan
 pub field antecedent::EvidenceSearch::budget: antecedent_core::search::SearchLimits
 pub field antecedent::EvidenceSearch::catalog: antecedent_core::query::transport_catalog::EvidenceCatalog
@@ -12161,6 +12238,34 @@ pub field antecedent::planner::PhysicalExecutionPlan::resolved_static_graph: cor
 pub field antecedent::planner::PhysicalExecutionPlan::resolved_static_pag: core::option::Option<antecedent_graph::pag::Pag>
 pub field antecedent::planner::PhysicalExecutionPlan::resolved_temporal_graph: core::option::Option<antecedent_graph::temporal::TemporalDag>
 pub field antecedent::planner::PhysicalExecutionPlan::route_choice: core::option::Option<antecedent_core::physical_choice::RouteChoice>
+pub field antecedent::report::FallbackAssociationInput::claim_kind: alloc::string::String
+pub field antecedent::report::FallbackAssociationInput::figures: core::option::Option<antecedent::report::FallbackFigures>
+pub field antecedent::report::FallbackAssociationInput::identification: alloc::string::String
+pub field antecedent::report::FallbackAssociationInput::rule: alloc::string::String
+pub field antecedent::report::FallbackEvidenceInput::next_actions: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub field antecedent::report::FallbackEvidenceInput::obligations: alloc::vec::Vec<antecedent::report::FallbackObligationInput>
+pub field antecedent::report::FallbackEvidenceInput::ranking: antecedent::report::FallbackRankingInput
+pub field antecedent::report::FallbackFigures::analysis: alloc::string::String
+pub field antecedent::report::FallbackFigures::calibration: alloc::string::String
+pub field antecedent::report::FallbackFigures::refused_after: core::option::Option<alloc::string::String>
+pub field antecedent::report::FallbackFigures::rows: usize
+pub field antecedent::report::FallbackFigures::terms: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent::report::FallbackFigures::uncertainty: alloc::string::String
+pub field antecedent::report::FallbackObligationInput::id: alloc::string::String
+pub field antecedent::report::FallbackObligationInput::kind: alloc::string::String
+pub field antecedent::report::FallbackObligationInput::proof_step: core::option::Option<alloc::string::String>
+pub field antecedent::report::FallbackObligationInput::route: alloc::string::String
+pub field antecedent::report::FallbackObligationInput::satisfiable_by_study: bool
+pub field antecedent::report::FallbackOptionInput::cost: alloc::string::String
+pub field antecedent::report::FallbackOptionInput::gate: alloc::string::String
+pub field antecedent::report::FallbackOptionInput::rank: alloc::string::String
+pub field antecedent::report::FallbackOptionInput::route: alloc::string::String
+pub field antecedent::report::FallbackOptionInput::studies: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::report::FallbackReportInput::associational: core::result::Result<antecedent::report::FallbackAssociationInput, alloc::string::String>
+pub field antecedent::report::FallbackReportInput::evidence: core::result::Result<antecedent::report::FallbackEvidenceInput, alloc::string::String>
+pub field antecedent::report::FallbackReportInput::message: alloc::string::String
+pub field antecedent::report::FallbackReportInput::reason_code: core::option::Option<alloc::string::String>
+pub field antecedent::report::FallbackReportInput::remedy: core::option::Option<alloc::string::String>
 pub field antecedent::result::ImputationExtra::between: f64
 pub field antecedent::result::ImputationExtra::label: alloc::sync::Arc<str>
 pub field antecedent::result::ImputationExtra::point: f64
@@ -12230,6 +12335,7 @@ pub field antecedent::result::StructuralResponseAtom::response: core::option::Op
 pub field antecedent::result::StructuralResponseAtom::status: antecedent_core::identification::IdentificationStatus
 pub field antecedent::result::StructuralResponseAtom::value: core::option::Option<antecedent_core::response::ResponseValue>
 pub field antecedent::result::StructuralResponseAtom::weight: f64
+pub field antecedent::result::StructuralResponseMixture::aggregation_policy: core::option::Option<antecedent::StructuralAggregationPolicy>
 pub field antecedent::result::StructuralResponseMixture::atoms: alloc::vec::Vec<antecedent::result::StructuralResponseAtom>
 pub field antecedent::result::StructuralResponseMixture::conditional_on_identified: core::option::Option<antecedent_core::response::ResponseValue>
 pub field antecedent::result::StructuralResponseMixture::full_mass_scope: bool
@@ -12966,7 +13072,6 @@ pub fn <antecedent::PreparedStudy>::fn rebind_panel(&self, data: antecedent_data
 pub fn <antecedent::PreparedStudy>::fn rebind_series(&self, data: antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn reconfigure_execution(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn reexecute_retarget(&self, section: &antecedent_io_core::contract_section::TargetWeightsSectionWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
-pub fn <antecedent::PreparedStudy>::fn refresh(&mut self, data: antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn refresh_multi_env(&mut self, data: antecedent_data::multi_env::MultiEnvironmentData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn refresh_panel(&mut self, data: antecedent_data::panel::PanelData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn refresh_series(&mut self, data: antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
@@ -13095,6 +13200,9 @@ pub fn <antecedent::ResultPayload>::fn mechanism_change(&self) -> core::option::
 pub fn <antecedent::ResultPayload>::fn quasi_rollout(&self) -> core::option::Option<&antecedent::QuasiRolloutEstimate>
 pub fn <antecedent::ResultPayload>::fn simulation(&self) -> core::option::Option<&antecedent::SimulationPayload>
 pub fn <antecedent::ResultPayload>::fn temporal_design(&self) -> core::option::Option<&antecedent::TemporalDesignEstimate>
+pub fn <antecedent::RetainedPredictiveReplicates>::fn outcomes(&self) -> &[antecedent_validate::predictive_assessment::law::Outcome]
+pub fn <antecedent::RetainedPredictiveReplicates>::fn predictor(&self) -> &antecedent_validate::predictive_assessment::law::PredictorLaws
+pub fn <antecedent::RetainedPredictiveReplicates>::fn rows(&self) -> &[usize]
 pub fn <antecedent::ReviewKind>::const fn as_str(&self) -> &'static str
 pub fn <antecedent::RowWeightsBinding>::fn population(&self) -> antecedent_core::query::target::TargetPopulation
 pub fn <antecedent::ScientificBridgeDistributionResult>::const fn bridged(&self) -> &antecedent_io_core::bridge_distribution::BridgedDistribution
@@ -13161,8 +13269,9 @@ pub fn <antecedent::Study>::fn compile_logical(&self) -> core::result::Result<an
 pub fn <antecedent::Study>::fn events(data: &antecedent_data::event::EventData, align_interval_ns: u64) -> core::result::Result<antecedent::StudyBuilder, antecedent::CausalError>
 pub fn <antecedent::Study>::fn evidence_obligations(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(alloc::vec::Vec<antecedent_contract::evidence_obligation::EvidenceObligation>, alloc::vec::Vec<antecedent_contract::capability::NextAction>), antecedent::analysis::evidence_plan::EvidencePlanFacadeError>
 pub fn <antecedent::Study>::fn evidence_plan(&self, request: &antecedent::analysis::evidence_plan::EvidencePlanRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::evidence_plan::EvidencePlanResult, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>
-pub fn <antecedent::Study>::fn execute(&self, physical: impl antecedent::IntoSharedPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
+pub fn <antecedent::Study>::fn execute(&self, physical: &antecedent::planner::PhysicalExecutionPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::Study>::fn failure_capability(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_contract::capability::OperationReport, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>
+pub fn <antecedent::Study>::fn fallback_candidate_names(&self) -> core::option::Option<alloc::vec::Vec<alloc::string::String>>
 pub fn <antecedent::Study>::fn identify_only(&self) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent::CausalError>
 pub fn <antecedent::Study>::fn identify_structure(&self) -> core::result::Result<antecedent::Identification, antecedent::CausalError>
 pub fn <antecedent::Study>::fn inspect(&self) -> core::result::Result<antecedent::CausalContract, antecedent::CausalError>
@@ -13186,6 +13295,7 @@ pub fn <antecedent::StudyBuilder>::fn accepted_graph_posterior(self, accepted: a
 pub fn <antecedent::StudyBuilder>::fn admg_conditional_transport(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::conditional::BoundConditionalTransportFunctional, search: antecedent_core::search::SearchLimits, data: antecedent_expr::exact::ExactTransportData, requests: alloc::vec::Vec<antecedent_expr::provider::Assignment>, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedAdmgConditionalTransport, antecedent_io_core::error::IoError>
 pub fn <antecedent::StudyBuilder>::fn average_effect(self, query: antecedent_core::query::average::AverageEffectQuery) -> Self
 pub fn <antecedent::StudyBuilder>::fn bayesian_design_model(self, model: antecedent::DesignPosteriorModel) -> Self
+pub fn <antecedent::StudyBuilder>::fn bayesian_predictive_replicates(self, n_sims: u32, max_rows: u32) -> Self
 pub fn <antecedent::StudyBuilder>::fn bayesian_white_innovation(self, gate: antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate) -> Self
 pub fn <antecedent::StudyBuilder>::fn bootstrap_interval(self, request: antecedent_estimate::util::bootstrap::IntervalRequest) -> Self
 pub fn <antecedent::StudyBuilder>::fn bootstrap_replicates(self, n: u32) -> Self
@@ -13312,6 +13422,7 @@ pub fn <antecedent::StudyResult>::fn panel_did(&self) -> core::option::Option<&a
 pub fn <antecedent::StudyResult>::fn physical_plan(&self) -> &antecedent_contract::plan::PhysicalExecutionPlanRecord
 pub fn <antecedent::StudyResult>::fn policy_value(&self) -> core::option::Option<&antecedent::PolicyValueEstimate>
 pub fn <antecedent::StudyResult>::fn posterior_row(&self) -> core::option::Option<&antecedent::PosteriorRowEstimate>
+pub fn <antecedent::StudyResult>::fn predictive_replicates(&self) -> core::option::Option<&antecedent::RetainedPredictiveReplicates>
 pub fn <antecedent::StudyResult>::fn primary_interval_binding(&self, bayesian: bool) -> antecedent::result::IntervalBinding
 pub fn <antecedent::StudyResult>::fn quasi_rollout(&self) -> core::option::Option<&antecedent::QuasiRolloutEstimate>
 pub fn <antecedent::StudyResult>::fn randomized_effect(&self) -> core::option::Option<&antecedent::RandomizedEffectEstimate>
@@ -14761,6 +14872,7 @@ pub fn <antecedent::planner::statistical::StatisticalProgram>::const fn resampli
 pub fn <antecedent::planner::statistical::StatisticalProgram>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent::planner::statistical::StatisticalProgram>::fn models(&self) -> &[antecedent::planner::statistical::ModelSlot]
 pub fn <antecedent::planner::statistical::StatisticalProgram>::fn operators(&self) -> &[antecedent_core::operator::Operator]
+pub fn <antecedent::report::FallbackReportInput>::fn of(fallback: &antecedent::AnalysisWithFallback) -> Self
 pub fn <antecedent::report::ReportFormat>::const fn as_str(self) -> &'static str
 pub fn <antecedent::report::ReportFormat>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent::report::ReportInput<'a>>::const fn new(contract: &'a antecedent::CausalContract) -> Self
@@ -15182,6 +15294,7 @@ pub fn antecedent::licensed_support_cells() -> impl core::iter::traits::iterator
 pub fn antecedent::period_refresh::window_factor_changes(old: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, new: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity) -> alloc::collections::btree::set::BTreeSet<antecedent_state::invalidation::TemporalFactor>
 pub fn antecedent::planner::reject_dag_only_on_pag(structure: &antecedent::AcceptedGraph, identifier: antecedent::IdentifierId) -> core::result::Result<(), antecedent::CausalError>
 pub fn antecedent::refused_message(cell: antecedent::SupportCell) -> &'static str
+pub fn antecedent::report::render_fallback_input(input: &antecedent::report::FallbackReportInput, format: antecedent::report::ReportFormat) -> alloc::string::String
 pub fn antecedent::report::render_fallback_report(fallback: &antecedent::AnalysisWithFallback, format: antecedent::report::ReportFormat) -> alloc::string::String
 pub fn antecedent::report::render_report(input: &antecedent::report::ReportInput<'_>, format: antecedent::report::ReportFormat) -> alloc::string::String
 pub fn antecedent::result::reported_se_interval_z() -> f64
@@ -15392,6 +15505,7 @@ pub struct antecedent::BatchScores has private fields
 pub struct antecedent::BatchStudy
 pub struct antecedent::BatchStudy has private fields
 pub struct antecedent::BayesianConfig
+pub struct antecedent::BayesianConfig has private fields
 pub struct antecedent::BorrowingRequest
 pub struct antecedent::BoundDecisionContract
 pub struct antecedent::BoundDecisionContract has private fields
@@ -15587,6 +15701,8 @@ pub struct antecedent::RankDropPlan
 pub struct antecedent::RankDropPolicy
 pub struct antecedent::RankReport
 pub struct antecedent::RecoveryEvaluation
+pub struct antecedent::RetainedPredictiveReplicates
+pub struct antecedent::RetainedPredictiveReplicates has private fields
 pub struct antecedent::RetargetClaim
 pub struct antecedent::RetargetContrast
 pub struct antecedent::RetargetCostEstimate
@@ -16284,6 +16400,12 @@ pub struct antecedent::planner::statistical::ResamplingPlan
 pub struct antecedent::planner::statistical::ResamplingPlan has private fields
 pub struct antecedent::planner::statistical::StatisticalProgram
 pub struct antecedent::planner::statistical::StatisticalProgram has private fields
+pub struct antecedent::report::FallbackAssociationInput
+pub struct antecedent::report::FallbackEvidenceInput
+pub struct antecedent::report::FallbackFigures
+pub struct antecedent::report::FallbackObligationInput
+pub struct antecedent::report::FallbackOptionInput
+pub struct antecedent::report::FallbackReportInput
 pub struct antecedent::report::ReportInput has private fields
 pub struct antecedent::report::ReportInput<'a>
 pub struct antecedent::result::InterferenceInference
@@ -16302,13 +16424,11 @@ pub struct antecedent::strategy_table::StaticEstimateInput<'a>
 pub struct antecedent::strategy_table::UnknownStrategy
 pub trait antecedent::IntoAccepted: sealed::Sealed
 pub trait antecedent::IntoGraphInput
-pub trait antecedent::IntoSharedPlan
 pub trait antecedent::StageResultSink: core::marker::Send + core::marker::Sync
 pub trait antecedent::analysis::ProviderCallback
 pub trait antecedent::analysis::recalc_external::ExternalMeanProvider
 pub trait fn fn antecedent::IntoAccepted::into_accepted(self) -> core::result::Result<antecedent::AcceptedGraph, antecedent::CausalError>
 pub trait fn fn antecedent::IntoGraphInput::into_graph_input(self) -> (antecedent::AcceptedGraph, antecedent::StructureSource)
-pub trait fn fn antecedent::IntoSharedPlan::into_shared(self) -> alloc::sync::Arc<antecedent::planner::PhysicalExecutionPlan>
 pub trait fn fn antecedent::StageResultSink::on_stage(&self, event: &antecedent::StageEvent)
 pub trait fn fn antecedent::analysis::ProviderCallback::identity(&self) -> &antecedent_contract::external::ProviderObjectIdentity
 pub trait fn fn antecedent::analysis::ProviderCallback::invoke(&mut self, query: &antecedent_contract::callback_protocol::query::CallbackQuery, ctx: &mut antecedent::analysis::provider_callbacks::CallbackContext<'_>) -> core::result::Result<antecedent_contract::callback_protocol::query::CallbackOutput, antecedent::analysis::provider_callbacks::CallbackFailure>
@@ -16565,7 +16685,6 @@ pub use antecedent::analysis::IntervalEstimand = antecedent::IntervalEstimand
 pub use antecedent::analysis::IntervalMeta = antecedent::IntervalMeta
 pub use antecedent::analysis::IntervalScope = antecedent::IntervalScope
 pub use antecedent::analysis::InterventionMeaning = antecedent::InterventionMeaning
-pub use antecedent::analysis::IntoSharedPlan = antecedent::IntoSharedPlan
 pub use antecedent::analysis::InverseOutcomeError = antecedent::InverseOutcomeError
 pub use antecedent::analysis::InverseOutcomeReport = antecedent::InverseOutcomeReport
 pub use antecedent::analysis::InverseQuery = antecedent::InverseQuery
@@ -16651,6 +16770,7 @@ pub use antecedent::analysis::RecoveredDrawOriginWire = antecedent_io::cyclic_fa
 pub use antecedent::analysis::RecoveryEvaluation = antecedent::RecoveryEvaluation
 pub use antecedent::analysis::RefuteSuite = antecedent::RefuteSuite
 pub use antecedent::analysis::ReplayReceipt = decision_contract_facade::ReplayReceipt
+pub use antecedent::analysis::RetainedPredictiveReplicates = antecedent::RetainedPredictiveReplicates
 pub use antecedent::analysis::RetargetClaim = antecedent::RetargetClaim
 pub use antecedent::analysis::RetargetContrast = antecedent::RetargetContrast
 pub use antecedent::analysis::RetargetCostEstimate = antecedent::RetargetCostEstimate
@@ -16907,7 +17027,6 @@ pub use antecedent::analysis::api::IntervalEstimand = antecedent::IntervalEstima
 pub use antecedent::analysis::api::IntervalMeta = antecedent::IntervalMeta
 pub use antecedent::analysis::api::IntervalScope = antecedent::IntervalScope
 pub use antecedent::analysis::api::InterventionMeaning = antecedent::InterventionMeaning
-pub use antecedent::analysis::api::IntoSharedPlan = antecedent::IntoSharedPlan
 pub use antecedent::analysis::api::InverseOutcomeError = antecedent::InverseOutcomeError
 pub use antecedent::analysis::api::InverseOutcomeReport = antecedent::InverseOutcomeReport
 pub use antecedent::analysis::api::InverseQuery = antecedent::InverseQuery
@@ -16994,6 +17113,7 @@ pub use antecedent::analysis::api::RdConfig = antecedent::RdConfig
 pub use antecedent::analysis::api::RecoveryEvaluation = antecedent::RecoveryEvaluation
 pub use antecedent::analysis::api::RefuteSuite = antecedent::RefuteSuite
 pub use antecedent::analysis::api::ReplayReceipt = super::ReplayReceipt
+pub use antecedent::analysis::api::RetainedPredictiveReplicates = antecedent::RetainedPredictiveReplicates
 pub use antecedent::analysis::api::RetargetClaim = antecedent::RetargetClaim
 pub use antecedent::analysis::api::RetargetContrast = antecedent::RetargetContrast
 pub use antecedent::analysis::api::RetargetCostEstimate = antecedent::RetargetCostEstimate
@@ -17999,6 +18119,7 @@ pub use antecedent::analysis::predictive_assessment::PreparedPredictiveAssessmen
 pub use antecedent::analysis::predictive_assessment::ProviderIdentity = antecedent_validate::predictive_assessment::ProviderIdentity
 pub use antecedent::analysis::predictive_assessment::ProviderTrustLabel = antecedent_validate::predictive_assessment::ProviderTrustLabel
 pub use antecedent::analysis::predictive_assessment::RealizedObservations = antecedent_validate::predictive_assessment::RealizedObservations
+pub use antecedent::analysis::predictive_assessment::RetainedPredictiveReplicates = antecedent::RetainedPredictiveReplicates
 pub use antecedent::analysis::predictive_assessment::ScoreDifference = antecedent_validate::predictive_assessment::ScoreDifference
 pub use antecedent::analysis::predictive_assessment::ScoreInterval = antecedent_validate::predictive_assessment::ScoreInterval
 pub use antecedent::analysis::predictive_assessment::ScoreIntervalQuery = antecedent_validate::predictive_assessment::ScoreIntervalQuery
@@ -18899,7 +19020,6 @@ pub use antecedent::gcm::MechanismRegistry = antecedent_model::MechanismRegistry
 pub use antecedent::gcm::MechanismSlot = antecedent_model::MechanismSlot
 pub use antecedent::gcm::MechanismTyping = antecedent_model::MechanismTyping
 pub use antecedent::gcm::MechanismWorkspace = antecedent_model::MechanismWorkspace
-pub use antecedent::gcm::ModelCollection = antecedent_model::ModelCollection
 pub use antecedent::gcm::ModelError = antecedent_model::ModelError
 pub use antecedent::gcm::ModelEvaluator = antecedent_model::ModelEvaluator
 pub use antecedent::gcm::NodeFamilyConstraint = antecedent_model::NodeFamilyConstraint
@@ -18921,7 +19041,6 @@ pub use antecedent::gcm::SelectionProvenance = antecedent_model::SelectionProven
 pub use antecedent::gcm::SelectionRule = antecedent_model::SelectionRule
 pub use antecedent::gcm::ShapleyMethod = antecedent_attribution::ShapleyMethod
 pub use antecedent::gcm::SourceInfluence = antecedent_attribution::SourceInfluence
-pub use antecedent::gcm::StructuralCausalModel = antecedent_model::StructuralCausalModel
 pub use antecedent::gcm::StructureChangeOptions = antecedent_attribution::StructureChangeOptions
 pub use antecedent::gcm::TemporalNoise = antecedent_model::TemporalNoise
 pub use antecedent::gcm::TemporalPath = antecedent_model::TemporalPath
@@ -20465,6 +20584,9 @@ pub variant antecedent::planner::statistical::ResamplingMethod::BlockBootstrap
 pub variant antecedent::planner::statistical::ResamplingMethod::Bootstrap
 pub variant antecedent::planner::statistical::ResamplingMethod::Jackknife
 pub variant antecedent::planner::statistical::ResamplingMethod::Permutation
+pub variant antecedent::report::FallbackRankingInput::NotRequested
+pub variant antecedent::report::FallbackRankingInput::Ranked(alloc::vec::Vec<antecedent::report::FallbackOptionInput>)
+pub variant antecedent::report::FallbackRankingInput::Unavailable(alloc::string::String)
 pub variant antecedent::report::ReportFormat::Html
 pub variant antecedent::report::ReportFormat::Markdown
 pub variant antecedent::retained_refresh::RefreshFamily::ConjugateBlocks

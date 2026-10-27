@@ -23,10 +23,18 @@ import random
 import subprocess
 import sys
 
+import antecedent as ant
+import numpy as np
 import pytest
 from antecedent import evidence_ledger as el
 from antecedent import predictive_assessment as pa
-from antecedent.errors import CausalTypeError, CausalValueError
+from antecedent.errors import (
+    CausalResourceError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
+from antecedent.outcomes import require_success
 from antecedent.predictive_assessment import PredictiveAssessmentRefusal
 
 from _refusal import assert_registered_refusal
@@ -733,6 +741,166 @@ def test_a_discrete_law_pit_and_reliability_equal_the_hand_values() -> None:
     assert result.report.predictor("event").score("brier").mean == pytest.approx(
         (0.64 + 4 * 0.04) / 5, abs=TOL
     )
+
+
+# --------------------------------------------------------------------------- bayesian replicates
+
+REPLICATE_DAG = [("z", "t"), ("z", "y"), ("t", "y")]
+REPLICATE_ROWS = 60
+REPLICATE_SIMS = 120
+
+
+def replicate_data(n: int = REPLICATE_ROWS, seed: int = 41) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=n)
+    t = (z + rng.normal(size=n) > 0).astype(float)
+    y = 1.5 * t + z + 0.5 * rng.normal(size=n)
+    return {"z": z, "t": t, "y": y}
+
+
+def analyze_replicates(
+    data: dict[str, np.ndarray],
+    bounds: pa.ReplicateBounds | None,
+    *,
+    execution: ant.Execution | None = None,
+):
+    return require_success(
+        ant.analyze(
+            data,
+            graph=REPLICATE_DAG,
+            query=ant.AverageEffect("t", "y"),
+            inference=ant.Bayesian(n_draws=300, predictive_replicates=bounds),
+            execution=execution or ant.Execution(seed=5),
+            refute="none",
+        )
+    )
+
+
+def declared_replicates() -> tuple[dict[str, np.ndarray], pa.PosteriorReplicates]:
+    data = replicate_data()
+    result = analyze_replicates(data, pa.ReplicateBounds(REPLICATE_SIMS, 500))
+    return data, pa.posterior_replicates(result)
+
+
+def test_a_declared_bayesian_fit_retains_replicates_the_one_scoring_surface_scores() -> None:
+    data, replicates = declared_replicates()
+    # The laws are laws of the rows the study fitted, with their observed outcomes.
+    assert replicates.rows == tuple(range(REPLICATE_ROWS))
+    assert len(replicates.laws) == REPLICATE_ROWS
+    assert replicates.n_sims == REPLICATE_SIMS
+    assert replicates.target == pa.Target("y", "analysis sample", "outcome units")
+    assert replicates.model == "bayesian.gcomp"
+    assert np.array_equal(np.asarray(replicates.outcomes), data["y"])
+    # Independent oracle for the replicate location: the replicate mean of a row is the least
+    # squares fitted value of the outcome model, up to Monte Carlo and posterior spread.
+    design = np.column_stack([np.ones(REPLICATE_ROWS), data["t"], data["z"]])
+    beta, *_ = np.linalg.lstsq(design, data["y"], rcond=None)
+    fitted = design @ beta
+    draws = np.asarray([law.draws for law in replicates.laws])
+    assert draws.shape == (REPLICATE_ROWS, REPLICATE_SIMS)
+    assert np.mean(np.abs(draws.mean(axis=1) - fitted)) < 0.1
+    residual_sd = float(np.sqrt(np.sum((data["y"] - fitted) ** 2) / (REPLICATE_ROWS - 3)))
+    assert draws.std(axis=1, ddof=1).mean() == pytest.approx(residual_sd, rel=0.25)
+    # The scored CRPS equals an independent CRPS of the returned replicates.
+    result = pa.assess(
+        replicates.observations(),
+        [replicates.predictor()],
+        pa.ValidationDesign.held_out_split(),
+        scores=("crps",),
+        dependence=pa.Dependence.iid(),
+    )
+    expected = mean_of(
+        [
+            sample_crps(list(law.draws), y)
+            for law, y in zip(replicates.laws, replicates.outcomes, strict=True)
+        ]
+    )
+    scored = result.report.predictor("posterior_predictive")
+    assert scored.score("crps").mean == pytest.approx(expected, abs=1e-9)
+    assert 0.0 < expected < 1.0
+    # Fitted to the very rows it is scored on: in sample, never held out.
+    assert scored.overlap.label == "in_sample"
+    assert scored.overlap.shared == REPLICATE_ROWS
+
+
+def test_replicates_fitted_to_the_scored_rows_are_refused_as_held_out() -> None:
+    _, replicates = declared_replicates()
+
+    def strict(fit: pa.FitDeclaration | None) -> pa.PredictiveAssessment:
+        return pa.assess(
+            replicates.observations(),
+            [replicates.predictor(fit=fit)],
+            pa.ValidationDesign.held_out_split(),
+            scores=("crps",),
+            dependence=pa.Dependence.iid(),
+            require_held_out=True,
+        )
+
+    expect(
+        refused(lambda: strict(None)), "evidence_double_counted", "predictive_assessment.in_sample"
+    )
+    undeclared = pa.FitDeclaration.undeclared("the fit rows were not recorded")
+    expect(
+        refused(lambda: strict(undeclared)),
+        "evidence_overlap_unknown",
+        "predictive_assessment.overlap_unknown",
+    )
+    # A target other than the one the laws are laws of is refused, never converted.
+    other = pa.Target("y", "another population", "outcome units")
+    error = refused(
+        lambda: pa.assess(
+            pa.Observations(
+                other, replicates.ids("analysis_rows"), "real", list(replicates.outcomes)
+            ),
+            [replicates.predictor()],
+            pa.ValidationDesign.held_out_split(),
+            scores=("crps",),
+            dependence=pa.Dependence.iid(),
+        )
+    )
+    assert error.reason_code == "quantity_semantics_mismatch"
+
+
+def test_replicates_are_retained_only_when_declared_and_within_the_row_bound() -> None:
+    data = replicate_data()
+    plain = analyze_replicates(data, None)
+    assert plain.posterior.predictive_replicates is None
+    with pytest.raises(CausalUnsupportedError) as missing:
+        pa.posterior_replicates(plain)
+    assert missing.value.reason_code == "option_not_applicable"
+    with pytest.raises(CausalUnsupportedError) as bounded:
+        analyze_replicates(data, pa.ReplicateBounds(REPLICATE_SIMS, REPLICATE_ROWS - 1))
+    assert bounded.value.reason_code == "invalid_argument"
+    assert "max_rows" in str(bounded.value)
+    # The bound is inclusive and the declaration is a typed value.
+    exact = analyze_replicates(data, pa.ReplicateBounds(REPLICATE_SIMS, REPLICATE_ROWS))
+    assert len(pa.posterior_replicates(exact).laws) == REPLICATE_ROWS
+    with pytest.raises(CausalValueError):
+        pa.ReplicateBounds(n_sims=0)
+    with pytest.raises(CausalValueError):
+        pa.ReplicateBounds(max_rows=0)
+    with pytest.raises(CausalTypeError):
+        ant.Bayesian(predictive_replicates=(REPLICATE_SIMS, 500))  # type: ignore[arg-type]
+
+
+def test_retained_replicates_are_admitted_against_the_execution_memory() -> None:
+    data = replicate_data()
+    # 120 x 60 doubles retained plus the transient draw-major copy cannot both fit in 70 kB.
+    tight = ant.ResourceLimits(memory_bytes=70_000)
+    control = analyze_replicates(data, None, execution=ant.Execution(seed=5, limits=tight))
+    assert control.answer.value == pytest.approx(1.5, abs=0.6)
+    with pytest.raises(CausalResourceError):
+        analyze_replicates(
+            data,
+            pa.ReplicateBounds(REPLICATE_SIMS, 500),
+            execution=ant.Execution(seed=5, limits=tight),
+        )
+    funded = analyze_replicates(
+        data,
+        pa.ReplicateBounds(REPLICATE_SIMS, 500),
+        execution=ant.Execution(seed=5, limits=ant.ResourceLimits(memory_bytes=10_000_000)),
+    )
+    assert len(pa.posterior_replicates(funded).laws) == REPLICATE_ROWS
 
 
 # --------------------------------------------------------------------------- artifact

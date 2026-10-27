@@ -337,6 +337,23 @@ def test_the_entity_screen_split_never_shares_an_entity_and_records_seed_and_dig
     again = CandidateScreen.from_units("s", "max_t", entity_ids=entities, seed=5)
     assert again == screen
     assert CandidateScreen.from_units("s", "max_t", entity_ids=entities, seed=6) != screen
+    # The receipt states what was dealt: 30 distinct entities split 15/15 by the default
+    # fraction, the seed, and the same unit digest the recorded screen id carries.
+    receipt = screen.receipt
+    assert receipt is not None
+    assert (receipt.seed, receipt.unit_kind) == (5, "entity")
+    assert (receipt.n_units, receipt.screen_units, receipt.estimate_units) == (30, 15, 15)
+    assert screen.screen_id.endswith(f";units={receipt.unit_digest}")
+    assert len(receipt.unit_digest) == 64
+    assert len(set(entities[i] for i in screen.screen_rows)) == receipt.screen_units
+    assert len(set(entities[i] for i in screen.estimate_rows)) == receipt.estimate_units
+    # The digest names the set of units, not their order: permuting the rows keeps it.
+    permuted = CandidateScreen.from_units("s", "max_t", entity_ids=entities[::-1], seed=5)
+    assert permuted.receipt is not None
+    assert permuted.receipt.unit_digest == receipt.unit_digest
+    # A split declared directly from row lists records no receipt and compares equal on rows.
+    declared = CandidateScreen("s", "max_t", screen.screen_rows, screen.estimate_rows)
+    assert declared.receipt is None
 
 
 def test_the_dyad_screen_split_keeps_connected_endpoints_together_and_refuses_one_component():
@@ -348,6 +365,12 @@ def test_the_dyad_screen_split_keeps_connected_endpoints_together_and_refuses_on
         return {first[i] for i in rows} | {second[i] for i in rows}
 
     assert endpoints(screen.screen_rows).isdisjoint(endpoints(screen.estimate_rows))
+    # One chain {0..3}, one star {10..13} and twelve isolated pairs: 1 + 1 + 12 = 14 units.
+    receipt = screen.receipt
+    assert receipt is not None
+    assert (receipt.seed, receipt.unit_kind) == (3, "dyad_component")
+    assert receipt.n_units == 14
+    assert receipt.screen_units + receipt.estimate_units == receipt.n_units
     with pytest.raises(CausalError) as error:
         CandidateScreen.from_units("d", "bh", first=[0, 1, 2], second=[1, 2, 0], seed=1)
     assert "invalid_argument" in refusal_text(error.value)

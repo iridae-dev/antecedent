@@ -156,6 +156,12 @@ SEED_ZERO = (
     "transport_z_api.rs::receive",
     "prepared_api/treatment_score.rs::temporal_treatment_score",
     "prepared_api/treatment_score.rs::treatment_score_posterior",
+    "gcm_estimand_api.rs::counterfactual_contrasts",
+    "gcm_estimand_api.rs::do_sample",
+    "gcm_estimand_api.rs::evaluate",
+    "gcm_estimand_api.rs::interventional_mean",
+    "gcm_estimand_api.rs::population_do_contrast",
+    "gcm_estimand_api.rs::simultaneous_counterfactual",
 )
 
 SEED_OPTIONAL = (

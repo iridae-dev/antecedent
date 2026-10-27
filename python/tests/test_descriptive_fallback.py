@@ -305,16 +305,6 @@ def test_a_query_with_no_association_form_or_an_unmeasured_variable_says_so():
     assert isinstance(missing, FallbackUnavailable)
     assert missing.detail == "fallback.variable_not_measured" and missing.code == "invalid_argument"
 
-    from antecedent import fallback
-
-    other = fallback._evidence(ant.AverageEffect("t", "y"), None, ["t", "y"], None, None)
-    assert isinstance(other, FallbackUnavailable)
-    assert other.part == "evidence_plan" and other.detail == "fallback.graph_class_not_read"
-    identified = ant.Dag.from_edges(["t", "y"], [("t", "y")])
-    already = fallback._evidence(ant.AverageEffect("t", "y"), identified, ["t", "y"], None, None)
-    assert isinstance(already, FallbackUnavailable)
-    assert "not_a_failure" in already.detail or "not_a_failure" in already.message
-
 
 def test_the_returned_object_states_plainly_that_it_is_not_a_causal_answer():
     outcome = _describe(
@@ -329,8 +319,10 @@ def test_the_returned_object_states_plainly_that_it_is_not_a_causal_answer():
     assert NONCAUSAL_NOTICE.startswith("The associational result describes the observed law")
     for text in (repr(outcome), outcome.explain(), outcome.report(), outcome.notice):
         assert "answer to the causal question" in text
-    assert "effect_not_identified" in outcome.report()
-    assert "Ranks actions: no" in outcome.report()
+    # The report is Rust's: markup characters are escaped, facts are bold keys.
+    assert "effect\\_not\\_identified" in outcome.report()
+    assert "- **Ranks actions:** no" in outcome.report()
+    assert "- **Is an intervention effect:** no" in outcome.report()
 
 
 def test_the_host_record_shows_both_statuses_and_satisfies_the_schema():
@@ -418,3 +410,126 @@ def test_a_bayesian_study_is_described_with_its_posterior():
     assert isinstance(outcome, AnalysisWithFallback)
     assert outcome.refusal.reason_code == "effect_not_identified"
     assert _association(outcome).posterior is not None
+
+
+def test_the_report_reads_every_figure_from_the_description_and_renders_markdown_and_html():
+    data, graph = _confounded_data(), _confounded_graph()
+    outcome = _describe(
+        ant.analyze(data, graph=graph, query=ant.AverageEffect("t", "y"), on_refusal="describe")
+    )
+    section = _association(outcome)
+    report = outcome.report()
+    assert report.startswith("# Refusal with descriptive fallback\n")
+    for heading in ("Causal question", "Noncausal description", "Evidence that would resolve"):
+        assert f"## {heading}" in report
+    assert "- **Status:** unsupported" in report
+    assert "- **Claim kind:** associational" in report
+    assert "- **Identification:** not\\_claimed" in report
+    assert (
+        "- **Selection rule:** measured\\_parents\\_of\\_treatment\\_and\\_declared\\_modifiers"
+        in report
+    )
+    assert f"- **Analysis:** {section.analysis}".replace("_", "\\_") in report
+    assert f"- **Rows:** {len(data['y'])}" in report
+    assert "- **Refusal retained:** effect\\_not\\_identified" in report
+
+    # The treatment coefficient printed in the report is the description's own figure, which is
+    # the ordinary-least-squares coefficient of y on an intercept, t and the held-fixed parent z.
+    design = np.column_stack([np.ones(len(data["y"])), data["t"], data["z"]])
+    oracle = np.linalg.lstsq(design, data["y"], rcond=None)[0][1]
+    printed = float(report.split("- **t:** ")[1].split("\n")[0])
+    assert printed == pytest.approx(section.terms[1].estimate, rel=1e-10)
+    assert printed == pytest.approx(oracle, abs=1e-6)
+    # Obligations are a table with their proof steps; no candidates were declared.
+    assert "| Obligation | Kind | Route | Proof step | A study can satisfy it |" in report
+    assert "No candidate studies were declared, so the options are not ranked." in report
+    assert "- run\\_experiment:t: " in report
+
+    html = outcome.report("html")
+    assert html.startswith("<!doctype html>")
+    assert "<h2>Causal question</h2>" in html and "<h2>Noncausal description</h2>" in html
+    assert "<script" not in html and "effect_not_identified" in html
+    assert outcome.report("html") == html and outcome.report() == report
+
+    with pytest.raises(ant.errors.CausalValueError, match="format"):
+        outcome.report("pdf")  # type: ignore[arg-type]
+
+
+def test_the_report_lists_the_ranked_plan_and_states_why_a_part_is_unavailable():
+    from antecedent import fallback
+
+    ranked = _describe(
+        ant.analyze(
+            _hedge_data(),
+            graph=_hedge_graph(),
+            query=ant.AverageEffect("t", "y"),
+            on_refusal="describe",
+            evidence_candidates=[_trial(), _survey(["t", "w", "y"])],
+        )
+    )
+    report = ranked.report()
+    assert "| Rank | Route | Studies | Gate | Cost |" in report
+    plan = ranked.evidence_plan.plan  # type: ignore[union-attr]
+    assert plan is not None and not isinstance(plan, FallbackUnavailable)
+    best = plan.best
+    assert best is not None
+    route = best.route.replace("_", "\\_")
+    assert f"| {best.rank} | {route} | randomized trial | verified\\_sufficient | 9 usd |" in report
+    assert "bigger survey" in report
+
+    # A query with no association form and a graph class the evidence routes do not read: both
+    # parts are stated as unavailable, with the reason Rust prints.
+    error = EffectNotIdentified("bow")
+    unavailable = fallback.AnalysisWithFallback(
+        refusal=error,
+        associational=fallback_roles(ant.PulseEffect("t", "y"), None, ["t", "y"]),  # type: ignore[arg-type]
+        evidence_plan=FallbackUnavailable(
+            "evidence_plan",
+            "route_not_supported",
+            "fallback.graph_class_not_read",
+            "the evidence routes are read from a declared directed or bidirected graph",
+        ),
+    )
+    text = unavailable.report()
+    assert "The associational description is unavailable: fallback.no\\_association\\_form" in text
+    assert "The evidence plan is unavailable: fallback.graph\\_class\\_not\\_read" in text
+
+
+def test_the_description_is_the_fallback_rust_ran_on_the_refused_study():
+    data, graph = _confounded_data(), _confounded_graph()
+    query = ant.AverageEffect("t", "y")
+    # Without the option the refusal is raised alone: nothing was described.
+    with pytest.raises(EffectNotIdentified) as plain:
+        require_success(ant.analyze(data, graph=graph, query=query))
+    assert not hasattr(plain.value, "fallback")
+
+    primary = ant.analyze(data, graph=graph, query=query, on_refusal="describe")
+    stage = primary.refusal._error.fallback
+    # The roles, obligations, actions and ranking state are the ones Study.analyze_with_fallback
+    # produced; the Python object only reads them.
+    outcome = _describe(primary)
+    assert outcome.roles == FallbackRoles(
+        outcome="y",
+        treatment="t",
+        adjustment=("z",),
+        rule="measured_parents_of_treatment_and_declared_modifiers",
+    )
+    assert stage.roles() == ("y", "t", ["z"], outcome.roles.rule)
+    needs = outcome.evidence_plan
+    assert isinstance(needs, EvidenceNeeds)
+    assert [o["id"] for o in stage.obligations()] == [o.id for o in needs.obligations]
+    assert [a["id"] for a in stage.next_actions()] == [a["id"] for a in needs.next_actions]
+    assert stage.ranking_kind() == "not_requested" and stage.ranked_plan() is None
+    # The description is the retained result of the associational study Rust prepared.
+    assert stage.associational_unavailable() is None
+    assert stage.evidence_unavailable() is None
+
+    ranked = ant.analyze(
+        _hedge_data(),
+        graph=_hedge_graph(),
+        query=query,
+        on_refusal="describe",
+        evidence_candidates=[_trial(), _survey(["t", "w", "y"])],
+    )
+    assert ranked.refusal._error.fallback.ranking_kind() == "ranked"
+    assert ranked.refusal._error.fallback.ranked_plan().outcome == "closing"

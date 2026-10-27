@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.errors import CausalUnsupportedError
 from antecedent.outcomes import require_success
 
 
@@ -65,3 +66,27 @@ def test_handle_conditional_bayesian_uses_staged_estimator():
     assert result.estimate.estimator_id == "conditional.bayesian"
     assert result.posterior is not None
     assert np.isfinite(result.ate)
+
+
+def test_the_frequentist_conditional_effect_is_the_linear_adjustment_with_one_modifier():
+    n = 200
+    t = np.asarray([0.0 if i % 2 == 0 else 1.0 for i in range(n)], dtype=np.float64)
+    w = np.asarray([(i % 5) for i in range(n)], dtype=np.float64)
+    y = 1.0 + 2.0 * t + 0.5 * t * w
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "w": w},
+            graph=[("t", "y"), ("w", "y")],
+            query=antecedent.ConditionalEffect("t", "y", "w"),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    assert result.estimate.estimator_id == "conditional.linear.adjustment"
+    # The effect at the mean modifier: 2 + 0.5 * mean(w) = 3 for this noise-free design.
+    assert result.ate == pytest.approx(2.0 + 0.5 * float(w.mean()), abs=0.1)
+    # The regression is fitted for one modifier: a modifier set is refused with a remedy.
+    with pytest.raises(CausalUnsupportedError) as refusal:
+        antecedent.ConditionalEffect("t", "y", ["w", "z"])
+    assert refusal.value.remedy

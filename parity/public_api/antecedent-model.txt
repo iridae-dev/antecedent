@@ -27,18 +27,14 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CompiledMech
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::InvertibleStructuralCausalModel [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismAssignment [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismSlot [auto]
-impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ModelCollection [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ProbabilisticCausalModel [auto]
-impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::StructuralCausalModel [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::local_cyclic::LocalCyclicModel [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::CompiledCausalModel [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::CompiledMechanismStore [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::InvertibleStructuralCausalModel [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismAssignment [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismSlot [auto]
-impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::ModelCollection [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::ProbabilisticCausalModel [auto]
-impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::StructuralCausalModel [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::local_cyclic::LocalCyclicModel [auto]
 impl core::clone::Clone for antecedent_model::BasisTerm
 impl core::clone::Clone for antecedent_model::CompiledCausalModel
@@ -77,7 +73,6 @@ impl core::clone::Clone for antecedent_model::MechanismSlot
 impl core::clone::Clone for antecedent_model::MechanismTyping
 impl core::clone::Clone for antecedent_model::MechanismWorkspace
 impl core::clone::Clone for antecedent_model::ModelBinding
-impl core::clone::Clone for antecedent_model::ModelCollection
 impl core::clone::Clone for antecedent_model::ModelError
 impl core::clone::Clone for antecedent_model::ModelEvaluationReport
 impl core::clone::Clone for antecedent_model::ModelEvaluator
@@ -110,7 +105,6 @@ impl core::clone::Clone for antecedent_model::SelectionRule
 impl core::clone::Clone for antecedent_model::SingularBlock
 impl core::clone::Clone for antecedent_model::SolutionAssessment
 impl core::clone::Clone for antecedent_model::SolverConvergence
-impl core::clone::Clone for antecedent_model::StructuralCausalModel
 impl core::clone::Clone for antecedent_model::TemporalPath
 impl core::clone::Clone for antecedent_model::TreeEnsemble
 impl core::clone::Clone for antecedent_model::Uniqueness
@@ -748,7 +742,6 @@ impl core::fmt::Debug for antecedent_model::MechanismSlot
 impl core::fmt::Debug for antecedent_model::MechanismTyping
 impl core::fmt::Debug for antecedent_model::MechanismWorkspace
 impl core::fmt::Debug for antecedent_model::ModelBinding
-impl core::fmt::Debug for antecedent_model::ModelCollection
 impl core::fmt::Debug for antecedent_model::ModelError
 impl core::fmt::Debug for antecedent_model::ModelEvaluationReport
 impl core::fmt::Debug for antecedent_model::ModelEvaluator
@@ -782,7 +775,6 @@ impl core::fmt::Debug for antecedent_model::SelectionRule
 impl core::fmt::Debug for antecedent_model::SingularBlock
 impl core::fmt::Debug for antecedent_model::SolutionAssessment
 impl core::fmt::Debug for antecedent_model::SolverConvergence
-impl core::fmt::Debug for antecedent_model::StructuralCausalModel
 impl core::fmt::Debug for antecedent_model::TemporalPath
 impl core::fmt::Debug for antecedent_model::TreeEnsemble
 impl core::fmt::Debug for antecedent_model::Uniqueness
@@ -1155,7 +1147,6 @@ impl core::marker::Freeze for antecedent_model::MechanismSlot [auto]
 impl core::marker::Freeze for antecedent_model::MechanismTyping [auto]
 impl core::marker::Freeze for antecedent_model::MechanismWorkspace [auto]
 impl core::marker::Freeze for antecedent_model::ModelBinding [auto]
-impl core::marker::Freeze for antecedent_model::ModelCollection [auto]
 impl core::marker::Freeze for antecedent_model::ModelError [auto]
 impl core::marker::Freeze for antecedent_model::ModelEvaluationReport [auto]
 impl core::marker::Freeze for antecedent_model::ModelEvaluator [auto]
@@ -1189,7 +1180,6 @@ impl core::marker::Freeze for antecedent_model::SelectionRule [auto]
 impl core::marker::Freeze for antecedent_model::SingularBlock [auto]
 impl core::marker::Freeze for antecedent_model::SolutionAssessment [auto]
 impl core::marker::Freeze for antecedent_model::SolverConvergence [auto]
-impl core::marker::Freeze for antecedent_model::StructuralCausalModel [auto]
 impl core::marker::Freeze for antecedent_model::TemporalPath [auto]
 impl core::marker::Freeze for antecedent_model::TreeEnsemble [auto]
 impl core::marker::Freeze for antecedent_model::Uniqueness [auto]
@@ -1429,7 +1419,6 @@ impl core::marker::Send for antecedent_model::MechanismSlot [auto]
 impl core::marker::Send for antecedent_model::MechanismTyping [auto]
 impl core::marker::Send for antecedent_model::MechanismWorkspace [auto]
 impl core::marker::Send for antecedent_model::ModelBinding [auto]
-impl core::marker::Send for antecedent_model::ModelCollection [auto]
 impl core::marker::Send for antecedent_model::ModelError [auto]
 impl core::marker::Send for antecedent_model::ModelEvaluationReport [auto]
 impl core::marker::Send for antecedent_model::ModelEvaluator [auto]
@@ -1463,7 +1452,6 @@ impl core::marker::Send for antecedent_model::SelectionRule [auto]
 impl core::marker::Send for antecedent_model::SingularBlock [auto]
 impl core::marker::Send for antecedent_model::SolutionAssessment [auto]
 impl core::marker::Send for antecedent_model::SolverConvergence [auto]
-impl core::marker::Send for antecedent_model::StructuralCausalModel [auto]
 impl core::marker::Send for antecedent_model::TemporalPath [auto]
 impl core::marker::Send for antecedent_model::TreeEnsemble [auto]
 impl core::marker::Send for antecedent_model::Uniqueness [auto]
@@ -1936,7 +1924,6 @@ impl core::marker::Sync for antecedent_model::MechanismSlot [auto]
 impl core::marker::Sync for antecedent_model::MechanismTyping [auto]
 impl core::marker::Sync for antecedent_model::MechanismWorkspace [auto]
 impl core::marker::Sync for antecedent_model::ModelBinding [auto]
-impl core::marker::Sync for antecedent_model::ModelCollection [auto]
 impl core::marker::Sync for antecedent_model::ModelError [auto]
 impl core::marker::Sync for antecedent_model::ModelEvaluationReport [auto]
 impl core::marker::Sync for antecedent_model::ModelEvaluator [auto]
@@ -1970,7 +1957,6 @@ impl core::marker::Sync for antecedent_model::SelectionRule [auto]
 impl core::marker::Sync for antecedent_model::SingularBlock [auto]
 impl core::marker::Sync for antecedent_model::SolutionAssessment [auto]
 impl core::marker::Sync for antecedent_model::SolverConvergence [auto]
-impl core::marker::Sync for antecedent_model::StructuralCausalModel [auto]
 impl core::marker::Sync for antecedent_model::TemporalPath [auto]
 impl core::marker::Sync for antecedent_model::TreeEnsemble [auto]
 impl core::marker::Sync for antecedent_model::Uniqueness [auto]
@@ -2210,7 +2196,6 @@ impl core::marker::Unpin for antecedent_model::MechanismSlot [auto]
 impl core::marker::Unpin for antecedent_model::MechanismTyping [auto]
 impl core::marker::Unpin for antecedent_model::MechanismWorkspace [auto]
 impl core::marker::Unpin for antecedent_model::ModelBinding [auto]
-impl core::marker::Unpin for antecedent_model::ModelCollection [auto]
 impl core::marker::Unpin for antecedent_model::ModelError [auto]
 impl core::marker::Unpin for antecedent_model::ModelEvaluationReport [auto]
 impl core::marker::Unpin for antecedent_model::ModelEvaluator [auto]
@@ -2244,7 +2229,6 @@ impl core::marker::Unpin for antecedent_model::SelectionRule [auto]
 impl core::marker::Unpin for antecedent_model::SingularBlock [auto]
 impl core::marker::Unpin for antecedent_model::SolutionAssessment [auto]
 impl core::marker::Unpin for antecedent_model::SolverConvergence [auto]
-impl core::marker::Unpin for antecedent_model::StructuralCausalModel [auto]
 impl core::marker::Unpin for antecedent_model::TemporalPath [auto]
 impl core::marker::Unpin for antecedent_model::TreeEnsemble [auto]
 impl core::marker::Unpin for antecedent_model::Uniqueness [auto]
@@ -3427,9 +3411,6 @@ pub field antecedent_model::MechanismWorkspace::grow_count: u32
 pub field antecedent_model::MechanismWorkspace::parents: alloc::vec::Vec<f64>
 pub field antecedent_model::MechanismWorkspace::program_scratch: alloc::vec::Vec<f64>
 pub field antecedent_model::MechanismWorkspace::scratch: alloc::vec::Vec<f64>
-pub field antecedent_model::ModelCollection::graph_keys: alloc::sync::Arc<[u64]>
-pub field antecedent_model::ModelCollection::models: alloc::sync::Arc<[antecedent_model::CompiledCausalModel]>
-pub field antecedent_model::ModelCollection::weights: alloc::sync::Arc<[f64]>
 pub field antecedent_model::ModelEvaluationReport::alpha: f64
 pub field antecedent_model::ModelEvaluationReport::falsified: bool
 pub field antecedent_model::ModelEvaluationReport::in_sample_loglik: f64
@@ -3495,7 +3476,6 @@ pub field antecedent_model::SolutionAssessment::intervened: antecedent_model::Qu
 pub field antecedent_model::SolutionAssessment::original: antecedent_model::QueryBlock
 pub field antecedent_model::SolutionAssessment::physical_stability: antecedent_model::PhysicalStability
 pub field antecedent_model::SolutionAssessment::solver: antecedent_model::SolverConvergence
-pub field antecedent_model::StructuralCausalModel::compiled: antecedent_model::CompiledCausalModel
 pub field antecedent_model::TemporalPath::n_nodes: usize
 pub field antecedent_model::TemporalPath::n_rows: usize
 pub field antecedent_model::TemporalPath::steps: alloc::vec::Vec<antecedent_model::ValueBatch>
@@ -3906,9 +3886,6 @@ pub fn <antecedent_model::MechanismWorkspace>::fn prepare(&mut self, n_rows: usi
 pub fn <antecedent_model::ModelBinding>::const fn digest(self) -> u64
 pub fn <antecedent_model::ModelBinding>::const fn dimension(self) -> usize
 pub fn <antecedent_model::ModelBinding>::fn of(model: &antecedent_model::LinearStructuralMap) -> Self
-pub fn <antecedent_model::ModelCollection>::fn is_empty(&self) -> bool
-pub fn <antecedent_model::ModelCollection>::fn len(&self) -> usize
-pub fn <antecedent_model::ModelCollection>::fn new(models: impl core::convert::Into<alloc::sync::Arc<[antecedent_model::CompiledCausalModel]>>, graph_keys: impl core::convert::Into<alloc::sync::Arc<[u64]>>, weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_model::ModelError>
 pub fn <antecedent_model::ModelEvaluator>::fn evaluate(&self, model: &antecedent_model::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::ModelEvaluationReport, antecedent_model::ModelError>
 pub fn <antecedent_model::ModelView<'a>>::fn observational(model: &'a antecedent_model::CompiledCausalModel) -> Self
 pub fn <antecedent_model::ModelView<'a>>::fn with_overlay(model: &'a antecedent_model::CompiledCausalModel, overlay: antecedent_model::InterventionOverlay) -> Self
@@ -3978,7 +3955,6 @@ pub fn <antecedent_model::RouteDecision>::fn is_licensed(&self) -> bool
 pub fn <antecedent_model::SelectionOptions>::fn constraint_for(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<&antecedent_model::NodeFamilyConstraint>
 pub fn <antecedent_model::SelectionPolicy>::fn select(self, candidates: &[antecedent_model::MechanismCandidate]) -> core::option::Option<antecedent_model::MechanismFamily>
 pub fn <antecedent_model::SelectionRule>::const fn id(self) -> &'static str
-pub fn <antecedent_model::StructuralCausalModel>::fn new(compiled: antecedent_model::CompiledCausalModel) -> Self
 pub fn <antecedent_model::TemporalPath>::fn column(&self, step: usize, node: usize) -> core::result::Result<&[f64], antecedent_model::ModelError>
 pub fn <antecedent_model::TreeEnsemble>::fn learner(&self) -> &str
 pub fn <antecedent_model::TreeEnsemble>::fn n_parents(&self) -> usize
@@ -4456,7 +4432,6 @@ pub mod antecedent_model::local_cyclic
 pub mod antecedent_model::mechanism
 pub mod antecedent_model::mechanism_expr
 pub mod antecedent_model::mechanism_transport
-pub mod antecedent_model::model_collection
 pub mod antecedent_model::noise_replay
 pub mod antecedent_model::nonlinear_equilibrium
 pub mod antecedent_model::observation_query
@@ -4499,7 +4474,6 @@ pub struct antecedent_model::MechanismRegistry
 pub struct antecedent_model::MechanismWorkspace
 pub struct antecedent_model::ModelBinding
 pub struct antecedent_model::ModelBinding has private fields
-pub struct antecedent_model::ModelCollection
 pub struct antecedent_model::ModelEvaluationReport
 pub struct antecedent_model::ModelEvaluator
 pub struct antecedent_model::ModelOutputLayout
@@ -4531,7 +4505,6 @@ pub struct antecedent_model::SelectionOptions
 pub struct antecedent_model::SelectionProvenance
 pub struct antecedent_model::SingularBlock
 pub struct antecedent_model::SolutionAssessment
-pub struct antecedent_model::StructuralCausalModel
 pub struct antecedent_model::TemporalPath
 pub struct antecedent_model::TemporalPlan<'a>
 pub struct antecedent_model::TreeEnsemble
@@ -4757,7 +4730,6 @@ pub use antecedent_model::compile::MechanismSlot = antecedent_model::MechanismSl
 pub use antecedent_model::compile::ModelOutputLayout = antecedent_model::ModelOutputLayout
 pub use antecedent_model::compile::ParentGatherPlan = antecedent_model::ParentGatherPlan
 pub use antecedent_model::compile::ProbabilisticCausalModel = antecedent_model::ProbabilisticCausalModel
-pub use antecedent_model::compile::StructuralCausalModel = antecedent_model::StructuralCausalModel
 pub use antecedent_model::compose::coherence::COVARIANCE_TOLERANCE = antecedent_model::compose::COVARIANCE_TOLERANCE
 pub use antecedent_model::compose::coherence::CoherenceFinding = antecedent_model::compose::CoherenceFinding
 pub use antecedent_model::compose::coherence::CoherenceKind = antecedent_model::compose::CoherenceKind
@@ -4857,7 +4829,6 @@ pub use antecedent_model::mechanism::evaluate_column = antecedent_model::evaluat
 pub use antecedent_model::mechanism::infer_noise_column = antecedent_model::infer_noise_column
 pub use antecedent_model::mechanism::infer_noise_column_rng = antecedent_model::infer_noise_column_rng
 pub use antecedent_model::mechanism::log_prob_column = antecedent_model::log_prob_column
-pub use antecedent_model::model_collection::ModelCollection = antecedent_model::ModelCollection
 pub use antecedent_model::noise_inference_mode_of = antecedent_model::mechanism::noise_inference_mode_of
 pub use antecedent_model::noise_replay::NOISE_REPLAY_STREAM_DOMAIN = antecedent_model::NOISE_REPLAY_STREAM_DOMAIN
 pub use antecedent_model::noise_replay::NOISE_ROW_BLOCK = antecedent_model::NOISE_ROW_BLOCK

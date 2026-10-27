@@ -2816,3 +2816,9 @@ rust = "antecedent::inference::mapped_posterior_transfer_with"
 kind = "fn"
 status = "bound"
 python = "antecedent.priors.mapped_posterior_transfer"
+
+[[entry]]
+rust = "antecedent::report::render_fallback_input"
+kind = "fn"
+status = "bound"
+python = "antecedent.fallback.AnalysisWithFallback.report"

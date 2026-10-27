@@ -731,3 +731,39 @@ def test_the_obstruction_artifact_consumer_needs_no_builder_plan_or_data():
     assert point["compiled_plans"] == len(REQUESTS)
     with pytest.raises((CausalSerializationError, CausalUnsupportedError)):
         transport.consume_admg_conditional_obstruction_artifact(artifact[:-10])
+
+
+def _forest_roots(forest):
+    sources = [edge[0] for edge in forest["directed"]]
+    return {node for node in forest["nodes"] if node not in sources}
+
+
+def test_the_proven_obstruction_names_an_s_hedge_of_nested_forests_with_shared_roots():
+    # Selection on y: the reduced joint P(y, w | do(x)) has an s-hedge. By definition the larger
+    # forest meets the intervention set, the smaller is nested in it and misses the
+    # intervention set, both have the same roots, and every node has at most one child.
+    decision = decide(selected=("y",)).decision()
+    candidate = decision["candidate"]
+    larger, smaller = candidate["larger"], candidate["smaller"]
+    treatments = set(candidate["reduced_query"]["treatments"])
+    assert treatments == {"x"}
+    assert set(larger["nodes"]) & treatments
+    assert not set(smaller["nodes"]) & treatments
+    assert set(smaller["nodes"]) < set(larger["nodes"]) <= set(NAMES)
+    assert _forest_roots(larger) == _forest_roots(smaller) != set()
+    graph_directed = {("x", "y"), ("y", "w")}
+    graph_bidirected = {frozenset(("x", "y"))}
+    for forest in (larger, smaller):
+        sources = [edge[0] for edge in forest["directed"]]
+        assert len(sources) == len(set(sources)), "each node has at most one child"
+        assert {tuple(edge) for edge in forest["directed"]} <= graph_directed
+        assert {frozenset(edge) for edge in forest["bidirected"]} <= graph_bidirected
+        assert all(set(edge) <= set(forest["nodes"]) for edge in forest["directed"])
+        assert all(set(edge) <= set(forest["nodes"]) for edge in forest["bidirected"])
+    # The verified two-model witness disagrees on the query the hedge obstructs.
+    assert candidate["proof"] is True
+    assert decision["witness"]["first_value"] != decision["witness"]["second_value"]
+    # Without selection on y the same query has no hedge to report.
+    identified = decide().decision()
+    assert identified["outcome"] == "identified"
+    assert "candidate" not in identified

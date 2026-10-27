@@ -206,3 +206,74 @@ def test_temporal_pulse_bayesian_without_composed_prior_still_works():
         )
     )
     assert result.posterior is not None
+
+
+def _pulse_with_residual_ar(coefficient: float, n: int = 300, seed: int = 5):
+    rng = np.random.default_rng(seed)
+    pressure = np.array([math.sin(0.04 * t) for t in range(n)], dtype=np.float64)
+    noise = np.zeros(n)
+    for t in range(1, n):
+        noise[t] = coefficient * noise[t - 1] + rng.normal(scale=0.3)
+    defect = np.zeros(n)
+    for t in range(1, n):
+        defect[t] = 0.9 * pressure[t - 1] + noise[t]
+    return pressure, defect
+
+
+def _posterior_predictive_failure(pressure, defect, refute: str) -> str | None:
+    result = require_success(
+        antecedent.analyze(
+            {"pressure": pressure, "defect": defect},
+            graph=[("pressure", 1, "defect", 0)],
+            query=antecedent.PulseEffect(
+                treatment="pressure",
+                outcome="defect",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            inference=antecedent.Bayesian(n_draws=256),
+            refute=refute,
+            execution=antecedent.Execution(seed=42),
+        )
+    )
+    (report,) = [r for r in result.validation.reports if r.refuter == "posterior_predictive"]
+    return report.failure_condition
+
+
+def test_the_serial_discrepancy_of_the_full_suite_reports_lag_one_residual_autocorrelation():
+    pressure, defect = _pulse_with_residual_ar(0.85)
+    # Independent oracle: lag-1 residual autocorrelation sum(r_t r_{t-1}) / sum(r_t^2) of the
+    # regression of the outcome on the lagged treatment.
+    y = defect[1:]
+    design = np.column_stack([np.ones(len(y)), pressure[:-1]])
+    beta, *_ = np.linalg.lstsq(design, y, rcond=None)
+    r = y - design @ beta
+    oracle = float(r[1:] @ r[:-1] / (r @ r))
+    assert oracle > 0.8
+
+    text = _posterior_predictive_failure(pressure, defect, "full")
+    assert text is not None
+    assert (
+        "posterior predictive serial-dependence check failed: lag-1 residual autocorrelation"
+        in text
+    )
+    observed = float(text.split("lag-1 residual autocorrelation ")[1].split(" vs replicated")[0])
+    assert observed == pytest.approx(oracle, abs=0.03)
+    # Replicated rows are iid, so their lag-1 autocorrelation is about -1/n.
+    replicated = float(text.split("vs replicated ")[1].split(" (p=")[0])
+    assert abs(replicated) < 0.05
+    # The temporal Bayesian interval is already tempered for this dependence: the report says so.
+    assert "already tempered for this dependence" in text
+    kappa = float(text.split("kappa=")[1].split(",")[0])
+    assert kappa > 1.0
+
+    # The cheap suite has no serial axis, so the same data records no serial finding.
+    cheap = _posterior_predictive_failure(pressure, defect, "cheap")
+    assert cheap is None or "serial-dependence" not in cheap
+
+
+def test_the_serial_discrepancy_is_silent_on_exchangeable_residuals():
+    pressure, defect = _pulse_with_residual_ar(0.0, seed=11)
+    text = _posterior_predictive_failure(pressure, defect, "full")
+    assert text is None or "serial-dependence" not in text

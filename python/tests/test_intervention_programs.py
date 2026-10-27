@@ -21,6 +21,7 @@ from antecedent.intervention_programs import (
     lag,
     maximum,
     policy_program_identity,
+    policy_support,
     sample_policy,
     sample_temporal_policy,
     transform,
@@ -101,6 +102,7 @@ def test_a_lagged_policy_matches_the_hand_recursion_over_time(gcm):
     for step in steps:
         price = np.maximum(10.0, 0.85 * price)
         np.testing.assert_array_equal(_column(step, "price"), price)
+    assert len(steps) == n_steps
 
 
 def test_a_look_back_before_the_first_step_is_refused(gcm):
@@ -168,3 +170,21 @@ def test_an_encoded_program_round_trips_and_a_tampered_one_is_refused():
     tampered[-3] ^= 0x01
     with pytest.raises(CausalError):
         decode_policy_program(NAMES, bytes(tampered))
+
+
+def test_policy_support_licenses_each_execution_route_separately(gcm):
+    model, _ = gcm
+    # A transform of the generated value is a function of each unit's noise, not a level:
+    # simulation and counterfactual execution run it, observational identification refuses it.
+    floor = policy_support(model, [_floor()])
+    assert floor.simulation.licensed and floor.counterfactual.licensed
+    assert not floor.identification.licensed
+    assert floor.identification.reason_code == "policy_route_not_licensed"
+    assert floor.simulation.reason_code is None and floor.counterfactual.reason_code is None
+    # A hard level is a point of the identification layer's vocabulary: licensed on every route.
+    hard = policy_support(model, [assign("price", 12.0)])
+    assert hard.simulation.licensed and hard.counterfactual.licensed
+    assert hard.identification.licensed and hard.identification.reason_code is None
+    # A program reading a variable is a function, not a level.
+    reads = policy_support(model, [assign("demand", 2.0 * var("price"))])
+    assert reads.simulation.licensed and not reads.identification.licensed
