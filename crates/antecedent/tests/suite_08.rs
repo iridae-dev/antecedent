@@ -25,6 +25,8 @@ mod temporal_incomplete_structure_parity;
 mod temporal_mag_numeric;
 #[path = "temporal_mediation_horizons.rs"]
 mod temporal_mediation_horizons;
+#[path = "temporal_mediator_set.rs"]
+mod temporal_mediator_set;
 #[path = "temporal_observation.rs"]
 mod temporal_observation;
 #[path = "temporal_observed_bayesian.rs"]

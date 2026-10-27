@@ -133,10 +133,11 @@ fn estimate(
 
 #[test]
 fn a_mediator_set_sums_its_path_products_and_decomposes_the_total() {
-    let mediated = estimate(MediationContrast::Mediated, InferenceMode::Frequentist, RefuteSuite::None);
+    let mediated =
+        estimate(MediationContrast::Mediated, InferenceMode::Frequentist, RefuteSuite::None);
     let direct = estimate(MediationContrast::Direct, InferenceMode::Frequentist, RefuteSuite::None);
     let total = estimate(MediationContrast::Total, InferenceMode::Frequentist, RefuteSuite::None);
-    let ate = |result: &antecedent::StudyResult| result.estimate.as_effect().unwrap().ate;
+    let ate = |result: &antecedent::StudyResult| result.estimate().as_effect().unwrap().ate;
     assert!((ate(&mediated) - MEDIATED_TRUTH).abs() < 0.05, "{}", ate(&mediated));
     assert!((ate(&direct) - DIRECT_TRUTH).abs() < 0.05, "{}", ate(&direct));
     // The three contrasts come from one set of regressions, so they decompose exactly.

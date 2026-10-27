@@ -99,7 +99,7 @@ fn temporal_facade_candidate_replay_refuses_resealed_panel_estimator_and_seed_mu
             1 => changed.panel.units[0].unit_id = 10_000,
             2 => changed.panel.units[0].histories[0].time_id = 90_000,
             3 => changed.panel.units[0].histories[0].y += 0.1,
-            4 => changed.estimator.sequence = [1, 1],
+            4 => changed.estimator.sequence = vec![1, 1],
             _ => changed.config.seed += 1,
         }
         changed.seal = changed.compute_seal().unwrap();
