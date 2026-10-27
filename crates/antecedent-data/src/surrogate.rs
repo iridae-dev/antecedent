@@ -34,7 +34,25 @@ pub fn surrogate_permute_columns(
             return Err(DataError::TypeMismatch { id: v.id, expected: "float64" });
         };
         let mut values = src.values.to_vec();
-        shuffle(rng, &mut values);
+        if src.validity.is_all_valid() {
+            shuffle(rng, &mut values);
+        } else {
+            // Missing placeholders stay at their original positions. Moving them
+            // under a fixed bitmap would destroy observed values during reconstruction.
+            let mut observed: Vec<f64> = values
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| src.validity.is_valid(*index))
+                .map(|(_, &value)| value)
+                .collect();
+            shuffle(rng, &mut observed);
+            let mut observed = observed.into_iter();
+            for (index, value) in values.iter_mut().enumerate() {
+                if src.validity.is_valid(index) {
+                    *value = observed.next().expect("one shuffled value per observed row");
+                }
+            }
+        }
         cols.push(OwnedColumn::Float64(Float64Column::new(
             v.id,
             Arc::from(values),
@@ -54,7 +72,7 @@ pub fn surrogate_permute_columns(
 ///
 /// # Errors
 ///
-/// Series shorter than 4, non-float columns, or FFT failures.
+/// Series shorter than 4, non-float columns, missing or nonfinite observations, or FFT failures.
 pub fn surrogate_phase_randomize(
     data: &TimeSeriesData,
     rng: &mut CausalRng,
@@ -75,6 +93,12 @@ pub fn surrogate_phase_randomize(
         let ColumnView::Float64(src) = data.column(v.id)? else {
             return Err(DataError::TypeMismatch { id: v.id, expected: "float64" });
         };
+        if !src.validity.is_all_valid() || !src.values.iter().all(|value| value.is_finite()) {
+            return Err(DataError::invalid_value(
+                "phase-randomize observations",
+                "must be complete and finite",
+            ));
+        }
         let values = phase_randomize_column(&src.values, n, &r2c, &c2r, rng)?;
         cols.push(OwnedColumn::Float64(Float64Column::new(
             v.id,
@@ -131,6 +155,70 @@ mod tests {
     use super::*;
     use crate::column::ValidityBitmap;
     use crate::temporal::{SamplingRegularity, TimeIndex};
+
+    fn single_column(values: &[f64]) -> TimeSeriesData {
+        let mut schema = CausalSchemaBuilder::new();
+        schema
+            .add_variable(
+                "x",
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        let column = Float64Column::new(
+            VariableId::from_raw(0),
+            Arc::from(values),
+            ValidityBitmap::all_valid(values.len()),
+        )
+        .unwrap();
+        let storage = OwnedColumnarStorage::try_new(
+            schema.build().unwrap(),
+            vec![OwnedColumn::Float64(column)],
+            None,
+            None,
+        )
+        .unwrap();
+        TimeSeriesData::try_new(
+            storage,
+            TimeIndex {
+                regularity: SamplingRegularity::Regular { interval_ns: 1 },
+                length: values.len(),
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn permutation_preserves_observed_marginal_and_missing_positions() {
+        let data = single_column(&[1.0, f64::NAN, 2.0, 3.0]);
+        for seed in 0..16 {
+            let out = surrogate_permute_columns(&data, &mut CausalRng::from_seed(seed)).unwrap();
+            let ColumnView::Float64(column) = out.column(VariableId::from_raw(0)).unwrap() else {
+                panic!("float");
+            };
+            assert!(!column.validity.is_valid(1));
+            let mut observed: Vec<f64> = column
+                .values
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| column.validity.is_valid(*index))
+                .map(|(_, &value)| value)
+                .collect();
+            observed.sort_by(f64::total_cmp);
+            assert_eq!(observed, vec![1.0, 2.0, 3.0]);
+        }
+    }
+
+    #[test]
+    fn phase_randomization_refuses_missing_or_infinite_observations() {
+        for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let data = single_column(&[1.0, invalid, 2.0, 3.0]);
+            assert!(surrogate_phase_randomize(&data, &mut CausalRng::from_seed(7)).is_err());
+        }
+    }
 
     fn two_col_ar1() -> TimeSeriesData {
         let n = 128usize;

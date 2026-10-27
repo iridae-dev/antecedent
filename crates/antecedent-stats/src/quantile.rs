@@ -27,7 +27,8 @@ pub enum QuantileRule {
 }
 
 /// `p`-quantile of an ascending-sorted sample under `rule`; `NaN` for an empty sample.
-/// `p` is clamped to `[0, 1]`.
+/// `p` is clamped to `[0, 1]`; a NaN probability or a sample containing NaN yields NaN.
+/// The sample must be ordered by [`f64::total_cmp`].
 #[must_use]
 #[allow(
     clippy::cast_possible_truncation,
@@ -36,7 +37,7 @@ pub enum QuantileRule {
 )]
 pub fn quantile_sorted(sorted: &[f64], p: f64, rule: QuantileRule) -> f64 {
     let d = sorted.len();
-    if d == 0 {
+    if d == 0 || p.is_nan() || sorted[0].is_nan() || sorted[d - 1].is_nan() {
         return f64::NAN;
     }
     let p = p.clamp(0.0, 1.0);
@@ -48,8 +49,18 @@ pub fn quantile_sorted(sorted: &[f64], p: f64, rule: QuantileRule) -> f64 {
     };
     let lo = zero_based.floor() as usize;
     let hi = zero_based.ceil() as usize;
+    if lo == hi {
+        return sorted[lo];
+    }
     let frac = zero_based - lo as f64;
-    sorted[lo] + (sorted[hi] - sorted[lo]) * frac
+    let difference = sorted[hi] - sorted[lo];
+    if difference.is_finite() {
+        sorted[lo] + difference * frac
+    } else {
+        // Opposite-sign finite extremes can overflow their difference even though
+        // the interpolated quantile is finite. Weight each endpoint instead.
+        sorted[lo] * (1.0 - frac) + sorted[hi] * frac
+    }
 }
 
 /// Equal-tailed interval `[q((1 − level)/2), q((1 + level)/2)]` of an ascending-sorted sample.
@@ -83,6 +94,25 @@ pub fn mad_sigma(values: &[f64]) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn exchangeable_rank_rejects_nan_samples_and_probabilities() {
+        for mut sample in [[1.0, 2.0, f64::NAN], [-f64::NAN, 1.0, 2.0]] {
+            sample.sort_by(f64::total_cmp);
+            assert!(quantile_sorted(&sample, 0.5, QuantileRule::ExchangeableRank).is_nan());
+        }
+        assert!(quantile_sorted(&[1.0, 2.0], f64::NAN, QuantileRule::ExchangeableRank).is_nan());
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "singleton quantiles return the exact stored endpoint")]
+    fn exchangeable_rank_interpolation_handles_extreme_values_and_endpoints() {
+        let sample = [-f64::MAX, f64::MAX];
+        assert!(quantile_sorted(&sample, 0.5, QuantileRule::ExchangeableRank).abs() < f64::EPSILON);
+        for value in [f64::NEG_INFINITY, 1.0, f64::INFINITY] {
+            assert_eq!(quantile_sorted(&[value], 0.5, QuantileRule::ExchangeableRank), value);
+        }
+    }
 
     #[test]
     #[allow(
