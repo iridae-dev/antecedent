@@ -188,11 +188,11 @@ def test_diagnostic_execution_honors_resource_cancellation_and_original_observer
     assert study.inspect().stage == "prepared"
 
 
-def test_prepared_rank_plans_reject_role_reconstruction_and_loose_execution_overrides():
+def test_prepared_rank_plans_reject_role_reconstruction_and_loose_execution_keywords():
     study = _study()
     with pytest.raises(CausalTypeError):
         pf.plan_rank_drop(study, treatment="t", outcome="y", adjustment=["a", "b"])
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(TypeError, match="unexpected keyword"):
         pf.plan_rank_drop(study, seed=1)
     with pytest.raises(CausalTypeError):
         pf.diagnose(study, execution={"seed": 1})

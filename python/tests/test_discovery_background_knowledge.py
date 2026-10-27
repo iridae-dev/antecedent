@@ -15,7 +15,7 @@ import json
 
 import numpy as np
 import pytest
-from antecedent import _native
+from antecedent import Execution, _native
 from antecedent import selective_discovery as sd
 from antecedent.accepted_graph import AcceptedGraph
 from antecedent.discovery import (
@@ -191,12 +191,14 @@ def test_pcmci_forbidden_lagged_link_is_not_a_candidate() -> None:
     data = lag1_series()
     names = list(data)
     columns = [data[n] for n in names]
-    plain = PCMCI(max_lag=1, alpha=0.01, fdr=False).run((names, columns), seed=1)
+    plain = PCMCI(max_lag=1, alpha=0.01, fdr=False).run(
+        (names, columns), execution=Execution(seed=1)
+    )
     assert ("x", 1, "y", 0) in links(plain)
 
     knowledge = BackgroundKnowledge(forbidden=(Link("x", "y", source_lag=1),))
     constrained = PCMCI(max_lag=1, alpha=0.01, fdr=False, knowledge=knowledge).run(
-        (names, columns), seed=1
+        (names, columns), execution=Execution(seed=1)
     )
     assert ("x", 1, "y", 0) not in links(constrained)
     assert constrained.background_knowledge is not None
@@ -207,11 +209,15 @@ def test_pcmci_accepts_a_parent_limit_and_refuses_a_required_link_outside_its_wi
     names = list(data)
     columns = [data[n] for n in names]
     limited = BackgroundKnowledge(max_parents=1)
-    PCMCI(max_lag=1, fdr=False, knowledge=limited).run((names, columns), seed=1)
+    PCMCI(max_lag=1, fdr=False, knowledge=limited).run(
+        (names, columns), execution=Execution(seed=1)
+    )
 
     contemporaneous = BackgroundKnowledge(required=(Link("x", "y"),))
     with pytest.raises(CausalUnsupportedError) as error:
-        PCMCI(max_lag=1, fdr=False, knowledge=contemporaneous).run((names, columns), seed=1)
+        PCMCI(max_lag=1, fdr=False, knowledge=contemporaneous).run(
+            (names, columns), execution=Execution(seed=1)
+        )
     refused(error, "option_not_applicable")
 
 
@@ -292,7 +298,9 @@ def test_a_masked_split_records_the_exclusions_and_keeps_original_row_ids() -> N
     data = chain()
     keep = np.ones(N, dtype=bool)
     keep[[0, 17]] = False
-    split = sd.discover_on_split(split_contract(), data, discovery_fraction=0.4, seed=5, mask=keep)
+    split = sd.discover_on_split(
+        split_contract(), data, discovery_fraction=0.4, split_seed=5, mask=keep
+    )
     receipt = split.receipt
     assert receipt.masked_out_rows == (0, 17)
     assert receipt.incomplete_rows == ()
@@ -312,7 +320,7 @@ def test_incomplete_rows_are_excluded_before_the_split() -> None:
     data = chain()
     data["b"] = data["b"].copy()
     data["b"][[4, 9]] = np.nan
-    split = sd.discover_on_split(split_contract(), data, discovery_fraction=0.5, seed=2)
+    split = sd.discover_on_split(split_contract(), data, discovery_fraction=0.5, split_seed=2)
     assert split.receipt.incomplete_rows == (4, 9)
     assert not {4, 9} & set(split.analysis_row_ids.tolist() + split.discovery_row_ids.tolist())
     assert split.receipt.n_discovery + split.receipt.n_analysis == N - 2
@@ -325,7 +333,7 @@ def test_a_weighted_split_gathers_weights_and_reports_the_effective_size() -> No
         split_contract("weighted_parcorr"),
         data,
         discovery_fraction=0.5,
-        seed=8,
+        split_seed=8,
         weights=weights,
     )
     gathered = weights[split.analysis_row_ids]
@@ -351,12 +359,12 @@ def test_weights_must_match_the_declared_test() -> None:
     weights = np.ones(N)
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as error:
         sd.discover_on_split(
-            split_contract(), data, discovery_fraction=0.5, seed=1, weights=weights
+            split_contract(), data, discovery_fraction=0.5, split_seed=1, weights=weights
         )
     assert error.value.detail == "selective_discovery.weights_not_read_by_test"
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as error:
         sd.discover_on_split(
-            split_contract("weighted_parcorr"), data, discovery_fraction=0.5, seed=1
+            split_contract("weighted_parcorr"), data, discovery_fraction=0.5, split_seed=1
         )
     assert error.value.detail == "selective_discovery.weighted_test_without_weights"
 
@@ -382,19 +390,23 @@ def test_pcmci_plus_orients_a_contemporaneous_edge_from_knowledge() -> None:
     data = contemporaneous_pair()
     names = list(data)
     table = (names, [data[n] for n in names])
-    plain = PCMCIPlus(max_lag=1, alpha=0.001, fdr=False).run(table, seed=1)
+    plain = PCMCIPlus(max_lag=1, alpha=0.001, fdr=False).run(table, execution=Execution(seed=1))
     assert marks(plain, "x", "y") == ("tail", "tail")
 
     tiered = BackgroundKnowledge(tiers=(("x",), ("y",)))
-    result = PCMCIPlus(max_lag=1, alpha=0.001, fdr=False, knowledge=tiered).run(table, seed=1)
+    result = PCMCIPlus(max_lag=1, alpha=0.001, fdr=False, knowledge=tiered).run(
+        table, execution=Execution(seed=1)
+    )
     assert marks(result, "x", "y") == ("tail", "arrow")
     assert result.background_knowledge is not None
 
     reverse = BackgroundKnowledge(forbidden=(Link("x", "y"),))
-    result = PCMCIPlus(max_lag=1, alpha=0.001, fdr=False, knowledge=reverse).run(table, seed=1)
+    result = PCMCIPlus(max_lag=1, alpha=0.001, fdr=False, knowledge=reverse).run(
+        table, execution=Execution(seed=1)
+    )
     assert marks(result, "x", "y") == ("arrow", "tail")
 
     clash = BackgroundKnowledge(required=(Link("x", "y"),), tiers=(("y",), ("x",)))
     with pytest.raises(CausalUnsupportedError) as error:
-        PCMCIPlus(max_lag=1, fdr=False, knowledge=clash).run(table, seed=1)
+        PCMCIPlus(max_lag=1, fdr=False, knowledge=clash).run(table, execution=Execution(seed=1))
     refused(error, "invalid_argument")

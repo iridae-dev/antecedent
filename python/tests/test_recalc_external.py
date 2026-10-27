@@ -12,6 +12,7 @@ import antecedent as ac
 import numpy as np
 import pytest
 from antecedent import external
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 from antecedent.program_claims import ProgramBinding
 from antecedent.recalc import RecalcReceipt
@@ -196,7 +197,9 @@ def test_callback_cancellation_bounds_and_replay_mismatch_are_typed():
     cancel.cancel()
     with pytest.raises(ExternalCallbackRefusal) as error:
         require_success(
-            ExternalCallbackSession().execute(request, provider=provider, cancel=cancel)
+            ExternalCallbackSession().execute(
+                request, provider=provider, execution=Execution(cancel=cancel)
+            )
         )
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "cancelled_no_claim",
@@ -223,7 +226,9 @@ def test_callback_cancellation_bounds_and_replay_mismatch_are_typed():
     with pytest.raises(CausalValueError) as error:
         require_success(
             ExternalCallbackSession().execute(
-                oversized, provider=provider, memory_limit_bytes=800_000
+                oversized,
+                provider=provider,
+                execution=Execution(limits=ResourceLimits(memory_bytes=800_000)),
             )
         )
     assert error.value.reason_code == "invalid_argument" and (

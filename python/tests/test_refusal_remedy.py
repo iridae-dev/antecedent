@@ -97,17 +97,16 @@ def test_python_refusal_accepts_a_remedy_without_changing_its_message():
     assert remedied.reason_code == plain.reason_code
 
 
-def test_conditional_effect_over_several_modifiers_names_the_multi_modifier_routes():
-    # The frequentist interaction regression fits one modifier; a modifier set
-    # is refused up front, with the routes that take one in ``remedy``.
-    with pytest.raises(CausalUnsupportedError) as raised:
-        antecedent.ConditionalEffect("t", "y", ["w", "v"])
-    err = raised.value
-    assert str(err) == "ConditionalEffect takes one modifier column"
-    assert err.reason_code is None
-    assert err.remedy is not None
-    assert "antecedent.handoff.econml(result, modifiers=[...])" in err.remedy
-    assert "BayesianConditional" in err.remedy
-    assert err.remedy not in str(err)
+def test_conditional_effect_accepts_a_modifier_set_and_refuses_malformed_modifiers():
+    # A modifier set is accepted and normalized; empty, repeated or non-string
+    # modifiers are invalid arguments (typed errors, not a route refusal).
+    several = antecedent.ConditionalEffect("t", "y", ["w", "v"])
+    assert several.modifiers == ("w", "v")
+    assert antecedent.ConditionalEffect("t", "y", ("w", "v")) == several
+    for bad in ([], ["w", "w"], ["w", 3], 3):
+        with pytest.raises(CausalValueError):
+            antecedent.ConditionalEffect("t", "y", bad)
     # A single column name is unchanged.
-    assert antecedent.ConditionalEffect("t", "y", "w").modifier == "w"
+    single = antecedent.ConditionalEffect("t", "y", "w")
+    assert single.modifier == "w"
+    assert single.modifiers == ("w",)

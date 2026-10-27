@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from antecedent import _native, design
 from antecedent.errors import CausalStateError, CausalValueError
+from antecedent.execution import CachePolicy, Execution
 from antecedent.outcomes import require_success
 
 
@@ -168,13 +169,13 @@ def test_fitted_gcm_sample_do():
     cols = [data[n] for n in names]
     edges = [("z", "t"), ("z", "y"), ("t", "y")]
     gcm = antecedent.model.fit_gcm(names, cols, edges)
-    out = gcm.sample_do({"t": 1.0}, n=50, seed=3)
+    out = gcm.sample_do({"t": 1.0}, n=50, execution=antecedent.Execution(seed=3))
     assert out.n_draws == 50
     assert out.draws.shape[1] == 50
 
 
 def test_antecedent_state_append_data():
-    state = antecedent.state.CausalState(cache_bytes=1 << 20)
+    state = antecedent.state.CausalState(execution=Execution(cache=CachePolicy.bounded(1 << 20)))
     v0 = state.version
     data = _ate_data(n=20)
     names = list(data.keys())
@@ -200,7 +201,7 @@ def test_antecedent_state_append_data():
     cov = state.cov_get("c1")
     assert cov["n"] == 1
 
-    state.particle_filter_init("pf", 32, seed=2)
+    state.particle_filter_init("pf", 32, execution=Execution(seed=2))
     state.particle_filter_step("pf", 0.0)
     pf = state.particle_filter_get("pf")
     assert pf["n_obs"] == 1
@@ -228,7 +229,7 @@ def test_antecedent_state_ols_append_matches_full_recompute():
     beta_true = np.array([0.5, -1.25])
     y = x @ beta_true + rng.normal(size=30) * 0.05
 
-    state = antecedent.state.CausalState(cache_bytes=1 << 20)
+    state = antecedent.state.CausalState(execution=Execution(cache=CachePolicy.bounded(1 << 20)))
     state.ols_ensure("ols", 2)
     # Two append batches (online path).
     for i in range(0, 12):
@@ -257,7 +258,7 @@ def test_antecedent_state_ols_append_matches_full_recompute():
 
 
 def test_antecedent_state_rejected_replace_preserves_existing_data():
-    state = antecedent.state.CausalState(cache_bytes=1 << 20)
+    state = antecedent.state.CausalState(execution=Execution(cache=CachePolicy.bounded(1 << 20)))
     state.append_data(
         ["t", "y"],
         [np.array([0.0, 1.0]), np.array([1.0, 3.0])],
@@ -508,32 +509,32 @@ def test_extensibility_exported():
     [
         (
             "joint_bayesian_transport",
-            "sources target features graph graph_class dependence varying sharing draws seed identification priors treatment outcome max_unsupported_mass conflict_z_threshold level memory_limit_bytes cancel",
+            "sources target features graph graph_class dependence varying sharing draws identification priors treatment outcome max_unsupported_mass conflict_z_threshold level execution",
             "MeasuredInference",
         ),
         (
             "learned_joint_transport",
-            "sources target features graph graph_class dependence varying sharing basis_degree draws seed identification priors treatment outcome max_unsupported_mass conflict_z_threshold level memory_limit_bytes cancel",
+            "sources target features graph graph_class dependence varying sharing basis_degree draws identification priors treatment outcome max_unsupported_mass conflict_z_threshold level execution",
             "MeasuredInference",
         ),
         (
             "temporal_dependent_interval",
-            "panel sequence estimand fixed_state target_law replicates seed level method min_units max_failed_fraction memory_limit_bytes cancel",
+            "panel sequence estimand fixed_state target_law replicates level method min_units max_failed_fraction execution",
             "MeasuredInference",
         ),
         (
             "binary_nested_markov",
-            "graph regimes max_iterations tolerance prior seed memory_limit_bytes cancel",
+            "graph regimes max_iterations tolerance prior execution",
             "MeasuredInference",
         ),
         (
             "binary_nested_markov_fisher_interval",
-            "graph regimes nominal_level max_iterations tolerance memory_limit_bytes cancel",
+            "graph regimes nominal_level max_iterations tolerance execution",
             "MeasuredInference",
         ),
         (
             "sampled_observation_recovery",
-            "stage query rows snapshot replicates seed interval_method memory_limit_bytes cancel",
+            "stage query rows snapshot replicates interval_method execution",
             "MeasuredInference",
         ),
         (
@@ -582,7 +583,7 @@ def test_checked_prior_bridge_signature_and_identity_defaults():
 
 
 def test_graph_evidence_is_versioned_and_listed_in_the_order_it_was_added():
-    state = antecedent.state.CausalState(cache_bytes=1 << 20)
+    state = antecedent.state.CausalState(execution=Execution(cache=CachePolicy.bounded(1 << 20)))
     assert state.graph_evidence() == []
     v0 = state.version
     v1 = state.add_graph_evidence("pc-run", 7, 128)

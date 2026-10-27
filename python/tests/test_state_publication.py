@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 from antecedent import state as st
 from antecedent.errors import CausalResourceError, CausalStateError, CausalTypeError
+from antecedent.execution import CachePolicy, Execution
 from antecedent.prepared import prepare, rebind
 from antecedent.state import CausalState, publish_recomputed_results, result_lineage_fingerprint
 from antecedent.transport import revalidation as rv
@@ -46,7 +47,7 @@ def _batch() -> tuple[list[str], list[np.ndarray]]:
 
 
 def _state_with_query(cache_bytes: int = 1 << 20) -> tuple[CausalState, int]:
-    state = CausalState(cache_bytes)
+    state = CausalState(Execution(cache=CachePolicy.bounded(cache_bytes)))
     state.append_data(*_batch())
     _, query = state.register_average_effect(0, 1)
     return state, query
@@ -198,3 +199,39 @@ def test_claim_effects_refuse_unknown_targets_and_a_future_version():
     effects = rv.invalidation_effects(state, 0, bound)
     # The all-results entry reaches every bound claim.
     assert {e.key for e in effects} == {rv.claim_node_key(c) for c, _, _ in bound}
+
+
+def test_the_cache_budget_comes_from_the_execution_cache_policy() -> None:
+    from antecedent.state import antecedent_state_append
+
+    for policy in (CachePolicy.disabled(), CachePolicy.bounded(8)):
+        state = CausalState(Execution(cache=policy))
+        state.append_data(*_batch())
+        _, query = state.register_average_effect(0, 1)
+        with pytest.raises(CausalResourceError):
+            publish_recomputed_results(state, state.version, [(query, _identities(_study()), 64)])
+    roomy = CausalState(Execution(cache=CachePolicy.unbounded()))
+    roomy.append_data(*_batch())
+    _, query = roomy.register_average_effect(0, 1)
+    publish_recomputed_results(roomy, roomy.version, [(query, _identities(_study()), 1 << 40)])
+    assert antecedent_state_append(3, execution=Execution())[0] >= 3
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        CausalState(cache_bytes=8)
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        antecedent_state_append(2, cache_bytes=8)
+    with pytest.raises(CausalTypeError):
+        CausalState(execution={"cache": 8})
+
+
+def test_particle_filter_stream_is_seeded_by_the_execution() -> None:
+    def trace(seed: int) -> dict:
+        state = CausalState()
+        state.particle_filter_init("pf", 32, execution=Execution(seed=seed))
+        for y in (0.2, -0.1, 0.4):
+            state.particle_filter_step("pf", y)
+        return state.particle_filter_get("pf")
+
+    assert trace(2) == trace(2)
+    assert trace(2) != trace(3)
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        CausalState().particle_filter_init("pf", 32, seed=2)

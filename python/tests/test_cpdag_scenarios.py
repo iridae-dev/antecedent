@@ -18,6 +18,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.execution import Execution
 from antecedent.transport import advanced as transport
 
 NAMES = ["a", "b", "c"]
@@ -257,7 +258,7 @@ def test_budget_stop_retains_explored_and_unevaluated():
 def test_cancelled_report_is_not_exportable():
     token = antecedent.state.CancellationToken()
     token.cancel()
-    cancelled = run(cancel=token)
+    cancelled = run(execution=Execution(cancel=token))
     assert cancelled.completions == () and cancelled.counts.not_enumerated == 4
     assert cancelled.counts.unevaluated == 4 and cancelled.envelope is None
     assert cancelled.receipt.stop == "search.cancelled" and not cancelled.exportable

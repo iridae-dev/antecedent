@@ -40,7 +40,7 @@ def test_path_specific_graph_posterior_runs_and_is_never_licensed():
             {"t": treatment, "y": outcome},
             query=antecedent.PathSpecificEffect("t", "y"),
             discovery=antecedent.discovery.ExactDagPosterior().run(
-                {"t": treatment, "y": outcome}, seed=1
+                {"t": treatment, "y": outcome}, execution=antecedent.Execution(seed=1)
             ),
             refute=False,
             inference=antecedent.Frequentist(bootstrap=0),

@@ -9,6 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcRefusal, Utility
 from antecedent.recalc_capabilities import (
@@ -81,16 +82,21 @@ def test_temporal_accepts_one_hundred_thousand_history_rows_as_columns():
     )
     big = replace(base, units=units, period=(0, 40))
     assert sum(len(unit.histories) for unit in units) == 102_400
-    result = require_success(TemporalSession().execute(big, seed=41))
+    result = require_success(TemporalSession().execute(big, execution=Execution(seed=41)))
     assert result.means == pytest.approx((truth(1, 1, 0.8), truth(0, 0, 0.8)), abs=1e-9)
     with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded"):
-        require_success(TemporalSession().execute(big, seed=41, memory_limit_bytes=1_000_000))
+        require_success(
+            TemporalSession().execute(
+                big,
+                execution=Execution(seed=41, limits=ResourceLimits(memory_bytes=1_000_000)),
+            )
+        )
 
 
 def test_temporal_actual_history_effect_and_response_scm_truth_and_full_rerun():
     req = request()
     session = TemporalSession()
-    result = require_success(session.execute(req, seed=41))
+    result = require_success(session.execute(req, execution=Execution(seed=41)))
     assert result.means == pytest.approx((truth(1, 1, 0.8), truth(0, 0, 0.8)), abs=1e-12)
     assert result.law.ate == pytest.approx(0.5675, abs=1e-12)
     assert result.law.std_error is None
@@ -98,34 +104,48 @@ def test_temporal_actual_history_effect_and_response_scm_truth_and_full_rerun():
     assert result.receipt.totals.program_compilations > 0
     assert result.receipt.totals.integrations > 0
     assert result.receipt.totals.model_fits == result.receipt.totals.fold_fits == 0
-    assert require_success(TemporalSession().execute(req, seed=41)).means == result.means
+    assert (
+        require_success(TemporalSession().execute(req, execution=Execution(seed=41))).means
+        == result.means
+    )
     response = replace(req, functional=TemporalResponse((1, 1)))
-    result = require_success(session.execute(response, seed=41))
+    result = require_success(session.execute(response, execution=Execution(seed=41)))
     assert isinstance(result.functional, TemporalResponse)
     assert result.law.ate == pytest.approx(truth(1, 1, 0.8), abs=1e-12)
     assert result.means == pytest.approx((result.law.ate,), abs=1e-12)
-    assert require_success(TemporalSession().execute(response, seed=41)).means == result.means
+    assert (
+        require_success(TemporalSession().execute(response, execution=Execution(seed=41))).means
+        == result.means
+    )
 
 
 def test_temporal_utility_target_and_functional_reuse_actual_mechanisms():
     req = request()
     session = TemporalSession()
-    first = require_success(session.execute(req, seed=41))
-    assert require_success(session.execute(req, seed=41)).receipt.totals.total == 0
-    utility = require_success(session.execute(replace(req, utility=Utility(3, 1)), seed=41))
+    first = require_success(session.execute(req, execution=Execution(seed=41)))
+    assert (
+        require_success(session.execute(req, execution=Execution(seed=41))).receipt.totals.total
+        == 0
+    )
+    utility = require_success(
+        session.execute(replace(req, utility=Utility(3, 1)), execution=Execution(seed=41))
+    )
     assert utility.receipt.totals.total == utility.receipt.totals.decisions == 1
     assert utility.law == first.law
     target = replace(req, initial_state=(0.5, 0.5), initial_state_id="new-target")
-    result = require_success(session.execute(target, seed=41))
+    result = require_success(session.execute(target, execution=Execution(seed=41)))
     assert result.receipt.totals.factor_builds == 0
     assert result.law.ate == pytest.approx(truth(1, 1, 0.5) - truth(0, 0, 0.5), abs=1e-12)
-    assert require_success(TemporalSession().execute(target, seed=41)).law == result.law
+    assert (
+        require_success(TemporalSession().execute(target, execution=Execution(seed=41))).law
+        == result.law
+    )
 
 
 def test_temporal_source_history_changes_refit_and_match_fresh_execution():
     req = request()
     session = TemporalSession()
-    first = require_success(session.execute(req, seed=41))
+    first = require_success(session.execute(req, execution=Execution(seed=41)))
     changed = replace(
         req,
         units=tuple(
@@ -136,15 +156,18 @@ def test_temporal_source_history_changes_refit_and_match_fresh_execution():
         ),
         snapshot_id="changed-source",
     )
-    result = require_success(session.execute(changed, seed=41))
+    result = require_success(session.execute(changed, execution=Execution(seed=41)))
     assert result.receipt.totals.factor_builds > 0
     assert result.law.ate == pytest.approx(-first.law.ate, abs=1e-12)
-    assert require_success(TemporalSession().execute(changed, seed=41)).means == result.means
+    assert (
+        require_success(TemporalSession().execute(changed, execution=Execution(seed=41))).means
+        == result.means
+    )
 
 
 def test_temporal_unmeasured_history_protocol_preserves_source_state():
     session = TemporalSession()
-    require_success(session.execute(request(), seed=41))
+    require_success(session.execute(request(), execution=Execution(seed=41)))
     ids = session.identities
     with pytest.raises(RecalcRefusal) as error:
         session.dependent_interval()
@@ -154,13 +177,18 @@ def test_temporal_unmeasured_history_protocol_preserves_source_state():
         "inference",
     )
     assert session.identities == ids
-    assert require_success(session.execute(request(), seed=41)).receipt.totals.total == 0
+    assert (
+        require_success(
+            session.execute(request(), execution=Execution(seed=41))
+        ).receipt.totals.total
+        == 0
+    )
 
 
 def test_temporal_exact_scope_refusals_preserve_native_state():
     req = request()
     session = TemporalSession()
-    require_success(session.execute(req, seed=41))
+    require_success(session.execute(req, execution=Execution(seed=41)))
     ids = session.identities
     for changed in (
         replace(req, horizon=3),
@@ -168,14 +196,17 @@ def test_temporal_exact_scope_refusals_preserve_native_state():
         replace(req, bidirected=((0, 4),)),
     ):
         with pytest.raises(RecalcRefusal) as error:
-            require_success(session.execute(changed, seed=41))
+            require_success(session.execute(changed, execution=Execution(seed=41)))
         assert (error.value.reason_code, error.value.detail, error.value.stage) == (
             "route_not_supported",
             "recalc.temporal_scope_unsupported",
             "identification",
         )
         assert session.identities == ids
-    assert require_success(session.execute(req, seed=41)).receipt.totals.total == 0
+    assert (
+        require_success(session.execute(req, execution=Execution(seed=41))).receipt.totals.total
+        == 0
+    )
 
 
 def test_temporal_native_capabilities_and_bounded_histories():
@@ -183,13 +214,18 @@ def test_temporal_native_capabilities_and_bounded_histories():
 
     session = TemporalSession()
     assert retained_kind(session) == RetainedKind.READABLE
-    require_success(session.execute(request(), seed=41))
+    require_success(session.execute(request(), execution=Execution(seed=41)))
     assert retained_kind(session) == RetainedKind.LIVE_HISTORY
     assert require_adapter(Family.TEMPORAL, Operation.TARGET, session).state_type is TemporalSession
     unit = request().units[0]
     many = replace(request(), units=(unit,) * 4097)
     with pytest.raises(CausalValueError) as error:
-        require_success(session.execute(many, seed=41, memory_limit_bytes=4096))
+        require_success(
+            session.execute(
+                many,
+                execution=Execution(seed=41, limits=ResourceLimits(memory_bytes=4096)),
+            )
+        )
     assert error.value.reason_code == "invalid_argument"
     assert "recalc.memory_budget_exceeded" in str(error.value)
 
@@ -197,23 +233,32 @@ def test_temporal_native_capabilities_and_bounded_histories():
 def test_temporal_source_artifact_independent_fresh_process_rebuild(tmp_path):
     req = request()
     session = TemporalSession()
-    result = require_success(session.execute(req, seed=41))
+    result = require_success(session.execute(req, execution=Execution(seed=41)))
     artifact = tmp_path / "histories.artifact"
     receipt = tmp_path / "histories.receipt"
-    artifact.write_bytes(bytes(session.export(seed=999)))
+    artifact.write_bytes(bytes(session.export(execution=Execution(seed=999))))
     receipt.write_bytes(bytes(result.receipt.export()))
-    replay = require_success(consume_temporal_result(artifact.read_bytes(), seed=41))
+    replay = require_success(
+        consume_temporal_result(artifact.read_bytes(), execution=Execution(seed=41))
+    )
     assert replay.result.means == result.means
     assert replay.result.receipt.totals.factor_builds > 0
-    assert require_success(replay.session.execute(req, seed=41)).receipt.totals.total == 0
+    assert (
+        require_success(
+            replay.session.execute(req, execution=Execution(seed=41))
+        ).receipt.totals.total
+        == 0
+    )
     with pytest.raises(RecalcRefusal) as error:
-        require_success(consume_temporal_result(artifact.read_bytes(), seed=42))
+        require_success(
+            consume_temporal_result(artifact.read_bytes(), execution=Execution(seed=42))
+        )
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "invalid_argument",
         "recalc.temporal_artifact_seed_mismatch",
         "score_artifact",
     )
-    code = "from antecedent.outcomes import require_success\nimport json, pathlib, sys\nsys.path.insert(0, sys.argv[3])\nfrom test_recalc_temporal import request\nfrom antecedent.recalc import RecalcReceipt, ResumeContext, RecalcRefusal\nfrom antecedent.recalc_temporal import TemporalSession, consume_temporal_result\nreplay = require_success(consume_temporal_result(pathlib.Path(sys.argv[1]).read_bytes(), seed=41))\nreceipt = require_success(RecalcReceipt.consume(pathlib.Path(sys.argv[2]).read_bytes()))\nflags = require_success(TemporalSession.resume(receipt, ResumeContext(portable_fit=True, portable_scores=True)))\ntry:\n    require_success(flags.execute(request(), seed=41))\n    raise AssertionError('flags restored native mechanisms')\nexcept RecalcRefusal as error:\n    refused = (error.reason_code, error.detail, error.stage)\nraw = require_success(require_success(TemporalSession.resume(receipt, ResumeContext(supplied_data=True))).execute(request(), seed=41))\nprint(json.dumps({'means': replay.result.means, 'point': replay.result.law.ate, 'rebuild': replay.result.receipt.totals.factor_builds, 'reuse': require_success(replay.session.execute(request(), seed=41)).receipt.totals.total, 'raw': raw.receipt.totals.factor_builds, 'refused': refused}))\n"
+    code = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nimport json, pathlib, sys\nsys.path.insert(0, sys.argv[3])\nfrom test_recalc_temporal import request\nfrom antecedent.recalc import RecalcReceipt, ResumeContext, RecalcRefusal\nfrom antecedent.recalc_temporal import TemporalSession, consume_temporal_result\nreplay = require_success(consume_temporal_result(pathlib.Path(sys.argv[1]).read_bytes(), execution=Execution(seed=41)))\nreceipt = require_success(RecalcReceipt.consume(pathlib.Path(sys.argv[2]).read_bytes()))\nflags = require_success(TemporalSession.resume(receipt, ResumeContext(portable_fit=True, portable_scores=True)))\ntry:\n    require_success(flags.execute(request(), execution=Execution(seed=41)))\n    raise AssertionError('flags restored native mechanisms')\nexcept RecalcRefusal as error:\n    refused = (error.reason_code, error.detail, error.stage)\nraw = require_success(require_success(TemporalSession.resume(receipt, ResumeContext(supplied_data=True))).execute(request(), execution=Execution(seed=41)))\nprint(json.dumps({'means': replay.result.means, 'point': replay.result.law.ate, 'rebuild': replay.result.receipt.totals.factor_builds, 'reuse': require_success(replay.session.execute(request(), execution=Execution(seed=41))).receipt.totals.total, 'raw': raw.receipt.totals.factor_builds, 'refused': refused}))\n"
     child = subprocess.run(
         [sys.executable, "-c", code, str(artifact), str(receipt), str(Path(__file__).parent)],
         capture_output=True,
@@ -234,11 +279,11 @@ def test_temporal_source_artifact_independent_fresh_process_rebuild(tmp_path):
 def test_temporal_typed_unit_ownership_and_source_support_refusals():
     req = request()
     session = TemporalSession()
-    require_success(session.execute(req, seed=41))
+    require_success(session.execute(req, execution=Execution(seed=41)))
     ids = session.identities
     duplicate = replace(req, units=(req.units[0], req.units[0]))
     with pytest.raises(RecalcRefusal) as error:
-        require_success(session.execute(duplicate, seed=41))
+        require_success(session.execute(duplicate, execution=Execution(seed=41)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "route_not_supported",
         "recalc.temporal_history_unsupported",
@@ -251,11 +296,14 @@ def test_temporal_typed_unit_ownership_and_source_support_refusals():
         snapshot_id="missing-initial-state",
     )
     with pytest.raises(RecalcRefusal) as error:
-        require_success(session.execute(gap, seed=41))
+        require_success(session.execute(gap, execution=Execution(seed=41)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "transport_support_failure",
         "recalc.temporal_support_failure",
         "law",
     )
     assert session.identities == ids
-    assert require_success(session.execute(req, seed=41)).receipt.totals.total == 0
+    assert (
+        require_success(session.execute(req, execution=Execution(seed=41))).receipt.totals.total
+        == 0
+    )

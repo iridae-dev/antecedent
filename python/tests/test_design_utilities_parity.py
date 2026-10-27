@@ -16,7 +16,7 @@ from pathlib import Path
 
 import antecedent
 import pytest
-from antecedent import interference
+from antecedent import Execution, interference
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
@@ -92,7 +92,11 @@ def interference_case(units, design, exposure, from_, to, seed, draws=10_000):
     )
     r = require_success(
         interference.estimate(
-            {"y": y}, assignment=assignment, edges=ring(units), query=query, seed=seed
+            {"y": y},
+            assignment=assignment,
+            edges=ring(units),
+            query=query,
+            execution=Execution(seed=seed),
         )
     )
     return {

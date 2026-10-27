@@ -23,6 +23,7 @@ import dataclasses
 import math
 import sys
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalSerializationError, CausalTypeError, CausalUnsupportedError
@@ -317,7 +318,10 @@ def test_mediation_digest_bound_artifact_needs_the_dataset_and_respects_the_memo
         consume_mediation_artifact(bound, **{**columns, "outcome": g["outcome"] + 1e-9})
     assert refused.value.detail == "nonlinear_mediation.wrong_contract"
     with pytest.raises(MediationRefusal) as refused:
-        consume_mediation_artifact(bytes(run(g).export()), memory_limit_bytes=1_000)
+        consume_mediation_artifact(
+            bytes(run(g).export()),
+            execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1_000)),
+        )
     assert refused.value.detail == "nonlinear_mediation.memory_budget_exceeded"
 
 

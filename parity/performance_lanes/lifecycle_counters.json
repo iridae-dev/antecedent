@@ -1,0 +1,1867 @@
+{
+  "baseline_comparison": {
+    "scope": "lifecycle_counters_local_not_reference_host_not_calibration",
+    "seed": {
+      "workload_3": 13,
+      "workloads_1_2": 3
+    },
+    "verdicts": "equal | improved (current attempts fewer) | WORSE (current attempts more) | not_comparable",
+    "workloads": {
+      "batch_shared_fit": {
+        "answer_equality": {
+          "max_abs_difference": 0.0,
+          "values_compared": 12,
+          "within_1e-9": true
+        },
+        "baseline": {
+          "answers": {
+            "estimate_many": [
+              [
+                1.9937989151871083,
+                0.025347619797821935
+              ],
+              [
+                0.9968994575935541,
+                0.012673809898911035
+              ]
+            ],
+            "estimate_many_repeat": [
+              [
+                1.9937989151871083,
+                0.025347619797821935
+              ],
+              [
+                0.9968994575935541,
+                0.012673809898911035
+              ]
+            ],
+            "new_data": [
+              [
+                1.9664722917538506,
+                0.03213732634617698
+              ],
+              [
+                0.9832361458769251,
+                0.01606866317308857
+              ]
+            ]
+          },
+          "steps": [
+            {
+              "native_fits": 5,
+              "native_operations": {
+                "glm_fit": {
+                  "attempted": 5,
+                  "completed": 5,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "identification": {
+                  "attempted": 4,
+                  "completed": 4,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "least_squares_solve": {
+                  "attempted": 39,
+                  "completed": 39,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "program_compilation": {
+                  "attempted": 2,
+                  "completed": 2,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "score_construction": {
+                  "attempted": 2,
+                  "completed": 2,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "prepare_many"
+            },
+            {
+              "native_fits": 5,
+              "native_operations": {
+                "glm_fit": {
+                  "attempted": 5,
+                  "completed": 5,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "least_squares_solve": {
+                  "attempted": 39,
+                  "completed": 39,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "score_construction": {
+                  "attempted": 2,
+                  "completed": 2,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "points": [
+                [
+                  1.9937989151871083,
+                  0.025347619797821935
+                ],
+                [
+                  0.9968994575935541,
+                  0.012673809898911035
+                ]
+              ],
+              "step": "estimate_many"
+            },
+            {
+              "native_fits": 5,
+              "native_operations": {
+                "glm_fit": {
+                  "attempted": 5,
+                  "completed": 5,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "least_squares_solve": {
+                  "attempted": 39,
+                  "completed": 39,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "score_construction": {
+                  "attempted": 2,
+                  "completed": 2,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "points": [
+                [
+                  1.9937989151871083,
+                  0.025347619797821935
+                ],
+                [
+                  0.9968994575935541,
+                  0.012673809898911035
+                ]
+              ],
+              "step": "estimate_many_repeat"
+            },
+            {
+              "native_fits": 5,
+              "native_operations": {
+                "glm_fit": {
+                  "attempted": 5,
+                  "completed": 5,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "least_squares_solve": {
+                  "attempted": 40,
+                  "completed": 40,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "score_construction": {
+                  "attempted": 2,
+                  "completed": 2,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "points": [
+                [
+                  1.9664722917538506,
+                  0.03213732634617698
+                ],
+                [
+                  0.9832361458769251,
+                  0.01606866317308857
+                ]
+              ],
+              "step": "estimate_new_data"
+            }
+          ]
+        },
+        "current": {
+          "answers": {
+            "estimate_many": [
+              [
+                1.9937989151871083,
+                0.025347619797821935
+              ],
+              [
+                0.9968994575935541,
+                0.012673809898911035
+              ]
+            ],
+            "estimate_many_repeat": [
+              [
+                1.9937989151871083,
+                0.025347619797821935
+              ],
+              [
+                0.9968994575935541,
+                0.012673809898911035
+              ]
+            ],
+            "new_data": [
+              [
+                1.9664722917538506,
+                0.03213732634617698
+              ],
+              [
+                0.9832361458769251,
+                0.01606866317308857
+              ]
+            ]
+          },
+          "steps": [
+            {
+              "native_fits": 0,
+              "native_operations": {
+                "identification": {
+                  "attempted": 4,
+                  "completed": 4,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "prepare_many"
+            },
+            {
+              "native_fits": 5,
+              "native_operations": {
+                "glm_fit": {
+                  "attempted": 5,
+                  "completed": 5,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "least_squares_solve": {
+                  "attempted": 39,
+                  "completed": 39,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "program_compilation": {
+                  "attempted": 2,
+                  "completed": 2,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "score_construction": {
+                  "attempted": 4,
+                  "completed": 4,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "points": [
+                [
+                  1.9937989151871083,
+                  0.025347619797821935
+                ],
+                [
+                  0.9968994575935541,
+                  0.012673809898911035
+                ]
+              ],
+              "step": "estimate_many"
+            },
+            {
+              "native_fits": 5,
+              "native_operations": {
+                "glm_fit": {
+                  "attempted": 5,
+                  "completed": 5,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "least_squares_solve": {
+                  "attempted": 39,
+                  "completed": 39,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "score_construction": {
+                  "attempted": 2,
+                  "completed": 2,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "points": [
+                [
+                  1.9937989151871083,
+                  0.025347619797821935
+                ],
+                [
+                  0.9968994575935541,
+                  0.012673809898911035
+                ]
+              ],
+              "step": "estimate_many_repeat"
+            },
+            {
+              "native_fits": 0,
+              "native_operations": {},
+              "step": "rebind"
+            },
+            {
+              "native_fits": 5,
+              "native_operations": {
+                "glm_fit": {
+                  "attempted": 5,
+                  "completed": 5,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "least_squares_solve": {
+                  "attempted": 40,
+                  "completed": 40,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "score_construction": {
+                  "attempted": 2,
+                  "completed": 2,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "points": [
+                [
+                  1.9664722917538506,
+                  0.03213732634617698
+                ],
+                [
+                  0.9832361458769251,
+                  0.01606866317308857
+                ]
+              ],
+              "step": "estimate_rebound"
+            }
+          ]
+        },
+        "phases": {
+          "estimate_many": {
+            "baseline": {
+              "attempted_by_kind": {
+                "glm_fit": 5,
+                "least_squares_solve": 39,
+                "score_construction": 2
+              },
+              "native_attempted_total": 46,
+              "native_fits": 5
+            },
+            "baseline_steps": [
+              "estimate_many"
+            ],
+            "current": {
+              "attempted_by_kind": {
+                "glm_fit": 5,
+                "least_squares_solve": 39,
+                "program_compilation": 2,
+                "score_construction": 4
+              },
+              "native_attempted_total": 50,
+              "native_fits": 5
+            },
+            "current_steps": [
+              "estimate_many"
+            ],
+            "verdict": {
+              "attempted_by_kind": {
+                "glm_fit": "equal",
+                "least_squares_solve": "equal",
+                "program_compilation": "WORSE",
+                "score_construction": "WORSE"
+              },
+              "native_attempted_total": "WORSE",
+              "native_fits": "equal"
+            }
+          },
+          "estimate_many_repeat": {
+            "baseline": {
+              "attempted_by_kind": {
+                "glm_fit": 5,
+                "least_squares_solve": 39,
+                "score_construction": 2
+              },
+              "native_attempted_total": 46,
+              "native_fits": 5
+            },
+            "baseline_steps": [
+              "estimate_many_repeat"
+            ],
+            "current": {
+              "attempted_by_kind": {
+                "glm_fit": 5,
+                "least_squares_solve": 39,
+                "score_construction": 2
+              },
+              "native_attempted_total": 46,
+              "native_fits": 5
+            },
+            "current_steps": [
+              "estimate_many_repeat"
+            ],
+            "verdict": {
+              "attempted_by_kind": {
+                "glm_fit": "equal",
+                "least_squares_solve": "equal",
+                "score_construction": "equal"
+              },
+              "native_attempted_total": "equal",
+              "native_fits": "equal"
+            }
+          },
+          "new_data": {
+            "baseline": {
+              "attempted_by_kind": {
+                "glm_fit": 5,
+                "least_squares_solve": 40,
+                "score_construction": 2
+              },
+              "native_attempted_total": 47,
+              "native_fits": 5
+            },
+            "baseline_steps": [
+              "estimate_new_data"
+            ],
+            "current": {
+              "attempted_by_kind": {
+                "glm_fit": 5,
+                "least_squares_solve": 40,
+                "score_construction": 2
+              },
+              "native_attempted_total": 47,
+              "native_fits": 5
+            },
+            "current_steps": [
+              "rebind",
+              "estimate_rebound"
+            ],
+            "verdict": {
+              "attempted_by_kind": {
+                "glm_fit": "equal",
+                "least_squares_solve": "equal",
+                "score_construction": "equal"
+              },
+              "native_attempted_total": "equal",
+              "native_fits": "equal"
+            }
+          },
+          "prepare": {
+            "baseline": {
+              "attempted_by_kind": {
+                "glm_fit": 5,
+                "identification": 4,
+                "least_squares_solve": 39,
+                "program_compilation": 2,
+                "score_construction": 2
+              },
+              "native_attempted_total": 52,
+              "native_fits": 5
+            },
+            "baseline_steps": [
+              "prepare_many"
+            ],
+            "current": {
+              "attempted_by_kind": {
+                "identification": 4
+              },
+              "native_attempted_total": 4,
+              "native_fits": 0
+            },
+            "current_steps": [
+              "prepare_many"
+            ],
+            "verdict": {
+              "attempted_by_kind": {
+                "glm_fit": "improved",
+                "identification": "equal",
+                "least_squares_solve": "improved",
+                "program_compilation": "improved",
+                "score_construction": "improved"
+              },
+              "native_attempted_total": "improved",
+              "native_fits": "improved"
+            }
+          }
+        },
+        "total": {
+          "baseline": {
+            "attempted_by_kind": {
+              "glm_fit": 20,
+              "identification": 4,
+              "least_squares_solve": 157,
+              "program_compilation": 2,
+              "score_construction": 8
+            },
+            "native_attempted_total": 191,
+            "native_fits": 20
+          },
+          "current": {
+            "attempted_by_kind": {
+              "glm_fit": 15,
+              "identification": 4,
+              "least_squares_solve": 118,
+              "program_compilation": 2,
+              "score_construction": 8
+            },
+            "native_attempted_total": 147,
+            "native_fits": 15
+          },
+          "phases_excluded_unobserved_by_predecessor": [],
+          "verdict": {
+            "artifact_bytes": "not_comparable",
+            "attempted_by_kind": {
+              "glm_fit": "improved",
+              "identification": "equal",
+              "least_squares_solve": "improved",
+              "program_compilation": "equal",
+              "score_construction": "equal"
+            },
+            "native_attempted_total": "improved",
+            "native_fits": "improved"
+          }
+        }
+      },
+      "nuisance_replay": {
+        "answer_equality": {
+          "max_abs_difference": 0.0,
+          "values_compared": 33,
+          "within_1e-9": true
+        },
+        "baseline": {
+          "answers": {
+            "load_artifact": {
+              "mode.0": -0.8231390550060231,
+              "mode.1": 1.2159538315986138,
+              "prior_sd": 2.0,
+              "row0.at_mode": 0.30509773221651154,
+              "row0.mean": 0.3042130359587104,
+              "row0.outside_band": 0.0,
+              "row0.sd": 0.045961456534719766,
+              "row1.at_mode": 0.5969601154210038,
+              "row1.mean": 0.5926161644775032,
+              "row1.outside_band": 0.0,
+              "row1.sd": 0.04698972013817141
+            },
+            "nuisance_fit": {
+              "mode.0": -0.8231390550060231,
+              "mode.1": 1.2159538315986138,
+              "prior_sd": 2.0,
+              "row0.at_mode": 0.30509773221651154,
+              "row0.mean": 0.3042130359587104,
+              "row0.outside_band": 0.0,
+              "row0.sd": 0.045961456534719766,
+              "row1.at_mode": 0.5969601154210038,
+              "row1.mean": 0.5926161644775032,
+              "row1.outside_band": 0.0,
+              "row1.sd": 0.04698972013817141
+            },
+            "nuisance_repeat": {
+              "mode.0": -0.8231390550060231,
+              "mode.1": 1.2159538315986138,
+              "prior_sd": 2.0,
+              "row0.at_mode": 0.30509773221651154,
+              "row0.mean": 0.3042130359587104,
+              "row0.outside_band": 0.0,
+              "row0.sd": 0.045961456534719766,
+              "row1.at_mode": 0.5969601154210038,
+              "row1.mean": 0.5926161644775032,
+              "row1.outside_band": 0.0,
+              "row1.sd": 0.04698972013817141
+            }
+          },
+          "steps": [
+            {
+              "native_fits": 0,
+              "native_operations": {
+                "identification": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "program_compilation": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "prepare"
+            },
+            {
+              "native_fits": 0,
+              "native_operations": {},
+              "step": "nuisance_fit"
+            },
+            {
+              "native_fits": 0,
+              "native_operations": {},
+              "step": "nuisance_repeat"
+            },
+            {
+              "artifact_bytes": 2768,
+              "native_fits": 0,
+              "native_operations": {},
+              "step": "load_artifact"
+            }
+          ]
+        },
+        "current": {
+          "answers": {
+            "load_artifact": {
+              "mode.0": -0.8231390550060231,
+              "mode.1": 1.2159538315986138,
+              "prior_sd": 2.0,
+              "row0.at_mode": 0.30509773221651154,
+              "row0.mean": 0.3042130359587104,
+              "row0.outside_band": 0.0,
+              "row0.sd": 0.045961456534719766,
+              "row1.at_mode": 0.5969601154210038,
+              "row1.mean": 0.5926161644775032,
+              "row1.outside_band": 0.0,
+              "row1.sd": 0.04698972013817141
+            },
+            "nuisance_fit": {
+              "mode.0": -0.8231390550060231,
+              "mode.1": 1.2159538315986138,
+              "prior_sd": 2.0,
+              "row0.at_mode": 0.30509773221651154,
+              "row0.mean": 0.3042130359587104,
+              "row0.outside_band": 0.0,
+              "row0.sd": 0.045961456534719766,
+              "row1.at_mode": 0.5969601154210038,
+              "row1.mean": 0.5926161644775032,
+              "row1.outside_band": 0.0,
+              "row1.sd": 0.04698972013817141
+            },
+            "nuisance_repeat": {
+              "mode.0": -0.8231390550060231,
+              "mode.1": 1.2159538315986138,
+              "prior_sd": 2.0,
+              "row0.at_mode": 0.30509773221651154,
+              "row0.mean": 0.3042130359587104,
+              "row0.outside_band": 0.0,
+              "row0.sd": 0.045961456534719766,
+              "row1.at_mode": 0.5969601154210038,
+              "row1.mean": 0.5926161644775032,
+              "row1.outside_band": 0.0,
+              "row1.sd": 0.04698972013817141
+            }
+          },
+          "steps": [
+            {
+              "native_fits": 0,
+              "native_operations": {
+                "identification": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "program_compilation": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "prepare"
+            },
+            {
+              "native_fits": 1,
+              "native_operations": {
+                "posterior_draw": {
+                  "attempted": 500,
+                  "completed": 500,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "posterior_fit": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "nuisance_fit"
+            },
+            {
+              "native_fits": 1,
+              "native_operations": {
+                "posterior_draw": {
+                  "attempted": 500,
+                  "completed": 500,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "posterior_fit": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "nuisance_repeat"
+            },
+            {
+              "artifact_bytes": 2768,
+              "native_fits": 1,
+              "native_operations": {
+                "posterior_draw": {
+                  "attempted": 500,
+                  "completed": 500,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "posterior_fit": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "load_artifact"
+            }
+          ]
+        },
+        "phases": {
+          "load_artifact": {
+            "baseline": {
+              "attempted_by_kind": {},
+              "native_attempted_total": null,
+              "native_fits": null,
+              "unobserved_by_predecessor": true
+            },
+            "baseline_steps": [
+              "load_artifact"
+            ],
+            "current": {
+              "attempted_by_kind": {
+                "posterior_draw": 500,
+                "posterior_fit": 1
+              },
+              "native_attempted_total": 501,
+              "native_fits": 1
+            },
+            "current_steps": [
+              "load_artifact"
+            ],
+            "verdict": {
+              "attempted_by_kind": {
+                "posterior_draw": "not_comparable",
+                "posterior_fit": "not_comparable"
+              },
+              "native_attempted_total": "not_comparable",
+              "native_fits": "not_comparable"
+            }
+          },
+          "nuisance_fit": {
+            "baseline": {
+              "attempted_by_kind": {},
+              "native_attempted_total": null,
+              "native_fits": null,
+              "unobserved_by_predecessor": true
+            },
+            "baseline_steps": [
+              "nuisance_fit"
+            ],
+            "current": {
+              "attempted_by_kind": {
+                "posterior_draw": 500,
+                "posterior_fit": 1
+              },
+              "native_attempted_total": 501,
+              "native_fits": 1
+            },
+            "current_steps": [
+              "nuisance_fit"
+            ],
+            "verdict": {
+              "attempted_by_kind": {
+                "posterior_draw": "not_comparable",
+                "posterior_fit": "not_comparable"
+              },
+              "native_attempted_total": "not_comparable",
+              "native_fits": "not_comparable"
+            }
+          },
+          "nuisance_repeat": {
+            "baseline": {
+              "attempted_by_kind": {},
+              "native_attempted_total": null,
+              "native_fits": null,
+              "unobserved_by_predecessor": true
+            },
+            "baseline_steps": [
+              "nuisance_repeat"
+            ],
+            "current": {
+              "attempted_by_kind": {
+                "posterior_draw": 500,
+                "posterior_fit": 1
+              },
+              "native_attempted_total": 501,
+              "native_fits": 1
+            },
+            "current_steps": [
+              "nuisance_repeat"
+            ],
+            "verdict": {
+              "attempted_by_kind": {
+                "posterior_draw": "not_comparable",
+                "posterior_fit": "not_comparable"
+              },
+              "native_attempted_total": "not_comparable",
+              "native_fits": "not_comparable"
+            }
+          },
+          "prepare": {
+            "baseline": {
+              "attempted_by_kind": {
+                "identification": 1,
+                "program_compilation": 1
+              },
+              "native_attempted_total": 2,
+              "native_fits": 0
+            },
+            "baseline_steps": [
+              "prepare"
+            ],
+            "current": {
+              "attempted_by_kind": {
+                "identification": 1,
+                "program_compilation": 1
+              },
+              "native_attempted_total": 2,
+              "native_fits": 0
+            },
+            "current_steps": [
+              "prepare"
+            ],
+            "verdict": {
+              "attempted_by_kind": {
+                "identification": "equal",
+                "program_compilation": "equal"
+              },
+              "native_attempted_total": "equal",
+              "native_fits": "equal"
+            }
+          }
+        },
+        "total": {
+          "baseline": {
+            "attempted_by_kind": {
+              "identification": 1,
+              "program_compilation": 1
+            },
+            "native_attempted_total": 2,
+            "native_fits": 0
+          },
+          "current": {
+            "attempted_by_kind": {
+              "identification": 1,
+              "program_compilation": 1
+            },
+            "native_attempted_total": 2,
+            "native_fits": 0
+          },
+          "phases_excluded_unobserved_by_predecessor": [
+            "load_artifact",
+            "nuisance_fit",
+            "nuisance_repeat"
+          ],
+          "verdict": {
+            "artifact_bytes": "equal",
+            "attempted_by_kind": {
+              "identification": "equal",
+              "program_compilation": "equal"
+            },
+            "native_attempted_total": "equal",
+            "native_fits": "equal"
+          }
+        }
+      },
+      "prepare_estimate_rebind": {
+        "answer_equality": {
+          "max_abs_difference": 3.8163916471489756e-17,
+          "values_compared": 8,
+          "within_1e-9": true
+        },
+        "baseline": {
+          "answers": {
+            "estimate_first": [
+              2.0004165174569106,
+              0.02035042813802961
+            ],
+            "estimate_repeat": [
+              2.0004165174569106,
+              0.02035042813802961
+            ],
+            "original_after_branch": [
+              2.0004165174569106,
+              0.02035042813802961
+            ],
+            "rebound": [
+              1.998688635237452,
+              0.02112152803179658
+            ]
+          },
+          "steps": [
+            {
+              "native_fits": 0,
+              "native_operations": {
+                "identification": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "program_compilation": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "prepare"
+            },
+            {
+              "native_fits": 1,
+              "native_operations": {
+                "adjusted_fit": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "least_squares_solve": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "estimate_first"
+            },
+            {
+              "native_fits": 0,
+              "native_operations": {},
+              "step": "estimate_repeat"
+            },
+            {
+              "native_fits": 1,
+              "native_operations": {
+                "adjusted_fit": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "least_squares_solve": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "refresh"
+            },
+            {
+              "native_fits": 1,
+              "native_operations": {
+                "adjusted_fit": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "least_squares_solve": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "estimate_original_data"
+            }
+          ]
+        },
+        "current": {
+          "answers": {
+            "estimate_first": [
+              2.0004165174569106,
+              0.02035042813802961
+            ],
+            "estimate_repeat": [
+              2.0004165174569106,
+              0.02035042813802961
+            ],
+            "original_after_branch": [
+              2.0004165174569106,
+              0.02035042813802961
+            ],
+            "rebound": [
+              1.998688635237452,
+              0.02112152803179654
+            ]
+          },
+          "steps": [
+            {
+              "native_fits": 0,
+              "native_operations": {
+                "identification": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "program_compilation": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "prepare"
+            },
+            {
+              "native_fits": 1,
+              "native_operations": {
+                "adjusted_fit": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "least_squares_solve": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "estimate_first"
+            },
+            {
+              "native_fits": 0,
+              "native_operations": {},
+              "step": "estimate_repeat"
+            },
+            {
+              "native_fits": 0,
+              "native_operations": {},
+              "step": "rebind"
+            },
+            {
+              "native_fits": 1,
+              "native_operations": {
+                "adjusted_fit": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                },
+                "least_squares_solve": {
+                  "attempted": 1,
+                  "completed": 1,
+                  "failed": 0,
+                  "unfinished": 0
+                }
+              },
+              "step": "estimate_rebound"
+            },
+            {
+              "native_fits": 0,
+              "native_operations": {},
+              "step": "estimate_original_after_branch"
+            }
+          ]
+        },
+        "phases": {
+          "estimate_first": {
+            "baseline": {
+              "attempted_by_kind": {
+                "adjusted_fit": 1,
+                "least_squares_solve": 1
+              },
+              "native_attempted_total": 2,
+              "native_fits": 1
+            },
+            "baseline_steps": [
+              "estimate_first"
+            ],
+            "current": {
+              "attempted_by_kind": {
+                "adjusted_fit": 1,
+                "least_squares_solve": 1
+              },
+              "native_attempted_total": 2,
+              "native_fits": 1
+            },
+            "current_steps": [
+              "estimate_first"
+            ],
+            "verdict": {
+              "attempted_by_kind": {
+                "adjusted_fit": "equal",
+                "least_squares_solve": "equal"
+              },
+              "native_attempted_total": "equal",
+              "native_fits": "equal"
+            }
+          },
+          "estimate_repeat": {
+            "baseline": {
+              "attempted_by_kind": {},
+              "native_attempted_total": 0,
+              "native_fits": 0
+            },
+            "baseline_steps": [
+              "estimate_repeat"
+            ],
+            "current": {
+              "attempted_by_kind": {},
+              "native_attempted_total": 0,
+              "native_fits": 0
+            },
+            "current_steps": [
+              "estimate_repeat"
+            ],
+            "verdict": {
+              "attempted_by_kind": {},
+              "native_attempted_total": "equal",
+              "native_fits": "equal"
+            }
+          },
+          "original_after_branch": {
+            "baseline": {
+              "attempted_by_kind": {
+                "adjusted_fit": 1,
+                "least_squares_solve": 1
+              },
+              "native_attempted_total": 2,
+              "native_fits": 1
+            },
+            "baseline_steps": [
+              "estimate_original_data"
+            ],
+            "current": {
+              "attempted_by_kind": {},
+              "native_attempted_total": 0,
+              "native_fits": 0
+            },
+            "current_steps": [
+              "estimate_original_after_branch"
+            ],
+            "verdict": {
+              "attempted_by_kind": {
+                "adjusted_fit": "improved",
+                "least_squares_solve": "improved"
+              },
+              "native_attempted_total": "improved",
+              "native_fits": "improved"
+            }
+          },
+          "prepare": {
+            "baseline": {
+              "attempted_by_kind": {
+                "identification": 1,
+                "program_compilation": 1
+              },
+              "native_attempted_total": 2,
+              "native_fits": 0
+            },
+            "baseline_steps": [
+              "prepare"
+            ],
+            "current": {
+              "attempted_by_kind": {
+                "identification": 1,
+                "program_compilation": 1
+              },
+              "native_attempted_total": 2,
+              "native_fits": 0
+            },
+            "current_steps": [
+              "prepare"
+            ],
+            "verdict": {
+              "attempted_by_kind": {
+                "identification": "equal",
+                "program_compilation": "equal"
+              },
+              "native_attempted_total": "equal",
+              "native_fits": "equal"
+            }
+          },
+          "rebound": {
+            "baseline": {
+              "attempted_by_kind": {
+                "adjusted_fit": 1,
+                "least_squares_solve": 1
+              },
+              "native_attempted_total": 2,
+              "native_fits": 1
+            },
+            "baseline_steps": [
+              "refresh"
+            ],
+            "current": {
+              "attempted_by_kind": {
+                "adjusted_fit": 1,
+                "least_squares_solve": 1
+              },
+              "native_attempted_total": 2,
+              "native_fits": 1
+            },
+            "current_steps": [
+              "rebind",
+              "estimate_rebound"
+            ],
+            "verdict": {
+              "attempted_by_kind": {
+                "adjusted_fit": "equal",
+                "least_squares_solve": "equal"
+              },
+              "native_attempted_total": "equal",
+              "native_fits": "equal"
+            }
+          }
+        },
+        "total": {
+          "baseline": {
+            "attempted_by_kind": {
+              "adjusted_fit": 3,
+              "identification": 1,
+              "least_squares_solve": 3,
+              "program_compilation": 1
+            },
+            "native_attempted_total": 8,
+            "native_fits": 3
+          },
+          "current": {
+            "attempted_by_kind": {
+              "adjusted_fit": 2,
+              "identification": 1,
+              "least_squares_solve": 2,
+              "program_compilation": 1
+            },
+            "native_attempted_total": 6,
+            "native_fits": 2
+          },
+          "phases_excluded_unobserved_by_predecessor": [],
+          "verdict": {
+            "artifact_bytes": "not_comparable",
+            "attempted_by_kind": {
+              "adjusted_fit": "improved",
+              "identification": "equal",
+              "least_squares_solve": "improved",
+              "program_compilation": "equal"
+            },
+            "native_attempted_total": "improved",
+            "native_fits": "improved"
+          }
+        }
+      }
+    }
+  },
+  "native_fit_definition": "sum of attempted native operations whose kind ends in _fit",
+  "scope": "lifecycle_counters_local_not_reference_host_not_calibration",
+  "side": "current",
+  "workloads": {
+    "batch_shared_fit": {
+      "steps": [
+        {
+          "materialized_plans": 0,
+          "native_fits": 0,
+          "native_operations": {
+            "identification": {
+              "attempted": 4,
+              "completed": 4,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "prepare_many"
+        },
+        {
+          "materialized_plans": 2,
+          "native_fits": 5,
+          "native_operations": {
+            "glm_fit": {
+              "attempted": 5,
+              "completed": 5,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "least_squares_solve": {
+              "attempted": 40,
+              "completed": 40,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "program_compilation": {
+              "attempted": 2,
+              "completed": 2,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "score_construction": {
+              "attempted": 4,
+              "completed": 4,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "estimate_many"
+        },
+        {
+          "materialized_plans": 2,
+          "native_fits": 5,
+          "native_operations": {
+            "glm_fit": {
+              "attempted": 5,
+              "completed": 5,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "least_squares_solve": {
+              "attempted": 40,
+              "completed": 40,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "score_construction": {
+              "attempted": 2,
+              "completed": 2,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "shared_propensity_notes": 2,
+          "step": "estimate_many_repeat"
+        },
+        {
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "rebind"
+        }
+      ]
+    },
+    "cyclic_family_branching": {
+      "steps": [
+        {
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "prepare"
+        },
+        {
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "to_family"
+        },
+        {
+          "execution_facts": {
+            "observed_allocated_bytes": null,
+            "observed_allocations": null,
+            "observed_copied_bytes": null,
+            "observed_copies": null,
+            "observed_model_fits": 1,
+            "observed_retained_bytes": 14722,
+            "observed_scans": null,
+            "observed_spill_bytes": null,
+            "peak_admitted_bytes": 91433
+          },
+          "native_fits": 1,
+          "native_operations": {
+            "adjusted_fit": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "execute_family"
+        },
+        {
+          "execution_facts": {
+            "observed_allocated_bytes": null,
+            "observed_allocations": null,
+            "observed_copied_bytes": null,
+            "observed_copies": null,
+            "observed_model_fits": 0,
+            "observed_retained_bytes": 5726,
+            "observed_scans": null,
+            "observed_spill_bytes": null,
+            "peak_admitted_bytes": 16404
+          },
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "execute_source_after_family"
+        },
+        {
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "reconfigure"
+        },
+        {
+          "execution_facts": {
+            "observed_allocated_bytes": null,
+            "observed_allocations": null,
+            "observed_copied_bytes": null,
+            "observed_copies": null,
+            "observed_model_fits": 0,
+            "observed_retained_bytes": 5726,
+            "observed_scans": null,
+            "observed_spill_bytes": null,
+            "peak_admitted_bytes": 16612
+          },
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "execute_reconfigured"
+        },
+        {
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "rebind"
+        },
+        {
+          "execution_facts": {
+            "observed_allocated_bytes": null,
+            "observed_allocations": null,
+            "observed_copied_bytes": null,
+            "observed_copies": null,
+            "observed_model_fits": 1,
+            "observed_retained_bytes": 6812,
+            "observed_scans": null,
+            "observed_spill_bytes": null,
+            "peak_admitted_bytes": 79816
+          },
+          "native_fits": 1,
+          "native_operations": {
+            "adjusted_fit": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "execute_rebound"
+        },
+        {
+          "fits_performed": 1,
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "inspect_source"
+        }
+      ]
+    },
+    "ingestion_controls": {
+      "steps": [
+        {
+          "python_copies": [],
+          "python_copy_bytes": 0,
+          "python_copy_count": 0,
+          "rows": 1000,
+          "step": "float64_columns",
+          "widening_ingest_copies": []
+        },
+        {
+          "python_copies": [],
+          "python_copy_bytes": 0,
+          "python_copy_count": 0,
+          "rows": 1000,
+          "step": "int64_and_bool_columns",
+          "widening_ingest_copies": [
+            {
+              "column": "a",
+              "kind": "dtype_conversion",
+              "nbytes": 8000
+            },
+            {
+              "column": "b",
+              "kind": "dtype_conversion",
+              "nbytes": 8000
+            }
+          ]
+        },
+        {
+          "python_copies": [],
+          "python_copy_bytes": 0,
+          "python_copy_count": 0,
+          "rows": 1000,
+          "step": "float32_column",
+          "widening_ingest_copies": [
+            {
+              "column": "a",
+              "kind": "dtype_conversion",
+              "nbytes": 8000
+            }
+          ]
+        }
+      ]
+    },
+    "nuisance_replay": {
+      "steps": [
+        {
+          "native_fits": 0,
+          "native_operations": {
+            "identification": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "program_compilation": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "prepare"
+        },
+        {
+          "native_fits": 1,
+          "native_operations": {
+            "posterior_draw": {
+              "attempted": 500,
+              "completed": 500,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "posterior_fit": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "nuisance_fit"
+        },
+        {
+          "native_fits": 1,
+          "native_operations": {
+            "posterior_draw": {
+              "attempted": 500,
+              "completed": 500,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "posterior_fit": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "nuisance_repeat"
+        },
+        {
+          "artifact_bytes": 2768,
+          "native_fits": 1,
+          "native_operations": {
+            "posterior_draw": {
+              "attempted": 500,
+              "completed": 500,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "posterior_fit": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "load_artifact"
+        }
+      ]
+    },
+    "prepare_estimate_rebind": {
+      "steps": [
+        {
+          "native_fits": 0,
+          "native_operations": {
+            "identification": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "program_compilation": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "prepare"
+        },
+        {
+          "facts": {
+            "bytes_borrowed": null,
+            "cancelled": false,
+            "design_reused": false
+          },
+          "native_fits": 1,
+          "native_operations": {
+            "adjusted_fit": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "least_squares_solve": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "estimate_first"
+        },
+        {
+          "facts": {
+            "bytes_borrowed": null,
+            "cancelled": false,
+            "design_reused": false
+          },
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "estimate_repeat"
+        },
+        {
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "rebind"
+        },
+        {
+          "facts": {
+            "bytes_borrowed": null,
+            "cancelled": false,
+            "design_reused": false
+          },
+          "native_fits": 1,
+          "native_operations": {
+            "adjusted_fit": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "least_squares_solve": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "estimate_rebound"
+        },
+        {
+          "facts": {
+            "bytes_borrowed": null,
+            "cancelled": false,
+            "design_reused": false
+          },
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "estimate_original_after_branch"
+        }
+      ]
+    },
+    "retained_refresh": {
+      "steps": [
+        {
+          "frame_bytes": 1538,
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "start"
+        },
+        {
+          "frame_bytes": 2178,
+          "native_fits": 0,
+          "native_operations": {},
+          "outcome": "updated",
+          "step": "apply_append"
+        },
+        {
+          "frame_bytes": 1218,
+          "native_fits": 0,
+          "native_operations": {},
+          "outcome": "recomputed",
+          "step": "apply_window"
+        },
+        {
+          "frame_bytes": 1154,
+          "native_fits": 0,
+          "native_operations": {},
+          "outcome": "recomputed",
+          "step": "apply_evict"
+        },
+        {
+          "frame_bytes": 1026,
+          "native_fits": 0,
+          "native_operations": {},
+          "outcome": "recomputed",
+          "step": "apply_replace"
+        },
+        {
+          "frame_bytes": 1026,
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "verify"
+        },
+        {
+          "frame_bytes": 258,
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "summary_only"
+        },
+        {
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "spill"
+        },
+        {
+          "frame_bytes": 1026,
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "reload"
+        }
+      ]
+    },
+    "trial_transport": {
+      "steps": [
+        {
+          "native_fits": 0,
+          "native_operations": {
+            "identification": {
+              "attempted": 1,
+              "completed": 1,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "prepare"
+        },
+        {
+          "estimate": 2.453329466,
+          "native_fits": 12,
+          "native_operations": {
+            "glm_fit": {
+              "attempted": 3,
+              "completed": 3,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "identification": {
+              "attempted": 2,
+              "completed": 2,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "learner_fit": {
+              "attempted": 9,
+              "completed": 9,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "least_squares_solve": {
+              "attempted": 21,
+              "completed": 21,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "estimate"
+        },
+        {
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "bind_snapshot"
+        },
+        {
+          "estimate": 4.453329466,
+          "native_fits": 12,
+          "native_operations": {
+            "glm_fit": {
+              "attempted": 3,
+              "completed": 3,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "identification": {
+              "attempted": 2,
+              "completed": 2,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "learner_fit": {
+              "attempted": 9,
+              "completed": 9,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "least_squares_solve": {
+              "attempted": 21,
+              "completed": 21,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "estimate_branch"
+        },
+        {
+          "native_fits": 12,
+          "native_operations": {
+            "glm_fit": {
+              "attempted": 3,
+              "completed": 3,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "identification": {
+              "attempted": 2,
+              "completed": 2,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "learner_fit": {
+              "attempted": 9,
+              "completed": 9,
+              "failed": 0,
+              "unfinished": 0
+            },
+            "least_squares_solve": {
+              "attempted": 21,
+              "completed": 21,
+              "failed": 0,
+              "unfinished": 0
+            }
+          },
+          "step": "estimate_original_again"
+        },
+        {
+          "artifact_bytes": 112109,
+          "native_fits": 0,
+          "native_operations": {},
+          "step": "export"
+        }
+      ]
+    }
+  }
+}

@@ -12,6 +12,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
@@ -853,7 +854,7 @@ def test_z_transport_refusals_carry_typed_classes_and_registered_codes():
                 controllable=["z"],
                 experiment_assignment={"z": 0.0},
             ),
-            memory_bytes=-1,
+            execution=Execution(limits=ResourceLimits(memory_bytes=-1)),
         )
     from antecedent.transport import TransportEvaluation
 
@@ -932,7 +933,7 @@ def test_z_transport_estimate_reports_its_seed_and_limits_are_inherited():
             controllable=["z"],
             experiment_assignment={"z": 0.0},
         ),
-        memory_bytes=1,
+        execution=Execution(limits=ResourceLimits(memory_bytes=1)),
     )
     # The stage's limits are inherited by every preparation made from it.
     with pytest.raises(CausalResourceError, match="memory|budget"):

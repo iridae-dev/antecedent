@@ -32,7 +32,9 @@ def test_export_artifact_matches_contracted_artifact_for_dag_posterior_response(
     data = {"t": t, "y": y, "z": z}
     prepared = antecedent.prepare(
         data,
-        discovery=antecedent.discovery.ExactDagPosterior().run(data, seed=1),
+        discovery=antecedent.discovery.ExactDagPosterior().run(
+            data, execution=antecedent.Execution(seed=1)
+        ),
         query=antecedent.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
         inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
         refute=False,

@@ -6,7 +6,7 @@ import sys
 from dataclasses import replace
 
 import pytest
-from antecedent import Admg, proposals, repair
+from antecedent import Admg, Execution, proposals, repair
 from antecedent.errors import CausalSerializationError, CausalValueError
 from antecedent.proposal_arrival import ArrivedStudy, consume_arrival
 from antecedent.transport import advanced as tr
@@ -91,7 +91,9 @@ def test_arrival_public_actual_count_truth_and_original_artifact_replay(family):
     assert result.to_dict()["calibration"] == "unmeasured"
     assert result.to_dict()["work"]["program_compilations"] > 0
     assert result.to_dict()["work"]["provider_calls"] > 0
-    replay = consume_arrival(bytes(result.export()), expected_proposal=bundle.identity, seed=77)
+    replay = consume_arrival(
+        bytes(result.export()), expected_proposal=bundle.identity, execution=Execution(seed=77)
+    )
     assert replay.to_dict() == result.to_dict()
     control = bundle.estimate_arrival(identifier, replace(study, assignment={"x": 0.0}))
     assert control.mean == pytest.approx(EXPECTED["control_mean"])
@@ -106,8 +108,9 @@ def test_arrival_fresh_process_replays_original_artifacts_and_complete_raw_provi
     script = """
 import json, sys
 from pathlib import Path
+from antecedent import Execution
 from antecedent.proposal_arrival import consume_arrival
-value=consume_arrival(Path(sys.argv[1]).read_bytes(), expected_proposal=sys.argv[2], seed=19)
+value=consume_arrival(Path(sys.argv[1]).read_bytes(), expected_proposal=sys.argv[2], execution=Execution(seed=19))
 print(json.dumps(value.to_dict(), sort_keys=True))
 """
     child = subprocess.run(

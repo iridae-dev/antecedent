@@ -5204,7 +5204,9 @@ pub fn <antecedent_identify::TemporalBackdoorIdentifier>::fn identify_temporal_s
 pub fn <antecedent_identify::TemporalBackdoorIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::TemporalBackdoorIdentifier>::fn with_parent_adjustment_fallback(self) -> Self
 pub fn <antecedent_identify::TemporalCompletionGraph>::fn digest(&self) -> [u8; 32]
+pub fn <antecedent_identify::TemporalCompletionGraph>::fn digest_without_allocation(&self, should_stop: &dyn core::ops::function::Fn() -> bool) -> core::option::Option<[u8; 32]>
 pub fn <antecedent_identify::TemporalCompletionGraph>::fn fingerprint(&self) -> u64
+pub fn <antecedent_identify::TemporalCompletionGraph>::fn fingerprint_without_allocation(&self, should_stop: &dyn core::ops::function::Fn() -> bool) -> core::option::Option<u64>
 pub fn <antecedent_identify::TemporalCompletionGraph>::fn has_bidirected(&self) -> bool
 pub fn <antecedent_identify::TemporalCompletionGraph>::fn sequential_dag(&self) -> core::option::Option<antecedent_graph::temporal::TemporalDag>
 pub fn <antecedent_identify::TemporalIvIdentifier>::fn identify_temporal_iv(&self, template: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::TemporalIvResult, antecedent_identify::IdentificationError>

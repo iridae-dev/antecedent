@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 from antecedent import _native
 from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError, CausalValueError
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcRefusal, Utility
 from antecedent.recalc_temporal import (
@@ -167,7 +168,7 @@ def test_load_rejects_bounds_before_dispatch_and_normal_route_is_exactly_closed(
     with pytest.raises(CausalTypeError):
         Candidate.load(b"", expected=identity(), max_units=True)
     with pytest.raises(CausalTypeError):
-        Candidate.load(b"", expected=identity(), cancel=object())
+        Candidate.load(b"", expected=identity(), execution=Execution(cancel=object()))
     with pytest.raises(RecalcRefusal) as caught:
         Candidate.load(b"", expected=identity())
     assert (caught.value.code, caught.value.detail, caught.value.stage) == (
@@ -197,7 +198,7 @@ def test_original_checked_source_score_draws_intervals_and_fresh_consumer(
 ):
     req = request(functional)
     session = TemporalSession()
-    point = require_success(session.execute(req, seed=41))
+    point = require_success(session.execute(req, execution=Execution(seed=41)))
     config = Config(method=method, replicates=500, bootstrap_seed=9171, max_failed_fraction=0)
     candidate = session.interval_candidate(config=config)
     payload = candidate.inspect()
@@ -293,7 +294,9 @@ print(json.dumps(r.inspect(),sort_keys=True))
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
         Candidate.load(
-            bytes(candidate.export()), expected=candidate.expected_identity, cancel=cancelled
+            bytes(candidate.export()),
+            expected=candidate.expected_identity,
+            execution=Execution(cancel=cancelled),
         )
     with pytest.raises(CausalError):
         Candidate.load(b"invalid", expected=candidate.expected_identity)
@@ -322,7 +325,7 @@ def test_live_original_source_without_optional_hook_keeps_exact_frozen_refusal(m
 
     req = request(TemporalEffect((1, 1), (0, 0)))
     session = TemporalSession()
-    require_success(session.execute(req, seed=41))
+    require_success(session.execute(req, execution=Execution(seed=41)))
     identities = session.identities
 
     def without_optional(obj, name, default=None):
@@ -337,7 +340,10 @@ def test_live_original_source_without_optional_hook_keeps_exact_frozen_refusal(m
         "inference",
     )
     assert session.identities == identities
-    assert require_success(session.execute(req, seed=41)).receipt.totals.total == 0
+    assert (
+        require_success(session.execute(req, execution=Execution(seed=41))).receipt.totals.total
+        == 0
+    )
 
 
 @pytest.mark.skipif(
@@ -356,7 +362,7 @@ def test_original_checked_source_reversed_nonconsecutive_ids_fresh_replay(tmp_pa
         [unit.unit_id for unit in req.units], reverse=True
     )
     session = TemporalSession()
-    point = require_success(session.execute(req, seed=41))
+    point = require_success(session.execute(req, execution=Execution(seed=41)))
     config = Config(
         method="studentized", replicates=500, bootstrap_seed=9171, max_failed_fraction=0
     )

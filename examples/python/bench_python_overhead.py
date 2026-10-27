@@ -124,7 +124,9 @@ def _run_analyze(data: Any) -> None:
 def _run_pcmci(data: Any) -> None:
     # Discovery coerce_data uses as_columns (copy path); still useful for
     # comparing frame conversion cost ahead of the native PCMCI call.
-    result = antecedent.discovery.PCMCI(max_lag=1, alpha=0.05, fdr=False).run(data, seed=1)
+    result = antecedent.discovery.PCMCI(max_lag=1, alpha=0.05, fdr=False).run(
+        data, execution=antecedent.Execution(seed=1)
+    )
     if result.ci_tests < 0:
         raise RuntimeError("pcmci returned invalid ci_tests")
 

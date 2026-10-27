@@ -204,6 +204,33 @@ def test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate()
         require_success(claim.check_composed_interval("normal_approximation"))  # type: ignore[call-arg]
 
 
+def test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record() -> None:
+    x, y = _pair("snap-enum")
+    claim = require_success(jl.aligned_linear_spread("contrast", (1.0, -1.0), x, y))
+    assert claim.coordinate_id() == "contrast|aligned_joint_law|estimate,estimate"
+    # Below the measured evidence size no record covers the composed coordinate.
+    with pytest.raises(R) as error:
+        require_success(claim.check_composed_interval("normal_approximation", evidence_rows=100))
+    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.detail == "joint_law_propagation.coverage_record_unmeasured"
+    assert error.value.remedy
+    # Another construction is not a measured route of this coordinate.
+    with pytest.raises(R) as error:
+        require_success(
+            claim.check_composed_interval(
+                "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
+            )
+        )
+    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.detail == "joint_law_propagation.interval_route_closed"
+    with pytest.raises(CausalValueError):
+        require_success(claim.check_composed_interval("normal_approximation", evidence_rows=0))
+    # Component-interval readings stay closed.
+    with pytest.raises(R) as error:
+        claim.interval()
+    assert error.value.detail == "joint_law_propagation.interval_route_closed"
+
+
 def test_an_envelope_has_no_composed_interval() -> None:
     env = require_success(
         jl.dependence_envelope(

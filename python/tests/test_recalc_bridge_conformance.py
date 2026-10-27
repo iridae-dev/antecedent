@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 from antecedent import _native
 from antecedent.errors import CausalValueError
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcRefusal, RecalcRequest, RecalcSession, Utility
 
@@ -67,7 +68,7 @@ def direct_native_ate(request: RecalcRequest, seed: int) -> float:
 def test_the_bridge_accepts_wide_tables_and_equals_the_direct_native_result(rows, columns, seed):
     request = wide_table(rows, columns, seed)
     assert len(request.data) == columns
-    result = require_success(RecalcSession().execute(request, seed=3))
+    result = require_success(RecalcSession().execute(request, execution=Execution(seed=3)))
     # The recalculated result is the native result, bit for bit.
     assert result.law.ate == direct_native_ate(request, seed=3)
     # And it recovers the effect the table was generated with.
@@ -111,7 +112,7 @@ def test_a_declared_size_above_the_budget_is_refused_before_any_large_allocation
     try:
         for call in (session.plan, session.execute):
             with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded") as error:
-                call(request, memory_limit_bytes=budget)
+                call(request, execution=Execution(limits=ResourceLimits(memory_bytes=budget)))
             assert error.value.reason_code == "invalid_argument"
         peak = tracemalloc.get_traced_memory()[1]
     finally:
@@ -142,19 +143,27 @@ def test_a_column_that_holds_fewer_values_than_it_declared_is_a_size_mismatch():
 def test_a_cancelled_run_stops_at_once_and_retains_no_partial_state():
     # A session that has run keeps exactly its previous state through a cancelled run.
     session = RecalcSession()
-    first = require_success(session.execute(wide_table(2_000, 6, 11), seed=1))
+    first = require_success(session.execute(wide_table(2_000, 6, 11), execution=Execution(seed=1)))
     identities = session.identities
     token = _native.CancellationToken()
     token.cancel()
     with pytest.raises(RecalcRefusal) as error:
-        require_success(session.execute(wide_table(2_000, 6, 12), seed=1, cancel=token))
+        require_success(
+            session.execute(
+                wide_table(2_000, 6, 12),
+                execution=Execution(seed=1, cancel=token),
+            )
+        )
     assert (error.value.reason_code, error.value.detail) == (
         "cancelled_no_claim",
         "recalc.cancelled",
     )
     assert session.is_live and session.identities == identities
     assert (
-        require_success(session.execute(wide_table(2_000, 6, 11), seed=1)).law.ate == first.law.ate
+        require_success(
+            session.execute(wide_table(2_000, 6, 11), execution=Execution(seed=1))
+        ).law.ate
+        == first.law.ate
     )
 
     # On the configured table size a cancelled run returns without fitting anything.
@@ -162,7 +171,7 @@ def test_a_cancelled_run_stops_at_once_and_retains_no_partial_state():
     fresh = RecalcSession()
     started = time.perf_counter()
     with pytest.raises(RecalcRefusal) as error:
-        require_success(fresh.execute(request, cancel=token))
+        require_success(fresh.execute(request, execution=Execution(cancel=token)))
     assert time.perf_counter() - started < 10.0
     assert error.value.detail == "recalc.cancelled"
     assert not fresh.is_live and not fresh.identities
@@ -173,7 +182,11 @@ def test_a_request_above_the_downstream_limit_names_the_limit_and_the_requested_
     requested = 1_000 * 4 * 8
     limit = requested - 1
     with pytest.raises(CausalValueError) as error:
-        require_success(RecalcSession().execute(request, memory_limit_bytes=limit))
+        require_success(
+            RecalcSession().execute(
+                request, execution=Execution(limits=ResourceLimits(memory_bytes=limit))
+            )
+        )
     message = str(error.value)
     assert "recalc.memory_budget_exceeded" in message
     assert str(requested) in message and str(limit) in message

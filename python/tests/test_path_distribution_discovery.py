@@ -113,7 +113,9 @@ def test_path_specific_exact_dag_posterior_map():
     result = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.ExactDagPosterior().run(data, seed=1),
+            discovery=antecedent.discovery.ExactDagPosterior().run(
+                data, execution=antecedent.Execution(seed=1)
+            ),
             query=antecedent.PathSpecificEffect("x", "y"),
             refute=False,
             inference=antecedent.Frequentist(bootstrap=0),
@@ -129,7 +131,9 @@ def test_interventional_distribution_exact_dag_posterior_mixes_the_atoms():
     result = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.ExactDagPosterior().run(data, seed=1),
+            discovery=antecedent.discovery.ExactDagPosterior().run(
+                data, execution=antecedent.Execution(seed=1)
+            ),
             query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
             refute=False,
             inference=antecedent.Frequentist(bootstrap=0),

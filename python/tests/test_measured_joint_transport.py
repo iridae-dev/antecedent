@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from antecedent import _native
+from antecedent import Execution, ResourceLimits, _native
 from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError
 from antecedent.inference import MeasuredInference
 from antecedent.transport import advanced as tr
@@ -20,6 +20,7 @@ def options(learned, variant):
     varying = "intercept_and_covariates" if variant == "varying" else "intercept"
     sharing = "shared_varying_block" if variant == "shared" else "independent_varying_blocks"
     result = fixture(learned, varying, sharing)
+    result["execution"] = Execution(seed=result.pop("seed"))
     rng = np.random.default_rng(221971)
     sources = []
     for j in range(1 if variant == "one" else 2):
@@ -71,6 +72,7 @@ def options(learned, variant):
 
 
 def produce(learned, kwargs):
+    kwargs = {"execution": Execution(seed=0)} | kwargs
     return (tr.learned_joint_transport if learned else tr.joint_bayesian_transport)(**kwargs)
 
 
@@ -217,11 +219,11 @@ def test_normal_joint_original_proof_bounds_and_cancel_are_required(learned):
             )
     assert calls == []
     with pytest.raises(CausalError):
-        produce(learned, opts | {"memory_limit_bytes": 0})
+        produce(learned, opts | {"execution": Execution(limits=ResourceLimits(memory_bytes=0))})
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
-        produce(learned, opts | {"cancel": cancelled})
+        produce(learned, opts | {"execution": Execution(cancel=cancelled)})
     with pytest.raises(CausalTypeError):
         produce(learned, opts | {"level": True})
     with pytest.raises(CausalError):

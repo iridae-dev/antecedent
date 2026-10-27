@@ -8,7 +8,7 @@ estimator and is the same at every thread count.
 from __future__ import annotations
 
 import pytest
-from antecedent import design
+from antecedent import Execution, design
 from antecedent.design import planning
 from antecedent.errors import CausalError, CausalTypeError
 
@@ -66,7 +66,7 @@ def test_simulation_agrees_and_does_not_depend_on_threads() -> None:
             planning.Power(0.8),
             planning.Evaluate(200),
             simulation=planning.Simulation(replicates=800, seed=5),
-            threads=threads,
+            execution=Execution(threads=threads),
         )
 
     serial = run(1)

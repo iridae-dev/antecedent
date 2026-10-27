@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from antecedent import _native
+from antecedent import Execution, _native
 from antecedent.discovery import (
     GES,
     NOTEARS,
@@ -106,11 +106,11 @@ def test_a_class_posterior_pools_the_mass_of_markov_equivalent_dags():
 def test_the_python_wrapper_runs_the_class_posterior_over_each_base():
     names, cols = _static_rows(n=200)
     data = dict(zip(names, cols, strict=True))
-    exact = EquivalenceClassPosterior(ExactDagPosterior()).run(data, seed=1)
+    exact = EquivalenceClassPosterior(ExactDagPosterior()).run(data, execution=Execution(seed=1))
     assert exact.atom_kind == "Cpdag"
     sampled = EquivalenceClassPosterior(
         StructureMcmc(n_chains=4, n_warmup=3000, n_draws=12_000, thin=2, max_parents=3)
-    ).run(data, seed=1)
+    ).run(data, execution=Execution(seed=1))
     assert sampled.atom_kind == "Cpdag"
     assert sum(sampled.weights) == pytest.approx(1.0)
     with pytest.raises(CausalUnsupportedError):
@@ -182,10 +182,12 @@ def test_the_python_wrapper_validates_and_runs_the_stability_search():
     names, cols = _static_rows()
     data = dict(zip(names, cols, strict=True))
     for base in (PC(), GES(), LiNGAM(), NOTEARS()):
-        result = BootstrapStability(base, replicates=10).run(data, seed=2)
+        result = BootstrapStability(base, replicates=10).run(data, execution=Execution(seed=2))
         assert result.replicates_requested == 10
     series = dict(zip(*_series_rows(), strict=True))
-    lagged = BootstrapStability(PCMCI(max_lag=1), replicates=8).run(series, seed=2)
+    lagged = BootstrapStability(PCMCI(max_lag=1), replicates=8).run(
+        series, execution=Execution(seed=2)
+    )
     assert lagged.structure_class == "temporal_dag"
     with pytest.raises(CausalValueError):
         BootstrapStability(PC(), replicates=1)
@@ -214,7 +216,7 @@ def test_a_template_posterior_collapses_onto_temporal_classes():
 
     classes = EquivalenceClassPosterior(
         DbnPosterior(max_lag=1, n_chains=2, n_warmup=50, n_draws=100)
-    ).run(data, seed=1)
+    ).run(data, execution=Execution(seed=1))
     assert classes.atom_kind == "Cpdag"
     assert sum(classes.weights) == pytest.approx(1.0)
 
@@ -229,7 +231,9 @@ def test_a_latent_variable_search_is_resampled():
     assert result.structure_class == "temporal_pag"
     data = dict(zip(names, cols, strict=True))
     assert (
-        BootstrapStability(LPCMCI(max_lag=1), replicates=8).run(data, seed=1).replicates_requested
+        BootstrapStability(LPCMCI(max_lag=1), replicates=8)
+        .run(data, execution=Execution(seed=1))
+        .replicates_requested
         == 8
     )
 
@@ -291,7 +295,7 @@ def test_a_multi_environment_search_is_resampled_environment_by_environment():
     assert result.replicates_requested == 6
     assert result.structure_class == "temporal_cpdag"
     wrapped = BootstrapStability(JPCMCIPlus(max_lag=1), replicates=6).run(
-        (names, [first, second]), seed=1
+        (names, [first, second]), execution=Execution(seed=1)
     )
     assert wrapped.replicates_requested == 6
 
@@ -310,7 +314,9 @@ def test_a_regime_search_is_resampled_with_its_labels_one_table_per_regime():
         assert table.structure_class == "temporal_cpdag"
     assert result.table(0).replicates_requested == 6
     data = dict(zip(names, cols, strict=True))
-    wrapped = BootstrapStability(RPCMCI(max_lag=1), replicates=6).run(data, regimes=regimes, seed=1)
+    wrapped = BootstrapStability(RPCMCI(max_lag=1), replicates=6).run(
+        data, regimes=regimes, execution=Execution(seed=1)
+    )
     assert len(wrapped.tables) == 2
     with pytest.raises(CausalValueError):
         BootstrapStability(RPCMCI(max_lag=1), replicates=6).run(data)
@@ -347,7 +353,7 @@ def test_a_ci_screened_posterior_samples_only_the_skeleton_the_screen_keeps():
     data = {"x": x, "y": y, "z": z}
 
     sampler = CiScreenedPosterior(alpha=0.01, n_chains=2, n_warmup=300, n_draws=600)
-    post = sampler.run(data, seed=3)
+    post = sampler.run(data, execution=Execution(seed=3))
     assert post.names == ["x", "y", "z"] and post.n_vars == 3
     matrix = post.edge_marginal_matrix()
     ix, iy, iz = 0, 1, 2
@@ -364,11 +370,11 @@ def test_a_ci_screened_posterior_samples_only_the_skeleton_the_screen_keeps():
         assert matrix[source][iz] == pytest.approx(1.0 / 3.0, abs=0.08)
         assert matrix[iz][source] == pytest.approx(2.0 / 3.0, abs=0.08)
     # A fixed seed reproduces the sampled graphs; the schedule is part of the posterior.
-    again = sampler.run(data, seed=3)
+    again = sampler.run(data, execution=Execution(seed=3))
     assert again.adjacency == post.adjacency
 
     with pytest.raises(CausalValueError, match="soft_weight"):
-        CiScreenedPosterior(soft_weight="bogus").run(data, seed=3)  # type: ignore[arg-type]
+        CiScreenedPosterior(soft_weight="bogus").run(data, execution=Execution(seed=3))  # type: ignore[arg-type]
 
 
 def test_the_screen_weight_is_recorded_in_the_contract_without_changing_the_sampled_posterior():
@@ -382,7 +388,7 @@ def test_the_screen_weight_is_recorded_in_the_contract_without_changing_the_samp
     runs = {
         weight: CiScreenedPosterior(
             alpha=0.01, soft_weight=weight, n_chains=2, n_warmup=300, n_draws=600
-        ).run(data, seed=3)
+        ).run(data, execution=Execution(seed=3))
         for weight in ("none", "bayes_factor", "posterior_dependence")
     }
     methods = {}
@@ -403,13 +409,13 @@ def test_the_screen_weight_is_recorded_in_the_contract_without_changing_the_samp
         assert post.edge_marginal_matrix()[0][1] == 0.0
 
     with pytest.raises(CausalValueError, match="soft_weight"):
-        CiScreenedPosterior(soft_weight="bogus").run(data, seed=3)  # type: ignore[arg-type]
+        CiScreenedPosterior(soft_weight="bogus").run(data, execution=Execution(seed=3))  # type: ignore[arg-type]
 
 
 def test_a_pcmci_run_reports_the_statistic_and_p_value_of_each_retained_link():
     names, cols = _series_rows(seed=7, n=600)
     series = dict(zip(names, cols, strict=True))
-    result = PCMCI(max_lag=1, alpha=0.01, fdr=False).run(series, seed=1)
+    result = PCMCI(max_lag=1, alpha=0.01, fdr=False).run(series, execution=Execution(seed=1))
     links = {(k.source, k.source_lag, k.target, k.target_lag): k for k in result.links}
     # y_t = 0.8 x_{t-1} + 0.2 e: the partial correlation of x_{t-1} with y_t given y's other
     # parents is 0.8 / sqrt(0.8^2 + 0.2^2) = 0.9701 in the population.
@@ -422,6 +428,6 @@ def test_a_pcmci_run_reports_the_statistic_and_p_value_of_each_retained_link():
     assert all(link.p_value <= 0.01 for link in result.links)
     assert not any(link.target == "x" for link in result.links)
     # With FDR the adjusted p-values exist and never fall below the raw ones.
-    adjusted = PCMCI(max_lag=1, alpha=0.01, fdr=True).run(series, seed=1)
+    adjusted = PCMCI(max_lag=1, alpha=0.01, fdr=True).run(series, execution=Execution(seed=1))
     for link in adjusted.links:
         assert link.adjusted_p_value is not None and link.adjusted_p_value >= link.p_value

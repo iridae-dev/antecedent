@@ -340,7 +340,7 @@ def _execute_discovery(
         # A posterior is fitted on the flat observations; the partitioned frame is
         # what the prepared study is then bound to (and refused on, where unlicensed).
         flat = frame if data in {"tabular", "series"} else _frame(kind, "series", temporal)
-        kwargs["discovery"] = kwargs["discovery"].run(flat, seed=1)
+        kwargs["discovery"] = kwargs["discovery"].run(flat, execution=ant.Execution(seed=1))
     elif structure.startswith("discovered."):
         from antecedent import discovery as d
 

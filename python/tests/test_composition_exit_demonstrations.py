@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 from antecedent import Admg, Cpdag
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
+from antecedent.execution import Execution
 from antecedent.inference import MeasuredInference
 from antecedent.temporal import (
     ConstancyConclusion,
@@ -396,7 +397,7 @@ def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> Non
         interval_panel(),
         sequence=SEQUENCE,
         target_law=InitialStateLaw("fixed_target", {0: 0.3, 1: 0.7}),
-        seed=901,
+        execution=Execution(seed=901),
     )
     assert interval.scalar("response").point == pytest.approx(0.49, abs=1e-12)
     assert interval.scalar("response").calibration == "calibrated"

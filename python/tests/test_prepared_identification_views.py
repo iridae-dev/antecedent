@@ -2,7 +2,7 @@
 
 These exercise the native foundation, not the still separate public
 ``PreparedAnalysis.identification`` adapter. Explicit materialization is tested
-for scientific completeness; its allocation admission remains separate work.
+for scientific completeness through an exactly admitted native JSON owner.
 """
 
 from __future__ import annotations
@@ -142,7 +142,7 @@ def test_native_readview_preserves_each_prepared_cache_and_complete_proofs(famil
         assert summary["sets_returned"] >= 0
         assert summary["derivation_step_count"] >= 0
 
-    wire = json.loads(view.materialize_json(seed=19, threads=1))
+    wire = view.materialize(seed=19, threads=1).to_dict()
     converted = [node for node in _wire_nodes(wire) if "identification" in node]
     assert len(converted) == len(proofs)
     for source, converted_proof in zip(proofs, converted, strict=True):
@@ -197,7 +197,7 @@ def test_completion_cases_retain_mass_graphs_and_invariants(family):
         assert summary["unidentified_weight"] == pytest.approx(0)
         assert summary["truncated_completions"] == 0
         assert summary["case_count"] == summary["children"] == 1
-        wire = json.loads(envelope.materialize_json())
+        wire = envelope.materialize().to_dict()
         assert wire["invariant"] is not None
         case = wire["children"][0]
         assert case["summary"]["weight"] == pytest.approx(1)
@@ -260,7 +260,7 @@ def test_partial_posterior_keeps_unidentified_first_sample_and_identified_later_
     assert len(atoms) == 1
     assert _summary(atoms[0])["key"] == samples[1]["key"]
     assert _summary(view)["status"] is None
-    wire = json.loads(view.materialize_json())
+    wire = view.materialize().to_dict()
     materialized_samples = [
         node["summary"]
         for node in _wire_nodes(wire)
@@ -344,7 +344,7 @@ def test_static_class_posterior_preserves_every_case_and_selected_estimand(famil
         summary = _summary(atom)
         assert summary["identified_weight"] == pytest.approx(1)
         assert summary["truncated_completions"] == 0
-        wire = json.loads(atom.materialize_json())
+        wire = atom.materialize().to_dict()
         assert wire["invariant"] is not None
         cases = [node for node in _wire_nodes(wire) if node["summary"]["kind"] == "completion_case"]
         assert len(cases) == 1
@@ -395,17 +395,17 @@ def test_paging_bounds_and_child_owner_lifetime():
     with pytest.raises(CausalValueError, match="out of range"):
         samples.child(2)
     child = samples.child(1)
-    before = json.loads(view.materialize_json())
+    before = view.materialize().to_dict()
     del study, root, samples
     gc.collect()
     assert _summary(child)["weight"] == 0.3
-    assert json.loads(view.materialize_json()) == before
+    assert view.materialize().to_dict() == before
 
 
 def test_graph_branch_preserves_earlier_adjustment_proof():
     study = _prepare("static")
     original = _cache(study, "static")
-    before = json.loads(original.materialize_json())
+    before = original.materialize().to_dict()
     original_names = original.schema_names()
     adjustment = before["selected_estimand"]["adjustment_set"]
     assert [original_names[index] for index in adjustment] == ["z"]
@@ -413,9 +413,9 @@ def test_graph_branch_preserves_earlier_adjustment_proof():
         study,
         graph=ant.Dag.from_edges(["t", "y", "z"], [("t", "y")]),
     )
-    after = json.loads(_cache(alternative, "static").materialize_json())
+    after = _cache(alternative, "static").materialize().to_dict()
     assert after["selected_estimand"]["adjustment_set"] == []
-    assert json.loads(original.materialize_json()) == before
+    assert original.materialize().to_dict() == before
     assert study._engine.last_result is None and alternative._engine.last_result is None
 
 
@@ -423,10 +423,10 @@ def test_graph_branch_preserves_earlier_adjustment_proof():
 def test_inspection_then_explicit_execution_retains_known_effect(family):
     study = _prepare(family)
     view = _cache(study, family)
-    before = json.loads(view.materialize_json())
+    before = view.materialize().to_dict()
     result = require_success(ant.estimate(study))
     np.testing.assert_allclose(result.estimate.ate, 2.0, atol=1e-8, rtol=0)
-    assert json.loads(view.materialize_json()) == before
+    assert view.materialize().to_dict() == before
 
 
 _OPERATION_RECORDS = {

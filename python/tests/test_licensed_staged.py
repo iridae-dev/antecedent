@@ -906,7 +906,9 @@ def test_licensed_dbn_posterior_prepare_matches_analyze():
 
 
 def test_prepared_exact_dag_posterior_discovery_reuses_identification():
-    posterior = antecedent.discovery.ExactDagPosterior().run(_ATE_DATA, seed=7)
+    posterior = antecedent.discovery.ExactDagPosterior().run(
+        _ATE_DATA, execution=antecedent.Execution(seed=7)
+    )
     # Real-discovery arm of the prepared graph-posterior handle: discovery runs
     # once at prepare, identification is frozen per atom, and only the click
     # reports cache reuse.
@@ -956,7 +958,9 @@ def test_prepared_dbn_posterior_discovery_reuses_identification():
         horizon_steps=1,
         active_level=1.0,
     )
-    discovery = antecedent.discovery.DbnPosterior(max_lag=1).run(data, seed=11)
+    discovery = antecedent.discovery.DbnPosterior(max_lag=1).run(
+        data, execution=antecedent.Execution(seed=11)
+    )
     inference = antecedent.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate")
     fresh = require_success(
         antecedent.analyze(

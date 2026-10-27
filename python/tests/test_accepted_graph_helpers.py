@@ -132,7 +132,7 @@ def test_from_discovery_and_session_guards():
     class Cfg:
         algorithm_id = "pc"
 
-        def run(self, data, seed=1, threads=1):
+        def run(self, data, *, execution=None):
             return result
 
     held = accept_discovery(Cfg(), {"z": [0.0], "t": [1.0], "y": [2.0]})

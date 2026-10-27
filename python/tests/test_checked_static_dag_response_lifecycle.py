@@ -151,7 +151,7 @@ def test_joint_response_worlds_share_one_fit_and_carry_their_joint_covariance() 
     assert before["fitted"] is False
     assert before["calibration"] == "unmeasured"
 
-    law = require_success(compiled.execute(seed=7))
+    law = require_success(compiled.execute(execution=ant.Execution(seed=7)))
     assert law.world_ids == (0, 1, 2)
     for got, level in zip(law.means, levels, strict=True):
         assert got == pytest.approx(truth(level), abs=1e-8)
@@ -171,11 +171,11 @@ def test_joint_response_worlds_share_one_fit_and_carry_their_joint_covariance() 
     )
     c = np.asarray(coefficients)
     assert se**2 == pytest.approx(float(c @ cov @ c), rel=1e-9, abs=1e-14)
-    assert require_success(compiled.execute(seed=7)).means == law.means
+    assert require_success(compiled.execute(execution=ant.Execution(seed=7))).means == law.means
 
     # Retargeting reuses the source, prior and fit and moves only the world projections.
     other = require_success(compiled.retarget(outcome="y", worlds=_worlds(0.0, 0.25)))
-    again = require_success(other.execute(seed=7))
+    again = require_success(other.execute(execution=ant.Execution(seed=7)))
     assert again.means == pytest.approx((truth(0.0), truth(0.25)), abs=1e-8)
     assert again.source_digest == law.source_digest
     assert again.target != law.target

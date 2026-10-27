@@ -9,6 +9,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalDataError, CausalResourceError, CausalValueError
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 
 pa = pytest.importorskip("pyarrow")
@@ -155,7 +156,11 @@ def test_a_small_pool_refuses_a_resident_read_and_streams_the_summary(tmp_path):
     path = _write(tmp_path / "rows.parquet", {**data, "w": weights}, row_group_size=500)
     quote = ant.data.from_parquet(path, chunk_rows=256).quote(["t", "y", "z", "w"])
     assert quote.total_bytes is not None and quote.chunk_bytes < quote.total_bytes
-    small = ant.data.from_parquet(path, chunk_rows=256, memory_limit_bytes=quote.total_bytes // 2)
+    small = ant.data.from_parquet(
+        path,
+        chunk_rows=256,
+        execution=Execution(limits=ResourceLimits(memory_bytes=quote.total_bytes // 2)),
+    )
     with pytest.raises(CausalResourceError) as refused:
         small.read(["t", "y", "z", "w"])
     assert "summary route" in (refused.value.remedy or "")
@@ -231,3 +236,42 @@ def test_unknown_columns_are_refused_before_reading(tmp_path):
     with pytest.raises(CausalValueError) as unknown:
         ant.data.from_parquet(path, columns=["t", "absent"])
     assert unknown.value.reason_code == "invalid_argument"
+
+
+def test_loader_execution_cancels_a_read_and_owns_the_memory_limit(tmp_path):
+    from antecedent import _native
+    from antecedent.errors import CausalCancelledError
+
+    data = _sample(n=2_000)
+    path = _write(tmp_path / "rows.parquet", data, row_group_size=250)
+    token = _native.CancellationToken()
+    handle = ant.data.from_parquet(path, chunk_rows=128, execution=Execution(cancel=token))
+    assert handle.read(["t"])["t"].shape == (2_000,)  # an unfired token changes nothing
+    token.cancel()
+    with pytest.raises(CausalCancelledError):
+        handle.read(["y", "z"])
+    with pytest.raises(CausalCancelledError):
+        handle.content_identity()
+    with pytest.raises(CausalCancelledError):
+        handle.summarize_weighted_gaussian(["t"], "y")
+    # A table that was opened without an execution is unaffected by that token.
+    free = ant.data.from_arrow_ipc(_arrow(tmp_path, data), chunk_rows=128)
+    assert free.read()["y"].shape == (2_000,)
+    # The memory limit has one spelling; a loose keyword is not accepted.
+    for opener in (ant.data.from_parquet, ant.data.TableFile.open):
+        with pytest.raises(TypeError, match="unexpected keyword"):
+            opener(path, memory_limit_bytes=1)
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        ant.data.from_arrow_ipc(path, memory_limit_bytes=1)
+    with pytest.raises(CausalValueError):
+        ant.data.from_parquet(path, execution=Execution(limits=ResourceLimits(memory_bytes=0)))
+    with pytest.raises(Exception, match="Execution"):
+        ant.data.from_parquet(path, execution={"limits": 1})
+
+
+def _arrow(tmp_path: Path, data: dict[str, np.ndarray]) -> Path:
+    import pyarrow.feather as feather
+
+    path = tmp_path / "rows.arrow"
+    feather.write_feather(pa.table(data), path, compression="uncompressed")
+    return path

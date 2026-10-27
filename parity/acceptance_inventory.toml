@@ -5137,8 +5137,8 @@ family = "static_response"
 representative = ""
 obligations = ["InterventionResponse:Dag:accepted:Frequentist:cheap", "InterventionResponse:Dag:accepted:Frequentist:full", "InterventionResponse:Dag:accepted:Frequentist:none", "InterventionResponse:Dag:explicit:Frequentist:cheap", "InterventionResponse:Dag:explicit:Frequentist:full", "InterventionResponse:Dag:explicit:Frequentist:none", "InterventionResponse:Dag:graph_posterior:Frequentist:cheap", "InterventionResponse:Dag:graph_posterior:Frequentist:full", "InterventionResponse:Dag:graph_posterior:Frequentist:none", "closed.InterventionResponse.7662a7eb"]
 limitations = []
-acceptance = "complete"
-incomplete_reasons = []
+acceptance = "incomplete"
+incomplete_reasons = ["method child: fixture crates/antecedent/tests/numeric_pins.rs defines no `three_factor_interaction_batch_withholds_instead_of_using_first_four_cells`"]
 conflicts = []
 
 [[row]]

@@ -3,7 +3,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
-from antecedent import interference
+from antecedent import Execution, interference
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
@@ -135,7 +135,7 @@ def test_randomized_interference_matches_empty_network_difference() -> None:
             assignment=[False, True, False, True],
             edges=[],
             query=query,
-            seed=9,
+            execution=Execution(seed=9),
         )
     )
 

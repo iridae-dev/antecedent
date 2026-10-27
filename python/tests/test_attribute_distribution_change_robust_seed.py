@@ -44,7 +44,7 @@ def _run(names, cols, edges, half, n, *, n_samples, seed):
         comparison_start=half,
         comparison_end=n,
         n_samples=n_samples,
-        seed=seed,
+        execution=antecedent.Execution(seed=seed),
     )
 
 

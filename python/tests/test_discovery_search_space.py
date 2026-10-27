@@ -35,7 +35,9 @@ def _same_time_adjacency(result) -> bool:
 
 def test_pcmci_searches_only_the_declared_lagged_window():
     names, cols = _driven_pair()
-    result = DISCOVERY.PCMCI(max_lag=2, alpha=0.01, fdr=False).run((names, cols), seed=3)
+    result = DISCOVERY.PCMCI(max_lag=2, alpha=0.01, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=3)
+    )
     recovered = {
         (link.source, link.source_lag, link.target, link.target_lag) for link in result.links
     }
@@ -54,9 +56,11 @@ def test_a_wider_lag_window_is_searched_to_its_declared_edge_and_no_further():
     x = rng.normal(size=n)
     y = np.zeros(n)
     y[3:] = 0.9 * x[:-3] + 0.3 * rng.normal(size=n - 3)
-    window_one = DISCOVERY.PCMCI(max_lag=1, alpha=0.01, fdr=False).run((["x", "y"], [x, y]), seed=2)
+    window_one = DISCOVERY.PCMCI(max_lag=1, alpha=0.01, fdr=False).run(
+        (["x", "y"], [x, y]), execution=antecedent.Execution(seed=2)
+    )
     window_three = DISCOVERY.PCMCI(max_lag=3, alpha=0.01, fdr=False).run(
-        (["x", "y"], [x, y]), seed=2
+        (["x", "y"], [x, y]), execution=antecedent.Execution(seed=2)
     )
     assert all(link.source_lag <= 1 for link in window_one.links)
     assert not any(
@@ -70,14 +74,18 @@ def test_a_wider_lag_window_is_searched_to_its_declared_edge_and_no_further():
 @pytest.mark.parametrize("method", [DISCOVERY.PCMCIPlus, DISCOVERY.LPCMCI])
 def test_contemporaneous_searches_admit_the_same_time_adjacency(method):
     names, cols = _driven_pair()
-    result = method(max_lag=1, alpha=0.01, fdr=False).run((names, cols), seed=3)
+    result = method(max_lag=1, alpha=0.01, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=3)
+    )
     assert _same_time_adjacency(result), result.graph_edges
     assert all(edge.source_lag <= 1 and edge.target_lag <= 1 for edge in result.graph_edges)
 
 
 def test_lpcmci_counts_exactly_the_definitely_directed_edges_of_its_graph():
     names, cols = _driven_pair()
-    result = DISCOVERY.LPCMCI(max_lag=1, alpha=0.01, fdr=False).run((names, cols), seed=3)
+    result = DISCOVERY.LPCMCI(max_lag=1, alpha=0.01, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=3)
+    )
     definite = sum(
         1 for edge in result.graph_edges if {edge.at_source, edge.at_target} == {"tail", "arrow"}
     )
@@ -94,7 +102,7 @@ def test_the_multi_environment_search_admits_the_same_time_adjacency():
         names, cols = _driven_pair(n=800, seed=seed)
         environments.append(cols)
     result = DISCOVERY.JPCMCIPlus(max_lag=1, alpha=0.01, fdr=False).run(
-        ["x", "y"], environments, seed=3
+        ["x", "y"], environments, execution=antecedent.Execution(seed=3)
     )
     assert result.algorithm_id == "jpcmci_plus"
     assert _same_time_adjacency(result), result.graph_edges
@@ -107,7 +115,7 @@ def test_the_static_search_has_no_time_axis_and_keeps_only_the_collider_skeleton
     w = rng.normal(size=n)
     y = 1.5 * t + 1.0 * w + 0.3 * rng.normal(size=n)
     result = DISCOVERY.PC(alpha=0.001, fdr=False, max_cond_size=2).run(
-        {"t": t, "y": y, "w": w}, seed=1
+        {"t": t, "y": y, "w": w}, execution=antecedent.Execution(seed=1)
     )
     assert result.graph_edges
     assert all(edge.source_lag == 0 and edge.target_lag == 0 for edge in result.graph_edges)
@@ -118,30 +126,40 @@ def test_the_static_search_has_no_time_axis_and_keeps_only_the_collider_skeleton
 def test_conditional_independence_resolves_by_name_and_refuses_unknown_or_misused_weights():
     names, cols = _driven_pair(n=300)
     result = DISCOVERY.PCMCI(max_lag=1, alpha=0.05, fdr=False, ci="parcorr").run(
-        (names, cols), seed=1
+        (names, cols), execution=antecedent.Execution(seed=1)
     )
     assert result.ci_name == "parcorr"
     weighted = DISCOVERY.PCMCI(max_lag=1, alpha=0.05, fdr=False, ci="weighted_parcorr").run(
-        (names, cols), seed=1, weights=[1.0] * 300
+        (names, cols), execution=antecedent.Execution(seed=1), weights=[1.0] * 300
     )
     assert weighted.ci_name == "weighted_parcorr"
 
     with pytest.raises(CausalCompileError):
-        DISCOVERY.PCMCI(max_lag=1, ci="no_such_test").run((names, cols), seed=1)
+        DISCOVERY.PCMCI(max_lag=1, ci="no_such_test").run(
+            (names, cols), execution=antecedent.Execution(seed=1)
+        )
     # Weights belong to the weighted test alone, and the weighted test cannot run without them.
     with pytest.raises(CausalCompileError, match="weights"):
-        DISCOVERY.PCMCI(max_lag=1, ci="weighted_parcorr").run((names, cols), seed=1)
+        DISCOVERY.PCMCI(max_lag=1, ci="weighted_parcorr").run(
+            (names, cols), execution=antecedent.Execution(seed=1)
+        )
     with pytest.raises(CausalCompileError, match="weighted_parcorr"):
-        DISCOVERY.PCMCI(max_lag=1, ci="parcorr").run((names, cols), seed=1, weights=[1.0] * 300)
+        DISCOVERY.PCMCI(max_lag=1, ci="parcorr").run(
+            (names, cols), execution=antecedent.Execution(seed=1), weights=[1.0] * 300
+        )
 
 
 def test_a_compile_refusal_names_the_family_of_its_typed_cause():
     names, cols = _driven_pair(n=300)
     # An unknown test name is a statistics-layer refusal: the typed cause survives the boundary.
     with pytest.raises(CausalCompileError) as unknown:
-        DISCOVERY.PCMCI(max_lag=1, ci="no_such_test").run((names, cols), seed=1)
+        DISCOVERY.PCMCI(max_lag=1, ci="no_such_test").run(
+            (names, cols), execution=antecedent.Execution(seed=1)
+        )
     assert unknown.value.cause_kind == "stats"
     # A message-only compile refusal (weights without the weighted test) carries no typed cause.
     with pytest.raises(CausalCompileError, match="weights") as untyped:
-        DISCOVERY.PCMCI(max_lag=1, ci="weighted_parcorr").run((names, cols), seed=1)
+        DISCOVERY.PCMCI(max_lag=1, ci="weighted_parcorr").run(
+            (names, cols), execution=antecedent.Execution(seed=1)
+        )
     assert getattr(untyped.value, "cause_kind", None) is None

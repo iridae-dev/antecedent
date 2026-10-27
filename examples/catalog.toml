@@ -15,13 +15,13 @@ claim = "Derived procedure report conditional on declared design and truths"
 [[example]]
 id = "analysis_workflow"
 title = "First analysis"
-summary = "Estimate, inspect, refresh and reload one synthetic average effect."
+summary = "Estimate, inspect, rebind and reload one synthetic average effect."
 python = "examples/python/analysis_workflow.py"
 topic = "Start and reuse"
 level = "beginner"
 dependencies = []
 runtime = "up to 1 min"
-claim = "Average-effect execution, immutable refresh history, and saved-result acceptance; inspect interval calibration."
+claim = "Average-effect execution, immutable branch history, and saved-result acceptance; inspect interval calibration."
 
 [[example]]
 id = "artifact_consumer"
@@ -728,6 +728,18 @@ level = "advanced"
 dependencies = ["numpy", "scipy"]
 runtime = "paper-size runs vary with feature and sample counts"
 claim = "Specified synthetic likelihood experiments with explicit deviations, optimizer diagnostics and independent numerical references; no calibration or latent recovery claim"
+
+[[example]]
+id = "recovered_feedback_law"
+title = "Recovered feedback law"
+summary = "Learn a linear feedback law from a passive sample and two randomized clamp experiments, branch intervention targets and reuse a consumed law."
+python = "examples/python/recovered_feedback_law.py"
+unreleased = true
+topic = "Cyclic systems"
+level = "advanced"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Linear feedback recovered under a declared recipe from independent clamp experiments; sampling draws describe fit uncertainty, not a parameter posterior or calibrated coverage."
 
 [[example]]
 id = "joint_panel_workflow"

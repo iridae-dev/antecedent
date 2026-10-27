@@ -117,6 +117,70 @@ def test_execution_controls_reach_native_preparation_and_execution():
     assert source.inspect()["fits_performed"] == 0
 
 
+def _cyclic_routes(source, family, result, artifact, identity, schema):
+    """Every cyclic native entry that takes the execution's byte limit and token."""
+    from antecedent.cyclic import consume_artifact
+
+    return {
+        "execute": lambda run: source.execute(execution=run),
+        "to_family": lambda run: source.to_family(execution=run),
+        "rebind": lambda run: source.rebind(
+            [{"values": [1.0, 0.7], "clamps": [{"variable": 0, "value": 1.0}]}], execution=run
+        ),
+        "family_execute": lambda run: family.execute(execution=run),
+        "family_evidence": lambda run: family.evidence(
+            schema, [WorldSelector(1, "B")], execution=run
+        ),
+        "result_export": lambda run: result.export(execution=run),
+        "consume": lambda run: consume_artifact(
+            artifact, expected_identity=identity, execution=run
+        ),
+    }
+
+
+@pytest.mark.parametrize(
+    ("limits", "token_fired", "error"),
+    [
+        (ResourceLimits(memory_bytes=1), False, CausalResourceError),
+        (ResourceLimits(memory_bytes=1 << 30), True, CausalCancelledError),
+    ],
+    ids=["tiny_memory_limit", "pre_cancelled_token"],
+)
+def test_cyclic_routes_honour_the_execution_limit_and_token_and_return_their_leases(
+    limits, token_fired, error
+):
+    import gc
+
+    model = LinearCyclicModel(("A", "B"), (0.0, 0.4, 0.5, 0.0), (1.0, 0.0, 0.0, 1.0))
+    family = model.worlds(
+        [World(1, Set("A", 1.0))],
+        component_id="loop",
+        source_id="specified",
+        certifying_evidence=["analytic"],
+    )
+    schema = EvidenceSchema(
+        "feedback",
+        "specified population",
+        (EvidenceVariable("A", "meter"), EvidenceVariable("B", "meter")),
+    )
+    source = _fitted()
+    result = require_success(source.execute())
+    routes = _cyclic_routes(source, family, result, bytes(result.export()), result.identity, schema)
+    token = _native.CancellationToken()
+    if token_fired:
+        token.cancel()
+    run = Execution(cancel=token, limits=limits)
+    start = run._handle.available_memory_bytes
+    for name, route in routes.items():
+        if name in {"rebind", "to_family"} and error is CausalResourceError:
+            continue  # a one-byte pool still admits their small preparation copies
+        with pytest.raises(error):
+            outcome = route(run)
+            require_success(outcome)
+        gc.collect()
+        assert run._handle.available_memory_bytes == start, name
+
+
 def test_common_operations_delegate_to_the_same_immutable_cyclic_lifecycle():
     source = _fitted()
     branch = ant.reconfigure(source, worlds=[[{"variable": 0, "value": 2.0}]])

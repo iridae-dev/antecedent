@@ -98,7 +98,9 @@ def test_path_distribution_graph_posterior_rule_executes_and_the_prepare_gate_is
     prepared = antecedent.prepare(
         columns,
         query=antecedent.PathSpecificEffect("t", "y"),
-        discovery=antecedent.discovery.ExactDagPosterior().run(columns, seed=1),
+        discovery=antecedent.discovery.ExactDagPosterior().run(
+            columns, execution=antecedent.Execution(seed=1)
+        ),
         refute=False,
         inference=antecedent.Frequentist(bootstrap=0),
     )

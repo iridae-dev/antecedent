@@ -23,6 +23,7 @@ import json
 import subprocess
 import sys
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent import _native
@@ -804,14 +805,21 @@ def test_cancellation_stops_before_a_claim_and_is_typed():
     token = _native.CancellationToken()
     token.cancel()
     with pytest.raises(MeasurementModelRefusal) as caught:
-        require_success(prepared.estimate(cancel=token))
+        require_success(prepared.estimate(execution=antecedent.Execution(cancel=token)))
     assert caught.value.reason_code == "cancelled_no_claim"
     with pytest.raises(MeasurementModelRefusal) as caught:
-        require_success(prepared.refresh(classical_data(*simulate(200, 6)), cancel=token))
+        require_success(
+            prepared.refresh(
+                classical_data(*simulate(200, 6)), execution=antecedent.Execution(cancel=token)
+            )
+        )
     assert caught.value.reason_code == "cancelled_no_claim"
     with pytest.raises(MeasurementModelRefusal) as caught:
         mm.prepare_measurement_model(
-            classical_model(0.6), analysis(), classical_data(*simulate(200, 5)), cancel=token
+            classical_model(0.6),
+            analysis(),
+            classical_data(*simulate(200, 5)),
+            execution=antecedent.Execution(cancel=token),
         )
     assert caught.value.reason_code == "cancelled_no_claim"
 

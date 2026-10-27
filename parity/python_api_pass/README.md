@@ -43,6 +43,15 @@ mapping only until matching execution evidence exists. Skip, xfail, no-assertion
 empty selection, failed call/teardown, stale source, and replaced native binaries
 cannot establish completion.
 
+## Deferred rows
+
+`status = "deferred"` marks a capability whose remaining success path exists only once a
+coverage record is measured and attested, which is calibration work outside this pass. A deferred
+row names what it waits for (`deferred_to`) and a strict subset of its required dimensions
+(`deferred_dimensions`); it still needs executing evidence for every other dimension, normally the
+typed refusal while the record is unmeasured. Deferred rows are listed beside the unresolved gaps,
+never counted as earned, and a licence they would grant stays unlicensed.
+
 ## Commands
 
 - `python3 scripts/check_python_capabilities.py --write-surface` regenerates

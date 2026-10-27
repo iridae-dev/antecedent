@@ -5028,6 +5028,10 @@
       "declaration": "pub fn <antecedent::analysis::PreparedDecisionReliability>::fn verify_derived(&self, derived: &antecedent_design::decision_reliability::interval::DerivedUncertainty, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent::analysis::DecisionReliabilityRefusal>",
       "kind": "method"
     },
+    "<antecedent::analysis::PreparedIdentificationView<'_>>::materialize_admitted": {
+      "declaration": "pub fn <antecedent::analysis::PreparedIdentificationView<'_>>::fn materialize_admitted(&self, context: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::admitted_json::AdmittedJson, antecedent::CausalError>",
+      "kind": "method"
+    },
     "<antecedent::analysis::PreparedIdentificationView<'a>>::adjustment_page": {
       "declaration": "pub fn <antecedent::analysis::PreparedIdentificationView<'a>>::fn adjustment_page(&self, estimand: core::option::Option<usize>, offset: usize, limit: usize) -> core::result::Result<serde_json::value::Value, antecedent::CausalError>",
       "kind": "method"

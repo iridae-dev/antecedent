@@ -66,7 +66,9 @@ def _conformance_lag1_series():
 
 def test_discover_pcmci_schema_fields():
     names, cols = _lag1_series()
-    result = antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False).run((names, cols), seed=9)
+    result = antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=9)
+    )
     for name in SCHEMA_FIELDS:
         assert hasattr(result, name), name
     assert result.algorithm_id == "pcmci"
@@ -85,7 +87,9 @@ def test_discover_pcmci_schema_fields():
 
 def test_discover_pcmci_recovers_lag1_parent():
     names, cols = _lag1_series()
-    result = antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False).run((names, cols), seed=9)
+    result = antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=9)
+    )
     recovered = {
         (link.source, link.source_lag, link.target, link.target_lag) for link in result.links
     }
@@ -97,7 +101,7 @@ def test_discover_pcmci_conformance_exact_lag1_dual():
     names, cols = _conformance_lag1_series()
     assert len(cols[0]) == 500
     result = antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False).run(
-        (names, cols), seed=42
+        (names, cols), execution=antecedent.Execution(seed=42)
     )
     recovered = {
         (link.source, link.source_lag, link.target, link.target_lag) for link in result.links

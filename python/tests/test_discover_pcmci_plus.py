@@ -17,7 +17,7 @@ def _series(n: int = 400):
 def test_discover_pcmci_plus_returns_cpdag_summary():
     names, cols = _series()
     result = antecedent.discovery.PCMCIPlus(max_lag=1, alpha=0.05, fdr=False, ci="parcorr").run(
-        (names, cols), seed=9
+        (names, cols), execution=antecedent.Execution(seed=9)
     )
     assert result.algorithm_id == "pcmci_plus"
     assert result.ci_name == "parcorr"
@@ -36,7 +36,7 @@ def test_discover_pcmci_weighted_parcorr_accepts_weights():
     w = np.ones(200, dtype=np.float64)
     result = antecedent.discovery.PCMCI(
         max_lag=1, alpha=0.05, fdr=False, ci="weighted_parcorr"
-    ).run((names, cols), seed=2, weights=w.tolist())
+    ).run((names, cols), execution=antecedent.Execution(seed=2), weights=w.tolist())
     assert result.ci_name == "weighted_parcorr"
     assert result.ci_tests >= 0
 
@@ -46,7 +46,7 @@ def test_discover_pcmci_accepts_the_low_rank_gpdc_name():
     # is selected by name exactly like `gpdc`, and the result records which one ran.
     names, cols = _series(300)
     result = antecedent.discovery.PCMCI(max_lag=1, alpha=0.05, fdr=False, ci="gpdc_nystrom").run(
-        (names, cols), seed=4
+        (names, cols), execution=antecedent.Execution(seed=4)
     )
     assert result.ci_name == "gpdc_nystrom"
     assert result.ci_tests >= 0

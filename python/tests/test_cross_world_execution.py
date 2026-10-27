@@ -290,6 +290,44 @@ def test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record()
     assert error.value.detail == "cross_world_execution.interval_route_closed"
 
 
+def test_a_whole_path_interval_is_refused_outside_the_measured_cells() -> None:
+    execution = require_success(cw.seal(_joint_request()))
+    # The unit sampling is a closed choice, rejected before any native work.
+    with pytest.raises(CausalValueError):
+        require_success(execution.measured_interval("undeclared"))  # type: ignore[arg-type]
+    # One unit has no determined sampling variance under either declared sampling, so the
+    # measured interval is closed whatever the registry holds.
+    for sampling in ("independent_sample", "fixed_units"):
+        with pytest.raises(R) as error:
+            require_success(execution.measured_interval(sampling))
+        assert error.value.reason_code == "cell_not_licensed"
+        assert error.value.detail == "cross_world_execution.interval_route_closed"
+    # Fewer units than the measured range are closed too.
+    evidence = [{"x": 0, "y": 0}, {"x": 1, "y": 1}, {"x": 1, "y": 0}, {"x": 0, "y": 1}]
+    units = tuple(cw.FactualUnit(f"u{i}", evidence[i % 4]) for i in range(10))
+    small = require_success(
+        cw.seal(
+            cw.CrossWorldRequest(
+                scm=_response_scm(),
+                units=units,
+                worlds=(_do("x0", 0), _do("x1", 1)),
+                quantity=cw.probability("x0", "y", 0),
+            )
+        )
+    )
+    with pytest.raises(R) as error:
+        require_success(small.measured_interval("independent_sample"))
+    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.detail == "cross_world_execution.interval_route_closed"
+    # The unqualified interval and posterior readings are closed, never an unmeasured number.
+    with pytest.raises(R) as error:
+        small.interval()
+    assert error.value.detail == "cross_world_execution.interval_route_closed"
+    with pytest.raises(R) as error:
+        require_success(small.posterior())
+    assert error.value.detail == "cross_world_execution.posterior_route_closed"
+
+
 def test_unsupported_requests_are_scientific_refusals() -> None:
     executor = cw.CrossWorldExecutor()
     base = _joint_request()

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import math
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent import _native
@@ -483,7 +484,12 @@ def test_capacity_refusals_name_their_own_class_of_limit(procedure):
         detail="adaptive_inference.simulation_work_exceeded",
     )
     refused(
-        lambda: procedure.simulate((0.4, 0.4, 0.4), replications=10, seed=1, memory_bytes=1_000),
+        lambda: procedure.simulate(
+            (0.4, 0.4, 0.4),
+            replications=10,
+            seed=1,
+            execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1_000)),
+        ),
         detail="adaptive_inference.simulation_memory_exceeded",
     )
     refused(
@@ -496,7 +502,9 @@ def test_cancellation_is_a_refusal_not_a_verdict(procedure):
     token = _native.CancellationToken()
     token.cancel()
     refused(
-        lambda: procedure.simulate((0.4, 0.4, 0.4), replications=10, seed=1, cancel=token),
+        lambda: procedure.simulate(
+            (0.4, 0.4, 0.4), replications=10, seed=1, execution=antecedent.Execution(cancel=token)
+        ),
         code="cancelled_no_claim",
     )
 

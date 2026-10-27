@@ -15,6 +15,7 @@ import json
 import pytest
 from antecedent import Admg
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
@@ -303,6 +304,6 @@ def test_a_budget_or_cancellation_stop_shows_its_receipt():
     token = CancellationToken()
     token.cancel()
     with pytest.raises(CausalError) as cancelled:
-        decide(cancel=token)
+        decide(execution=Execution(cancel=token))
     assert cancelled.value.reason_code == "transport_budget_cancel"
     assert "receipt: stop search.cancelled" in str(cancelled.value)

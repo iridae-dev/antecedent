@@ -118,5 +118,7 @@ def test_native_panel_pcmci_builds_lag_windows_inside_each_unit():
 
 def test_panel_dbn_posterior_pools_per_unit_rows():
     panel = antecedent.data.panel([_lag1_unit(n=60, seed=s) for s in range(20, 24)])
-    posterior = antecedent.discovery.DbnPosterior(max_lag=1).run(panel, seed=1)
+    posterior = antecedent.discovery.DbnPosterior(max_lag=1).run(
+        panel, execution=antecedent.Execution(seed=1)
+    )
     assert posterior.n_graphs >= 1

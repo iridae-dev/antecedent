@@ -21,6 +21,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
@@ -571,10 +572,12 @@ def test_export_binds_names_limits_and_snapshots_into_the_verified_identity():
     # with a limits error the caller can retry with a larger budget, not an
     # invalid-proof error.
     with pytest.raises(CausalResourceError, match="search memory limit"):
-        transport.consume_multi_source_z_transport_artifact(artifact, memory_bytes=1 << 20)
+        transport.consume_multi_source_z_transport_artifact(
+            artifact, execution=Execution(limits=ResourceLimits(memory_bytes=1 << 20))
+        )
     # With the stored cap (or more) the same artifact verifies.
     affordable = transport.consume_multi_source_z_transport_artifact(
-        artifact, memory_bytes=512 * 1024 * 1024
+        artifact, execution=Execution(limits=ResourceLimits(memory_bytes=512 * 1024 * 1024))
     ).to_dict()
     assert affordable["proof"]["search"]["memory_limit_bytes"] == 512 * 1024 * 1024
 
@@ -759,7 +762,10 @@ def test_a_cancelled_search_returns_a_receipt_never_a_verdict():
     token = CancellationToken()
     token.cancel()
     stage = transport.identify_multi_source_z_transport(
-        graph=graph(), query=query(source_a(), source_b()), catalog=catalog(), cancel=token
+        graph=graph(),
+        query=query(source_a(), source_b()),
+        catalog=catalog(),
+        execution=Execution(cancel=token),
     )
     assert stage.outcome == "exhausted"
     assert stage.identification_status == "budget_cancel"

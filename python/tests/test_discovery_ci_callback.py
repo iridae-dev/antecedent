@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import Execution
 from antecedent.discovery import PC, PCMCI, run_static_discovery, run_temporal_discovery
 from antecedent.errors import CausalError
 
@@ -27,7 +28,9 @@ def _counting_ci(calls):
 
 def test_run_forwards_callable_ci_to_native():
     calls = {"n": 0}
-    result = PC(alpha=0.05, fdr=False, ci=_counting_ci(calls), max_cond_size=1).run(_data(), seed=1)
+    result = PC(alpha=0.05, fdr=False, ci=_counting_ci(calls), max_cond_size=1).run(
+        _data(), execution=Execution(seed=1)
+    )
     assert result.ci_name == "python.callback"
     assert calls["n"] > 0
     assert result.graph_edges == []
@@ -36,7 +39,9 @@ def test_run_forwards_callable_ci_to_native():
 def test_dispatcher_preserves_callable_ci():
     calls = {"n": 0}
     result, algorithm_id = run_static_discovery(
-        _data(), PC(alpha=0.05, fdr=False, ci=_counting_ci(calls), max_cond_size=1), seed=1
+        _data(),
+        PC(alpha=0.05, fdr=False, ci=_counting_ci(calls), max_cond_size=1),
+        execution=Execution(seed=1),
     )
     assert algorithm_id == "pc"
     assert result.ci_name == "python.callback"
@@ -47,7 +52,9 @@ def test_dispatcher_preserves_callable_ci():
 def test_temporal_dispatcher_preserves_callable_ci_and_serial_callback_policy():
     calls = {"n": 0}
     result, algorithm_id = run_temporal_discovery(
-        _data(), PCMCI(max_lag=1, fdr=False, ci=_counting_ci(calls)), seed=1, threads=4
+        _data(),
+        PCMCI(max_lag=1, fdr=False, ci=_counting_ci(calls)),
+        execution=Execution(seed=1, threads=4),
     )
     assert algorithm_id == "pcmci"
     assert result.ci_name == "python.callback"
@@ -57,8 +64,13 @@ def test_temporal_dispatcher_preserves_callable_ci_and_serial_callback_policy():
 
 
 def test_string_ci_is_unaffected_on_both_paths():
-    assert PC(alpha=0.05, fdr=False, max_cond_size=1).run(_data(), seed=1).ci_name == "parcorr"
-    result, _ = run_static_discovery(_data(), PC(alpha=0.05, fdr=False, max_cond_size=1), seed=1)
+    assert (
+        PC(alpha=0.05, fdr=False, max_cond_size=1).run(_data(), execution=Execution(seed=1)).ci_name
+        == "parcorr"
+    )
+    result, _ = run_static_discovery(
+        _data(), PC(alpha=0.05, fdr=False, max_cond_size=1), execution=Execution(seed=1)
+    )
     assert result.ci_name == "parcorr"
     assert result.graph_edges, "the supplied independent callback must change the discovered graph"
 
@@ -78,4 +90,6 @@ def test_callback_invalid_evidence_is_refused_before_graph_search(statistic, pro
         return [(statistic, probability) for _ in queries]
 
     with pytest.raises(CausalError, match="finite statistic.*p_value"):
-        run_static_discovery(_data(), PC(fdr=False, ci=ci, max_cond_size=1), seed=1)
+        run_static_discovery(
+            _data(), PC(fdr=False, ci=ci, max_cond_size=1), execution=Execution(seed=1)
+        )

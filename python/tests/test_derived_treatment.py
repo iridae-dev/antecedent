@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import Execution
 from antecedent.derived import (
     DeclaredExclusion,
     DerivedTreatment,
@@ -67,7 +68,12 @@ def truth(cell):
 def test_a_declared_joint_cell_recovers_the_known_law_and_the_interaction():
     data = draw(6000, 1, LAW)
     result = factorized_joint_cells(
-        data, declaration(), outcome="y", adjustment=["z"], seed=3, contrasts=["interaction"]
+        data,
+        declaration(),
+        outcome="y",
+        adjustment=["z"],
+        execution=Execution(seed=3),
+        contrasts=["interaction"],
     )
     assert result.claim == "point_only"
     assert result.treatments == ("t0", "t1")
@@ -237,7 +243,7 @@ def test_a_declared_learner_nuisance_is_cross_fitted_and_point_only():
             outcome="y",
             adjustment=["z"],
             nuisance="random_forest",
-            seed=3,
+            execution=Execution(seed=3),
             contrasts=["interaction"],
         )
     except CausalUnsupportedError as error:
@@ -263,7 +269,13 @@ def test_a_cancelled_fit_is_never_a_result():
     token = CancellationToken()
     token.cancel()
     with pytest.raises((CausalCancelledError, CausalUnsupportedError)):
-        factorized_joint_cells(data, declaration(), outcome="y", adjustment=["z"], cancel=token)
+        factorized_joint_cells(
+            data,
+            declaration(),
+            outcome="y",
+            adjustment=["z"],
+            execution=Execution(cancel=token),
+        )
 
 
 def test_the_joint_cell_cost_counts_are_the_hand_enumeration_and_never_a_time():

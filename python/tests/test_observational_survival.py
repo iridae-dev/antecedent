@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from antecedent import observational_survival
+from antecedent import Execution, observational_survival
 from antecedent.errors import CausalError
 
 HORIZON = 2.0
@@ -61,7 +61,9 @@ def _effect(data: dict[str, np.ndarray], **options):
 
 def test_survival_and_rmst_differences_recover_the_closed_form_truth() -> None:
     data = _draw()
-    effect = _effect(data, horizon=HORIZON, censoring="at_random_given_covariates", seed=4)
+    effect = _effect(
+        data, horizon=HORIZON, censoring="at_random_given_covariates", execution=Execution(seed=4)
+    )
     s1, r1 = _truth(1.0)
     s0, r0 = _truth(0.0)
     assert abs(effect.survival_difference.estimate - (s1 - s0)) < 4 * effect.survival_difference.se

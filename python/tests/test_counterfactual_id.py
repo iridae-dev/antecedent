@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import itertools
 
+import antecedent
 import pytest
 from antecedent.counterfactual_id import (
     EffectOnTreated,
@@ -274,7 +275,7 @@ def test_a_cancelled_search_is_a_budget_stop_with_its_receipt() -> None:
             observed=0.0,
             outcome="y",
             outcome_level=1.0,
-            cancel=token,
+            execution=antecedent.Execution(cancel=token),
         )
     assert stopped.value.reason_code == "transport_budget_cancel"
     assert "counterfactual_id.budget" in str(stopped.value)

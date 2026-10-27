@@ -21,6 +21,7 @@ import itertools
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from antecedent import composition_verification as cv
@@ -591,6 +592,72 @@ def test_a_declared_record_is_backed_only_by_a_currently_attesting_shipped_recor
         assert cv.registry_resolved_calibration(kept) == kept
     with pytest.raises(CausalTypeError):
         cv.registry_resolved_calibration({"kind": "held"})
+
+
+def _shipped_registry() -> tuple[list[str], set[str]]:
+    """Every shipped coverage record id and the ids the snapshot lists as currently attesting."""
+    path = (
+        Path(__file__).resolve().parents[2] / "crates/antecedent-io-core/data/coverage_records.json"
+    )
+    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    return [row["id"] for row in snapshot["records"]], set(snapshot["attesting_record_ids"])
+
+
+def test_a_record_identity_is_a_deterministic_digest_of_the_record_id():
+    ids, _ = _shipped_registry()
+    first, second = ids[0], ids[-1]
+    assert first != second
+    digest = cv.registry_record_identity(first)
+    assert len(digest) == 64 and set(digest) <= set("0123456789abcdef")
+    assert cv.registry_record_identity(first) == digest
+    assert cv.registry_record_identity(second) != digest
+    assert len({cv.registry_record_identity(rid) for rid in ids[:50]}) == len(ids[:50])
+    # The digest is the declaration identity, not the plain content digest of the id.
+    assert digest != D(first)
+    for blank in ("", "  "):
+        with pytest.raises(CausalTypeError):
+            cv.registry_record_identity(blank)
+    with pytest.raises(CausalTypeError):
+        cv.registry_record_identity(3)  # type: ignore[arg-type]
+
+
+def test_a_shipped_record_backs_a_declaration_exactly_when_the_snapshot_lists_it_attesting():
+    ids, attesting = _shipped_registry()
+    assert ids and attesting <= set(ids)
+    sampled = ids[:: max(1, len(ids) // 40)] + sorted(attesting)
+    for record_id in sampled:
+        shipped = cv.registry_record_identity(record_id)
+        backed = record_id in attesting
+        assert cv.registry_record_attests(shipped) is backed
+        held = cv.Calibration.held(shipped, SPACE)
+        resolved = cv.registry_resolved_calibration(held)
+        assert resolved == (held if backed else cv.Calibration.required())
+        inherited = cv.Calibration.inherited("fit", shipped, SPACE)
+        assert cv.registry_resolved_calibration(inherited) == (
+            inherited if backed else cv.Calibration.required()
+        )
+        graph = build(fit_calibration=held)
+        # `reported` inherits a record no shipped table holds, so it is always unresolved.
+        assert sorted(cv.unresolved_registry_calibrations(graph)) == (
+            ["reported"] if backed else ["fit", "reported"]
+        )
+    # A digest that names no shipped record, and one for an id outside the snapshot, back nothing.
+    assert cv.registry_record_attests(RECORD) is False
+    assert cv.registry_record_attests(cv.registry_record_identity("cov.no_such_record")) is False
+    assert cv.registry_resolved_calibration(cv.Calibration.held(RECORD, SPACE)) == (
+        cv.Calibration.required()
+    )
+    # A malformed digest and a non-calibration are rejected rather than treated as unbacked.
+    with pytest.raises(CausalValueError):
+        cv.registry_record_attests("not a digest")
+    with pytest.raises(CausalTypeError):
+        cv.registry_resolved_calibration({"kind": "held"})  # type: ignore[arg-type]
+    with pytest.raises(CausalTypeError):
+        cv.unresolved_registry_calibrations("graph")  # type: ignore[arg-type]
+    duplicate = cv.CompositionGraph(nodes=[node("a", "data"), node("a", "data")])
+    assert refused(lambda: cv.unresolved_registry_calibrations(duplicate)).reason_code == (
+        "invalid_argument"
+    )
 
 
 def test_the_nodes_whose_calibration_no_shipped_record_backs_are_named():

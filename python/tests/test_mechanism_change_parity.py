@@ -37,7 +37,7 @@ def test_mechanism_change_detection_exposes_adjusted_p_value():
         half,
         half,
         n,
-        seed=1,
+        execution=antecedent.Execution(seed=1),
     )
     assert detections, "expected at least one target"
     for d in detections:

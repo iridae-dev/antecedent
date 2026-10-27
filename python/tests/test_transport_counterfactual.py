@@ -47,6 +47,7 @@ import numpy as np
 import pytest
 from antecedent import Admg
 from antecedent.errors import CausalError, CausalUnsupportedError, CausalValueError
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.state import CancellationToken
 from antecedent.transport import advanced as transport
@@ -941,7 +942,7 @@ def test_budget_cancellation_and_bounds_are_coded_stops_never_verdicts():
 
     token = CancellationToken()
     token.cancel()
-    cancelled = case.decide(worlds, event, cancel=token)
+    cancelled = case.decide(worlds, event, execution=Execution(cancel=token))
     assert cancelled.status == "budget_cancel"
     assert cancelled.reason_code == "transport_budget_cancel"
 
@@ -1138,7 +1139,9 @@ def test_expected_identity_and_consumer_limits_are_enforced_before_a_number():
     token = CancellationToken()
     token.cancel()
     with pytest.raises(CausalError) as raised:
-        transport.consume_counterfactual_transport_artifact(artifact, cancel=token)
+        transport.consume_counterfactual_transport_artifact(
+            artifact, execution=Execution(cancel=token)
+        )
     assert isinstance(raised.value, CausalError)
 
 

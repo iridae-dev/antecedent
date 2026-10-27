@@ -8,6 +8,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcReceipt, RecalcRefusal, ResumeContext, Utility
 from antecedent.recalc_design import (
@@ -57,7 +58,7 @@ def request(kind="iv", strength=1.0):
 
 
 def full(r, actual):
-    fresh = require_success(DesignSession().execute(r, seed=3))
+    fresh = require_success(DesignSession().execute(r, execution=Execution(seed=3)))
     assert actual.law == fresh.law
     assert actual.decision == fresh.decision
     return fresh
@@ -78,7 +79,7 @@ def refused(call, code, detail, stage):
 )
 def test_design_native_iv_rd_frontdoor_counts_and_truth(kind, truth, fits):
     r = request(kind)
-    result = require_success(DesignSession().execute(r, seed=3))
+    result = require_success(DesignSession().execute(r, execution=Execution(seed=3)))
     assert result.law.ate == pytest.approx(truth, abs=1e-11)
     counts = result.receipt.totals
     assert counts.model_fits >= 2 if fits is None else counts.model_fits == fits
@@ -98,10 +99,12 @@ def test_design_native_iv_rd_frontdoor_counts_and_truth(kind, truth, fits):
 def test_design_utility_reuse_and_full_rerun(kind):
     r = request(kind)
     session = DesignSession()
-    require_success(session.execute(r, seed=3))
-    assert require_success(session.execute(r, seed=3)).receipt.totals.total == 0
+    require_success(session.execute(r, execution=Execution(seed=3)))
+    assert (
+        require_success(session.execute(r, execution=Execution(seed=3))).receipt.totals.total == 0
+    )
     changed = replace(r, utility=Utility(3, 0.2))
-    result = require_success(session.execute(changed, seed=3))
+    result = require_success(session.execute(changed, execution=Execution(seed=3)))
     assert result.receipt.totals.total == result.receipt.totals.decisions == 1
     full(changed, result)
 
@@ -110,9 +113,9 @@ def test_design_utility_reuse_and_full_rerun(kind):
 def test_design_changed_inputs_refit(kind):
     r = request(kind)
     session = DesignSession()
-    require_success(session.execute(r, seed=3))
+    require_success(session.execute(r, execution=Execution(seed=3)))
     changed = replace(r, data={**r.data, "y": 2 * r.data["y"]})
-    result = require_success(session.execute(changed, seed=3))
+    result = require_success(session.execute(changed, execution=Execution(seed=3)))
     assert result.receipt.totals.model_fits > 0
     full(changed, result)
 
@@ -120,10 +123,10 @@ def test_design_changed_inputs_refit(kind):
 def test_design_weak_iv_retains_point_diagnostics_and_previous_state():
     session = DesignSession()
     strong = request()
-    require_success(session.execute(strong, seed=3))
+    require_success(session.execute(strong, execution=Execution(seed=3)))
     before = session.identities
     with pytest.raises(DesignWeakInstrument) as caught:
-        require_success(session.execute(request(strength=0.001), seed=3))
+        require_success(session.execute(request(strength=0.001), execution=Execution(seed=3)))
     error = caught.value
     assert (error.reason_code, error.detail, error.stage) == (
         "route_not_supported",
@@ -136,22 +139,28 @@ def test_design_weak_iv_retains_point_diagnostics_and_previous_state():
         error.diagnostics["uncertainty_withheld"] or error.diagnostics["anderson_rubin"] is not None
     )
     assert session.identities == before and session.is_live
-    assert require_success(session.execute(strong, seed=3)).receipt.totals.total == 0
+    assert (
+        require_success(session.execute(strong, execution=Execution(seed=3))).receipt.totals.total
+        == 0
+    )
 
 
 @pytest.mark.parametrize("kind", ["iv", "rd", "frontdoor"])
 def test_design_source_backed_replay_and_mismatch_refusals_fresh_process(kind, tmp_path):
     r = request(kind)
     session = DesignSession()
-    result = require_success(session.execute(r, seed=3))
-    artifact = bytes(session.export(seed=3))
-    replay = require_success(consume_design_result(artifact, r, seed=3))
+    result = require_success(session.execute(r, execution=Execution(seed=3)))
+    artifact = bytes(session.export(execution=Execution(seed=3)))
+    replay = require_success(consume_design_result(artifact, r, execution=Execution(seed=3)))
     assert replay.session.is_live
     assert replay.result.law == result.law
     assert replay.result.receipt.totals.model_fits > 0
-    assert require_success(replay.session.execute(r, seed=3)).receipt.totals.total == 0
+    assert (
+        require_success(replay.session.execute(r, execution=Execution(seed=3))).receipt.totals.total
+        == 0
+    )
     refused(
-        lambda: require_success(consume_design_result(artifact, None, seed=3)),
+        lambda: require_success(consume_design_result(artifact, None, execution=Execution(seed=3))),
         "score_table_unavailable",
         "recalc.design_data_unavailable",
         "data_snapshot",
@@ -159,7 +168,9 @@ def test_design_source_backed_replay_and_mismatch_refusals_fresh_process(kind, t
     refused(
         lambda: require_success(
             consume_design_result(
-                artifact, replace(r, data={**r.data, "y": 2 * r.data["y"]}), seed=3
+                artifact,
+                replace(r, data={**r.data, "y": 2 * r.data["y"]}),
+                execution=Execution(seed=3),
             )
         ),
         "invalid_argument",
@@ -167,7 +178,7 @@ def test_design_source_backed_replay_and_mismatch_refusals_fresh_process(kind, t
         "score_artifact",
     )
     refused(
-        lambda: require_success(consume_design_result(artifact, r, seed=4)),
+        lambda: require_success(consume_design_result(artifact, r, execution=Execution(seed=4))),
         "invalid_argument",
         "recalc.design_artifact_mismatch",
         "score_artifact",
@@ -175,7 +186,9 @@ def test_design_source_backed_replay_and_mismatch_refusals_fresh_process(kind, t
     if kind == "rd":
         refused(
             lambda: require_success(
-                consume_design_result(artifact, replace(r, model=RdModel("r", 0, 0.75)), seed=3)
+                consume_design_result(
+                    artifact, replace(r, model=RdModel("r", 0, 0.75)), execution=Execution(seed=3)
+                )
             ),
             "invalid_argument",
             "recalc.design_artifact_mismatch",
@@ -185,7 +198,7 @@ def test_design_source_backed_replay_and_mismatch_refusals_fresh_process(kind, t
     path.write_bytes(artifact)
     source = tmp_path / "data.json"
     source.write_text(json.dumps({n: v.tolist() for n, v in r.data.items()}))
-    script = "from antecedent.outcomes import require_success\nimport json, sys\nfrom antecedent.recalc import Utility\nfrom antecedent.recalc_design import *\nk = sys.argv[3]\ndata = json.load(open(sys.argv[2]))\nmodel = {'iv': IvModel('z'), 'rd': RdModel('r', 0, 1), 'frontdoor': FrontdoorModel('m')}[k]\nedges = {'iv': [('z', 't'), ('t', 'y')], 'rd': [('r', 't'), ('r', 'y'), ('t', 'y')], 'frontdoor': [('t', 'm'), ('m', 'y')]}[k]\nr = DesignRequest(data, edges, 't', 'y', model, Utility(1))\np = require_success(consume_design_result(open(sys.argv[1], 'rb').read(), r, seed=3))\nassert p.session.is_live and p.result.receipt.totals.model_fits > 0\nreused = require_success(p.session.execute(r, seed=3)).receipt.totals.total\nprint(json.dumps({'point': p.result.law.ate, 'fits': p.result.receipt.totals.model_fits, 'reused': reused, 'digest': p.artifact_digest}))\n"
+    script = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nimport json, sys\nfrom antecedent.recalc import Utility\nfrom antecedent.recalc_design import *\nk = sys.argv[3]\ndata = json.load(open(sys.argv[2]))\nmodel = {'iv': IvModel('z'), 'rd': RdModel('r', 0, 1), 'frontdoor': FrontdoorModel('m')}[k]\nedges = {'iv': [('z', 't'), ('t', 'y')], 'rd': [('r', 't'), ('r', 'y'), ('t', 'y')], 'frontdoor': [('t', 'm'), ('m', 'y')]}[k]\nr = DesignRequest(data, edges, 't', 'y', model, Utility(1))\np = require_success(consume_design_result(open(sys.argv[1], 'rb').read(), r, execution=Execution(seed=3)))\nassert p.session.is_live and p.result.receipt.totals.model_fits > 0\nreused = require_success(p.session.execute(r, execution=Execution(seed=3))).receipt.totals.total\nprint(json.dumps({'point': p.result.law.ate, 'fits': p.result.receipt.totals.model_fits, 'reused': reused, 'digest': p.artifact_digest}))\n"
     ran = subprocess.run(
         [sys.executable, "-c", script, str(path), str(source), kind],
         check=True,
@@ -201,17 +214,17 @@ def test_design_source_backed_replay_and_mismatch_refusals_fresh_process(kind, t
 @pytest.mark.parametrize("kind", ["iv", "rd", "frontdoor"])
 def test_design_receipt_only_boundary_and_supplied_raw_refit(kind):
     r = request(kind)
-    first = require_success(DesignSession().execute(r, seed=3))
+    first = require_success(DesignSession().execute(r, execution=Execution(seed=3)))
     receipt = require_success(RecalcReceipt.consume(bytes(first.receipt.export())))
     empty = require_success(DesignSession.resume(receipt, ResumeContext(portable_fit=True)))
     refused(
-        lambda: require_success(empty.execute(r, seed=3)),
+        lambda: require_success(empty.execute(r, execution=Execution(seed=3))),
         "score_table_unavailable",
         "recalc.unavailable_data",
         "data_snapshot",
     )
     restored = require_success(DesignSession.resume(receipt, ResumeContext(supplied_data=True)))
-    result = require_success(restored.execute(r, seed=3))
+    result = require_success(restored.execute(r, execution=Execution(seed=3)))
     assert restored.is_live and result.receipt.totals.model_fits > 0
     full(r, result)
 
@@ -243,9 +256,11 @@ def test_design_resource_guards_and_native_capabilities():
     assert caught.value.reason_code == "invalid_argument"
     assert "recalc.memory_budget_exceeded" in str(caught.value)
     with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded"):
-        require_success(session.execute(r, memory_limit_bytes=1))
+        require_success(
+            session.execute(r, execution=Execution(limits=ResourceLimits(memory_bytes=1)))
+        )
     assert not session.is_live
-    require_success(session.execute(r, seed=3))
+    require_success(session.execute(r, execution=Execution(seed=3)))
     assert retained_kind(session) == RetainedKind.LIVE_DESIGN
     assert require_adapter(Family.DESIGN, Operation.UTILITY, session).state_type is DesignSession
     restored = require_success(
@@ -257,10 +272,12 @@ def test_design_resource_guards_and_native_capabilities():
 def test_design_typed_invalid_design_refusals():
     r = request("rd")
     session = DesignSession()
-    require_success(session.execute(r, seed=3))
+    require_success(session.execute(r, execution=Execution(seed=3)))
     identities = session.identities
     refused(
-        lambda: require_success(session.execute(replace(r, model=RdModel("r", 0, -1)), seed=3)),
+        lambda: require_success(
+            session.execute(replace(r, model=RdModel("r", 0, -1)), execution=Execution(seed=3))
+        ),
         "invalid_argument",
         "recalc.invalid_rd_window",
         "query",
@@ -271,9 +288,9 @@ def test_design_typed_invalid_design_refusals():
 @pytest.mark.parametrize("kind", ["iv", "rd", "frontdoor"])
 def test_design_original_artifact_independent_consumer_fresh_process(kind, tmp_path):
     session = DesignSession()
-    require_success(session.execute(request(kind), seed=3))
+    require_success(session.execute(request(kind), execution=Execution(seed=3)))
     path = tmp_path / "original.artifact"
-    path.write_bytes(bytes(session.export(seed=3)))
+    path.write_bytes(bytes(session.export(execution=Execution(seed=3))))
     script = """import antecedent as a,json,sys
 r=a.artifacts.accept(open(sys.argv[1],'rb').read())
 if sys.argv[2]=='rd': assert 'dependencies.checked_rd_operation' in r['unresolved']

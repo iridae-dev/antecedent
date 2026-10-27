@@ -88,7 +88,7 @@ def main() -> None:
         "t",
         "y",
         path_nodes=["m"],
-        seed=5,
+        execution=antecedent.Execution(seed=5),
     )
     assert math.isfinite(path.total_change)
     print(f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}")

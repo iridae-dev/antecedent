@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 from antecedent import _native
 from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcReceipt, RecalcRefusal, ResumeContext, Utility
 from antecedent.recalc_bayesian import (
@@ -80,13 +81,13 @@ def assert_projection(result, rows, summary):
 def test_bayesian_native_draw_projection_truth_and_full_rerun(model):
     req = request(model)
     session = BayesianSession()
-    result = require_success(session.execute(req, seed=41))
+    result = require_success(session.execute(req, execution=Execution(seed=41)))
     assert result.receipt.totals.model_fits > 0
     assert result.receipt.totals.posterior_draws == 2048
     assert result.receipt.totals.fold_fits == 0
     assert result.law.mean == pytest.approx(2, abs=0.03)
     assert_projection(result, session.effect_draws, req.summary)
-    rerun = require_success(BayesianSession().execute(req, seed=41))
+    rerun = require_success(BayesianSession().execute(req, execution=Execution(seed=41)))
     assert result.law == rerun.law
     if model == "gaussian":
         full = require_success(
@@ -106,16 +107,21 @@ def test_bayesian_native_draw_projection_truth_and_full_rerun(model):
 def test_bayesian_summary_and_utility_reuse_actual_native_rows():
     req = request()
     session = BayesianSession()
-    first = require_success(session.execute(req, seed=41))
+    first = require_success(session.execute(req, execution=Execution(seed=41)))
     rows = session.effect_draws
-    assert require_success(session.execute(req, seed=41)).receipt.totals.total == 0
+    assert (
+        require_success(session.execute(req, execution=Execution(seed=41))).receipt.totals.total
+        == 0
+    )
     changed = replace(req, summary=PosteriorSummary(0.1, 0.9, 2.0))
-    summary = require_success(session.execute(changed, seed=41))
+    summary = require_success(session.execute(changed, execution=Execution(seed=41)))
     assert summary.receipt.totals.model_fits == summary.receipt.totals.posterior_draws == 0
     assert summary.receipt.totals.law_summaries == 1
     assert session.effect_draws == rows
     assert_projection(summary, rows, changed.summary)
-    utility = require_success(session.execute(replace(changed, utility=Utility(3, 1)), seed=41))
+    utility = require_success(
+        session.execute(replace(changed, utility=Utility(3, 1)), execution=Execution(seed=41))
+    )
     assert utility.receipt.totals.total == utility.receipt.totals.decisions == 1
     assert utility.law == summary.law
     assert utility.decision.net_benefit == pytest.approx(3 * first.law.mean - 1)
@@ -125,7 +131,7 @@ def test_bayesian_summary_and_utility_reuse_actual_native_rows():
 def test_bayesian_changed_inputs_refit_against_fresh_execution(mutation):
     req = request()
     session = BayesianSession()
-    require_success(session.execute(req, seed=41))
+    require_success(session.execute(req, execution=Execution(seed=41)))
     seed = 42 if mutation == "seed" else 41
     changed = {
         "data": replace(req, data={**req.data, "y": 2 * req.data["y"]}),
@@ -136,16 +142,19 @@ def test_bayesian_changed_inputs_refit_against_fresh_execution(mutation):
         "graph": replace(req, edges=(("t", "y"), ("z", "y"))),
         "seed": req,
     }[mutation]
-    result = require_success(session.execute(changed, seed=seed))
+    result = require_success(session.execute(changed, execution=Execution(seed=seed)))
     assert result.receipt.totals.model_fits > 0
     assert result.receipt.totals.posterior_draws > 0
-    assert result.law == require_success(BayesianSession().execute(changed, seed=seed)).law
+    assert (
+        result.law
+        == require_success(BayesianSession().execute(changed, execution=Execution(seed=seed))).law
+    )
 
 
 def test_bayesian_exact_refusals_preserve_native_rows_and_bounds():
     req = request()
     session = BayesianSession()
-    require_success(session.execute(req, seed=41))
+    require_success(session.execute(req, execution=Execution(seed=41)))
     rows, ids = session.effect_draws, session.identities
     cases = [
         (
@@ -163,7 +172,7 @@ def test_bayesian_exact_refusals_preserve_native_rows_and_bounds():
     ]
     for changed, code, detail, stage in cases:
         with pytest.raises(RecalcRefusal) as error:
-            require_success(session.execute(changed, seed=41))
+            require_success(session.execute(changed, execution=Execution(seed=41)))
         assert (error.value.reason_code, error.value.detail, error.value.stage) == (
             code,
             detail,
@@ -173,18 +182,22 @@ def test_bayesian_exact_refusals_preserve_native_rows_and_bounds():
     with pytest.raises(CausalValueError) as error:
         require_success(
             session.execute(
-                replace(req, inference=ac.Bayesian(backend="conjugate", n_draws=100001)), seed=41
+                replace(req, inference=ac.Bayesian(backend="conjugate", n_draws=100001)),
+                execution=Execution(seed=41),
             )
         )
     assert error.value.reason_code == "invalid_argument"
     assert "recalc.limits_exceeded" in str(error.value)
-    assert require_success(session.execute(req, seed=41)).receipt.totals.total == 0
+    assert (
+        require_success(session.execute(req, execution=Execution(seed=41))).receipt.totals.total
+        == 0
+    )
 
 
 def test_bayesian_native_capabilities_require_retained_state():
     session = BayesianSession()
     assert retained_kind(session) == RetainedKind.READABLE
-    require_success(session.execute(request(), seed=41))
+    require_success(session.execute(request(), execution=Execution(seed=41)))
     assert retained_kind(session) == RetainedKind.LIVE_POSTERIOR
     assert (
         require_adapter(Family.BAYESIAN, Operation.FUNCTIONAL, session).state_type
@@ -196,23 +209,23 @@ def test_bayesian_native_capabilities_require_retained_state():
 def test_bayesian_artifact_and_receipt_fresh_process_boundary(tmp_path):
     req = request()
     session = BayesianSession()
-    result = require_success(session.execute(req, seed=41))
+    result = require_success(session.execute(req, execution=Execution(seed=41)))
     artifact = tmp_path / "posterior.analysis"
     receipt = tmp_path / "posterior.receipt"
-    artifact.write_bytes(bytes(session.export(seed=999)))
+    artifact.write_bytes(bytes(session.export(execution=Execution(seed=999))))
     receipt.write_bytes(bytes(result.receipt.export()))
     loaded = require_success(RecalcReceipt.consume(receipt.read_bytes()))
     resumed = require_success(
         BayesianSession.resume(loaded, ResumeContext(portable_fit=True, portable_scores=True))
     )
     with pytest.raises(RecalcRefusal) as error:
-        require_success(resumed.execute(req, seed=41))
+        require_success(resumed.execute(req, execution=Execution(seed=41)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "score_table_unavailable",
         "recalc.unavailable_data",
         "data_snapshot",
     )
-    code = "from antecedent.outcomes import require_success\nimport json, pathlib, sys\nimport antecedent as ac\nsys.path.insert(0, sys.argv[3])\nfrom test_recalc_bayesian import request\nfrom antecedent.recalc import RecalcReceipt, ResumeContext\nfrom antecedent.recalc_bayesian import BayesianSession\nartifact = ac.artifacts.accept(pathlib.Path(sys.argv[1]).read_bytes())\nreceipt = require_success(RecalcReceipt.consume(pathlib.Path(sys.argv[2]).read_bytes()))\nsession = require_success(BayesianSession.resume(receipt, ResumeContext(supplied_data=True, portable_fit=True)))\nresult = require_success(session.execute(request(), seed=41))\nprint(json.dumps({'verified': artifact['accepts_as_verified_program'], 'mean': result.law.mean, 'fits': result.receipt.totals.model_fits, 'draws': result.receipt.totals.posterior_draws, 'live': session.is_live}))\n"
+    code = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nimport json, pathlib, sys\nimport antecedent as ac\nsys.path.insert(0, sys.argv[3])\nfrom test_recalc_bayesian import request\nfrom antecedent.recalc import RecalcReceipt, ResumeContext\nfrom antecedent.recalc_bayesian import BayesianSession\nartifact = ac.artifacts.accept(pathlib.Path(sys.argv[1]).read_bytes())\nreceipt = require_success(RecalcReceipt.consume(pathlib.Path(sys.argv[2]).read_bytes()))\nsession = require_success(BayesianSession.resume(receipt, ResumeContext(supplied_data=True, portable_fit=True)))\nresult = require_success(session.execute(request(), execution=Execution(seed=41)))\nprint(json.dumps({'verified': artifact['accepts_as_verified_program'], 'mean': result.law.mean, 'fits': result.receipt.totals.model_fits, 'draws': result.receipt.totals.posterior_draws, 'live': session.is_live}))\n"
     child = subprocess.run(
         [sys.executable, "-c", code, str(artifact), str(receipt), str(Path(__file__).parent)],
         capture_output=True,
@@ -228,13 +241,13 @@ def test_bayesian_artifact_and_receipt_fresh_process_boundary(tmp_path):
 def test_bayesian_owned_prior_source_independent_transfer_and_double_use():
     req = request()
     source = BayesianSession()
-    require_success(source.execute(req, seed=41))
+    require_success(source.execute(req, execution=Execution(seed=41)))
     prior = bytes(source.export(quantity="prior_source"))
     transfer = replace(
         req, inference=ac.Bayesian(backend="conjugate", n_draws=2048, prior_from=prior)
     )
     with pytest.raises(RecalcRefusal) as error:
-        require_success(BayesianSession().execute(transfer, seed=43))
+        require_success(BayesianSession().execute(transfer, execution=Execution(seed=43)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "invalid_argument",
         "recalc.bayesian_prior_likelihood_double_use",
@@ -242,12 +255,18 @@ def test_bayesian_owned_prior_source_independent_transfer_and_double_use():
     )
     changed = replace(transfer, data={**req.data, "y": req.data["y"] + 0.25})
     session = BayesianSession()
-    result = require_success(session.execute(changed, seed=43))
+    result = require_success(session.execute(changed, execution=Execution(seed=43)))
     assert result.law.mean == pytest.approx(2, abs=0.03)
     assert result.receipt.totals.model_fits >= 2
     assert result.receipt.totals.posterior_draws >= 4096
-    assert result.law == require_success(BayesianSession().execute(changed, seed=43)).law
-    assert require_success(session.execute(changed, seed=43)).receipt.totals.total == 0
+    assert (
+        result.law
+        == require_success(BayesianSession().execute(changed, execution=Execution(seed=43))).law
+    )
+    assert (
+        require_success(session.execute(changed, execution=Execution(seed=43))).receipt.totals.total
+        == 0
+    )
     invalid = replace(
         changed,
         inference=ac.Bayesian(
@@ -255,7 +274,7 @@ def test_bayesian_owned_prior_source_independent_transfer_and_double_use():
         ),
     )
     with pytest.raises(RecalcRefusal) as error:
-        require_success(session.execute(invalid, seed=43))
+        require_success(session.execute(invalid, execution=Execution(seed=43)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "route_not_supported",
         "recalc.bayesian_prior_source_unverified",
@@ -266,7 +285,7 @@ def test_bayesian_owned_prior_source_independent_transfer_and_double_use():
 def test_bayesian_owned_prior_source_fresh_process_reexecutes_source_and_target(tmp_path):
     req = request()
     source = BayesianSession()
-    require_success(source.execute(req, seed=41))
+    require_success(source.execute(req, execution=Execution(seed=41)))
     path = tmp_path / "owned.prior"
     path.write_bytes(bytes(source.export(quantity="prior_source")))
     target = replace(
@@ -274,8 +293,8 @@ def test_bayesian_owned_prior_source_fresh_process_reexecutes_source_and_target(
         data={**req.data, "y": req.data["y"] + 0.25},
         inference=ac.Bayesian(backend="conjugate", n_draws=2048, prior_from=path.read_bytes()),
     )
-    expected = require_success(BayesianSession().execute(target, seed=43))
-    code = "from antecedent.outcomes import require_success\nimport json, pathlib, sys\nfrom dataclasses import replace\nimport antecedent as ac\nsys.path.insert(0, sys.argv[2])\nfrom test_recalc_bayesian import request\nfrom antecedent.recalc_bayesian import BayesianSession\nreq = request()\nreq = replace(req, data={**req.data, 'y': req.data['y'] + 0.25}, inference=ac.Bayesian(backend='conjugate', n_draws=2048, prior_from=pathlib.Path(sys.argv[1]).read_bytes()))\nsession = BayesianSession()\nresult = require_success(session.execute(req, seed=43))\nprint(json.dumps({'mean': result.law.mean, 'fits': result.receipt.totals.model_fits, 'draws': result.receipt.totals.posterior_draws, 'repeat': require_success(session.execute(req, seed=43)).receipt.totals.total}))\n"
+    expected = require_success(BayesianSession().execute(target, execution=Execution(seed=43)))
+    code = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nimport json, pathlib, sys\nfrom dataclasses import replace\nimport antecedent as ac\nsys.path.insert(0, sys.argv[2])\nfrom test_recalc_bayesian import request\nfrom antecedent.recalc_bayesian import BayesianSession\nreq = request()\nreq = replace(req, data={**req.data, 'y': req.data['y'] + 0.25}, inference=ac.Bayesian(backend='conjugate', n_draws=2048, prior_from=pathlib.Path(sys.argv[1]).read_bytes()))\nsession = BayesianSession()\nresult = require_success(session.execute(req, execution=Execution(seed=43)))\nprint(json.dumps({'mean': result.law.mean, 'fits': result.receipt.totals.model_fits, 'draws': result.receipt.totals.posterior_draws, 'repeat': require_success(session.execute(req, execution=Execution(seed=43))).receipt.totals.total}))\n"
     child = subprocess.run(
         [sys.executable, "-c", code, str(path), str(Path(__file__).parent)],
         capture_output=True,
@@ -338,7 +357,7 @@ def test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained
         return
     req = joint_request()
     session = JointBayesianSession()
-    first = require_success(session.execute(req, seed=19))
+    first = require_success(session.execute(req, execution=Execution(seed=19)))
     # Independent conjugate algebra of the shared-block model: the invariant intercept sums the
     # two sources (precision 128 + 128 + 0.01 for the prior), the shared varying block adds the
     # cross term 128 and the treated-minus-control contrast is 2 in each unit.
@@ -360,17 +379,24 @@ def test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained
     assert session.is_live
 
     changed = replace(req, summary=PosteriorSummary(0.1, 0.9, 2.0))
-    summary = require_success(session.execute(changed, seed=19))
+    summary = require_success(session.execute(changed, execution=Execution(seed=19)))
     assert summary.receipt.totals.model_fits == summary.receipt.totals.posterior_draws == 0
     assert summary.receipt.totals.law_summaries == 1
     assert summary.target_effect_mean == first.target_effect_mean
-    priced = require_success(session.execute(replace(changed, utility=Utility(3.0, 1.0)), seed=19))
+    priced = require_success(
+        session.execute(replace(changed, utility=Utility(3.0, 1.0)), execution=Execution(seed=19))
+    )
     assert priced.receipt.totals.total == priced.receipt.totals.decisions == 1
     assert priced.decision.net_benefit == pytest.approx(3.0 * summary.law.mean - 1.0, abs=1e-12)
-    assert require_success(session.execute(changed, seed=19)).receipt.totals.total == 0
+    assert (
+        require_success(session.execute(changed, execution=Execution(seed=19))).receipt.totals.total
+        == 0
+    )
 
     # A different posterior stream refits the joint model and redraws.
-    reseeded = require_success(session.execute(replace(changed, seed=20), seed=19))
+    reseeded = require_success(
+        session.execute(replace(changed, seed=20), execution=Execution(seed=19))
+    )
     assert reseeded.receipt.totals.model_fits > 0
     assert reseeded.receipt.totals.posterior_draws == 1024
     assert reseeded.target_effect_mean == pytest.approx(mean, abs=1e-12)
@@ -386,7 +412,7 @@ def test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work():
         return
     req = joint_request()
     session = JointBayesianSession()
-    require_success(session.execute(req, seed=19))
+    require_success(session.execute(req, execution=Execution(seed=19)))
     used = replace(
         req,
         varying_prior=GaussianTransportPrior(
@@ -398,8 +424,11 @@ def test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work():
     )
     # A prior bank built from the very units the likelihood consumes is refused before any work.
     with pytest.raises(RecalcRefusal):
-        require_success(session.execute(used, seed=19))
-    assert require_success(session.execute(req, seed=19)).receipt.totals.total == 0
+        require_success(session.execute(used, execution=Execution(seed=19)))
+    assert (
+        require_success(session.execute(req, execution=Execution(seed=19))).receipt.totals.total
+        == 0
+    )
     oversized = replace(
         req,
         varying_prior=GaussianTransportPrior(
@@ -410,7 +439,7 @@ def test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work():
         ),
     )
     with pytest.raises(RecalcRefusal):
-        require_success(session.execute(oversized, seed=19))
+        require_success(session.execute(oversized, execution=Execution(seed=19)))
     # A source whose identity does not name each of its units once is an invalid declaration.
     broken = JointRecalcSource(
         "a",
@@ -420,6 +449,12 @@ def test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work():
         1.0,
     )
     with pytest.raises(CausalValueError):
-        require_success(session.execute(replace(req, sources=(broken, req.sources[1])), seed=19))
+        require_success(
+            session.execute(
+                replace(req, sources=(broken, req.sources[1])), execution=Execution(seed=19)
+            )
+        )
     with pytest.raises(CausalValueError):
-        require_success(session.execute(replace(req, treatment="missing"), seed=19))
+        require_success(
+            session.execute(replace(req, treatment="missing"), execution=Execution(seed=19))
+        )

@@ -13,6 +13,7 @@ import json
 import math
 
 import pytest
+from antecedent import Execution
 from antecedent.errors import (
     CausalResourceError,
     CausalSerializationError,
@@ -220,7 +221,7 @@ def test_malformed_rows_are_refused():
 def test_a_cancelled_solve_is_a_budget_stop_never_a_verdict():
     token = CancellationToken()
     token.cancel()
-    error = refusal(lambda: fit(pairs(7, 3), cancel=token))
+    error = refusal(lambda: fit(pairs(7, 3), execution=Execution(cancel=token)))
     assert error.reason_code == "transport_budget_cancel"
     assert "matched_case_control.budget" in str(error)
     assert fit(pairs(7, 3)).odds_ratio == pytest.approx(7 / 3, abs=1e-9)

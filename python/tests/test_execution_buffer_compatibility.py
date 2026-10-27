@@ -133,22 +133,36 @@ def test_dose_parallel_and_memory_limited_replay(functional):
         kwargs["contrast"] = (1.0, 3.0)
     else:
         kwargs["grid"] = np.linspace(0.5, 3.5, 33).tolist()
-    serial = dose_functional(dose, outcome, threads=1, **kwargs)
-    parallel = dose_functional(dose, outcome, threads=4, **kwargs)
+    serial = dose_functional(dose, outcome, execution=ac.Execution(threads=1), **kwargs)
+    parallel = dose_functional(dose, outcome, execution=ac.Execution(threads=4), **kwargs)
     assert parallel.to_dict() == serial.to_dict()
     assert bytes(parallel.export()) == bytes(serial.export())
-    limited = dose_functional(dose, outcome, threads=4, max_bytes=len(dose) * 128 + 8192, **kwargs)
+    limited = dose_functional(
+        dose,
+        outcome,
+        execution=ac.Execution(
+            threads=4, limits=ac.ResourceLimits(memory_bytes=len(dose) * 128 + 8192)
+        ),
+        **kwargs,
+    )
     assert limited.to_dict() == serial.to_dict()
     assert (
-        consume_dose_grid_artifact(bytes(parallel.export()), threads=4).to_dict()
+        consume_dose_grid_artifact(
+            bytes(parallel.export()), execution=ac.Execution(threads=4)
+        ).to_dict()
         == serial.to_dict()
     )
     with pytest.raises(CausalResourceError, match="memory|resource|budget"):
-        dose_functional(dose, outcome, threads=4, max_bytes=1, **kwargs)
+        dose_functional(
+            dose,
+            outcome,
+            execution=ac.Execution(threads=4, limits=ac.ResourceLimits(memory_bytes=1)),
+            **kwargs,
+        )
     token = _native.CancellationToken()
     token.cancel()
     with pytest.raises(CausalCancelledError, match="cancel"):
-        dose_functional(dose, outcome, threads=4, cancel=token, **kwargs)
+        dose_functional(dose, outcome, execution=ac.Execution(threads=4, cancel=token), **kwargs)
 
 
 def test_cyclic_refresh_buffers_match_json_refit_and_own_rows():

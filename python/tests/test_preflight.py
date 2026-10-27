@@ -455,3 +455,41 @@ def test_a_malformed_or_non_monotone_cost_model_is_refused() -> None:
         )
     with pytest.raises(CausalTypeError):
         pf.estimate_cost(_aipw_plan(), cost_model="not a model")  # type: ignore[arg-type]
+
+
+def _confounded_table(n: int = 300, seed: int = 11) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    z = rng.standard_normal(n)
+    t = (rng.random(n) < 1.0 / (1.0 + np.exp(-z))).astype(np.float64)
+    y = 2.0 * t + z + 0.3 * rng.standard_normal(n)
+    return _frame(t, y, z=z, dup=z.copy())
+
+
+def test_the_table_path_takes_execution_and_no_loose_seed_or_threads() -> None:
+    from antecedent.execution import Execution
+
+    data = _confounded_table()
+    run = Execution(seed=5, threads=1)
+    first = pf.fit_diagnostics(data, treatment="t", outcome="y", adjustment=["z"], execution=run)
+    again = pf.fit_diagnostics(
+        data, treatment="t", outcome="y", adjustment=["z"], execution=Execution(seed=5, threads=1)
+    )
+    assert first == again and first.status == "fitted"
+    report = pf.preflight(data, treatment="t", outcome="y", adjustment=["z"], execution=run)
+    assert report.adjustment_set == ("z",)
+    # The rank-drop table path accepts an execution too; it names the exact duplicate.
+    plan = pf.plan_rank_drop(
+        data, treatment="t", outcome="y", adjustment=["z", "dup"], execution=run
+    )
+    assert [d.column for d in plan.dropped] == ["dup"]
+    estimate = pf.estimate_with_rank_drop(
+        data, treatment="t", outcome="y", adjustment=["z", "dup"], execution=run
+    )
+    assert [d.column for d in estimate.plan.dropped] == ["dup"]
+    # Controls live only on Execution: a loose keyword is a plain TypeError.
+    for call in (pf.preflight, pf.fit_diagnostics, pf.plan_rank_drop, pf.estimate_with_rank_drop):
+        for loose in ({"seed": 5}, {"threads": 1}):
+            with pytest.raises(TypeError, match="unexpected keyword"):
+                call(data, treatment="t", outcome="y", adjustment=["z"], **loose)
+    with pytest.raises(CausalTypeError):
+        pf.preflight(data, treatment="t", outcome="y", adjustment=["z"], execution={"seed": 1})

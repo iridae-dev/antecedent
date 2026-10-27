@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from antecedent import _native
+from antecedent import Execution, _native
 from antecedent.discovery import (
     GraphPosterior,
     OrderMcmc,
@@ -97,9 +97,9 @@ def test_ten_variable_posteriors_recover_the_colliders():
     runs = {
         "structure": StructureMcmc(
             n_chains=4, n_warmup=3000, n_draws=12_000, thin=2, max_parents=3
-        ).run(data, seed=5),
+        ).run(data, execution=Execution(seed=5)),
         "order": OrderMcmc(n_chains=4, n_warmup=3000, n_draws=12_000, thin=2, max_parents=3).run(
-            data, seed=6
+            data, execution=Execution(seed=6)
         ),
     }
     for label, post in runs.items():

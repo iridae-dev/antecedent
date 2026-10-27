@@ -17,6 +17,7 @@ deliberately NOT measured here.
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalSerializationError, CausalTypeError, CausalUnsupportedError
@@ -92,7 +93,10 @@ def test_latent_digest_bound_artifact_needs_the_dataset_and_respects_the_memory_
         consume_latent_class_artifact(bound, **other)
     assert refused.value.detail == "latent_class.wrong_contract"
     with pytest.raises(LatentClassRefusal) as refused:
-        consume_latent_class_artifact(bytes(fit(d).export()), memory_limit_bytes=1_000)
+        consume_latent_class_artifact(
+            bytes(fit(d).export()),
+            execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1_000)),
+        )
     assert refused.value.detail == "latent_class.memory_budget_exceeded"
 
 

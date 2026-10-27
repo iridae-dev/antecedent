@@ -18,6 +18,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
@@ -507,7 +508,11 @@ def test_a_support_failure_is_scenario_local():
 
 
 def test_the_shared_budget_observes_memory_depth_and_cancellation():
-    memory = json.loads(require_success(prepare(memory_bytes=1500).estimate(memory_bytes=None)))
+    memory = json.loads(
+        require_success(
+            prepare(execution=Execution(limits=ResourceLimits(memory_bytes=1500))).estimate()
+        )
+    )
     assert memory["receipt"]["stop"] == "search.memory"
     # The first scenario entered stops mid-search: it is unevaluated, not explored.
     assert memory["receipt"]["explored"] == []
@@ -517,7 +522,7 @@ def test_the_shared_budget_observes_memory_depth_and_cancellation():
     assert {s["status"] for s in depth["scenarios"]} == {"unevaluated"}
     token = antecedent.state.CancellationToken()
     token.cancel()
-    cancelled = json.loads(require_success(prepare(cancel=token).estimate()))
+    cancelled = json.loads(require_success(prepare(execution=Execution(cancel=token)).estimate()))
     assert cancelled["receipt"]["stop"] == "search.cancelled"
     assert cancelled["receipt"]["unevaluated"] == ["direct", "outcome_shift", "standardize"]
     assert {s["detail"] for s in cancelled["scenarios"]} == {
@@ -528,7 +533,7 @@ def test_the_shared_budget_observes_memory_depth_and_cancellation():
 def test_a_memory_truncated_report_replays_but_a_cancelled_one_is_not_exported():
     # A recorded memory bound is reproduced by the consumer, which replays the
     # identical prefix even though its own context sets no limit.
-    prepared = prepare(memory_bytes=1500)
+    prepared = prepare(execution=Execution(limits=ResourceLimits(memory_bytes=1500)))
     live = json.loads(require_success(prepared.estimate()))
     consumed = transport.consume_transport_scenarios_artifact(bytes(prepared.export())).to_dict()
     assert consumed["receipt"] == live["receipt"]
@@ -543,7 +548,7 @@ def test_a_memory_truncated_report_replays_but_a_cancelled_one_is_not_exported()
     # exporter refuses rather than write an artifact that can only fail replay.
     token = antecedent.state.CancellationToken()
     token.cancel()
-    cancelled = prepare(cancel=token)
+    cancelled = prepare(execution=Execution(cancel=token))
     require_success(cancelled.estimate())
     with pytest.raises(CausalSerializationError, match="cancellation"):
         bytes(cancelled.export())

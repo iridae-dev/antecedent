@@ -103,9 +103,15 @@ class _NativeNode:
     def children(self, *, offset, limit):
         return self.nodes[offset : offset + limit]
 
-    def materialize_json(self, *, seed, threads):
+    def materialize(self, *, seed, threads):
         self.materializations += 1
-        return json.dumps({"summary": self.summary, "children": [], "seed": seed})
+        summary = self.summary
+
+        class Payload:
+            def to_dict(self):
+                return {"summary": summary, "children": [], "seed": seed, "names": ["z", "t", "y"]}
+
+        return Payload()
 
     def schema_names(self):
         return ["z", "t", "y"]

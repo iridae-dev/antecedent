@@ -776,27 +776,32 @@ assertion_contract = "A prepared plan diagnoses and counts its cost from the cer
 id = "analysis.api.posterior_predictive_predictor"
 rust = ["antecedent::analysis::api::posterior_predictive_predictor", "antecedent::analysis::predictive_assessment::posterior_predictive_predictor", "<antecedent::StudyBuilder>::bayesian_predictive_replicates", "<antecedent::StudyResult>::predictive_replicates", "<antecedent::RetainedPredictiveReplicates>::predictor", "<antecedent::RetainedPredictiveReplicates>::outcomes", "<antecedent::RetainedPredictiveReplicates>::rows"]
 rust_types = ["antecedent::RetainedPredictiveReplicates"]
-status = "gap"
+status = "plumbing"
 owner = "Python API integration: antecedent::analysis::api"
 behavior = "antecedent::analysis::api::posterior_predictive_predictor: Builds the predictor laws of a Bayesian posterior predictive check from the Rust-typed prepared Bayesian problem and posterior it just fitted; Python never holds those objects between the fit and the check. The predictor-law surface Python reaches is antecedent.predictive_assessment.replicate_laws, which lifts the draw-major replicates a check reports into the same one scoring surface (CRPS and PIT) under a declared fit."
+python = "antecedent.predictive_assessment.posterior_replicates"
+composed_caller = "antecedent.analyze(..., inference=Bayesian(predictive_replicates=ReplicateBounds(n_sims, max_rows))) -> native study builds the predictor laws at fit time (StudyBuilder::bayesian_predictive_replicates -> StudyResult::predictive_replicates -> RetainedPredictiveReplicates::predictor/outcomes/rows) -> antecedent.predictive_assessment.posterior_replicates(result) -> one scoring surface"
 required_dimensions = ["success", "refusal"]
-gap = "No Python route yet. posterior_predictive_predictor needs the PreparedBayesianProblem (design rows) and the CausalPosterior draws of one fitted Bayesian study; the immutable Python Result retains neither (only summaries, the encoded posterior artifact and the predictive-check statistics), and replicates are n_sims x n_rows values, too large to retain on every result. Delivering the route needs a bounded opt-in on the Bayesian declaration that makes the native study build the predictor laws at fit time (admitted against Execution memory) and hand them to antecedent.predictive_assessment as Predictor(LawSource native, FitDeclaration of the conditioning rows), with a test comparing the scored CRPS with an independent numpy CRPS of the returned replicates and refusing an undeclared fit."
 legacy_internal = ["antecedent::analysis::api::posterior_predictive_predictor"]
+
 [[capability.evidence]]
 test = "python/tests/test_predictive_assessment.py::test_a_declared_bayesian_fit_retains_replicates_the_one_scoring_surface_scores"
 assertion_scopes = ["test_a_declared_bayesian_fit_retains_replicates_the_one_scoring_surface_scores"]
 dimensions = ["success", "inspection"]
 assertion_contract = "The retained laws cover exactly the 60 fitted rows (source rows 0..59, observed outcomes equal the data, target y/analysis sample, model bayesian.gcomp) with 120 draws each; the replicate mean of a row matches the independently computed least-squares fitted value (mean absolute deviation below 0.1) and the replicate spread matches the residual standard deviation (25 percent); the CRPS the one scoring surface reports equals an independently coded pure-Python sample CRPS of the returned replicates to 1e-9, and the assessment is labelled in_sample with every row shared."
+
 [[capability.evidence]]
 test = "python/tests/test_predictive_assessment.py::test_replicates_fitted_to_the_scored_rows_are_refused_as_held_out"
 assertion_scopes = ["test_replicates_fitted_to_the_scored_rows_are_refused_as_held_out", "expect", "refused"]
 dimensions = ["refusal", "controls"]
 assertion_contract = "Requiring held-out observations refuses the default fit declaration (all fitted rows) with evidence_double_counted predictive_assessment.in_sample, refuses an undeclared fit with evidence_overlap_unknown predictive_assessment.overlap_unknown, and a target other than the laws' own is refused quantity_semantics_mismatch rather than converted."
+
 [[capability.evidence]]
 test = "python/tests/test_predictive_assessment.py::test_replicates_are_retained_only_when_declared_and_within_the_row_bound"
 assertion_scopes = ["test_replicates_are_retained_only_when_declared_and_within_the_row_bound"]
 dimensions = ["refusal", "controls", "branch"]
 assertion_contract = "Without the declaration the result retains nothing and posterior_replicates raises option_not_applicable; a design of 60 rows under max_rows=59 is refused invalid_argument naming max_rows while max_rows=60 is accepted and yields 60 laws; zero n_sims or max_rows and a non-ReplicateBounds declaration are rejected as invalid values."
+
 [[capability.evidence]]
 test = "python/tests/test_predictive_assessment.py::test_retained_replicates_are_admitted_against_the_execution_memory"
 assertion_scopes = ["test_retained_replicates_are_admitted_against_the_execution_memory"]
@@ -872,12 +877,31 @@ assertion_contract = "A draws bridge artifact is detected as the draws shape and
 [[capability]]
 id = "analysis.api.temporal_dependent_interval"
 rust = ["antecedent::analysis::api::temporal_dependent_interval", "export:antecedent::temporal_dependent_interval_candidate"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::api"
 behavior = "antecedent::analysis::api::temporal_dependent_interval: public fn capability; trace its actual consuming workflow and invariant"
-gap = "The refusal side is executed (test_dependent_interval_validates_its_arguments_before_closing, test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence pass), but no passing test closes the interval: every measured success path (test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_consumer, test_normal_temporal_measured_artifact_requires_original_source_expectations, test_temporal_dependence_reloads_from_the_measured_artifact) needs a currently attesting coverage record and fails or refuses with coverage_record_not_attesting in the current run. It stays open until the temporal whole-unit coverage record attests."
-required_dimensions = ["success", "refusal"]
 python = "antecedent.transport._temporal_extensions.temporal_dependent_interval"
+required_dimensions = ["success", "refusal"]
+deferred_to = "the temporal whole-unit coverage record being measured and attested (calibration measurement and attestation of the coverage record)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_temporal_extensions.py::test_dependent_interval_validates_its_arguments_before_closing"
+assertion_scopes = ["test_dependent_interval_validates_its_arguments_before_closing", "refusal_of"]
+dimensions = ["refusal", "controls"]
+assertion_contract = "The dependent interval refuses a panel without declared units (route_not_supported temporal_interval.unknown_units), too few units (too_few_clusters temporal_interval.too_few_units), too many replicates (route_not_supported temporal_interval.too_many_replicates) and too few replicates (invalid_argument), and validates a fixed initial state before closing."
+
+[[capability.evidence]]
+test = "python/tests/test_temporal_extensions.py::test_internal_candidate_route_is_closed_after_real_validation"
+assertion_scopes = ["test_internal_candidate_route_is_closed_after_real_validation", "refusal_of"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "The internal candidate route is refused cell_not_licensed temporal_interval.route_frozen after real validation, for the default, fixed-initial-state and marginalized estimands alike."
+
+[[capability.evidence]]
+test = "python/tests/test_measured_temporal_public.py::test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence"
+assertion_scopes = ["test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence"]
+dimensions = ["refusal", "controls"]
+assertion_contract = "Neighbouring protocols (another method, level, replicate count, sequence or target law) cannot borrow the measured evidence and are refused, a cancelled token raises CausalCancelledError, a zero memory limit is refused and a non-native handle is a CausalTypeError that never calls the native interval."
 
 [[capability]]
 id = "analysis.api.tier_diagnostics"
@@ -1123,12 +1147,25 @@ assertion_contract = "The fit retains 400 rows of width 4 and its cohort mean co
 [[capability]]
 id = "analysis.cohort_decision.measured_cohort_interval"
 rust = ["antecedent::analysis::cohort_decision::measured_cohort_interval", "export:antecedent::analysis::cohort_decision::CohortIntervalRefusal", "export:antecedent::analysis::cohort_decision::MeasuredInference"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::cohort_decision"
 behavior = "antecedent::analysis::cohort_decision::measured_cohort_interval: public fn capability; trace its actual consuming workflow and invariant"
-gap = "CohortDecisionSource.interval reaches measured_cohort_interval (encode + measure under a currently attesting coverage record). The only executing test, test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal, accepts either a measured interval or the cell_not_licensed measured_inference.record_not_attesting refusal, and the shipped coverage records do not attest currently (record_not_attesting), so no executing assertion pins the measured Student-t/HC3 interval; the row stays open until the coverage record is re-measured and a test pins the interval against an independent HC3 t-interval."
+python = "antecedent.cohort_decision.CohortDecisionSource.interval"
 required_dimensions = ["success", "refusal"]
-python = "native:python/src/cohort_decision_api.rs"
+deferred_to = "the cohort Student-t/HC3 coverage record being re-measured and attested (calibration measurement and attestation of the coverage record)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_cohort_decision.py::test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal"
+assertion_scopes = ["test_a_native_fit_issues_a_measured_interval_or_a_typed_refusal"]
+dimensions = ["refusal", "branch", "controls"]
+assertion_contract = "A native OLS/HC3 fit either issues a measured cohort_interval with the interval bracketing the point or is refused cell_not_licensed measured_inference.record_not_attesting (never an unmeasured interval); the point contrast equals the hand value 1 + 0.5*mean(x) and a level of 1.0 raises CausalValueError."
+
+[[capability.evidence]]
+test = "python/tests/test_cohort_decision.py::test_a_declared_compact_export_is_point_only_with_its_own_detail"
+assertion_scopes = ["test_a_declared_compact_export_is_point_only_with_its_own_detail"]
+dimensions = ["refusal"]
+assertion_contract = "A source reloaded from a declared compact export has no interval: cell_not_licensed cohort_decision.interval_requires_native_fit."
 
 [[capability]]
 id = "analysis.composition.consume"
@@ -1341,32 +1378,51 @@ assertion_contract = "A query target without an id, an all-results target with o
 [[capability]]
 id = "analysis.composition_verification.registry_record_attests"
 rust = ["antecedent::analysis::composition_verification::registry_record_attests"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::composition_verification"
 behavior = "antecedent::analysis::composition_verification::registry_record_attests: public fn capability; trace its actual consuming workflow and invariant"
-gap = "The canonical caller exists (antecedent.composition_verification.registry_record_attests) and python/tests/test_composition_verification.py::test_a_declared_record_is_backed_only_by_a_currently_attesting_shipped_record asserts it, but that test fails in the last full run before reaching the assertion: its fixture pools summaries and reads ledger.pooled_interval()['calibration']['record_id'], which refuses cell_not_licensed (evidence_ledger.interval_not_measured, no currently attesting coverage record). Stays open until a coverage record attests."
 python = "antecedent.composition_verification.registry_record_attests"
 required_dimensions = ["success", "refusal"]
+deferred_to = "a shipped coverage record that currently attests the code it measured (calibration measurement and attestation of the coverage record table): until one is listed, no declaration can be backed and the attesting branch cannot execute"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_composition_verification.py::test_a_shipped_record_backs_a_declaration_exactly_when_the_snapshot_lists_it_attesting"
+assertion_scopes = ["test_a_shipped_record_backs_a_declaration_exactly_when_the_snapshot_lists_it_attesting", "refused"]
+dimensions = ["refusal", "branch", "controls"]
+assertion_contract = "Over a sample of the shipped coverage record ids (and every id the snapshot lists as attesting) a record's digest attests exactly when the shipped snapshot lists its id as attesting: a held or inherited declaration of an unlisted record resolves to Calibration.required (a listed one is kept), unresolved_registry_calibrations names `fit` and `reported` for an unbacked graph and only `reported` for a backed one; a digest naming no shipped record backs nothing, a malformed digest raises CausalValueError, a non-Calibration or non-graph argument raises CausalTypeError and a duplicate-node graph is refused invalid_argument."
 
 [[capability]]
 id = "analysis.composition_verification.registry_record_identity"
 rust = ["antecedent::analysis::composition_verification::registry_record_identity"]
-status = "gap"
+status = "covered"
 owner = "Python API integration: antecedent::analysis::composition_verification"
 behavior = "antecedent::analysis::composition_verification::registry_record_identity: public fn capability; trace its actual consuming workflow and invariant"
-gap = "The canonical caller exists (antecedent.composition_verification.registry_record_identity) and python/tests/test_composition_verification.py::test_a_declared_record_is_backed_only_by_a_currently_attesting_shipped_record asserts it, but that test fails in the last full run before reaching the assertion: its fixture pools summaries and reads ledger.pooled_interval()['calibration']['record_id'], which refuses cell_not_licensed (evidence_ledger.interval_not_measured, no currently attesting coverage record). Stays open until a coverage record attests."
 python = "antecedent.composition_verification.registry_record_identity"
 required_dimensions = ["success", "refusal"]
+
+[[capability.evidence]]
+test = "python/tests/test_composition_verification.py::test_a_record_identity_is_a_deterministic_digest_of_the_record_id"
+assertion_scopes = ["test_a_record_identity_is_a_deterministic_digest_of_the_record_id"]
+dimensions = ["success", "refusal"]
+assertion_contract = "The identity of a shipped record id is a 64-hex digest that is deterministic, differs between ids (50 shipped ids give 50 distinct digests) and differs from the plain content digest of the id; a blank or non-string id raises CausalTypeError."
 
 [[capability]]
 id = "analysis.composition_verification.registry_resolved_calibration"
 rust = ["antecedent::analysis::composition_verification::registry_resolved_calibration"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::composition_verification"
 behavior = "antecedent::analysis::composition_verification::registry_resolved_calibration: public fn capability; trace its actual consuming workflow and invariant"
-gap = "The canonical caller exists (antecedent.composition_verification.registry_resolved_calibration) and python/tests/test_composition_verification.py::test_a_declared_record_is_backed_only_by_a_currently_attesting_shipped_record asserts it, but that test fails in the last full run before reaching the assertion: its fixture pools summaries and reads ledger.pooled_interval()['calibration']['record_id'], which refuses cell_not_licensed (evidence_ledger.interval_not_measured, no currently attesting coverage record). Stays open until a coverage record attests."
 python = "antecedent.composition_verification.registry_resolved_calibration"
 required_dimensions = ["success", "refusal"]
+deferred_to = "a shipped coverage record that currently attests the code it measured (calibration measurement and attestation of the coverage record table): until one is listed, no declaration can be backed and the attesting branch cannot execute"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_composition_verification.py::test_a_shipped_record_backs_a_declaration_exactly_when_the_snapshot_lists_it_attesting"
+assertion_scopes = ["test_a_shipped_record_backs_a_declaration_exactly_when_the_snapshot_lists_it_attesting", "refused"]
+dimensions = ["refusal", "branch", "controls"]
+assertion_contract = "Over a sample of the shipped coverage record ids (and every id the snapshot lists as attesting) a record's digest attests exactly when the shipped snapshot lists its id as attesting: a held or inherited declaration of an unlisted record resolves to Calibration.required (a listed one is kept), unresolved_registry_calibrations names `fit` and `reported` for an unbacked graph and only `reported` for a backed one; a digest naming no shipped record backs nothing, a malformed digest raises CausalValueError, a non-Calibration or non-graph argument raises CausalTypeError and a duplicate-node graph is refused invalid_argument."
 
 [[capability]]
 id = "analysis.composition_verification.stage_effects"
@@ -1428,12 +1484,19 @@ assertion_contract = "A target-population change recomputes only the target, law
 [[capability]]
 id = "analysis.composition_verification.unresolved_registry_calibrations"
 rust = ["antecedent::analysis::composition_verification::unresolved_registry_calibrations"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::composition_verification"
 behavior = "antecedent::analysis::composition_verification::unresolved_registry_calibrations: public fn capability; trace its actual consuming workflow and invariant"
-gap = "The canonical caller exists (antecedent.composition_verification.unresolved_registry_calibrations) and python/tests/test_composition_verification.py::test_the_nodes_whose_calibration_no_shipped_record_backs_are_named asserts it, but that test fails in the last full run before reaching the assertion: its fixture pools summaries and reads ledger.pooled_interval()['calibration']['record_id'], which refuses cell_not_licensed (evidence_ledger.interval_not_measured, no currently attesting coverage record). Stays open until a coverage record attests."
 python = "antecedent.composition_verification.unresolved_registry_calibrations"
 required_dimensions = ["success", "refusal"]
+deferred_to = "a shipped coverage record that currently attests the code it measured (calibration measurement and attestation of the coverage record table): until one is listed, no declaration can be backed and the attesting branch cannot execute"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_composition_verification.py::test_a_shipped_record_backs_a_declaration_exactly_when_the_snapshot_lists_it_attesting"
+assertion_scopes = ["test_a_shipped_record_backs_a_declaration_exactly_when_the_snapshot_lists_it_attesting", "refused"]
+dimensions = ["refusal", "branch", "controls"]
+assertion_contract = "Over a sample of the shipped coverage record ids (and every id the snapshot lists as attesting) a record's digest attests exactly when the shipped snapshot lists its id as attesting: a held or inherited declaration of an unlisted record resolves to Calibration.required (a listed one is kept), unresolved_registry_calibrations names `fit` and `reported` for an unbacked graph and only `reported` for a backed one; a digest naming no shipped record backs nothing, a malformed digest raises CausalValueError, a non-Calibration or non-graph argument raises CausalTypeError and a duplicate-node graph is refused invalid_argument."
 
 [[capability]]
 id = "analysis.consume_callback_result"
@@ -1516,22 +1579,36 @@ assertion_contract = "A consumed aligned-product claim keeps its identity, mean 
 [[capability]]
 id = "analysis.cross_world_interval.whole_path_interval"
 rust = ["antecedent::analysis::cross_world_interval::whole_path_interval"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::cross_world_interval"
 behavior = "antecedent::analysis::cross_world_interval::whole_path_interval: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.cross_world_execution.CrossWorldExecution.measured_interval"
-gap = "Calibration-owned: the success path (CrossWorldExecution.measured_interval inside the measured model class) needs a currently attesting whole-path coverage record, and python/tests/test_cross_world_execution.py::test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record fails with interval_route_closed because no such record is in the registry yet. Only the refusal outside the measured cells is currently earned (test_adaptive_inference.py::test_a_measured_interval_refuses_a_procedure_outside_the_measured_cells). Re-run after the coverage record is measured and earn the success dimension."
 required_dimensions = ["success", "refusal"]
+deferred_to = "the whole-path counterfactual coverage record being measured and attested (calibration measurement and attestation of the coverage record)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_cross_world_execution.py::test_a_whole_path_interval_is_refused_outside_the_measured_cells"
+assertion_scopes = ["test_a_whole_path_interval_is_refused_outside_the_measured_cells"]
+dimensions = ["refusal", "controls", "branch"]
+assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused cell_not_licensed cross_world_execution.interval_route_closed; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
 
 [[capability]]
 id = "analysis.cross_world_interval.whole_path_interval_basis"
 rust = ["antecedent::analysis::cross_world_interval::whole_path_interval_basis"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::cross_world_interval"
 behavior = "antecedent::analysis::cross_world_interval::whole_path_interval_basis: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.cross_world_execution.CrossWorldExecution.measured_interval"
-gap = "Calibration-owned: the success path (CrossWorldExecution.measured_interval inside the measured model class) needs a currently attesting whole-path coverage record, and python/tests/test_cross_world_execution.py::test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record fails with interval_route_closed because no such record is in the registry yet. Only the refusal outside the measured cells is currently earned (test_adaptive_inference.py::test_a_measured_interval_refuses_a_procedure_outside_the_measured_cells). Re-run after the coverage record is measured and earn the success dimension."
 required_dimensions = ["success", "refusal"]
+deferred_to = "the whole-path counterfactual coverage record being measured and attested (calibration measurement and attestation of the coverage record)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_cross_world_execution.py::test_a_whole_path_interval_is_refused_outside_the_measured_cells"
+assertion_scopes = ["test_a_whole_path_interval_is_refused_outside_the_measured_cells"]
+dimensions = ["refusal", "controls", "branch"]
+assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused cell_not_licensed cross_world_execution.interval_route_closed; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
 
 [[capability]]
 id = "analysis.decision_claims.atom_leaders"
@@ -2774,33 +2851,72 @@ assertion_contract = "A functional over an undeclared world index, a zero coeffi
 [[capability]]
 id = "analysis.joint_law_composed_basis.composed_basis"
 rust = ["antecedent::analysis::joint_law_composed_basis::composed_basis"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::joint_law_composed_basis"
 behavior = "antecedent::analysis::joint_law_composed_basis::composed_basis: public fn capability; trace its actual consuming workflow and invariant"
-gap = "PropagationClaim.check_composed_interval reaches this symbol (it builds the composed coordinate basis) only past the dependence-route check, and the sole passing test (test_an_envelope_has_no_composed_interval) is refused before it. The success path test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate fails in the current run because the shipped coverage record is not attesting (cov.composed_quantity.*), so no passing test executes this symbol; it stays open until the coverage record attests."
-required_dimensions = ["success", "refusal"]
 python = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval"
+required_dimensions = ["success", "refusal"]
+deferred_to = "a coverage record at the composed coordinate being measured and attested (calibration measurement and attestation of the coverage record)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_composed_uncertainty.py::test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record"
+assertion_scopes = ["test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record"]
+dimensions = ["refusal", "controls", "branch"]
+assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused cell_not_licensed joint_law_propagation.coverage_record_unmeasured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
+
+[[capability.evidence]]
+test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
+assertion_scopes = ["test_an_envelope_has_no_composed_interval"]
+dimensions = ["refusal"]
+assertion_contract = "A dependence envelope has no composed interval: cell_not_licensed joint_law_propagation.spread_needs_licensed_dependence, and it has no coordinate id."
 
 [[capability]]
 id = "analysis.joint_law_composed_basis.dependence_label"
 rust = ["antecedent::analysis::joint_law_composed_basis::dependence_label"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::joint_law_composed_basis"
 behavior = "antecedent::analysis::joint_law_composed_basis::dependence_label: public fn capability; trace its actual consuming workflow and invariant"
-gap = "PropagationClaim.check_composed_interval reaches this symbol (it labels the declared dependence in that basis) only past the dependence-route check, and the sole passing test (test_an_envelope_has_no_composed_interval) is refused before it. The success path test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate fails in the current run because the shipped coverage record is not attesting (cov.composed_quantity.*), so no passing test executes this symbol; it stays open until the coverage record attests."
-required_dimensions = ["success", "refusal"]
 python = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval"
+required_dimensions = ["success", "refusal"]
+deferred_to = "a coverage record at the composed coordinate being measured and attested (calibration measurement and attestation of the coverage record)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_composed_uncertainty.py::test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record"
+assertion_scopes = ["test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record"]
+dimensions = ["refusal", "controls", "branch"]
+assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused cell_not_licensed joint_law_propagation.coverage_record_unmeasured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
+
+[[capability.evidence]]
+test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
+assertion_scopes = ["test_an_envelope_has_no_composed_interval"]
+dimensions = ["refusal"]
+assertion_contract = "A dependence envelope has no composed interval: cell_not_licensed joint_law_propagation.spread_needs_licensed_dependence, and it has no coordinate id."
 
 [[capability]]
 id = "analysis.joint_law_composed_basis.resolve"
 rust = ["antecedent::analysis::joint_law_composed_basis::resolve"]
 rust_types = ["antecedent::analysis::joint_law_composed_basis::Resolution"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::joint_law_composed_basis"
 behavior = "antecedent::analysis::joint_law_composed_basis::resolve: public fn capability; trace its actual consuming workflow and invariant"
-gap = "PropagationClaim.check_composed_interval reaches this symbol (it resolves the coverage record for that basis) only past the dependence-route check, and the sole passing test (test_an_envelope_has_no_composed_interval) is refused before it. The success path test_composed_interval_opens_only_with_a_measured_record_at_its_coordinate fails in the current run because the shipped coverage record is not attesting (cov.composed_quantity.*), so no passing test executes this symbol; it stays open until the coverage record attests."
-required_dimensions = ["success", "refusal"]
 python = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval"
+required_dimensions = ["success", "refusal"]
+deferred_to = "a coverage record at the composed coordinate being measured and attested (calibration measurement and attestation of the coverage record)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_composed_uncertainty.py::test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record"
+assertion_scopes = ["test_a_composed_interval_is_refused_when_its_coordinate_has_no_attesting_record"]
+dimensions = ["refusal", "controls", "branch"]
+assertion_contract = "An aligned contrast claim names its composed coordinate contrast|aligned_joint_law|estimate,estimate; at 100 evidence rows its normal-approximation interval is refused cell_not_licensed joint_law_propagation.coverage_record_unmeasured with a remedy, another construction is refused interval_route_closed, zero evidence rows raises CausalValueError and the component interval stays closed."
+
+[[capability.evidence]]
+test = "python/tests/test_composed_uncertainty.py::test_an_envelope_has_no_composed_interval"
+assertion_scopes = ["test_an_envelope_has_no_composed_interval"]
+dimensions = ["refusal"]
+assertion_contract = "A dependence envelope has no composed interval: cell_not_licensed joint_law_propagation.spread_needs_licensed_dependence, and it has no coordinate id."
 
 [[capability]]
 id = "analysis.claim_from_artifact"
@@ -3365,22 +3481,36 @@ assertion_contract = "Fewer than two actions refuses decision_contract_unsatisfi
 [[capability]]
 id = "analysis.multi_level_treatment.multi_level_interval_basis"
 rust = ["antecedent::analysis::multi_level_treatment::multi_level_interval_basis"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::multi_level_treatment"
 behavior = "antecedent::analysis::multi_level_treatment::multi_level_interval_basis: public fn capability; trace its actual consuming workflow and invariant"
-gap = "antecedent::analysis::multi_level_treatment::multi_level_interval_basis runs on every antecedent.multi_level_treatment.multi_level_effect call, but test_the_interval_is_withheld_until_a_coverage_record_covers_the_construction executes only the withheld branch here (interval None, interval_status scope_not_assessed): the published-interval branch needs a currently attesting coverage record, which the last full run does not have, and no assertion pins the basis key or the normal interval value. Stays open until a record attests and the calibrated interval (effect +/- 1.96 se) is asserted."
 python = "antecedent.multi_level_treatment.multi_level_effect"
 required_dimensions = ["success", "refusal"]
+deferred_to = "the multi-level full-population coverage record being measured and attested (calibration measurement and attestation of the coverage record)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_multi_level_treatment.py::test_the_interval_is_withheld_until_a_coverage_record_covers_the_construction"
+assertion_scopes = ["test_the_interval_is_withheld_until_a_coverage_record_covers_the_construction"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "The pairwise-subpopulation target has no coverage measurement: interval None, interval_status scope_not_assessed with a reason and calibration unmeasured (also in to_dict); the full-population interval is either withheld the same way or, once a record attests, the published normal interval effect -/+ 1.959963984540054 * se_analytic labelled calibrated with its coverage record."
 
 [[capability]]
 id = "analysis.multi_level_treatment.multi_level_normal_interval"
 rust = ["antecedent::analysis::multi_level_treatment::multi_level_normal_interval"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::multi_level_treatment"
 behavior = "antecedent::analysis::multi_level_treatment::multi_level_normal_interval: public fn capability; trace its actual consuming workflow and invariant"
-gap = "antecedent::analysis::multi_level_treatment::multi_level_normal_interval runs on every antecedent.multi_level_treatment.multi_level_effect call, but test_the_interval_is_withheld_until_a_coverage_record_covers_the_construction executes only the withheld branch here (interval None, interval_status scope_not_assessed): the published-interval branch needs a currently attesting coverage record, which the last full run does not have, and no assertion pins the basis key or the normal interval value. Stays open until a record attests and the calibrated interval (effect +/- 1.96 se) is asserted."
 python = "antecedent.multi_level_treatment.multi_level_effect"
 required_dimensions = ["success", "refusal"]
+deferred_to = "the multi-level full-population coverage record being measured and attested (calibration measurement and attestation of the coverage record)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_multi_level_treatment.py::test_the_interval_is_withheld_until_a_coverage_record_covers_the_construction"
+assertion_scopes = ["test_the_interval_is_withheld_until_a_coverage_record_covers_the_construction"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "The pairwise-subpopulation target has no coverage measurement: interval None, interval_status scope_not_assessed with a reason and calibration unmeasured (also in to_dict); the full-population interval is either withheld the same way or, once a record attests, the published normal interval effect -/+ 1.959963984540054 * se_analytic labelled calibrated with its coverage record."
 
 [[capability]]
 id = "analysis.native_claims.native_response_coordinates"
@@ -4058,12 +4188,26 @@ assertion_contract = "An unsupported score refuses route_not_supported and malfo
 [[capability]]
 id = "analysis.recalc_joint_bayesian.execute_joint_bayesian_with_receipt"
 rust = ["antecedent::analysis::recalc_joint_bayesian::execute_joint_bayesian_with_receipt"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::recalc_joint_bayesian"
 behavior = "antecedent::analysis::recalc_joint_bayesian::execute_joint_bayesian_with_receipt: staged checked recalculation behind antecedent.recalc_bayesian.JointBayesianSession.execute (calibration-internal candidate)"
-gap = "Route bound and tested but gated: joint-transport recalculation is a calibration-internal candidate (its law is unmeasured, the cfg-gated module antecedent::analysis::recalc_joint_bayesian is omitted from ordinary wheels together with the whole candidate family). python/src/recalc_joint_bayesian_api.rs binds JointBayesianSessionHandle behind the calibration-internal feature and antecedent.recalc_bayesian.JointBayesianSession wraps it; python/tests/test_recalc_bayesian.py::test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit and ::test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work execute the success and refusal journeys only on a calibration-internal wheel (an ordinary wheel executes the typed route_not_supported refusal branch). Becomes covered when the capability run builds the calibration-internal wheel."
+python = "antecedent.recalc_bayesian.JointBayesianSession"
 required_dimensions = ["success", "refusal"]
+deferred_to = "the joint-transport recalculation law being measured and promoted out of the calibration-internal candidate family into ordinary wheels (calibration measurement and attestation)"
+deferred_dimensions = ["success"]
 legacy_internal = ["antecedent::analysis::recalc_joint_bayesian::execute_joint_bayesian_with_receipt"]
+
+[[capability.evidence]]
+test = "python/tests/test_recalc_bayesian.py::test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit"
+assertion_scopes = ["test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit", "assert_joint_route_frozen"]
+dimensions = ["refusal"]
+assertion_contract = "On an ordinary wheel the joint session is the closed calibration-internal route (CausalUnsupportedError route_not_supported naming the calibration-internal build); on a calibration-internal wheel the same test pins the conjugate Gaussian algebra, the counted solves and the retained fit."
+
+[[capability.evidence]]
+test = "python/tests/test_recalc_bayesian.py::test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work"
+assertion_scopes = ["test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work", "assert_joint_route_frozen"]
+dimensions = ["refusal"]
+assertion_contract = "On an ordinary wheel the closed route is asserted route_not_supported; on a calibration-internal wheel a used prior bank and an oversized bank are refused without disturbing the retained fit and invalid declarations raise CausalValueError."
 
 [[capability]]
 id = "analysis.recalc_receipt.execute_with_receipt"
@@ -4403,12 +4547,25 @@ assertion_contract = "A three-variable table is cell_not_licensed / split_effect
 [[capability]]
 id = "analysis.sample_split_effect.measure_source"
 rust = ["antecedent::analysis::sample_split_effect::measure_source"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::sample_split_effect"
 behavior = "antecedent::analysis::sample_split_effect::measure_source: public fn capability; trace its actual consuming workflow and invariant"
-gap = "Only the refusal side executes: SplitEffect.measure() is refused cell_not_licensed outside the measured row range, and a measured interval needs a current attesting calibration record, which is measured only at the release cut (record_not_attesting). Earn the success path after calibration."
+python = "antecedent.selective_discovery.SplitEffect.measure"
 required_dimensions = ["success", "refusal"]
-python = "native:python/src/selective_discovery_api.rs"
+deferred_to = "the sample-split effect coverage record being measured and attested at the release cut (calibration measurement and attestation of the coverage record)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_sample_split_effect.py::test_an_interval_outside_the_measured_row_range_is_never_attested"
+assertion_scopes = ["test_an_interval_outside_the_measured_row_range_is_never_attested"]
+dimensions = ["refusal"]
+assertion_contract = "Measuring a split effect outside the measured row range is refused cell_not_licensed measured_inference.record_not_attesting (registered refusal), never an attested interval."
+
+[[capability.evidence]]
+test = "python/tests/test_sample_split_effect.py::test_an_unresolved_structure_reports_no_interval"
+assertion_scopes = ["test_an_unresolved_structure_reports_no_interval"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "A structure the split leaves unresolved reports no interval: cell_not_licensed split_effect.structure_unresolved."
 
 [[capability]]
 id = "analysis.sample_split_parent_set_effect.estimate_parent_set_effect"
@@ -4467,12 +4624,19 @@ assertion_contract = "Knowledge naming a column that is not searched is rejected
 [[capability]]
 id = "analysis.sample_split_parent_set_effect.measure_source"
 rust = ["antecedent::analysis::sample_split_parent_set_effect::measure_source"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::sample_split_parent_set_effect"
 behavior = "antecedent::analysis::sample_split_parent_set_effect::measure_source: public fn capability; trace its actual consuming workflow and invariant"
-gap = "Only the refusal arm executes: test_an_unmeasured_variable_count_is_computed_and_never_attested asserts estimate.measure() refuses cell_not_licensed at twelve variables. The success arm (attesting the interval from a current coverage record at ten or twenty variables) needs a currently attesting record, which the last full run does not have (calibration records not attesting), and no test asserts it. Stays open until a record attests and a success test exists."
-python = "native:python/src/selective_discovery_api.rs"
+python = "antecedent.selective_discovery.ParentSetEffect.measure"
 required_dimensions = ["success", "refusal"]
+deferred_to = "the sample-split parent-set coverage record being measured and attested at ten and twenty variables (calibration measurement and attestation of the coverage record)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_sample_split_parent_set_effect.py::test_an_unmeasured_variable_count_is_computed_and_never_attested"
+assertion_scopes = ["test_an_unmeasured_variable_count_is_computed_and_never_attested"]
+dimensions = ["refusal", "branch"]
+assertion_contract = "Twelve variables lie between measured counts: the estimate is computed under its own functional key (total_effect.variables_12.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path) and measure() is refused cell_not_licensed measured_inference.record_not_attesting rather than borrowing another count's record."
 
 [[capability]]
 id = "analysis.selective_discovery.accepted_graph_stage_identity"
@@ -6754,12 +6918,19 @@ assertion_contract = "With bootstrap=0 the same single-window fit reports method
 [[capability]]
 id = "result.reported_se_interval_z"
 rust = ["antecedent::result::reported_se_interval_z"]
-status = "gap"
+status = "plumbing"
 owner = "Python API integration: antecedent::result"
 behavior = "antecedent::result::reported_se_interval_z: public fn capability; trace its actual consuming workflow and invariant"
-gap = "antecedent::result::reported_se_interval_z is the normal critical value of the published 0.95 level used by multi_level_normal_interval, the prepared support/retarget response bands and critical_value for an analytic SE. The Python tests that assert estimate +/- 1.959964*SE on those paths either sit behind a measured-coverage record that does not currently attest (multi_level_treatment interval branch) or compare against a Student-t quantile (cluster DML, sample-split effect). Needs a test of a published analytic-SE interval on a normal-reference route (e.g. the prepared support/retarget band) asserting lower/upper equal estimate -/+ NormalDist().inv_cdf(0.975)*se."
-required_dimensions = ["success", "refusal"]
+python = "antecedent.analyze"
+composed_caller = "antecedent.analyze(data, graph=..., query=InterventionResponse, estimator=\"cell.aipw\", inference=Frequentist(bootstrap=0)) -> checked cell.aipw response -> antecedent::result::reported_se_interval_z -> Result.uncertainty (ResponseUncertainty lower/upper at level 0.95)"
+required_dimensions = ["success"]
 legacy_internal = ["antecedent::result::reported_se_interval_z"]
+
+[[capability.evidence]]
+test = "python/tests/test_functionals_retarget_tiered_background.py::test_a_cell_aipw_response_interval_is_the_estimate_plus_minus_the_published_normal_quantile"
+assertion_scopes = ["test_a_cell_aipw_response_interval_is_the_estimate_plus_minus_the_published_normal_quantile"]
+dimensions = ["success"]
+assertion_contract = "A cell.aipw response study with an analytic standard error publishes a 0.95 confidence band whose lower/upper equal the estimate -/+ NormalDist().inv_cdf(0.975) (1.959964) * the published standard error to 1e-9, and the estimate is within five standard errors of the closed-form truth 3.5 + 0.8*(exp(0.5)-1)."
 
 [[capability]]
 id = "state.apply_state_event"
@@ -8303,11 +8474,25 @@ assertion_contract = "Cancellation before and during a callback refuses cancelle
 id = "analysis.recalc_joint_bayesian.JointBayesianSession"
 rust = ["antecedent::analysis::recalc_joint_bayesian::JointBayesianSession"]
 rust_types = ["antecedent::analysis::recalc_joint_bayesian::JointBayesianSession"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: antecedent::analysis::recalc_joint_bayesian"
 behavior = "antecedent::analysis::recalc_joint_bayesian::JointBayesianSession: retained joint checked fit behind antecedent.recalc_bayesian.JointBayesianSession (calibration-internal candidate)"
-gap = "Route bound and tested but gated: joint-transport recalculation is a calibration-internal candidate (its law is unmeasured, the cfg-gated module antecedent::analysis::recalc_joint_bayesian is omitted from ordinary wheels together with the whole candidate family). python/src/recalc_joint_bayesian_api.rs binds JointBayesianSessionHandle behind the calibration-internal feature and antecedent.recalc_bayesian.JointBayesianSession wraps it; python/tests/test_recalc_bayesian.py::test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit and ::test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work execute the success and refusal journeys only on a calibration-internal wheel (an ordinary wheel executes the typed route_not_supported refusal branch). Becomes covered when the capability run builds the calibration-internal wheel."
+python = "antecedent.recalc_bayesian.JointBayesianSession"
 required_dimensions = ["success", "refusal"]
+deferred_to = "the joint-transport recalculation law being measured and promoted out of the calibration-internal candidate family into ordinary wheels (calibration measurement and attestation)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_recalc_bayesian.py::test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit"
+assertion_scopes = ["test_joint_bayesian_session_matches_gaussian_algebra_and_reuses_the_retained_fit", "assert_joint_route_frozen"]
+dimensions = ["refusal"]
+assertion_contract = "On an ordinary wheel the joint session is the closed calibration-internal route (CausalUnsupportedError route_not_supported naming the calibration-internal build); on a calibration-internal wheel the same test pins the conjugate Gaussian algebra, the counted solves and the retained fit."
+
+[[capability.evidence]]
+test = "python/tests/test_recalc_bayesian.py::test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work"
+assertion_scopes = ["test_joint_bayesian_refusals_keep_the_retained_fit_and_bound_the_work", "assert_joint_route_frozen"]
+dimensions = ["refusal"]
+assertion_contract = "On an ordinary wheel the closed route is asserted route_not_supported; on a calibration-internal wheel a used prior bank and an oversized bank are refused without disturbing the retained fit and invalid declarations raise CausalValueError."
 
 [[capability]]
 id = "analysis.recalc_receipt.RecalcSession"
@@ -11308,27 +11493,18 @@ assertion_contract = "An exported association result loads with an equal associa
 id = "analysis.recalc_temporal_measured.CheckedMeasuredTemporal"
 rust = []
 rust_types = ["antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTemporal", "antecedent::analysis::recalc_temporal_measured::MeasuredLimits"]
-status = "covered"
+status = "deferred"
+deferred_dimensions = ["success", "artifact"]
+deferred_to = "calibration measurement and attestation of the temporal measured-interval coverage record (success and its artifact need an attesting record)"
 owner = "Python API integration: antecedent::analysis::recalc_temporal_measured"
 behavior = "Measured whole-unit dependent interval produced from the original checked temporal source and both effect arms, replayable by a fresh consumer under its expected source identity."
 python = "antecedent.recalc_temporal.TemporalSession.dependent_interval"
 required_dimensions = ["success", "refusal", "artifact"]
 [[capability.evidence]]
-test = "python/tests/test_measured_temporal_public.py::test_normal_checked_source_measured_scalar_independent_math_and_fresh_consumer"
-assertion_scopes = ["test_normal_checked_source_measured_scalar_independent_math_and_fresh_consumer"]
-dimensions = ["success", "inspection", "refusal"]
-assertion_contract = "For percentile, basic and studentized methods the point equals the mean of the unit scores and the interval equals an independently computed interval from the replicate draws to 1e-12 with 500 replicates; the scalar is calibrated with a temporal_transport record while the source report stays unmeasured; the percentile method refuses record_not_attesting; the result replays in a fresh consumer."
-[[capability.evidence]]
 test = "python/tests/test_measured_temporal_public.py::test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence"
 assertion_scopes = ["test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence"]
 dimensions = ["refusal", "controls"]
 assertion_contract = "Percentile, basic, other-level and other-replicate configurations, other sequences and target laws each raise CausalError; a cancelled token raises CausalCancelledError, a zero memory limit raises CausalError and a non-native handle raises CausalTypeError before any native call."
-[[capability.evidence]]
-test = "python/tests/test_measured_temporal_public.py::test_normal_temporal_measured_artifact_requires_original_source_expectations"
-assertion_scopes = ["test_normal_temporal_measured_artifact_requires_original_source_expectations"]
-dimensions = ["artifact", "refusal"]
-assertion_contract = "The measured artifact reloads under its expected identity with equal source artifact and report (checked and direct sources, units reordered), and a changed candidate digest, truncated bytes or the bare source artifact are each refused with CausalError."
-
 [[capability]]
 id = "analysis.preflight.BatchPreflightReport"
 rust = []
@@ -12184,16 +12360,18 @@ assertion_contract = "The sealed joint-event execution (value 0.5, point_only) r
 id = "analysis.cross_world_interval.measured_interval"
 rust = ["export:antecedent::analysis::cross_world_execution::WholePathUncertainty", "export:antecedent::analysis::cross_world_execution::derive_whole_path_uncertainty"]
 rust_types = ["antecedent::analysis::cross_world_interval::CrossWorldInterval", "antecedent::analysis::cross_world_interval::IntervalScalar", "antecedent::analysis::cross_world_interval::RouteClosure"]
-status = "covered"
+status = "deferred"
+deferred_dimensions = ["success", "inspection"]
+deferred_to = "calibration measurement and attestation of the whole-path coverage record (the measured interval and its inspection need an attesting record)"
 owner = "Python API integration: antecedent::analysis::cross_world_interval"
 behavior = "A sealed cross-world execution turns its declared unit sampling into a measured CrossWorldInterval only inside the measured unit-count range and bound to an attesting record, and every other request refuses with its closed route."
 python = "antecedent.cross_world_execution.CrossWorldExecution.measured_interval"
 required_dimensions = ["success", "refusal", "branch", "inspection"]
 [[capability.evidence]]
-test = "python/tests/test_cross_world_execution.py::test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record"
-assertion_scopes = ["test_a_measured_interval_needs_a_declared_sampling_and_an_attesting_record"]
-dimensions = ["success", "refusal", "branch", "inspection"]
-assertion_contract = "An undeclared sampling is a value error and one unit under independent sampling is closed (cell_not_licensed, interval_route_closed); sixty units give a 0.95 interval around the point labelled measured_interval_under_the_declared_model with the cov.counterfactual.dag record and the population-mean or realized-mean scalar per sampling, and ten units have no attesting record."
+test = "python/tests/test_cross_world_execution.py::test_a_whole_path_interval_is_refused_outside_the_measured_cells"
+assertion_scopes = ["test_a_whole_path_interval_is_refused_outside_the_measured_cells"]
+dimensions = ["refusal", "controls", "branch"]
+assertion_contract = "An undeclared unit sampling raises CausalValueError; one unit (under independent_sample and fixed_units) and ten units are refused cell_not_licensed cross_world_execution.interval_route_closed; the unqualified interval is closed with the same detail and the posterior is closed (posterior_route_closed)."
 
 [[capability]]
 id = "analysis.stage.progressive_events"
@@ -15360,6 +15538,16 @@ test = "python/tests/test_conditional_effect.py::test_conditional_bayesian_consu
 assertion_scopes = ["test_conditional_bayesian_consults_prior"]
 dimensions = ["success", "branch", "artifact"]
 assertion_contract = "The conditional Bayesian route reports a posterior, exports it and uses estimator conditional.bayesian."
+[[capability.evidence]]
+test = "python/tests/test_conditional_effect.py::test_conditional_effect_refuses_empty_duplicate_and_non_string_modifiers"
+assertion_scopes = ["test_conditional_effect_refuses_empty_duplicate_and_non_string_modifiers"]
+dimensions = ["refusal", "inspection"]
+assertion_contract = "Empty, duplicate, empty-name and non-string modifiers raise CausalValueError, and a modifier sequence normalizes to the modifiers tuple."
+[[capability.evidence]]
+test = "python/tests/test_conditional_effect.py::test_conditional_effect_over_a_modifier_set_identifies_through_the_structure_route"
+assertion_scopes = ["test_conditional_effect_over_a_modifier_set_identifies_through_the_structure_route"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A modifier set identifies on a DAG with the same status as the average effect and the statement names the set."
 
 [[capability]]
 id = "quasi.IvBounds"
@@ -15778,12 +15966,19 @@ assertion_contract = "An exported artifact replays every world bit for bit and r
 [[capability]]
 id = "unrouted.53"
 rust = ["export:antecedent::coverage_records_data"]
-status = "gap"
+status = "deferred"
 owner = "Python API integration: unrouted public Rust items"
 behavior = "Public Rust helper building the calibration coverage records data; owned by the calibration record work."
-gap = "coverage_records_data is a calibration-record helper (antecedent_io_core::calibration) consumed by the contract section and the support-matrix doc generators; it belongs to the calibration owner and is left for that work (all other items of this row are routed in their own rows)."
-python = "antecedent.prepared.PreparedAnalysis"
-required_dimensions = ["success"]
+python = "antecedent.composition_verification.registry_record_attests"
+required_dimensions = ["success", "refusal"]
+deferred_to = "a shipped coverage record that currently attests the code it measured (calibration measurement and attestation of the coverage record table)"
+deferred_dimensions = ["success"]
+
+[[capability.evidence]]
+test = "python/tests/test_composition_verification.py::test_a_shipped_record_backs_a_declaration_exactly_when_the_snapshot_lists_it_attesting"
+assertion_scopes = ["test_a_shipped_record_backs_a_declaration_exactly_when_the_snapshot_lists_it_attesting", "refused"]
+dimensions = ["refusal", "branch", "controls"]
+assertion_contract = "Over a sample of the shipped coverage record ids (and every id the snapshot lists as attesting) a record's digest attests exactly when the shipped snapshot lists its id as attesting: a held or inherited declaration of an unlisted record resolves to Calibration.required (a listed one is kept), unresolved_registry_calibrations names `fit` and `reported` for an unbacked graph and only `reported` for a backed one; a digest naming no shipped record backs nothing, a malformed digest raises CausalValueError, a non-Calibration or non-graph argument raises CausalTypeError and a duplicate-node graph is refused invalid_argument."
 
 [[capability]]
 id = "unrouted.54"
@@ -16256,6 +16451,21 @@ test = "python/tests/test_conditional_effect.py::test_conditional_effect_recover
 assertion_scopes = ["test_conditional_effect_recovers_interaction"]
 dimensions = ["success"]
 assertion_contract = "The frequentist ConditionalEffect recovers the interaction effect 3.0 within 0.3."
+[[capability.evidence]]
+test = "python/tests/test_conditional_effect.py::test_conditional_effect_over_a_modifier_set_recovers_the_joint_interaction"
+assertion_scopes = ["test_conditional_effect_over_a_modifier_set_recovers_the_joint_interaction"]
+dimensions = ["success", "branch", "inspection"]
+assertion_contract = "For y = 1 + t*(1 + 0.5 w1 - 0.3 w2) + noise the set estimate equals 1 + 0.5 mean(w1) - 0.3 mean(w2) within 0.05 and the result carries conditional.joint_modifier_interval_uncalibrated."
+[[capability.evidence]]
+test = "python/tests/test_conditional_effect.py::test_conditional_effect_over_one_modifier_is_unchanged_by_a_singleton_sequence"
+assertion_scopes = ["test_conditional_effect_over_one_modifier_is_unchanged_by_a_singleton_sequence"]
+dimensions = ["branch"]
+assertion_contract = "A one-modifier query and a singleton sequence give the same estimate and neither carries the joint-modifier assumption."
+[[capability.evidence]]
+test = "python/tests/test_conditional_effect.py::test_conditional_effect_refuses_empty_duplicate_and_non_string_modifiers"
+assertion_scopes = ["test_conditional_effect_refuses_empty_duplicate_and_non_string_modifiers"]
+dimensions = ["refusal"]
+assertion_contract = "Empty, duplicate and non-string modifiers raise CausalValueError."
 
 [[capability]]
 id = "identify.temporal_mediation.identifier"

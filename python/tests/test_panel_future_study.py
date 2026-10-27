@@ -18,7 +18,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from antecedent import joint_panel
+from antecedent import Execution, joint_panel
 from antecedent import joint_panel as jp
 from antecedent import scientific_bridge as sb
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
@@ -145,9 +145,9 @@ def _updated():
             "initial": None,
         },
         functional={"terms": [(1, 1.0), (0, -1.0)], "reference": 0},
-        seed=20261021,
+        execution=Execution(seed=20261021),
     )
-    result = require_success(prepared.estimate(seed=20261021))
+    result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     report = result.report()
     dependency = report["dependency"]
     draws = report["draws"]

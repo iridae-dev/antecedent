@@ -81,15 +81,13 @@ def test_bounds_and_missing_native_cannot_be_overridden_by_basis(monkeypatch):
     import antecedent._measured_inference as module
 
     monkeypatch.delattr(module._native, "consume_measured_inference", raising=False)
-    for kwargs in [
-        {"max_bytes": 64 * 1024 * 1024 + 1},
-        {"max_bytes": 0},
-        {"memory_limit_bytes": -1},
-    ]:
-        with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError):
+        MeasuredInference.load(b"\0" * (64 * 1024 * 1024 + 1), expected=identity())
+    for kwargs in [{"max_bytes": 0}, {"memory_limit_bytes": 0}, {"cancel": None}]:
+        with pytest.raises(TypeError, match="unexpected keyword"):
             MeasuredInference.load(b"", expected=identity(), **kwargs)
     with pytest.raises(CausalTypeError):
-        MeasuredInference.load(b"", expected=identity(), cancel=object())
+        MeasuredInference.load(b"", expected=identity(), execution=object())
     with pytest.raises(CausalTypeError):
         MeasuredInference.load(b"", expected=identity()._wire())
     with pytest.raises(CausalUnsupportedError) as caught:

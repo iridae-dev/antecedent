@@ -50,6 +50,7 @@ from antecedent import composition as comp
 from antecedent import composition_bundle as cb
 from antecedent import decision, external, program_claims, recalc
 from antecedent import design as dr
+from antecedent.execution import Execution
 from antecedent.joint_distribution import JointDistributionArtifact
 from antecedent.outcomes import require_success
 from antecedent.recalc import (
@@ -164,7 +165,7 @@ def session_request(effect: float = 2.0) -> RecalcRequest:
 
 def _rerun(request: RecalcRequest) -> recalc.RecalcResult:
     """An independent rerun in a brand-new session: nothing frozen or fitted is shared."""
-    out = require_success(RecalcSession().execute(request, seed=SEED))
+    out = require_success(RecalcSession().execute(request, execution=Execution(seed=SEED)))
     assert out.receipt.totals.fold_fits == FIRST_RUN_FOLD_FITS
     return out
 
@@ -526,11 +527,11 @@ def test_mutation_snapshot_recomputes_dependents_and_keeps_the_external_branches
 
 def test_mutation_snapshot_refits_once_and_matches_an_independent_rerun() -> None:
     session = RecalcSession()
-    first = require_success(session.execute(session_request(), seed=SEED))
+    first = require_success(session.execute(session_request(), execution=Execution(seed=SEED)))
     assert first.receipt.totals.as_tuple() == (1, FIRST_RUN_FOLD_FITS, 1, 1, 1)
 
     fresh = session_request(1.5)
-    second = require_success(session.execute(fresh, seed=SEED))
+    second = require_success(session.execute(fresh, execution=Execution(seed=SEED)))
     assert {s.value for s in second.plan.recomputed} == {
         "data_snapshot",
         "score_artifact",
@@ -755,9 +756,9 @@ def test_mutation_utility_recomputes_only_the_decision_with_no_fit_work() -> Non
     # The real session counts it: no identification, no fold fit, no score, no reweight.
     request = session_request()
     session = RecalcSession()
-    first = require_success(session.execute(request, seed=SEED))
+    first = require_success(session.execute(request, execution=Execution(seed=SEED)))
     second = require_success(
-        session.execute(replace(request, utility=Utility(3.0, 0.1)), seed=SEED)
+        session.execute(replace(request, utility=Utility(3.0, 0.1)), execution=Execution(seed=SEED))
     )
     assert second.receipt.totals.as_tuple() == (0, 0, 0, 0, 1)
     assert second.plan.recomputed_computations == (Stage.DECISION,)
@@ -768,10 +769,10 @@ def test_mutation_utility_recomputes_only_the_decision_with_no_fit_work() -> Non
 def test_mutation_target_weights_reuse_frozen_scores_and_the_dose_grid_refuses_off_grid() -> None:
     request = session_request()
     session = RecalcSession()
-    first = require_success(session.execute(request, seed=SEED))
+    first = require_success(session.execute(request, execution=Execution(seed=SEED)))
     z = np.asarray(request.data["z"])
     changed = replace(request, target=TargetWeights(np.exp(0.4 * z), ("z",)))
-    retargeted = require_success(session.execute(changed, seed=SEED))
+    retargeted = require_success(session.execute(changed, execution=Execution(seed=SEED)))
     assert retargeted.receipt.totals.as_tuple() == (0, 0, 0, 1, 1)
     assert {s.value for s in retargeted.plan.recomputed} == {"target_population", "law", "decision"}
     assert abs(retargeted.law.ate - first.law.ate) > 0.05
@@ -780,7 +781,7 @@ def test_mutation_target_weights_reuse_frozen_scores_and_the_dose_grid_refuses_o
     cold = RecalcSession()
     cold.set_request_support("off_grid", "transport.smoothed_dose")
     with pytest.raises(recalc.RecalcRefusal) as off_grid:
-        require_success(cold.execute(request, seed=SEED))
+        require_success(cold.execute(request, execution=Execution(seed=SEED)))
     assert (off_grid.value.stage, off_grid.value.detail) == (
         "treatment_grid",
         "recalc.off_grid_request",

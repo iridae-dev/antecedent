@@ -20,6 +20,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
@@ -253,11 +254,11 @@ def test_one_shared_budget_stops_are_receipts_never_verdicts():
     with pytest.raises(CausalResourceError, match="temporal_transport.history_budget"):
         prepare(max_depth=1)
     with pytest.raises(CausalResourceError, match="temporal_transport.history_budget"):
-        prepare(memory_bytes=64)
+        prepare(execution=Execution(limits=ResourceLimits(memory_bytes=64)))
     token = antecedent.state.CancellationToken()
     token.cancel()
     with pytest.raises(CausalCancelledError, match="temporal_transport.history_budget"):
-        prepare(cancel=token)
+        prepare(execution=Execution(cancel=token))
     # The same premises decide under a modest budget: the stop said nothing about identification.
     assert json.loads(require_success(prepare(max_steps=1000).estimate()))["status"] == "available"
 

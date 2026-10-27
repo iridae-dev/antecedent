@@ -89,6 +89,7 @@ from antecedent.errors import (
 )
 from antecedent.estimation import RetargetClaim
 from antecedent.evidence_ledger import EvidenceLedgerRefusal
+from antecedent.execution import Execution
 from antecedent.external import ExternalRefusal
 from antecedent.inference import PosteriorArtifact, encode_posterior_artifact
 from antecedent.joint_distribution import (
@@ -1827,11 +1828,14 @@ def _check_retargeted_recalc(o: Objs) -> None:
     """The recalculation executor is itself the retargeting producer: reweight, no refit."""
     base = _recalc_request()
     session = RecalcSession()
-    first = require_success(session.execute(base, seed=RECALC_SEED))
+    first = require_success(session.execute(base, execution=Execution(seed=RECALC_SEED)))
     z = np.asarray(base.data["z"])
     weights = np.exp(0.4 * z)
     second = require_success(
-        session.execute(replace(base, target=TargetWeights(weights, ("z",))), seed=RECALC_SEED)
+        session.execute(
+            replace(base, target=TargetWeights(weights, ("z",))),
+            execution=Execution(seed=RECALC_SEED),
+        )
     )
     assert second.plan.status(Stage.TARGET_POPULATION).recomputed
     assert second.plan.status(Stage.SCORE_ARTIFACT).reused

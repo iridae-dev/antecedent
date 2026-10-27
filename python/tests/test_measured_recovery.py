@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from antecedent import _native
+from antecedent import Execution, ResourceLimits, _native
 from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError
 from antecedent.inference import MeasuredInference
 from antecedent.transport import advanced as tr
@@ -34,7 +34,7 @@ def options():
         "query": query(),
         "rows": rows(),
         "snapshot": "snap-1",
-        "seed": 7,
+        "execution": Execution(seed=7),
     }
 
 
@@ -114,7 +114,7 @@ def test_normal_recovery_legacy_scope_fake_authority_and_resource_refusals():
     for change in (
         {"replicates": 500},
         {"interval_method": "bootstrap_percentile"},
-        {"memory_limit_bytes": 0},
+        {"execution": Execution(limits=ResourceLimits(memory_bytes=0))},
         {"rows": opts["rows"][:500]},
     ):
         with pytest.raises(CausalError):
@@ -159,7 +159,7 @@ def test_normal_recovery_legacy_scope_fake_authority_and_resource_refusals():
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
-        tr.sampled_observation_recovery(**(opts | {"cancel": cancelled}))
+        tr.sampled_observation_recovery(**(opts | {"execution": Execution(cancel=cancelled)}))
 
 
 def test_normal_sampled_recovery_measured_artifact_requires_original_expected_identity(tmp_path):

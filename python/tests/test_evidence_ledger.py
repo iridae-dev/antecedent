@@ -23,6 +23,7 @@ import json
 import subprocess
 import sys
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent import _native
@@ -1128,7 +1129,11 @@ def test_cancellation_stops_before_a_synthesis_and_leaves_the_session_unchanged(
     token.cancel()
     error = refused(
         lambda: require_success(
-            ledger.pool_summaries("p", [summary(s1, 1.0, 1.0), summary(s2, 3.0, 4.0)], cancel=token)
+            ledger.pool_summaries(
+                "p",
+                [summary(s1, 1.0, 1.0), summary(s2, 3.0, 4.0)],
+                execution=antecedent.Execution(cancel=token),
+            )
         )
     )
     assert error.reason_code == "cancelled_no_claim"

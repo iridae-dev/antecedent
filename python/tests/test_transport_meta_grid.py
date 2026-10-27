@@ -446,7 +446,7 @@ def test_grid_family_identity_atomic_rebind_and_preview():
     preview = study.preview_transform("compatible_data_replace")
     assert preview is not None
     # Execution threads are a policy the typed grid family cannot honour: refused, not ignored.
-    with pytest.raises(CausalUnsupportedError, match="typed transport queries") as refused:
+    with pytest.raises(CausalUnsupportedError, match="Execution.threads does not apply") as refused:
         require_success(
             estimate(
                 prepare(

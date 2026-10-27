@@ -13,8 +13,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import antecedent
 import numpy as np
 import pytest
+from antecedent import Execution
 from antecedent.errors import CausalError, CausalUnsupportedError
 from antecedent.intervention_callbacks import (
     GENERATED,
@@ -54,7 +56,7 @@ def _discount(function, **declaration):
 def _refusal(code, program, fitted, rows):
     result = None
     with pytest.raises(CausalUnsupportedError) as raised:
-        result = sample_do(fitted, [program], rows, seed=3)
+        result = sample_do(fitted, [program], rows, execution=Execution(seed=3))
     assert result is None, "no partial result is returned"
     assert raised.value.reason_code == code, raised.value
     return str(raised.value)
@@ -73,9 +75,14 @@ def test_a_numpy_callback_is_the_same_policy_as_its_expression_and_runs_once_per
         calls.append((price.dtype, price.shape))
         return np.clip(0.85 * price, 10.0, None)
 
-    by_callback = sample_do(fitted, [_discount(clipped, lower=10.0, upper=1.0e6)], rows, seed=11)
+    by_callback = sample_do(
+        fitted, [_discount(clipped, lower=10.0, upper=1.0e6)], rows, execution=Execution(seed=11)
+    )
     by_expression = sample_policy(
-        fitted, [transform("price", maximum(10, 0.85 * generated()))], rows, seed=11
+        fitted,
+        [transform("price", maximum(10, 0.85 * generated()))],
+        rows,
+        execution=antecedent.Execution(seed=11),
     )
     np.testing.assert_array_equal(_bits(by_callback.draws), _bits(by_expression.draws))
     assert calls == [(np.dtype("float64"), (rows,))], "once per batch, not once per row"
@@ -152,7 +159,7 @@ def test_an_interactive_callback_is_refused_for_export_but_stays_usable_in_sessi
     assert raised.value.reason_code == "policy_callback_not_portable"
     message = str(raised.value)
     assert "discounted" in message and "no verifiable recoverable implementation" in message
-    result = sample_do(fitted, [program], 1000, seed=3)
+    result = sample_do(fitted, [program], 1000, execution=Execution(seed=3))
     assert result.n_draws == 1000 and result.draws[NAMES.index("price")].min() >= 10.0
 
 
@@ -177,6 +184,7 @@ _CALLBACK_REPLAY = """
 import hashlib, sys
 sys.path.insert(0, sys.argv[1])
 from _pricing_chain import fit_pricing_chain
+from antecedent import Execution
 from antecedent.intervention_callbacks import decode_programs, recover_callback, required_callbacks, sample_do
 
 artifact = open(sys.argv[2], "rb").read()
@@ -184,7 +192,7 @@ source = open(sys.argv[3]).read()
 fitted = fit_pricing_chain(int(sys.argv[4]), int(sys.argv[5]))
 callbacks = [recover_callback(source, record) for record in required_callbacks(artifact)]
 programs = decode_programs(["price", "demand", "revenue"], artifact, callbacks)
-draws = sample_do(fitted, list(programs), int(sys.argv[4]), seed=7).draws
+draws = sample_do(fitted, list(programs), int(sys.argv[4]), execution=Execution(seed=7)).draws
 print(hashlib.sha256(draws.tobytes()).hexdigest())
 """
 
@@ -219,7 +227,9 @@ def test_a_portable_callback_artifact_replays_bit_for_bit_in_a_fresh_process(tmp
     path, source = tmp_path / "policy.bin", tmp_path / "callback.py"
     path.write_bytes(artifact)
     source.write_text(SOURCE)
-    local = hashlib.sha256(sample_do(fitted, [program], rows, seed=7).draws.tobytes()).hexdigest()
+    local = hashlib.sha256(
+        sample_do(fitted, [program], rows, execution=Execution(seed=7)).draws.tobytes()
+    ).hexdigest()
     assert _run(_CALLBACK_REPLAY, path, source, rows, seed) == local
 
     # A changed implementation refuses replay, whichever way it arrives.
@@ -253,12 +263,13 @@ _CLOSED_REPLAY = """
 import hashlib, sys
 sys.path.insert(0, sys.argv[1])
 from _pricing_chain import fit_pricing_chain
+import antecedent
 from antecedent.intervention_programs import decode_policy_program, policy_program_identity, sample_policy
 
 names = ["price", "demand", "revenue"]
 programs = decode_policy_program(names, open(sys.argv[2], "rb").read())
 fitted = fit_pricing_chain(int(sys.argv[3]), int(sys.argv[4]))
-draws = sample_policy(fitted, programs, int(sys.argv[3]), seed=5).draws
+draws = sample_policy(fitted, programs, int(sys.argv[3]), execution=antecedent.Execution(seed=5)).draws
 print(policy_program_identity(names, programs), hashlib.sha256(draws.tobytes()).hexdigest())
 """
 
@@ -270,7 +281,9 @@ def test_a_saved_policy_replays_identically_in_three_fresh_processes(tmp_path):
     saved = encode_policy_program(NAMES, programs)
     identity = policy_program_identity(NAMES, programs)
     expected = hashlib.sha256(
-        sample_policy(fitted, programs, rows, seed=5).draws.tobytes()
+        sample_policy(
+            fitted, programs, rows, execution=antecedent.Execution(seed=5)
+        ).draws.tobytes()
     ).hexdigest()
     path = tmp_path / "policy.bin"
     path.write_bytes(saved)

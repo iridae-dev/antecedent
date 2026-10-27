@@ -23,6 +23,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from antecedent import Execution
 from antecedent import selective_discovery as sd
 from antecedent.errors import CausalDiscoveryError, CausalError, CausalTypeError, CausalValueError
 from antecedent.outcomes import require_success
@@ -290,7 +291,7 @@ def test_failed_or_cancelled_update_leaves_the_retained_state_untouched() -> Non
     token = CancellationToken()
     token.cancel()
     with pytest.raises(CausalError):
-        adapter.run(contract(alpha=0.001), DATA, cancel=token)
+        adapter.run(contract(alpha=0.001), DATA, execution=Execution(cancel=token))
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         adapter.run(contract(additional_populations=("elsewhere",)), DATA)
     assert refused.value.detail == "selective_discovery.multi_population"
@@ -452,6 +453,7 @@ def test_resume_refusals_and_artifact_tampering() -> None:
 _CHILD = """
 import json, sys
 import numpy as np
+from antecedent import Execution
 from antecedent import selective_discovery as sd
 
 mode, folder = sys.argv[1], sys.argv[2]

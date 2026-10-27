@@ -73,7 +73,7 @@ def build(args):
 
         def call():
             return PC(alpha=0.01, fdr=False, max_cond_size=2).run(
-                data, seed=18, threads=args.threads
+                data, execution=ant.Execution(seed=18, threads=args.threads)
             )
 
         def decisions(result):

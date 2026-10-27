@@ -77,14 +77,15 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
 
     # Expression interventions: the one-shot call and the prepared handle are one executor.
     floor = transform("b", maximum(0, generated()))
-    one_shot = sample_policy(fitted, [floor], 2000, seed=3)
+    one_shot = sample_policy(fitted, [floor], 2000, execution=antecedent.Execution(seed=3))
     prepared = prepare_policy(fitted, [floor])
     np.testing.assert_array_equal(
-        _bits(one_shot.draws), _bits(require_success(prepared.sample(2000, seed=3)).draws)
+        _bits(one_shot.draws),
+        _bits(require_success(prepared.sample(2000, execution=antecedent.Execution(seed=3))).draws),
     )
     assert one_shot.draws[fitted.names.index("b")].min() >= 0.0
     # A hard level has the closed-form answer: do(a = 1) puts c at 1.5 * 2 = 3.
-    level = fitted.sample_do({"a": 1.0}, 4000, seed=2)
+    level = fitted.sample_do({"a": 1.0}, 4000, execution=antecedent.Execution(seed=2))
     assert abs(level.draws[fitted.names.index("c")].mean() - 3.0) < 0.1
 
     # Mechanism selection: a candidate set and a constraint reach the fit, and the record says so.
@@ -108,7 +109,12 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
     assert record["provenance_id"] == "estimate.gcm.fit"
 
     # Intrinsic influence from the handle equals the standalone call on the same data and seed.
-    options = {"independent_noise": True, "outer_draws": 600, "inner_draws": 30, "seed": 3}
+    options = {
+        "independent_noise": True,
+        "outer_draws": 600,
+        "inner_draws": 30,
+        "execution": antecedent.Execution(seed=3),
+    }
     from_handle = fitted_intrinsic_influence(fitted, "c", **options)
     standalone = intrinsic_influence(data, LINEAR_EDGES, "c", **options)
     assert [s.contribution for s in from_handle.sources] == [
@@ -120,7 +126,7 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
         assert abs(by_source[source] - truth) < 0.35 * truth, (source, by_source[source])
 
     # Noise replay: the retained noise reproduces the draws and gives the counterfactual.
-    draws, noise = fitted.sample_noise({}, 1000, seed=4)
+    draws, noise = fitted.sample_noise({}, 1000, execution=antecedent.Execution(seed=4))
     again = fitted.replay_noise(noise, {})
     np.testing.assert_array_equal(_bits(draws.draws), _bits(again.draws))
     counterfactual = fitted.replay_noise(noise, {"a": 2.0})
@@ -150,16 +156,26 @@ def test_a_prepared_policy_reuses_one_licence_and_equals_the_one_shot_results():
 
     for seed in (1, 2):
         np.testing.assert_array_equal(
-            _bits(require_success(handle.sample(1500, seed=seed)).draws),
-            _bits(sample_policy(fitted, policy, 1500, seed=seed).draws),
+            _bits(
+                require_success(
+                    handle.sample(1500, execution=antecedent.Execution(seed=seed))
+                ).draws
+            ),
+            _bits(
+                sample_policy(fitted, policy, 1500, execution=antecedent.Execution(seed=seed)).draws
+            ),
         )
-    outcomes = handle.counterfactual(["demand", "revenue"], seed=1)
-    one_shot = counterfactual_policy(fitted, policy, ["demand", "revenue"], seed=1)
+    outcomes = handle.counterfactual(["demand", "revenue"], execution=antecedent.Execution(seed=1))
+    one_shot = counterfactual_policy(
+        fitted, policy, ["demand", "revenue"], execution=antecedent.Execution(seed=1)
+    )
     for name in outcomes:
         np.testing.assert_array_equal(outcomes[name], one_shot[name])
 
-    value = handle.value("demand", n=4000, seed=5)
-    assert value == policy_value(fitted, policy, "demand", n=4000, seed=5)
+    value = handle.value("demand", n=4000, execution=antecedent.Execution(seed=5))
+    assert value == policy_value(
+        fitted, policy, "demand", n=4000, execution=antecedent.Execution(seed=5)
+    )
     # Cutting price by 15% raises demand by 0.8 * 0.15 * mean(price): the closed form of the
     # generating model, within a few simulation errors and the fitted slope's error.
     expected = 0.8 * 0.15 * data["price"].mean()
@@ -178,8 +194,12 @@ def test_the_temporal_counterfactual_replays_a_panel_through_the_shared_rollout(
     # Without a lag read the first step (the data the model was fitted on) is the static
     # counterfactual, and later steps replay their own noise through the same policy.
     floor = transform("price", maximum(10, 0.85 * generated()))
-    path = counterfactual_temporal_policy(fitted, [floor], data, window=0, seed=1)
-    static = counterfactual_policy(fitted, [floor], ["price", "demand", "revenue"], seed=1)
+    path = counterfactual_temporal_policy(
+        fitted, [floor], data, window=0, execution=antecedent.Execution(seed=1)
+    )
+    static = counterfactual_policy(
+        fitted, [floor], ["price", "demand", "revenue"], execution=antecedent.Execution(seed=1)
+    )
     for index, name in enumerate(["price", "demand", "revenue"]):
         np.testing.assert_array_equal(path[0].draws[index], static[name])
     assert len(path) == steps
@@ -190,7 +210,7 @@ def test_the_temporal_counterfactual_replays_a_panel_through_the_shared_rollout(
     start = {name: values[:rows] for name, values in pricing_chain(rows, 77).items()}
     recursion = assign("price", maximum(10, 0.85 * lag("price", 1)))
     rolled = counterfactual_temporal_policy(
-        fitted, [recursion], data, window=1, history=[start], seed=1
+        fitted, [recursion], data, window=1, history=[start], execution=antecedent.Execution(seed=1)
     )
     previous = start["price"]
     for step in rolled:
@@ -198,18 +218,30 @@ def test_the_temporal_counterfactual_replays_a_panel_through_the_shared_rollout(
         np.testing.assert_allclose(step.draws[0], previous, rtol=0, atol=1e-12)
     # The counterfactual and the sampled rollout are the same executor on different noise.
     drawn = sample_temporal_policy(
-        fitted, [recursion], n_rows=rows, n_steps=steps, window=1, history=[start], seed=1
+        fitted,
+        [recursion],
+        n_rows=rows,
+        n_steps=steps,
+        window=1,
+        history=[start],
+        execution=antecedent.Execution(seed=1),
     )
     for sampled, replayed in zip(drawn, rolled, strict=True):
         np.testing.assert_allclose(sampled.draws[0], replayed.draws[0], rtol=0, atol=1e-12)
 
     # A look-back before the first step, and a panel missing a variable, are refused.
     with pytest.raises(CausalError) as early:
-        counterfactual_temporal_policy(fitted, [recursion], data, window=1, seed=1)
+        counterfactual_temporal_policy(
+            fitted, [recursion], data, window=1, execution=antecedent.Execution(seed=1)
+        )
     assert early.value.reason_code == "policy_history_unavailable"
     with pytest.raises(CausalError):
         counterfactual_temporal_policy(
-            fitted, [floor], [{"price": data[0]["price"]}], window=0, seed=1
+            fitted,
+            [floor],
+            [{"price": data[0]["price"]}],
+            window=0,
+            execution=antecedent.Execution(seed=1),
         )
 
 
@@ -223,9 +255,15 @@ def test_every_new_workflow_refuses_with_a_registered_code_and_names_its_provena
     support = policy_support(fitted, [transform("b", maximum(0, generated()))])
     codes["policy_licence"] = support.identification.reason_code
     with pytest.raises(CausalError) as cycle:
-        sample_policy(fitted, [assign("a", var("b"))], 10, seed=1)
+        sample_policy(fitted, [assign("a", var("b"))], 10, execution=antecedent.Execution(seed=1))
     codes["policy_cycle"] = _code(cycle.value)
-    value = policy_value(fitted, [transform("b", maximum(0, generated()))], "c", n=500, seed=1)
+    value = policy_value(
+        fitted,
+        [transform("b", maximum(0, generated()))],
+        "c",
+        n=500,
+        execution=antecedent.Execution(seed=1),
+    )
 
     # Callback: a runtime binding cannot leave the process.
     callback = InterventionCallback(lambda b: b, inputs=["b"], name="identity_b")
@@ -356,8 +394,8 @@ def test_an_artifact_in_the_released_layout_still_loads_and_replays_unchanged():
     # Replayed, it gives the draws of the program built directly.
     (loaded,) = decode_policy_program(names, saved)
     np.testing.assert_array_equal(
-        _bits(sample_policy(fitted, [loaded], 2000, seed=9).draws),
-        _bits(sample_policy(fitted, [program], 2000, seed=9).draws),
+        _bits(sample_policy(fitted, [loaded], 2000, execution=antecedent.Execution(seed=9)).draws),
+        _bits(sample_policy(fitted, [program], 2000, execution=antecedent.Execution(seed=9)).draws),
     )
 
 
@@ -397,9 +435,15 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
 
     # Every rerun is the one-shot result on the same fitted model, program and seed, to the bit.
     fitted = fit_pricing_chain(5000, 6512894)
-    assert first.value == policy_value(fitted, policy, "demand", n=4000, seed=5)
-    assert other_seed.value == policy_value(fitted, policy, "demand", n=4000, seed=9)
-    assert third.value == policy_value(fitted, policy, "demand", n=4000, seed=2)
+    assert first.value == policy_value(
+        fitted, policy, "demand", n=4000, execution=antecedent.Execution(seed=5)
+    )
+    assert other_seed.value == policy_value(
+        fitted, policy, "demand", n=4000, execution=antecedent.Execution(seed=9)
+    )
+    assert third.value == policy_value(
+        fitted, policy, "demand", n=4000, execution=antecedent.Execution(seed=2)
+    )
     # Cutting price by 15% raises demand by 0.8 * 0.15 * mean(price), the generating model's
     # closed form, within the fitted slope's error.
     expected = 0.8 * 0.15 * data["price"].mean()
@@ -438,7 +482,7 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
     assert refreshed.preparation.program_compilations == 1
     assert refreshed.preparation.model_bindings == 1
     assert refreshed.value == policy_value(
-        fit(fresh, PRICING_EDGES), policy, "demand", n=4000, seed=5
+        fit(fresh, PRICING_EDGES), policy, "demand", n=4000, execution=antecedent.Execution(seed=5)
     )
     assert require_success(antecedent.estimate(handle)).value == first.value
     # Branching on other data never alters the retained model of the original preparation.

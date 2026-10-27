@@ -1170,6 +1170,51 @@ def test_dag_cell_aipw_public_route_and_quantile(quantile, first_level, tiered):
         assert original.estimate.ate == pytest.approx(fresh.estimate, abs=1e-10)
 
 
+def test_a_cell_aipw_response_interval_is_the_estimate_plus_minus_the_published_normal_quantile():
+    from statistics import NormalDist
+
+    rng = np.random.default_rng(618)
+    n = 1600
+    z = rng.normal(size=n)
+    t1 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.2 + 0.9 * z)))).astype(float)
+    t2 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.1 + 0.8 * z)))).astype(float)
+    y = 1.2 * t1 + 0.8 * t2 + 1.5 * t1 * t2 + 0.55 * z + 0.8 * np.exp(rng.normal(size=n)) - 0.8
+    graph = antecedent.Dag.from_edges(
+        ["z", "t1", "t2", "y"],
+        [("z", "t1"), ("z", "t2"), ("z", "y"), ("t1", "y"), ("t2", "y")],
+    )
+    query = InterventionResponse(
+        "y", intervention=[Set("t1", 1.0), Set("t2", 1.0)], outcome_functional=Mean()
+    )
+    result = require_success(
+        antecedent.analyze(
+            {"z": z, "t1": t1, "t2": t2, "y": y},
+            graph=graph,
+            query=query,
+            estimator="cell.aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
+    )
+    band = result.uncertainty
+    # The analytic standard error is published at the 0.95 level with the two-sided normal
+    # critical value 1.959964 (the 0.975 quantile), not a Student-t or bootstrap quantile.
+    critical = NormalDist().inv_cdf(0.975)
+    assert critical == pytest.approx(1.959964, abs=1e-6)
+    assert band.level == 0.95 and band.interpretation == "confidence"
+    assert band.standard_error > 0.0
+    assert band.lower[0][0] == pytest.approx(
+        result.estimate - critical * band.standard_error, abs=1e-9
+    )
+    assert band.upper[0][0] == pytest.approx(
+        result.estimate + critical * band.standard_error, abs=1e-9
+    )
+    # Truth: E[Y | do(t1=1, t2=1)] = 1.2 + 0.8 + 1.5 + 0.8 (exp(0.5) - 1) = 3.5 + 0.5190; the
+    # estimate lies within a few standard errors of it.
+    truth = 3.5 + 0.8 * (np.exp(0.5) - 1.0)
+    assert abs(result.estimate - truth) < 5.0 * band.standard_error
+
+
 @pytest.mark.parametrize("refute", ["cheap", "full"])
 def test_conditional_quantile_refuses_mean_effect_refuters(refute):
     data = _binary_confounded(400)

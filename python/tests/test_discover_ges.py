@@ -17,6 +17,6 @@ def test_discover_ges_screen_pc_smoke():
         fdr=False,
         screen_pc=True,
         max_subset=4,
-    ).run({"t": t, "y": y, "z": z}, seed=1)
+    ).run({"t": t, "y": y, "z": z}, execution=antecedent.Execution(seed=1))
     assert result.cpdag_nodes == 3
     assert isinstance(result.cpdag_directed_edges, int)

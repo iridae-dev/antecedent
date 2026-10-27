@@ -362,7 +362,9 @@ def test_supplied_posterior_keeps_discovery_provenance():
     t = (z > 0.5).astype(np.float64)
     y = 1.0 + 2.0 * t + 3.0 * z
     data = {"t": t, "y": y, "z": z}
-    posterior = antecedent.discovery.ExactDagPosterior().run(data, seed=7)
+    posterior = antecedent.discovery.ExactDagPosterior().run(
+        data, execution=antecedent.Execution(seed=7)
+    )
     assert posterior.algorithm == "exact_dag_posterior"
     result = require_success(
         antecedent.analyze(

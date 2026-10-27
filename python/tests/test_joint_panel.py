@@ -6,7 +6,7 @@ import csv
 from pathlib import Path
 
 import pytest
-from antecedent import joint_panel
+from antecedent import Execution, ResourceLimits, joint_panel
 from antecedent.errors import CausalResourceError, CausalSerializationError, CausalValueError
 from antecedent.intervention_programs import clip, minimum, var
 from antecedent.outcomes import require_success
@@ -77,7 +77,7 @@ def request(groups, worlds, functional=None, interactions=None):
             "initial": None,
         },
         functional=functional,
-        seed=20261021,
+        execution=Execution(seed=20261021),
     )
 
 
@@ -85,7 +85,7 @@ def test_generic_python_panel_matches_shared_rust_mechanism_and_retains_failed_s
     groups, worlds = declarations()
     prepared = request(groups, worlds)
     assert prepared.inspect()["fits_performed"] == 0
-    result = require_success(prepared.estimate(seed=20261021))
+    result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     report = result.report()
     assert report["fits_performed"] == 1
     assert not report["identified"]
@@ -125,12 +125,18 @@ def test_generic_python_panel_matches_shared_rust_mechanism_and_retains_failed_s
                     + parameters["season_effects"][scenario["season"][time]]
                 ) / 4
             assert actual == pytest.approx(expected, abs=1e-12)
-    retargeted = prepared.retarget(worlds, seed=20261021)
+    retargeted = prepared.retarget(worlds, execution=Execution(seed=20261021))
     del prepared
-    assert require_success(retargeted.estimate(seed=20261021)).report()["point"] == report["point"]
+    assert (
+        require_success(retargeted.estimate(execution=Execution(seed=20261021))).report()["point"]
+        == report["point"]
+    )
     assert retargeted.inspect()["fits_performed"] == 1
     replay = require_success(
-        joint_panel.consume(bytes(result.export(seed=20261021)), seed=20261021)
+        joint_panel.consume(
+            bytes(result.export(execution=Execution(seed=20261021))),
+            execution=Execution(seed=20261021),
+        )
     )
     assert replay["point"] == report["point"]
     assert replay["draws"] == [None] * 4
@@ -161,7 +167,7 @@ def test_python_panel_refuses_foreign_expression_read_without_fitting():
 def test_compiler_derived_program_certificate_replays_current_fit_and_domain():
     groups, worlds = declarations()
     prepared = request(groups, worlds)
-    result = require_success(prepared.estimate(seed=20261021))
+    result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     controls = []
     for offset in range(24):
         for name in ("a", "b", "c"):
@@ -180,7 +186,7 @@ def test_compiler_derived_program_certificate_replays_current_fit_and_domain():
         initial=[0.0] * len(controls),
         absolute_gap=1e-3,
         max_splits=2000,
-        seed=20261021,
+        execution=Execution(seed=20261021),
     )
     report = certificate.report()
     assert report["stop"] == "Certified"
@@ -188,9 +194,9 @@ def test_compiler_derived_program_certificate_replays_current_fit_and_domain():
     assert report["scope"] == "model_conditional"
     assert report["selected_value_reliability"] == "unmeasured"
     assert len(report["controls"]) == len(controls)
-    artifact = bytes(certificate.export(seed=20261021))
-    certificate.verify_current(artifact, seed=17)
-    historical = joint_panel.consume_program_certificate(artifact, seed=99)
+    artifact = bytes(certificate.export(execution=Execution(seed=20261021)))
+    certificate.verify_current(artifact, execution=Execution(seed=17))
+    historical = joint_panel.consume_program_certificate(artifact, execution=Execution(seed=99))
     assert historical["domain_identity"] == report["domain_identity"]
     assert historical["gap"] == report["gap"]
     assert historical["grants_current_authority"] is False
@@ -201,10 +207,10 @@ def test_compiler_derived_program_certificate_replays_current_fit_and_domain():
         utility_scale=2.0,
         absolute_gap=1e-3,
         max_splits=2000,
-        seed=20261021,
+        execution=Execution(seed=20261021),
     )
     with pytest.raises(Exception, match="dependencies changed"):
-        changed.verify_current(artifact, seed=17)
+        changed.verify_current(artifact, execution=Execution(seed=17))
     assert prepared.inspect()["fits_performed"] == 1
 
 
@@ -241,17 +247,17 @@ def test_randomized_program_selection_uses_original_heldout_units_and_replays():
     prepared = joint_panel.prepare_randomized_selection(
         design=design, training=units("train"), validation=units("holdout"), policy=policy
     )
-    result = require_success(prepared.execute(repetitions=20, seed=13))
+    result = require_success(prepared.execute(repetitions=20, execution=Execution(seed=13)))
     report = result.report()
     assert report["selected_program"] == "b"
     assert report["heldout"]["value"] == pytest.approx(1.1)
     assert len(report["repetitions"]) == 20
     artifact = bytes(result.export())
-    result.verify_current(artifact, seed=99)
-    replay = joint_panel.consume_randomized_selection(artifact, seed=99)
+    result.verify_current(artifact, execution=Execution(seed=99))
+    replay = joint_panel.consume_randomized_selection(artifact, execution=Execution(seed=99))
     assert replay["report"] == report
     assert replay["grants_current_authority"] is False
-    intervals = prepared.simultaneous_intervals(repetitions=99, seed=13)
+    intervals = prepared.simultaneous_intervals(repetitions=99, execution=Execution(seed=13))
     assert intervals["ids"] == ["a", "b"]
     assert len(intervals["roots"]) == 99
     with pytest.raises(Exception, match="share original observational units"):
@@ -298,24 +304,28 @@ def test_continuous_instrumented_selection_fits_searches_holds_out_and_replays()
         "generation": {"kind": "prespecified"},
         "certificate": {"absolute_gap": 0.002, "max_splits": 256},
     }
-    selected = joint_panel.select_instrumented_program(declaration, repetitions=3, seed=17)
+    selected = joint_panel.select_instrumented_program(
+        declaration, repetitions=3, execution=Execution(seed=17)
+    )
     report = selected.report()
     assert report["selected"]["controls"] == pytest.approx([1.75], abs=0.002)
     assert report["heldout"]["value"] == pytest.approx(7 - 1.75**2, abs=0.005)
     assert len(report["repetitions"]) == 3
     artifact = bytes(selected.export())
-    selected.verify_current(artifact, seed=99)
-    replay = joint_panel.consume_instrumented_selection(artifact, seed=99)
+    selected.verify_current(artifact, execution=Execution(seed=99))
+    replay = joint_panel.consume_instrumented_selection(artifact, execution=Execution(seed=99))
     assert replay["report"] == report
     assert replay["grants_current_authority"] is False
     with pytest.raises(CausalResourceError):
-        joint_panel.select_instrumented_program(declaration, repetitions=0, max_bytes=1)
+        joint_panel.select_instrumented_program(
+            declaration, repetitions=0, execution=Execution(limits=ResourceLimits(memory_bytes=1))
+        )
 
 
 def test_unsupported_certificate_expression_executes_actual_best_found_search():
     groups, worlds = declarations()
     prepared = request(groups, worlds, interactions={"clipped": clip(var("a"), 0.0, 0.5)})
-    result = require_success(prepared.estimate(seed=20261021))
+    result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     controls = [
         {
             "channel": name,
@@ -333,7 +343,7 @@ def test_unsupported_certificate_expression_executes_actual_best_found_search():
         initial=[0.0] * len(controls),
         max_evaluations=32,
         max_iterations=4,
-        seed=20261021,
+        execution=Execution(seed=20261021),
     )
     assert searched["route"] == "best_found"
     assert searched["gap"] is None
@@ -363,7 +373,7 @@ def finite_search_controls(*, budgeted=True):
 def test_finite_program_search_ranks_compiled_worlds_with_concrete_exclusions():
     groups, worlds = declarations()
     prepared = request(groups, worlds)
-    result = require_success(prepared.estimate(seed=20261021))
+    result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     terminal = [entry["means"][-1] for entry in result.report()["point"]]
     assert abs(terminal[1] - terminal[0]) > 1e-9, (
         "the worlds must differ for a ranking to mean anything"
@@ -371,7 +381,7 @@ def test_finite_program_search_ranks_compiled_worlds_with_concrete_exclusions():
     controls = finite_search_controls()
 
     ranked = result.search_declared_programs(
-        controls=controls, utility_offset=0.5, utility_scale=2.0, seed=20261021
+        controls=controls, utility_offset=0.5, utility_scale=2.0, execution=Execution(seed=20261021)
     )
     rows = {row["id"]: row for row in ranked["rows"]}
     assert sorted(rows) == ["baseline", "joint"]
@@ -391,12 +401,16 @@ def test_finite_program_search_ranks_compiled_worlds_with_concrete_exclusions():
     assert ranked["selected_value_reliability"] == "unmeasured"
 
     # A negative utility scale reverses the ranking; the same fitted response is reused.
-    flipped = result.search_declared_programs(controls=controls, utility_scale=-1.0, seed=20261021)
+    flipped = result.search_declared_programs(
+        controls=controls, utility_scale=-1.0, execution=Execution(seed=20261021)
+    )
     assert flipped["best"] == [min(rows, key=lambda name: rows[name]["value"])]
     assert flipped["candidate_set_identity"] == ranked["candidate_set_identity"]
 
     # A budget below the joint schedule's cost excludes it before any value is attempted.
-    budgeted = result.search_declared_programs(controls=controls, budget=100.0, seed=20261021)
+    budgeted = result.search_declared_programs(
+        controls=controls, budget=100.0, execution=Execution(seed=20261021)
+    )
     by_id = {row["id"]: row for row in budgeted["rows"]}
     assert by_id["joint"]["feasibility"] == {"kind": "operational", "reason": "budget"}
     assert by_id["joint"]["value"] is None
@@ -408,7 +422,7 @@ def test_finite_program_search_ranks_compiled_worlds_with_concrete_exclusions():
     restricted = result.search_declared_programs(
         controls=controls,
         restrictions=[{"id": "late_a_cap", "coefficients": restriction, "bound": 3.0}],
-        seed=20261021,
+        execution=Execution(seed=20261021),
     )
     by_id = {row["id"]: row for row in restricted["rows"]}
     assert by_id["joint"]["feasibility"] == {"kind": "operational", "reason": "late_a_cap"}
@@ -416,17 +430,17 @@ def test_finite_program_search_ranks_compiled_worlds_with_concrete_exclusions():
 
     # Controls must bind every actual channel at every schedule offset.
     with pytest.raises(Exception, match="every actual channel"):
-        result.search_declared_programs(controls=controls[:-1], seed=20261021)
+        result.search_declared_programs(controls=controls[:-1], execution=Execution(seed=20261021))
     assert prepared.inspect()["fits_performed"] == 1
 
 
 def test_scheduled_contrast_assembles_on_the_shared_draws_and_refuses_separate_worlds():
     groups, worlds = declarations()
-    separate = require_success(request(groups, worlds).estimate(seed=20261021))
+    separate = require_success(request(groups, worlds).estimate(execution=Execution(seed=20261021)))
     with pytest.raises(Exception, match="contrast target"):
         separate.scheduled_contrast()
     prepared = request(groups, worlds, functional={"terms": [(1, 1.0), (0, -1.0)], "reference": 0})
-    result = require_success(prepared.estimate(seed=20261021))
+    result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     report = result.report()
     contrast = result.scheduled_contrast("terminal_mean", level=0.9)
     assert contrast["point"] == pytest.approx(
@@ -443,7 +457,7 @@ def test_scheduled_contrast_assembles_on_the_shared_draws_and_refuses_separate_w
 def test_reference_decomposition_uses_joint_fit_and_preserves_failed_slots():
     groups, worlds = declarations()
     prepared = request(groups, worlds)
-    result = require_success(prepared.estimate(seed=20261021))
+    result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     declaration = {
         "before_world": 0,
         "after_world": 1,
@@ -471,7 +485,9 @@ def test_reference_decomposition_uses_joint_fit_and_preserves_failed_slots():
     assert decomposition["identification_identity"]
     assert prepared.inspect()["fits_performed"] == 1
     with pytest.raises(CausalResourceError):
-        result.decompose_reference(declaration, max_bytes=1)
+        result.decompose_reference(
+            declaration, execution=Execution(limits=ResourceLimits(memory_bytes=1))
+        )
 
 
 def reference_declaration():
@@ -509,7 +525,7 @@ def window_change_of_differences(report):
 def test_coarser_explanation_executes_the_window_change_of_differences_on_the_fitted_law():
     groups, worlds = declarations()
     prepared = request(groups, worlds)
-    result = require_success(prepared.estimate(seed=20261021))
+    result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     report = result.report()
     attempt = result.attempt_explanation(**FALLBACK)
     assert attempt["point"] == pytest.approx(window_change_of_differences(report), abs=1e-8)
@@ -533,12 +549,14 @@ def test_coarser_explanation_executes_the_window_change_of_differences_on_the_fi
     with pytest.raises(CausalValueError, match="unknown variant"):
         result.attempt_explanation(**{**FALLBACK, "explanation": "everything"})
     with pytest.raises(CausalResourceError):
-        result.attempt_explanation(**FALLBACK, max_bytes=1)
+        result.attempt_explanation(
+            **FALLBACK, execution=Execution(limits=ResourceLimits(memory_bytes=1))
+        )
 
 
 def test_identified_reference_attempt_retains_the_conditional_numbers_and_runs_the_fallback():
     groups, worlds = declarations()
-    result = require_success(request(groups, worlds).estimate(seed=20261021))
+    result = require_success(request(groups, worlds).estimate(execution=Execution(seed=20261021)))
     declaration = reference_declaration()
     attempt = result.attempt_identified_reference(declaration, fallback=FALLBACK)
     requested = result.decompose_reference(declaration)
@@ -565,7 +583,7 @@ def test_identified_reference_attempt_retains_the_conditional_numbers_and_runs_t
 
 def test_design_adaptive_reference_lists_identified_steps_and_the_designs_that_earn_the_rest():
     groups, worlds = declarations()
-    result = require_success(request(groups, worlds).estimate(seed=20261021))
+    result = require_success(request(groups, worlds).estimate(execution=Execution(seed=20261021)))
     declaration = reference_declaration()
     attempt = result.attempt_design_adaptive_reference(declaration, fallback=FALLBACK)
     hybrids = attempt["requested"]["point"]["hybrids"]
@@ -614,7 +632,7 @@ def family_request(groups, worlds, family, *, lag_order=2, inference=None):
         },
         lag_order=lag_order,
         family=family,
-        seed=20261021,
+        execution=Execution(seed=20261021),
     )
 
 
@@ -629,7 +647,7 @@ BROADER_FAMILY = {
 def test_broader_family_is_evaluated_by_the_shared_rust_mechanism_and_replays_from_the_artifact():
     groups, worlds = declarations()
     prepared = family_request(groups, worlds, BROADER_FAMILY)
-    result = require_success(prepared.estimate(seed=20261021))
+    result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     report = result.report()
     point = report["point_parameters"]
     parameters = point["parameters"]
@@ -683,25 +701,33 @@ def test_broader_family_is_evaluated_by_the_shared_rust_mechanism_and_replays_fr
     assert report["diagnostics"]["calibration"] == "unmeasured"
     # The frozen artifact carries the family and replays the same numbers.
     replay = require_success(
-        joint_panel.consume(bytes(result.export(seed=20261021)), seed=20261021)
+        joint_panel.consume(
+            bytes(result.export(execution=Execution(seed=20261021))),
+            execution=Execution(seed=20261021),
+        )
     )
     assert replay["point"] == report["point"]
     assert replay["draws"] == report["draws"]
     assert replay["grants_current_authority"] is False
     # Retargeting reuses the fitted broader-family mechanism.
-    retargeted = prepared.retarget(worlds, seed=20261021)
-    assert require_success(retargeted.estimate(seed=20261021)).report()["point"] == report["point"]
+    retargeted = prepared.retarget(worlds, execution=Execution(seed=20261021))
+    assert (
+        require_success(retargeted.estimate(execution=Execution(seed=20261021))).report()["point"]
+        == report["point"]
+    )
 
 
 def test_reviewed_family_declaration_is_unchanged_and_family_choices_are_checked():
     groups, worlds = declarations()
-    reviewed = require_success(request(groups, worlds).estimate(seed=20261021)).report()
+    reviewed = require_success(
+        request(groups, worlds).estimate(execution=Execution(seed=20261021))
+    ).report()
     assert "family" not in reviewed["point_parameters"]["parameters"]
     explicit = family_request(
         groups, worlds, {"adstock": "simplex", "saturation": "michaelis_menten"}
     )
     # Naming the reviewed family explicitly is the reviewed model, not a different one.
-    again = require_success(explicit.estimate(seed=20261021)).report()
+    again = require_success(explicit.estimate(execution=Execution(seed=20261021))).report()
     assert again["point"] == reviewed["point"]
     assert "family" not in again["point_parameters"]["parameters"]
     # Geometric adstock has no meaning without carryover: refused before any fit.
@@ -750,7 +776,7 @@ def test_broader_family_posterior_uses_the_extra_priors():
         },
     }
     prepared = family_request(groups, worlds, BROADER_FAMILY, inference=inference)
-    report = require_success(prepared.estimate(seed=20261021)).report()
+    report = require_success(prepared.estimate(execution=Execution(seed=20261021))).report()
     assert len(report["draws"]) == 16
     sampled = [draw for draw in report["draws"] if draw is not None]
     assert sampled
@@ -828,7 +854,7 @@ def whole_program_request(*, exogenous_context, functional=None):
         functional=functional,
         assignment=assignment,
         exogenous_context=exogenous_context,
-        seed=20261021,
+        execution=Execution(seed=20261021),
     )
 
 

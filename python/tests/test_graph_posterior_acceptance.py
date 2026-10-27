@@ -139,7 +139,7 @@ def assert_exact_route_and_samplers_agree(
     data, post_by_sampler: dict, size: int
 ) -> ExactDagMarginals:
     """The exact route's marginals are the reference the published-condition samplers match."""
-    exact = ExactDagPosterior().run(data, seed=1)
+    exact = ExactDagPosterior().run(data, execution=ant.Execution(seed=1))
     assert isinstance(exact, ExactDagMarginals) and exact.n_vars == size
     assert exact.names == list(data) and np.isfinite(exact.log_evidence)
     matrix = np.array(exact.edge_marginal_matrix())
@@ -185,7 +185,7 @@ def test_a_nine_variable_posterior_is_returned_where_the_eight_variable_word_end
         ("structure", StructureMcmc, PUBLISHED),
         ("order", OrderMcmc, PUBLISHED_ORDER),
     ):
-        post = sampler(**schedule).run(data, seed=7)
+        post = sampler(**schedule).run(data, execution=ant.Execution(seed=7))
         assert post.names == names, label
         assert_valid_wide_posterior(post, 9)
         assert post.converged, label
@@ -224,7 +224,7 @@ def test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics(
         assert condition in guide
     posts = {}
     for sampler, schedule in ((StructureMcmc, PUBLISHED), (OrderMcmc, PUBLISHED_ORDER)):
-        post = sampler(**schedule).run(data, seed=5)
+        post = sampler(**schedule).run(data, execution=ant.Execution(seed=5))
         assert post.names == names
         assert_valid_wide_posterior(post, size)
         assert_published_gate_diagnostics(post, size)

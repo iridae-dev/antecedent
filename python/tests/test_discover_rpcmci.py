@@ -30,6 +30,6 @@ def test_discover_rpcmci_with_half_split_helper():
     assert len(regimes) == n
     assert set(regimes) == {0, 1}
     summary = antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False).run(
-        data, regimes=regimes, seed=1
+        data, regimes=regimes, execution=antecedent.Execution(seed=1)
     )
     assert len(summary.regime_ids) >= 1

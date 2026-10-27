@@ -21,6 +21,7 @@ import pytest
 from antecedent import composition_verification as cv
 from antecedent import mixed_decision as md
 from antecedent.errors import CausalSerializationError, CausalTypeError, CausalValueError
+from antecedent.execution import Execution
 
 from _refusal import assert_registered_refusal
 
@@ -28,7 +29,7 @@ SEED = 0xF1A6
 
 
 def run(dependence: md.Dependence | None = None, **options) -> md.MixedDecisionWorkflow:
-    return md.run_mixed_decision(dependence, seed=SEED, **options)
+    return md.run_mixed_decision(dependence, execution=Execution(seed=SEED), **options)
 
 
 @pytest.fixture(scope="module")
@@ -140,7 +141,7 @@ def test_an_unlawful_dependence_is_refused_and_a_malformed_declaration_raises() 
     with pytest.raises(CausalTypeError):
         md.run_mixed_decision("independent")  # type: ignore[arg-type]
     with pytest.raises(CausalValueError):
-        md.run_mixed_decision(seed=-1)
+        md.run_mixed_decision(execution=Execution(seed=-1))
 
 
 def _shared_model(feedback_weight: float = 0.5) -> md.SharedParameterModel:
@@ -225,13 +226,17 @@ def test_an_exported_decision_loads_against_current_authority_and_replays_the_sa
     assert loaded.evaluation.verdict == decision.evaluation.verdict
     assert loaded.evaluation.chosen == decision.evaluation.chosen
     # the independent replay of the same bytes grants no authority and reads the same numbers
-    assert md.replay_decision(exported.artifact, exported.identity, seed=SEED) == (
+    assert md.replay_decision(
+        exported.artifact, exported.identity, execution=Execution(seed=SEED)
+    ) == (
         decision.mean,
         decision.variance,
     )
     historical = workflow.export_historical_replay()
     assert historical.identity == decision.identity
-    assert md.replay_decision(historical.artifact, historical.identity, seed=SEED) == (
+    assert md.replay_decision(
+        historical.artifact, historical.identity, execution=Execution(seed=SEED)
+    ) == (
         decision.mean,
         decision.variance,
     )
@@ -315,7 +320,9 @@ def test_a_period_change_refits_only_the_temporal_mechanisms() -> None:
 def test_withdrawing_the_trial_retires_the_decision_and_leaves_the_other_claims() -> None:
     workflow = run(md.Dependence.independent())
     exported = workflow.export_decision()
-    historical = md.replay_decision(exported.artifact, exported.identity, seed=SEED)
+    historical = md.replay_decision(
+        exported.artifact, exported.identity, execution=Execution(seed=SEED)
+    )
     cost, temporal = workflow.routes.cost_mean, workflow.routes.temporal_effect
 
     verification = workflow.withdraw_cluster()
@@ -344,7 +351,10 @@ def test_withdrawing_the_trial_retires_the_decision_and_leaves_the_other_claims(
         error = refused(call)
         assert error.detail.startswith("evidence_ledger."), error.detail
     # the historical numbers are unchanged and the other routes keep their estimates
-    assert md.replay_decision(exported.artifact, exported.identity, seed=SEED) == historical
+    assert (
+        md.replay_decision(exported.artifact, exported.identity, execution=Execution(seed=SEED))
+        == historical
+    )
     assert workflow.routes.cost_mean == cost and workflow.routes.temporal_effect == temporal
     # the sealed classification replays in a fresh consumer
     again = cv.consume_composition_verification_artifact(
@@ -352,3 +362,24 @@ def test_withdrawing_the_trial_retires_the_decision_and_leaves_the_other_claims(
     )
     assert again.classify("decision").klass == "withdrawn"
     assert again.classify("bayesian_cost").klass == "still_valid"
+
+
+def test_the_execution_owns_every_control_and_a_loose_keyword_is_a_type_error():
+    from antecedent import _native
+    from antecedent.errors import CausalError
+    from antecedent.execution import ResourceLimits
+
+    token = _native.CancellationToken()
+    token.cancel()
+    with pytest.raises(CausalError, match="cancel"):
+        md.run_mixed_decision(execution=Execution(cancel=token))
+    with pytest.raises(CausalError):
+        md.run_mixed_decision(execution=Execution(limits=ResourceLimits(memory_bytes=1)))
+    for loose in ({"seed": 1}, {"threads": 1}, {"memory_limit_bytes": 1 << 30}, {"cancel": token}):
+        with pytest.raises(TypeError, match="unexpected keyword"):
+            md.run_mixed_decision(**loose)
+    exported = run(md.Dependence.independent()).export_decision()
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        md.replay_decision(exported.artifact, exported.identity, seed=1)
+    with pytest.raises(CausalTypeError):
+        md.run_mixed_decision(execution=1)

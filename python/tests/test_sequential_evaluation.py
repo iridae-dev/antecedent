@@ -34,7 +34,7 @@ import sys
 from dataclasses import replace
 
 import pytest
-from antecedent import _native
+from antecedent import Execution, _native
 from antecedent import measurement_models as mm
 from antecedent import sequential_evaluation as se
 from antecedent.errors import CausalTypeError, CausalValueError
@@ -638,7 +638,7 @@ def test_cancellation_and_bounds_are_observed():
             policy,
             seed=1,
             rollouts=10,
-            cancel=token,
+            execution=Execution(cancel=token),
         ).value.reason_code
         == "cancelled_no_claim"
     )

@@ -37,6 +37,7 @@ from typing import Any
 import pytest
 from antecedent import Admg, temporal_counterfactual
 from antecedent.errors import CausalUnsupportedError
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.temporal_counterfactual import transported_path_specific
 from antecedent.transport import advanced as transport
@@ -214,7 +215,7 @@ def _joint_bayesian() -> object:
         target={"x": [0.1, 0.2, 0.3]},
         features=["x"],
         draws=1000,
-        seed=7,
+        execution=Execution(seed=7),
     )
 
 
@@ -225,7 +226,7 @@ def _learned_joint() -> object:
         features=["x"],
         basis_degree=2,
         draws=1000,
-        seed=7,
+        execution=Execution(seed=7),
     )
 
 
@@ -253,7 +254,7 @@ def _sampled_recovery() -> object:
         snapshot="snap-observed",
         replicates=100,
         interval_method="bootstrap_percentile",
-        seed=3,
+        execution=Execution(seed=3),
     )
 
 
@@ -277,7 +278,7 @@ def _retained_temporal_interval() -> object:
     from test_recalc_temporal import request
 
     session = TemporalSession()
-    result = require_success(session.execute(request(), seed=41))
+    result = require_success(session.execute(request(), execution=Execution(seed=41)))
     assert result.law.ate == pytest.approx(0.5675, abs=1e-12)
     return session.dependent_interval()
 

@@ -17,7 +17,7 @@ def test_exact_dag_posterior_bayesian_ate_mixture():
         antecedent.analyze(
             {"t": t, "y": y, "z": z},
             discovery=antecedent.discovery.ExactDagPosterior().run(
-                {"t": t, "y": y, "z": z}, seed=7
+                {"t": t, "y": y, "z": z}, execution=antecedent.Execution(seed=7)
             ),
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=80, prior_scale=100.0, backend="conjugate"),
@@ -46,7 +46,7 @@ def test_exact_dag_posterior_frequentist_ate_mixture():
         antecedent.analyze(
             {"t": t, "y": y, "z": z},
             discovery=antecedent.discovery.ExactDagPosterior().run(
-                {"t": t, "y": y, "z": z}, seed=1
+                {"t": t, "y": y, "z": z}, execution=antecedent.Execution(seed=1)
             ),
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Frequentist(bootstrap=0),
@@ -74,7 +74,7 @@ def test_dbn_posterior_bayesian_pulse_mixture():
         antecedent.analyze(
             {"pressure": pressure, "defect": defect},
             discovery=antecedent.discovery.DbnPosterior(max_lag=1).run(
-                {"pressure": pressure, "defect": defect}, seed=11
+                {"pressure": pressure, "defect": defect}, execution=antecedent.Execution(seed=11)
             ),
             query=antecedent.PulseEffect(
                 treatment="pressure",
@@ -109,7 +109,7 @@ def test_dbn_posterior_bayesian_sustained_mixture():
         antecedent.analyze(
             {"pressure": pressure, "defect": defect},
             discovery=antecedent.discovery.DbnPosterior(max_lag=1).run(
-                {"pressure": pressure, "defect": defect}, seed=11
+                {"pressure": pressure, "defect": defect}, execution=antecedent.Execution(seed=11)
             ),
             query=antecedent.SustainedEffect(
                 treatment="pressure",
@@ -201,7 +201,9 @@ def test_dbn_posterior_temporal_response_curve_and_intervention():
     curve = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.DbnPosterior(max_lag=1).run(data, seed=11),
+            discovery=antecedent.discovery.DbnPosterior(max_lag=1).run(
+                data, execution=antecedent.Execution(seed=11)
+            ),
             query=antecedent.ResponseCurve("pressure", "defect", grid=[0.0, 1.0], horizons=[1]),
             inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
@@ -214,7 +216,9 @@ def test_dbn_posterior_temporal_response_curve_and_intervention():
     ir = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.DbnPosterior(max_lag=1).run(data, seed=11),
+            discovery=antecedent.discovery.DbnPosterior(max_lag=1).run(
+                data, execution=antecedent.Execution(seed=11)
+            ),
             query=antecedent.InterventionResponse(
                 "defect",
                 intervention=antecedent.intervention.Set("pressure", 1.0),

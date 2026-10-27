@@ -34,7 +34,7 @@ def _linear_chain(n: int = 800, seed: int = 5, coef: float = 2.0):
 def test_counterfactual_ite_returns_unit_effects():
     names, cols, edges = _gcm_linear()
     result = antecedent.counterfactual.counterfactual_ite(
-        names, cols, edges, "t", "y", 1.0, 0.0, seed=1
+        names, cols, edges, "t", "y", 1.0, 0.0, execution=antecedent.Execution(seed=1)
     )
     assert result.n_units == len(cols[0])
     assert result.unit_effects.shape == (result.n_units,)
@@ -46,7 +46,9 @@ def test_counterfactual_ite_returns_unit_effects():
 def test_sample_do_returns_draws():
     names, cols, edges = _gcm_linear(n=80)
     n_draws = 50
-    result = antecedent.model.sample_do(names, cols, edges, "t", 1.0, n_draws, seed=2)
+    result = antecedent.model.sample_do(
+        names, cols, edges, "t", 1.0, n_draws, execution=antecedent.Execution(seed=2)
+    )
     assert result.n_draws == n_draws
     assert result.draws.shape == (result.n_nodes, n_draws)
     means = result.draws.mean(axis=1)
@@ -57,7 +59,7 @@ def test_sample_interventional_distribution():
     names, cols, edges = _gcm_linear(n=80)
     n_draws = 40
     result = antecedent.model.sample_interventional_distribution(
-        names, cols, edges, "t", 1.0, n_draws, outcome="y", seed=2
+        names, cols, edges, "t", 1.0, n_draws, outcome="y", execution=antecedent.Execution(seed=2)
     )
     assert result.n_draws == n_draws
     assert result.draws.shape == (result.n_nodes, n_draws)
@@ -73,7 +75,7 @@ def test_attribute_path_specific():
     cols = [t, m, y]
     edges = [("t", "m"), ("m", "y"), ("t", "y")]
     result = antecedent.attribution.attribute_path_specific(
-        names, cols, edges, "t", "y", path_nodes=["m"], seed=1
+        names, cols, edges, "t", "y", path_nodes=["m"], execution=antecedent.Execution(seed=1)
     )
     assert isinstance(result.total_change, float)
     paths = result.path_breakdown
@@ -91,10 +93,10 @@ def test_attribute_path_specific():
 def test_fit_gcm_oo_sample_do():
     names, cols, edges = _gcm_linear(n=80)
     gcm = antecedent.model.fit_gcm(names, cols, edges)
-    result = gcm.sample_do({"t": 1.0}, 40, seed=2)
+    result = gcm.sample_do({"t": 1.0}, 40, execution=antecedent.Execution(seed=2))
     assert result.n_draws == 40
     assert result.draws.shape == (result.n_nodes, 40)
-    ite = gcm.counterfactual_ite("t", "y", 1.0, 0.0, seed=1)
+    ite = gcm.counterfactual_ite("t", "y", 1.0, 0.0, execution=antecedent.Execution(seed=1))
     assert ite.n_units == len(cols[0])
     assert np.isclose(ite.mean_ite, 1.5, rtol=0.15)
 
@@ -111,9 +113,11 @@ def test_fit_gcm_oo_sample_do_shift_moves_outcome_by_coefficient_times_delta():
     n_draws = 4000
     delta = 3.0
 
-    baseline = gcm.sample_do({}, n_draws, seed=7)
-    shifted = gcm.sample_do({}, n_draws, seed=7, shifts={"x": delta})
-    pinned = gcm.sample_do({"x": delta}, n_draws, seed=7)
+    baseline = gcm.sample_do({}, n_draws, execution=antecedent.Execution(seed=7))
+    shifted = gcm.sample_do(
+        {}, n_draws, execution=antecedent.Execution(seed=7), shifts={"x": delta}
+    )
+    pinned = gcm.sample_do({"x": delta}, n_draws, execution=antecedent.Execution(seed=7))
 
     baseline_mean = baseline.column_means[y_idx]
     shifted_mean = shifted.column_means[y_idx]
@@ -130,16 +134,18 @@ def test_fit_gcm_oo_sample_do_rejects_variable_in_both_interventions_and_shifts(
     names, cols, edges, _coef = _linear_chain(n=100)
     gcm = antecedent.model.fit_gcm(names, cols, edges)
     with pytest.raises(antecedent.CausalError, match="present in both"):
-        gcm.sample_do({"x": 1.0}, 10, shifts={"x": 2.0}, seed=1)
+        gcm.sample_do({"x": 1.0}, 10, shifts={"x": 2.0}, execution=antecedent.Execution(seed=1))
 
 
 def test_sample_do_free_function_shift():
     names, cols, edges, coef = _linear_chain()
     n_draws = 4000
     delta = 3.0
-    baseline = antecedent.model.sample_do(names, cols, edges, "x", 0.0, n_draws, seed=7, shift=True)
+    baseline = antecedent.model.sample_do(
+        names, cols, edges, "x", 0.0, n_draws, execution=antecedent.Execution(seed=7), shift=True
+    )
     shifted = antecedent.model.sample_do(
-        names, cols, edges, "x", delta, n_draws, seed=7, shift=True
+        names, cols, edges, "x", delta, n_draws, execution=antecedent.Execution(seed=7), shift=True
     )
     y_idx = names.index("y")
     assert np.isclose(
@@ -189,17 +195,17 @@ def test_arrow_strengths_match_the_closed_form_linear_gaussian_strengths():
 
 def test_population_do_contrast_is_the_total_effect_with_zero_common_noise_error():
     gcm = _fit_mediated_chain()
-    unit = gcm.population_do_contrast("x", "y", 1.0, seed=3)
+    unit = gcm.population_do_contrast("x", "y", 1.0, execution=antecedent.Execution(seed=3))
     assert (unit.parent, unit.child, unit.delta) == ("x", "y", 1.0)
     # Total effect 0.5 * 0.8 + 0.2 = 0.6 per unit of x; common random numbers cancel the noise.
     assert unit.contrast == pytest.approx(0.6, abs=0.05)
     assert unit.stderr == pytest.approx(0.0, abs=1e-9)
-    wide = gcm.population_do_contrast("x", "y", 2.0, seed=3)
+    wide = gcm.population_do_contrast("x", "y", 2.0, execution=antecedent.Execution(seed=3))
     assert wide.contrast == pytest.approx(2.0 * unit.contrast, rel=1e-6)
     # An effect against the causal direction is exactly zero: x is a root.
-    assert gcm.population_do_contrast("y", "x", 1.0, seed=3).contrast == pytest.approx(
-        0.0, abs=1e-12
-    )
+    assert gcm.population_do_contrast(
+        "y", "x", 1.0, execution=antecedent.Execution(seed=3)
+    ).contrast == pytest.approx(0.0, abs=1e-12)
     with pytest.raises(antecedent.CausalError):
         gcm.population_do_contrast("x", "y", 1.0, max_units=10)
     with pytest.raises(antecedent.CausalError):
@@ -208,8 +214,10 @@ def test_population_do_contrast_is_the_total_effect_with_zero_common_noise_error
 
 def test_counterfactual_contrasts_share_one_abduction_across_outcomes_and_joint_worlds():
     gcm = _fit_mediated_chain()
-    single = gcm.counterfactual_ite("x", "y", 1.0, 0.0, seed=5)
-    shared = gcm.counterfactual_contrasts(["m", "y"], {"x": 1.0}, {"x": 0.0}, seed=5)
+    single = gcm.counterfactual_ite("x", "y", 1.0, 0.0, execution=antecedent.Execution(seed=5))
+    shared = gcm.counterfactual_contrasts(
+        ["m", "y"], {"x": 1.0}, {"x": 0.0}, execution=antecedent.Execution(seed=5)
+    )
     assert [c.outcome for c in shared.contrasts] == ["m", "y"]
     assert shared.noise_inference == single.noise_inference
     assert shared.contrast("m").mean_ite == pytest.approx(0.8, abs=0.04)
@@ -222,7 +230,9 @@ def test_counterfactual_contrasts_share_one_abduction_across_outcomes_and_joint_
     assert shared.contrast("absent") is None
     # A joint world pins the mediator, so only the direct and the pinned paths remain:
     # y(x=1, m=2) - y(x=0, m=0) = 0.5 * 2 + 0.2 * 1.
-    joint = gcm.counterfactual_contrasts(["y"], {"x": 1.0, "m": 2.0}, {"x": 0.0, "m": 0.0}, seed=5)
+    joint = gcm.counterfactual_contrasts(
+        ["y"], {"x": 1.0, "m": 2.0}, {"x": 0.0, "m": 0.0}, execution=antecedent.Execution(seed=5)
+    )
     assert joint.contrast("y").mean_ite == pytest.approx(1.2, abs=0.05)
     assert joint.contrast("y").unit_effects.shape == (len(shared.contrast("y").unit_effects),)
     with pytest.raises(antecedent.CausalError):
@@ -236,12 +246,17 @@ def test_counterfactual_contrasts_share_one_abduction_across_outcomes_and_joint_
 def test_simultaneous_counterfactual_applies_both_intervention_sets_to_the_abduced_units():
     gcm = _fit_mediated_chain()
     # y_{x=1, m=2} = 0.5 * 2 + 0.2 * 1 for every unit (noise has mean zero).
-    assert gcm.simultaneous_counterfactual("y", {"x": 1.0}, {"m": 2.0}, seed=2) == pytest.approx(
-        1.2, abs=0.05
-    )
+    assert gcm.simultaneous_counterfactual(
+        "y", {"x": 1.0}, {"m": 2.0}, execution=antecedent.Execution(seed=2)
+    ) == pytest.approx(1.2, abs=0.05)
     # The roles of the two sets are symmetric because they are applied simultaneously.
-    assert gcm.simultaneous_counterfactual("y", {"m": 2.0}, {"x": 1.0}, seed=2) == pytest.approx(
-        gcm.simultaneous_counterfactual("y", {"x": 1.0}, {"m": 2.0}, seed=2), abs=1e-9
+    assert gcm.simultaneous_counterfactual(
+        "y", {"m": 2.0}, {"x": 1.0}, execution=antecedent.Execution(seed=2)
+    ) == pytest.approx(
+        gcm.simultaneous_counterfactual(
+            "y", {"x": 1.0}, {"m": 2.0}, execution=antecedent.Execution(seed=2)
+        ),
+        abs=1e-9,
     )
     with pytest.raises(antecedent.CausalError):
         gcm.simultaneous_counterfactual("y", {"x": 1.0}, {"x": 0.0})
@@ -250,13 +265,15 @@ def test_simultaneous_counterfactual_applies_both_intervention_sets_to_the_abduc
 def test_interventional_mean_recovers_the_structural_mean_under_do():
     gcm = _fit_mediated_chain()
     # do(x = 2): m = 1 + 1.6, y = 0.5 * 2.6 + 0.4.
-    at_two = gcm.interventional_mean("y", {"x": 2.0}, 20000, seed=4)
-    at_three = gcm.interventional_mean("y", {"x": 3.0}, 20000, seed=4)
+    at_two = gcm.interventional_mean("y", {"x": 2.0}, 20000, execution=antecedent.Execution(seed=4))
+    at_three = gcm.interventional_mean(
+        "y", {"x": 3.0}, 20000, execution=antecedent.Execution(seed=4)
+    )
     assert at_two == pytest.approx(1.7, abs=0.05)
     assert at_three - at_two == pytest.approx(0.6, abs=0.05)
-    assert gcm.interventional_mean("y", {"x": 2.0}, 2000, seed=9) == gcm.interventional_mean(
-        "y", {"x": 2.0}, 2000, seed=9
-    )
+    assert gcm.interventional_mean(
+        "y", {"x": 2.0}, 2000, execution=antecedent.Execution(seed=9)
+    ) == gcm.interventional_mean("y", {"x": 2.0}, 2000, execution=antecedent.Execution(seed=9))
     with pytest.raises(antecedent.CausalError):
         gcm.interventional_mean("absent", {"x": 2.0}, 100)
 
@@ -264,7 +281,7 @@ def test_interventional_mean_recovers_the_structural_mean_under_do():
 def test_the_kde_and_mcmc_do_samplers_sample_the_interventional_law():
     gcm = _fit_mediated_chain()
     # y | do(x = 2) ~ N(1.7, 0.5^2 * 0.3^2 + 0.1^2): sd = sqrt(0.0325).
-    kde = gcm.do_sample("kde", "y", {"x": 2.0}, 4000, seed=6)
+    kde = gcm.do_sample("kde", "y", {"x": 2.0}, 4000, execution=antecedent.Execution(seed=6))
     assert kde.method == "do_kde"
     assert len(kde) == 4000
     assert kde.mean == pytest.approx(1.7, abs=0.03)
@@ -275,10 +292,12 @@ def test_the_kde_and_mcmc_do_samplers_sample_the_interventional_law():
     density = np.array([kde.density(float(g)) for g in grid])
     assert float(np.sum(density) * (grid[1] - grid[0])) == pytest.approx(1.0, abs=0.02)
     assert kde.density(1.7) > 10.0 * kde.density(2.6)
-    fixed = gcm.do_sample("kde", "y", {"x": 2.0}, 500, bandwidth=0.05, seed=6)
+    fixed = gcm.do_sample(
+        "kde", "y", {"x": 2.0}, 500, bandwidth=0.05, execution=antecedent.Execution(seed=6)
+    )
     assert fixed.bandwidth == 0.05
 
-    mcmc = gcm.do_sample("mcmc", "y", {"x": 2.0}, 4000, seed=6)
+    mcmc = gcm.do_sample("mcmc", "y", {"x": 2.0}, 4000, execution=antecedent.Execution(seed=6))
     assert mcmc.method == "do_mcmc"
     assert mcmc.mean == pytest.approx(1.7, abs=0.06)
     assert mcmc.accept_rate is not None and 0.0 < mcmc.accept_rate < 1.0
@@ -315,7 +334,9 @@ def test_the_weighting_do_sampler_reweights_observed_rows_toward_the_interventio
 
 def test_model_evaluation_falsifies_a_graph_that_omits_a_strong_edge():
     names, cols, edges = _mediated_chain(direct=1.0)
-    good = antecedent.model.fit_gcm(names, cols, edges).evaluate(seed=1)
+    good = antecedent.model.fit_gcm(names, cols, edges).evaluate(
+        execution=antecedent.Execution(seed=1)
+    )
     assert math.isfinite(good.in_sample_loglik)
     assert good.zero_probability_rows == 0
     assert good.alpha == 0.05
@@ -323,7 +344,9 @@ def test_model_evaluation_falsifies_a_graph_that_omits_a_strong_edge():
     assert not good.falsified
     # Dropping x -> y leaves y dependent on x given its only parent m: the local Markov
     # check (y independent of x given m) fails by a wide margin.
-    bad = antecedent.model.fit_gcm(names, cols, [("x", "m"), ("m", "y")]).evaluate(seed=1)
+    bad = antecedent.model.fit_gcm(names, cols, [("x", "m"), ("m", "y")]).evaluate(
+        execution=antecedent.Execution(seed=1)
+    )
     assert bad.falsified
     assert min(bad.local_markov_p) < 1e-6
     assert bad.in_sample_loglik < good.in_sample_loglik
@@ -366,7 +389,7 @@ def test_mediation_effects_summary_decomposes_a_known_total_effect():
         m[i] = 0.8 * t[i - 1] + rng.normal(scale=0.2)
         y[i] = 0.25 * t[i - 1] + 0.55 * m[i] + rng.normal(scale=0.1)
     summary = antecedent.estimation.mediation_effects_summary(
-        ["t", "m", "y"], [t, m, y], "t", "m", "y", seed=1
+        ["t", "m", "y"], [t, m, y], "t", "m", "y", execution=antecedent.Execution(seed=1)
     )
     assert summary.direct == pytest.approx(0.25, abs=0.05)
     assert summary.mediated == pytest.approx(0.55 * 0.8, abs=0.05)
@@ -374,7 +397,7 @@ def test_mediation_effects_summary_decomposes_a_known_total_effect():
     assert summary.total == pytest.approx(summary.direct + summary.mediated, abs=1e-9)
     with pytest.raises(antecedent.errors.CausalDataError, match="unknown variable"):
         antecedent.estimation.mediation_effects_summary(
-            ["t", "m", "y"], [t, m, y], "t", "absent", "y", seed=1
+            ["t", "m", "y"], [t, m, y], "t", "absent", "y", execution=antecedent.Execution(seed=1)
         )
 
 
@@ -385,7 +408,16 @@ def test_root_cause_ranking_puts_the_shifted_mechanism_first_in_descending_score
     x = np.concatenate([rng.normal(0.0, 1.0, half), rng.normal(3.0, 1.0, half)])
     y = 2.0 * x + rng.normal(scale=0.1, size=2 * half)
     ranks = antecedent.attribution.attribute_root_causes(
-        ["x", "y"], [x, y], [("x", "y")], "y", 0, half, half, 2 * half, n_samples=400, seed=2
+        ["x", "y"],
+        [x, y],
+        [("x", "y")],
+        "y",
+        0,
+        half,
+        half,
+        2 * half,
+        n_samples=400,
+        execution=antecedent.Execution(seed=2),
     )
     assert [r.name for r in ranks][0] == "x"
     assert {r.name for r in ranks} == {"x", "y"}

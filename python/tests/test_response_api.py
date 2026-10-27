@@ -247,7 +247,9 @@ def test_response_curve_graph_posterior_retains():
     result = require_success(
         antecedent.analyze(
             columns,
-            discovery=antecedent.discovery.ExactDagPosterior().run(columns, seed=1),
+            discovery=antecedent.discovery.ExactDagPosterior().run(
+                columns, execution=antecedent.Execution(seed=1)
+            ),
             query=antecedent.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
             inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
             refute=False,

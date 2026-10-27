@@ -55,7 +55,9 @@ def exact(scenarios, **options):
 
 def bootstrap(scenarios, seed=20_260_101, **options):
     options = {"replicates": 2000, **options}
-    return transport.scenario_shared_covariance(table(), scenarios, seed=seed, **options)
+    return transport.scenario_shared_covariance(
+        table(), scenarios, execution=antecedent.Execution(seed=seed), **options
+    )
 
 
 def score(row, name):
@@ -278,7 +280,7 @@ def test_bounds_arguments_and_failures_refuse_with_typed_details():
     )
     token = antecedent.state.CancellationToken()
     token.cancel()
-    assert refusal(lambda: exact(two, cancel=token)) == (
+    assert refusal(lambda: exact(two, execution=antecedent.Execution(cancel=token))) == (
         "cancelled_no_claim",
         "scenario_covariance.cancelled",
     )

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent import vector_treatment
@@ -261,10 +262,14 @@ def test_vector_robust_fit_has_no_row_ceiling_and_matches_an_independent_sandwic
 def test_vector_consume_respects_the_memory_limit() -> None:
     result = fit(covariance="hc1")
     assert consume_joint_effects(
-        bytes(result.export()), memory_limit_bytes=10_000_000
+        bytes(result.export()),
+        execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=10_000_000)),
     ).identity == (result.identity)
     with pytest.raises(VectorTreatmentRefusal) as refused:
-        consume_joint_effects(bytes(result.export()), memory_limit_bytes=1)
+        consume_joint_effects(
+            bytes(result.export()),
+            execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1)),
+        )
     assert refused.value.detail == "vector_treatment.memory_budget_exceeded"
 
 

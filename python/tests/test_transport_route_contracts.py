@@ -7,6 +7,7 @@ from dataclasses import replace
 
 import pytest
 from antecedent.errors import CausalError
+from antecedent.execution import Execution
 from antecedent.inference import MeasuredInference
 from antecedent.transport import advanced as tr
 
@@ -73,7 +74,11 @@ def test_learned_joint_factory_replays_without_producer_inputs(tmp_path):
 
 
 def test_nested_bayesian_factory_replays_without_producer_inputs(tmp_path):
-    source_inputs = {"graph": graph(), "regimes": [{"counts": [250] * 16}], "seed": 817}
+    source_inputs = {
+        "graph": graph(),
+        "regimes": [{"counts": [250] * 16}],
+        "execution": Execution(seed=817),
+    }
     measured = tr.binary_nested_markov(**source_inputs)
     payload, identity, original = (
         bytes(measured.export()),
@@ -105,7 +110,7 @@ def test_direct_temporal_factory_replays_without_producer_inputs(tmp_path):
         "panel": panel(),
         "sequence": (0, 0),
         "target_law": tr.InitialStateLaw("fixed_target", {0: 0.3, 1: 0.7}),
-        "seed": 901,
+        "execution": Execution(seed=901),
     }
     measured = tr.temporal_dependent_interval(**source_inputs)
     payload, identity, original = (

@@ -14,6 +14,7 @@ import json
 import pytest
 from antecedent import Admg
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
@@ -416,6 +417,6 @@ def test_a_cancelled_plan_is_a_budget_stop_never_a_verdict():
             query=query(),
             catalog=catalog(BASE),
             candidates=CANDIDATES,
-            cancel=token,
+            execution=Execution(cancel=token),
         )
     assert refused.value.reason_code == "transport_budget_cancel"

@@ -20,6 +20,7 @@ import subprocess
 import sys
 
 import pytest
+from antecedent import Execution
 from antecedent import measurement_models as mm
 from antecedent import mechanism_composition as mc
 from antecedent import observation_query as oq
@@ -522,7 +523,7 @@ def _count_fitted(**extra):
         target="Y",
         target_level="1",
         evidence={"Z": "1"},
-        seed=7,
+        execution=Execution(seed=7),
         **extra,
     )
 
@@ -693,7 +694,7 @@ def test_dirichlet_redraw_returns_aligned_draws_around_the_posterior_mean():
         given={"S": "1"},
         retained=counts_for_confounded(),
         draws=4000,
-        seed=3,
+        execution=Execution(seed=3),
     )
     assert claim.operation == "parameter_redraw"
     aligned = claim.parameter_draws
@@ -729,7 +730,12 @@ def test_dirichlet_redraw_returns_aligned_draws_around_the_posterior_mean():
     assert 0.0 < spread < 0.1
     # Determinism: the same seed gives the same draws and identity.
     again = oq.parameter_uncertainty(
-        confounded(), "Y", given={"S": "1"}, retained=counts_for_confounded(), draws=4000, seed=3
+        confounded(),
+        "Y",
+        given={"S": "1"},
+        retained=counts_for_confounded(),
+        draws=4000,
+        execution=Execution(seed=3),
     )
     assert again.identity == claim.identity
     assert again.parameter_draws.values == aligned.values
@@ -762,7 +768,7 @@ def test_a_regression_redraw_spreads_around_the_declared_structural_equation():
         interventions={"X": 2.0},
         observed_values={"M": 3.0},
         draws=1000,
-        seed=2,
+        execution=Execution(seed=2),
     )
     aligned = claim.parameter_draws
     assert aligned.quantities == ("conditional_mean", "conditional_variance")

@@ -10,6 +10,7 @@ it, and otherwise raises ``cell_not_licensed`` / ``learned_joint_transport.route
 import pytest
 from antecedent import Admg
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from antecedent.execution import Execution
 from antecedent.transport import advanced as transport
 
 
@@ -31,7 +32,7 @@ def learned_kwargs(**overrides):
         "features": ["x"],
         "basis_degree": 2,
         "draws": 1000,
-        "seed": 7,
+        "execution": Execution(seed=7),
     }
     kwargs.update(overrides)
     return kwargs

@@ -8,7 +8,7 @@ from statistics import NormalDist
 
 import numpy as np
 import pytest
-from antecedent import _native
+from antecedent import Execution, ResourceLimits, _native
 from antecedent.errors import CausalCancelledError, CausalError
 from antecedent.inference import MeasuredInference
 from antecedent.transport import advanced as tr
@@ -22,7 +22,9 @@ def produce(bayesian, shape=1, **changes):
         prior = tr.NestedMarkovPrior(
             **{name: (shape, shape) for name in tr.NestedMarkovPrior().coordinates}
         )
-        return tr.binary_nested_markov(**({"prior": prior, "seed": 817} | kwargs))
+        return tr.binary_nested_markov(
+            **({"prior": prior, "execution": Execution(seed=817)} | kwargs)
+        )
     return tr.binary_nested_markov_fisher_interval(**kwargs)
 
 
@@ -103,9 +105,9 @@ def test_normal_nested_unmeasured_protocol_refusals_are_not_candidate_successes(
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
-        produce(bayesian, cancel=cancelled)
+        produce(bayesian, execution=Execution(cancel=cancelled))
     with pytest.raises(CausalError):
-        produce(bayesian, memory_limit_bytes=0)
+        produce(bayesian, execution=Execution(limits=ResourceLimits(memory_bytes=0)))
 
 
 @pytest.mark.parametrize("bayesian", [False, True])

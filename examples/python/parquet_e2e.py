@@ -111,7 +111,11 @@ def main() -> None:
         print(f"resident read of three columns: {quote.total_bytes} bytes")
 
         small = antecedent.data.from_parquet(
-            path, chunk_rows=256, memory_limit_bytes=quote.total_bytes // 2
+            path,
+            chunk_rows=256,
+            execution=antecedent.Execution(
+                limits=antecedent.ResourceLimits(memory_bytes=quote.total_bytes // 2)
+            ),
         )
         try:
             small.read(["t", "y", "z"])

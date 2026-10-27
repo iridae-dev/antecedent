@@ -25,6 +25,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import antecedent
 import pytest
 from antecedent import _native
 from antecedent import adaptive_inference as ai
@@ -461,7 +462,11 @@ def test_cancellation_is_a_refusal_not_a_verdict():
     token = _native.CancellationToken()
     token.cancel()
     error = refused(
-        lambda: require_success(session.analyse(ai.BayesianPosterior(look=1), cancel=token))
+        lambda: require_success(
+            session.analyse(
+                ai.BayesianPosterior(look=1), execution=antecedent.Execution(cancel=token)
+            )
+        )
     )
     assert error.reason_code == "cancelled_no_claim"
 

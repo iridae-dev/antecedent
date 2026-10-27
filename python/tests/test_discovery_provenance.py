@@ -83,10 +83,16 @@ def _assert_conditioning_set_shape(links, names):
 
 def test_conditioning_set_present_and_well_typed_across_family():
     names, cols = _chain_series()
-    pc = PC(alpha=0.1, fdr=False).run((names, cols), seed=9)
-    pcmci = PCMCI(max_lag=2, alpha=0.1, fdr=False).run((names, cols), seed=9)
-    pcmci_plus = PCMCIPlus(max_lag=2, alpha=0.1, fdr=False).run((names, cols), seed=9)
-    lpcmci = LPCMCI(max_lag=2, alpha=0.1, fdr=False).run((names, cols), seed=9)
+    pc = PC(alpha=0.1, fdr=False).run((names, cols), execution=antecedent.Execution(seed=9))
+    pcmci = PCMCI(max_lag=2, alpha=0.1, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=9)
+    )
+    pcmci_plus = PCMCIPlus(max_lag=2, alpha=0.1, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=9)
+    )
+    lpcmci = LPCMCI(max_lag=2, alpha=0.1, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=9)
+    )
     for result in (pc, pcmci, pcmci_plus, lpcmci):
         assert result.links, "expected at least one retained link for this chain"
         _assert_conditioning_set_shape(result.links, names)
@@ -98,7 +104,7 @@ def test_conditioning_set_empty_on_retained_pc_links():
     empty conditioning set — this is the documented invariant, not an omission.
     """
     names, cols = _chain_series()
-    result = PC(alpha=0.1, fdr=False).run((names, cols), seed=9)
+    result = PC(alpha=0.1, fdr=False).run((names, cols), execution=antecedent.Execution(seed=9))
     assert result.links
     assert all(link.conditioning_set == [] for link in result.links)
 
@@ -109,7 +115,9 @@ def test_conditioning_set_nonempty_and_correct_for_retained_pcmci_link():
     legitimately carries a non-empty conditioning set (see module docstring).
     """
     names, cols = _pruned_conditioning_series()
-    result = PCMCI(max_lag=1, alpha=0.05, fdr=True).run((names, cols), seed=1)
+    result = PCMCI(max_lag=1, alpha=0.05, fdr=True).run(
+        (names, cols), execution=antecedent.Execution(seed=1)
+    )
     by_key = {
         (link.source, link.source_lag, link.target, link.target_lag): link for link in result.links
     }
@@ -134,7 +142,9 @@ def test_lpcmci_links_all_correspond_to_final_pag_edges():
     orientation.
     """
     names, cols = _chain_series()
-    result = LPCMCI(max_lag=2, alpha=0.1, fdr=False).run((names, cols), seed=9)
+    result = LPCMCI(max_lag=2, alpha=0.1, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=9)
+    )
     assert result.links, "expected at least one retained link for this chain"
 
     edge_pairs = {

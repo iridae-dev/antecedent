@@ -10,6 +10,7 @@ import antecedent as ac
 import numpy as np
 import pytest
 from antecedent.estimators import GlmAdjustment, LinearAdjustment
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 from antecedent.recalc import (
     RecalcReceipt,
@@ -69,7 +70,7 @@ def numpy_joint_oracle(request):
 
 
 def assert_full_rerun(request, selective, *, seed=3):
-    full = require_success(AdjustedSession().execute(request, seed=seed))
+    full = require_success(AdjustedSession().execute(request, execution=Execution(seed=seed)))
     assert full.receipt.totals.model_fits == 1
     assert full.receipt.totals.fold_fits == 0
     assert selective.law.ate == pytest.approx(full.law.ate, rel=1e-11, abs=1e-12)
@@ -81,7 +82,7 @@ def assert_full_rerun(request, selective, *, seed=3):
 def test_adjusted_native_fit_counts_and_joint_covariance_match_independent_ols(vector):
     request = linear_request(vector)
     session = AdjustedSession()
-    first = require_success(session.execute(request, seed=3))
+    first = require_success(session.execute(request, execution=Execution(seed=3)))
     expected, se, _, covariance = numpy_joint_oracle(request)
     assert first.law.ate == pytest.approx(expected, rel=1e-10)
     assert first.law.std_error == pytest.approx(se, rel=1e-10)
@@ -104,7 +105,7 @@ def test_adjusted_native_fit_counts_and_joint_covariance_match_independent_ols(v
             )
         )
         assert first.law.ate == pytest.approx(independent.effect, abs=1e-10)
-    same = require_success(session.execute(request, seed=3))
+    same = require_success(session.execute(request, execution=Execution(seed=3)))
     assert same.receipt.totals.total == 0
     assert same.plan.recomputed_computations == ()
     receipt = require_success(
@@ -119,14 +120,14 @@ def test_adjusted_native_fit_counts_and_joint_covariance_match_independent_ols(v
 def test_adjusted_utility_and_numeric_contrasts_reuse_joint_fit():
     request = linear_request(True)
     session = AdjustedSession()
-    require_success(session.execute(request, seed=3))
+    require_success(session.execute(request, execution=Execution(seed=3)))
     utility = replace(request, utility=Utility(3, 0.5))
-    changed = require_success(session.execute(utility, seed=3))
+    changed = require_success(session.execute(utility, execution=Execution(seed=3)))
     assert changed.receipt.totals.model_fits == 0
     assert changed.plan.recomputed_computations == (Stage.DECISION,)
     assert_full_rerun(utility, changed)
     contrast = replace(utility, contrast=NumericContrast((1, 0), (0, 1)))
-    changed = require_success(session.execute(contrast, seed=3))
+    changed = require_success(session.execute(contrast, execution=Execution(seed=3)))
     assert changed.receipt.totals.model_fits == 0
     assert changed.plan.status(Stage.SCORE_ARTIFACT).reused
     expected, se, _, _ = numpy_joint_oracle(contrast)
@@ -139,7 +140,7 @@ def test_adjusted_utility_and_numeric_contrasts_reuse_joint_fit():
 def test_adjusted_changed_fit_inputs_refit_and_match_full_rerun(change):
     request = linear_request(True)
     session = AdjustedSession()
-    require_success(session.execute(request, seed=3))
+    require_success(session.execute(request, execution=Execution(seed=3)))
     seed = 3
     if change == "outcome":
         data = dict(request.data)
@@ -153,7 +154,7 @@ def test_adjusted_changed_fit_inputs_refit_and_match_full_rerun(change):
         seed = 4
     else:
         request = replace(request, edges=(*request.edges, ("t", "t2")))
-    result = require_success(session.execute(request, seed=seed))
+    result = require_success(session.execute(request, execution=Execution(seed=seed)))
     assert result.receipt.totals.model_fits == 1
     assert result.plan.status(Stage.SCORE_ARTIFACT).recomputed
     assert_full_rerun(request, result, seed=seed)
@@ -171,7 +172,7 @@ def logistic_request():
 def test_adjusted_glm_contrast_target_reuse_matches_existing_route_and_full_rerun():
     request = logistic_request()
     session = AdjustedSession()
-    first = require_success(session.execute(request, seed=3))
+    first = require_success(session.execute(request, execution=Execution(seed=3)))
     independent = require_success(
         ac.analyze(
             request.data,
@@ -185,7 +186,7 @@ def test_adjusted_glm_contrast_target_reuse_matches_existing_route_and_full_reru
     assert first.law.ate == pytest.approx(independent.effect, abs=1e-9)
     weights = TargetWeights(np.exp(0.4 * request.data["z"]), ("z",))
     weighted = replace(request, target=weights)
-    result = require_success(session.execute(weighted, seed=3))
+    result = require_success(session.execute(weighted, execution=Execution(seed=3)))
     assert result.receipt.totals.model_fits == 0
     assert result.plan.status(Stage.SCORE_ARTIFACT).reused
     assert result.plan.recomputed_computations == (Stage.LAW, Stage.DECISION)
@@ -216,7 +217,7 @@ def test_adjusted_glm_contrast_target_reuse_matches_existing_route_and_full_reru
         np.sqrt(gradient @ covariance @ gradient), rel=1e-7
     )
     changed_link = replace(weighted, model=GlmModel("binomial_probit"))
-    linked = require_success(session.execute(changed_link, seed=3))
+    linked = require_success(session.execute(changed_link, execution=Execution(seed=3)))
     assert linked.receipt.totals.model_fits == 1
     assert_full_rerun(changed_link, linked)
 
@@ -244,9 +245,9 @@ def categorical_request():
 def test_adjusted_categorical_contrasts_reuse_covariance_and_reference_changes_refit():
     request = categorical_request()
     session = AdjustedSession()
-    first = require_success(session.execute(request, seed=3))
+    first = require_success(session.execute(request, execution=Execution(seed=3)))
     contrast = replace(request, contrast=CategoricalContrast("low", "high"))
-    result = require_success(session.execute(contrast, seed=3))
+    result = require_success(session.execute(contrast, execution=Execution(seed=3)))
     assert first.law.ate == pytest.approx(2.1, abs=0.05)
     assert result.law.ate == pytest.approx(1.3, abs=0.05)
     assert result.receipt.totals.model_fits == 0
@@ -262,13 +263,13 @@ def test_adjusted_categorical_contrasts_reuse_covariance_and_reference_changes_r
     assert result.law.ate == pytest.approx(w @ beta, abs=1e-10)
     assert result.law.std_error == pytest.approx(np.sqrt(w @ covariance @ w), rel=1e-10)
     reference = replace(contrast, model=replace(request.model, reference="low"))
-    changed = require_success(session.execute(reference, seed=3))
+    changed = require_success(session.execute(reference, execution=Execution(seed=3)))
     assert changed.receipt.totals.model_fits == 1
     assert changed.law.ate == pytest.approx(result.law.ate, abs=1e-10)
     assert changed.law.std_error == pytest.approx(result.law.std_error, abs=1e-10)
     assert_full_rerun(reference, changed)
     recoded = replace(reference, data={**reference.data, "t": np.asarray(reference.data["t"]) + 1})
-    recoding = require_success(session.execute(recoded, seed=3))
+    recoding = require_success(session.execute(recoded, execution=Execution(seed=3)))
     assert recoding.receipt.totals.model_fits == 1
     assert recoding.law.ate == pytest.approx(changed.law.ate, abs=1e-10)
     assert_full_rerun(recoded, recoding)
@@ -292,7 +293,7 @@ def test_adjusted_unsupported_coordinates_refuse_without_discarding_live_fit(kin
         else linear_request()
     )
     session = AdjustedSession()
-    require_success(session.execute(request, seed=3))
+    require_success(session.execute(request, execution=Execution(seed=3)))
     identities = session.identities
     if kind == "off_grid":
         changed = replace(request, contrast=NumericContrast((2,), (0,)))
@@ -307,7 +308,7 @@ def test_adjusted_unsupported_coordinates_refuse_without_discarding_live_fit(kin
     else:
         changed = replace(request, adjustment=())
     with pytest.raises(RecalcRefusal) as error:
-        require_success(session.execute(changed, seed=3))
+        require_success(session.execute(changed, execution=Execution(seed=3)))
     expected = {
         "off_grid": ("route_not_supported", "recalc.off_grid_request", "treatment_grid"),
         "unknown_level": ("route_not_supported", "recalc.off_grid_request", "treatment_grid"),
@@ -336,12 +337,12 @@ def test_adjusted_unsupported_coordinates_refuse_without_discarding_live_fit(kin
 def test_adjusted_fresh_process_receipt_does_not_supply_fit(tmp_path):
     request = linear_request()
     session = AdjustedSession()
-    first = require_success(session.execute(request, seed=3))
+    first = require_success(session.execute(request, execution=Execution(seed=3)))
     path = tmp_path / "receipt.bin"
     path.write_bytes(bytes(first.receipt.export()))
     data = tmp_path / "data.json"
     data.write_text(json.dumps({k: np.asarray(v).tolist() for k, v in request.data.items()}))
-    script = "from antecedent.outcomes import require_success\nimport json, sys\nfrom antecedent.recalc import RecalcReceipt, RecalcRefusal, ResumeContext, Utility\nfrom antecedent.recalc_adjusted import AdjustedRequest, AdjustedSession\nreceipt = require_success(RecalcReceipt.consume(open(sys.argv[1], 'rb').read()))\nrequest = AdjustedRequest(data=json.load(open(sys.argv[2])), edges=(('z', 't'), ('z', 'y'), ('t', 'y')), treatments=('t',), outcome='y', adjustment=('z',), utility=Utility(1))\nfor context in [None, ResumeContext(portable_fit=True), ResumeContext(portable_scores=True)]:\n    session = require_success(AdjustedSession.resume(receipt, context))\n    try:\n        require_success(session.execute(request, seed=3))\n        raise AssertionError('flags supplied a fit')\n    except RecalcRefusal:\n        assert not session.is_live\nsupplied = require_success(AdjustedSession.resume(receipt, ResumeContext(supplied_data=True)))\nresult = require_success(supplied.execute(request, seed=3))\nassert result.receipt.totals.model_fits == 1\nassert not result.receipt.claims_derived_reuse\nassert result.receipt.capabilities.boundary == 'fresh_process'\nchecked = require_success(RecalcReceipt.consume(result.receipt.export()))\nassert checked.identity == result.receipt.identity\nprint(json.dumps({'ate': result.law.ate, 'se': result.law.std_error}))\n"
+    script = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nimport json, sys\nfrom antecedent.recalc import RecalcReceipt, RecalcRefusal, ResumeContext, Utility\nfrom antecedent.recalc_adjusted import AdjustedRequest, AdjustedSession\nreceipt = require_success(RecalcReceipt.consume(open(sys.argv[1], 'rb').read()))\nrequest = AdjustedRequest(data=json.load(open(sys.argv[2])), edges=(('z', 't'), ('z', 'y'), ('t', 'y')), treatments=('t',), outcome='y', adjustment=('z',), utility=Utility(1))\nfor context in [None, ResumeContext(portable_fit=True), ResumeContext(portable_scores=True)]:\n    session = require_success(AdjustedSession.resume(receipt, context))\n    try:\n        require_success(session.execute(request, execution=Execution(seed=3)))\n        raise AssertionError('flags supplied a fit')\n    except RecalcRefusal:\n        assert not session.is_live\nsupplied = require_success(AdjustedSession.resume(receipt, ResumeContext(supplied_data=True)))\nresult = require_success(supplied.execute(request, execution=Execution(seed=3)))\nassert result.receipt.totals.model_fits == 1\nassert not result.receipt.claims_derived_reuse\nassert result.receipt.capabilities.boundary == 'fresh_process'\nchecked = require_success(RecalcReceipt.consume(result.receipt.export()))\nassert checked.identity == result.receipt.identity\nprint(json.dumps({'ate': result.law.ate, 'se': result.law.std_error}))\n"
     process = subprocess.run(
         [sys.executable, "-c", script, str(path), str(data)],
         text=True,
@@ -362,7 +363,7 @@ def test_adjusted_prediction_uses_named_native_schema_and_measures_zero_fits(kin
         "categorical": categorical_request,
     }[kind]()
     session = AdjustedSession()
-    require_success(session.execute(request, seed=3))
+    require_success(session.execute(request, execution=Execution(seed=3)))
     schema = session.prediction_columns
     assert schema is not None
     if kind == "categorical":
@@ -375,7 +376,7 @@ def test_adjusted_prediction_uses_named_native_schema_and_measures_zero_fits(kin
     prediction = require_success(session.predict(rows, columns=schema))
     assert prediction.model_fits == 0
     independent = AdjustedSession()
-    require_success(independent.execute(request, seed=3))
+    require_success(independent.execute(request, execution=Execution(seed=3)))
     assert prediction == require_success(
         independent.predict(rows, columns=independent.prediction_columns)
     )
@@ -438,7 +439,7 @@ def large_linear_request(rows, columns):
 @pytest.mark.parametrize(("rows", "columns"), [(100_000, 20), (300_000, 5)])
 def test_adjusted_accepts_inputs_beyond_the_former_row_and_value_ceilings(rows, columns):
     request = large_linear_request(rows, columns)
-    result = require_success(AdjustedSession().execute(request, seed=3))
+    result = require_success(AdjustedSession().execute(request, execution=Execution(seed=3)))
     expected, se, _, _ = numpy_joint_oracle(request)
     assert result.law.ate == pytest.approx(expected, rel=1e-8)
     assert result.law.std_error == pytest.approx(se, rel=1e-8)
@@ -465,11 +466,16 @@ def test_adjusted_over_budget_input_is_refused_before_it_is_copied():
     session = AdjustedSession()
     for call in (session.plan, session.execute):
         with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded") as error:
-            call(request, memory_limit_bytes=values * 8 - 1)
+            call(request, execution=Execution(limits=ResourceLimits(memory_bytes=values * 8 - 1)))
         assert error.value.reason_code == "invalid_argument"
     assert not session.is_live
     # The limit is exact: the same request runs when the copy fits.
-    require_success(session.execute(request, seed=3, memory_limit_bytes=1 << 30))
+    require_success(
+        session.execute(
+            request,
+            execution=Execution(seed=3, limits=ResourceLimits(memory_bytes=1 << 30)),
+        )
+    )
     assert session.is_live
 
     # Native code applies the same budget to its own copy, independently of Python.
@@ -478,16 +484,29 @@ def test_adjusted_over_budget_input_is_refused_before_it_is_copied():
     with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded") as error:
         require_success(
             native.execute(
-                list(request.data), columns, json.dumps(_spec(request)), memory_limit_bytes=8
+                list(request.data),
+                columns,
+                json.dumps(_spec(request)),
+                memory_limit_bytes=8,
             )
         )
     assert error.value.reason_code == "invalid_argument"
     assert not native.is_live()
     with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded"):
-        require_success(native.predict([[0.0, 0.0]] * 10, ["z", "t"], memory_limit_bytes=8))
+        require_success(
+            native.predict(
+                [[0.0, 0.0]] * 10,
+                ["z", "t"],
+                memory_limit_bytes=8,
+            )
+        )
     with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded"):
         require_success(
-            AdjustedSession().predict([[0.0, 0.0]] * 10, columns=["z", "t"], memory_limit_bytes=8)
+            AdjustedSession().predict(
+                [[0.0, 0.0]] * 10,
+                columns=["z", "t"],
+                execution=Execution(limits=ResourceLimits(memory_bytes=8)),
+            )
         )
 
 
@@ -499,7 +518,7 @@ def test_adjusted_cancelled_run_refuses_before_fitting():
     token.cancel()
     session = AdjustedSession()
     with pytest.raises(RecalcRefusal) as error:
-        require_success(session.execute(request, cancel=token))
+        require_success(session.execute(request, execution=Execution(cancel=token)))
     assert (error.value.reason_code, error.value.detail) == (
         "cancelled_no_claim",
         "recalc.cancelled",
@@ -507,7 +526,10 @@ def test_adjusted_cancelled_run_refuses_before_fitting():
     assert not session.is_live
     # An unfired token changes nothing.
     assert require_success(
-        session.execute(request, seed=3, cancel=_native.CancellationToken())
+        session.execute(
+            request,
+            execution=Execution(seed=3, cancel=_native.CancellationToken()),
+        )
     ).receipt
 
 
@@ -548,7 +570,7 @@ def test_adjusted_bridge_checks_glm_iterations_before_execution():
 def test_adjusted_glm_domain_and_solver_refusals_preserve_previous_fit(kind):
     request = logistic_request()
     session = AdjustedSession()
-    first = require_success(session.execute(request, seed=3))
+    first = require_success(session.execute(request, execution=Execution(seed=3)))
     identities = session.identities
     if kind == "invalid_outcome":
         changed = replace(request, data={**request.data, "y": np.full(len(request.data["y"]), 2.0)})
@@ -560,10 +582,10 @@ def test_adjusted_glm_domain_and_solver_refusals_preserve_previous_fit(kind):
         changed = replace(request, data={**request.data, "y": np.asarray(request.data["t"])})
         expected = ("route_not_supported", "recalc.adjusted_glm_not_converged", "score_artifact")
     with pytest.raises(RecalcRefusal) as error:
-        require_success(session.execute(changed, seed=3))
+        require_success(session.execute(changed, execution=Execution(seed=3)))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == expected
     assert session.identities == identities
     assert session.is_live
-    same = require_success(session.execute(request, seed=3))
+    same = require_success(session.execute(request, execution=Execution(seed=3)))
     assert same.receipt.totals.total == 0
     assert same.law == first.law

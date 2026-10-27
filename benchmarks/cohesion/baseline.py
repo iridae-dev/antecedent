@@ -79,9 +79,7 @@ def grid_preparer():
             )
         ],
         bindings=[
-            tr.RegimeBinding(
-                "trial", "s", sampling="independent", dependence="independent_studies"
-            )
+            tr.RegimeBinding("trial", "s", sampling="independent", dependence="independent_studies")
         ],
     )
     data = tr.ExactTransportData(
@@ -97,9 +95,7 @@ def grid_preparer():
             for i, p in enumerate((0.2, 0.8))
         )
     )
-    request = tr.TransportResponseGridQuery(
-        identified, catalog, ({"x": 0.0}, {"x": 1.0})
-    )
+    request = tr.TransportResponseGridQuery(identified, catalog, ({"x": 0.0}, {"x": 1.0}))
     return lambda: tr.prepare(request, data)
 
 
@@ -147,9 +143,9 @@ def main() -> None:
         comparison="current working tree only; no speedup estimate",
         workloads={name: measure(fn) for name, fn in workloads.items()},
     )
-    report["process_peak_rss_bytes"] = resource.getrusage(
-        resource.RUSAGE_SELF
-    ).ru_maxrss * (1 if platform.system() == "Darwin" else 1024)
+    report["process_peak_rss_bytes"] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (
+        1 if platform.system() == "Darwin" else 1024
+    )
     print(json.dumps(report, indent=2))
 
 

@@ -59,27 +59,49 @@ def _column(result, name):
 
 def test_a_price_floor_is_the_hand_applied_policy_on_the_same_noise(gcm):
     model, _ = gcm
-    observed = _column(model.sample_do({}, N_DRAWS, seed=7), "price")
-    policy = _column(sample_policy(model, [_floor()], N_DRAWS, seed=7), "price")
+    observed = _column(
+        model.sample_do({}, N_DRAWS, execution=antecedent.Execution(seed=7)), "price"
+    )
+    policy = _column(
+        sample_policy(model, [_floor()], N_DRAWS, execution=antecedent.Execution(seed=7)), "price"
+    )
     np.testing.assert_array_equal(policy, np.maximum(10.0, 0.85 * observed))
     assert (policy >= 10.0).all() and (observed * 0.85 < 10.0).any()
 
 
+def test_policy_controls_belong_to_the_execution(gcm):
+    model, _ = gcm
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        sample_policy(model, [_floor()], N_DRAWS, seed=7)  # type: ignore[call-arg]
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        sample_policy(model, [_floor()], N_DRAWS, threads=1)  # type: ignore[call-arg]
+    same = antecedent.Execution(seed=7, threads=1)
+    first = sample_policy(model, [_floor()], N_DRAWS, execution=same)
+    second = sample_policy(model, [_floor()], N_DRAWS, execution=same)
+    np.testing.assert_array_equal(first.draws, second.draws)
+
+
 def test_a_conditional_branch_selects_per_row(gcm):
     model, _ = gcm
-    observed = _column(model.sample_do({}, N_DRAWS, seed=8), "price")
+    observed = _column(
+        model.sample_do({}, N_DRAWS, execution=antecedent.Execution(seed=8)), "price"
+    )
     branch = transform(
         "price",
         where(generated() > 12, 10 + 0.5 * generated(), maximum(10, 0.85 * generated())),
     )
-    policy = _column(sample_policy(model, [branch], N_DRAWS, seed=8), "price")
+    policy = _column(
+        sample_policy(model, [branch], N_DRAWS, execution=antecedent.Execution(seed=8)), "price"
+    )
     expected = np.where(observed > 12.0, 10.0 + 0.5 * observed, np.maximum(10.0, 0.85 * observed))
     np.testing.assert_array_equal(policy, expected)
 
 
 def test_counterfactual_execution_applies_the_policy_to_each_rows_own_noise(gcm):
     model, price = gcm
-    outcomes = counterfactual_policy(model, [_floor()], ["price", "demand"], seed=1)
+    outcomes = counterfactual_policy(
+        model, [_floor()], ["price", "demand"], execution=antecedent.Execution(seed=1)
+    )
     np.testing.assert_allclose(outcomes["price"], np.maximum(10.0, 0.85 * price), atol=1e-9)
     assert outcomes["demand"].shape == price.shape
 
@@ -96,7 +118,7 @@ def test_a_lagged_policy_matches_the_hand_recursion_over_time(gcm):
         n_steps=n_steps,
         window=1,
         history=[{"price": start, "demand": np.zeros(n_rows)}],
-        seed=3,
+        execution=antecedent.Execution(seed=3),
     )
     price = start
     for step in steps:
@@ -109,17 +131,21 @@ def test_a_look_back_before_the_first_step_is_refused(gcm):
     model, _ = gcm
     program = assign("price", lag("price", 2) + 1)
     with pytest.raises(CausalError) as raised:
-        sample_temporal_policy(model, [program], n_rows=4, n_steps=3, window=2, seed=1)
+        sample_temporal_policy(
+            model, [program], n_rows=4, n_steps=3, window=2, execution=antecedent.Execution(seed=1)
+        )
     assert raised.value.reason_code == "policy_history_unavailable"
     with pytest.raises(CausalError) as raised:
-        sample_policy(model, [program], 8, seed=1)
+        sample_policy(model, [program], 8, execution=antecedent.Execution(seed=1))
     assert raised.value.reason_code == "policy_history_unavailable"
 
 
 def test_a_malformed_program_is_a_value_error(gcm):
     model, _ = gcm
     with pytest.raises(CausalValueError):
-        sample_policy(model, [transform("supply", generated())], 8, seed=1)
+        sample_policy(
+            model, [transform("supply", generated())], 8, execution=antecedent.Execution(seed=1)
+        )
     with pytest.raises(CausalValueError):
         generated() + True
 
@@ -141,16 +167,20 @@ def test_python_draws_the_same_bits_as_rust_for_the_same_model_policy_and_seed()
 
     floor = program(0.85)
     assert policy_program_identity(NAMES, [floor]) == DISCRETE_FLOOR_IDENTITY
-    draws = sample_policy(model, [floor], N_DRAWS, seed=7).draws
+    draws = sample_policy(model, [floor], N_DRAWS, execution=antecedent.Execution(seed=7)).draws
     checksum = int(np.ascontiguousarray(draws).view(np.uint64).sum())
     assert checksum == DISCRETE_FLOOR_DRAW_CHECKSUM
     effective_price = 8.0 + 8.0 * draws[1]
     np.testing.assert_array_equal(draws[0], np.maximum(10.0, 0.85 * effective_price))
     assert (0.85 * effective_price < 10.0).any() and (draws[0] > 10.0).any()
-    assert not np.array_equal(draws, sample_policy(model, [floor], N_DRAWS, seed=8).draws)
+    assert not np.array_equal(
+        draws, sample_policy(model, [floor], N_DRAWS, execution=antecedent.Execution(seed=8)).draws
+    )
     other = program(0.75)
     assert policy_program_identity(NAMES, [other]) != DISCRETE_FLOOR_IDENTITY
-    assert not np.array_equal(draws, sample_policy(model, [other], N_DRAWS, seed=7).draws)
+    assert not np.array_equal(
+        draws, sample_policy(model, [other], N_DRAWS, execution=antecedent.Execution(seed=7)).draws
+    )
 
 
 def test_the_identity_is_the_one_rust_pins_and_moves_with_the_expression():

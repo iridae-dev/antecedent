@@ -1078,7 +1078,7 @@ def test_attribute_paths_discovered_runs_end_to_end():
         discovery=antecedent.discovery.LiNGAM(),
         sources=["z"],
         outcome="y",
-        seed=1,
+        execution=antecedent.Execution(seed=1),
     )
     assert edges
     assert result is not None

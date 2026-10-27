@@ -14,7 +14,9 @@ import numpy as np
 
 rng = np.random.default_rng(1)
 # Bound retained result bytes; over-budget refresh refuses instead of silent drop.
-state = antecedent.state.CausalState(cache_bytes=1 << 20)
+state = antecedent.state.CausalState(
+    execution=antecedent.Execution(cache=antecedent.CachePolicy.bounded(1 << 20))
+)
 
 n = 40
 t = rng.normal(size=n)

@@ -572,7 +572,9 @@ def test_frequentist_discovered_dbn_posterior_pulse_is_routed() -> None:
     result = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.DbnPosterior(max_lag=1).run(data, seed=11),
+            discovery=antecedent.discovery.DbnPosterior(max_lag=1).run(
+                data, execution=antecedent.Execution(seed=11)
+            ),
             query=query,
             inference=replace(FREQ, bootstrap=24),
             refute=False,

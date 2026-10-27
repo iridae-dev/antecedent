@@ -112,7 +112,11 @@ def test_discovered_fit_carries_structure_provenance():
     names, cols = _static_rows()
     data = dict(zip(names, cols, strict=True))
     result, edges = antecedent.gcm.attribute_paths_discovered(
-        data, discovery=antecedent.discovery.LiNGAM(), sources=["z"], outcome="y", seed=1
+        data,
+        discovery=antecedent.discovery.LiNGAM(),
+        sources=["z"],
+        outcome="y",
+        execution=antecedent.Execution(seed=1),
     )
     assert edges
     contract = result.contract
@@ -133,16 +137,16 @@ def test_fit_gcm_accepted_refuses_a_result_with_marks_left():
 
 def test_fitted_simulation_is_seeded_and_states_its_contract():
     names, cols = _static_rows()
-    fitted = _native.fit_gcm(names, cols, [("z", "t"), ("t", "y"), ("z", "y")])
+    fitted = antecedent.model.fit_gcm(names, cols, [("z", "t"), ("t", "y"), ("z", "y")])
 
-    first = fitted.sample_do({"t": 1.0}, 200, seed=3)
-    second = fitted.sample_do({"t": 1.0}, 200, seed=3)
+    first = fitted.sample_do({"t": 1.0}, 200, execution=antecedent.Execution(seed=3))
+    second = fitted.sample_do({"t": 1.0}, 200, execution=antecedent.Execution(seed=3))
     np.testing.assert_array_equal(first.draws, second.draws)
     assert first.contract["query_kind"] == "Simulate"
     assert first.claim["claim_id"] == second.claim["claim_id"]
 
-    ite_a = fitted.counterfactual_ite("t", "y", 1.0, 0.0, seed=3)
-    ite_b = fitted.counterfactual_ite("t", "y", 1.0, 0.0, seed=3)
+    ite_a = fitted.counterfactual_ite("t", "y", 1.0, 0.0, execution=antecedent.Execution(seed=3))
+    ite_b = fitted.counterfactual_ite("t", "y", 1.0, 0.0, execution=antecedent.Execution(seed=3))
     np.testing.assert_array_equal(ite_a.unit_effects, ite_b.unit_effects)
     assert ite_a.mean_ite == ite_b.mean_ite
     assert ite_a.contract["query_kind"] == "Simulate"

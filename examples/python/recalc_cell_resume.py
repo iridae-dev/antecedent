@@ -14,6 +14,7 @@ from dataclasses import replace
 
 import numpy as np
 from antecedent import recalc_cell
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.recalc import Stage, TargetWeights, Utility
 
@@ -53,21 +54,25 @@ request = recalc_cell.CellRequest(
 )
 
 session = recalc_cell.CellSession()
-first = require_success(session.execute(request, seed=SEED))
+first = require_success(session.execute(request, execution=Execution(seed=SEED)))
 print(first.receipt.explain())
 assert first.receipt.totals.fold_fits == FIRST_RUN_FITS
 assert abs(first.law.ate - 1.5) < 0.5
 assert np.isclose(first.decision.net_benefit, 2.0 * first.law.ate - 0.5)
 
 # A new utility recomputes the decision only: zero fits, the law is untouched.
-priced = require_success(session.execute(replace(request, utility=Utility(3.0, 0.1)), seed=SEED))
+priced = require_success(
+    session.execute(replace(request, utility=Utility(3.0, 0.1)), execution=Execution(seed=SEED))
+)
 assert priced.receipt.totals.fold_fits == 0
 assert priced.law == first.law
 assert np.isclose(priced.decision.net_benefit, 3.0 * first.law.ate - 0.1)
 
 # A new target population reweights the frozen scores: still zero fits.
 weights = TargetWeights(np.exp(0.4 * z), ("z",))
-retargeted = require_success(session.execute(replace(request, target=weights), seed=SEED))
+retargeted = require_success(
+    session.execute(replace(request, target=weights), execution=Execution(seed=SEED))
+)
 assert retargeted.receipt.totals.fold_fits == 0
 assert abs(retargeted.law.ate - first.law.ate) > 1e-3
 

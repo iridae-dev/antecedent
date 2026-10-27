@@ -5,6 +5,7 @@ from itertools import product
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.recalc import Utility
 from antecedent.recalc_static import StaticResponseRequest, StaticResponseSession
@@ -35,7 +36,7 @@ def test_nested_pilot_selected_public_identification_matches_latent_scm():
     request = StaticResponseRequest(
         dict(zip(names, rows.T, strict=True)), graph, "X2", "X4", [0, 1], Utility(1)
     )
-    result = require_success(StaticResponseSession().execute(request, seed=11))
+    result = require_success(StaticResponseSession().execute(request, execution=Execution(seed=11)))
     # Under do(X2=a), E[X3]=.25+.5a, E[U]=.3, so
     # E[X4]=.15+.35(.25+.5a)+.3*.3. No fitted value supplies the oracle.
     assert result.means == pytest.approx((0.3275, 0.5025), abs=1e-12)

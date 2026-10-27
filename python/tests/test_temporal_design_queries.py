@@ -86,7 +86,7 @@ def test_analyze_equals_the_standalone_module(bayesian: bool) -> None:
         lag=1,
         inference="bayesian" if bayesian else "frequentist",
         n_draws=200 if bayesian else None,
-        seed=5,
+        execution=antecedent.Execution(seed=5),
     )
     assert design.coordinates == standalone.coordinates
     assert _same(design.estimate, standalone.estimate)

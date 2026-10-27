@@ -10,6 +10,7 @@ from __future__ import annotations
 import subprocess
 import sys
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent.dose_grid import (
@@ -48,6 +49,11 @@ def _run(**kwargs):
         "seed": 21,
     }
     arguments.update(kwargs)
+    controls = {name: arguments.pop(name) for name in ("threads", "cancel") if name in arguments}
+    if "max_bytes" in arguments:
+        controls["limits"] = antecedent.ResourceLimits(memory_bytes=arguments.pop("max_bytes"))
+    if controls:
+        arguments["execution"] = antecedent.Execution(**controls)
     return dose_grid_posterior(DOSE, OUTCOME, **arguments)
 
 
@@ -131,19 +137,27 @@ def test_caller_policy_bounds_evaluation_and_independent_consumption():
     serial = _run(draws=200, threads=1)
     assert _run(draws=200, threads=2).posterior == serial.posterior
     artifact = bytes(serial.export())
-    assert consume_dose_grid_posterior_artifact(artifact, threads=2).posterior == serial.posterior
+    assert (
+        consume_dose_grid_posterior_artifact(
+            artifact, execution=antecedent.Execution(threads=2)
+        ).posterior
+        == serial.posterior
+    )
 
     with pytest.raises(CausalResourceError):
         _run(draws=200, max_bytes=1)
     with pytest.raises(CausalResourceError):
-        consume_dose_grid_posterior_artifact(artifact, max_bytes=1)
+        consume_dose_grid_posterior_artifact(
+            artifact,
+            execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1)),
+        )
 
     token = _native.CancellationToken()
     token.cancel()
     with pytest.raises(CausalCancelledError):
         _run(draws=200, cancel=token)
     with pytest.raises(CausalCancelledError):
-        consume_dose_grid_posterior_artifact(artifact, cancel=token)
+        consume_dose_grid_posterior_artifact(artifact, execution=antecedent.Execution(cancel=token))
 
 
 def test_native_execution_facts_survive_success_refusal_cancellation_and_replay_failure():

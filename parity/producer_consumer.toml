@@ -16,7 +16,7 @@ built_from = "`compact_export.CompactExport.build(...)` (coefficients, covarianc
 [[producer]]
 key = "retargeted_batch"
 object = "a retargeted batch result"
-built_from = "`PreparedBatch.retarget(...)` (`BatchRetarget`); `recalc.RecalcSession.execute(...)` with `TargetWeights`"
+built_from = "`require_success(batch.retarget(...))` after `batch = require_success(ant.estimate(ant.estimation.prepare_many(...)))` (`BatchRetarget`, immutable completed scores); `recalc.RecalcSession.execute(...)` with `TargetWeights`"
 
 [[producer]]
 key = "external_claim"
@@ -290,7 +290,7 @@ built_from = "`adaptive_inference.AdaptiveInferenceSession.analyse(...)` (`Adapt
 [[producer]]
 key = "interface_contract_artifact"
 object = "an interface contract (what a component produces and consumes: quantity, support, operations, uncertainty meaning, calibration label, measurement and evidence assumptions; no value)"
-built_from = "`interface_contract.export_interface_contract(...)` (bytes) or `InterfaceContract.artifact(...)` (`ExportedArtifact[ConsumedInterfaceContract]`) and `consume_interface_contract_artifact` (`ConsumedInterfaceContract`)"
+built_from = "`interface_contract.export_interface_contract(...)` (bytes) or `InterfaceContract.export(...)` (`ExportedArtifact[ConsumedInterfaceContract]`) and `consume_interface_contract_artifact` (`ConsumedInterfaceContract`)"
 
 [[producer]]
 key = "composition_verification_result"
@@ -1001,7 +1001,7 @@ detail = "`CausalTypeError` from `obligations` and `repair`"
 producer = "evidence_ledger"
 consumer = "bundle_node"
 status = "REFUSED"
-detail = "no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the ledger now exports bytes, but the bundle still refuses its unsupported scientific node kind; `ledger.artifact()` preserves carried/not-carried receipts in immutable metadata"
+detail = "no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the ledger exports a typed artifact, but the bundle still refuses its unsupported scientific node kind; `ledger.export()` preserves carried/not-carried receipts in immutable metadata"
 
 [[cell]]
 producer = "evidence_ledger"

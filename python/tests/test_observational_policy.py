@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from antecedent import observational_policy
+from antecedent import Execution, observational_policy
 from antecedent.errors import CausalError
 
 PHI_0 = 1.0 / np.sqrt(2.0 * np.pi)
@@ -36,6 +36,7 @@ def test_a_prespecified_policy_recovers_its_value() -> None:
         policy_origin="prespecified",
         reference=0.0,
         adjust={"z": data["z"]},
+        execution=Execution(seed=0),
     )
     assert abs(result.value - TRUTH) < 4 * result.se
     assert result.reference is not None and result.reference.level == 0.0
@@ -82,7 +83,7 @@ def test_held_out_and_cross_fitted_learning_beat_never_treating() -> None:
         "support": [0.0, 1.0],
         "objective": "maximize",
         "adjust": {"z": data["z"]},
-        "seed": 3,
+        "execution": Execution(seed=3),
     }
     held_out = observational_policy.policy_value(
         data["y"], data["a"], evaluation="held_out", evaluation_fraction=0.4, **common

@@ -35,7 +35,7 @@ def _column(result, model, name):
 
 def _refusal(code, program, model, **kwargs):
     with pytest.raises(CausalUnsupportedError) as raised:
-        sample_do(model, [program], N_DRAWS, seed=3, **kwargs)
+        sample_do(model, [program], N_DRAWS, execution=antecedent.Execution(seed=3), **kwargs)
     assert raised.value.reason_code == code, raised.value
     return str(raised.value)
 
@@ -47,7 +47,7 @@ def _assign_y(function, **declaration):
 
 def test_an_assignment_callback_is_the_function_of_its_inputs_on_every_row(gcm):
     program = _assign_y(lambda x: 3.0 * x + 1.0)
-    result = sample_do(gcm, [program], N_DRAWS, seed=5)
+    result = sample_do(gcm, [program], N_DRAWS, execution=antecedent.Execution(seed=5))
     x, y = _column(result, gcm, "x"), _column(result, gcm, "y")
     np.testing.assert_allclose(y, 3.0 * x + 1.0, rtol=0, atol=1e-12)
 
@@ -55,8 +55,8 @@ def test_an_assignment_callback_is_the_function_of_its_inputs_on_every_row(gcm):
 def test_a_transform_callback_reads_the_generated_value_and_keeps_the_noise(gcm):
     floor = InterventionCallback(lambda g: np.maximum(g, 0.0), inputs=["x"], name="floor")
     program = CallbackProgram("x", floor, reads=[GENERATED], mode="transform")
-    baseline = gcm.sample_do({}, N_DRAWS, seed=9)
-    result = sample_do(gcm, [program], N_DRAWS, seed=9)
+    baseline = gcm.sample_do({}, N_DRAWS, execution=antecedent.Execution(seed=9))
+    result = sample_do(gcm, [program], N_DRAWS, execution=antecedent.Execution(seed=9))
     before = baseline.draws[gcm.names.index("x")]
     after = _column(result, gcm, "x")
     np.testing.assert_array_equal(after, np.maximum(before, 0.0))
@@ -70,16 +70,16 @@ def test_the_callback_is_called_once_per_batch_with_whole_float64_columns(gcm):
         seen.append((x.dtype, x.shape))
         return 2.0 * x
 
-    result = sample_do(gcm, [_assign_y(record)], N_DRAWS, seed=1)
+    result = sample_do(gcm, [_assign_y(record)], N_DRAWS, execution=antecedent.Execution(seed=1))
     assert result.n_draws == N_DRAWS
     assert seen == [(np.dtype("float64"), (N_DRAWS,))]
 
 
 def test_draws_are_deterministic_per_seed_and_vary_across_seeds(gcm):
     program = _assign_y(np.tanh)
-    first = sample_do(gcm, [program], N_DRAWS, seed=21).draws
-    again = sample_do(gcm, [program], N_DRAWS, seed=21).draws
-    other = sample_do(gcm, [program], N_DRAWS, seed=22).draws
+    first = sample_do(gcm, [program], N_DRAWS, execution=antecedent.Execution(seed=21)).draws
+    again = sample_do(gcm, [program], N_DRAWS, execution=antecedent.Execution(seed=21)).draws
+    other = sample_do(gcm, [program], N_DRAWS, execution=antecedent.Execution(seed=22)).draws
     np.testing.assert_array_equal(first, again)
     assert not np.array_equal(first, other)
 
@@ -117,14 +117,24 @@ def test_the_declared_range_and_levels_bind_the_output(gcm):
         "policy_callback_output_invalid", _assign_y(lambda x: x, lower=-0.1, upper=0.1), gcm
     )
     assert "range" in message
-    inside = sample_do(gcm, [_assign_y(np.tanh, lower=-1.0, upper=1.0)], N_DRAWS, seed=2)
+    inside = sample_do(
+        gcm,
+        [_assign_y(np.tanh, lower=-1.0, upper=1.0)],
+        N_DRAWS,
+        execution=antecedent.Execution(seed=2),
+    )
     assert np.abs(_column(inside, gcm, "y")).max() <= 1.0
     _refusal(
         "policy_callback_output_invalid",
         _assign_y(lambda x: (x > 0).astype(float) * 2.0, levels=[0.0, 1.0]),
         gcm,
     )
-    ok = sample_do(gcm, [_assign_y(lambda x: (x > 0).astype(int), levels=[0, 1])], N_DRAWS, seed=2)
+    ok = sample_do(
+        gcm,
+        [_assign_y(lambda x: (x > 0).astype(int), levels=[0, 1])],
+        N_DRAWS,
+        execution=antecedent.Execution(seed=2),
+    )
     assert set(np.unique(_column(ok, gcm, "y"))) <= {0.0, 1.0}
 
 
@@ -145,7 +155,7 @@ def test_callback_inputs_are_dependency_checked_like_any_read(gcm):
     _refusal("policy_directive_conflict", other, gcm, interventions={"y": 1.0})
     unknown = CallbackProgram("y", callback, reads=["nope"])
     with pytest.raises(CausalError):
-        sample_do(gcm, [unknown], N_DRAWS, seed=3)
+        sample_do(gcm, [unknown], N_DRAWS, execution=antecedent.Execution(seed=3))
 
 
 def test_program_declarations_are_validated_before_anything_runs():
@@ -197,8 +207,12 @@ def test_a_source_declared_callback_round_trips_through_a_verified_record(gcm):
     assert restored_record == record
 
     replayed = recover_callback(SOURCE, restored_record)
-    first = sample_do(gcm, [CallbackProgram("y", original)], N_DRAWS, seed=4).draws
-    again = sample_do(gcm, [CallbackProgram("y", replayed)], N_DRAWS, seed=4).draws
+    first = sample_do(
+        gcm, [CallbackProgram("y", original)], N_DRAWS, execution=antecedent.Execution(seed=4)
+    ).draws
+    again = sample_do(
+        gcm, [CallbackProgram("y", replayed)], N_DRAWS, execution=antecedent.Execution(seed=4)
+    ).draws
     np.testing.assert_array_equal(first, again)
     x, y = first[gcm.names.index("x")], first[gcm.names.index("y")]
     np.testing.assert_allclose(y, np.clip(2.0 * x, -3.0, 3.0))

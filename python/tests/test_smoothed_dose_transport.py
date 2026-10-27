@@ -352,16 +352,18 @@ def test_consumer_limits_cancellation_and_replay_refusals_are_typed():
         query, data, options=options(), execution=ac.Execution(seed=7)
     )
     artifact = bytes(require_success(study.estimate()).export())
-    assert advanced.consume_smoothed_dose(artifact, max_memory_bytes=512 * 1024 * 1024).grid
+    roomy = ac.Execution(limits=ac.ResourceLimits(memory_bytes=512 * 1024 * 1024))
+    assert advanced.consume_smoothed_dose(artifact, execution=roomy).grid
+    tight = ac.Execution(limits=ac.ResourceLimits(memory_bytes=1024))
     with pytest.raises(CausalResourceError, match="replay workspace above the memory limit"):
-        advanced.consume_smoothed_dose(artifact, max_memory_bytes=1024)
-    with pytest.raises(CausalValueError, match="max_memory_bytes"):
-        advanced.consume_smoothed_dose(artifact, max_memory_bytes=-1)
+        advanced.consume_smoothed_dose(artifact, execution=tight)
+    with pytest.raises(CausalValueError, match="memory_bytes"):
+        ac.Execution(limits=ac.ResourceLimits(memory_bytes=-1))
     # A cancelled token reaches the replay: a reason-coded replay refusal.
     token = ac.state.CancellationToken()
     token.cancel()
     with pytest.raises(CausalCancelledError, match="cancelled") as info:
-        advanced.consume_smoothed_dose(artifact, cancel=token)
+        advanced.consume_smoothed_dose(artifact, execution=ac.Execution(cancel=token))
     assert info.value.reason_code == "transport_budget_cancel"
 
 

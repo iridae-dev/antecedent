@@ -34,6 +34,19 @@ def contract():
     return repair.ZTransportContract.from_identification(stage, catalog=catalog, names=names)
 
 
+def test_z_transport_contract_memory_limit_is_the_executions():
+    from antecedent import Execution, ResourceLimits
+
+    with pytest.raises(TypeError, match="unexpected keyword|got an unexpected"):
+        repair.ZTransportContract(names=("x",), failure_snapshot=b"", memory_bytes=1)  # type: ignore[call-arg]
+    built = contract()
+    bounded = Execution(limits=ResourceLimits(memory_bytes=64 * 1024 * 1024))
+    rebuilt = repair.ZTransportContract(
+        names=built.names, failure_snapshot=built.failure_snapshot, execution=bounded
+    )
+    assert rebuilt.contract_id == built.contract_id
+
+
 def experiment(label, *, population="source", level=0.0, joint=True):
     return repair.StudyCandidate.experiment(
         label,

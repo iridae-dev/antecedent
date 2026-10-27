@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import Execution
 from antecedent.gcm import IntrinsicInfluence, intrinsic_influence
 
 EDGES = [("x", "y"), ("y", "z")]
@@ -36,7 +37,7 @@ def test_contributions_match_the_closed_form_within_the_reported_uncertainty():
         outer_draws=400,
         inner_draws=20,
         fit_bootstrap=20,
-        seed=3,
+        execution=Execution(seed=3),
     )
     assert isinstance(result, IntrinsicInfluence)
     assert result.method["shapley"] == {"kind": "exact"}
@@ -53,7 +54,9 @@ def test_contributions_match_the_closed_form_within_the_reported_uncertainty():
 
 
 def test_efficiency_gap_is_reported_and_small():
-    result = intrinsic_influence(_data(), EDGES, "z", independent_noise=True, seed=1)
+    result = intrinsic_influence(
+        _data(), EDGES, "z", independent_noise=True, execution=Execution(seed=1)
+    )
     total = sum(s.contribution for s in result.sources)
     assert result.allocation_residual == pytest.approx(result.total_variance - total)
     assert abs(result.allocation_residual) <= 6 * max(result.allocation_residual_stderr, 0.3)
@@ -99,7 +102,7 @@ def test_the_posterior_over_the_mechanisms_covers_the_closed_form_shares():
         outer_draws=200,
         inner_draws=20,
         posterior_draws=20,
-        seed=3,
+        execution=Execution(seed=3),
     )
     posterior = result.posterior
     assert posterior is not None and posterior.draws == 20
@@ -120,9 +123,9 @@ def test_a_frequentist_run_carries_no_posterior():
 
 def test_same_seed_reproduces_and_a_different_seed_does_not():
     kwargs = {"independent_noise": True, "outer_draws": 100, "inner_draws": 10}
-    a = intrinsic_influence(_data(), EDGES, "z", seed=2, **kwargs)
-    b = intrinsic_influence(_data(), EDGES, "z", seed=2, **kwargs)
-    c = intrinsic_influence(_data(), EDGES, "z", seed=3, **kwargs)
+    a = intrinsic_influence(_data(), EDGES, "z", execution=Execution(seed=2), **kwargs)
+    b = intrinsic_influence(_data(), EDGES, "z", execution=Execution(seed=2), **kwargs)
+    c = intrinsic_influence(_data(), EDGES, "z", execution=Execution(seed=3), **kwargs)
     assert [s.contribution for s in a.sources] == [s.contribution for s in b.sources]
     assert [s.contribution for s in a.sources] != [s.contribution for s in c.sources]
 
@@ -155,7 +158,7 @@ def test_exact_enumeration_reports_exactly_zero_permutation_error_and_keeps_simu
         allocation="exact",
         outer_draws=2500,
         inner_draws=10,
-        seed=2,
+        execution=Execution(seed=2),
     )
     assert result.method["shapley"] == {"kind": "exact"}
     assert result.budget["permutations"] == 0 and result.budget["exact_coalitions"] == 16

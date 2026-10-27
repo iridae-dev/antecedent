@@ -15,7 +15,9 @@ def test_unknown_ci_raises_compile_error():
     with pytest.raises(
         antecedent.errors.CausalCompileError, match="unknown CI test name: not_a_real_ci"
     ):
-        antecedent.discovery.PCMCI(max_lag=1, ci="not_a_real_ci").run((["x", "y"], [x, y]), seed=1)
+        antecedent.discovery.PCMCI(max_lag=1, ci="not_a_real_ci").run(
+            (["x", "y"], [x, y]), execution=antecedent.Execution(seed=1)
+        )
 
 
 def test_unknown_edge_variable_raises_data_error():

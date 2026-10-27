@@ -11,6 +11,7 @@ study, bound to the program's identity.
 from __future__ import annotations
 
 import pytest
+from antecedent import Execution, ResourceLimits
 from antecedent import design as dr
 from antecedent.design import study_ranking as sr
 from antecedent.errors import CausalError, CausalTypeError, CausalValueError
@@ -127,11 +128,19 @@ def test_a_study_with_a_sampling_realization_publishes_no_posterior_and_is_refus
 def test_a_store_the_admission_pool_cannot_hold_is_refused_before_anything_is_scored():
     with pytest.raises(CausalError, match="Monte Carlo"):
         sr.compile_for_study(
-            _study_of(), _bet(), [_study("study-a")], signal=_signal(), memory_bytes=64
+            _study_of(),
+            _bet(),
+            [_study("study-a")],
+            signal=_signal(),
+            execution=Execution(limits=ResourceLimits(memory_bytes=64)),
         )
     with pytest.raises(CausalError, match="Monte Carlo"):
         sr.evaluate_for_study(
-            _study_of(), _bet(), [_study("study-a")], signal=_signal(), memory_bytes=64
+            _study_of(),
+            _bet(),
+            [_study("study-a")],
+            signal=_signal(),
+            execution=Execution(limits=ResourceLimits(memory_bytes=64)),
         )
 
 

@@ -268,7 +268,9 @@ def test_graph_posterior_refuses() -> None:
     result = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.ExactDagPosterior().run(data, seed=7),
+            discovery=antecedent.discovery.ExactDagPosterior().run(
+                data, execution=antecedent.Execution(seed=7)
+            ),
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
             refute=False,

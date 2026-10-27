@@ -38,14 +38,16 @@ def _change_args():
 
 
 def test_point_results_are_unchanged_without_an_uncertainty_option():
-    result = attribute_distribution_change(*_change_args(), n_samples=300, seed=2)
+    result = attribute_distribution_change(
+        *_change_args(), n_samples=300, execution=antecedent.Execution(seed=2)
+    )
     assert not isinstance(result, AttributionWithUncertainty)
     assert abs(result.total_change - 5.0) < 1.0
 
 
 def test_change_attribution_posterior_and_bootstrap_agree_on_the_total():
     bayes = attribute_distribution_change(
-        *_change_args(), n_samples=300, seed=2, posterior_draws=24
+        *_change_args(), n_samples=300, execution=antecedent.Execution(seed=2), posterior_draws=24
     )
     assert isinstance(bayes, AttributionWithUncertainty)
     posterior = bayes.uncertainty.posterior
@@ -56,7 +58,10 @@ def test_change_attribution_posterior_and_bootstrap_agree_on_the_total():
     assert bayes.uncertainty.point["total_change"] == pytest.approx(bayes.result.total_change)
 
     freq = attribute_distribution_change(
-        *_change_args(), n_samples=300, seed=2, bootstrap_replicates=30
+        *_change_args(),
+        n_samples=300,
+        execution=antecedent.Execution(seed=2),
+        bootstrap_replicates=30,
     )
     bootstrap = freq.uncertainty.bootstrap
     assert bootstrap is not None and bootstrap.replicates_ok >= 15

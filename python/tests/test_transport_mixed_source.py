@@ -20,6 +20,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
@@ -474,7 +475,7 @@ def test_a_cancelled_search_stays_unresolved_with_a_receipt():
 
     token = CancellationToken()
     token.cancel()
-    stage = decide(chain_graph(), CHAIN_STUDIES, cancel=token)
+    stage = decide(chain_graph(), CHAIN_STUDIES, execution=Execution(cancel=token))
     assert stage.outcome == "exhausted"
     assert stage.identification_status == "budget_cancel"
     assert stage.decision()["limits_receipt"]["stop"] == "search.cancelled"

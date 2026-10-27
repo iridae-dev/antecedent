@@ -43,7 +43,9 @@ def test_from_discovery_estimates_without_rediscover(monkeypatch):
     _patch_discovery(monkeypatch, "run_static_discovery", spy)
 
     result, algo = antecedent.discovery.run_static_discovery(
-        data, antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0), seed=1
+        data,
+        antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
+        execution=antecedent.Execution(seed=1),
     )
     assert calls["n"] == 1
     assert algo == "pc"
@@ -142,7 +144,9 @@ def test_rediscover_bumps_version_and_calls_discovery(monkeypatch):
     _patch_discovery(monkeypatch, "run_static_discovery", spy)
 
     refreshed = accepted.rediscover(
-        data, antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0), seed=1
+        data,
+        antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
+        execution=antecedent.Execution(seed=1),
     )
     assert calls["n"] == 1
     assert refreshed.version == accepted.version + 1
@@ -273,7 +277,9 @@ def test_temporal_accepted_graph_estimates_without_rediscover(monkeypatch):
     _patch_discovery(monkeypatch, "run_temporal_discovery", spy)
 
     result, algo = antecedent.discovery.run_temporal_discovery(
-        data, antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False), seed=9
+        data,
+        antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False),
+        execution=antecedent.Execution(seed=9),
     )
     assert calls["n"] == 1
     assert algo == "pcmci"
@@ -327,7 +333,9 @@ def test_temporal_rediscover_bumps_version(monkeypatch):
     _patch_discovery(monkeypatch, "run_temporal_discovery", spy)
 
     refreshed = accepted.rediscover(
-        data, antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False), seed=1
+        data,
+        antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False),
+        execution=antecedent.Execution(seed=1),
     )
     assert calls["n"] == 1
     assert refreshed.version == accepted.version + 1

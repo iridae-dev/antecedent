@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import Execution
 from antecedent.outcomes import require_success
 
 
@@ -32,14 +33,16 @@ def test_vignette_unidentified_mass_matches_live_analyze():
     result = require_success(
         antecedent.analyze(
             data=data,
-            discovery=antecedent.discovery.ExactDagPosterior().run(data, seed=seed),
+            discovery=antecedent.discovery.ExactDagPosterior().run(
+                data, execution=Execution(seed=seed)
+            ),
             query=antecedent.AverageEffect(
                 treatment="paid_search_spend_kgbp",
                 outcome="qualified_pipeline_kgbp",
             ),
             inference=antecedent.Bayesian(n_draws=80, backend="conjugate"),
             refute=False,
-            execution=antecedent.Execution(seed=seed),
+            execution=Execution(seed=seed),
         )
     )
     assert result.posterior is not None

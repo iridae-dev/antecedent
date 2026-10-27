@@ -22,6 +22,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
@@ -672,7 +673,7 @@ def test_a_cancelled_decision_is_a_receipt_never_a_verdict():
 
     token = CancellationToken()
     token.cancel()
-    stage = decide(cancel=token)
+    stage = decide(execution=Execution(cancel=token))
     assert stage.outcome == "exhausted"
     assert stage.identification_status == "budget_cancel"
     receipt = stage.decision()["receipt"]

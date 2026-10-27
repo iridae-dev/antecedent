@@ -6,7 +6,12 @@ from dataclasses import replace
 import antecedent as ac
 import numpy as np
 import pytest
-from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.errors import (
+    CausalCancelledError,
+    CausalResourceError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 from antecedent.execution import CachePolicy, Execution, ResourceLimits
 from antecedent.extensibility import (
     CausalProviderSpec,
@@ -142,10 +147,8 @@ def test_scientific_looking_callback_error_keeps_identity_and_traceback(provider
     [
         Execution(seed=9),
         Execution(threads=2),
-        Execution(limits=ResourceLimits(memory_bytes=100_000)),
         Execution(cache=CachePolicy.disabled()),
         Execution(kernels="scalar"),
-        Execution(on_progress=lambda *_: None),
         Execution(on_stage=lambda *_: None),
     ],
 )
@@ -154,6 +157,30 @@ def test_provider_execution_controls_are_explicitly_inapplicable(provider, polic
     with pytest.raises(CausalUnsupportedError, match="does not apply"):
         ac.reconfigure(study, execution=policy)
     assert provider.calls == []
+
+
+def test_provider_honours_cancellation_memory_limit_and_progress(provider):
+    events = []
+    study = ac.prepare(
+        {"x": [1.0, 3.0]},
+        query=question(),
+        execution=Execution(on_progress=lambda fraction, stage: events.append((fraction, stage))),
+    )
+    assert ac.estimate(study).accepted
+    assert events == [(0.0, "provider.execute"), (1.0, "provider.execute")]
+
+    token = ac.state.CancellationToken()
+    token.cancel()
+    cancelled = ac.reconfigure(study, execution=Execution(cancel=token))
+    with pytest.raises(CausalCancelledError, match="before the provider executed"):
+        ac.estimate(cancelled)
+    assert len(provider.calls) == 1
+
+    tight = ac.reconfigure(study, execution=Execution(limits=ResourceLimits(memory_bytes=4)))
+    with pytest.raises(CausalResourceError, match="execution memory limit of 4 bytes"):
+        ac.estimate(tight)
+    roomy = ac.reconfigure(study, execution=Execution(limits=ResourceLimits(memory_bytes=1 << 20)))
+    assert float(ac.estimate(roomy).value.estimate) == 2.0
 
 
 def test_provider_request_cannot_replace_owned_data(provider):

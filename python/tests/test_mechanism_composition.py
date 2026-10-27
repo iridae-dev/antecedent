@@ -28,6 +28,7 @@ import json
 import subprocess
 import sys
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent import _native
@@ -274,19 +275,31 @@ def test_listing_order_does_not_change_the_plan_or_the_law_and_sampling_is_deter
     )
 
     n = 200_000
-    table = require_success(forward.sample({"X": 2.0}, n_rows=n, seed=20_260_101))
+    table = require_success(
+        forward.sample({"X": 2.0}, n_rows=n, execution=antecedent.Execution(seed=20_260_101))
+    )
     y = table["Y"]
     # SE of the mean sqrt(9.25 / 200000) = 0.0068: six SE; relative SE of the variance sqrt(2/n).
     assert abs(y.mean() - 13.5) < 0.05
     assert abs(y.var() / 9.25 - 1.0) < 0.02
-    again = require_success(forward.sample({"X": 2.0}, n_rows=n, seed=20_260_101))
+    again = require_success(
+        forward.sample({"X": 2.0}, n_rows=n, execution=antecedent.Execution(seed=20_260_101))
+    )
     assert all(np.array_equal(table[v], again[v]) for v in table)
-    other = require_success(forward.sample({"X": 2.0}, n_rows=1_000, seed=20_260_102))
+    other = require_success(
+        forward.sample({"X": 2.0}, n_rows=1_000, execution=antecedent.Execution(seed=20_260_102))
+    )
     assert not np.array_equal(table["Y"][:1_000], other["Y"])
 
     # The noise of a variable is keyed by its name: its draws do not depend on the others.
-    alone = require_success(compose([linear("X", 1.0, 2.0)]).sample({}, n_rows=500, seed=7))["X"]
-    within = require_success(forward.sample({}, n_rows=500, seed=7))["X"]
+    alone = require_success(
+        compose([linear("X", 1.0, 2.0)]).sample(
+            {}, n_rows=500, execution=antecedent.Execution(seed=7)
+        )
+    )["X"]
+    within = require_success(
+        forward.sample({}, n_rows=500, execution=antecedent.Execution(seed=7))
+    )["X"]
     assert np.array_equal(alone, within)
 
 
@@ -1008,14 +1021,25 @@ def test_cancellation_stops_before_a_composed_result_and_a_bad_declaration_is_ty
     token.cancel()
     error = refusal_of(
         lambda: mc.compose_mechanisms(
-            chain(), target_population_id="pop", admit_declared_mechanisms=True, cancel=token
+            chain(),
+            target_population_id="pop",
+            admit_declared_mechanisms=True,
+            execution=antecedent.Execution(cancel=token),
         )
     )
     assert error.reason_code == "cancelled_no_claim"
     prepared = compose(chain())
-    error = refusal_of(lambda: require_success(prepared.sample({}, n_rows=100, cancel=token)))
+    error = refusal_of(
+        lambda: require_success(
+            prepared.sample({}, n_rows=100, execution=antecedent.Execution(cancel=token))
+        )
+    )
     assert error.reason_code == "cancelled_no_claim"
-    error = refusal_of(lambda: bytes(prepared.export(contrast_query(), cancel=token)))
+    error = refusal_of(
+        lambda: bytes(
+            prepared.export(contrast_query(), execution=antecedent.Execution(cancel=token))
+        )
+    )
     assert error.reason_code == "cancelled_no_claim"
 
     with pytest.raises(CausalTypeError):

@@ -578,6 +578,11 @@ def test_verify_recomputes_the_report_and_detects_an_edited_one():
         "transport_budget_cancel",
         "inverse.cancelled",
         lambda: inverse_outcome(
-            _forward(), query=TargetMean(3.0), actions=_actions(), cancel=cancel
+            _forward(),
+            query=TargetMean(3.0),
+            actions=_actions(),
+            execution=ant.Execution(cancel=cancel),
         ),
     )
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        inverse_outcome(_forward(), query=TargetMean(3.0), actions=_actions(), cancel=cancel)

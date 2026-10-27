@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 from antecedent import recalc_cell as rc
 from antecedent.errors import CausalError, CausalSerializationError
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.recalc import (
     RecalcNoLiveState,
@@ -133,7 +134,7 @@ def work(out: RecalcResult) -> tuple[int, int, int, int, int]:
 
 def rerun(req: CellRequest, seed: int = SEED) -> RecalcResult:
     """An independent rerun: a brand-new session, so no frozen score or fit is shared."""
-    out = require_success(CellSession().execute(req, seed=seed))
+    out = require_success(CellSession().execute(req, execution=Execution(seed=seed)))
     assert out.receipt.totals.fold_fits == FIRST_RUN_FITS, "a rerun fits afresh"
     return out
 
@@ -154,7 +155,7 @@ def live_scores(session: CellSession) -> dict[int, np.ndarray]:
 def test_cell_first_run_counts_the_cell_fits_and_matches_a_plain_sum_oracle() -> None:
     req = request()
     session = CellSession()
-    first = require_success(session.execute(req, seed=SEED))
+    first = require_success(session.execute(req, execution=Execution(seed=SEED)))
 
     assert first.plan.reused == ()
     assert len(first.plan.recomputed) == len(STAGES)
@@ -183,10 +184,10 @@ def test_cell_first_run_counts_the_cell_fits_and_matches_a_plain_sum_oracle() ->
 def test_cell_utility_only_change_recomputes_the_decision_with_zero_fits() -> None:
     base = request()
     session = CellSession()
-    first = require_success(session.execute(base, seed=SEED))
+    first = require_success(session.execute(base, execution=Execution(seed=SEED)))
 
     changed = replace(base, utility=Utility(3.0, 0.1))
-    second = require_success(session.execute(changed, seed=SEED))
+    second = require_success(session.execute(changed, execution=Execution(seed=SEED)))
 
     assert second.receipt.status_table == expected(
         {
@@ -207,11 +208,11 @@ def test_cell_utility_only_change_recomputes_the_decision_with_zero_fits() -> No
 def test_cell_compatible_target_weight_change_reuses_the_frozen_cell_scores() -> None:
     base = request()
     session = CellSession()
-    first = require_success(session.execute(base, seed=SEED))
+    first = require_success(session.execute(base, execution=Execution(seed=SEED)))
     frozen = {arm: scores.copy() for arm, scores in live_scores(session).items()}
 
     changed = replace(base, target=z_weights(base))
-    second = require_success(session.execute(changed, seed=SEED))
+    second = require_success(session.execute(changed, execution=Execution(seed=SEED)))
 
     assert second.receipt.status_table == expected(TARGET_ONLY)
     # Zero refits, no identification, no score build: one reweight and one decision.
@@ -235,9 +236,9 @@ def test_cell_compatible_target_weight_change_reuses_the_frozen_cell_scores() ->
 def test_cell_changed_folds_and_new_outcomes_refit_without_reidentifying() -> None:
     base = request()
     session = CellSession()
-    first = require_success(session.execute(base, seed=SEED))
+    first = require_success(session.execute(base, execution=Execution(seed=SEED)))
 
-    folds = require_success(session.execute(base, seed=SEED + 1))
+    folds = require_success(session.execute(base, execution=Execution(seed=SEED + 1)))
     assert folds.receipt.status_table == expected(
         {
             Stage.LEARNER_FOLDS_RNG: "recomputed(own:learner_folds_rng:modified)",
@@ -253,7 +254,7 @@ def test_cell_changed_folds_and_new_outcomes_refit_without_reidentifying() -> No
     assert folds.law.ate == pytest.approx(rerun(base, SEED + 1).law.ate, abs=1e-12)
 
     other = replace(base, data=columns(1.0))
-    outcomes = require_success(session.execute(other, seed=SEED + 1))
+    outcomes = require_success(session.execute(other, execution=Execution(seed=SEED + 1)))
     assert outcomes.receipt.status_table == expected(
         {
             Stage.DATA_SNAPSHOT: "recomputed(own:data_snapshot:modified)",
@@ -270,10 +271,10 @@ def test_cell_changed_folds_and_new_outcomes_refit_without_reidentifying() -> No
 def test_cell_graph_or_query_change_reidentifies_and_refits() -> None:
     base = request()
     session = CellSession()
-    first = require_success(session.execute(base, seed=SEED))
+    first = require_success(session.execute(base, execution=Execution(seed=SEED)))
 
     graph = replace(base, edges=(*BASE_EDGES, ("w", "y")))
-    regraphed = require_success(session.execute(graph, seed=SEED))
+    regraphed = require_success(session.execute(graph, execution=Execution(seed=SEED)))
     assert regraphed.receipt.status_table == expected(
         {
             Stage.GRAPH: "recomputed(own:graph:modified)",
@@ -287,7 +288,7 @@ def test_cell_graph_or_query_change_reidentifies_and_refits() -> None:
     assert regraphed.law.ate == pytest.approx(first.law.ate, abs=1e-12), "same scores"
 
     query = replace(graph, outcome="y2")
-    requeried = require_success(session.execute(query, seed=SEED))
+    requeried = require_success(session.execute(query, execution=Execution(seed=SEED)))
     assert requeried.receipt.status_table == expected(
         {
             Stage.QUERY: "recomputed(own:query:modified)",
@@ -305,10 +306,10 @@ def test_cell_graph_or_query_change_reidentifies_and_refits() -> None:
 def test_cell_an_undeclared_retarget_refits_instead_of_reusing_scores() -> None:
     base = request()
     session = CellSession(retarget="not_declared")
-    require_success(session.execute(base, seed=SEED))
+    require_success(session.execute(base, execution=Execution(seed=SEED)))
 
     changed = replace(base, target=z_weights(base))
-    second = require_success(session.execute(changed, seed=SEED))
+    second = require_success(session.execute(changed, execution=Execution(seed=SEED)))
     assert second.receipt.status_table == expected(
         {
             Stage.TARGET_POPULATION: "recomputed(own:target_population:modified)",
@@ -336,7 +337,7 @@ def test_cell_refusals_run_no_work_and_leave_the_session_usable() -> None:
     bad = replace(base, edges=(*BASE_EDGES, ("a", "w")), adjustment=("z", "w"))
     cold = CellSession()
     with pytest.raises(RecalcRefusal) as info:
-        require_success(cold.execute(bad, seed=SEED))
+        require_success(cold.execute(bad, execution=Execution(seed=SEED)))
     assert info.value.detail == "recalc.invalid_adjustment_set"
     assert_registered_refusal(info.value)
     assert not cold.is_live
@@ -344,7 +345,11 @@ def test_cell_refusals_run_no_work_and_leave_the_session_usable() -> None:
 
     # An outcome in the adjustment set is refused the same way.
     with pytest.raises(RecalcRefusal) as info:
-        require_success(CellSession().execute(replace(base, adjustment=("z", "y")), seed=SEED))
+        require_success(
+            CellSession().execute(
+                replace(base, adjustment=("z", "y")), execution=Execution(seed=SEED)
+            )
+        )
     assert info.value.detail == "recalc.invalid_adjustment_set"
 
     # Nothing is exportable before a run.
@@ -353,15 +358,17 @@ def test_cell_refusals_run_no_work_and_leave_the_session_usable() -> None:
 
     # An incompatible retarget is refused from the plan, with no work and the session intact.
     session = CellSession()
-    first = require_success(session.execute(base, seed=SEED))
+    first = require_success(session.execute(base, execution=Execution(seed=SEED)))
     session.set_retarget_support("incompatible")
     with pytest.raises(RecalcRefusal) as info:
-        require_success(session.execute(replace(base, target=z_weights(base)), seed=SEED))
+        require_success(
+            session.execute(replace(base, target=z_weights(base)), execution=Execution(seed=SEED))
+        )
     assert info.value.plan is not None
     refusal = info.value.plan.first_refusal
     assert refusal is not None and refusal[0] is Stage.LAW
     assert session.is_live
-    after = require_success(session.execute(base, seed=SEED))
+    after = require_success(session.execute(base, execution=Execution(seed=SEED)))
     assert work(after) == (0, 0, 0, 0, 0), "the session still holds the base run"
     assert after.law.ate == first.law.ate
 
@@ -376,7 +383,7 @@ def test_cell_resume_in_a_fresh_interpreter_retargets_exported_scores_with_zero_
 ) -> None:
     base, changed = _z_retarget_inputs()
     session = CellSession()
-    require_success(session.execute(base, seed=SEED))
+    require_success(session.execute(base, execution=Execution(seed=SEED)))
     frozen = session.export_frozen_scores()
     assert len(frozen.identity) == 64
     assert bytes(session.export_frozen_scores().export()) == bytes(frozen.export()), (
@@ -384,7 +391,7 @@ def test_cell_resume_in_a_fresh_interpreter_retargets_exported_scores_with_zero_
     )
 
     # The in-process retarget of the live session is the reference.
-    in_process = require_success(session.execute(changed, seed=SEED))
+    in_process = require_success(session.execute(changed, execution=Execution(seed=SEED)))
     weights = np.asarray(changed.target.weights)  # type: ignore[union-attr]
 
     artifact = tmp_path / "scores.bin"
@@ -480,7 +487,7 @@ def test_cell_resume_in_a_fresh_interpreter_retargets_exported_scores_with_zero_
 def test_cell_resume_with_an_unchanged_request_reproduces_the_first_run() -> None:
     base = request()
     session = CellSession()
-    first = require_success(session.execute(base, seed=SEED))
+    first = require_success(session.execute(base, execution=Execution(seed=SEED)))
     resumed = require_success(
         session.export_frozen_scores().resume(
             variables=VARIABLES, edges=BASE_EDGES, utility=UTILITY
@@ -512,7 +519,7 @@ def test_cell_resume_with_an_unchanged_request_reproduces_the_first_run() -> Non
 def test_cell_resume_refuses_every_request_that_needs_data_or_a_fit() -> None:
     base = request()
     session = CellSession()
-    require_success(session.execute(base, seed=SEED))
+    require_success(session.execute(base, execution=Execution(seed=SEED)))
     resumed = require_success(
         session.export_frozen_scores().resume(
             variables=VARIABLES, edges=BASE_EDGES, utility=UTILITY
@@ -586,7 +593,7 @@ def test_cell_resume_refuses_every_request_that_needs_data_or_a_fit() -> None:
 def test_cell_resume_refuses_resealed_foreign_or_corrupt_artifact_bytes() -> None:
     base = request()
     session = CellSession()
-    require_success(session.execute(base, seed=SEED))
+    require_success(session.execute(base, execution=Execution(seed=SEED)))
     frozen = session.export_frozen_scores()
     resume = {"variables": VARIABLES, "edges": BASE_EDGES, "utility": UTILITY}
     assert (
@@ -598,7 +605,7 @@ def test_cell_resume_refuses_resealed_foreign_or_corrupt_artifact_bytes() -> Non
 
     # Another run's artifact, consistently sealed, under the identity this consumer retained.
     other = CellSession()
-    require_success(other.execute(replace(base, data=columns(1.0)), seed=SEED))
+    require_success(other.execute(replace(base, data=columns(1.0)), execution=Execution(seed=SEED)))
     foreign = other.export_frozen_scores()
     assert foreign.identity != frozen.identity
     assert rc.resume_from_scores(foreign, **resume).identity == foreign.identity
@@ -636,12 +643,14 @@ def test_cell_crossfit_scores_resume_the_same_way() -> None:
         data=crossfit_columns(), edges=edges, treatment="t", outcome="y", utility=UTILITY
     )
     session = CrossfitSession()
-    first = require_success(session.execute(base, seed=61))
+    first = require_success(session.execute(base, execution=Execution(seed=61)))
     assert first.receipt.totals.fold_fits == 10
     frozen = session.export_frozen_scores()
 
     weights = TargetWeights(np.exp(0.4 * np.asarray(base.data["z"])), ("z",))
-    in_process = require_success(session.execute(replace(base, target=weights), seed=61))
+    in_process = require_success(
+        session.execute(replace(base, target=weights), execution=Execution(seed=61))
+    )
     assert in_process.receipt.totals.fold_fits == 0
 
     resumed = rc.resume_from_scores(

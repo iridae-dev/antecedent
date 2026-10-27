@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 from antecedent import _native
 from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.inference import MeasuredInference
 from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcRefusal
@@ -85,7 +86,7 @@ def test_normal_checked_source_measured_scalar_independent_math_and_fresh_consum
 ):
     req = request(functional)
     session = TemporalSession()
-    require_success(session.execute(req, seed=41))
+    require_success(session.execute(req, execution=Execution(seed=41)))
     if method == "percentile":
         # Its record is a named boundary (measured below the level) over 128 to 512
         # units, so no calibrated claim is reported at this size or any other.
@@ -139,7 +140,7 @@ def test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_c
         panel(),
         sequence=(0, 0),
         target_law=InitialStateLaw("fixed_target", {0: 0.3, 1: 0.7}),
-        seed=901,
+        execution=Execution(seed=901),
     )
     scalar = result.scalar("response")
     source = result.source_report()
@@ -164,7 +165,9 @@ def test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_c
 
 def test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence():
     session = TemporalSession()
-    require_success(session.execute(request(TemporalResponse((0, 0))), seed=41))
+    require_success(
+        session.execute(request(TemporalResponse((0, 0))), execution=Execution(seed=41))
+    )
     for config in [
         CheckedTemporalIntervalConfig(method="percentile"),
         CheckedTemporalIntervalConfig(method="basic"),
@@ -188,9 +191,9 @@ def test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence(
     token = _native.CancellationToken()
     token.cancel()
     with pytest.raises(CausalCancelledError):
-        session.dependent_interval(cancel=token)
+        session.dependent_interval(execution=Execution(cancel=token))
     with pytest.raises(CausalError):
-        session.dependent_interval(memory_limit_bytes=0)
+        session.dependent_interval(execution=Execution(limits=ResourceLimits(memory_bytes=0)))
     calls = []
     session._handle = SimpleNamespace(measured_interval=lambda *a, **k: calls.append(1))
     with pytest.raises(CausalTypeError):
@@ -210,7 +213,7 @@ def test_normal_temporal_measured_artifact_requires_original_source_expectations
             ),
         )
         session = TemporalSession()
-        require_success(session.execute(req, seed=41))
+        require_success(session.execute(req, execution=Execution(seed=41)))
         measured = session.dependent_interval(config=CheckedTemporalIntervalConfig(method="basic"))
         assert measured.source_report()["source"]["request"]["units"] == json.loads(
             json.dumps(req._wire()["units"])
@@ -220,7 +223,7 @@ def test_normal_temporal_measured_artifact_requires_original_source_expectations
             panel(),
             sequence=(0, 0),
             target_law=InitialStateLaw("fixed_target", {0: 0.3, 1: 0.7}),
-            seed=901,
+            execution=Execution(seed=901),
         )
     replay(measured, tmp_path)
     loaded = MeasuredInference.load(bytes(measured.export()), expected=measured.expected_identity)
@@ -243,6 +246,6 @@ def test_checked_duplicate_history_cells_cannot_borrow_measured_protocol(method)
     histories[1] = replace(histories[0], time_id=histories[1].time_id)
     changed = replace(req, units=(replace(unit, histories=tuple(histories)), *req.units[1:]))
     session = TemporalSession()
-    require_success(session.execute(changed, seed=41))
+    require_success(session.execute(changed, execution=Execution(seed=41)))
     with pytest.raises(CausalError):
         session.dependent_interval(config=CheckedTemporalIntervalConfig(method=method))

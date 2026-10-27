@@ -47,13 +47,15 @@ model = antecedent.model.fit_gcm(NAMES, [price, demand], [("price", "demand")])
 floor = transform("price", maximum(10, 0.85 * generated()))
 
 # 1. Forward sampling: on the same noise the program is the hand-applied floor.
-observed = model.sample_do({}, N_DRAWS, seed=7).draws[0]
-floored = sample_policy(model, [floor], N_DRAWS, seed=7).draws[0]
+observed = model.sample_do({}, N_DRAWS, execution=antecedent.Execution(seed=7)).draws[0]
+floored = sample_policy(model, [floor], N_DRAWS, execution=antecedent.Execution(seed=7)).draws[0]
 np.testing.assert_array_equal(floored, np.maximum(10.0, 0.85 * observed))
 assert (floored >= 10.0).all() and (0.85 * observed < 10.0).any()
 
 # 2. Counterfactual execution: each factual row's own noise goes through the same floor.
-worlds = counterfactual_policy(model, [floor], ["price", "demand"], seed=1)
+worlds = counterfactual_policy(
+    model, [floor], ["price", "demand"], execution=antecedent.Execution(seed=1)
+)
 np.testing.assert_allclose(worlds["price"], np.maximum(10.0, 0.85 * price), atol=1e-9)
 raised = worlds["price"] > price
 assert raised.any() and (worlds["demand"][raised] < demand[raised]).all()
@@ -67,7 +69,7 @@ assert support.identification.reason_code == "policy_route_not_licensed"
 
 # Its model-based value is the paired difference against the unintervened model on the same noise;
 # only the simulation error is quantified, and the model's own uncertainty says it is not.
-value = policy_value(model, [floor], "demand", n=4000, seed=3)
+value = policy_value(model, [floor], "demand", n=4000, execution=antecedent.Execution(seed=3))
 # The floor lowers most prices, and demand falls with price.
 assert value.mean_difference > 5 * value.difference_simulation_stderr
 assert value.model_uncertainty == "unquantified"
@@ -77,7 +79,7 @@ assert value.model_uncertainty == "unquantified"
 circular = assign("price", var("demand"))
 assert policy_support(model, [circular]).simulation.reason_code == "policy_dependency_circular"
 try:
-    sample_policy(model, [circular], N_DRAWS, seed=1)
+    sample_policy(model, [circular], N_DRAWS, execution=antecedent.Execution(seed=1))
 except CausalError as refusal:
     assert refusal.reason_code == "policy_dependency_circular", refusal
 else:
@@ -106,7 +108,9 @@ by_callback = CallbackProgram(
     reads=[GENERATED],
     mode="transform",
 )
-via_callback = sample_callbacks(model, [by_callback], N_DRAWS, seed=7).draws[0]
+via_callback = sample_callbacks(
+    model, [by_callback], N_DRAWS, execution=antecedent.Execution(seed=7)
+).draws[0]
 np.testing.assert_array_equal(via_callback, floored)
 try:
     callback_records([by_callback])
@@ -130,14 +134,18 @@ program = CallbackProgram(
     reads=[GENERATED],
     mode="transform",
 )
-np.testing.assert_array_equal(sample_callbacks(model, [program], N_DRAWS, seed=7).draws[0], floored)
+np.testing.assert_array_equal(
+    sample_callbacks(model, [program], N_DRAWS, execution=antecedent.Execution(seed=7)).draws[0],
+    floored,
+)
 artifact = encode_policy_program(
     NAMES, [CallbackProgram("price", recoverable, reads=[GENERATED], mode="transform")]
 )
 assert required_callbacks(artifact) == (record,)
 (restored,) = decode_policy_program(NAMES, artifact, callbacks=[replayed])
 np.testing.assert_array_equal(
-    sample_callbacks(model, [restored], N_DRAWS, seed=7).draws[0], floored
+    sample_callbacks(model, [restored], N_DRAWS, execution=antecedent.Execution(seed=7)).draws[0],
+    floored,
 )
 try:
     encode_policy_program(NAMES, [by_callback])

@@ -93,7 +93,9 @@ def test_invalid_settings_are_refused():
 def test_a_cancelled_token_yields_an_incomplete_result():
     token = antecedent.state.CancellationToken()
     token.cancel()
-    result = evaluate_graph(_linear_pairs(300), TRUE_PAIRS, alpha=0.01, cancel=token)
+    result = evaluate_graph(
+        _linear_pairs(300), TRUE_PAIRS, alpha=0.01, execution=antecedent.Execution(cancel=token)
+    )
     assert result.outcome == "incomplete"
     assert result.stop == "search.cancelled"
     assert result.p_value is None

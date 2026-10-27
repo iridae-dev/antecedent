@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent import categorical_treatment
@@ -283,10 +284,14 @@ def test_categorical_robust_fit_has_no_row_ceiling_and_matches_an_independent_sa
 def test_categorical_consume_respects_the_memory_limit() -> None:
     result = abc(covariance="hc1")
     assert consume_categorical_effects(
-        bytes(result.export()), memory_limit_bytes=10_000_000
+        bytes(result.export()),
+        execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=10_000_000)),
     ).identity == (result.identity)
     with pytest.raises(CategoricalTreatmentRefusal) as refused:
-        consume_categorical_effects(bytes(result.export()), memory_limit_bytes=1)
+        consume_categorical_effects(
+            bytes(result.export()),
+            execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1)),
+        )
     assert refused.value.detail == "categorical_treatment.memory_budget_exceeded"
 
 

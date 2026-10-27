@@ -17196,6 +17196,8 @@ pub fn <antecedent_estimate::ScoreTable>::fn from_wire(wire: antecedent_io_core:
 pub fn <antecedent_estimate::ScoreTable>::fn inference(&self, weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_estimate::ScoreInference, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ScoreTable>::fn linear_contrast(&self, summary: &antecedent_estimate::ScoreSummary, coefficients: &[f64]) -> core::result::Result<antecedent_estimate::LinearContrast, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ScoreTable>::fn n_columns(&self) -> usize
+pub fn <antecedent_estimate::ScoreTable>::fn named_for_shared_design(self) -> Self
+pub fn <antecedent_estimate::ScoreTable>::fn reads_shared_design(&self) -> bool
 pub fn <antecedent_estimate::ScoreTable>::fn summarize(&self, weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_estimate::ScoreSummary, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ScoreTable>::fn support(&self, weights: core::option::Option<&[f64]>) -> antecedent_estimate::ScoreSupport
 pub fn <antecedent_estimate::ScoreTable>::fn to_wire(&self) -> antecedent_io_core::score_wire::ScoreTableWire

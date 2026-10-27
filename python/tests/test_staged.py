@@ -555,7 +555,7 @@ def test_static_mediation_recanting_witness_refuses():
 
 def test_v13_named_refusals():
     data, dag = fixture()
-    posterior = ac.discovery.ExactDagPosterior().run(data, seed=1)
+    posterior = ac.discovery.ExactDagPosterior().run(data, execution=ac.Execution(seed=1))
     cf = ac.Counterfactual("a", "y", control_level=0.2, active_level=0.8)
     med = ac.MediationEffect("a", "y", mediators=["m"], contrast="natural_direct")
     accepted_cf = require_success(

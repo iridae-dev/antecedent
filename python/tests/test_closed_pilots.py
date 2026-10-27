@@ -7,7 +7,7 @@ suites. These adjacent requests cannot borrow evidence from those exact protocol
 from types import SimpleNamespace
 
 import pytest
-from antecedent import Admg
+from antecedent import Admg, Execution
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.transport import advanced as transport
 
@@ -51,7 +51,7 @@ def joint_kwargs(**overrides):
         "target": {"x": [0.1, 0.2, 0.3]},
         "features": ["x"],
         "draws": 1000,
-        "seed": 7,
+        "execution": Execution(seed=7),
     }
     kwargs.update(overrides)
     return kwargs
@@ -221,7 +221,7 @@ def sampled_kwargs(**overrides):
         "snapshot": "snap-1",
         "replicates": 2000,
         "interval_method": "bootstrap_bca",
-        "seed": 3,
+        "execution": Execution(seed=3),
     }
     kwargs.update(overrides)
     return kwargs
@@ -290,7 +290,7 @@ def test_sampled_recovery_validates_its_arguments_as_typed_errors():
     with pytest.raises(CausalValueError):
         transport.sampled_observation_recovery(**sampled_kwargs(snapshot=" "))
     with pytest.raises(CausalValueError):
-        transport.sampled_observation_recovery(**sampled_kwargs(seed=-1))
+        transport.sampled_observation_recovery(**sampled_kwargs(execution=Execution(seed=-1)))
 
 
 def test_scoped_pilot_routes_are_exported_from_the_advanced_namespace():

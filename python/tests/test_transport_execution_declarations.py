@@ -6,7 +6,12 @@ import inspect
 import antecedent as ant
 import pytest
 from antecedent import transport
-from antecedent.errors import CausalCancelledError, CausalResourceError, CausalTypeError
+from antecedent.errors import (
+    CausalCancelledError,
+    CausalResourceError,
+    CausalTypeError,
+    CausalUnsupportedError,
+)
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced
 
@@ -156,3 +161,45 @@ def test_evaluation_declaration_rejects_invalid_arguments_without_execution():
         transport.TransportEvaluation(max_depth=True)
     with pytest.raises(CausalTypeError, match="integer"):
         transport.TransportEvaluation(max_depth=None)
+
+
+def test_family_transport_reports_progress_and_refuses_what_it_cannot_honour():
+    identified, catalog, data = exact_fixture()
+    query = advanced.ExactTransportQuery(identified, catalog, {"x": 1.0})
+    events = []
+    study = ant.prepare(
+        data,
+        query=query,
+        execution=ant.Execution(
+            on_progress=lambda fraction, stage: events.append((fraction, stage))
+        ),
+    )
+    assert events == []
+    result = require_success(ant.estimate(study))
+    assert result.probabilities == pytest.approx((0.3, 0.7))
+    assert events == [(0.0, "estimate"), (1.0, "estimate")]
+    for refused in (ant.Execution(on_stage=lambda *_: None), ant.Execution(threads=2)):
+        with pytest.raises(CausalUnsupportedError) as caught:
+            ant.prepare(data, query=query, execution=refused)
+        assert caught.value.reason_code == "option_not_applicable"
+        with pytest.raises(CausalUnsupportedError) as branched:
+            ant.estimate(ant.reconfigure(study, execution=refused))
+        assert branched.value.reason_code == "option_not_applicable"
+    assert events == [(0.0, "estimate"), (1.0, "estimate")]
+
+
+def test_theorem_stage_entries_take_execution_and_no_loose_controls():
+    identified, catalog, data = exact_fixture()
+    with pytest.raises(TypeError, match="cancel"):
+        advanced.consume_z_transport_artifact(b"", cancel=None)  # type: ignore[call-arg]
+    with pytest.raises(TypeError, match="memory_bytes"):
+        advanced.identify_z_transport(graph=None, query=None, memory_bytes=1)  # type: ignore[call-arg]
+    with pytest.raises(TypeError, match="seed"):
+        advanced.joint_bayesian_transport(
+            sources=[],
+            target=None,
+            features=["x"],
+            seed=1,  # type: ignore[call-arg]
+        )
+    with pytest.raises(CausalTypeError, match="execution must be"):
+        advanced.consume_z_transport_artifact(b"", execution=object())  # type: ignore[arg-type]

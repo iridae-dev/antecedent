@@ -1072,6 +1072,7 @@ pub fn <antecedent_graph::TemporalPag>::fn clear_middle_marks(&mut self)
 pub fn <antecedent_graph::TemporalPag>::fn definite_status_paths(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, max_paths: usize, max_len: usize) -> core::result::Result<antecedent_graph::DefiniteStatusPathSearch, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPag>::fn edge_between(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_graph::MarkedEdge>
 pub fn <antecedent_graph::TemporalPag>::fn edges(&self) -> alloc::vec::Vec<antecedent_graph::MarkedEdge>
+pub fn <antecedent_graph::TemporalPag>::fn edges_lazy(&self) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::MarkedEdge> + core::clone::Clone + '_
 pub fn <antecedent_graph::TemporalPag>::fn empty() -> Self
 pub fn <antecedent_graph::TemporalPag>::fn has_edge(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> bool
 pub fn <antecedent_graph::TemporalPag>::fn insert_circle_arrow(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>

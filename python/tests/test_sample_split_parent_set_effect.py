@@ -17,6 +17,7 @@ import itertools
 
 import numpy as np
 import pytest
+from antecedent import Execution
 from antecedent import selective_discovery as sd
 from antecedent.errors import CausalTypeError, CausalValueError
 
@@ -146,7 +147,7 @@ def test_a_linear_study_reports_the_total_effect_and_the_unresolved_edges() -> N
         outcome="y",
         transformation="linear",
         split_seed=SPLIT_SEED,
-        seed=SEED,
+        execution=Execution(seed=SEED),
     )
     assert estimate.scalar == "total_effect"
     assert estimate.transformation == "linear"
@@ -178,7 +179,7 @@ def test_a_log_linear_study_reports_an_intervention_mean_ratio() -> None:
         outcome="y",
         transformation="log_linear",
         split_seed=SPLIT_SEED,
-        seed=SEED,
+        execution=Execution(seed=SEED),
     )
     assert estimate.scalar == "intervention_mean_ratio"
     assert set(estimate.treatment_parents) == {"h", "p"}
@@ -219,7 +220,7 @@ def test_the_basis_is_keyed_under_its_own_structure_and_never_the_directed_route
         outcome="y",
         transformation="linear",
         split_seed=SPLIT_SEED,
-        seed=SEED,
+        execution=Execution(seed=SEED),
     )
     basis = estimate.basis
     assert basis["structure"] == "discovered_sample_split.treatment_parent_set"
@@ -242,7 +243,7 @@ def test_an_undirected_edge_at_the_treatment_is_refused_by_name() -> None:
             outcome="y",
             transformation="linear",
             split_seed=SPLIT_SEED,
-            seed=SEED,
+            execution=Execution(seed=SEED),
         )
     assert_registered_refusal(info.value)
     assert info.value.reason_code == "cell_not_licensed"
@@ -262,7 +263,7 @@ def test_log_linear_inputs_must_be_positive() -> None:
             outcome="y",
             transformation="log_linear",
             split_seed=SPLIT_SEED,
-            seed=SEED,
+            execution=Execution(seed=SEED),
         )
     assert info.value.reason_code == "invalid_argument"
     assert info.value.detail == "parent_set_effect.log_linear_input_not_positive"
@@ -280,7 +281,7 @@ def test_the_transformation_must_be_declared_before_the_data_are_touched(declare
             outcome="y",
             transformation=declared,
             split_seed=SPLIT_SEED,
-            seed=SEED,
+            execution=Execution(seed=SEED),
         )
     assert info.value.reason_code == "invalid_argument"
     assert info.value.detail == "parent_set_effect.transformation_undeclared"
@@ -333,7 +334,12 @@ def test_a_table_outside_ten_to_twenty_variables_is_refused() -> None:
     data = {name: rng.normal(size=60) for name in ("a", "b", "c")}
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         sd.sample_split_parent_set_effect(
-            data, treatment="a", outcome="b", transformation="linear", split_seed=1, seed=SEED
+            data,
+            treatment="a",
+            outcome="b",
+            transformation="linear",
+            split_seed=1,
+            execution=Execution(seed=SEED),
         )
     assert info.value.reason_code == "cell_not_licensed"
     assert info.value.detail == "parent_set_effect.variable_count_not_measured"
@@ -353,10 +359,20 @@ def test_unknown_roles_are_rejected_before_any_native_work() -> None:
 def test_the_same_seeds_give_the_same_estimate_and_another_split_seed_another_split() -> None:
     data = hub_table(13, rows=2000)
     first = sd.sample_split_parent_set_effect(
-        data, treatment="x", outcome="y", transformation="linear", split_seed=SPLIT_SEED, seed=SEED
+        data,
+        treatment="x",
+        outcome="y",
+        transformation="linear",
+        split_seed=SPLIT_SEED,
+        execution=Execution(seed=SEED),
     )
     again = sd.sample_split_parent_set_effect(
-        data, treatment="x", outcome="y", transformation="linear", split_seed=SPLIT_SEED, seed=SEED
+        data,
+        treatment="x",
+        outcome="y",
+        transformation="linear",
+        split_seed=SPLIT_SEED,
+        execution=Execution(seed=SEED),
     )
     assert first == again
     other = sd.sample_split_parent_set_effect(
@@ -365,7 +381,7 @@ def test_the_same_seeds_give_the_same_estimate_and_another_split_seed_another_sp
         outcome="y",
         transformation="linear",
         split_seed=SPLIT_SEED + 1,
-        seed=SEED,
+        execution=Execution(seed=SEED),
     )
     assert other.receipt_identity != first.receipt_identity
 
@@ -379,7 +395,7 @@ def test_an_unmeasured_variable_count_is_computed_and_never_attested() -> None:
         outcome="y",
         transformation="linear",
         split_seed=SPLIT_SEED,
-        seed=SEED,
+        execution=Execution(seed=SEED),
     )
     assert (
         estimate.basis["functional"]
@@ -389,6 +405,7 @@ def test_an_unmeasured_variable_count_is_computed_and_never_attested() -> None:
         estimate.measure()
     assert_registered_refusal(info.value)
     assert info.value.reason_code == "cell_not_licensed"
+    assert info.value.detail == "measured_inference.record_not_attesting"
 
 
 def test_background_knowledge_that_is_true_of_the_law_enters_the_key_and_is_honoured() -> None:

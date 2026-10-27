@@ -6,6 +6,7 @@ import pytest
 from antecedent import Admg
 from antecedent._artifact_protocol import ExportedArtifact
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError, CausalValueError
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
@@ -336,5 +337,7 @@ def test_a_budget_or_cancellation_stop_keeps_the_exact_range_and_its_receipt():
     token = CancellationToken()
     token.cancel()
     with pytest.raises(CausalError, match="joint_sensitivity.budget") as cancelled:
-        transport.joint_mechanism_sensitivity(prepared, DEVIATION, cancel=token)
+        transport.joint_mechanism_sensitivity(
+            prepared, DEVIATION, execution=Execution(cancel=token)
+        )
     assert cancelled.value.reason_code == "transport_budget_cancel"

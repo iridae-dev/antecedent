@@ -8,6 +8,7 @@ interval and no credible interval. Each refusal names the missing premise and th
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalError
@@ -61,7 +62,9 @@ def test_bootstrap_interval_width_matches_the_binomial_standard_error():
     # the plain event share among followers, so the independent reference is the two-sample
     # binomial standard error of the survival difference.
     data, arm, event = _one_period()
-    intervals = trajectory_survival_bootstrap(**data, replicates=999, seed=17)
+    intervals = trajectory_survival_bootstrap(
+        **data, replicates=999, execution=antecedent.Execution(seed=17)
+    )
     p1, n1 = event[arm].mean(), arm.sum()
     p0, n0 = event[~arm].mean(), (~arm).sum()
     standard_error = np.sqrt(p1 * (1 - p1) / n1 + p0 * (1 - p0) / n0)
@@ -94,6 +97,8 @@ def test_survival_contrast_and_bootstrap_refuse_trajectories_that_follow_no_one(
     with pytest.raises(CausalError) as contrast:
         trajectory_survival_contrast(**nobody)
     with pytest.raises(CausalError) as bootstrap:
-        trajectory_survival_bootstrap(**nobody, replicates=50, seed=1)
+        trajectory_survival_bootstrap(
+            **nobody, replicates=50, execution=antecedent.Execution(seed=1)
+        )
     for error in (contrast.value, bootstrap.value):
         assert getattr(error, "reason_code", None) != "cell_not_licensed"

@@ -18,7 +18,7 @@ c = -1.0 + 3.0 * b + 2.0 * rng.normal(size=3000)
 model = antecedent.model.fit_gcm(["a", "b", "c"], [a, b, c], [("a", "b"), ("b", "c")])
 
 # Draws come with their noise, one row per variable in the model's order.
-draws, noise = model.sample_noise({}, 4000, seed=3)
+draws, noise = model.sample_noise({}, 4000, execution=antecedent.Execution(seed=3))
 assert noise.shape == (3, 4000)
 np.testing.assert_array_equal(model.replay_noise(noise).draws, draws.draws)
 

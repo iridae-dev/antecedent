@@ -257,7 +257,9 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
             cases.extend(
                 [
                     Case(name, "cold", lambda: require_success(make().execute()), check, spec),
-                    Case(name, "prepared", lambda: require_success(prepared.execute()), check, spec),
+                    Case(
+                        name, "prepared", lambda: require_success(prepared.execute()), check, spec
+                    ),
                 ]
             )
         else:
@@ -270,7 +272,9 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                     Case(
                         name,
                         "load_and_recompute",
-                        lambda: require_success(consume_artifact(artifact, expected_identity=expected)),
+                        lambda: require_success(
+                            consume_artifact(artifact, expected_identity=expected)
+                        ),
                         check,
                         spec,
                     )
@@ -360,7 +364,13 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                     check_fit,
                     spec,
                 ),
-                Case(name, "prepared_query", lambda: require_success(prepared.execute()), check_fit, spec),
+                Case(
+                    name,
+                    "prepared_query",
+                    lambda: require_success(prepared.execute()),
+                    check_fit,
+                    spec,
+                ),
                 Case(
                     name,
                     "refresh_fit_and_query",
@@ -415,7 +425,13 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                     check,
                     dict(spec, variables=3),
                 ),
-                Case(name, "prepared", lambda: require_success(prepared.execute()), check, dict(spec, variables=3)),
+                Case(
+                    name,
+                    "prepared",
+                    lambda: require_success(prepared.execute()),
+                    check,
+                    dict(spec, variables=3),
+                ),
             ]
         )
     elif name in ("ode", "ou", "constraints"):

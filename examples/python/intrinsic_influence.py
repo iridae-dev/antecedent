@@ -9,6 +9,7 @@ says so instead of reading zero, and the caller must declare that the noise term
 from __future__ import annotations
 
 import numpy as np
+from antecedent import Execution
 from antecedent.gcm import intrinsic_influence
 
 EDGES = [("x", "y"), ("y", "z")]
@@ -28,7 +29,7 @@ result = intrinsic_influence(
     outer_draws=400,
     inner_draws=20,
     fit_bootstrap=20,
-    seed=3,
+    execution=Execution(seed=3),
 )
 assert result.method["shapley"] == {"kind": "exact"}
 for source in result.sources:
@@ -48,7 +49,7 @@ total = sum(s.contribution for s in result.sources)
 assert np.isclose(result.allocation_residual, result.total_variance - total)
 
 # Without a bootstrap the mechanism-fit component is unquantified, which is not zero.
-plain = intrinsic_influence(data, EDGES, "z", independent_noise=True, seed=1)
+plain = intrinsic_influence(data, EDGES, "z", independent_noise=True, execution=Execution(seed=1))
 for source in plain.sources:
     fit = source.component("mechanism_fit")
     assert fit.status == "unquantified" and fit.stderr is None

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+from antecedent import Execution
 from antecedent.outcomes import require_success
 
 
@@ -60,7 +61,7 @@ def test_validate_pcmci_block_bootstrap_smoke():
         fdr=False,
         replicates=5,
         block_size=10,
-        seed=1,
+        execution=Execution(seed=1),
     )
     assert report["replicates"] == 5
     assert report["block_size"] == 10
@@ -69,13 +70,7 @@ def test_validate_pcmci_block_bootstrap_smoke():
 
 def test_validate_synthetic_null_calibration_smoke():
     report = antecedent.validation.validate_synthetic_null_calibration(
-        max_lag=1,
-        alpha=0.2,
-        fdr=False,
-        n_sim=5,
-        n_obs=60,
-        n_vars=2,
-        seed=3,
+        max_lag=1, alpha=0.2, fdr=False, n_sim=5, n_obs=60, n_vars=2, execution=Execution(seed=3)
     )
     assert report["n_sim"] == 5
     assert np.isfinite(report["empirical_fpr"])

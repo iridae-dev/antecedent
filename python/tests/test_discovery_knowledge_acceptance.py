@@ -366,22 +366,24 @@ SERIES_KNOWLEDGE = {
 
 def run_series(constraint: str, seed: int):
     data = constrained_discovery_series(seed)
-    plain = pcmci_config(None).run(data, seed=1)
+    plain = pcmci_config(None).run(data, execution=ant.Execution(seed=1))
     config = PCMCI(max_lag=1, alpha=0.01, fdr=False, knowledge=SERIES_KNOWLEDGE[constraint])
-    result = config.run(data, seed=1)
+    result = config.run(data, execution=ant.Execution(seed=1))
     assert GUIDE_PHRASE[("pcmci", constraint)] in guide_cell("pcmci", constraint)
     cross = {(a, 1, b, 0) for a, b in SERIES_LINKS}
     assert cross <= links(plain), "the unconstrained search finds every true lagged link"
     digest = result.background_knowledge
     assert digest is not None and f"background_knowledge={digest}" in result.algorithm_config
     other = {
-        PCMCI(max_lag=1, alpha=0.01, fdr=False, knowledge=k).run(data, seed=1).background_knowledge
+        PCMCI(max_lag=1, alpha=0.01, fdr=False, knowledge=k)
+        .run(data, execution=ant.Execution(seed=1))
+        .background_knowledge
         for name, k in SERIES_KNOWLEDGE.items()
         if name != constraint
     }
     assert digest not in other and len(other) == 3
     assert plain.background_knowledge is None
-    accepted = config.accept(data, seed=1)
+    accepted = config.accept(data, execution=ant.Execution(seed=1))
     assert accepted.background_knowledge == digest
     assert AcceptedGraph.from_json(accepted.to_json()).background_knowledge == digest
     return plain, result, cross
@@ -498,12 +500,12 @@ def test_background_knowledge_is_carried_through_dispatch_refresh_serialization_
         # Dispatch: the configuration's wire form states the knowledge by name, and the result
         # of the run carries its digest.
         assert config._wire()["background_knowledge"] == knowledge.as_dict()
-        result = config.run(table, seed=1)
+        result = config.run(table, execution=ant.Execution(seed=1))
         digest = result.background_knowledge
         assert digest is not None and f"background_knowledge={digest}" in result.algorithm_config
         digests[algorithm] = digest
         # Acceptance, serialization and the explicit structure replace keep it.
-        accepted = config.accept(table, seed=1)
+        accepted = config.accept(table, execution=ant.Execution(seed=1))
         assert accepted.background_knowledge == digest
         restored = AcceptedGraph.from_json(accepted.to_json())
         assert restored.background_knowledge == digest
@@ -512,11 +514,14 @@ def test_background_knowledge_is_carried_through_dispatch_refresh_serialization_
         assert accepted.replace(accepted.graph).background_knowledge == digest
         # Refresh and replay: rediscovery under the same configuration on refreshed data keeps
         # the digest, and a changed constraint set changes it.
-        rediscovered = accepted.rediscover(refreshed_table, config, seed=1)
+        rediscovered = accepted.rediscover(refreshed_table, config, execution=ant.Execution(seed=1))
         assert rediscovered.background_knowledge == digest
-        replaced = accepted.rediscover(refreshed_table, other, seed=1)
+        replaced = accepted.rediscover(refreshed_table, other, execution=ant.Execution(seed=1))
         assert replaced.background_knowledge not in (None, digest)
-        assert other.run(table, seed=1).background_knowledge == replaced.background_knowledge
+        assert (
+            other.run(table, execution=ant.Execution(seed=1)).background_knowledge
+            == replaced.background_knowledge
+        )
         if temporal:
             continue
 

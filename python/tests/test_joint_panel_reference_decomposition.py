@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 import pytest
-from antecedent import joint_panel
+from antecedent import Execution, ResourceLimits, joint_panel
 from antecedent.errors import CausalResourceError, CausalValueError
 from antecedent.outcomes import require_success
 
@@ -130,7 +130,10 @@ def test_population_only_change_and_missing_transport_premises():
     with pytest.raises(CausalValueError, match="disjoint"):
         result.decompose_population_reference(**invalid)
     with pytest.raises(CausalResourceError):
-        result.decompose_population_reference(**data["population_reference"], max_bytes=1)
+        result.decompose_population_reference(
+            **data["population_reference"],
+            execution=Execution(limits=ResourceLimits(memory_bytes=1)),
+        )
 
 
 def test_population_attempt_returns_the_supported_worlds_or_the_explicit_coarser_components():
@@ -170,7 +173,9 @@ def test_population_attempt_returns_the_supported_worlds_or_the_explicit_coarser
     assert sum(point["shapley"]) == pytest.approx(point["total"], abs=1e-12)
     # Resource failures and invalid inputs are never converted into the fallback.
     with pytest.raises(CausalResourceError):
-        result.attempt_population_reference(**latent, fallback=fallback, max_bytes=1)
+        result.attempt_population_reference(
+            **latent, fallback=fallback, execution=Execution(limits=ResourceLimits(memory_bytes=1))
+        )
     overlapping = copy.deepcopy(declaration)
     overlapping["saturation"].append(0)
     with pytest.raises(CausalValueError, match="disjoint"):
@@ -224,7 +229,9 @@ def test_reference_components_are_an_efficient_attribution_and_refuse_overlappin
     with pytest.raises(CausalValueError):
         result.decompose_reference_components(**overlapping)
     with pytest.raises(CausalResourceError):
-        result.decompose_reference_components(**components, max_bytes=1)
+        result.decompose_reference_components(
+            **components, execution=Execution(limits=ResourceLimits(memory_bytes=1))
+        )
 
 
 def test_historical_replays_refuse_malformed_and_foreign_artifacts():

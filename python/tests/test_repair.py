@@ -360,6 +360,27 @@ def test_budget_truncated_search_is_exhausted_never_impossible():
     assert "impossible" not in (result.detail or "")
 
 
+def test_memory_and_cancellation_belong_to_the_execution_not_the_declaration():
+    from antecedent import Execution, ResourceLimits
+    from antecedent.state import CancellationToken
+
+    with pytest.raises(TypeError, match="unexpected keyword|got an unexpected"):
+        repair.RepairLimits(memory_bytes=1)  # type: ignore[call-arg]
+    with pytest.raises(TypeError, match="unexpected keyword|got an unexpected"):
+        repair.repair(backdoor(), candidates(), cancel=CancellationToken())  # type: ignore[call-arg]
+    tight = repair.repair(
+        backdoor(), candidates(), execution=Execution(limits=ResourceLimits(memory_bytes=1))
+    )
+    assert tight.outcome == "exhausted"
+    assert tight.receipt.stop == "search.memory"
+    assert tight.receipt.memory_limit_bytes == 1
+    token = CancellationToken()
+    token.cancel()
+    with pytest.raises(repair.RepairBudgetRefusal) as stopped:
+        repair.repair(backdoor(), candidates(), execution=Execution(cancel=token))
+    assert stopped.value.reason_code == "transport_budget_cancel"
+
+
 def test_subsets_beyond_the_declared_depth_are_not_examined_and_say_so():
     result = repair.repair(
         backdoor(),
