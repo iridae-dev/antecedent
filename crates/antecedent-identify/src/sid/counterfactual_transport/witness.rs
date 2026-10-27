@@ -692,11 +692,7 @@ pub(super) fn search_witness(
             continue;
         }
         for baseline in Baseline::ALL {
-            charge(
-                0,
-                (states as u64).saturating_mul(layout.rows as u64).saturating_mul(16),
-                None,
-            )?;
+            charge(0, (states as u64).saturating_mul(layout.rows as u64).saturating_mul(16), None)?;
             let Some((counts, m, _)) = collect_counts(&model, &layout, clique, baseline) else {
                 continue;
             };

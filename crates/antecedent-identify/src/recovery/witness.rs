@@ -5,12 +5,12 @@
 use super::{
     Admg, Arc, At, BTreeMap, BTreeSet, CausalExprArena, ClassicalTransportQuery,
     ClassicalTransportResult, DomainRef, EvidenceCatalog, ExecutionContext, ExprId, ExprNode,
-    MGraph, NodeRef, ObservationRecoveryQuery, RecoveredEffect, RecoveredEffectQuery,
-    RecoveredEffectRecord, RecoveryDecision, RecoveryDerivation, RecoveryDerivationRecord,
-    RecoveryDetail, RecoveryError, RecoveryLimits, RecoveryWitness, Role, SearchLimits,
-    SelectionDiagram, SharedSearch, VariableId, WITNESS_SCALE, WitnessCheck, WitnessMechanism,
-    budget_error, check_formula, RECOVERY_DEFAULT_LIMITS, decide_observation_recovery, identify_classical_transport_metered,
-    ids, observed_distribution, refuse, resolve_roles, var,
+    MGraph, NodeRef, ObservationRecoveryQuery, RECOVERY_DEFAULT_LIMITS, RecoveredEffect,
+    RecoveredEffectQuery, RecoveredEffectRecord, RecoveryDecision, RecoveryDerivation,
+    RecoveryDerivationRecord, RecoveryDetail, RecoveryError, RecoveryLimits, RecoveryWitness, Role,
+    SearchLimits, SelectionDiagram, SharedSearch, VariableId, WITNESS_SCALE, WitnessCheck,
+    WitnessMechanism, budget_error, check_formula, decide_observation_recovery,
+    identify_classical_transport_metered, ids, observed_distribution, refuse, resolve_roles, var,
 };
 
 /// The closed-form self-censoring witness for `x -> r`: every mechanism a fair

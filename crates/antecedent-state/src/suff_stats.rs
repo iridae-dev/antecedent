@@ -612,7 +612,8 @@ pub(crate) fn chan_merge_scatter(
     let mut m2 = vec![0.0; dim * dim];
     for i in 0..dim {
         for j in i..dim {
-            let value = add_f64(base_m2[i * dim + j], add_m2[i * dim + j]) + delta[i] * delta[j] * scale;
+            let value =
+                add_f64(base_m2[i * dim + j], add_m2[i * dim + j]) + delta[i] * delta[j] * scale;
             m2[i * dim + j] = value;
             m2[j * dim + i] = value;
         }

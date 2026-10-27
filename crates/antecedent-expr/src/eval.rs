@@ -232,13 +232,16 @@ impl CompiledEvaluator {
                 };
                 // Interventions bind targets; bind them into the shared
                 // scratch assignment for the lookup, restored on exit.
-                let density =
-                    with_scoped_bindings(env, spec.intervention.iter().map(|a| a.variable), |env| {
+                let density = with_scoped_bindings(
+                    env,
+                    spec.intervention.iter().map(|a| a.variable),
+                    |env| {
                         for a in spec.intervention {
                             env.set(a.variable, a.value.clone());
                         }
                         provider.probability(&spec, env, ctx)
-                    })?;
+                    },
+                )?;
                 Ok(Quantity::leaf(density, track))
             }
             EvalOp::Kernel { body } => self.eval_slot(arena, provider, ctx, env, *body, track),
@@ -388,13 +391,9 @@ impl CompiledEvaluator {
         }
 
         let rows = provider.support(&enum_vars, ctx)?;
-        fold_rows(
-            env,
-            &enum_vars,
-            rows.iter().map(|row| (&**row, 1.0)),
-            track,
-            |env, _| weighted_outcome(env),
-        )
+        fold_rows(env, &enum_vars, rows.iter().map(|row| (&**row, 1.0)), track, |env, _| {
+            weighted_outcome(env)
+        })
     }
 }
 
@@ -1597,7 +1596,8 @@ mod tests {
         let numerator = arena.intern(ExprNode::Product(numerator_list));
         let denominator = arena.intern(ExprNode::Product(denominator_list));
         let ratio = arena.intern(ExprNode::Ratio { numerator, denominator });
-        let p = scalar_provider([(DomainRef::Observational, 1e-200), (DomainRef::Interventional, 0.5)]);
+        let p =
+            scalar_provider([(DomainRef::Observational, 1e-200), (DomainRef::Interventional, 0.5)]);
         let value =
             arena.compile(ratio).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
         assert!((value - 0.5).abs() < 1e-15, "value={value}");

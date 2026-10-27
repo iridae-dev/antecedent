@@ -7,17 +7,24 @@
 
 use crate::prepared::AncestorMemo;
 
-use crate::selection_separation::{MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset_preferring, independently_separated};
+use crate::selection_separation::{
+    MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset_preferring,
+    independently_separated,
+};
 
 use crate::{IdentificationBudget, IdentificationError, PreparedAdmg};
 
-use antecedent_core::{ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId};
+use antecedent_core::{
+    ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId,
+};
 
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 
 use antecedent_graph::algo::components_by;
 
-use antecedent_graph::{Admg, BitSet, DSeparationWorkspace, DenseNodeId, GraphWorkspace, SelectionDiagram};
+use antecedent_graph::{
+    Admg, BitSet, DSeparationWorkspace, DenseNodeId, GraphWorkspace, SelectionDiagram,
+};
 
 use std::cell::RefCell;
 
@@ -76,23 +83,22 @@ pub use conditional_witness::{
 pub use counterfactual_transport::{
     COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS,
     COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES, COUNTERFACTUAL_TRANSPORT_MAX_ATOMS,
-    COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE,
-    COUNTERFACTUAL_TRANSPORT_MAX_LIMITS, COUNTERFACTUAL_TRANSPORT_MAX_NODES,
-    COUNTERFACTUAL_TRANSPORT_MAX_REGIMES, COUNTERFACTUAL_TRANSPORT_MAX_SOURCES,
-    COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS,
+    COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE, COUNTERFACTUAL_TRANSPORT_MAX_LIMITS,
+    COUNTERFACTUAL_TRANSPORT_MAX_NODES, COUNTERFACTUAL_TRANSPORT_MAX_REGIMES,
+    COUNTERFACTUAL_TRANSPORT_MAX_SOURCES, COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS,
     COUNTERFACTUAL_TRANSPORT_MAX_WORLDS, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
     CounterfactualCitedRegime, CounterfactualFactor, CounterfactualFunctional, CounterfactualItem,
     CounterfactualItemSource, CounterfactualLevel, CounterfactualLevelIndex,
     CounterfactualMissingRegime, CounterfactualMovedAtom, CounterfactualSum, CounterfactualSymbol,
-    CounterfactualSymbolId, CounterfactualVariableIndex,
-    CounterfactualTransportDecision, CounterfactualTransportDerivation,
+    CounterfactualSymbolId, CounterfactualTransportDecision, CounterfactualTransportDerivation,
     CounterfactualTransportInspection, CounterfactualTransportMissing,
     CounterfactualTransportObstruction, CounterfactualTransportProblem,
     CounterfactualTransportQuery, CounterfactualTransportSearchRecord,
     CounterfactualTransportSource, CounterfactualTransportUnsupported,
     CounterfactualTransportWitness, CounterfactualTransportWitnessCheck,
-    counterfactual_transport_refusal, identify_counterfactual_transport,
-    replay_counterfactual_transport, verify_counterfactual_transport_witness,
+    CounterfactualVariableIndex, counterfactual_transport_refusal,
+    identify_counterfactual_transport, replay_counterfactual_transport,
+    verify_counterfactual_transport_witness,
 };
 
 use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
@@ -936,8 +942,8 @@ use catalog::bind_distribution;
 mod engine;
 mod verify;
 use engine::{difference, intersection, standardization_binds};
-pub use verify::{verify_classical_transport, verify_s_hedge};
 use verify::verify_charged;
+pub use verify::{verify_classical_transport, verify_s_hedge};
 
 pub(crate) use catalog::identify_catalog_transport_metered;
 
@@ -1059,12 +1065,9 @@ impl<'c> SharedSearch<'c> {
         if lease_bytes == 0 {
             return Ok(None);
         }
-        self.budget
-            .lease_storage(lease_bytes)
-            .map(Some)
-            .inspect_err(|stop| {
-                self.stop.get_or_insert(*stop);
-            })
+        self.budget.lease_storage(lease_bytes).map(Some).inspect_err(|stop| {
+            self.stop.get_or_insert(*stop);
+        })
     }
     /// Operations the budget still allows.
     pub(crate) fn operations_remaining(&self) -> u64 {

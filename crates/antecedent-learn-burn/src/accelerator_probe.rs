@@ -30,11 +30,11 @@ use burn::optim::{AdamConfig, GradientsParams, Optimizer};
 use burn::tensor::activation::relu;
 use burn::tensor::{Tensor, TensorData, backend::Backend};
 
+use super::device::{self, LearnerBackend, LossSync};
 use super::{
     LearnBurnError, colmajor_to_rowmajor_f32, column_standardization, standardized,
     target_standardization,
 };
-use super::device::{self, LearnerBackend, LossSync};
 
 type TrainBackend = Autodiff<NdArray<f32>>;
 

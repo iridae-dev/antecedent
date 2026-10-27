@@ -244,8 +244,8 @@ impl CandidateSearch<'_> {
             if let Some(ctx) = self.context {
                 // Each retained candidate leases its own mask storage, so the number of
                 // members is bounded by the context's admission pool, not a constant.
-                let bytes = (include.len() as u64)
-                    .saturating_add(std::mem::size_of::<Vec<bool>>() as u64);
+                let bytes =
+                    (include.len() as u64).saturating_add(std::mem::size_of::<Vec<bool>>() as u64);
                 match ctx.acquire_admission(0, bytes) {
                     Ok(lease) => self.member_leases.push(lease),
                     Err(antecedent_core::execution::AdmissionError::Cancelled) => {

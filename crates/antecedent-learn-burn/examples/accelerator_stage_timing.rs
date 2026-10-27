@@ -297,7 +297,8 @@ fn write_comparisons(
     // The auto policy compares per-fit work, so the promotion point is reported per fit.
     match promoted {
         Some((flops, name)) => {
-            let folds = all.iter().find(|m| m.workload.name == name).map_or(1, |m| m.workload.folds);
+            let folds =
+                all.iter().find(|m| m.workload.name == name).map_or(1, |m| m.workload.folds);
             writeln!(report, "smallest_gain_threshold_flops = {flops}")?;
             writeln!(report, "smallest_gain_threshold_per_fit_flops = {}", flops / folds as u64)?;
             writeln!(report, "smallest_gain_threshold_workload = \"{name}\"")

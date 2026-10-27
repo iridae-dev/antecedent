@@ -225,7 +225,9 @@ impl AutoIdentifier {
                 ));
                 acc.derivation.push(
                     "auto.stochastic",
-                    format!("bernoulli mixture scale={scale}: not applied to any functional, refusing"),
+                    format!(
+                        "bernoulli mixture scale={scale}: not applied to any functional, refusing"
+                    ),
                 );
                 let mut out = IdentificationResult::not_identified(
                     query.clone(),
@@ -301,10 +303,7 @@ impl AutoIdentifier {
         if let Some(cfg) = &self.rd {
             Self::try_method(
                 "rd.sharp",
-                || {
-                    SharpRdIdentifier::new(*cfg)
-                        .identify_on(prepared.dag.dag(), query_norm.clone())
-                },
+                || SharpRdIdentifier::new(*cfg).identify_on(prepared.dag.dag(), query_norm.clone()),
                 contrast,
                 acc,
                 assumptions,

@@ -2,8 +2,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::super::super::{Admg, Arc, CatalogTransportResult, ClassicalTransportQuery, ExecutionContext, IdentificationError, MzTransportDecision, SearchBudget, SearchLimits, SearchReceipt, SearchStop, SelectionDiagram, SharedSearch, VariableId, identify_catalog_transport_metered};
-use super::super::{EvidenceCatalog, FRONTIER_SHOWN, INVALID_QUERY, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_RULE_SET, MetaSource, MetaTransportQuery, MixedInput, MixedQuantity, MixedSearchSummary, MixedSourceDerivation, MixedSourceQuery, MixedStageRecord, RegimeId, ValidatedMixedSourceQuery, ZTransportDecision, ZTransportLimitsReceipt, ZTransportQuery, bounds_exceeded, decide_z_transport_reporting, dense_variables, identify_meta_catalog_metered, invalid_derivation, invalid_query, validate_mixed_source_query};
+use super::super::super::{
+    Admg, Arc, CatalogTransportResult, ClassicalTransportQuery, ExecutionContext,
+    IdentificationError, MzTransportDecision, SearchBudget, SearchLimits, SearchReceipt,
+    SearchStop, SelectionDiagram, SharedSearch, VariableId, identify_catalog_transport_metered,
+};
+use super::super::{
+    EvidenceCatalog, FRONTIER_SHOWN, INVALID_QUERY, MIXED_SOURCE_DEFAULT_LIMITS,
+    MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_RULE_SET, MetaSource,
+    MetaTransportQuery, MixedInput, MixedQuantity, MixedSearchSummary, MixedSourceDerivation,
+    MixedSourceQuery, MixedStageRecord, RegimeId, ValidatedMixedSourceQuery, ZTransportDecision,
+    ZTransportLimitsReceipt, ZTransportQuery, bounds_exceeded, decide_z_transport_reporting,
+    dense_variables, identify_meta_catalog_metered, invalid_derivation, invalid_query,
+    validate_mixed_source_query,
+};
 
 use super::*;
 
@@ -406,10 +418,7 @@ fn run_deepening<'g>(
     let mut engine = Engine::with_bounds(graph, variables.to_vec(), inputs.clone(), query, bounds)?;
     loop {
         let end = engine.run(search);
-        if !matches!(end, RunEnd::Fixpoint)
-            || !engine.pruned
-            || (bounds.0 >= n && bounds.1 >= n)
-        {
+        if !matches!(end, RunEnd::Fixpoint) || !engine.pruned || (bounds.0 >= n && bounds.1 >= n) {
             return Ok((engine, end));
         }
         bounds = ((bounds.0 + 1).min(n).max(bounds.0), (bounds.1 + 1).min(n).max(bounds.1));

@@ -28,8 +28,8 @@ mod path_specific_scm;
 use std::collections::BTreeSet;
 
 use antecedent_core::{CausalQuery, IdentificationStatus, PathSpecificEffectQuery};
-use antecedent_graph::{latent_project, Admg, Dag, Pag};
-use antecedent_identify::{carries_identified_mass, GeneralizedAdjustmentIdentifier};
+use antecedent_graph::{Admg, Dag, Pag, latent_project};
+use antecedent_identify::{GeneralizedAdjustmentIdentifier, carries_identified_mass};
 use path_specific_scm::latent_scm::{LatentScm, Rng};
 use path_specific_scm::{admg, d, evaluate, has_rule, identify, path_specific_truth, v};
 

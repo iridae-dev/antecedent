@@ -87,10 +87,8 @@ pub fn plan_temporal_admg_window(
     query
         .validate()
         .map_err(|_| IdentificationError::unsupported("invalid temporal effect query"))?;
-    let offsets = query
-        .policy
-        .active_offsets()
-        .map_err(|error| IdentificationError::construction(error))?;
+    let offsets =
+        query.policy.active_offsets().map_err(|error| IdentificationError::construction(error))?;
     let history = template
         .nodes()
         .iter()
@@ -103,8 +101,9 @@ pub fn plan_temporal_admg_window(
     let earliest = offsets.iter().copied().min().unwrap_or(0).min(0);
     let origin = history + earliest.unsigned_abs();
     let periods_of = |offset: i32| -> Result<u32, IdentificationError> {
-        u32::try_from(i64::from(origin) + i64::from(offset))
-            .map_err(|_| IdentificationError::out_of_range("a treated step precedes the unrolled window"))
+        u32::try_from(i64::from(origin) + i64::from(offset)).map_err(|_| {
+            IdentificationError::out_of_range("a treated step precedes the unrolled window")
+        })
     };
     // The same reading as every temporal route: the outcome sits at offset `horizon_steps - 1`
     // from the policy origin, the offset the treated steps are counted from.
@@ -342,8 +341,7 @@ fn identify_conditional_contrast(
         distribution: right_root,
     });
     let contrast = arena.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
-    let functional =
-        arena.simplify(contrast).map_err(IdentificationError::expression)?;
+    let functional = arena.simplify(contrast).map_err(IdentificationError::expression)?;
     arena.set_derivation(
         functional,
         DerivationMeta::rule(

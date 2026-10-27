@@ -835,7 +835,10 @@ mod pag_msep_tests {
             g.insert_circle_circle(n(a), n(b)).unwrap();
         }
         let z = [n(1), n(2)];
-        assert!(matches!(g.separation_from_marks(n(0), n(3), &z, 64, 6).unwrap(), MarkDecision::Open(_)));
+        assert!(matches!(
+            g.separation_from_marks(n(0), n(3), &z, 64, 6).unwrap(),
+            MarkDecision::Open(_)
+        ));
         assert_eq!(g.m_separation_status(n(0), n(3), &z, 64, 6).unwrap(), PagSeparation::Separated);
         assert_eq!(
             g.m_separation_status(n(0), n(3), &[n(1)], 64, 6).unwrap(),

@@ -2,8 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::super::super::{Admg, Arc, CausalExprArena, ExprId, IdentificationError, SelectionDiagram, VariableId};
-use super::super::{BTreeSet, EvidenceCatalog, LeafBinding, MixedRule, MixedSourceDerivation, MixedSourceQuery, MixedStep, build_expression, invalid_derivation, invalid_query, validate_mixed_source_query};
+use super::super::super::{
+    Admg, Arc, CausalExprArena, ExprId, IdentificationError, SelectionDiagram, VariableId,
+};
+use super::super::{
+    BTreeSet, EvidenceCatalog, LeafBinding, MixedRule, MixedSourceDerivation, MixedSourceQuery,
+    MixedStep, build_expression, invalid_derivation, invalid_query, validate_mixed_source_query,
+};
 
 use super::*;
 

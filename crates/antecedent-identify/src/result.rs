@@ -483,7 +483,11 @@ mod tests {
         assert_eq!(
             by(&["backdoor.adjustment", "frontdoor"]),
             Err(EstimandSelectionError::Ambiguous {
-                methods: vec!["general.id".into(), "backdoor.adjustment".into(), "frontdoor".into()],
+                methods: vec![
+                    "general.id".into(),
+                    "backdoor.adjustment".into(),
+                    "frontdoor".into()
+                ],
                 matched: 2,
             })
         );
@@ -491,7 +495,10 @@ mod tests {
             by(&["nothing"]),
             Err(EstimandSelectionError::Ambiguous { matched: 0, .. })
         ));
-        assert_eq!(listing(&[]).select_estimand_index(|_| true), Err(EstimandSelectionError::NoEstimand));
+        assert_eq!(
+            listing(&[]).select_estimand_index(|_| true),
+            Err(EstimandSelectionError::NoEstimand)
+        );
         // A single listed estimand is the choice whatever the predicate says.
         assert_eq!(listing(&["iv"]).select_estimand_index(|_| false), Ok(0));
     }

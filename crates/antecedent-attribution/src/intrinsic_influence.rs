@@ -52,10 +52,10 @@ use antecedent_model::{
 use antecedent_stats::{Welford, student_t_ppf};
 
 use crate::change_common::stream_tag;
+use crate::coalition::Coalition;
 use crate::error::AttributionError;
 use crate::population::subset_table;
 use crate::result::CacheStats;
-use crate::coalition::Coalition;
 use crate::shapley::{CoalitionPayoff, ShapleyEstimate, estimate_shapley};
 
 /// Largest source count for which [`IntrinsicAllocation::Auto`] enumerates: the largest `n`

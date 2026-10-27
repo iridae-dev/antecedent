@@ -439,9 +439,8 @@ fn budget_cancellation_and_bounds_are_typed_stops_not_verdicts() {
         (0..9).map(|i| (VariableId::from_raw(i), vec![0.0, 1.0, 2.0, 3.0, 4.0])).collect();
     assert!(CounterfactualTransportProblem::new(&nine, &[], &[]).is_ok());
     // Past the width of the variable sets the problem cannot be represented.
-    let wide: Vec<(VariableId, Vec<f64>)> = (0..32)
-        .map(|i| (VariableId::from_raw(i), vec![0.0, 1.0]))
-        .collect();
+    let wide: Vec<(VariableId, Vec<f64>)> =
+        (0..32).map(|i| (VariableId::from_raw(i), vec![0.0, 1.0])).collect();
     let error = CounterfactualTransportProblem::new(&wide, &[], &[]).unwrap_err();
     assert_eq!(
         counterfactual_transport_refusal(&error),

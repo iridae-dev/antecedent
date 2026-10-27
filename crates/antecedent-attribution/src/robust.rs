@@ -387,7 +387,8 @@ impl CoalitionPayoff for RobustLinearPayoff<'_> {
         let mut means = vec![0.0; self.players.len()];
         for i in 0..self.players.len() {
             let fit = &self.fitted[i];
-            let beta = if coalition.contains(i) { &fit.comparison_beta } else { &fit.baseline_beta };
+            let beta =
+                if coalition.contains(i) { &fit.comparison_beta } else { &fit.baseline_beta };
             let mut yhat = beta[0];
             for (pi, src) in fit.sources.iter().enumerate() {
                 let x = match *src {

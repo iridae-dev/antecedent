@@ -53,6 +53,7 @@ pub use anomaly::{
     score_anomalies, score_anomalies_blocks_with, score_anomalies_with,
 };
 pub use builder::ChangeAttribution;
+pub use coalition::Coalition;
 pub use distribution_change::{
     DifferenceMeasure, DistributionChangeOptions, PopulationRefit, distribution_change,
     distribution_change_with_frequency_weights, distribution_change_with_row_weights,
@@ -84,7 +85,6 @@ pub use robust::{
     RobustChangeOptions, distribution_change_robust, distribution_change_robust_with_refit,
 };
 pub use root_cause::root_cause_rank;
-pub use coalition::Coalition;
 pub use shapley::{CoalitionPayoff, ShapleyEstimate, estimate_shapley};
 pub use structure_change::{StructureChangeOptions, structure_change, structure_change_with_refit};
 pub use unit_change::unit_change;

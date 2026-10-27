@@ -343,8 +343,10 @@ impl<'j> TermEvaluator<'j> {
                 Ok(value.max(0.0))
             }
             CounterfactualFunctional::Sum { symbols: summed, factors } => {
-                let cards: Vec<usize> =
-                    summed.iter().map(|s| self.joint.levels[variable_slot(s.variable)].len()).collect();
+                let cards: Vec<usize> = summed
+                    .iter()
+                    .map(|s| self.joint.levels[variable_slot(s.variable)].len())
+                    .collect();
                 let mut index = vec![0usize; summed.len()];
                 let mut total = antecedent_kernels::numeric::CompensatedSum::default();
                 loop {
@@ -398,9 +400,7 @@ impl<'j> TermEvaluator<'j> {
     ) -> Result<LevelIx, CounterfactualIdRefusal> {
         let levels = &self.joint.levels[variable_slot(variable)];
         match value {
-            CfValue::Level(bits) => {
-                levels.iter().position(|l| l.to_bits() == bits).map(LevelIx)
-            }
+            CfValue::Level(bits) => levels.iter().position(|l| l.to_bits() == bits).map(LevelIx),
             CfValue::Symbol(id) => symbols.get(&SymbolId(id)).copied(),
         }
         .ok_or_else(|| {

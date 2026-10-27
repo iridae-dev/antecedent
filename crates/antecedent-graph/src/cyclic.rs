@@ -250,11 +250,7 @@ impl CyclicMixedGraph {
     /// Empty graph.
     #[must_use]
     pub const fn empty() -> Self {
-        Self {
-            directed: CyclicDigraph::empty(),
-            bidirected: Vec::new(),
-            revision: Revision::EMPTY,
-        }
+        Self { directed: CyclicDigraph::empty(), bidirected: Vec::new(), revision: Revision::EMPTY }
     }
 
     /// One static node per variable `0..n`, in that dense order.

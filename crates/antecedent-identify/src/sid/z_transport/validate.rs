@@ -3,9 +3,11 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::IdentificationError;
-use antecedent_core::{DistributionAvailability, EvidenceCatalog, RegimeKind, VariableDomain, VariableId};
-use antecedent_graph::{NodeRef, SelectionDiagram};
 use super::search::same_variable_set;
+use antecedent_core::{
+    DistributionAvailability, EvidenceCatalog, RegimeKind, VariableDomain, VariableId,
+};
+use antecedent_graph::{NodeRef, SelectionDiagram};
 
 use super::*;
 

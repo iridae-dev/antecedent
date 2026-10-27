@@ -164,9 +164,8 @@ impl HedgeCertificate {
     ///
     /// No problem is carried, the carried graph is invalid, or a hedge condition fails.
     pub fn verify_carried(&self) -> Result<(), IdentificationError> {
-        let problem = self.problem.as_ref().ok_or_else(|| {
-            IdentificationError::MissingHedgeGraph
-        })?;
+        let problem =
+            self.problem.as_ref().ok_or_else(|| IdentificationError::MissingHedgeGraph)?;
         self.verify(&problem.prepare()?, &problem.treatments, &problem.outcomes)
     }
 

@@ -80,8 +80,8 @@ pub(crate) use ridge::RidgeLearner;
 #[cfg(test)]
 pub(crate) use spec::FOREST_PROBABILITY_MIN_LEAF;
 pub use spec::{
-    DevicePolicy, ElasticNetSpec, ForestSpec, GbtSpec, LearnerSpec, LinearSpec, LogisticSpec, NeuralSpec,
-    RidgeSpec, resolve, resolve_for,
+    DevicePolicy, ElasticNetSpec, ForestSpec, GbtSpec, LearnerSpec, LinearSpec, LogisticSpec,
+    NeuralSpec, RidgeSpec, resolve, resolve_for,
 };
 pub use transform::{FittedTransformer, Identity, TransformerFactory};
 
@@ -530,8 +530,11 @@ mod tests {
         }
         // Device selection is part of the spec identity; the default is not.
         assert_eq!(LearnerSpec::NeuralNet(with(DevicePolicy::Cpu)).identity(), {
-            LearnerSpec::NeuralNet(NeuralSpec { device: DevicePolicy::Cpu, ..with(DevicePolicy::Cpu) })
-                .identity()
+            LearnerSpec::NeuralNet(NeuralSpec {
+                device: DevicePolicy::Cpu,
+                ..with(DevicePolicy::Cpu)
+            })
+            .identity()
         });
         assert_ne!(
             LearnerSpec::NeuralNet(with(DevicePolicy::Cpu)).identity(),

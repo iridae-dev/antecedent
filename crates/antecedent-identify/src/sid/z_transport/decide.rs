@@ -3,10 +3,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::IdentificationError;
-use antecedent_core::{EvidenceCatalog, InterventionAssignment as CatalogInterventionAssignment, VariableId};
+use super::search::{pre_search_budget_kind, same_variable_set};
+use antecedent_core::{
+    EvidenceCatalog, InterventionAssignment as CatalogInterventionAssignment, VariableId,
+};
 use antecedent_graph::{BitSet, NodeRef, SelectionDiagram};
 use std::sync::Arc;
-use super::search::{pre_search_budget_kind, same_variable_set};
 
 use super::*;
 

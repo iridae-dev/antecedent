@@ -187,7 +187,9 @@ fn fit_conjugate_gaussian_resolved(
     // coefficient correlation (a hydrated full-covariance prior).
     let prec = prior.coefficient_precision(&coef_prior)?;
 
-    let (map, draws, include_sigma2, condition, exact_cov, rss_resolved) = if let Some(sigma2) = known_sigma2 {
+    let (map, draws, include_sigma2, condition, exact_cov, rss_resolved) = if let Some(sigma2) =
+        known_sigma2
+    {
         let (mean, cov, condition) =
             posterior_known_sigma2(ncols, &coef_prior, &prec, xtx, xty, sigma2)?;
         let draws =

@@ -11,9 +11,8 @@ use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram, TemporalDag};
 use antecedent_identify::sid::{
     scenarios::ScenarioCoordinate,
     temporal_sequence::{
-        TEMPORAL_HORIZON_DETAIL, TEMPORAL_INVALID_SEQUENCE,
-        TEMPORAL_INVALID_SPEC, TemplateRoles, TemporalRefusal, TemporalSequenceSpec, TemporalSlots,
-        unroll_two_slice,
+        TEMPORAL_HORIZON_DETAIL, TEMPORAL_INVALID_SEQUENCE, TEMPORAL_INVALID_SPEC, TemplateRoles,
+        TemporalRefusal, TemporalSequenceSpec, TemporalSlots, unroll_two_slice,
     },
 };
 

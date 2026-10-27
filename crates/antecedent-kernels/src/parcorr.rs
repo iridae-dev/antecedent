@@ -570,8 +570,7 @@ impl SharedDesign {
             return v;
         }
         let y = columns[target];
-        let mean =
-            *self.target_mean[target].get_or_insert_with(|| column_mean(&y[..self.n]));
+        let mean = *self.target_mean[target].get_or_insert_with(|| column_mean(&y[..self.n]));
         let acc = centered_dot(self.scaled(off), y, mean);
         self.target_dot.insert((idx, target), acc);
         acc
@@ -1193,7 +1192,8 @@ mod tests {
         let z2: Vec<f64> = (0..n).map(|i| z1[i] + 1e-5 * w[i]).collect();
         let e1: Vec<f64> = (0..n).map(|i| (2.9 * i as f64 + 0.5).sin()).collect();
         let e2: Vec<f64> = (0..n).map(|i| (4.1 * i as f64 + 1.1).cos()).collect();
-        let x: Vec<f64> = (0..n).map(|i| 2.0 * z1[i] - 3.0 * z2[i] + 0.5 * e1[i] + 0.2 * e2[i]).collect();
+        let x: Vec<f64> =
+            (0..n).map(|i| 2.0 * z1[i] - 3.0 * z2[i] + 0.5 * e1[i] + 0.2 * e2[i]).collect();
         let y: Vec<f64> = (0..n).map(|i| z1[i] + z2[i] + 0.4 * e1[i] - 0.3 * e2[i]).collect();
         let mut ws = ParCorrWorkspace::default();
         let near = partial_correlation_scalar(&x, &y, &[&z1, &z2], &mut ws).unwrap();
@@ -1207,8 +1207,15 @@ mod tests {
         ];
         let z_flat = [2usize, 3];
         let mut out = [None; 2];
-        partial_correlation_batch(&columns, &queries, &z_flat, &mut out, &mut ws, ParCorrMode::Native)
-            .unwrap();
+        partial_correlation_batch(
+            &columns,
+            &queries,
+            &z_flat,
+            &mut out,
+            &mut ws,
+            ParCorrMode::Native,
+        )
+        .unwrap();
         assert_eq!(out[0].map(f64::to_bits), Some(near.to_bits()));
         assert_eq!(out[1].map(f64::to_bits), Some(near.to_bits()));
     }

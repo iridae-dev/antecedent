@@ -3,12 +3,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::{IdentificationBudget, IdentificationError};
+use super::search::z_search;
+use super::search::{matches_registered_surrogate_graph, surrogate_formula};
 use antecedent_core::VariableId;
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::{BitSet, DenseNodeId, NodeRef, SelectionDiagram};
 use std::sync::Arc;
-use super::search::z_search;
-use super::search::{matches_registered_surrogate_graph, surrogate_formula};
 
 use super::*;
 
@@ -21,7 +21,8 @@ pub(super) fn verify_z_obstruction_metered(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<(), IdentificationError> {
     validate_z_transport_query(diagram, query)?;
-    if obstruction.query != *query || obstruction.graph_signature != super::super::graph_signature(diagram)
+    if obstruction.query != *query
+        || obstruction.graph_signature != super::super::graph_signature(diagram)
     {
         return Err(IdentificationError::invalid_derivation(
             "z_transport.obstruction_input_mismatch",
@@ -68,7 +69,12 @@ fn verify_trz_line11_terminal(
         source: Arc::clone(&query.source),
         target: Arc::clone(&query.target),
     };
-    let engine = super::super::Engine::new(diagram, &classical_query, super::super::SidLimits::default(), ctx)?;
+    let engine = super::super::Engine::new(
+        diagram,
+        &classical_query,
+        super::super::SidLimits::default(),
+        ctx,
+    )?;
     let set = |raws: &[u32]| -> Result<BitSet, IdentificationError> {
         let variables = raws.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
         if variables.iter().copied().collect::<std::collections::BTreeSet<_>>().len()
@@ -161,19 +167,26 @@ pub fn identify_z_transport_reporting(
     ctx: &antecedent_core::ExecutionContext,
     receipt: &mut Option<ZTransportLimitsReceipt>,
 ) -> Result<ZTransportResult, IdentificationError> {
-    Ok(match derive_z_transport(diagram, query, super::super::SidMeter::Limits(limits), ctx, receipt)? {
-        ZDerivation::Formula(derivation) => ZTransportResult::Identified(Box::new(derivation)),
-        ZDerivation::Unassigned { inspection, .. } => ZTransportResult::NotCertified {
-            reason: "z_transport.experiment_assignment_required",
-            inspection,
-        },
-        ZDerivation::Line11 { inspection, .. } | ZDerivation::NotCertified { inspection, .. } => {
-            ZTransportResult::NotCertified {
+    Ok(
+        match derive_z_transport(
+            diagram,
+            query,
+            super::super::SidMeter::Limits(limits),
+            ctx,
+            receipt,
+        )? {
+            ZDerivation::Formula(derivation) => ZTransportResult::Identified(Box::new(derivation)),
+            ZDerivation::Unassigned { inspection, .. } => ZTransportResult::NotCertified {
+                reason: "z_transport.experiment_assignment_required",
+                inspection,
+            },
+            ZDerivation::Line11 { inspection, .. }
+            | ZDerivation::NotCertified { inspection, .. } => ZTransportResult::NotCertified {
                 reason: "z_transport.no_checked_recursive_formula",
                 inspection,
-            }
-        }
-    })
+            },
+        },
+    )
 }
 
 #[allow(

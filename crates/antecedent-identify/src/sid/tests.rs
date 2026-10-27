@@ -67,8 +67,7 @@ fn a_shared_budget_is_charged_by_every_pretreatment_subset_test() {
     let own = identify_catalog_transport(&diagram, &query, &catalog, limits, &ctx).unwrap();
     assert!(matches!(own, CatalogTransportResult::MissingEvidence { .. }), "{own:?}");
 
-    let budget =
-        SearchBudget::new(SearchLimits { operations: 2_000, depth: 256 }, &ctx).unwrap();
+    let budget = SearchBudget::new(SearchLimits { operations: 2_000, depth: 256 }, &ctx).unwrap();
     let mut search = SharedSearch::new(budget);
     let error =
         identify_catalog_transport_metered(&diagram, &query, &catalog, search.meter(), &ctx)
@@ -91,11 +90,7 @@ fn target_frontdoor_uses_recursive_multinode_district() {
     };
     assert!(proof.rules().contains(&"sid.line8"));
     assert!(
-        proof
-            .arena()
-            .leaf_bindings(proof.root())
-            .iter()
-            .all(|b| b.population.as_ref() == "target")
+        proof.arena().leaf_bindings(proof.root()).iter().all(|b| b.population.as_ref() == "target")
     );
     verify_classical_transport(&diagram, &query(), &proof, SidLimits::default(), &ctx).unwrap();
     let mut corrupted = proof.clone();
@@ -120,20 +115,12 @@ fn source_rescues_unconfounded_selection_mechanism_and_rejects_changed_premise()
     assert!(proof.rules().contains(&"sid.line10"));
     let changed = SelectionDiagram::try_new(graph, [v(2)]).unwrap();
     assert!(
-        verify_classical_transport(&changed, &query(), &proof, SidLimits::default(), &ctx)
+        verify_classical_transport(&changed, &query(), &proof, SidLimits::default(), &ctx).is_err()
+    );
+    assert!(
+        identify_classical_transport(&diagram, &query(), SidLimits { steps: 1, depth: 1 }, &ctx)
             .is_err()
     );
-    assert!(
-        identify_classical_transport(
-            &diagram,
-            &query(),
-            SidLimits { steps: 1, depth: 1 },
-            &ctx
-        )
-        .is_err()
-    );
     ctx.cancellation.cancel();
-    assert!(
-        identify_classical_transport(&diagram, &query(), SidLimits::default(), &ctx).is_err()
-    );
+    assert!(identify_classical_transport(&diagram, &query(), SidLimits::default(), &ctx).is_err());
 }

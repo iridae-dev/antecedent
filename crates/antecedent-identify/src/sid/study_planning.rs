@@ -1068,7 +1068,10 @@ fn certified_minimal(
 ) -> bool {
     top.is_some_and(|top| {
         unexamined_floor.is_none_or(|floor| floor >= top.cost_units)
-            && records.iter().filter(|r| r.cost_units < top.cost_units).all(|r| r.outcome.conclusive())
+            && records
+                .iter()
+                .filter(|r| r.cost_units < top.cost_units)
+                .all(|r| r.outcome.conclusive())
     })
 }
 

@@ -1394,7 +1394,12 @@ impl Search<'_> {
     /// canonical text a stored derivation is replayed against, so it counts the charged
     /// operations of the search only, and an enumeration that fits the remaining operations
     /// leaves it as it was.
-    fn work(&mut self, depth: usize, bytes: u64, enumerated: Option<u64>) -> Result<(), SearchStop> {
+    fn work(
+        &mut self,
+        depth: usize,
+        bytes: u64,
+        enumerated: Option<u64>,
+    ) -> Result<(), SearchStop> {
         match enumerated {
             None => self.charge(depth, bytes),
             Some(leaves) => self.budget.admits(depth, bytes, leaves).inspect_err(|stop| {
@@ -1512,12 +1517,16 @@ fn derive_conjunction(
                         outputs: term
                             .outputs
                             .iter()
-                            .map(|&(v, level)| (CounterfactualVariableIndex::new(v), lift_level(level)))
+                            .map(|&(v, level)| {
+                                (CounterfactualVariableIndex::new(v), lift_level(level))
+                            })
                             .collect(),
                         parents: term
                             .parents
                             .iter()
-                            .map(|&(v, level)| (CounterfactualVariableIndex::new(v), lift_level(level)))
+                            .map(|&(v, level)| {
+                                (CounterfactualVariableIndex::new(v), lift_level(level))
+                            })
                             .collect(),
                     });
                 } else {
@@ -2031,9 +2040,10 @@ fn run_stages(
 ) -> Result<CounterfactualTransportDecision, Abort> {
     // Stage 1: supplied regimes only.
     let supplied = supplied_seeds(validated);
-    let closure = close(problem, &validated.selected, &supplied, &[], &mut |depth, bytes, leaves| {
-        search.work(depth, bytes, leaves)
-    })?;
+    let closure =
+        close(problem, &validated.selected, &supplied, &[], &mut |depth, bytes, leaves| {
+            search.work(depth, bytes, leaves)
+        })?;
     search.stage("supplied_regimes");
     let ctx = DeriveCtx::new(problem, &closure);
     if let Some(plan) = derive_query(&ctx, search, validated)? {
@@ -2044,10 +2054,13 @@ fn run_stages(
     let candidates = candidate_seeds(validated, problem, &mut |depth, bytes, leaves| {
         search.work(depth, bytes, leaves)
     })?;
-    let declared_closure =
-        close(problem, &validated.selected, &supplied, &candidates, &mut |depth, bytes, leaves| {
-            search.work(depth, bytes, leaves)
-        })?;
+    let declared_closure = close(
+        problem,
+        &validated.selected,
+        &supplied,
+        &candidates,
+        &mut |depth, bytes, leaves| search.work(depth, bytes, leaves),
+    )?;
     search.stage("declared_family");
     let declared_ctx = DeriveCtx::new(problem, &declared_closure);
     if let Some(plan) = derive_query(&declared_ctx, search, validated)? {
@@ -2262,7 +2275,8 @@ pub fn verify_counterfactual_transport_witness(
     };
     let bad = || IdentificationError::invalid_derivation(INVALID_WITNESS);
     let supplied = supplied_seeds(&validated);
-    let candidates = candidate_seeds(&validated, problem, &mut |_, _, _| Ok(())).map_err(|_| bad())?;
+    let candidates =
+        candidate_seeds(&validated, problem, &mut |_, _, _| Ok(())).map_err(|_| bad())?;
     let mut family: Vec<(usize, u32)> = supplied
         .iter()
         .chain(&candidates)

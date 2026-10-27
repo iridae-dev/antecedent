@@ -35,9 +35,9 @@ use crate::error::StateError;
 use crate::ols_refresh::RefreshOutcome;
 use crate::retention::{RetainedOperation, RetentionMode};
 use crate::suff_stats::{
-    add_f64, all_close, centered_residual_sse, chan_merge_scatter, merge_within_tolerance,
-    optional_close, optional_scalar_close, solve_gram, update_weighted_scatter,
-    checked_row_ids, repeated_row, source_digest_start,
+    add_f64, all_close, centered_residual_sse, chan_merge_scatter, checked_row_ids,
+    merge_within_tolerance, optional_close, optional_scalar_close, repeated_row, solve_gram,
+    source_digest_start, update_weighted_scatter,
 };
 
 const SOURCE_TAG: &str = "antecedent.state.weighted_refresh.source";

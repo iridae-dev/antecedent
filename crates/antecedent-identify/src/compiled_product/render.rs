@@ -143,7 +143,10 @@ pub(super) fn write_contrast_op(writer: &mut CanonicalWriter, op: ContrastOp) {
     }
 }
 
-pub(super) fn write_derivation(writer: &mut CanonicalWriter, derivation: &crate::result::DerivationTrace) {
+pub(super) fn write_derivation(
+    writer: &mut CanonicalWriter,
+    derivation: &crate::result::DerivationTrace,
+) {
     writer.word(count(derivation.steps.len()));
     for step in &derivation.steps {
         writer.text(&step.rule);
@@ -222,7 +225,10 @@ pub(super) fn write_factors(writer: &mut CanonicalWriter, factors: &[RequiredFac
     }
 }
 
-pub(super) fn write_obligations(writer: &mut CanonicalWriter, obligations: &[UnresolvedObligation]) {
+pub(super) fn write_obligations(
+    writer: &mut CanonicalWriter,
+    obligations: &[UnresolvedObligation],
+) {
     writer.word(count(obligations.len()));
     for obligation in obligations {
         writer.text(&obligation.code);
@@ -241,7 +247,10 @@ pub(super) fn write_worlds(writer: &mut CanonicalWriter, worlds: &[Identificatio
     }
 }
 
-pub(super) fn write_assembled(writer: &mut CanonicalWriter, assembled: Option<&IdentificationObligation>) {
+pub(super) fn write_assembled(
+    writer: &mut CanonicalWriter,
+    assembled: Option<&IdentificationObligation>,
+) {
     match assembled {
         None => {
             writer.word(0);

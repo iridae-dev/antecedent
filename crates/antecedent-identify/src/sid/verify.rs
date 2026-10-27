@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::meta::validate_meta_sources;
 use crate::{IdentificationError, PreparedAdmg};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_expr::{CausalExprArena, ExprId, ExprNode};
@@ -9,7 +10,6 @@ use antecedent_graph::algo::components_by;
 use antecedent_graph::{BitSet, GraphWorkspace, SelectionDiagram};
 use std::collections::HashMap;
 use std::sync::Arc;
-use super::meta::validate_meta_sources;
 
 use super::*;
 

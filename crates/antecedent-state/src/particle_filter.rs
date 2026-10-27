@@ -351,8 +351,9 @@ mod tests {
     #[test]
     fn particle_budget_is_caller_controlled() {
         let params = LgssmParams::default();
-        assert!(ParticleFilterState::init_within_budget(10, params, 0, 1, PARTICLE_BYTES * 9)
-            .is_err());
+        assert!(
+            ParticleFilterState::init_within_budget(10, params, 0, 1, PARTICLE_BYTES * 9).is_err()
+        );
         let state =
             ParticleFilterState::init_within_budget(10, params, 0, 1, PARTICLE_BYTES * 10).unwrap();
         assert_eq!(state.n_particles(), 10);

@@ -6,9 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::Fnv1a64;
-use antecedent_kernels::{
-    chol_solve_into, cholesky_spd_into, equilibrate_into, symmetric_scales,
-};
+use antecedent_kernels::{chol_solve_into, cholesky_spd_into, equilibrate_into, symmetric_scales};
 
 use crate::error::StateError;
 
@@ -280,10 +278,8 @@ impl LocalScoreCache {
         let cost = 32 + 8 * parents.len() as u64;
         if self.bytes.saturating_add(cost) > self.byte_budget {
             self.entries.clear();
-            self.bytes = self
-                .gram
-                .as_ref()
-                .map_or(0, |g| (g.len() * core::mem::size_of::<f64>()) as u64);
+            self.bytes =
+                self.gram.as_ref().map_or(0, |g| (g.len() * core::mem::size_of::<f64>()) as u64);
         }
         self.entries.entry(node).or_default().insert(Arc::clone(parents), s);
         self.bytes = self.bytes.saturating_add(cost);
@@ -464,9 +460,7 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
     let y = centered_column(data.col(node as usize));
     let outcome_scale = compensated_sum(y.iter().copied().map(f64::abs)) / n as f64;
     if !(outcome_scale.is_finite() && outcome_scale > 0.0) {
-        return Err(StateError::DegenerateScore(
-            "Laplace BIC fit (zero residual scale)".into(),
-        ));
+        return Err(StateError::DegenerateScore("Laplace BIC fit (zero residual scale)".into()));
     }
     let floor = LAD_RESIDUAL_FLOOR * outcome_scale;
     // Design columns: the intercept, then each centered parent.
@@ -486,8 +480,7 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
         for i in 0..k {
             rhs[i] = compensated_sum((0..n).map(|r| weights[r] * design[i][r] * y[r]));
             for j in i..k {
-                let v =
-                    compensated_sum((0..n).map(|r| weights[r] * design[i][r] * design[j][r]));
+                let v = compensated_sum((0..n).map(|r| weights[r] * design[i][r] * design[j][r]));
                 gram[i * k + j] = v;
                 gram[j * k + i] = v;
             }
@@ -508,7 +501,8 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
             return Err(StateError::Numerical("non-finite Laplace BIC residuals".into()));
         }
         // IRLS minimizes the L1 objective monotonically up to rounding; stop on stagnation.
-        if previous.is_finite() && (previous - objective).abs() <= LAD_OBJECTIVE_TOLERANCE * previous
+        if previous.is_finite()
+            && (previous - objective).abs() <= LAD_OBJECTIVE_TOLERANCE * previous
         {
             break;
         }
@@ -516,9 +510,7 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
     }
     let scale = objective / n as f64;
     if !(scale.is_finite() && scale > 1e-12 * outcome_scale) {
-        return Err(StateError::DegenerateScore(
-            "Laplace BIC fit (zero residual scale)".into(),
-        ));
+        return Err(StateError::DegenerateScore("Laplace BIC fit (zero residual scale)".into()));
     }
     let nf = n as f64;
     Ok(-nf * ((2.0 * scale).ln() + 1.0) - 0.5 * (k as f64 + 1.0) * nf.ln())

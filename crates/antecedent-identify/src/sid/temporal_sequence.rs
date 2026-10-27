@@ -39,7 +39,10 @@ use super::{
 };
 
 /// Most actions in the discrete alphabet under the earlier fixed ceiling.
-#[deprecated(since = "2.4.1", note = "no longer enforced: the alphabet is bounded by the search budget")]
+#[deprecated(
+    since = "2.4.1",
+    note = "no longer enforced: the alphabet is bounded by the search budget"
+)]
 pub const TEMPORAL_MAX_ACTIONS: usize = 8;
 /// Most coordinates the unrolled diagram had under the earlier fixed ceiling.
 #[deprecated(
@@ -204,8 +207,11 @@ impl TemporalSlots {
     #[must_use]
     pub fn slice(&self, variable: VariableId) -> Option<u8> {
         let position = self.position(variable)?;
-        let slice =
-            if position == 1 + 2 * self.actions.len() { self.actions.len() } else { position.div_ceil(2) };
+        let slice = if position == 1 + 2 * self.actions.len() {
+            self.actions.len()
+        } else {
+            position.div_ceil(2)
+        };
         u8::try_from(slice).ok()
     }
 

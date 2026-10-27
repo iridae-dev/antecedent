@@ -2,8 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -47,13 +47,7 @@ struct IdMemo {
     len: usize,
 }
 
-fn subproblem_hash(
-    y: &BitSet,
-    x: &BitSet,
-    v: &BitSet,
-    assign: &Assign,
-    dist: &DistCtx,
-) -> u64 {
+fn subproblem_hash(y: &BitSet, x: &BitSet, v: &BitSet, assign: &Assign, dist: &DistCtx) -> u64 {
     let mut hasher = DefaultHasher::new();
     y.hash(&mut hasher);
     x.hash(&mut hasher);
@@ -78,7 +72,11 @@ impl IdMemo {
         dist: &DistCtx,
     ) -> Option<&Arc<IdOutcome>> {
         self.buckets.get(&hash)?.iter().find_map(|(key, outcome)| {
-            (key.y == *y && key.x == *x && key.v == *v && key.assign == *assign && key.dist == *dist)
+            (key.y == *y
+                && key.x == *x
+                && key.v == *v
+                && key.assign == *assign
+                && key.dist == *dist)
                 .then_some(outcome)
         })
     }
@@ -1129,8 +1127,10 @@ fn id_body(
         for s_i in &comps {
             let mut x_i = v.clone();
             x_i.difference_with(s_i);
-            let outcome =
-                id_recurse_shared(run, IdQuery { y: s_i, x: &x_i, v, dist, assign: assign.clone() })?;
+            let outcome = id_recurse_shared(
+                run,
+                IdQuery { y: s_i, x: &x_i, v, dist, assign: assign.clone() },
+            )?;
             let expr = match &*outcome {
                 IdOutcome::Expr(e) => Some(*e),
                 IdOutcome::Fail(_) => None,
@@ -1159,10 +1159,8 @@ fn id_body(
         run.derivation.push("general.id.line5", "hedge: G is a single C-component");
         // A certificate names real variables or is not issued: a node without
         // a variable identity fails the call rather than being given a made-up id.
-        let f_vars = v
-            .iter()
-            .map(|node| run.prepared.dense_to_var(node))
-            .collect::<Result<Vec<_>, _>>()?;
+        let f_vars =
+            v.iter().map(|node| run.prepared.dense_to_var(node)).collect::<Result<Vec<_>, _>>()?;
         let hedge = HedgeCertificate::from_resolved_sets(v, s, &f_vars);
         return Ok(Arc::new(IdOutcome::Fail(hedge)));
     }

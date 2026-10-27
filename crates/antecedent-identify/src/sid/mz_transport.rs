@@ -56,9 +56,9 @@ use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::SelectionDiagram;
 
 use super::z_transport::{
-    TrzCall, TrzDomain, TrzTerminalFailure, ZTransportDecision,
-    ZTransportDerivation, ZTransportLimitsReceipt, ZTransportMissingEvidence, ZTransportQuery,
-    ZTransportSourceSpec, bind_recursive_expression, bind_z_transport_catalog, cited_regimes,
+    TrzCall, TrzDomain, TrzTerminalFailure, ZTransportDecision, ZTransportDerivation,
+    ZTransportLimitsReceipt, ZTransportMissingEvidence, ZTransportQuery, ZTransportSourceSpec,
+    bind_recursive_expression, bind_z_transport_catalog, cited_regimes,
     decide_z_transport_reporting, search_trz_call, validate_z_transport_query,
 };
 use super::{IdentificationError, SearchCharge, SharedSearch, SidLimits, SidMeter};

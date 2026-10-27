@@ -148,7 +148,11 @@ impl Cpdag {
     ) -> Result<(), GraphError> {
         self.validate_node(from)?;
         self.validate_node(to)?;
-        marked_storage::orient_undirected_finish(Arc::make_mut(&mut self.adj).as_mut_slice(), from, to)
+        marked_storage::orient_undirected_finish(
+            Arc::make_mut(&mut self.adj).as_mut_slice(),
+            from,
+            to,
+        )
     }
 
     /// Mark an existing edge as an `x-x` conflict.

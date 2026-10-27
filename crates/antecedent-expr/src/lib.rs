@@ -22,9 +22,9 @@ pub(crate) fn test_variable(raw: u32) -> antecedent_core::VariableId {
 pub mod estimand;
 pub mod eval;
 pub mod exact;
-mod extended;
 mod exact_engine;
 pub mod exact_plan;
+mod extended;
 pub use exact::{
     DiscreteAxis, ExactDiscreteLaw, ExactLawError, ExactTransportData, LawOrigin, LawTolerance,
 };

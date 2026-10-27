@@ -61,10 +61,7 @@ fn ldexp(mut x: f64, exponent: i64) -> f64 {
 
 /// Split a finite nonzero `x` into `(m, e)` with `|m|` in `[0.5, 1)` and `x = m * 2^e`.
 /// Zero and non-finite values are returned unchanged with exponent zero.
-#[allow(
-    clippy::cast_possible_wrap,
-    reason = "the biased exponent field is eleven bits"
-)]
+#[allow(clippy::cast_possible_wrap, reason = "the biased exponent field is eleven bits")]
 fn split(x: f64) -> (f64, i64) {
     if x == 0.0 || !x.is_finite() {
         return (x, 0);
@@ -147,7 +144,8 @@ impl Extended {
         if !self.mantissa.is_finite() || !other.mantissa.is_finite() {
             return Self { mantissa: self.mantissa + other.mantissa, exponent: 0 };
         }
-        let (big, small) = if self.exponent >= other.exponent { (self, other) } else { (other, self) };
+        let (big, small) =
+            if self.exponent >= other.exponent { (self, other) } else { (other, self) };
         let lift = ldexp(small.mantissa, small.exponent - big.exponent);
         Self::normalized(big.mantissa + lift, big.exponent)
     }

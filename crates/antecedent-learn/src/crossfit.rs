@@ -359,8 +359,10 @@ fn gather_logical_target(y: TargetView<'_>, rows: &[u64]) -> Result<Vec<f64>, Le
 /// [`try_diagnose`] to learn why.
 #[must_use]
 pub fn diagnose(task: PredictionTask, y: &[f64], pred: &[f64]) -> NuisanceDiagnostics {
-    try_diagnose(task, y, pred)
-        .unwrap_or_else(|_| NuisanceDiagnostics { task: Some(task), ..NuisanceDiagnostics::default() })
+    try_diagnose(task, y, pred).unwrap_or_else(|_| NuisanceDiagnostics {
+        task: Some(task),
+        ..NuisanceDiagnostics::default()
+    })
 }
 
 /// Compute OOF diagnostics from physical-aligned predictions, refusing inputs that cannot be
@@ -376,7 +378,9 @@ pub fn try_diagnose(
     pred: &[f64],
 ) -> Result<NuisanceDiagnostics, LearnError> {
     if y.len() != pred.len() {
-        return Err(LearnError::Shape { message: "diagnostics target and prediction lengths differ" });
+        return Err(LearnError::Shape {
+            message: "diagnostics target and prediction lengths differ",
+        });
     }
     if y.iter().chain(pred).any(|v| !v.is_finite()) {
         return Err(LearnError::NonFinite { message: "diagnostics target or prediction" });

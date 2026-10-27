@@ -9,15 +9,14 @@ use super::{
     ExperimentDesign, ExperimentalRecoveryDecision, FiniteSampleConditioning,
     InadmissibleCoefficientDraw, JointRecoveryDraw, LATENT_VARIABLE_EXPANSION_ATTEMPT,
     NotThisRecipe, PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability,
-    RecoveredCoefficientPoint, RecoveredCoefficientUncertainty, RecoveryAttempt,
-    RecoveryDrawInput, RecoveryWarning, RefusalReason, RegimeAssumption, UncertaintyFault,
-    UniquenessRestriction, UnresolvedReason, WeakStability, as_recovered_mechanism,
-    decide_experimental_recovery, joint_draw_from_blocks, recover_assembled_coefficients,
-    recover_declared_coefficients, regime_is_identified,
+    RecoveredCoefficientPoint, RecoveredCoefficientUncertainty, RecoveryAttempt, RecoveryDrawInput,
+    RecoveryWarning, RefusalReason, RegimeAssumption, UncertaintyFault, UniquenessRestriction,
+    UnresolvedReason, WeakStability, as_recovered_mechanism, decide_experimental_recovery,
+    joint_draw_from_blocks, recover_assembled_coefficients, recover_declared_coefficients,
+    regime_is_identified,
 };
 use crate::experiment_moments::{
-    ConstraintRow, RegimeSample, TargetConstraintBlock, UnitColumn,
-    assemble_experiment_constraints,
+    ConstraintRow, RegimeSample, TargetConstraintBlock, UnitColumn, assemble_experiment_constraints,
 };
 use crate::experiment_regime::{
     DependencePremise, ExperimentRegime, PopulationId, RegimeContract, RegimeContractDecision,
@@ -97,10 +96,8 @@ fn accepts_all_but_one_randomized_clamps_under_the_minimum_recipe() {
 
 #[test]
 fn refuses_observational_equilibrium_ols_and_names_the_clamp_experiment_recipe() {
-    let design = ExperimentDesign {
-        nodes: three(),
-        attempt: RecoveryAttempt::ObservationalEquilibriumOls,
-    };
+    let design =
+        ExperimentDesign { nodes: three(), attempt: RecoveryAttempt::ObservationalEquilibriumOls };
     let decision = decide_experimental_recovery(&design);
     assert!(!decision.goal_closed());
     assert!(decision.coefficient_recovery().is_none());
@@ -203,8 +200,7 @@ fn records_latent_variable_expansion_as_not_this_recipe() {
 
 #[test]
 fn records_prior_regularization_as_not_this_recipe() {
-    let design =
-        ExperimentDesign { nodes: three(), attempt: RecoveryAttempt::PriorRegularization };
+    let design = ExperimentDesign { nodes: three(), attempt: RecoveryAttempt::PriorRegularization };
     let decision = decide_experimental_recovery(&design);
     assert!(!decision.goal_closed());
     assert!(decision.coefficient_recovery().is_none());
@@ -253,8 +249,7 @@ fn keeps_weak_stability_distinct_from_physical_dynamical_stability() {
     assert_eq!(refusal.reason, RefusalReason::WeakStabilityNotDeclared);
 
     let mut design = clamp_design(nodes.clone(), all_but_one(&nodes), Vec::new());
-    clamp_set_mut(&mut design).physical_dynamical_stability =
-        PhysicalDynamicalStability::Declared;
+    clamp_set_mut(&mut design).physical_dynamical_stability = PhysicalDynamicalStability::Declared;
     let decision = decide_experimental_recovery(&design);
     assert!(matches!(decision, ExperimentalRecoveryDecision::Recovered(_)));
     assert!(decision.goal_closed());
@@ -347,10 +342,7 @@ fn sample_full_column_rank_does_not_recover_a_weak_design() {
         panic!("a sample full rank must not close an under-covered row");
     };
     assert!(!recovery.goal_closed());
-    assert_eq!(
-        recovery.finite_sample_conditioning,
-        FiniteSampleConditioning::SampleFullColumnRank
-    );
+    assert_eq!(recovery.finite_sample_conditioning, FiniteSampleConditioning::SampleFullColumnRank);
     assert_eq!(recovery.uniqueness_restriction, UniquenessRestriction::NotOffered);
     assert_eq!(recovery.recoverable, vec![coefficient(0, 1), coefficient(0, 2)]);
     assert_eq!(recovery.unresolved.len(), 2);
@@ -379,10 +371,7 @@ fn sample_full_column_rank_does_not_license_a_rank_on_an_uncovered_row() {
         recovery.warnings,
         vec![RecoveryWarning::RankDeclarationOnUncoveredTarget { target: node(1) }]
     );
-    assert_eq!(
-        recovery.warnings[0].design_fault(),
-        DesignFault::RankDeclarationOnUncoveredTarget
-    );
+    assert_eq!(recovery.warnings[0].design_fault(), DesignFault::RankDeclarationOnUncoveredTarget);
     assert!(recovery.recoverable.iter().all(|coefficient| coefficient.into == node(0)));
     assert!(recovery.unresolved.iter().any(|direction| {
         matches!(
@@ -395,8 +384,7 @@ fn sample_full_column_rank_does_not_license_a_rank_on_an_uncovered_row() {
 #[test]
 fn finite_condition_number_does_not_fill_a_rank_deficient_row() {
     let nodes = three();
-    let mut design =
-        clamp_design(nodes.clone(), all_but_one(&nodes), vec![deficient_into_zero()]);
+    let mut design = clamp_design(nodes.clone(), all_but_one(&nodes), vec![deficient_into_zero()]);
     clamp_set_mut(&mut design).finite_sample_conditioning =
         FiniteSampleConditioning::FiniteConditionNumber;
     let decision = decide_experimental_recovery(&design);
@@ -447,10 +435,8 @@ fn finite_condition_number_does_not_open_a_covered_full_rank_design() {
 #[test]
 fn physical_stability_does_not_resolve_rank_deficiency() {
     let nodes = three();
-    let mut design =
-        clamp_design(nodes.clone(), all_but_one(&nodes), vec![deficient_into_zero()]);
-    clamp_set_mut(&mut design).physical_dynamical_stability =
-        PhysicalDynamicalStability::Declared;
+    let mut design = clamp_design(nodes.clone(), all_but_one(&nodes), vec![deficient_into_zero()]);
+    clamp_set_mut(&mut design).physical_dynamical_stability = PhysicalDynamicalStability::Declared;
     let decision = decide_experimental_recovery(&design);
     let ExperimentalRecoveryDecision::Partial(recovery) = decision else {
         panic!("physical stability must not select the nullspace");
@@ -481,10 +467,7 @@ fn uniqueness_restriction_is_not_a_stability_certificate() {
         let ExperimentalRecoveryDecision::Refused(refusal) = decision else {
             panic!("a uniqueness restriction must not stand in for invertibility");
         };
-        assert_eq!(
-            refusal.reason,
-            RefusalReason::UniquenessRestrictionIsNotAStabilityCertificate
-        );
+        assert_eq!(refusal.reason, RefusalReason::UniquenessRestrictionIsNotAStabilityCertificate);
         assert_eq!(refusal.next_attempt, CLAMP_EXPERIMENT_RECIPE_ATTEMPT);
     }
 
@@ -624,11 +607,8 @@ fn declared_rank_and_invertibility_do_not_return_coefficients() {
         coefficients: vec![1.0, 0.0, 0.0, 1.0],
         rhs: vec![0.25, 0.5],
     };
-    let from_matrix = recover_assembled_coefficients(
-        &block,
-        Some(&full),
-        WeakStability::InvertibilityDeclared,
-    );
+    let from_matrix =
+        recover_assembled_coefficients(&block, Some(&full), WeakStability::InvertibilityDeclared);
     assert_eq!(from_matrix.coefficients(), Some(&[0.25, 0.5][..]));
 }
 
@@ -749,9 +729,7 @@ fn rank_deficient_block_keeps_unresolved_directions_without_a_mechanism_matrix()
     assert!(as_recovered_mechanism(&draw).is_none());
 }
 
-fn draw_from(
-    block: AssembledCoefficientRecovery,
-) -> Result<JointRecoveryDraw, UncertaintyFault> {
+fn draw_from(block: AssembledCoefficientRecovery) -> Result<JointRecoveryDraw, UncertaintyFault> {
     let (noise_mean, noise_covariance) = paired_noise(1.0);
     joint_draw_from_blocks(
         &two_nodes(),
@@ -815,11 +793,8 @@ fn simulate_chain(seed: u64, rows: usize, clamped: &[u32]) -> [Vec<f64>; 3] {
     for row in 0..rows {
         let x0 = rng.normal();
         let x1 = if clamped.contains(&1) { rng.normal() } else { 0.5 * x0 + rng.normal() };
-        let x2 = if clamped.contains(&2) {
-            rng.normal()
-        } else {
-            0.25 * x0 + 0.4 * x1 + rng.normal()
-        };
+        let x2 =
+            if clamped.contains(&2) { rng.normal() } else { 0.25 * x0 + 0.4 * x1 + rng.normal() };
         columns[0][row] = x0;
         columns[1][row] = x1;
         columns[2][row] = x2;
@@ -868,9 +843,7 @@ fn single_clamp(clamped: u32) -> DeclaredClampExperiment {
 fn effect(coefficients: &[(DirectCoefficient, f64)], into: u32, from: u32) -> f64 {
     coefficients
         .iter()
-        .find(|(coefficient, _)| {
-            coefficient.into == node(into) && coefficient.from == node(from)
-        })
+        .find(|(coefficient, _)| coefficient.into == node(into) && coefficient.from == node(from))
         .map(|(_, value)| *value)
         .expect("recovered coefficient")
 }
@@ -951,8 +924,7 @@ fn held_out_joint_regime_uses_coefficient_uncertainty() {
         let solved = recover_assembled_coefficients(block, None, WeakStability::NotDeclared);
         let values = solved.coefficients().expect("a covered block is a mechanism row");
         for (source, value) in block.sources.iter().zip(values) {
-            coefficients
-                .push((DirectCoefficient { into: block.target, from: *source }, *value));
+            coefficients.push((DirectCoefficient { into: block.target, from: *source }, *value));
         }
     }
     let close_to = |into: u32, from: u32, truth: f64| {
@@ -1009,10 +981,8 @@ fn held_out_joint_regime_uses_coefficient_uncertainty() {
     assert_eq!(admissible.len(), 3);
     assert!(uncertainty.draws().iter().any(|draw| as_recovered_mechanism(draw).is_none()));
     let center = admissible.iter().map(|mechanism| predict(mechanism)).sum::<f64>() / 3.0;
-    let spread = admissible
-        .iter()
-        .map(|mechanism| (predict(mechanism) - center).abs())
-        .fold(0.0, f64::max);
+    let spread =
+        admissible.iter().map(|mechanism| (predict(mechanism) - center).abs()).fold(0.0, f64::max);
     assert!(spread > 0.05, "held-out check must use the coefficient draws");
     assert!(
         (held_mean - center).abs() < 0.25,

@@ -30,10 +30,9 @@ pub mod cyclic_calculus;
 pub mod cyclic_id;
 pub mod efficient;
 pub(crate) mod enum_masks;
-pub(crate) mod exact_search;
-pub(crate) mod identification_run;
 pub mod envelope;
 pub mod error;
+pub(crate) mod exact_search;
 /// Actual finite identification checker counters.
 pub mod execution_counts;
 pub mod experiment_moments;
@@ -44,12 +43,13 @@ pub mod generalized;
 pub mod hedge;
 pub mod id;
 pub mod idc;
+pub(crate) mod identification_run;
 pub mod identifier;
 pub(crate) mod intervention_support;
 pub mod iv;
+pub(crate) mod node_map;
 mod pag_path_specific;
 pub mod path_specific;
-pub(crate) mod node_map;
 mod pow2;
 pub mod prepared;
 pub mod rd;
@@ -65,19 +65,18 @@ pub mod temporal_backdoor;
 pub mod temporal_generalized;
 pub mod temporal_iv;
 mod temporal_mag;
-mod temporal_pag_path_specific;
 pub mod temporal_mediation;
+mod temporal_pag_path_specific;
 mod temporal_window;
 pub mod tiered;
 pub mod transport;
 pub use recovery::{
     ObservationRecoveryQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS,
-    RECOVERY_MAX_OBSERVED_CELLS,
-    RECOVERY_RULE_VERSION, RecoveredEffect, RecoveredEffectQuery, RecoveredEffectRecord,
-    RecoveryDecision, RecoveryDerivation, RecoveryDerivationRecord, RecoveryDetail, RecoveryError,
-    RecoveryFactorRecord, RecoveryLimits, RecoveryMarginRecord, RecoveryReceiptRecord,
-    RecoveryWitness, StoredRecovery, WitnessCheck, WitnessMechanism, decide_observation_recovery,
-    verify_observation_recovery, verify_recovery_witness,
+    RECOVERY_MAX_OBSERVED_CELLS, RECOVERY_RULE_VERSION, RecoveredEffect, RecoveredEffectQuery,
+    RecoveredEffectRecord, RecoveryDecision, RecoveryDerivation, RecoveryDerivationRecord,
+    RecoveryDetail, RecoveryError, RecoveryFactorRecord, RecoveryLimits, RecoveryMarginRecord,
+    RecoveryReceiptRecord, RecoveryWitness, StoredRecovery, WitnessCheck, WitnessMechanism,
+    decide_observation_recovery, verify_observation_recovery, verify_recovery_witness,
 };
 pub use recovery_chain::{
     CHAIN_RECOVERY_LIMITS, CHAIN_RECOVERY_RULE_VERSION, ChainPartial, ChainRecoveryDecision,
@@ -143,23 +142,22 @@ pub use sid::{
 pub use sid::{
     COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS,
     COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES, COUNTERFACTUAL_TRANSPORT_MAX_ATOMS,
-    COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE,
-    COUNTERFACTUAL_TRANSPORT_MAX_LIMITS, COUNTERFACTUAL_TRANSPORT_MAX_NODES,
-    COUNTERFACTUAL_TRANSPORT_MAX_REGIMES, COUNTERFACTUAL_TRANSPORT_MAX_SOURCES,
-    COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS,
+    COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE, COUNTERFACTUAL_TRANSPORT_MAX_LIMITS,
+    COUNTERFACTUAL_TRANSPORT_MAX_NODES, COUNTERFACTUAL_TRANSPORT_MAX_REGIMES,
+    COUNTERFACTUAL_TRANSPORT_MAX_SOURCES, COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS,
     COUNTERFACTUAL_TRANSPORT_MAX_WORLDS, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
     CounterfactualCitedRegime, CounterfactualFactor, CounterfactualFunctional, CounterfactualItem,
     CounterfactualItemSource, CounterfactualLevel, CounterfactualLevelIndex,
     CounterfactualMissingRegime, CounterfactualMovedAtom, CounterfactualSum, CounterfactualSymbol,
-    CounterfactualSymbolId, CounterfactualVariableIndex,
-    CounterfactualTransportDecision, CounterfactualTransportDerivation,
+    CounterfactualSymbolId, CounterfactualTransportDecision, CounterfactualTransportDerivation,
     CounterfactualTransportInspection, CounterfactualTransportMissing,
     CounterfactualTransportObstruction, CounterfactualTransportProblem,
     CounterfactualTransportQuery, CounterfactualTransportSearchRecord,
     CounterfactualTransportSource, CounterfactualTransportUnsupported,
     CounterfactualTransportWitness, CounterfactualTransportWitnessCheck,
-    counterfactual_transport_refusal, identify_counterfactual_transport,
-    replay_counterfactual_transport, verify_counterfactual_transport_witness,
+    CounterfactualVariableIndex, counterfactual_transport_refusal,
+    identify_counterfactual_transport, replay_counterfactual_transport,
+    verify_counterfactual_transport_witness,
 };
 pub use sid::{
     STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_PROPOSALS,
@@ -212,6 +210,10 @@ pub use admg_adjustment::{
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph};
 pub use bounds::{BinaryIvLaw, binary_iv_ate_bounds};
+pub use class_transport::{
+    CLASS_TRANSPORT_CANDIDATES_BOUNDED_REASON, CLASS_TRANSPORT_METHOD, ClassTransportEnvelope,
+    PAG_TRANSPORT_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+};
 pub use compiled_product::{
     CompiledIdentificationProduct, CompiledProductParts, IdentificationClaimClass,
     IdentificationOutcome, ProductRefusal, RequiredFactor, UnresolvedObligation,
@@ -243,16 +245,12 @@ pub use generalized::{
     mag_to_confounded_admg,
 };
 pub use hedge::{HedgeCertificate, HedgeProblem};
-pub use pag_path_specific::{AdmgCandidates, PAG_ADMG_SEARCH_BOUNDED_DIAGNOSTIC_CODE};
-pub use temporal_pag_path_specific::{
-    TEMPORAL_PAG_WINDOW_NOT_MAG_DIAGNOSTIC_CODE, TemporalPagMediationWindow,
-    temporal_pag_mediation_window,
-};
 pub use id::{IdIdentifier, ScheduleContrast};
 pub use idc::IdcIdentifier;
 pub use identifier::{IdentificationWorkspace, Identifier};
 pub use iv::{InstrumentSearchConfig, InstrumentalVariableIdentifier};
 pub use joint_response::JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE;
+pub use pag_path_specific::{AdmgCandidates, PAG_ADMG_SEARCH_BOUNDED_DIAGNOSTIC_CODE};
 pub use path_specific::PathSpecificIdentifier;
 pub use prepared::{PreparedAdmg, dag_to_admg};
 pub use rd::{SharpRdConfig, SharpRdIdentifier};
@@ -269,13 +267,13 @@ pub use temporal_backdoor::{
 pub use temporal_generalized::{TemporalClassEnvelope, TemporalCompletionGraph};
 pub use temporal_iv::{TemporalIvIdentifier, TemporalIvResult};
 pub use temporal_mediation::TemporalMediationIdentifier;
+pub use temporal_pag_path_specific::{
+    TEMPORAL_PAG_WINDOW_NOT_MAG_DIAGNOSTIC_CODE, TemporalPagMediationWindow,
+    temporal_pag_mediation_window,
+};
 pub use tiered::{
     NO_LATENT_TO_OUTCOME, TIERED_JOINT_ADJUSTMENT_REFUSE, identify_tiered, identify_tiered_joint,
     identify_tiered_joint_on, identify_tiered_on,
-};
-pub use class_transport::{
-    CLASS_TRANSPORT_CANDIDATES_BOUNDED_REASON, CLASS_TRANSPORT_METHOD,
-    ClassTransportEnvelope, PAG_TRANSPORT_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
 pub use transport::{
     MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,

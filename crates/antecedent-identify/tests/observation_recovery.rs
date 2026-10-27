@@ -269,10 +269,7 @@ fn role_counts_are_bounded_only_by_the_budget() {
     assert!(matches!(decide(&at_cap).unwrap(), RecoveryDecision::Recovered(_)));
     for (k, m) in [(4, 0), (1, 3)] {
         let over = MModel::new(k, m, &[], &vec![vec![]; k as usize], 2).unwrap();
-        assert!(
-            matches!(decide(&over).unwrap(), RecoveryDecision::Recovered(_)),
-            "k={k} m={m}"
-        );
+        assert!(matches!(decide(&over).unwrap(), RecoveryDecision::Recovered(_)), "k={k} m={m}");
     }
     let model = two_partial();
     for limits in [

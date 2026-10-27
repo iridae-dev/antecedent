@@ -1821,9 +1821,11 @@ mod enumeration_admission_tests {
             &[VariableId::from_raw(1), VariableId::from_raw(3)]
         );
         assert!(
-            capped.diagnostics.iter().any(|d| d.code.as_ref()
-                == CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE
-                && d.kind == DiagnosticKind::Execution)
+            capped
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE
+                    && d.kind == DiagnosticKind::Execution)
         );
         starved.cancellation.cancel();
         assert!(matches!(run(Some(starved), usize::MAX), Err(IdentificationError::Cancelled)));

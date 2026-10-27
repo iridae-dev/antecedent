@@ -850,7 +850,10 @@ mod tests {
 
     #[test]
     fn gpu_policy_refuses_each_failed_check_with_its_reason() {
-        let absent = Fake { compiled: true, adapter: Err(AdapterError::Unavailable("no adapter".to_string())) };
+        let absent = Fake {
+            compiled: true,
+            adapter: Err(AdapterError::Unavailable("no adapter".to_string())),
+        };
         let not_linked = Fake { compiled: false, adapter: Ok(gpu_adapter()) };
         let software = Fake {
             compiled: true,
@@ -903,7 +906,10 @@ mod tests {
 
     #[test]
     fn auto_policy_falls_back_with_the_reason_and_never_labels_cpu_work_as_gpu() {
-        let absent = Fake { compiled: true, adapter: Err(AdapterError::Unavailable("no adapter".to_string())) };
+        let absent = Fake {
+            compiled: true,
+            adapter: Err(AdapterError::Unavailable("no adapter".to_string())),
+        };
         let planned = plan(&request(ComputePolicy::Auto, 16), &absent, None, EAGER).unwrap();
         assert_eq!(planned.route, Route::Cpu);
         assert_eq!(planned.provenance.backend, LearnerBackend::NdArrayCpu);
@@ -972,7 +978,8 @@ mod tests {
     fn auto_fallback_fit_equals_the_plain_cpu_fit() {
         let n = 20;
         let (x, y) = data(n);
-        let absent = Fake { compiled: false, adapter: Err(AdapterError::Unavailable("n/a".to_string())) };
+        let absent =
+            Fake { compiled: false, adapter: Err(AdapterError::Unavailable("n/a".to_string())) };
         let fit = fit_with_policy(
             &request(ComputePolicy::Auto, n),
             &x,
@@ -996,7 +1003,8 @@ mod tests {
     fn gpu_request_in_a_cpu_only_build_refuses_without_fitting() {
         let n = 20;
         let (x, y) = data(n);
-        let not_linked = Fake { compiled: false, adapter: Err(AdapterError::Unavailable("n/a".to_string())) };
+        let not_linked =
+            Fake { compiled: false, adapter: Err(AdapterError::Unavailable("n/a".to_string())) };
         let error = fit_with_policy(
             &request(ComputePolicy::Gpu, n),
             &x,

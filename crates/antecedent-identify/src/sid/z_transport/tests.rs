@@ -86,8 +86,7 @@ fn graphs_beyond_the_old_twelve_variable_ceiling_are_identified_and_replayed() {
     let ctx = antecedent_core::ExecutionContext::for_tests(0);
     let (diagram, query) = chain_fixture(16, 5);
     let ZTransportResult::Identified(proof) =
-        identify_z_transport(&diagram, &query, super::super::SidLimits::default(), &ctx)
-            .unwrap()
+        identify_z_transport(&diagram, &query, super::super::SidLimits::default(), &ctx).unwrap()
     else {
         panic!("an unconfounded chain of sixteen variables must be identified");
     };
@@ -125,9 +124,7 @@ fn a_fourteen_node_graph_completes_and_its_derivation_audit_is_reproduced() {
     assert_eq!(replay.graph_signature, proof.graph_signature);
     // The audit is of this graph: a derivation checked against another query is refused.
     let (_, other_query) = chain_fixture(14, 7);
-    assert!(
-        verify_z_transport_derivation(&diagram, &other_query, &proof, limits, &ctx).is_err()
-    );
+    assert!(verify_z_transport_derivation(&diagram, &other_query, &proof, limits, &ctx).is_err());
 }
 
 #[test]
@@ -136,8 +133,8 @@ fn an_exhausted_search_budget_is_refused_naming_the_budget_and_its_limits() {
     let ctx = antecedent_core::ExecutionContext::for_tests(0);
     let limits = super::super::SidLimits { steps: 1, depth: 14 };
     let mut receipt = None;
-    let error = identify_z_transport_reporting(&diagram, &query, limits, &ctx, &mut receipt)
-        .unwrap_err();
+    let error =
+        identify_z_transport_reporting(&diagram, &query, limits, &ctx, &mut receipt).unwrap_err();
     assert!(error.is_budget_or_cancel());
     // The refusal names the z-transport search budget, never a verdict about the effect;
     // the receipt says which of its limits stopped it.
@@ -149,8 +146,8 @@ fn an_exhausted_search_budget_is_refused_naming_the_budget_and_its_limits() {
     // The depth budget is named as its own.
     let shallow = super::super::SidLimits { steps: 10_000, depth: 1 };
     let mut receipt = None;
-    let error = identify_z_transport_reporting(&diagram, &query, shallow, &ctx, &mut receipt)
-        .unwrap_err();
+    let error =
+        identify_z_transport_reporting(&diagram, &query, shallow, &ctx, &mut receipt).unwrap_err();
     assert!(error.is_budget_or_cancel(), "{error:?}");
     assert_eq!(receipt.expect("a stopped search records its limits").depth_limit, 1);
 }
@@ -166,8 +163,7 @@ fn a_direct_source_exchange_is_identified_on_a_wide_graph() {
     }]);
     let ctx = antecedent_core::ExecutionContext::for_tests(0);
     let ZTransportResult::Identified(proof) =
-        identify_z_transport(&diagram, &query, super::super::SidLimits::default(), &ctx)
-            .unwrap()
+        identify_z_transport(&diagram, &query, super::super::SidLimits::default(), &ctx).unwrap()
     else {
         panic!("a concrete source exchange must be identified");
     };
@@ -182,8 +178,8 @@ fn a_wide_graph_search_stops_at_its_budget_with_a_receipt_not_a_verdict() {
     // outcome's ancestry, so the first rule recurses and needs a second step.
     let limits = super::super::SidLimits { steps: 1, depth: 24 };
     let mut receipt = None;
-    let error = identify_z_transport_reporting(&diagram, &query, limits, &ctx, &mut receipt)
-        .unwrap_err();
+    let error =
+        identify_z_transport_reporting(&diagram, &query, limits, &ctx, &mut receipt).unwrap_err();
     assert!(error.is_budget_or_cancel());
     let receipt = receipt.expect("a stopped search records what it consumed");
     assert_eq!(receipt.steps_limit, 1);
@@ -246,8 +242,7 @@ fn family_check_names_a_missing_law_for_a_controllable_set_too_wide_to_enumerate
     )
     .unwrap();
     let diagram =
-        SelectionDiagram::try_new(Admg::with_variables(64), Arc::<[VariableId]>::from([]))
-            .unwrap();
+        SelectionDiagram::try_new(Admg::with_variables(64), Arc::<[VariableId]>::from([])).unwrap();
     let query = ZTransportQuery {
         outcomes: Arc::from([variables[0]]),
         treatments: Arc::from([variables[1]]),
@@ -521,11 +516,8 @@ fn recursive_trz_surrogate_formula_matches_independent_scm() {
                 denominator: remap[denominator.raw() as usize],
             },
             ExprNode::Product(list) => {
-                let children = arena
-                    .list(list)
-                    .iter()
-                    .map(|id| remap[id.raw() as usize])
-                    .collect::<Vec<_>>();
+                let children =
+                    arena.list(list).iter().map(|id| remap[id.raw() as usize]).collect::<Vec<_>>();
                 ExprNode::Product(bound.intern_list(children))
             }
             other => panic!("unexpected recursive node: {other:?}"),
@@ -683,11 +675,7 @@ fn preference_regime(
 ) -> antecedent_core::EvidenceRegime {
     antecedent_core::EvidenceRegime::try_new(
         RegimeId::from_raw(raw),
-        if interventions.is_empty() {
-            RegimeKind::Observational
-        } else {
-            RegimeKind::Experimental
-        },
+        if interventions.is_empty() { RegimeKind::Observational } else { RegimeKind::Experimental },
         EvidenceKind::Available,
         interventions.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
         levels.map_or_else(Vec::new, |levels| {
@@ -708,10 +696,7 @@ fn preference_regime(
 }
 
 /// A binary source/target catalog over `n` variables binding every regime.
-fn preference_catalog(
-    n: u32,
-    regimes: Vec<antecedent_core::EvidenceRegime>,
-) -> EvidenceCatalog {
+fn preference_catalog(n: u32, regimes: Vec<antecedent_core::EvidenceRegime>) -> EvidenceCatalog {
     let coords = (0..n)
         .map(|raw| VariableCoordinate {
             variable: VariableId::from_raw(raw),
@@ -733,8 +718,7 @@ fn preference_catalog(
         .collect::<Vec<_>>();
     EvidenceCatalog::try_new(
         [
-            Environment::try_new("source", coords.clone(), Arc::<[VariableId]>::from([]))
-                .unwrap(),
+            Environment::try_new("source", coords.clone(), Arc::<[VariableId]>::from([])).unwrap(),
             Environment::try_new("target", coords, Arc::<[VariableId]>::from([])).unwrap(),
         ],
         regimes,
@@ -772,10 +756,7 @@ fn recursive_concrete_factor_binds_the_lowest_of_two_supplying_regimes() {
     for order in [[1, 4], [4, 1]] {
         let catalog = preference_catalog(
             5,
-            order
-                .iter()
-                .map(|raw| preference_regime(*raw, "target", &[], None, &all))
-                .collect(),
+            order.iter().map(|raw| preference_regime(*raw, "target", &[], None, &all)).collect(),
         );
         let bound = bind_z_transport_catalog(&diagram, &query, &proof, &catalog).unwrap();
         assert_eq!(cited(&bound), [1], "catalog order {order:?}");
@@ -852,10 +833,8 @@ fn per_world_binding_prefers_a_family_regime_then_the_lowest_id_per_world() {
     };
     let observational = preference_regime(0, "target", &[], None, &[0, 1, 2]);
     let at = |raw, level| preference_regime(raw, "source", &[1], Some(&[level]), &[0, 2]);
-    let catalog = preference_catalog(
-        3,
-        vec![observational.clone(), at(5, false), at(2, true), at(3, false)],
-    );
+    let catalog =
+        preference_catalog(3, vec![observational.clone(), at(5, false), at(2, true), at(3, false)]);
     let bound = bind_z_transport_catalog(&diagram, &query, &proof, &catalog).unwrap();
     assert_eq!(cited(&bound), [0, 2, 3]);
     let family = preference_regime(9, "source", &[1], None, &[0, 2]);
@@ -922,8 +901,7 @@ fn direct_joint_formula_binds_the_lowest_of_two_supplying_experiments() {
         panic!("direct joint source exchange must be identified")
     };
     assert_eq!(proof.kind, ZFormulaKind::DirectJoint);
-    let experiment =
-        |raw| preference_regime(raw, "source", &[0, 1], Some(&[true, false]), &[2]);
+    let experiment = |raw| preference_regime(raw, "source", &[0, 1], Some(&[true, false]), &[2]);
     for order in [[4, 2], [2, 4]] {
         let catalog = preference_catalog(3, order.iter().map(|raw| experiment(*raw)).collect());
         let bound = bind_z_transport_catalog(&diagram, &query, &proof, &catalog).unwrap();
@@ -1022,10 +1000,7 @@ impl DistributionProvider for SequentialExchangeScm {
         assignment: &Assignment,
         _ctx: &EvalContext,
     ) -> Result<f64, EvalError> {
-        assignment
-            .get(variable)
-            .and_then(Value::as_f64)
-            .ok_or(EvalError::MissingBinding(variable))
+        assignment.get(variable).and_then(Value::as_f64).ok_or(EvalError::MissingBinding(variable))
     }
 
     fn n_draws(&self) -> Option<usize> {
@@ -1145,8 +1120,7 @@ fn recursive_search_handles_selected_mediator_surrogate_graph() {
         .collect::<Vec<_>>();
     let source_env =
         Environment::try_new("source", coords.clone(), Arc::<[VariableId]>::from([])).unwrap();
-    let target_env =
-        Environment::try_new("target", coords, Arc::<[VariableId]>::from([])).unwrap();
+    let target_env = Environment::try_new("target", coords, Arc::<[VariableId]>::from([])).unwrap();
     let target_regime = antecedent_core::EvidenceRegime::try_new(
         RegimeId::from_raw(0),
         RegimeKind::Observational,
@@ -1283,8 +1257,7 @@ fn a_starved_search_reports_the_z_transport_budget_never_the_sid_step_budget() {
         assert_eq!(error.to_string(), "z_transport.exhausted_computation");
     }
     assert!(matches!(
-        identify_z_transport(&diagram, &query, super::super::SidLimits::default(), &ctx)
-            .unwrap(),
+        identify_z_transport(&diagram, &query, super::super::SidLimits::default(), &ctx).unwrap(),
         ZTransportResult::Identified(_)
     ));
 }

@@ -39,12 +39,10 @@ pub(crate) fn window(
     let mut max_lag = 0;
     for node in graph.nodes() {
         if let NodeRef::Lagged { variable, lag } = node {
-            variables = variables.max(
-                variable
-                    .raw()
-                    .checked_add(1)
-                    .ok_or_else(|| IdentificationError::out_of_range("temporal schema overflow"))?,
-            );
+            variables =
+                variables.max(variable.raw().checked_add(1).ok_or_else(|| {
+                    IdentificationError::out_of_range("temporal schema overflow")
+                })?);
             max_lag = max_lag.max(lag.raw());
         }
     }
@@ -259,9 +257,7 @@ pub(crate) fn identify(
     for estimand in &result.estimands {
         for variable in estimand.adjustment_set.iter() {
             conditioning.push(
-                indexer
-                    .key_of(variable.raw())
-                    .map_err(|e| IdentificationError::construction(e))?,
+                indexer.key_of(variable.raw()).map_err(|e| IdentificationError::construction(e))?,
             );
         }
     }

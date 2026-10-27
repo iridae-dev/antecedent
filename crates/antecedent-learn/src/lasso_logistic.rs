@@ -285,15 +285,10 @@ fn solve(
         let current = objective(&eta, y, prior, &beta, lambda, pen_start);
         // Decrease the quadratic model predicts for the full step (`<= 0` for a descent
         // direction): `grad . delta + lambda (|beta + delta|_1 - |beta|_1)`, `grad = -score`.
-        let penalty_change: f64 = beta
-            .iter()
-            .zip(&delta)
-            .skip(pen_start)
-            .map(|(b, d)| (b + d).abs() - b.abs())
-            .sum();
-        let predicted: f64 =
-            -gradient_score.iter().zip(&delta).map(|(g, d)| g * d).sum::<f64>()
-                + lambda * penalty_change;
+        let penalty_change: f64 =
+            beta.iter().zip(&delta).skip(pen_start).map(|(b, d)| (b + d).abs() - b.abs()).sum();
+        let predicted: f64 = -gradient_score.iter().zip(&delta).map(|(g, d)| g * d).sum::<f64>()
+            + lambda * penalty_change;
         // Rounding resolution of the objective: below it a decrease cannot be verified.
         let resolution = 4.0 * f64::EPSILON * current.abs().max(1.0) * (n as f64).sqrt();
         let mut step = 1.0_f64;

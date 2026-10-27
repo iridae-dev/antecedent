@@ -128,8 +128,9 @@ pub fn temporal_pag_mediation_window(
         schema(variable)?;
     }
     let history = longest_lag + treatment_offset.min(0).unsigned_abs();
-    let last = u32::try_from(outcome_offset.max(0))
-        .map_err(|_| IdentificationError::out_of_range("the outcome offset exceeds the window range"))?;
+    let last = u32::try_from(outcome_offset.max(0)).map_err(|_| {
+        IdentificationError::out_of_range("the outcome offset exceeds the window range")
+    })?;
     let indexer = TemporalIndexer::new(variable_count, history, last + 1)
         .map_err(|error| IdentificationError::construction(error))?;
     let coordinate =

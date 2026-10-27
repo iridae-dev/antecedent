@@ -2,15 +2,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::catalog::bind_distribution;
 use crate::prepared::AncestorMemo;
 use crate::selection_separation::{MutilatedSelection, independently_separated};
 use crate::{IdentificationBudget, IdentificationError, PreparedAdmg};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
-use antecedent_graph::{BitSet, DSeparationWorkspace, DenseNodeId, GraphWorkspace, SelectionDiagram};
+use antecedent_graph::{
+    BitSet, DSeparationWorkspace, DenseNodeId, GraphWorkspace, SelectionDiagram,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
-use super::catalog::bind_distribution;
 
 use super::*;
 
@@ -351,7 +353,11 @@ impl<'a> Engine<'a> {
         let list = self.arena.intern_list(expressions);
         self.arena.intern(ExprNode::Product(list))
     }
-    pub(super) fn factor(&mut self, state: &State, district: &BitSet) -> Result<ExprId, IdentificationError> {
+    pub(super) fn factor(
+        &mut self,
+        state: &State,
+        district: &BitSet,
+    ) -> Result<ExprId, IdentificationError> {
         let mut suffix = state.v.clone();
         let mut factors = Vec::new();
         let topological_order = Arc::clone(&self.topo);
@@ -478,7 +484,10 @@ impl<'a> Engine<'a> {
             &self.dense_all(given)?,
         ))
     }
-    pub(super) fn dense_all(&self, variables: &[VariableId]) -> Result<Vec<DenseNodeId>, IdentificationError> {
+    pub(super) fn dense_all(
+        &self,
+        variables: &[VariableId],
+    ) -> Result<Vec<DenseNodeId>, IdentificationError> {
         variables.iter().map(|v| self.prepared.var_to_dense(*v)).collect()
     }
     /// The standardization formula over `over`, when `over` is a valid
@@ -542,12 +551,21 @@ impl<'a> Engine<'a> {
         let expr = self.arena.intern(ExprNode::Product(list));
         Ok(Some(self.arena.intern(ExprNode::SumOut { variables, expr })))
     }
-    pub(super) fn record(&mut self, state: State, rule: Rule, children: Vec<usize>, output: ExprId) -> usize {
+    pub(super) fn record(
+        &mut self,
+        state: State,
+        rule: Rule,
+        children: Vec<usize>,
+        output: ExprId,
+    ) -> usize {
         let index = self.proof.len();
         self.proof.push(ProofStep { state, rule, children, output, parameters: Vec::new() });
         index
     }
-    pub(super) fn available_source(&mut self, state: &State) -> Result<Option<ExprId>, IdentificationError> {
+    pub(super) fn available_source(
+        &mut self,
+        state: &State,
+    ) -> Result<Option<ExprId>, IdentificationError> {
         let sources = if self.sources.is_empty() {
             vec![MetaSource {
                 population: self.query.source.to_string(),

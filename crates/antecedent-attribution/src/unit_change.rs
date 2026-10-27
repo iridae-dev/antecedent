@@ -11,10 +11,10 @@ use antecedent_graph::DenseNodeId;
 use antecedent_model::{CompiledCausalModel, MechanismWorkspace, ParentBatch, evaluate_column};
 
 use crate::change_common::{UNIT_STREAM, stream_tag};
+use crate::coalition::Coalition;
 use crate::error::AttributionError;
 use crate::prep::{require_input_components, require_shapley_config, resolve_outcome_dense};
 use crate::result::{ComputeBudget, UnitChangeResult};
-use crate::coalition::Coalition;
 use crate::shapley::{CoalitionPayoff, estimate_shapley};
 
 /// Attribute per-unit outcome change to input / mechanism components.

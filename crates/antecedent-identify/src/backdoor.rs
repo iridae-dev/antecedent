@@ -691,7 +691,15 @@ impl BackdoorIdentifier {
                 }
             }
         }
-        Ok(Screening { constructive, candidates, valid, ancestral_fallback, exists, notes, examined })
+        Ok(Screening {
+            constructive,
+            candidates,
+            valid,
+            ancestral_fallback,
+            exists,
+            notes,
+            examined,
+        })
     }
 
     /// Enumerate subsets by increasing size for minimal-first (or all / maximal).
@@ -760,8 +768,7 @@ impl BackdoorIdentifier {
                     ) {
                         return true;
                     }
-                    match is_backdoor_adjustment(&problem.mutilated, t, y, z, &mut workspace.dsep)
-                    {
+                    match is_backdoor_adjustment(&problem.mutilated, t, y, z, &mut workspace.dsep) {
                         Ok(false) => return false,
                         Err(e) => {
                             enum_err = Some(e);
@@ -1029,7 +1036,8 @@ mod tests {
     #[test]
     fn invalid_costs_and_unknown_configured_variables_are_refused_not_ignored() {
         let mut graph = Dag::with_variables(3);
-        let (t, y, z) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
+        let (t, y, z) =
+            (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
         graph.insert_directed(z, t).unwrap();
         graph.insert_directed(z, y).unwrap();
         graph.insert_directed(t, y).unwrap();
@@ -1060,7 +1068,10 @@ mod tests {
         }
         // Finite costs whose total overflows are refused too.
         assert!(matches!(
-            run(costs(vec![(VariableId::from_raw(2), f64::MAX), (VariableId::from_raw(0), f64::MAX)])),
+            run(costs(vec![
+                (VariableId::from_raw(2), f64::MAX),
+                (VariableId::from_raw(0), f64::MAX)
+            ])),
             Err(IdentificationError::InvalidInput { .. })
         ));
         assert!(matches!(

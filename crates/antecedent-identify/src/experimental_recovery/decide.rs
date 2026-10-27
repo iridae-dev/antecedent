@@ -312,7 +312,10 @@ pub(super) fn first_non_exogenous(experiments: &[DeclaredClampExperiment]) -> Op
     })
 }
 
-pub(super) fn recover(nodes: &BTreeSet<VariableId>, set: &ClampExperimentSet) -> ExperimentalRecoveryDecision {
+pub(super) fn recover(
+    nodes: &BTreeSet<VariableId>,
+    set: &ClampExperimentSet,
+) -> ExperimentalRecoveryDecision {
     let width = nodes.len() - 1;
     let mut recoverable = Vec::new();
     let mut unresolved = Vec::new();
@@ -448,7 +451,10 @@ pub(super) fn push_rank_deficiency(
     }
 }
 
-pub(super) fn equation_rank(set: &ClampExperimentSet, target: VariableId) -> Option<&DeclaredEquationRank> {
+pub(super) fn equation_rank(
+    set: &ClampExperimentSet,
+    target: VariableId,
+) -> Option<&DeclaredEquationRank> {
     set.equation_ranks.iter().find(|rank| rank.target == target)
 }
 

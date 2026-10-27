@@ -187,7 +187,9 @@ const WINDOW_NODES: usize = 21;
 /// the bidirected edge between `p(-2)` and `q(-1)`.
 fn confounded_window_scm(seed: u64) -> LatentScm {
     let cards: Vec<usize> = (0..WINDOW_NODES)
-        .map(|node| usize::from([P_MINUS_2, Q_MINUS_1, X_NOW, M_NOW, Y_NOW, S_NOW].contains(&node)) + 1)
+        .map(|node| {
+            usize::from([P_MINUS_2, Q_MINUS_1, X_NOW, M_NOW, Y_NOW, S_NOW].contains(&node)) + 1
+        })
         .collect();
     let directed = [
         (P_MINUS_2, X_NOW),

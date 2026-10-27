@@ -459,7 +459,10 @@ impl StructureSwapPayoff<'_> {
     ///
     /// Cyclic hybrids are not cached: the error is re-raised on every request,
     /// exactly as the previous per-coalition compile did.
-    fn compiled_for(&mut self, coalition: &Coalition) -> Result<CompiledCausalModel, AttributionError> {
+    fn compiled_for(
+        &mut self,
+        coalition: &Coalition,
+    ) -> Result<CompiledCausalModel, AttributionError> {
         if let Some(compiled) = self.compiled_cache.get(coalition) {
             return Ok(compiled.clone());
         }
@@ -539,7 +542,8 @@ impl StructureSwapPayoff<'_> {
         };
         let slots: Vec<MechanismSlot> = (0..compiled.n_nodes())
             .map(|i| {
-                let use_comparison = self.player_of_node[i].is_some_and(|pi| coalition.contains(pi));
+                let use_comparison =
+                    self.player_of_node[i].is_some_and(|pi| coalition.contains(pi));
                 let store = if use_comparison { &fits.comparison } else { &fits.baseline };
                 store.slots[i].clone()
             })
@@ -547,7 +551,10 @@ impl StructureSwapPayoff<'_> {
         Ok(compiled.with_mechanisms(CompiledMechanismStore { slots: Arc::from(slots) }))
     }
 
-    fn sample_outcome_law(&mut self, coalition: &Coalition) -> Result<(f64, f64), AttributionError> {
+    fn sample_outcome_law(
+        &mut self,
+        coalition: &Coalition,
+    ) -> Result<(f64, f64), AttributionError> {
         let model = if let Some(cached) = self.hybrid_cache.get(coalition) {
             cached
         } else {
@@ -874,13 +881,9 @@ mod tests {
         for mask in 0..4u64 {
             let coalition = Coalition::from_bits(mask);
             // Reference: the pre-memoization per-coalition path, inlined.
-            let hybrid = hybrid_structure_dag(
-                &baseline.graph,
-                &comparison.graph,
-                &player_nodes,
-                &coalition,
-            )
-            .unwrap();
+            let hybrid =
+                hybrid_structure_dag(&baseline.graph, &comparison.graph, &player_nodes, &coalition)
+                    .unwrap();
             let compiled = CompiledCausalModel::compile(hybrid).unwrap();
             let (base_store, _) = MechanismRegistry::standard()
                 .assign_and_fit(&compiled, &baseline_data, SelectionPolicy::BestScore)

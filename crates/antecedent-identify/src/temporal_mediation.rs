@@ -182,8 +182,7 @@ impl TemporalMediationIdentifier {
         let mediator_parents: Vec<DenseNodeId> =
             mediator_nodes.iter().flat_map(|&m| dag.parents(m).iter().copied()).collect();
         for &p in mediator_parents.iter().chain(dag.parents(y)) {
-            if p == t || mediator_nodes.contains(&p) || downstream.contains(p) || set.contains(&p)
-            {
+            if p == t || mediator_nodes.contains(&p) || downstream.contains(p) || set.contains(&p) {
                 continue;
             }
             set.push(p);
@@ -522,10 +521,10 @@ impl TemporalMediationIdentifier {
         }
         let indexer = antecedent_data::TemporalIndexer::new(variable_count, history, 1)
             .map_err(|e| IdentificationError::construction(e))?;
-        let dense =
-            |key| indexer.dense_id(key).map_err(|e| IdentificationError::construction(e));
+        let dense = |key| indexer.dense_id(key).map_err(|e| IdentificationError::construction(e));
         let t = dense(treatment)?;
-        let mediator_nodes = mediator_keys.iter().map(|&key| dense(key)).collect::<Result<Vec<_>, _>>()?;
+        let mediator_nodes =
+            mediator_keys.iter().map(|&key| dense(key)).collect::<Result<Vec<_>, _>>()?;
         for &key in &adjustment {
             let z = dense(key)?;
             let induced = t == z

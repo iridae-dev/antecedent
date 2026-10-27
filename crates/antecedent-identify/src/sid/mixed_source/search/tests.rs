@@ -139,24 +139,20 @@ fn the_checker_rejects_an_unsound_exchange_the_search_never_proposes() {
         snapshot: Some(Arc::from("snapshot-1")),
         identity: c.distribution(RegimeId::from_raw(1)).unwrap().canonical_identity(),
     };
-    let step = |rule,
-                premises: Vec<usize>,
-                params: Vec<u32>,
-                y: Vec<u32>,
-                d: Vec<u32>,
-                z: Vec<u32>| {
-        MixedStep {
-            rule,
-            premises,
-            params: params.into_iter().map(v).collect(),
-            y: y.into_iter().map(v).collect(),
-            intervened: d.into_iter().map(v).collect(),
-            conditioned: z.into_iter().map(v).collect(),
-            source: (rule == MixedRule::Input).then(|| leaf.clone()),
-            relaxed: false,
-            expression: ExprId::from_raw(0),
-        }
-    };
+    let step =
+        |rule, premises: Vec<usize>, params: Vec<u32>, y: Vec<u32>, d: Vec<u32>, z: Vec<u32>| {
+            MixedStep {
+                rule,
+                premises,
+                params: params.into_iter().map(v).collect(),
+                y: y.into_iter().map(v).collect(),
+                intervened: d.into_iter().map(v).collect(),
+                conditioned: z.into_iter().map(v).collect(),
+                source: (rule == MixedRule::Input).then(|| leaf.clone()),
+                relaxed: false,
+                expression: ExprId::from_raw(0),
+            }
+        };
     let mut steps = vec![
         step(MixedRule::Input, vec![], vec![], vec![0, 1], vec![], vec![]),
         step(MixedRule::Condition, vec![0], vec![0], vec![1], vec![], vec![0]),
@@ -164,10 +160,8 @@ fn the_checker_rejects_an_unsound_exchange_the_search_never_proposes() {
     ];
     let mut arena = CausalExprArena::new();
     for i in 0..steps.len() {
-        let premises =
-            steps[i].premises.iter().map(|p| steps[*p].expression).collect::<Vec<_>>();
-        steps[i].expression =
-            build_expression(&mut arena, &steps[i], &premises, "target").unwrap();
+        let premises = steps[i].premises.iter().map(|p| steps[*p].expression).collect::<Vec<_>>();
+        steps[i].expression = build_expression(&mut arena, &steps[i], &premises, "target").unwrap();
     }
     assert_eq!(
         check_steps(&bow, &q, &c, &steps, Some(&arena), false).unwrap_err(),
@@ -260,8 +254,7 @@ impl Model {
                     None => (self.f[i])(&values, &exo),
                 };
             }
-            let index =
-                measured.iter().fold(0usize, |acc, v| (acc << 1) | usize::from(values[*v]));
+            let index = measured.iter().fold(0usize, |acc, v| (acc << 1) | usize::from(values[*v]));
             out[index] += weight;
         }
         out
@@ -274,10 +267,7 @@ impl Model {
 /// the resulting expression is evaluated by the exact provider and compared
 /// with the truth. This covers rules the identified-query sweeps rarely reach.
 #[test]
-#[allow(
-    clippy::too_many_lines,
-    reason = "One fixture, one closure, one comparison per quantity"
-)]
+#[allow(clippy::too_many_lines, reason = "One fixture, one closure, one comparison per quantity")]
 fn every_derived_quantity_matches_the_enumerated_model() {
     use antecedent_expr::{
         Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactEvaluationPlan,
@@ -317,10 +307,7 @@ fn every_derived_quantity_matches_the_enumerated_model() {
         let trial_on = case % n;
         let rest = (0..n).filter(|v| *v != trial_on).collect::<Vec<_>>();
         let studies = if case % 2 == 0 {
-            vec![
-                (1u32, Vec::<usize>::new(), (0..n).collect::<Vec<_>>()),
-                (2, vec![trial_on], rest),
-            ]
+            vec![(1u32, Vec::<usize>::new(), (0..n).collect::<Vec<_>>()), (2, vec![trial_on], rest)]
         } else {
             let partial = rest.iter().copied().take(2).collect::<Vec<_>>();
             vec![
@@ -390,8 +377,7 @@ fn every_derived_quantity_matches_the_enumerated_model() {
         }
         // Every study is cited: each leaf selects its law by world among them.
         let cited = regimes.iter().map(|regime| regime.id).collect::<Vec<_>>();
-        let data =
-            ExactTransportData::try_new(laws, 4096).unwrap().with_world_bound_leaves(cited);
+        let data = ExactTransportData::try_new(laws, 4096).unwrap().with_world_bound_leaves(cited);
         let catalog = EvidenceCatalog::try_new(
             [],
             regimes.clone(),
@@ -430,8 +416,7 @@ fn every_derived_quantity_matches_the_enumerated_model() {
         let mut verify = |steps: &[MixedStep], arena: &CausalExprArena, label: &str| {
             let step = &steps[steps.len() - 1];
             let (y, d, z) = (step.y.clone(), step.intervened.clone(), step.conditioned.clone());
-            let sorted =
-                |vs: &[VariableId]| vs.iter().map(|v| v.as_usize()).collect::<Vec<_>>();
+            let sorted = |vs: &[VariableId]| vs.iter().map(|v| v.as_usize()).collect::<Vec<_>>();
             let bound = z.iter().chain(d.iter()).copied().collect::<Vec<_>>();
             // Every assignment of the conditioning values and the intervention levels.
             for levels in 0..(1usize << bound.len()) {
@@ -504,8 +489,7 @@ fn every_derived_quantity_matches_the_enumerated_model() {
         // directly: whenever the independent checker accepts one, its number is the truth.
         for index in 0..engine.steps.len() {
             let base = engine.steps[index].clone();
-            for (rule, pool) in
-                [(MixedRule::Rule1Delete, base.z), (MixedRule::Rule3Delete, base.d)]
+            for (rule, pool) in [(MixedRule::Rule1Delete, base.z), (MixedRule::Rule3Delete, base.d)]
             {
                 for w in subsets(pool, MIXED_SOURCE_MAX_MOVE) {
                     let mut candidate = base.clone();
@@ -519,8 +503,7 @@ fn every_derived_quantity_matches_the_enumerated_model() {
                     } else {
                         candidate.d = base.d & !w;
                     }
-                    let (steps, arena) =
-                        engine.extract(&candidate, &catalog, "target").unwrap();
+                    let (steps, arena) = engine.extract(&candidate, &catalog, "target").unwrap();
                     if check_steps(&graph, &q, &catalog, &steps, Some(&arena), false).is_ok() {
                         deletions += 1;
                         verify(&steps, &arena, &format!("{rule:?} of step {index}"));
@@ -538,10 +521,7 @@ type LawCache = HashMap<(Vec<(usize, u8)>, Vec<usize>), Vec<f64>>;
 type Edges = Vec<(usize, usize)>;
 
 fn u32_edges(edges: &[(usize, usize)]) -> Vec<(u32, u32)> {
-    edges
-        .iter()
-        .map(|(a, b)| (u32::try_from(*a).unwrap(), u32::try_from(*b).unwrap()))
-        .collect()
+    edges.iter().map(|(a, b)| (u32::try_from(*a).unwrap(), u32::try_from(*b).unwrap())).collect()
 }
 
 /// `P(y | do(d), z)` of the enumerated model at the given levels, over the
@@ -559,8 +539,7 @@ fn truth(
         .or_insert_with(|| model.law(do_, &measured))
         .clone();
     let key = z.iter().fold(0usize, |acc, (_, level)| (acc << 1) | usize::from(*level));
-    let cells =
-        (0..1usize << y.len()).map(|ys| joint[(ys << z.len()) | key]).collect::<Vec<_>>();
+    let cells = (0..1usize << y.len()).map(|ys| joint[(ys << z.len()) | key]).collect::<Vec<_>>();
     let total = cells.iter().sum::<f64>();
     cells.iter().map(|cell| cell / total).collect()
 }
@@ -574,11 +553,7 @@ const SEARCHED_UNARY: [MixedRule; 4] = [
     MixedRule::Rule3Insert,
 ];
 
-fn conclusion_of(
-    rule: MixedRule,
-    (y, d, z): (Mask, Mask, Mask),
-    w: Mask,
-) -> (Mask, Mask, Mask) {
+fn conclusion_of(rule: MixedRule, (y, d, z): (Mask, Mask, Mask), w: Mask) -> (Mask, Mask, Mask) {
     match rule {
         MixedRule::Rule1Insert => (y, d, z | w),
         MixedRule::Rule1Delete => (y, d, z & !w),
@@ -599,10 +574,7 @@ fn conclusion_of(
 /// `P(y | do(d), z)` the test also requires the search's accepted applications
 /// to equal the checker's for the searched rules.
 #[test]
-#[allow(
-    clippy::too_many_lines,
-    reason = "One enumeration of graphs, premises, rules and levels"
-)]
+#[allow(clippy::too_many_lines, reason = "One enumeration of graphs, premises, rules and levels")]
 fn every_accepted_rule_instance_holds_in_the_enumerated_model() {
     let ctx = ExecutionContext::for_tests(1);
     let mut state = 0x0BAD_5EED_u64;
@@ -653,8 +625,7 @@ fn every_accepted_rule_instance_holds_in_the_enumerated_model() {
     let mut compared = 0usize;
     for (index, (n, directed, bidirected)) in graphs.iter().enumerate() {
         let (n, cap) = (*n, Mask::try_from(1usize << *n).unwrap());
-        let graph =
-            admg(u32::try_from(n).unwrap(), &u32_edges(directed), &u32_edges(bidirected));
+        let graph = admg(u32::try_from(n).unwrap(), &u32_edges(directed), &u32_edges(bidirected));
         let mut model_state = 0x1000 + index as u64;
         let model = Model::random(&mut model_state, n, directed, bidirected);
         let mut cache = HashMap::new();
@@ -665,14 +636,12 @@ fn every_accepted_rule_instance_holds_in_the_enumerated_model() {
         let set = |mask: Mask| members(mask).collect::<Set>();
         for code in (0..4usize.pow(u32::try_from(n).unwrap())).step_by(stride) {
             let role = |i: usize| (code >> (2 * i)) & 3;
-            let mask_of =
-                |r: usize| (0..n).filter(|i| role(*i) == r).fold(0, |m, i| m | bit(i));
+            let mask_of = |r: usize| (0..n).filter(|i| role(*i) == r).fold(0, |m, i| m | bit(i));
             let (y, d, z) = (mask_of(0), mask_of(1), mask_of(2));
             if y == 0 || size(d) > MIXED_SOURCE_MAX_DO {
                 continue;
             }
-            let mut engine =
-                Engine::new(&graph, variables.clone(), Vec::new(), &query()).unwrap();
+            let mut engine = Engine::new(&graph, variables.clone(), Vec::new(), &query()).unwrap();
             engine.add(Raw {
                 rule: MixedRule::Input,
                 premises: Vec::new(),
@@ -685,8 +654,7 @@ fn every_accepted_rule_instance_holds_in_the_enumerated_model() {
                 relaxed: false,
             });
             let budget =
-                SearchBudget::new(SearchLimits { operations: 4_000_000, depth: 64 }, &ctx)
-                    .unwrap();
+                SearchBudget::new(SearchLimits { operations: 4_000_000, depth: 64 }, &ctx).unwrap();
             let mut search = SharedSearch::new(budget);
             engine.expand(&mut search, 0, 1).unwrap();
             let found = engine
@@ -749,9 +717,8 @@ fn every_accepted_rule_instance_holds_in_the_enumerated_model() {
                             let position = bound.iter().position(|b| *b == v).unwrap();
                             u8::from((levels >> position) & 1 == 1)
                         };
-                        let at = |mask: Mask| {
-                            members(mask).map(|v| (v, level(v))).collect::<Vec<_>>()
-                        };
+                        let at =
+                            |mask: Mask| members(mask).map(|v| (v, level(v))).collect::<Vec<_>>();
                         let before = truth(&model, &mut cache, &at(d), &ys, &at(z));
                         let after = truth(&model, &mut cache, &at(cd), &ys, &at(cz));
                         for (a, b) in before.iter().zip(&after) {
@@ -920,8 +887,7 @@ fn deletions_are_checked_but_add_nothing_to_the_closure() {
                 }
             }
         }
-        let graph =
-            admg(u32::try_from(n).unwrap(), &u32_edges(&directed), &u32_edges(&bidirected));
+        let graph = admg(u32::try_from(n).unwrap(), &u32_edges(&directed), &u32_edges(&bidirected));
         let mut inputs = Vec::new();
         for k in 0..2 + next() % 3 {
             let mut measured = (0..n).collect::<Vec<_>>();
@@ -932,8 +898,7 @@ fn deletions_are_checked_but_add_nothing_to_the_closure() {
             let outside = (0..n).filter(|v| !measured.contains(v)).collect::<Vec<_>>();
             if next() % 2 == 0 && !outside.is_empty() {
                 on.push(outside[next() % outside.len()]);
-                let more =
-                    outside.iter().copied().filter(|v| !on.contains(v)).collect::<Vec<_>>();
+                let more = outside.iter().copied().filter(|v| !on.contains(v)).collect::<Vec<_>>();
                 if next() % 3 == 0 && !more.is_empty() {
                     on.push(more[next() % more.len()]);
                 }
@@ -952,8 +917,7 @@ fn deletions_are_checked_but_add_nothing_to_the_closure() {
         let mut engine = Engine::new(&graph, variables, inputs, &query()).unwrap();
         engine.target = (0, 0, 0);
         let budget =
-            SearchBudget::new(SearchLimits { operations: 40_000_000, depth: 64 }, &ctx)
-                .unwrap();
+            SearchBudget::new(SearchLimits { operations: 40_000_000, depth: 64 }, &ctx).unwrap();
         let mut search = SharedSearch::new(budget);
         if !matches!(engine.run(&mut search), RunEnd::Fixpoint) {
             continue;
@@ -968,8 +932,7 @@ fn deletions_are_checked_but_add_nothing_to_the_closure() {
         let universe = (0..n).collect::<Set>();
         let set = |mask: Mask| members(mask).collect::<Set>();
         for step in &engine.steps {
-            for (rule, pool) in
-                [(MixedRule::Rule1Delete, step.z), (MixedRule::Rule3Delete, step.d)]
+            for (rule, pool) in [(MixedRule::Rule1Delete, step.z), (MixedRule::Rule3Delete, step.d)]
             {
                 for w in subsets(pool, MIXED_SOURCE_MAX_MOVE) {
                     let (cy, cd, cz) = conclusion_of(rule, (step.y, step.d, step.z), w);
@@ -1046,16 +1009,14 @@ fn the_shared_expression_layer_compiles_the_root_and_binds_its_leaves() {
         panic!("identified");
     };
     let expressions = derivation.steps().iter().map(|step| step.expression).collect::<Vec<_>>();
-    check_with_shared_expression_layer(&derivation.arena, &derivation.steps, &expressions)
-        .unwrap();
+    check_with_shared_expression_layer(&derivation.arena, &derivation.steps, &expressions).unwrap();
     // A proof that cites a leaf the root expression does not read, or drops
     // one it reads, no longer binds.
     let mut extra = derivation.steps.clone();
     let input = extra.iter().position(|s| s.source.is_some()).unwrap();
     extra[input].source.as_mut().unwrap().regime = RegimeId::from_raw(2);
     assert_eq!(
-        check_with_shared_expression_layer(&derivation.arena, &extra, &expressions)
-            .unwrap_err(),
+        check_with_shared_expression_layer(&derivation.arena, &extra, &expressions).unwrap_err(),
         invalid_derivation()
     );
     // A root outside the arena is refused by the shared compiler.
@@ -1141,14 +1102,8 @@ mod reference {
         let validated = validate_mixed_source_query(graph, &q, &evidence).unwrap();
         let ctx = ExecutionContext::for_tests(1);
         let budget = SearchBudget::new(MIXED_SOURCE_DEFAULT_LIMITS, &ctx).unwrap();
-        match rule_search(
-            graph,
-            &validated,
-            &evidence,
-            &mut SharedSearch::new(budget),
-            Vec::new(),
-        )
-        .unwrap()
+        match rule_search(graph, &validated, &evidence, &mut SharedSearch::new(budget), Vec::new())
+            .unwrap()
         {
             MixedSourceDecision::Identified { .. } => Verdict::Identified,
             MixedSourceDecision::NotCertified(_) => Verdict::NotCertified,

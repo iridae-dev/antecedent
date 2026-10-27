@@ -665,7 +665,10 @@ impl MechanismSwapPayoff<'_> {
     /// distribution collapsed to a point mass, so a regime difference that preserved the
     /// mean — a variance shift, a shape change — produced identical coalition values and was
     /// attributed exactly zero.
-    fn sample_outcome_law(&mut self, coalition: &Coalition) -> Result<(f64, f64), AttributionError> {
+    fn sample_outcome_law(
+        &mut self,
+        coalition: &Coalition,
+    ) -> Result<(f64, f64), AttributionError> {
         // Patch the hybrid's slot array incrementally: only bits that changed since the
         // previous mask are touched (restore to baseline on clear, swap in the comparison
         // slot on set). `Input`-kind players never swap slots; the resulting store is
@@ -1044,29 +1047,27 @@ mod tests {
     fn measure_value_gaussian_kl_matches_closed_form() {
         // KL(N(2,3) ‖ N(0,1)) = 0.5 * (ln(1/3) + (3 + (2-0)^2)/1 - 1)
         let expected = 0.5_f64 * ((1.0_f64 / 3.0).ln() + 7.0 - 1.0);
-        let got =
-            measure_value(
-                DifferenceMeasure::GaussianKl,
-                &Coalition::from_bits(1),
-                2.0,
-                3.0,
-                Some((0.0, 1.0)),
-            )
-            .unwrap();
+        let got = measure_value(
+            DifferenceMeasure::GaussianKl,
+            &Coalition::from_bits(1),
+            2.0,
+            3.0,
+            Some((0.0, 1.0)),
+        )
+        .unwrap();
         assert!((got - expected).abs() < 1e-12, "got={got} expected={expected}");
 
         // The all-baseline coalition (mask == 0) is defined as exactly zero
         // divergence, regardless of the sampled (mu, var) passed in — matching
         // `v(∅) == 0` used by the efficiency identity above.
-        let empty =
-            measure_value(
-                DifferenceMeasure::GaussianKl,
-                &Coalition::empty(),
-                2.0,
-                3.0,
-                Some((0.0, 1.0)),
-            )
-            .unwrap();
+        let empty = measure_value(
+            DifferenceMeasure::GaussianKl,
+            &Coalition::empty(),
+            2.0,
+            3.0,
+            Some((0.0, 1.0)),
+        )
+        .unwrap();
         assert!(empty.abs() < f64::EPSILON, "expected exact 0.0, got {empty}");
 
         // Missing cached baseline law with a non-empty mask is a hard error, not a

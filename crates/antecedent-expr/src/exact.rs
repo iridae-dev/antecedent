@@ -235,11 +235,7 @@ struct MarginalTables {
 
 impl Default for MarginalTables {
     fn default() -> Self {
-        Self {
-            shards: std::array::from_fn(|_| {
-                Mutex::new(MarginalShard::new())
-            }),
-        }
+        Self { shards: std::array::from_fn(|_| Mutex::new(MarginalShard::new())) }
     }
 }
 
@@ -1027,7 +1023,10 @@ impl ExactTransportData {
                     let mut observed = false;
                     for count in counts.iter() {
                         if *count > 0
-                            && cursors.iter().zip(&conditions).all(|(c, (_, level))| c.level == *level)
+                            && cursors
+                                .iter()
+                                .zip(&conditions)
+                                .all(|(c, (_, level))| c.level == *level)
                         {
                             observed = true;
                             break;

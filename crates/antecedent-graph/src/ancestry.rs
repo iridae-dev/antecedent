@@ -72,5 +72,4 @@ impl Dag {
         let overlay = GraphOverlay::do_intervention(self.node_count(), intervened);
         self.view(&overlay).materialize()
     }
-
 }

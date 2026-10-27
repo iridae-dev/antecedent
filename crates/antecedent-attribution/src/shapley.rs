@@ -518,8 +518,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                             p.report(mask as f64 / n_coalitions as f64, "shapley");
                         }
                     }
-                    let v_s =
-                        eval(&Coalition::from_bits(mask), payoff, &mut cache, &mut budget)?;
+                    let v_s = eval(&Coalition::from_bits(mask), payoff, &mut cache, &mut budget)?;
                     if mask == 0 {
                         v_empty = v_s;
                     }
@@ -1024,7 +1023,7 @@ mod tests {
         struct InteractivePayoff;
         impl CoalitionPayoff for InteractivePayoff {
             fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
-            let mask = coalition.low_bits();
+                let mask = coalition.low_bits();
                 let additive = f64::from((mask & 0b001).count_ones())
                     + 2.0 * f64::from((mask & 0b010).count_ones())
                     + 3.0 * f64::from((mask & 0b100).count_ones());
@@ -1079,7 +1078,7 @@ mod tests {
         struct Interactive;
         impl CoalitionPayoff for Interactive {
             fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
-            let mask = coalition.low_bits();
+                let mask = coalition.low_bits();
                 let size = f64::from((mask & 0b111).count_ones());
                 let bonus = f64::from((mask & 0b11) == 0b11);
                 Ok(size + bonus)
@@ -1112,7 +1111,7 @@ mod tests {
         }
         impl CoalitionPayoff for Counting {
             fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
-            let mask = coalition.low_bits();
+                let mask = coalition.low_bits();
                 self.calls += 1;
                 Ok(f64::from(mask.count_ones()).powi(2))
             }
@@ -1138,7 +1137,7 @@ mod tests {
         }
         impl CoalitionPayoff for CancelAfterFirstChain {
             fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
-            let mask = coalition.low_bits();
+                let mask = coalition.low_bits();
                 if mask == 0b1111 {
                     self.token.cancel();
                 }
@@ -1354,8 +1353,8 @@ mod tests {
         let weights: Vec<f64> = (0..n).map(|i| 1.0 + 0.25 * i as f64).collect();
         let mut payoff = Wide(weights.clone());
         let cfg = ShapleyConfig::permutation(6).with_seed(4);
-        let est = estimate_shapley(&players, &cfg, &mut payoff, &ExecutionContext::for_tests(1))
-            .unwrap();
+        let est =
+            estimate_shapley(&players, &cfg, &mut payoff, &ExecutionContext::for_tests(1)).unwrap();
         for (phi, w) in est.values.iter().zip(&weights) {
             assert!((phi - w).abs() <= 1e-9, "{phi} vs {w}");
         }
@@ -1374,6 +1373,8 @@ mod tests {
         let cfg = ShapleyConfig::permutation(10);
         assert!(check_shapley_sample_budget(10, &cfg, 1_000).is_ok());
         assert!(check_shapley_sample_budget(10, &cfg.with_sample_budget(1_000), 1_000).is_err());
-        assert!(check_shapley_sample_budget(10, &cfg.with_sample_budget(u64::MAX), 1 << 40).is_ok());
+        assert!(
+            check_shapley_sample_budget(10, &cfg.with_sample_budget(u64::MAX), 1 << 40).is_ok()
+        );
     }
 }

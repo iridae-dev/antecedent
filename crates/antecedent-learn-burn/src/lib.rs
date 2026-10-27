@@ -442,7 +442,10 @@ mod tests {
             &device,
         )
         .require_grad();
-        let y = Tensor::<TrainBackend, 2>::from_data(TensorData::new(vec![0.0f32, 1.0], [2, 1]), &device);
+        let y = Tensor::<TrainBackend, 2>::from_data(
+            TensorData::new(vec![0.0f32, 1.0], [2, 1]),
+            &device,
+        );
         let loss = epoch_loss(z.clone(), y, true);
         let value = loss.clone().into_data().as_slice::<f32>().unwrap()[0];
         assert!(value.is_finite() && value > 30.0, "loss {value}");

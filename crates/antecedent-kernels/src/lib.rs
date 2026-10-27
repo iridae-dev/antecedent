@@ -41,15 +41,14 @@ pub use parcorr::{ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlati
 pub use posterior_reduce::{PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws};
 pub use rng::{
     CategoricalSampler, bayesian_bootstrap_weights, categorical_from_u,
-    fill_bayesian_bootstrap_weights, fill_standard_normal, sample_categorical,
-    sample_gamma, sample_inv_gamma, shuffle, shuffled_fold_assignment, standard_normal,
-    unbiased_index,
+    fill_bayesian_bootstrap_weights, fill_standard_normal, sample_categorical, sample_gamma,
+    sample_inv_gamma, shuffle, shuffled_fold_assignment, standard_normal, unbiased_index,
 };
 pub use scalar::{kish_ess, sanitize_weight};
 pub use special::{
     GaussianDensityError, NORMAL_Q975, erf, erfc, gaussian_log_density,
-    gaussian_log_density_common_mean, log_norm_cdf, log_norm_pdf, log_norm_sf, mills_left_tail, norm_cdf,
-    norm_inv, norm_pdf, norm_sf,
+    gaussian_log_density_common_mean, log_norm_cdf, log_norm_pdf, log_norm_sf, mills_left_tail,
+    norm_cdf, norm_inv, norm_pdf, norm_sf,
 };
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
 pub use welford::{ScatterError, Welford, WelfordError, try_update_scatter, update_scatter};

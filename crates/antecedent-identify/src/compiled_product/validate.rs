@@ -78,7 +78,10 @@ pub(super) const fn states_identified_claim(
         && matches!(class, IdentificationClaimClass::IdentifiedClaim)
 }
 
-pub(super) const fn numerically_feasible(outcome: IdentificationOutcome, value: Option<f64>) -> bool {
+pub(super) const fn numerically_feasible(
+    outcome: IdentificationOutcome,
+    value: Option<f64>,
+) -> bool {
     if matches!(outcome, IdentificationOutcome::NumericallyInfeasible) {
         return false;
     }

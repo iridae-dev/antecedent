@@ -139,9 +139,8 @@ pub fn identify_initial_shift_source(
     let root = VariableId::from_raw(0);
     let steps = spec.horizon();
     let scope = || IdentificationError::unsupported("temporal_initial_shift.source_scope");
-    let coordinate = |index: usize| {
-        u32::try_from(index).map(VariableId::from_raw).map_err(|_| scope())
-    };
+    let coordinate =
+        |index: usize| u32::try_from(index).map(VariableId::from_raw).map_err(|_| scope());
     let actions = (0..steps).map(|step| coordinate(2 * step + 1)).collect::<Result<Vec<_>, _>>()?;
     let outcome = coordinate(2 * steps)?;
     if graph.node_count() != 2 * steps + 1

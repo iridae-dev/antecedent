@@ -251,11 +251,8 @@ pub fn design_gram_cholesky(design: &[f64], n: usize, p: usize) -> Option<Vec<f6
     let floor = n.max(p) as f64 * f64::EPSILON;
     for i in 0..p {
         for j in 0..=i {
-            let dot: f64 = column(i)
-                .iter()
-                .zip(column(j))
-                .map(|(a, b)| (a / norms[i]) * (b / norms[j]))
-                .sum();
+            let dot: f64 =
+                column(i).iter().zip(column(j)).map(|(a, b)| (a / norms[i]) * (b / norms[j])).sum();
             let mut acc = dot;
             for q in 0..j {
                 acc -= l[i * p + q] * l[j * p + q];

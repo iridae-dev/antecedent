@@ -513,8 +513,9 @@ impl TemporalBackdoorIdentifier {
             policy,
             control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
             active: Intervention::set(treatment, antecedent_core::Value::f64(active_level)),
-            horizon_steps: u32::try_from(outcome_at.saturating_add(1))
-                .map_err(|_| IdentificationError::out_of_range("outcome offset does not fit horizon"))?,
+            horizon_steps: u32::try_from(outcome_at.saturating_add(1)).map_err(|_| {
+                IdentificationError::out_of_range("outcome offset does not fit horizon")
+            })?,
             max_history_lag,
             target_population,
             effect_modifiers: std::sync::Arc::from([]),

@@ -46,11 +46,8 @@ fn empty_product(
 ) -> CompiledIdentificationProduct {
     let mut parts = CompiledProductParts::new(outcome, claim_class);
     parts.numerical_value = numerical_value;
-    let estimands = if outcome == IdentificationOutcome::Identified {
-        vec![estimand()]
-    } else {
-        Vec::new()
-    };
+    let estimands =
+        if outcome == IdentificationOutcome::Identified { vec![estimand()] } else { Vec::new() };
     CompiledIdentificationProduct::new(
         estimands,
         CausalExprArena::new(),
@@ -215,9 +212,7 @@ fn target_validation_requires_each_world_exactly_once_and_an_assembled_check() {
     foreign.world_obligations[0].world = Some(ScientificWorldId::from_raw(9));
     assert_eq!(
         foreign.validate_target(&target),
-        Err(ProductRefusal::UnexpectedWorldObligation {
-            world: ScientificWorldId::from_raw(9),
-        })
+        Err(ProductRefusal::UnexpectedWorldObligation { world: ScientificWorldId::from_raw(9) })
     );
     let mut no_assembled = product;
     no_assembled.assembled = None;
@@ -338,8 +333,7 @@ fn actual_joint_identification_is_bound_to_scientific_content_not_world_labels()
     parts.assembled = supported.assembled;
     let target = interaction_target();
     let product =
-        CompiledIdentificationProduct::retain_for_target(&result, parts.clone(), &target)
-            .unwrap();
+        CompiledIdentificationProduct::retain_for_target(&result, parts.clone(), &target).unwrap();
     assert_eq!(product.target_identity(), Some(target.identity()));
     assert_eq!(product.validate_target(&target), Ok(()));
     let bayesian = target.clone().with_inference(InferenceSelection::Bayesian);
@@ -357,8 +351,7 @@ fn actual_joint_identification_is_bound_to_scientific_content_not_world_labels()
         })
     );
     let rebound =
-        CompiledIdentificationProduct::retain_for_target(&result, parts.clone(), &changed)
-            .unwrap();
+        CompiledIdentificationProduct::retain_for_target(&result, parts.clone(), &changed).unwrap();
     assert_ne!(product, rebound);
     assert_ne!(product.identity(), rebound.identity());
     assert_identified_world_collection(&result, parts.clone(), &target);
@@ -396,9 +389,9 @@ fn actual_joint_identification_is_bound_to_scientific_content_not_world_labels()
 #[test]
 fn temporal_surface_requires_every_scheduled_cell_and_its_whole_functional() {
     use antecedent_core::{
-        DoseTimeSurface, GraphFamily, HistoryWindow, InferenceSelection, InitialLaw,
-        Intervention, InterventionWorld, ModelAssumptions, ScientificTarget, TargetForm,
-        TemporalPolicy, TimeFrame, WorldAction, WorldCollection,
+        DoseTimeSurface, GraphFamily, HistoryWindow, InferenceSelection, InitialLaw, Intervention,
+        InterventionWorld, ModelAssumptions, ScientificTarget, TargetForm, TemporalPolicy,
+        TimeFrame, WorldAction, WorldCollection,
     };
     let source = interaction_target();
     let antecedent_core::TargetForm::Contrast(contrast) = source.form() else {
@@ -447,10 +440,7 @@ fn temporal_surface_requires_every_scheduled_cell_and_its_whole_functional() {
     product.target_identity = Some(target.identity());
     assert_eq!(product.validate_target(&target), Ok(()));
     product.assembled = None;
-    assert_eq!(
-        product.validate_target(&target),
-        Err(ProductRefusal::MissingAssembledObligation)
-    );
+    assert_eq!(product.validate_target(&target), Err(ProductRefusal::MissingAssembledObligation));
     let changed = make_target(HistoryWindow::max_lag(1));
     assert!(matches!(
         product.validate_target(&changed),
@@ -470,9 +460,7 @@ fn mediation_cannot_acquire_authority_from_generic_world_validation() {
         MediationTarget, ModelAssumptions, ScientificTarget, TargetForm, TimeFrame,
     };
     let source = interaction_target();
-    let TargetForm::Contrast(contrast) = source.form() else {
-        unreachable!("interaction fixture")
-    };
+    let TargetForm::Contrast(contrast) = source.form() else { unreachable!("interaction fixture") };
     let binding = contrast.worlds().worlds()[0].binding().clone();
     let arms = MediationArms::new(
         VariableId::from_raw(0),
@@ -716,10 +704,7 @@ fn assembled_contrast_is_not_identified_when_each_world_is_only_feasible() {
     .unwrap();
 
     assert!(
-        product
-            .world_obligations()
-            .iter()
-            .all(IdentificationObligation::is_numerically_feasible)
+        product.world_obligations().iter().all(IdentificationObligation::is_numerically_feasible)
     );
     assert!(product.world_obligations().iter().all(|world| !world.is_identified_claim()));
     assert_eq!(
@@ -791,8 +776,7 @@ fn retain_keeps_functional_derivation_assumptions_factors_obligations_and_bounde
     );
     parts.required_factors =
         vec![RequiredFactor::new("outcome_mean", Arc::from([VariableId::from_raw(1)]))];
-    parts.unresolved_obligations =
-        vec![UnresolvedObligation::new("support.overlap", "empty cell")];
+    parts.unresolved_obligations = vec![UnresolvedObligation::new("support.overlap", "empty cell")];
 
     // A timeout cannot retain the identified functional of this result.
     let timed_out = CompiledProductParts::new(

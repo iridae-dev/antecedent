@@ -9,9 +9,7 @@ use antecedent_core::{AssumptionSet, CacheBudget, ContractIdentities, QueryId, S
 
 use crate::error::StateError;
 use crate::event::StateEvent;
-use crate::invalidation::{
-    ChangedInput, InvalidationLog, InvalidationReason, InvalidationTarget,
-};
+use crate::invalidation::{ChangedInput, InvalidationLog, InvalidationReason, InvalidationTarget};
 use crate::refresh_contract::{RefreshChange, RefreshDisposition, RefreshRoute, route_contract};
 use crate::store::{
     CachedResult, DataCatalog, DataVersion, GraphEvidenceStore, ModelStore, QueryStore,
@@ -132,7 +130,12 @@ impl CausalState {
             StateEvent::AppendData(batch) => {
                 self.data_catalog.batches.push(batch);
                 self.data_catalog.version = self.data_catalog.version.next();
-                self.invalidate_data_dependents(v, InvalidationReason::AppendData, input, RefreshChange::AppendRows);
+                self.invalidate_data_dependents(
+                    v,
+                    InvalidationReason::AppendData,
+                    input,
+                    RefreshChange::AppendRows,
+                );
             }
             StateEvent::ReplaceData(new_ver) => {
                 self.data_catalog.version = new_ver;
@@ -165,9 +168,21 @@ impl CausalState {
                         &mut self.cache_budget,
                     );
                 }
-                self.invalidations.push(v, InvalidationTarget::LagIndexes, InvalidationReason::ReplaceData);
-                self.invalidations.push(v, InvalidationTarget::GraphScores, InvalidationReason::ReplaceData);
-                self.invalidations.push(v, InvalidationTarget::ParticleFilters, InvalidationReason::ReplaceData);
+                self.invalidations.push(
+                    v,
+                    InvalidationTarget::LagIndexes,
+                    InvalidationReason::ReplaceData,
+                );
+                self.invalidations.push(
+                    v,
+                    InvalidationTarget::GraphScores,
+                    InvalidationReason::ReplaceData,
+                );
+                self.invalidations.push(
+                    v,
+                    InvalidationTarget::ParticleFilters,
+                    InvalidationReason::ReplaceData,
+                );
                 self.invalidations.push(
                     v,
                     InvalidationTarget::MechanismDiagnostics,
@@ -576,8 +591,7 @@ impl CausalState {
         let ids: Vec<QueryId> = self.cached_results.results.keys().copied().collect();
         let log = |log: &mut InvalidationLog,
                    target: InvalidationTarget,
-                   reason: InvalidationReason| match input
-        {
+                   reason: InvalidationReason| match input {
             Some(input) => log.push_input(v, target, reason, input),
             None => log.push(v, target, reason),
         };

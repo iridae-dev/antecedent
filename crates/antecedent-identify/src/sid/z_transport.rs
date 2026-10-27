@@ -8,7 +8,11 @@
 
 use super::{IdentificationBudget, IdentificationError};
 
-use antecedent_core::{DistributionAvailability, EvidenceCatalog, InterventionAssignment as CatalogInterventionAssignment, RegimeKind, VariableDomain, VariableId};
+use antecedent_core::{
+    DistributionAvailability, EvidenceCatalog,
+    InterventionAssignment as CatalogInterventionAssignment, RegimeKind, VariableDomain,
+    VariableId,
+};
 
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 
@@ -772,17 +776,25 @@ pub(crate) use search::{
     search_trz_call,
 };
 
-use search::{inspect_z_expression, matches_registered_surrogate_graph, pre_search_budget_kind, same_variable_set, surrogate_formula};
+use search::{
+    inspect_z_expression, matches_registered_surrogate_graph, pre_search_budget_kind,
+    same_variable_set, surrogate_formula,
+};
 
-mod validate;
 mod decide;
 mod derive;
-pub use validate::{validate_z_experiment_family, validate_z_transport_query};
-pub use decide::{decide_two_source_z_transport, decide_z_transport_inspecting, decide_z_transport_with_catalog, intervention_ancestral_treatments, intervention_levels_conflict, intervention_mutilated_admg};
-pub(super) use decide::decide_z_transport_reporting;
+mod validate;
 use decide::certify_line11_obstruction;
+pub(super) use decide::decide_z_transport_reporting;
+pub use decide::{
+    decide_two_source_z_transport, decide_z_transport_inspecting, decide_z_transport_with_catalog,
+    intervention_ancestral_treatments, intervention_levels_conflict, intervention_mutilated_admg,
+};
 use derive::{ZDerivation, derive_z_transport, verify_z_obstruction_metered};
-pub use derive::{identify_z_transport, identify_z_transport_reporting, verify_z_transport_derivation};
+pub use derive::{
+    identify_z_transport, identify_z_transport_reporting, verify_z_transport_derivation,
+};
+pub use validate::{validate_z_experiment_family, validate_z_transport_query};
 
 #[cfg(test)]
 mod tests;

@@ -2,18 +2,34 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::super::{Admg, Arc, CatalogTransportResult, CausalExprArena, ClassicalTransportQuery, DSeparationWorkspace, DenseNodeId, ExecutionContext, ExprId, HashMap, IdentificationError, MzTransportDecision, SearchBudget, SearchCharge, SearchLimits, SearchReceipt, SearchStop, SelectionDiagram, SharedSearch, VariableId, identify_catalog_transport_metered};
+use super::super::{
+    Admg, Arc, CatalogTransportResult, CausalExprArena, ClassicalTransportQuery,
+    DSeparationWorkspace, DenseNodeId, ExecutionContext, ExprId, HashMap, IdentificationError,
+    MzTransportDecision, SearchBudget, SearchCharge, SearchLimits, SearchReceipt, SearchStop,
+    SelectionDiagram, SharedSearch, VariableId, identify_catalog_transport_metered,
+};
 
-use super::{BTreeMap, BTreeSet, BUDGET, EvidenceCatalog, FRONTIER_SHOWN, INVALID_QUERY, LeafBinding, MAX_ALTERNATIVES, MISSING_JOINT, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_RULE_SET, Mask, MetaSource, MetaTransportQuery, MixedExclusion, MixedInput, MixedQuantity, MixedRule, MixedSearchSummary, MixedSourceDerivation, MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep, NAMED_ROUTE, NOT_CERTIFIED, RegimeId, ValidatedMixedSourceQuery, ZTransportDecision, ZTransportLimitsReceipt, ZTransportQuery, bit, bounds_exceeded, build_expression, decide_z_transport_reporting, dense_variables, identify_meta_catalog_metered, invalid_derivation, invalid_query, members, render_steps, size, subsets_within, validate_mixed_source_query};
+use super::{
+    BTreeMap, BTreeSet, BUDGET, EvidenceCatalog, FRONTIER_SHOWN, INVALID_QUERY, LeafBinding,
+    MAX_ALTERNATIVES, MISSING_JOINT, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DO,
+    MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_RULE_SET, Mask, MetaSource, MetaTransportQuery,
+    MixedExclusion, MixedInput, MixedQuantity, MixedRule, MixedSearchSummary,
+    MixedSourceDerivation, MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep,
+    NAMED_ROUTE, NOT_CERTIFIED, RegimeId, ValidatedMixedSourceQuery, ZTransportDecision,
+    ZTransportLimitsReceipt, ZTransportQuery, bit, bounds_exceeded, build_expression,
+    decide_z_transport_reporting, dense_variables, identify_meta_catalog_metered,
+    invalid_derivation, invalid_query, members, render_steps, size, subsets_within,
+    validate_mixed_source_query,
+};
 
 mod checker;
 mod decide;
-use checker::{check_steps, check_with_shared_expression_layer, connected, unary_rule_holds};
 pub use checker::verify_mixed_source_derivation;
-pub(super) use decide::{meta_applies, stage_names};
+use checker::{check_steps, check_with_shared_expression_layer, connected, unary_rule_holds};
 pub use decide::decide_mixed_source;
 pub(crate) use decide::decide_mixed_source_shared;
 use decide::rule_search;
+pub(super) use decide::{meta_applies, stage_names};
 
 // ------------------------------------------------------------------ engine
 
@@ -308,9 +324,8 @@ impl<'g> Engine<'g> {
         // Each list is cut to what the budget can still pay for (one operation per
         // application, plus one so the stop is observed), so a wide pool is never
         // materialized ahead of the charge.
-        let room = usize::try_from(search.operations_remaining())
-            .unwrap_or(usize::MAX)
-            .saturating_add(1);
+        let room =
+            usize::try_from(search.operations_remaining()).unwrap_or(usize::MAX).saturating_add(1);
         let (max_move, max_do) = (self.max_move, self.max_do);
         if size(y) > 1 {
             self.pruned |= size(y) - 1 > max_move;

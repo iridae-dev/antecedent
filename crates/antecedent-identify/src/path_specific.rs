@@ -813,8 +813,7 @@ fn edge_g_formula(
             )),
         ),
     );
-    let functional =
-        arena.simplify(contrast).map_err(IdentificationError::expression)?;
+    let functional = arena.simplify(contrast).map_err(IdentificationError::expression)?;
     Ok((arena, functional))
 }
 
