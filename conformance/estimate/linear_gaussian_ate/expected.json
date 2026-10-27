@@ -27,23 +27,81 @@
   "treatment": "t",
   "outcome": "y",
   "generation": {
-    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
-    "seed_note": "deterministic linspace confounder; no RNG",
-    "env": "optional: dowhy==0.14 in isolated venv"
+    "script": "conformance/estimate/linear_gaussian_ate/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/linear_gaussian_ate/reference.py --check --self-test",
+    "generator_retained": true,
+    "input": "conformance/estimate/linear_gaussian_ate/data.csv",
+    "input_sha256": "c2efe7c53819ca742952fbecb61d1b2a100c8663e75d41c9979158ae46c5c1bb",
+    "environment_lock": "conformance/estimate/linear_gaussian_ate/reference.py.lock"
   },
   "reference": {
     "project": "dowhy",
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --with dowhy==0.14 --with numpy --with pandas python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false,
-    "note": "black-box execution only; no source translation",
+    "command": "uv run --frozen --script conformance/estimate/linear_gaussian_ate/reference.py --check --self-test",
+    "generator_retained": true,
+    "note": "Current independently authored public-API regeneration reproduces the preserved original estimate within its original tolerances. Original deleted-harness metadata is retained under historical_reference.",
     "outputs": {
       "estimate": 1.9999999999999951,
       "method": "backdoor.linear_regression"
     }
   },
   "oracle": {
+    "kind": "external_package",
+    "project": "DoWhy",
+    "version": "0.14",
+    "source": "Retained public-API DoWhy 0.14 backdoor.linear_regression run on the exact retained CSV and graph; independent structural coefficient 2 is checked separately.",
+    "generator": "conformance/estimate/linear_gaussian_ate/reference.py",
+    "generator_retained": true,
+    "reference_review": {
+      "scope": "One 200-row fixed noiseless linear design, graph, adjustment set, scalar ATE and preserved DoWhy output.",
+      "independence_basis": "The harness imports only released DoWhy/public graph and tabular APIs and standard-library comparison code. No product or test implementation is imported. Numerical estimation is delegated to the upstream package; the separate structural truth is the recorded coefficient 2, not product agreement. The harness has no transitive repository comparison helper.",
+      "historical_exposure": "Original historical author exposure cannot be established. Current authorship used public API documentation; search results also exposed CausalModel orchestration wrapper signatures, not numeric estimation or test source. No upstream implementation/test code was copied.",
+      "redistribution": "Repository-authored harness remains MIT OR Apache-2.0. Upstream packages are installed from the locked environment and are not vendored or imported by product runtime or ordinary CI. Original numeric values and historical exposure records are preserved.",
+      "limitations": "This treatment is a deterministic step of Z and violates conditional positivity. The comparison establishes a fitted contrast under the specified globally linear noiseless model and its parametric extrapolation; graph identification output alone does not establish nonparametric identification, overlap, observational causal validity or calibrated uncertainty. One fixed design is not broad method-family coverage.",
+      "sources": [
+        "https://www.pywhy.org/dowhy/v0.14/dowhy.html"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/linear_gaussian_ate/reference.py",
+          "sha256": "a2a856151709d27b29de52653906bd6da2ebb68af122cae6d45d5a6e5adb0bbe"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/linear_gaussian_ate/reference.py.lock",
+          "sha256": "7df06543d21ad58486613ff53d23bb8aacf1f11e43c8159bae900a80ec6ec35b"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/estimate_linear_gaussian_ate.rs",
+          "sha256": "a17009762f583786fb67a1681a60dfcb401b5d4b923bc64959dc9c245936fff6"
+        }
+      ],
+      "fixture_payload_sha256": "31a9da08974d9dd8d76649185b42c04060f7dbffd1c80a3b06c3943339de443d"
+    }
+  },
+  "historical_reference": {
+    "project": "dowhy",
+    "available": true,
+    "version": "0.14",
+    "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
+    "command": "uv run --with dowhy==0.14 --with numpy --with pandas python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "generator_retained": false,
+    "note": "black-box execution only; no source translation",
+    "outputs": {
+      "estimate": 1.9999999999999951,
+      "method": "backdoor.linear_regression"
+    }
+  },
+  "historical_generation": {
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
+    "seed_note": "deterministic linspace confounder; no RNG",
+    "env": "optional: dowhy==0.14 in isolated venv"
+  },
+  "historical_oracle": {
     "kind": "external_package",
     "project": "DoWhy",
     "version": "0.14",

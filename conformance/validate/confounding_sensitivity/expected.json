@@ -1,17 +1,38 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the frozen fields and executing assertion; no external numeric dump is present.",
+    "historical_exposure": "The deleted-harness/package wording is preserved in historical_oracle. Original author exposure cannot be independently established."
+  },
+  "partial_r2_grid": [
+    0.01,
+    0.02,
+    0.05,
+    0.1,
+    0.2,
+    0.3,
+    0.5
+  ],
+  "expected": {
+    "result_is_grid_member": true,
+    "scale_invariant": true,
+    "empty_grid_is_not_applicable": true,
+    "replicates": 7
+  },
+  "historical_oracle": {
     "kind": "external_package",
     "project": "sensemakr/DoWhy semantics plus closed-form partial-R2 loading",
     "version": "sensemakr 0.1.4; DoWhy 0.14",
     "generator": "temporary pinned environment and clean-room formula harness (deleted after artifact import)",
     "formula": "loading scale=sqrt(r2/(1-r2)); robustness is the first sorted grid value that explains away the signed effect."
   },
-  "partial_r2_grid": [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5],
-  "expected": {
-    "result_is_grid_member": true,
-    "scale_invariant": true,
-    "empty_grid_is_not_applicable": true,
-    "replicates": 7
-  }
+  "evidence_kind": "regression_pin",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_source": "crates/antecedent-validate/src/tests.rs::linear_sensitivity_reports_a_bounded_robustness_value",
+  "evidence_proposition": "The software sensitivity result retains the declared seven grid evaluations; the source additionally checks the analytic lower bound 0.5 on an exactly linear toy example.",
+  "limitations": "The frozen grid, replicate count and policy booleans are repository contract values, not numeric sensemakr or DoWhy outputs. This fixture cannot establish behavioral parity or calibrated sensitivity coverage. The primary formula and implemented simulated tipping quantity remain distinct in provenance/validate.confounding_sensitivity.toml."
 }

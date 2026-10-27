@@ -565,8 +565,8 @@ audit_row = "Analytic, HC, cluster, HAC uncertainty routing"
 # This fixture is a routing-contract label table only. Numeric sandwich
 # agreement lives in conformance/stats/sandwich_covariance (foundations.sandwich_covariance);
 # this row must not claim a numeric package comparison of its own.
-oracle_project = "statsmodels covariance fixtures plus routing identity checks"
-oracle_pin = "statsmodels==0.14.4 and fixture-algorithm-v1"
+oracle_project = "repository software contract"
+oracle_pin = "fixture-algorithm-v1"
 fixture_dir = "conformance/estimate/uncertainty_routing"
 comparison = "label"
 case_profile = "semantic"
@@ -764,7 +764,7 @@ audit_row = "Unobserved-common-cause and linear/partial-linear sensitivity"
 # empty-grid N/A, replicate count) plus a clean-room partial-R2 formula. It names
 # sensemakr/DoWhy semantics but contains no package numeric dump, so a numeric
 # pin against those packages would be a false comparison claim.
-oracle_project = "sensemakr/DoWhy semantics plus closed-form partial-R2 loading"
+oracle_project = "repository software contract"
 oracle_pin = "fixture-algorithm-v1"
 fixture_dir = "conformance/validate/confounding_sensitivity"
 comparison = "label"
@@ -790,10 +790,10 @@ status = "closed"
 id = "validate.overlap_graph_refutation"
 audit_stage = 7
 audit_row = "Overlap and graph refutation"
-oracle_project = "DoWhy plus direct overlap formulas"
-oracle_pin = "0.14"
+oracle_project = "repository software contract"
+oracle_pin = "fixture-algorithm-v1"
 fixture_dir = "conformance/validate/overlap_graph_refutation"
-comparison = "numeric-and-semantic"
+comparison = "label"
 case_profile = "semantic"
 gate = "scripts/gate_attribution.sh"
 exit_disposition = "validated_with_limits"

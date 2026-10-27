@@ -1,26 +1,85 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the frozen fields and executing assertion; no external numeric dump is present.",
+    "historical_exposure": "The deleted-harness/package wording is preserved in historical_oracle. Original author exposure cannot be independently established."
+  },
+  "routes": [
+    {
+      "kind": "Homoskedastic",
+      "required_metadata": [],
+      "target": "estimator classical or IID influence formula"
+    },
+    {
+      "kind": "Hc0",
+      "required_metadata": [],
+      "target": "HC0"
+    },
+    {
+      "kind": "Hc1",
+      "required_metadata": [],
+      "target": "HC1 or documented robust influence formula"
+    },
+    {
+      "kind": "Hc2",
+      "required_metadata": [],
+      "target": "HC2"
+    },
+    {
+      "kind": "Hc3",
+      "required_metadata": [],
+      "target": "HC3"
+    },
+    {
+      "kind": "Cluster",
+      "required_metadata": [
+        "cluster_ids"
+      ],
+      "target": "one-way cluster"
+    },
+    {
+      "kind": "Multiway",
+      "required_metadata": [
+        "multiway_ids"
+      ],
+      "target": "Cameron-Gelbach-Miller inclusion-exclusion"
+    },
+    {
+      "kind": "NeweyWest",
+      "required_metadata": [
+        "lag"
+      ],
+      "target": "Bartlett HAC"
+    },
+    {
+      "kind": "PanelClusterHac",
+      "required_metadata": [
+        "cluster_ids",
+        "panel_times",
+        "lag"
+      ],
+      "target": "within-panel Bartlett HAC"
+    }
+  ],
+  "acceptance": {
+    "numeric_tolerances": "inherit conformance/stats/sandwich_covariance/expected.json",
+    "missing_required_metadata": "structured error",
+    "estimand_scaling": "the same treatment contrast multiplier applies to point estimate and SE"
+  },
+  "historical_oracle": {
     "kind": "external_package",
     "project": "statsmodels covariance fixtures plus routing identity checks",
     "pin": "statsmodels==0.14.4 and fixture-algorithm-v1",
     "numeric_source": "../../stats/sandwich_covariance/expected.json",
     "generation_location": "composed frozen artifacts; no generator retained"
   },
-  "routes": [
-    {"kind": "Homoskedastic", "required_metadata": [], "target": "estimator classical or IID influence formula"},
-    {"kind": "Hc0", "required_metadata": [], "target": "HC0"},
-    {"kind": "Hc1", "required_metadata": [], "target": "HC1 or documented robust influence formula"},
-    {"kind": "Hc2", "required_metadata": [], "target": "HC2"},
-    {"kind": "Hc3", "required_metadata": [], "target": "HC3"},
-    {"kind": "Cluster", "required_metadata": ["cluster_ids"], "target": "one-way cluster"},
-    {"kind": "Multiway", "required_metadata": ["multiway_ids"], "target": "Cameron-Gelbach-Miller inclusion-exclusion"},
-    {"kind": "NeweyWest", "required_metadata": ["lag"], "target": "Bartlett HAC"},
-    {"kind": "PanelClusterHac", "required_metadata": ["cluster_ids", "panel_times", "lag"], "target": "within-panel Bartlett HAC"}
+  "evidence_kind": "regression_pin",
+  "evidence_roles": [
+    "software"
   ],
-  "acceptance": {
-    "numeric_tolerances": "inherit conformance/stats/sandwich_covariance/expected.json",
-    "missing_required_metadata": "structured error",
-    "estimand_scaling": "the same treatment contrast multiplier applies to point estimate and SE"
-  }
+  "evidence_source": "crates/antecedent-stats/tests/uncertainty_routing_contract.rs::routing_table_matches_frozen_fixture_in_both_directions",
+  "evidence_proposition": "The frozen covariance-kind and required-metadata label table matches the exhaustive local enum mapping in both directions.",
+  "limitations": "This is a self-authored software routing contract. It executes no upstream covariance computation and does not prove runtime metadata validation. Independent numeric covariance checks reside in stats/sandwich_covariance and its retained generator."
 }

@@ -319,13 +319,14 @@ group = "refutation_and_sensitivity"
 description = "Overlap and overlap-rule assessment"
 status = "done"
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/validate/overlap_graph_refutation"
 limitations = "Kish-ESS threshold is self-authored; provenance discloses no upstream implementation observed. The evidence test covers the propensity overlap refuter; the overlap-rule refuter is covered by overlap_rule_passes_on_balanced_toy in overlap_rule.rs."
 owner = "estimate"
 evidence_test = "crates/antecedent-validate/src/tests.rs"
 evidence_assertion = "overlap_flags_near_deterministic_treatment_assignment"
 python_facade = "full"
 notes = "OverlapRefuter + OverlapRuleRefuter (Crump-style retained support)."
+
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-validate/src/tests.rs::overlap_flags_near_deterministic_treatment_assignment", proposition = "T=1{Z>0.5} makes P(T=1|Z) exactly 0 or 1: conditional positivity fails on this constructed design. The executing assertion requires the diagnostic refusal.", tolerance = "Exact passed=false and replicates=1; no calibrated numeric threshold is claimed.", limitations = "One deterministic-separation example. The diagnostic propensity algorithm and repository policy do not inherit external-package parity from the unrelated label fixture." }
 
 [[capabilities]]
 id = "estimate.refute.data_subset"
@@ -372,11 +373,12 @@ group = "refutation_and_sensitivity"
 description = "Graph refutation"
 status = "done"
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/validate/overlap_graph_refutation"
 owner = "estimate"
 evidence_test = "crates/antecedent-validate/src/tests.rs"
 evidence_assertion = "graph_refute_reports_the_confounder_dependence_descriptively"
 python_facade = "full"
+
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-validate/src/tests.rs::graph_refute_reports_the_confounder_dependence_descriptively", proposition = "On the 400-row grid Z=i/400, the two treatment-arm means of Z are 0.25 and 0.75. Y=1+2T+3Z therefore has adjusted effect 2 and unadjusted difference 3.5; the relative change 0.75 exceeds the asserted policy threshold 0.5.", tolerance = "The executing comparison asserts only relative change >0.5, plus exact non-informative and passed=false flags; it does not pin 0.75 numerically.", limitations = "Descriptive sensitivity on one deterministic confounded design. This is not a graph falsifier, package comparison or calibrated uncertainty claim." }
 
 [[capabilities]]
 id = "estimate.refute.sensitivity"

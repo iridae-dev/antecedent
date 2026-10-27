@@ -120,13 +120,27 @@ assertions pass; the ten foundations assertions pass. These are fixed-input
 comparisons. Temporal Sobel uncertainty is checked only under explicit iid
 opt-in, and GAM fit outputs remain product regression pins.
 
-Fourteen retained reference reviews bind generator, transitive comparison
+Fifteen retained reference reviews bind generator, transitive comparison
 helper, lock, assertion source and fixture payload by digest. Gates reject
 changed inputs, expected outputs, tolerances, origins, assertions and helpers
 until reviewed again. Reviews record limited independence, redistribution
 sources and uncertainty about historical exposure. They do not certify primary
 theorem correspondence. A mixed fixture must explicitly name independent
 `evidence_fields`; a GAM fitted-output claim cannot borrow its basis comparison.
+
+The linear ATE fixture now has a retained DoWhy 0.14 generator and frozen
+environment. Its original CSV, estimate and tolerances are preserved; corrupted
+inputs, outputs, methods, scenario coordinates and tolerances fail regeneration.
+The treatment is a deterministic function of the confounder: this is a linear
+model contrast with parametric extrapolation, not a nonparametric overlap claim.
+
+Three incorrectly external-labelled fixtures now explicitly establish software
+contracts: covariance routing labels, sensitivity-grid counts and descriptive
+drop-covariate policy thresholds. Their original metadata is retained. The two
+affected known-truth declarations instead name the exact executing analytic
+positivity counterexample and confounded-effect inequality; no policy label is
+used as an independent numerical oracle. Numeric covariance comparisons remain
+with the separate retained statsmodels fixture.
 
 Inspection also repaired stale conditional-estimator provenance: the current
 implementation supports joint modifiers and adds modifier-mean sampling

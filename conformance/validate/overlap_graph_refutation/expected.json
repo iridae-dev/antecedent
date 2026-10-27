@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "oracle": {
-    "kind": "external_package",
-    "project": "DoWhy 0.14 plus direct overlap formulas",
-    "version": "0.14",
-    "generator": "temporary pinned Python environment and clean-room formula harness (deleted after artifact import)"
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the frozen fields and executing assertion; no external numeric dump is present.",
+    "historical_exposure": "The deleted-harness/package wording is preserved in historical_oracle. Original author exposure cannot be independently established."
   },
   "overlap": {
     "ess_fraction": "ess/n",
@@ -17,5 +17,18 @@
     "scm": "Z->T, Z->Y, T->Y",
     "drop_true_confounder_passes": false,
     "minimum_relative_effect_change": 0.5
-  }
+  },
+  "historical_oracle": {
+    "kind": "external_package",
+    "project": "DoWhy 0.14 plus direct overlap formulas",
+    "version": "0.14",
+    "generator": "temporary pinned Python environment and clean-room formula harness (deleted after artifact import)"
+  },
+  "evidence_kind": "regression_pin",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_source": "crates/antecedent-validate/src/tests.rs::graph_refute_reports_the_confounder_dependence_descriptively",
+  "evidence_proposition": "Dropping the essential confounder in the declared toy example produces a descriptive, non-informative report exceeding the repository threshold 0.5.",
+  "limitations": "The acceptance threshold and flags are self-authored software policy, not a DoWhy numeric reference. This check neither falsifies the graph nor establishes causal truth or calibration. Historical package-exposure statements remain unverified."
 }
