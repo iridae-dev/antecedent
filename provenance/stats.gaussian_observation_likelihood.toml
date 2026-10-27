@@ -27,4 +27,42 @@ test_sources = [
  "crates/antecedent-stats/src/observation.rs",
  "crates/antecedent-estimate/src/observation.rs",
  "conformance/response/observation_primitives (independent closed-form likelihood fixture)",
+ "crates/antecedent-stats/tests/gaussian_observation_reference.rs (interval, censored and truncated terms against 60-digit mpmath values)",
+ "crates/antecedent-stats/tests/oracle_data/gaussian_observation_reference.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "gaussian_observation_log_likelihood in stats/observation.rs: the exact, left-, right- and interval-censored and exact-truncated Gaussian log-likelihood contributions for supplied means and a common sigma, including the tail-stable interval-mass helper. Not the papers' estimators, EM algorithms, censoring-plan inference, or the mutually exclusive censoring-plus-truncation model."
+assumptions = ["Row variants are mutually exclusive: a censored observation is not also a draw from a truncated distribution; the likelihood is a product of independent contributions for supplied means and sigma.", "Interval and truncation endpoints may be infinite on the sides where that is meaningful; a censoring bound must be finite.", "A contribution with zero or non-finite probability is refused, never scored as a finite number.", "This is a likelihood evaluation, not an inference procedure: it does not show that the censoring mechanism is ignorable."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source and its numerical helpers and checked them against closed-form algebra and high-precision or exhaustive-enumeration references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, so it is a code-versus-rule review with executing references, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The mpmath script and the Rust test with its frozen constants are repository-authored (MIT OR Apache-2.0); mpmath is not a product dependency."
+limitations = "Twenty-seven reference points: exact, left and right censored (including tails to -40 and 40 standard deviations), 15 interval masses (width down to 1e-12 standard deviations, straddling and touching the mean, both tails, mirrored) and 5 truncated terms, each to 1e-12 to 1e-13 relative; plus the original paper-equation fixture. The reference script is not run in a pinned, locked environment and is not wired to a gate. Tobin, Williams-Kim-Crespi and Lodhi-Tripathi were not re-read for this review; the formulas were checked against their standard likelihood definitions. Intervals wider than 0.25 standard deviations in a tail difference two tail logarithms, which loses a few digits only when the interval is also a negligible share of the tail mass."
+sources = ["https://doi.org/10.2307/1907382", "https://doi.org/10.1186/s12874-020-01032-9", "https://doi.org/10.1080/02664763.2019.1679096"]
+findings_resolved = ["Defect fixed: for an interval containing the mean the mass was computed as norm_cdf(upper) - norm_cdf(lower), which differences two values near one half; a width of 2e-12 standard deviations returned a log mass off by 2.9e-5, and widths below about 1e-16 would be refused as zero probability. The mass is now (erf(upper/sqrt 2) - erf(lower/sqrt 2))/2, a sum of non-negative terms with no cancellation.", "Defect fixed: for a narrow interval entirely in one tail the mass was Phi-bar(l)(1 - exp(log Phi-bar(u) - log Phi-bar(l))), differencing two nearly equal logarithms; a width of 1e-12 at l = 1 was off by 1.8e-4 in the log mass. Intervals of width at most 0.25 now integrate the hazard phi/Phi-bar with five-point Gauss-Legendre quadrature, so the logarithm difference keeps full relative accuracy; the lower tail is the mirrored case.", "Verified the exact, left-censored (Phi((b-mu)/sigma)), right-censored and truncated (density over interval mass) contributions and the refusal of out-of-bound truncated values, unordered or empty intervals and non-finite inputs against the definitions and the retained mpmath values."]
+record_sha256 = "e62c727b680a15aa5f6cf8c7e382aea62699f7e7fc61239c8352e77481f1dda0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/observation.rs"
+sha256 = "201a0a18f916ba476a17ec73ee8957243c2a012edfa8d5c7363497ee41c582af"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-kernels/src/special.rs"
+sha256 = "d989a2f87b869c69b97392066b783745bc734b0a080d9c6684551efad807c547"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/gaussian_observation_reference.rs"
+sha256 = "082542fb879d3399716296f68f8e656ee1f0639edd83c564ead7d3aa40091810"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/gaussian_observation_reference.py"
+sha256 = "15de9bdb2749a3d5e68fb813bbb3caabe298f6f301a14ea798ec457793e22c38"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/response/observation_primitives/expected.json"
+sha256 = "76b3447351d6948b2083194c4bac19ab96f96b7e88baed270fa8f07c808ddafe"

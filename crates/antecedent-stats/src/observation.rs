@@ -11,7 +11,7 @@
 )]
 
 use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
-use antecedent_kernels::{log_norm_pdf, log_norm_sf, norm_cdf};
+use antecedent_kernels::{erf, log_norm_pdf, log_norm_sf};
 
 use crate::{
     FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace, StatsError, fit_glm,
@@ -499,22 +499,66 @@ fn ln_one_minus_exp(d: f64) -> f64 {
     if d > -std::f64::consts::LN_2 { (-d.exp_m1()).ln() } else { (-d.exp()).ln_1p() }
 }
 
+/// `ln(Φ̄(lower) − Φ̄(upper))` for `0 ≤ lower < upper` (an interval in the upper tail).
+///
+/// Writing the mass as `Φ̄(lower) (1 − e^Δ)` with `Δ = ln Φ̄(upper) − ln Φ̄(lower) =
+/// −∫ h(t) dt` and `h = φ/Φ̄` the (smooth) hazard, a narrow interval gets `Δ` by 5-point
+/// Gauss–Legendre quadrature of `h`, so `Δ` keeps full relative accuracy instead of being the
+/// difference of two nearly equal logarithms. Wider or unbounded intervals difference the logs
+/// directly, where the cancellation is a negligible share of `Δ`.
+fn log_upper_tail_interval_mass(lower: f64, upper: f64) -> f64 {
+    const NARROW: f64 = 0.25;
+    const NODES: [f64; 5] = [
+        0.0,
+        0.538_469_310_105_683_1,
+        -0.538_469_310_105_683_1,
+        0.906_179_845_938_664,
+        -0.906_179_845_938_664,
+    ];
+    const WEIGHTS: [f64; 5] = [
+        0.568_888_888_888_888_9,
+        0.478_628_670_499_366_5,
+        0.478_628_670_499_366_5,
+        0.236_926_885_056_189_1,
+        0.236_926_885_056_189_1,
+    ];
+    let log_l = log_norm_sf(lower);
+    let width = upper - lower;
+    let delta = if width <= NARROW {
+        let mid = 0.5 * (lower + upper);
+        let half = 0.5 * width;
+        let integral: f64 = NODES
+            .iter()
+            .zip(WEIGHTS)
+            .map(|(node, weight)| {
+                let t = mid + half * node;
+                weight * (log_norm_pdf(t) - log_norm_sf(t)).exp()
+            })
+            .sum();
+        -half * integral
+    } else {
+        log_norm_sf(upper) - log_l
+    };
+    log_l + ln_one_minus_exp(delta)
+}
+
 /// `ln(Φ(upper) − Φ(lower))` for standardized bounds, computed in the tail nearer to the
 /// interval so neither the mass nor the difference of near-1 CDF values cancels or
 /// underflows.
 fn log_interval_mass(lower: f64, upper: f64) -> Result<f64, StatsError> {
     let log_mass = if lower > 0.0 {
         // Both bounds in the upper tail: Φ̄(l) − Φ̄(u).
-        let log_l = log_norm_sf(lower);
-        log_l + ln_one_minus_exp(log_norm_sf(upper) - log_l)
+        log_upper_tail_interval_mass(lower, upper)
     } else if upper < 0.0 {
-        // Mirror image in the lower tail: Φ(u) − Φ(l), with Φ(z) = Φ̄(−z).
-        let log_u = log_norm_sf(-upper);
-        log_u + ln_one_minus_exp(log_norm_sf(-lower) - log_u)
+        // Mirror image in the lower tail: Φ(u) − Φ(l) = Φ̄(−u) − Φ̄(−l).
+        log_upper_tail_interval_mass(-upper, -lower)
     } else {
-        // The interval contains 0, so its mass is at least the mass of a unit-scale sliver
-        // around it minus nothing that cancels catastrophically.
-        (norm_cdf(upper) - norm_cdf(lower)).ln()
+        // The interval contains 0, where Phi is near one half and differencing two CDF
+        // values loses every digit of a narrow interval. With lower <= 0 <= upper the mass is
+        // (erf(upper/sqrt 2) + erf(|lower|/sqrt 2)) / 2: a sum of non-negative terms, each
+        // evaluated directly by the central-interval erf, so nothing cancels.
+        let half_sqrt2 = std::f64::consts::FRAC_1_SQRT_2;
+        (0.5 * (erf(upper * half_sqrt2) - erf(lower * half_sqrt2))).ln()
     };
     if log_mass.is_finite() {
         Ok(log_mass)
@@ -528,7 +572,7 @@ fn log_interval_mass(lower: f64, upper: f64) -> Result<f64, StatsError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_kernels::norm_pdf;
+    use antecedent_kernels::{norm_cdf, norm_pdf};
 
     /// Perfectly separated observation indicators are refused as separation.
     #[test]

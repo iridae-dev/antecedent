@@ -22,4 +22,52 @@ test_sources = [
  "Bernoulli logit synthetic separation-safe design",
  "criterion bench crates/antecedent-prob/benches/laplace_glm.rs",
  "conformance/bayesian/laplace_glm",
+ "crates/antecedent-prob/tests/bayes_posterior_oracle.rs::laplace_glm_mode_and_covariance_match_fifty_digit_reference",
+ "crates/antecedent-prob/tests/oracle_data/laplace_glm_reference.py (50-digit mpmath mode and covariance)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The Laplace backend for Bernoulli-logit, Bernoulli-probit and Poisson-log GLMs with a Gaussian coefficient prior: per-observation score and observed curvature (likelihood_terms.rs), prior gradient and precision (diagonal or dense), the damped Newton mode search, separation and curvature refusals, the covariance from the Cholesky of the negative Hessian, and the delegation of Gaussian-identity to the exact backend. Not a review of the accuracy of a single Gaussian approximation to a skewed posterior, or of the HMC alternative."
+assumptions = ["The posterior is approximated by N(mode, (-Hessian at the mode)^-1) with the observed (not expected) information, which for logit and Poisson equals the expected information and for probit includes the Mills-ratio term.", "The Poisson log likelihood drops the constant -log y!, which does not affect the mode or curvature; prior weights are likelihood powers, so a zero weight removes the row.", "A fit whose mode is within 1e-8 of certainty for at least 10 percent of the weighted rows is refused as possible separation; this share is a repository policy, not a theorem.", "The Laplace approximation is local: skewness, multimodality and prior-hyperparameter uncertainty are not represented, and no statement of frequentist coverage is made."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source and its numerical helpers and checked them against closed-form algebra and high-precision or exhaustive-enumeration references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, so it is a code-versus-rule review with executing references, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The mpmath reference script and its frozen constants are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "Six 14-row, 2-coefficient cases (logit, probit, Poisson, each with and without weights and offsets) against 50-digit mpmath modes and covariances (mode 1e-9, covariance 1e-8 relative). The reference derivatives are numerical differentiation of the log likelihood and the Newton iteration is separate code, but the reference script is not run in a pinned, locked environment and is not wired into any gate; the constants are frozen in the test. No large-n, separation-boundary, high-dimensional or dense-correlated-prior GLM reference is added, and the accuracy of the Gaussian approximation itself is not assessed. The existing conformance fixture exercises only the Gaussian-identity (exact) path, so it does not by itself support the non-Gaussian claims; Bayesian Data Analysis was not re-read for this review."
+sources = ["https://doi.org/10.1201/b16018"]
+findings_resolved = ["Verified that the logit score y(1-mu) - (1-y)mu and curvature mu(1-mu), the probit score sign * phi/Phi and observed curvature ratio * (ratio + x) (with the continued-fraction Mills form below -8), and the Poisson score y - mu and curvature mu agree with high-precision numerical differentiation of the log likelihood through the full Newton fit.", "Added the first executing non-Gaussian Laplace reference: modes and covariances of all three families, weighted and offset, match 50-digit mpmath values (the repository's earlier Laplace fixture was Gaussian-identity only and so did not test these code paths).", "Checked the line search, prior gradient and dense-precision paths against the reference mode (nonzero prior mean, unequal prior variances); no defect found. No product defect was found in this record."]
+record_sha256 = "8459119d4f85c02f67a1cdbb6d5f065514c6c066127d77bf3b48e0cd76288625"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/laplace.rs"
+sha256 = "32eb9e61f5484cd1025650db64f4d571bbe9926a99db9d552ebd6f0f2339accf"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/likelihood_terms.rs"
+sha256 = "364572075e0edddb2e8e85f1b21e7f51d96b5786867b15b7e8a3f29f529c3d98"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/prior.rs"
+sha256 = "cf40870bbb70f8cfd41e234b19a7bb919f2f1bb20ceb28f04a3f387783b587be"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-kernels/src/special.rs"
+sha256 = "d989a2f87b869c69b97392066b783745bc734b0a080d9c6684551efad807c547"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-prob/tests/bayes_posterior_oracle.rs"
+sha256 = "a94aaaabef273e54da0ac5fd5a0c9f88785cd2f4a148afc210a5f8300c48b401"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-prob/tests/oracle_data/laplace_glm_reference.py"
+sha256 = "7887eb3d5124fee4717a055558eb07b800dbcd1fe9970aaec3aa3390db17902d"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/bayesian/laplace_glm/expected.json"
+sha256 = "09a6ca6afaa67976db10e33a50107989932b72cba998b3ae130e19a4bcb968c3"

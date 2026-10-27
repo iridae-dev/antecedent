@@ -24,4 +24,31 @@ test_sources = [
  "crates/antecedent-stats/src/interference.rs",
  "crates/antecedent-estimate/src/interference.rs",
  "conformance/response/randomized_interference (exact-enumeration/equation fixture)",
+ "crates/antecedent-stats/tests/interference_enumeration.rs (six-unit exhaustive enumeration: unbiasedness, variance-bound expectation and dominance, positivity refusal)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The randomization kernels in stats/interference.rs: exposure computation from an assignment and weighted incoming network, exact enumeration (at most 20 units or clusters) and seeded Monte Carlo exposure probabilities for Bernoulli, complete and cluster randomization, the Horvitz-Thompson and Hajek exposure means, the positivity refusal, the covariance-free Young-inequality variance bound and the contrast. Not the two-stage saturation or supplied-propensity estimators, and not Aronow and Samii's joint-exposure variance estimator."
+assumptions = ["The assignment design and the exposure mapping are known and correctly specified, and the potential outcome of a unit depends on assignments only through its mapped exposure (no unmodelled interference).", "Every unit has strictly positive probability of the requested exposure; otherwise the population Horvitz-Thompson mean is not defined and the kernel refuses.", "The conservative variance is an upper bound for the variance of the Horvitz-Thompson mean (sum of unit variances over n), estimated unbiasedly from the exposed units. It is not shown to give valid confidence intervals and carries no coverage claim.", "Monte Carlo exposure probabilities omit their own simulation error from the reported variance, and the Hajek ratio is consistent but not unbiased."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source and its numerical helpers and checked them against closed-form algebra and high-precision or exhaustive-enumeration references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, so it is a code-versus-rule review with executing references, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The enumeration test is repository-authored (MIT OR Apache-2.0) with fixed data in the file; no upstream code or tests are imported."
+limitations = "One six-unit directed network, one exposure mapping (neighbour count), complete randomization with three treated and Bernoulli with unit-specific probabilities, enumerated exhaustively; exact enumeration is the only probability route exercised against a reference, so the Monte Carlo probability route, cluster designs beyond a count of exposure probabilities, the neighbour-fraction and weighted mappings, and larger networks are covered only by the pre-existing unit tests. Aronow and Samii (2017) was not re-read for this review; equations were checked against the standard Horvitz-Thompson and Hajek definitions of the exposure mean."
+sources = ["https://doi.org/10.1214/16-AOAS1005"]
+findings_resolved = ["Verified over the full assignment support that E[HT] equals the population exposure mean exactly (to 1e-10) under complete randomization (a design with negative dependence between units) and under unit-specific Bernoulli assignment, using exposure probabilities that match an independent enumeration to 1e-12.", "Verified that the expected value of the reported conservative variance equals sum_i (1 - pi_i) Y_i(level)^2 / (pi_i n), the sum of unit variances over n, and that it dominates the true variance of the estimator in both designs (the property the Young bound promises); contrast variance is 2 (V_from + V_to) as documented.", "Verified the positivity refusal on a level that is unreachable for one unit, instead of averaging a zero-probability unit into the population mean. No product defect was found in this record."]
+record_sha256 = "9aafb5d558ae1608f1f11a2231011d1647b81d38659ac1d07b1e2e96da98c714"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/interference.rs"
+sha256 = "7f383d786158a103f2adcbb2ed2008f74774bda85a676ec18aedfd74293fc20d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/interference_enumeration.rs"
+sha256 = "5d8545f48342adcf7da14bd22cf031337468bfc7649c83d5710bb6986d8f763b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/response/randomized_interference/expected.json"
+sha256 = "c60dd846b76606b231850b79511735c8176242a1719a4e0c1980412e3cd71302"

@@ -17286,3 +17286,31 @@ crate = "antecedent-learn"
 cargo_target = "lib"
 path = "crates/antecedent-learn/src/transported_effect_premise_tests.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "bayes-posterior-oracle"
+crate = "antecedent-prob"
+cargo_target = "bayes_posterior_oracle"
+path = "crates/antecedent-prob/tests/bayes_posterior_oracle.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "interference-enumeration"
+crate = "antecedent-stats"
+cargo_target = "interference_enumeration"
+path = "crates/antecedent-stats/tests/interference_enumeration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "gaussian-observation-reference"
+crate = "antecedent-stats"
+cargo_target = "gaussian_observation_reference"
+path = "crates/antecedent-stats/tests/gaussian_observation_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "local-quadratic-reference"
+crate = "antecedent-stats"
+cargo_target = "local_quadratic_reference"
+path = "crates/antecedent-stats/tests/local_quadratic_reference.rs"
+gates = ["inventory", "named"]

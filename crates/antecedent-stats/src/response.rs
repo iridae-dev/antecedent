@@ -637,7 +637,20 @@ fn fit_local_quadratic(
     // Fused with the accumulation loop above (which also guards both sums), so
     // this is the one Kish ratio not routed through `kernels::kish_ess`.
     let local_ess = weight_sum * weight_sum / weight_sq_sum;
-    let sigma2 = weighted_rss / (weight_sum - 3.0);
+    // For uncorrelated homoskedastic errors, E[r'Wr] = sigma^2 (sum w - tr((X'WX)^-1 X'W^2X))
+    // because the weighted hat map is a W-orthogonal projection. The divisor equals
+    // `weight_sum - 3` only when every kernel weight is 0 or 1; with fractional Gaussian
+    // weights the latter overstates sigma^2.
+    let weighted_hat_trace: f64 = (0..3)
+        .map(|j| (0..3).map(|k| inverse[j][k] * squared_gram[k][j]).sum::<f64>())
+        .sum();
+    let residual_weight = weight_sum - weighted_hat_trace;
+    if !residual_weight.is_finite() || residual_weight <= 0.0 {
+        return Err(StatsError::Backend(
+            "local response residual scale is not estimable from the kernel window".into(),
+        ));
+    }
+    let sigma2 = weighted_rss / residual_weight;
     // sigma^2 (X'WX)^-1 (X'W^2X) (X'WX)^-1 — the kernel weights are not
     // inverse-variance weights, so the bread-only form is not the variance.
     let sandwich = smoother_squares;
