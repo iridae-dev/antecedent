@@ -11,9 +11,9 @@ copied_tests = false
 # borrowing are textbook; the transport-error structure (one tau_t^2 shared by every summary
 # carried through the same transport) is a modelling construction of this implementation.
 papers = [
-  { title = "Introduction to Meta-Analysis (Borenstein, Hedges, Higgins, Rothstein, 2009)", doi = "10.1002/9780470743386", sections = ["chapter 11: fixed-effect model, inverse-variance weights", "chapter 13: random-effects model (hierarchical normal borrowing across exchangeable studies)"] },
-  { title = "Estimation in Parallel Randomized Experiments (Rubin, 1981)", doi = "10.3102/10769986006004377", sections = ["normal hierarchical model for exchangeable study effects"] },
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+  { title = "Introduction to Meta‐Analysis", citation_note = "Previously recorded title and bibliographic detail: Introduction to Meta-Analysis (Borenstein, Hedges, Higgins, Rothstein, 2009)", doi = "10.1002/9780470743386", sections = ["chapter 11: fixed-effect model, inverse-variance weights", "chapter 13: random-effects model (hierarchical normal borrowing across exchangeable studies)"] },
+  { title = "Estimation in Parallel Randomized Experiments", citation_note = "Previously recorded title and bibliographic detail: Estimation in Parallel Randomized Experiments (Rubin, 1981)", doi = "10.3102/10769986006004377", sections = ["normal hierarchical model for exchangeable study effects"] },
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
 ]
 implementation_deviations = [
   "The shared transport error is a declared variance, not an estimate: the premise that b_t has variance tau_t^2 and is common to all summaries of one transport is a modelling declaration. A transport with no declared uncertainty is refused rather than read as zero.",

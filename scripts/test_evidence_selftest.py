@@ -28,6 +28,12 @@ IT_RS = r"""
 use antecedent_test_support::{conformance_dir as fixture_root, load_expected_json};
 
 #[test]
+fn fixture_with_only_a_tautology() {
+    let _expected = load_expected_json(&fixture_root("demo/truth"));
+    assert_eq!(1, 1, "{}", axes());
+}
+
+#[test]
 fn shared_helpers_consume_fixture() {
     let expected = load_expected_json(&fixture_root("demo/truth"));
     assert!(expected.contains("2.0"), "{}", axes());
@@ -236,6 +242,7 @@ def build(tmp: Path) -> None:
     (tmp / "scripts").mkdir()
     for helper in (
         "test_evidence.py",
+        "evidence_kinds.py",
         "run_evidence_rows.py",
         "_py_closure.py",
         "_rust_source.py",
@@ -509,6 +516,12 @@ def main() -> int:
 
         cases = [
             ("control", rs("good_consumes_fixture"), None),
+            ("behavioral_fixture_control", rs("good_consumes_fixture", evidence_kind="behavioral_parity"), None),
+            ("behavioral_reference_in_another_test_is_not_evidence",
+             rs("shared_helpers_are_not_called", evidence_kind="behavioral_parity"),
+             "never names conformance/demo/truth"),
+            ("fixture_with_only_a_tautology", rs("fixture_with_only_a_tautology"),
+             "every assertion is a constant or self-comparison"),
             (
                 "path_module_helper_control",
                 rs("path_module_fixture_helper", evidence_test="crates/selftest/tests/path.rs"),

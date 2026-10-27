@@ -8,8 +8,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Measurement Error in Nonlinear Models: A Modern Perspective (2nd ed.)", doi = "10.1201/9781420010138", sections = ["Ch. 3 Linear regression and attenuation", "Ch. 4 Regression calibration"] },
- { title = "Multiple Imputation for Nonresponse in Surveys (Rubin 1987)", doi = "10.1002/9780470316696", sections = ["Ch. 3 Combining rules"] },
+ { title = "Measurement Error in Nonlinear Models", citation_note = "Previously recorded title and bibliographic detail: Measurement Error in Nonlinear Models: A Modern Perspective (2nd ed.)", doi = "10.1201/9781420010138", sections = ["Ch. 3 Linear regression and attenuation", "Ch. 4 Regression calibration"] },
+ { title = "Multiple Imputation for Nonresponse in Surveys", citation_note = "Previously recorded title and bibliographic detail: Multiple Imputation for Nonresponse in Surveys (Rubin 1987)", doi = "10.1002/9780470316696", sections = ["Ch. 3 Combining rules"] },
 ]
 
 implementation_deviations = [

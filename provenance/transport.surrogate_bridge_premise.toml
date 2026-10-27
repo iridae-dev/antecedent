@@ -9,9 +9,9 @@ copied_tests = false
 # selection diagram: the premise holds only when no selection node points into the terminal
 # outcome or into a declared modifier of the relation.
 papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
-  { title = "Surrogate endpoints in clinical trials: definition and operational criteria (Prentice, Stat Med 8:431-440)", doi = "10.1002/sim.4780080407", sections = ["surrogate endpoint criteria"] },
-  { title = "The validation of surrogate endpoints in meta-analyses of randomized experiments (Buyse, Molenberghs, Burzykowski, Renard and Geys, Biostatistics 1:49-67)", doi = "10.1093/biostatistics/1.1.49", sections = ["trial-level association between treatment effects on surrogate and terminal outcome"] },
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+  { title = "Surrogate endpoints in clinical trials: Definition and operational criteria", citation_note = "Previously recorded title and bibliographic detail: Surrogate endpoints in clinical trials: definition and operational criteria (Prentice, Stat Med 8:431-440)", doi = "10.1002/sim.4780080407", sections = ["surrogate endpoint criteria"] },
+  { title = "The validation of surrogate endpoints in meta-analyses of randomized experiments", citation_note = "Previously recorded title and bibliographic detail: The validation of surrogate endpoints in meta-analyses of randomized experiments (Buyse, Molenberghs, Burzykowski, Renard and Geys, Biostatistics 1:49-67)", doi = "10.1093/biostatistics/1.1.49", sections = ["trial-level association between treatment effects on surrogate and terminal outcome"] },
 ]
 implementation_deviations = [
   "Checks the premise against a declared diagram; it does not discharge it. The premise stays an unresolved obligation of the derived claim.",

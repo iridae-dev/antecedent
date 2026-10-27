@@ -29,7 +29,21 @@ fn fixture(name: &str) -> Value {
         .join(name)
         .join("expected.json");
     let raw = fs::read_to_string(path).expect("read oracle fixture");
-    serde_json::from_str(&raw).expect("parse oracle fixture")
+    let expected: Value = serde_json::from_str(&raw).expect("parse oracle fixture");
+    require_cases(&expected);
+    expected
+}
+
+fn require_cases(expected: &Value) {
+    if let Some(cases) = expected.get("cases") {
+        assert!(!cases.as_array().expect("oracle cases must be an array").is_empty());
+    }
+}
+
+#[test]
+#[should_panic(expected = "assertion failed")]
+fn empty_oracle_case_grid_is_rejected() {
+    require_cases(&serde_json::json!({"cases": []}));
 }
 
 fn floats(value: &Value) -> Vec<f64> {
@@ -95,47 +109,126 @@ fn descriptive_reductions_match_frozen_numpy_outputs() {
 fn least_squares_matches_frozen_statsmodels_outputs() {
     let expected = fixture("ols_wls");
     assert_eq!(expected["reference"]["available"].as_bool(), Some(true));
+    assert_eq!(expected["oracle"]["kind"].as_str(), Some("external_package"));
+    assert_eq!(expected["oracle"]["version"].as_str(), Some("0.14.4"));
+    assert_eq!(expected["cases"].as_array().unwrap().len(), 6);
     let atol = expected["atol"].as_f64().unwrap();
     let rtol = expected["rtol"].as_f64().unwrap();
     let mut workspace = LeastSquaresWorkspace::default();
 
+    for name in [
+        "ordinary_ols",
+        "ordinary_wls",
+        "no_intercept",
+        "rescaled_and_permuted",
+        "ill_conditioned",
+        "rank_deficient_oracle_pseudoinverse",
+    ] {
+        assert!(expected["cases"].as_array().unwrap().iter().any(|c| c["name"] == name));
+    }
     for case in expected["cases"].as_array().unwrap() {
-        let name = case["name"].as_str().unwrap();
-        let rows = rowmajor(&case["x_rowmajor"]);
-        let nrows = rows.len();
-        let ncols = rows[0].len();
-        let x = colmajor(&rows);
-        let y = floats(&case["y"]);
-        if name == "rank_deficient_oracle_pseudoinverse" {
-            let error =
-                FaerBackend.least_squares(&x, nrows, ncols, &y, &mut workspace).unwrap_err();
-            assert!(matches!(error, antecedent_stats::StatsError::RankDeficient { .. }));
-            continue;
-        }
+        assert_least_squares_case(case, &mut workspace, atol, rtol);
+    }
+}
 
-        let fit = if let Some(weights) = case["weights"].as_array() {
-            let weights: Vec<f64> = weights.iter().map(|v| v.as_f64().unwrap()).collect();
-            fit_wls(&x, nrows, ncols, &y, &weights, &FaerBackend, &mut workspace).unwrap()
-        } else {
-            FaerBackend.least_squares(&x, nrows, ncols, &y, &mut workspace).unwrap()
-        };
-
-        let reference_coefficients = floats(&case["coefficients"]);
-        if name == "ill_conditioned" {
-            let reference_fitted = floats(&case["fitted"]);
-            let fitted: Vec<f64> = (0..nrows)
-                .map(|r| (0..ncols).map(|c| x[c * nrows + r] * fit.coefficients[c]).sum::<f64>())
-                .collect();
-            assert_slice_close(&fitted, &reference_fitted, 2e-8, 2e-8, name);
-        } else {
-            assert_slice_close(&fit.coefficients, &reference_coefficients, atol, rtol, name);
+#[test]
+fn weighted_and_categorical_design_grid_matches_external_points_and_hc3() {
+    let expected = fixture("ols_wls_grid");
+    let cases = expected["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 12);
+    let mut workspace = LeastSquaresWorkspace::default();
+    for n in [12, 32] {
+        for design in ["continuous", "categorical"] {
+            for weighting in ["unweighted", "unequal", "zero_rows"] {
+                let name = format!("{design}_{weighting}_n{n}");
+                let case = cases.iter().find(|c| c["name"].as_str() == Some(&name)).unwrap();
+                if weighting == "unweighted" {
+                    assert!(case["covariance_hc3"].is_array());
+                }
+                assert_least_squares_case(case, &mut workspace, 1e-9, 1e-9);
+            }
         }
+    }
+}
 
-        if case["weights"].is_array() {
-            assert!(close(fit.rss, case["weighted_rss"].as_f64().unwrap(), atol, rtol));
-        } else {
-            assert!(close(fit.rss, case["rss"].as_f64().unwrap(), 2e-9, 2e-9));
+#[test]
+fn oracle_comparisons_reject_corrupted_points_predictions_rss_and_covariance() {
+    let expected = fixture("ols_wls_grid");
+    let original = &expected["cases"][0];
+    for field in ["coefficients", "fitted", "rss", "covariance_hc3"] {
+        let mut corrupted = original.clone();
+        match field {
+            "coefficients" | "fitted" => {
+                corrupted[field][0] = Value::from(corrupted[field][0].as_f64().unwrap() + 1.0);
+            }
+            "covariance_hc3" => {
+                corrupted[field][0][0] =
+                    Value::from(corrupted[field][0][0].as_f64().unwrap() + 1.0);
+            }
+            _ => corrupted[field] = Value::from(corrupted[field].as_f64().unwrap() + 1.0),
         }
+        let rejected = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            assert_least_squares_case(
+                &corrupted,
+                &mut LeastSquaresWorkspace::default(),
+                1e-9,
+                1e-9,
+            );
+        }));
+        assert!(rejected.is_err(), "corrupted {field} passed its actual oracle assertion");
+    }
+}
+
+fn assert_least_squares_case(
+    case: &Value,
+    workspace: &mut LeastSquaresWorkspace,
+    atol: f64,
+    rtol: f64,
+) {
+    let name = case["name"].as_str().unwrap();
+    let rows = rowmajor(&case["x_rowmajor"]);
+    let nrows = rows.len();
+    let ncols = rows[0].len();
+    let x = colmajor(&rows);
+    let y = floats(&case["y"]);
+    if name == "rank_deficient_oracle_pseudoinverse" {
+        let error = FaerBackend.least_squares(&x, nrows, ncols, &y, workspace).unwrap_err();
+        assert!(matches!(error, antecedent_stats::StatsError::RankDeficient { .. }));
+        return;
+    }
+
+    let fit = if let Some(weights) = case["weights"].as_array() {
+        let weights: Vec<f64> = weights.iter().map(|v| v.as_f64().unwrap()).collect();
+        fit_wls(&x, nrows, ncols, &y, &weights, &FaerBackend, workspace).unwrap()
+    } else {
+        FaerBackend.least_squares(&x, nrows, ncols, &y, workspace).unwrap()
+    };
+
+    let fitted: Vec<f64> = (0..nrows)
+        .map(|r| (0..ncols).map(|c| x[c * nrows + r] * fit.coefficients[c]).sum::<f64>())
+        .collect();
+    if name != "ill_conditioned" {
+        assert_slice_close(&fitted, &floats(&case["fitted"]), atol, rtol, name);
+    }
+    if case["covariance_hc3"].is_array() {
+        let residuals: Vec<f64> = y.iter().zip(&fitted).map(|(y, fitted)| y - fitted).collect();
+        let covariance =
+            coefficient_covariance(&x, nrows, ncols, &residuals, SandwichKind::Hc3).unwrap();
+        assert_slice_close(&covariance, &flatten_matrix(&case["covariance_hc3"]), atol, rtol, name);
+    }
+
+    let reference_coefficients = floats(&case["coefficients"]);
+    if name == "ill_conditioned" {
+        let reference_fitted = floats(&case["fitted"]);
+        assert_slice_close(&fitted, &reference_fitted, 2e-8, 2e-8, name);
+    } else {
+        assert_slice_close(&fit.coefficients, &reference_coefficients, atol, rtol, name);
+    }
+
+    if case["weights"].is_array() {
+        assert!(close(fit.rss, case["weighted_rss"].as_f64().unwrap(), atol, rtol));
+    } else {
+        assert!(close(fit.rss, case["rss"].as_f64().unwrap(), 2e-9, 2e-9));
     }
 }
 
@@ -163,12 +256,17 @@ fn sandwich_covariances_match_frozen_statsmodels_outputs() {
         ("newey_west_lag_0", SandwichKind::NeweyWest { lag: 0 }),
         ("newey_west_lag_1", SandwichKind::NeweyWest { lag: 1 }),
         ("newey_west_lag_3", SandwichKind::NeweyWest { lag: 3 }),
+        ("newey_west_lag_20_capped", SandwichKind::NeweyWest { lag: 20 }),
     ];
 
     for (name, kind) in cases {
         let actual = coefficient_covariance(&x, nrows, ncols, &residuals, kind).unwrap();
         let oracle = flatten_matrix(&expected["covariances"][name]);
         assert_slice_close(&actual, &oracle, atol, rtol, name);
+        if name == "newey_west_lag_20_capped" {
+            let unmatched = flatten_matrix(&expected["covariances"]["newey_west_lag_20"]);
+            assert!(!close(actual[0], unmatched[0], atol, rtol));
+        }
     }
 }
 
@@ -240,19 +338,23 @@ fn glm_families_match_frozen_statsmodels_outputs() {
 }
 
 #[test]
-fn fixture_provenance_records_pins_and_no_retained_harness() {
+fn fixture_provenance_distinguishes_retained_and_historical_generators() {
     for name in ["descriptive", "ols_wls", "sandwich_covariance", "glm_irls", "rng_gaussian", "gam"]
     {
         let expected = fixture(name);
         let reference = &expected["reference"];
-        assert!(reference["command"].as_str().unwrap().contains("uv run --python 3.12"));
-        assert!(reference["installed_metadata_sha256"].is_object());
-        assert_eq!(
-            reference["generation_location"].as_str(),
-            Some("temporary external harness; not retained")
-        );
+        if reference["generator_retained"] == true {
+            let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+            assert!(reference["command"].as_str().unwrap().contains("uv run --frozen --script"));
+            assert!(root.join("conformance/stats/ols_wls/reference.py").is_file());
+            assert!(root.join(reference["environment_lock"].as_str().unwrap()).is_file());
+            assert!(expected["historical_reference"]["installed_metadata_sha256"].is_object());
+        } else {
+            assert_eq!(reference["generator_retained"], false);
+            assert!(reference["command"].as_str().unwrap().contains("uv run --python 3.12"));
+            assert!(reference["installed_metadata_sha256"].is_object());
+        }
     }
-    assert!(!Path::new("scripts/conformance/generate_stats_oracles.py").exists());
 }
 
 fn correlation(x: &[f64], y: &[f64]) -> f64 {

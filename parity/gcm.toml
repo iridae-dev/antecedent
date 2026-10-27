@@ -80,6 +80,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-model/src/evaluate.rs"
 evidence_assertion = "evaluation_runs_on_linear_scm"
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-model/src/evaluate.rs::evaluation_runs_on_linear_scm", proposition = "Noiseless linear outcomes y=1+2*x have zero residual under the fitted compatible linear mechanism.", tolerance = "mean absolute residual < 1e-6; finite in-sample log likelihood", limitations = "Small specified-model evaluator example only; no predictive uncertainty or causal validity claim." }
 limitations = "Evidence checks in-sample log-likelihood and residuals on a correctly specified linear SCM; residual-independence, local Markov and Bonferroni behavior are covered by other tests in the same module."
 notes = "Residual CI, local Markov, predictive checks"
 
@@ -89,6 +90,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-model/src/falsify.rs"
 evidence_assertion = "a_graph_claiming_false_independencies_is_rejected"
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-model/src/falsify.rs::a_graph_claiming_false_independencies_is_rejected", proposition = "The declared linear paired DGP violates the crossed-pair graph independence constraints.", tolerance = "rejected report; falsification p-value > 0.5; at least six violations, including a CI p-value < 0.01", limitations = "One synthetic falsification counterexample only; no calibration of the permutation procedure is claimed." }
 limitations = "Violation counts are uncorrected pairwise conditional-independence tests; the permutation comparison cannot separate Markov-equivalent graphs, and a graph that is not rejected is not shown correct. Known-truth evidence uses linear-Gaussian and quadratic pairs; it is a diagnostic, with no calibrated error rate."
 python_facade = "full"
 notes = "Graph-and-data falsification with no fitted mechanisms: local Markov implications tested with any named CI test, compared with violation counts of node-relabelled graphs, with Markov-equivalence informativeness; distinct from the shuffled-outcome likelihood baseline of gcm.model.falsification; Python gcm.evaluate_graph"
@@ -119,6 +121,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-attribution/src/shapley.rs"
 evidence_assertion = "exact_shapley_recovers_additive_game"
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-attribution/src/shapley.rs::exact_shapley_recovers_additive_game", proposition = "For an additive coalition payoff with weights [1,2,3], each exact Shapley allocation equals its weight.", tolerance = "absolute 1e-9", limitations = "Three-player additive game only; this does not validate arbitrary payoff functions or Monte Carlo error estimates." }
 limitations = "Evidence pins exact Shapley on an additive game; Monte Carlo stderr, budget and cache behavior are covered by other tests in the same module."
 notes = "Exact + MC Shapley with size limits, budget, MC stderr, coalition cache"
 
@@ -203,6 +206,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent/tests/policy_python_parity.rs"
 evidence_assertion = "a_policy_value_is_the_paired_difference_against_the_same_noise_with_its_licence"
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent/tests/policy_python_parity.rs::a_policy_value_is_the_paired_difference_against_the_same_noise_with_its_licence", proposition = "Clamping price to 20 gives constant policy price; paired mean difference is 20 minus baseline mean, with error sd(baseline)/sqrt(n); generating demand slope is -0.8.", tolerance = "price mean and spread 1e-12, paired difference/error 1e-9, demand slope within 0.02", limitations = "Specified fitted-model simulation and support semantics; fitted-model uncertainty is unquantified and no interval calibration is claimed." }
 python_facade = "full"
 limitations = "Model-based values of a fitted structural model: only the Monte Carlo error of the draws is quantified, the model's own uncertainty is reported unquantified, and no interval or calibration claim is made. A transform or computed assignment has no observational identification (its identification route is refused with policy_route_not_licensed), so it is answered by simulation on the fitted model; the retained handles are the fitted model (FittedGcm, PreparedPolicy) and the practitioner handle antecedent.prepare with a PolicyProgramValue question, which runs the same retained program. A recoverable callback leaves the process as its recovery record and replays only against an implementation the consumer supplies and that verifies."
 notes = "Policy value (policy mean, unintervened mean on the same noise, paired difference and simulation errors) with per-route support decisions and reason codes; counterfactual rollout of a factual panel through the temporal executor; sample with retained noise and noise replay; versioned portable encoding of programs with recoverable callback records, re-verified on decode; Python intervention_programs.policy_value / policy_support / prepare_policy / counterfactual_temporal_policy and FittedGcm.sample_noise / replay_noise; PreparedPolicy compiles the overlay and resolves the licence once and rebinds to a refitted model without compiling the program again"
@@ -210,7 +214,7 @@ notes = "Policy value (policy mean, unintervened mean on the same noise, paired 
 [[capabilities]]
 id = "gcm.model.prepared_policy"
 status = "done"
-evidence_kind = "internal_known_truth"
+evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/policy_python_parity.rs"
 evidence_assertion = "a_prepared_policy_reruns_the_one_shot_value_without_compiling_the_program_again"
 python_facade = "full"
@@ -223,6 +227,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs"
 evidence_assertion = "a_linear_chain_recovers_squared_path_coefficients_times_noise_variance"
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-attribution/tests/intrinsic_influence.rs::a_linear_chain_recovers_squared_path_coefficients_times_noise_variance", proposition = "For the stated independent-noise linear chain, variance contributions are squared total path coefficients times each source noise variance.", tolerance = "The executing assert_matches_truth/tolerance helpers use the stated 400 outer draws and four batches and report simulation error.", limitations = "Fixed linear chain only; component error estimates and intervals are uncalibrated diagnostics, not licensed coverage evidence." }
 python_facade = "full"
 limitations = "Independent-noise structural models only: independence is a caller declaration, and bidirected edges, latent common causes, unfitted mechanisms and serially dependent noise are refused. Contributions match closed forms for linear, product and quadratic mechanisms within the estimator's own standard errors; the standard errors and Student-t intervals of the permutation, simulation and mechanism-fit components are uncalibrated diagnostics, and no combined interval is offered."
 notes = "Shapley split of a target's variance among the noise terms of its ancestors and itself, v(S) = Var(E[Y | U_S]) by nested Monte Carlo with the analysis-of-variance correction over batch noise replay; exact up to ten sources, permutation sampling above; per-source contributions, total variance, allocation residual, method and budget; permutation, simulation and mechanism-fit uncertainty reported as separate components, the last unquantified without data; with fit_bootstrap a whole-procedure interval (full refits with mechanism re-selection and fresh simulation, permutation variance added; uncalibrated); Python gcm.intrinsic_influence"

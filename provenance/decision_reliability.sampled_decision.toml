@@ -6,11 +6,11 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "A Note on Estimating the Variance of the Sample Median (Maritz and Jarrett, JASA 73, 1978)", doi = "10.1080/01621459.1978.10480027", sections = ["exact bootstrap variance of an order statistic from incomplete-beta weights"] },
-  { title = "Optimization of conditional value-at-risk (Rockafellar and Uryasev, Journal of Risk 2, 2000)", doi = "10.21314/JOR.2000.038", sections = ["the minimization formula for conditional value at risk"] },
-  { title = "Fixed-Width Output Analysis for Markov Chain Monte Carlo (Jones, Haran, Caffo and Neath, JASA 101, 2006)", doi = "10.1198/016214506000000492", sections = ["non-overlapping batch means standard error"] },
-  { title = "Sequential Imputations and Bayesian Missing Data Problems (Kong, Liu and Wong, JASA 89, 1994)", doi = "10.1080/01621459.1994.10476469", sections = ["effective sample size of importance weights"] },
-  { title = "Some Guidelines and Guarantees for Common Random Numbers (Glasserman and Yao, Management Science 38, 1992)", doi = "10.1287/mnsc.38.6.884", sections = ["variance of a difference under common random numbers"] },
+  { title = "A Note on Estimating the Variance of the Sample Median", citation_note = "Previously recorded title and bibliographic detail: A Note on Estimating the Variance of the Sample Median (Maritz and Jarrett, JASA 73, 1978)", doi = "10.1080/01621459.1978.10480027", sections = ["exact bootstrap variance of an order statistic from incomplete-beta weights"] },
+  { title = "Optimization of conditional value-at-risk", citation_note = "Previously recorded title and bibliographic detail: Optimization of conditional value-at-risk (Rockafellar and Uryasev, Journal of Risk 2, 2000)", doi = "10.21314/JOR.2000.038", sections = ["the minimization formula for conditional value at risk"] },
+  { title = "Fixed-Width Output Analysis for Markov Chain Monte Carlo", citation_note = "Previously recorded title and bibliographic detail: Fixed-Width Output Analysis for Markov Chain Monte Carlo (Jones, Haran, Caffo and Neath, JASA 101, 2006)", doi = "10.1198/016214506000000492", sections = ["non-overlapping batch means standard error"] },
+  { title = "Sequential Imputations and Bayesian Missing Data Problems", citation_note = "Previously recorded title and bibliographic detail: Sequential Imputations and Bayesian Missing Data Problems (Kong, Liu and Wong, JASA 89, 1994)", doi = "10.1080/01621459.1994.10476469", sections = ["effective sample size of importance weights"] },
+  { title = "Some Guidelines and Guarantees for Common Random Numbers", citation_note = "Previously recorded title and bibliographic detail: Some Guidelines and Guarantees for Common Random Numbers (Glasserman and Yao, Management Science 38, 1992)", doi = "10.1287/mnsc.38.6.884", sections = ["variance of a difference under common random numbers"] },
 ]
 implementation_deviations = [
   "Maritz-Jarrett is the exact bootstrap standard error of the r-th order statistic r = ceil(n p) (not the Harrell-Davis estimator); weights beyond twelve index standard deviations are dropped and the rest renormalized. It converges at the slow n^(-1/4) rate and is a standard error, not an interval.",

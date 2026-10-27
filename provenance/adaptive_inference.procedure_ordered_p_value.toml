@@ -11,8 +11,8 @@ copied_tests = false
 # (Tsiatis, Rosner and Mehta); the implementation applies the ordering to the exact law of a
 # declared procedure, and the spending boundaries extend adaptive_inference.group_sequential.
 papers = [
-  { title = "Exact confidence intervals following a group sequential test (Tsiatis, Rosner and Mehta, Biometrics 40:797-803, 1984)", doi = "10.2307/2530924", sections = ["stagewise ordering of the sample space of a group sequential test and the confidence set by inversion"] },
-  { title = "Discrete sequential boundaries for clinical trials (Lan, DeMets, Biometrika 70:659-663)", doi = "10.1093/biomet/70.3.659", sections = ["alpha spending function"] },
+  { title = "Exact Confidence Intervals Following a Group Sequential Test", citation_note = "Previously recorded title and bibliographic detail: Exact confidence intervals following a group sequential test (Tsiatis, Rosner and Mehta, Biometrics 40:797-803, 1984)", doi = "10.2307/2530924", sections = ["stagewise ordering of the sample space of a group sequential test and the confidence set by inversion"] },
+  { title = "Discrete sequential boundaries for clinical trials", citation_note = "Previously recorded title and bibliographic detail: Discrete sequential boundaries for clinical trials (Lan, DeMets, Biometrika 70:659-663)", doi = "10.1093/biomet/70.3.659", sections = ["alpha spending function"] },
 ]
 implementation_deviations = [
   "The ordering ranks stops in favour of the plus arm highest (earlier higher), non-stop terminal states by the estimate, and stops in favour of the minus arm lowest (later higher); it is the implementer's statement of a stagewise ordering over a Bernoulli batched procedure, not a transcription of the paper's normal-theory construction.",

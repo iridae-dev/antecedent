@@ -12,7 +12,7 @@ implementation_deviations = [
 ]
 
 papers = [
- { title = "Rank-Normalization, Folding, and Localization: An Improved R-hat for Assessing Convergence of MCMC (with Discussion)", doi = "10.1214/20-BA1221", sections = ["rank-normalized split R-hat", "folded R-hat", "bulk/tail ESS"] },
+ { title = "Rank-Normalization, Folding, and Localization: An Improved Rˆ for Assessing Convergence of MCMC (with Discussion)", citation_note = "Previously recorded title and bibliographic detail: Rank-Normalization, Folding, and Localization: An Improved R-hat for Assessing Convergence of MCMC (with Discussion)", doi = "10.1214/20-BA1221", sections = ["rank-normalized split R-hat", "folded R-hat", "bulk/tail ESS"] },
  { title = "Practical Markov Chain Monte Carlo", doi = "10.1214/ss/1177011137", sections = ["initial positive/monotone sequence ESS estimator"] },
 ]
 

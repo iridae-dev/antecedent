@@ -10,7 +10,7 @@ copied_tests = false
 # with no selection node into it, or into a latent cause it loads on, is shared); the composed
 # model and its closed-form interventional means are the existing composition engine.
 papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
 ]
 implementation_deviations = [
   "Bounded executed route, not a published algorithm: only fitted linear-Gaussian mechanisms are carried; finite tables are decided by the finite counterfactual transport derivation and are refused here with a pointer to it.",

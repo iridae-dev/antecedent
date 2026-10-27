@@ -4,9 +4,9 @@ import os
 import re
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 
+import tomllib
 from _repo import ensure_scripts_on_path
 
 root = Path(".")
@@ -193,13 +193,8 @@ def command_blocks(obj):
             yield from command_blocks(value)
 
 
-ORACLE_KINDS = {
-    "external_package",  # a frozen run of a pinned upstream package or tool
-    "closed_form",  # analytic / hand-derived truth
-    "enumeration",  # exhaustive or exact enumeration
-    "independent_reimplementation",  # a clean-room reimplementation of the method
-    "regression_pin",  # frozen output of this library: a change detector, not truth
-}
+from evidence_kinds import ORACLE_KINDS
+
 for expected in sorted((root / "conformance").glob("**/expected.json")):
     try:
         document = json.loads(expected.read_text(encoding="utf-8"))

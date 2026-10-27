@@ -8,11 +8,11 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Surrogate endpoints in clinical trials: definition and operational criteria (Prentice, Stat Med 8:431-440)", doi = "10.1002/sim.4780080407", sections = ["Definition of a surrogate endpoint and the operational criteria"] },
- { title = "The validation of surrogate endpoints in meta-analyses of randomized experiments (Buyse, Molenberghs, Burzykowski, Renard and Geys, Biostatistics 1:49-67)", doi = "10.1093/biostatistics/1.1.49", sections = ["Trial-level association: regression of the treatment effect on the true endpoint on the treatment effect on the surrogate, and its coefficient of determination"] },
- { title = "Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Estimator: the recorded proportion corrected by sensitivity and specificity"] },
+ { title = "Surrogate endpoints in clinical trials: Definition and operational criteria", citation_note = "Previously recorded title and bibliographic detail: Surrogate endpoints in clinical trials: definition and operational criteria (Prentice, Stat Med 8:431-440)", doi = "10.1002/sim.4780080407", sections = ["Definition of a surrogate endpoint and the operational criteria"] },
+ { title = "The validation of surrogate endpoints in meta-analyses of randomized experiments", citation_note = "Previously recorded title and bibliographic detail: The validation of surrogate endpoints in meta-analyses of randomized experiments (Buyse, Molenberghs, Burzykowski, Renard and Geys, Biostatistics 1:49-67)", doi = "10.1093/biostatistics/1.1.49", sections = ["Trial-level association: regression of the treatment effect on the true endpoint on the treatment effect on the surrogate, and its coefficient of determination"] },
+ { title = "ESTIMATING PREVALENCE FROM THE RESULTS OF A SCREENING TEST", citation_note = "Previously recorded title and bibliographic detail: Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Estimator: the recorded proportion corrected by sensitivity and specificity"] },
  { title = "Causal Diagrams for Empirical Research", doi = "10.1093/biomet/82.4.669", sections = ["Section 3.1, Definition 3: back-door criterion", "Section 3.1, Theorem 1: adjustment formula"] },
- { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: the declared premise under which a relation established in one population holds in another"] },
+ { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: the declared premise under which a relation established in one population holds in another"] },
 ]
 
 implementation_deviations = [

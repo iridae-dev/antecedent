@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Causality: Models, Reasoning, and Inference (2nd ed.)", doi = "10.1017/CBO9780511803161", sections = ["Chapter 1: structural equations and Markovian factorization", "Chapter 3: truncated factorization under intervention", "Chapter 7: structural submodels and the effect of action"] },
+  { title = "Causality", citation_note = "Previously recorded title and bibliographic detail: Causality: Models, Reasoning, and Inference (2nd ed.)", doi = "10.1017/CBO9780511803161", sections = ["Chapter 1: structural equations and Markovian factorization", "Chapter 3: truncated factorization under intervention", "Chapter 7: structural submodels and the effect of action"] },
   { title = "Structural Equations with Latent Variables", doi = "10.1002/9781118619179", sections = ["Chapter 2: covariances and path analysis of linear structural equations"] },
   { title = "External Validity: From Do-Calculus to Transportability Across Populations", doi = "10.1214/14-STS486", sections = ["Selection diagrams and S-admissibility: a mechanism with no selection arrow into its variable is invariant"] },
 ]

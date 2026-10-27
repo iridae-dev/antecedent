@@ -6,8 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Comparing Predictive Accuracy (Diebold and Mariano, J. Bus. Econ. Stat. 13(3), 1995)", doi = "10.1080/07350015.1995.10524599", sections = ["the test statistic on the mean loss differential with a long-run variance"] },
- { title = "A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix (Newey and West, Econometrica 55(3), 1987)", doi = "10.2307/1913610", sections = ["the Bartlett-kernel long-run variance estimator"] },
+ { title = "Comparing Predictive Accuracy", citation_note = "Previously recorded title and bibliographic detail: Comparing Predictive Accuracy (Diebold and Mariano, J. Bus. Econ. Stat. 13(3), 1995)", doi = "10.1080/07350015.1995.10524599", sections = ["the test statistic on the mean loss differential with a long-run variance"] },
+ { title = "A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix", citation_note = "Previously recorded title and bibliographic detail: A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix (Newey and West, Econometrica 55(3), 1987)", doi = "10.2307/1913610", sections = ["the Bartlett-kernel long-run variance estimator"] },
 ]
 implementation_deviations = [
   "The Diebold-Mariano statistic uses the Bartlett kernel (positive semidefinite) with the declared truncation lag, not the rectangular kernel of the original paper, which can give a negative variance; no small-sample correction (Harvey, Leybourne and Newbold 1997) and no p-value or interval is claimed.",

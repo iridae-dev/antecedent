@@ -11,7 +11,7 @@ implementation_deviations = [
 ]
 
 papers = [
- { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Section 5.4.3: graphical instrumental-variable criteria", "Section 7.4.5: counterfactual definitions of exogeneity and instrumental variables"] },
+ { title = "Causality", citation_note = "Previously recorded title and bibliographic detail: Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Section 5.4.3: graphical instrumental-variable criteria", "Section 7.4.5: counterfactual definitions of exogeneity and instrumental variables"] },
  { title = "Identification and Estimation of Local Average Treatment Effects", doi = "10.2307/2951620", sections = ["Condition 2: monotonicity", "Theorem 1: local average treatment effect under the instrumental-variable conditions; not a general ATE theorem"] },
 ]
 

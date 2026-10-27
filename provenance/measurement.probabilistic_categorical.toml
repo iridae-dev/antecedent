@@ -8,7 +8,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Estimator and variance"] },
+ { title = "ESTIMATING PREVALENCE FROM THE RESULTS OF A SCREENING TEST", citation_note = "Previously recorded title and bibliographic detail: Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Estimator and variance"] },
 ]
 
 implementation_deviations = [

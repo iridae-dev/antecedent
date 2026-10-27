@@ -11,7 +11,7 @@ implementation_deviations = [
 ]
 
 papers = [
-  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["3.3.1"] },
+  { title = "Causality", citation_note = "Previously recorded title and bibliographic detail: Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["3.3.1"] },
 ]
 
 upstream_implementations_observed = [

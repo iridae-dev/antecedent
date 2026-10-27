@@ -7,8 +7,8 @@ copied_tests = false
 
 
 papers = [
-  { title = "Estimates for the Distribution Function of a Sum of Two Random Variables When the Marginal Distributions are Fixed (Makarov, Theory of Probability and its Applications 26(4):803-806, 1982)", doi = "10.1137/1126086", sections = ["the sharp bounds of P(X+Y<t) over couplings of fixed marginals"] },
-  { title = "Random variables with maximum sums (Rueschendorf, Advances in Applied Probability 14(3):623-632, 1982)", doi = "10.2307/1426677", sections = ["sharp bounds of the distribution of a sum with fixed marginals"] },
+  { title = "Estimates for the Distribution Function of a Sum of Two Random Variables When the Marginal Distributions are Fixed", citation_note = "Previously recorded title and bibliographic detail: Estimates for the Distribution Function of a Sum of Two Random Variables When the Marginal Distributions are Fixed (Makarov, Theory of Probability and its Applications 26(4):803-806, 1982)", doi = "10.1137/1126086", sections = ["the sharp bounds of P(X+Y<t) over couplings of fixed marginals"] },
+  { title = "Random variables with maximum sums", citation_note = "Previously recorded title and bibliographic detail: Random variables with maximum sums (Rueschendorf, Advances in Applied Probability 14(3):623-632, 1982)", doi = "10.2307/1426677", sections = ["sharp bounds of the distribution of a sum with fixed marginals"] },
 ]
 
 implementation_deviations = [

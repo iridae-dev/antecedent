@@ -3,5 +3,10 @@
   "total_change_min": 3.0,
   "dominant_component": "y",
   "allocation": "exact_shapley",
-  "notes": "Y intercept shifts by +5 between periods; X mechanism unchanged."
+  "notes": "Y intercept shifts by +5 between periods; X mechanism unchanged.",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "The declared structural example changes the Y intercept by +5 with unchanged X mechanism; its population mean change is 5 and is attributable to Y.",
+    "limitations": "The consuming facade assertion checks a lower bound of 3 and dominant component Y, not exact numerical recovery or uncertainty calibration."
+  }
 }

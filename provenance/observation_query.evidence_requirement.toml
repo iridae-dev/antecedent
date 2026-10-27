@@ -6,8 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Bayes Factors (Kass and Raftery, J Am Stat Assoc 90:773-795)", doi = "10.1080/01621459.1995.10476572", sections = ["Posterior odds as prior odds times the Bayes factor"] },
-  { title = "Bayesian Data Analysis (3rd ed.)", doi = "10.1201/b16018", sections = ["Chapter 2: the Beta-Binomial predictive probability after n successes"] },
+  { title = "Bayes Factors", citation_note = "Previously recorded title and bibliographic detail: Bayes Factors (Kass and Raftery, J Am Stat Assoc 90:773-795)", doi = "10.1080/01621459.1995.10476572", sections = ["Posterior odds as prior odds times the Bayes factor"] },
+  { title = "Bayesian Data Analysis", citation_note = "Previously recorded title and bibliographic detail: Bayesian Data Analysis (3rd ed.)", doi = "10.1201/b16018", sections = ["Chapter 2: the Beta-Binomial predictive probability after n successes"] },
 ]
 
 implementation_deviations = [

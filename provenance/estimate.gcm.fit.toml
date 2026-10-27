@@ -9,7 +9,7 @@ copied_tests = false
 # Identification is identify.gcm_parametric; the AAP procedure is
 # counterfactual.aap.
 papers = [
- { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Chapter 7 abduction-action-prediction"] },
+ { title = "Causality", citation_note = "Previously recorded title and bibliographic detail: Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Chapter 7 abduction-action-prediction"] },
 ]
 
 implementation_deviations = [

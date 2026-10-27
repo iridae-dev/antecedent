@@ -11,8 +11,8 @@ copied_tests = false
 # envelopes are cited by joint_law.dependence_envelope. The coordinate-and-record matching of a
 # composed interval (ComposedCoordinate, CoverageRecord) is original engineering.
 papers = [
-  { title = "Estimates for the Distribution Function of a Sum of Two Random Variables When the Marginal Distributions are Fixed (Makarov, Theory of Probability and its Applications 26(4):803-806, 1982)", doi = "10.1137/1126086", sections = ["bounds of P(X + Y <= t) over all couplings of fixed marginals (used for the sum envelope)"] },
-  { title = "Bayesian Data Analysis (3rd ed.)", doi = "10.1201/b16018", sections = ["law of total variance for a mixture; delta-method propagation"] },
+  { title = "Estimates for the Distribution Function of a Sum of Two Random Variables When the Marginal Distributions are Fixed", citation_note = "Previously recorded title and bibliographic detail: Estimates for the Distribution Function of a Sum of Two Random Variables When the Marginal Distributions are Fixed (Makarov, Theory of Probability and its Applications 26(4):803-806, 1982)", doi = "10.1137/1126086", sections = ["bounds of P(X + Y <= t) over all couplings of fixed marginals (used for the sum envelope)"] },
+  { title = "Bayesian Data Analysis", citation_note = "Previously recorded title and bibliographic detail: Bayesian Data Analysis (3rd ed.)", doi = "10.1201/b16018", sections = ["law of total variance for a mixture; delta-method propagation"] },
 ]
 implementation_deviations = [
   "Constructions (normal, draw-percentile, marginal candidates) are interval constructions, not coverage statements. Each carries calibration status unmeasured; the interval reading stays closed unless a measured record exists at the exact composed coordinate and construction, at the recorded nominal level.",

@@ -42,7 +42,7 @@ copied_tests = false
 # Sampling intervals on a scalar identified set are estimate.identified_set;
 # frequentist multi-atom SEs are estimate.graph_posterior.joint_if.
 papers = [
- { title = "Bayesian Model Averaging: A Tutorial", doi = "10.1214/ss/1009212519", sections = ["model-weight semantics: sample a model, then that model's posterior"] },
+ { title = "Bayesian model averaging: a tutorial (with comments by M. Clyde, David Draper and E. I. George, and a rejoinder by the authors", citation_note = "Previously recorded title and bibliographic detail: Bayesian Model Averaging: A Tutorial", doi = "10.1214/ss/1009212519", sections = ["model-weight semantics: sample a model, then that model's posterior"] },
  { title = "Bayesian Inference in a Class of Partially Identified Models", doi = "10.3982/QE399", sections = ["retaining posterior mass on the non-identified region instead of collapsing to a point estimate"] },
 ]
 

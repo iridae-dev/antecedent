@@ -8,7 +8,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "On the likelihood that one unknown probability exceeds another in view of the evidence of two samples (Thompson, Biometrika 25:285-294)", doi = "10.1093/biomet/25.3-4.285", sections = ["Posterior probability that one arm exceeds another"] },
+ { title = "ON THE LIKELIHOOD THAT ONE UNKNOWN PROBABILITY EXCEEDS ANOTHER IN VIEW OF THE EVIDENCE OF TWO SAMPLES", citation_note = "Previously recorded title and bibliographic detail: On the likelihood that one unknown probability exceeds another in view of the evidence of two samples (Thompson, Biometrika 25:285-294)", doi = "10.1093/biomet/25.3-4.285", sections = ["Posterior probability that one arm exceeds another"] },
 ]
 implementation_deviations = [
  "The loss is the regret of choosing an arm in success probability; other losses are not offered.",

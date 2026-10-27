@@ -12,7 +12,7 @@ implementation_deviations = [
 ]
 
 papers = [
- { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Static back-door criterion only"] },
+ { title = "Causality", citation_note = "Previously recorded title and bibliographic detail: Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Static back-door criterion only"] },
 ]
 
 upstream_implementations_observed = [

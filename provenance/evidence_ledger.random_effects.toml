@@ -6,9 +6,9 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Meta-analysis in clinical trials (DerSimonian and Laird, Controlled Clinical Trials 7, 1986)", doi = "10.1016/0197-2456(86)90046-2", sections = ["the method-of-moments estimator of the between-study variance and the random-effects weights"] },
-  { title = "Bias and Efficiency of Meta-Analytic Variance Estimators in the Random-Effects Model (Viechtbauer, 2005)", doi = "10.3102/10769986030003261", sections = ["restricted maximum likelihood estimation of tau^2 and its score equation"] },
-  { title = "Quantifying heterogeneity in a meta-analysis (Higgins and Thompson, 2002)", doi = "10.1002/sim.1186", sections = ["the I^2 statistic as (Q - df)/Q"] },
+  { title = "Meta-analysis in clinical trials", citation_note = "Previously recorded title and bibliographic detail: Meta-analysis in clinical trials (DerSimonian and Laird, Controlled Clinical Trials 7, 1986)", doi = "10.1016/0197-2456(86)90046-2", sections = ["the method-of-moments estimator of the between-study variance and the random-effects weights"] },
+  { title = "Bias and Efficiency of Meta-Analytic Variance Estimators in the Random-Effects Model", citation_note = "Previously recorded title and bibliographic detail: Bias and Efficiency of Meta-Analytic Variance Estimators in the Random-Effects Model (Viechtbauer, 2005)", doi = "10.3102/10769986030003261", sections = ["restricted maximum likelihood estimation of tau^2 and its score equation"] },
+  { title = "Quantifying heterogeneity in a meta‐analysis", citation_note = "Previously recorded title and bibliographic detail: Quantifying heterogeneity in a meta-analysis (Higgins and Thompson, 2002)", doi = "10.1002/sim.1186", sections = ["the I^2 statistic as (Q - df)/Q"] },
 ]
 implementation_deviations = [
   "The variance of the pooled mean is conditional on the estimated tau^2 and does not carry the uncertainty of tau^2; no Hartung-Knapp or other small-sample interval adjustment and no prediction interval are implemented.",

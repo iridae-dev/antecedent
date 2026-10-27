@@ -25,15 +25,15 @@ Two kinds are kept apart and never merged:
 from __future__ import annotations
 
 import sys
-import tomllib
 from pathlib import Path
 
+import tomllib
 from _repo import REPO_ROOT as ROOT
+from evidence_kinds import EXTERNAL_KINDS
 
 LICENSED = ROOT / "parity/support_licensed.toml"
 ROUTES = ROOT / "parity/licensed_routes.toml"
 AXES = ROOT / "parity/support_axes.toml"
-EXTERNAL_KINDS = {"frozen_external_oracle", "behavioral_parity"}
 COMPONENT_KINDS = ("estimator", "identifier", "discovery")
 
 

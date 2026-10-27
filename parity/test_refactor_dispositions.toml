@@ -1,0 +1,47 @@
+# Coverage dispositions for changed assertion identities. No numerical test
+# case, sample budget, or calibration acceptance bound was deleted or reduced.
+schema = 1
+
+[[case]]
+previous = "python/tests/test_dowhy_comparison.py::test_interventional_mean_under_a_hard_set_matches_dowhy"
+replacement = "python/tests/test_dowhy_comparison.py::test_interventional_mean_under_a_hard_set_matches_dowhy"
+disposition = "numerical_and_documentation_assertions_separated"
+reason = "Keep all numerical and analytic assertions in the live comparison. The duplicated guide version/heading assertion remains covered by test_dowhy_comparison_pages.py::test_the_page_states_overlap_and_differences_at_the_pinned_version; documentation changes no longer alter this numerical oracle verdict."
+
+[[case]]
+previous = "crates/antecedent-stats/tests/foundations_oracle.rs::fixture_provenance_records_pins_and_no_retained_harness"
+replacement = "crates/antecedent-stats/tests/foundations_oracle.rs::fixture_provenance_distinguishes_retained_and_historical_generators"
+disposition = "renamed_and_strengthened"
+reason = "Replace the obsolete requirement to delete generation harnesses with checks of retained harnesses/locks and preserved historical metadata. Numerical oracle assertions remain in their existing tests."
+
+[[case]]
+previous = "crates/antecedent-estimate/src/dml.rs::learner_ate_known_truth_coverage"
+replacement = "crates/antecedent-estimate/src/dml.rs::learner_ate_known_truth_coverage"
+disposition = "explicit_calibration_only"
+reason = "Keep all four methods, 200 replicates, population truth, influence identities, bias and coverage acceptance unchanged; ignored by ordinary suites and registered in gate_calibration.sh for Q08."
+ordinary_conformance = "crates/antecedent-estimate/src/dml.rs::learner_ate_known_truth_point_conformance"
+limitation = "The one-scenario point check cannot replace or license the deferred full coverage measurement."
+
+[[case]]
+previous = "crates/antecedent-data/src/resample.rs::moving_block_indexes_are_consecutive_runs_and_replay"
+replacement = "crates/antecedent-data/src/resample/tests.rs::moving_block_indexes_are_consecutive_runs_and_replay"
+disposition = "citation_repaired_after_existing_move"
+reason = "Repair stale capability citations; the assertion was already present in the split test module."
+
+[[case]]
+previous = "crates/antecedent-data/src/resample.rs::bayesian_bootstrap_weights_sum_to_n"
+replacement = "crates/antecedent-data/src/resample/tests.rs::bayesian_bootstrap_weights_sum_to_n"
+disposition = "citation_repaired_after_existing_move"
+reason = "Repair stale capability citations; no bootstrap test was removed."
+
+[[case]]
+previous = "crates/antecedent-estimate/src/glm_adjustment.rs::nb_fisher_weight_and_gcomp_se_respect_alpha"
+replacement = "crates/antecedent-estimate/src/glm_adjustment/tests.rs::nb_fisher_weight_and_gcomp_se_respect_alpha"
+disposition = "citation_repaired_after_existing_move"
+reason = "Repair a stale capability citation without changing its negative-binomial assertion."
+
+[[case]]
+previous = "crates/antecedent-core/src/execution.rs::request_identity_conflicts_on_reused_key"
+replacement = "crates/antecedent-core/src/execution/tests.rs::request_identity_conflicts_on_reused_key"
+disposition = "citation_repaired_after_existing_move"
+reason = "Repair a stale capability citation after execution became a module directory."

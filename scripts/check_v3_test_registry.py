@@ -23,10 +23,11 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 
+import tomllib
 from _repo import REPO_ROOT as ROOT
+from test_evidence import mask_rust, source_masked, target_files
 
 REGISTRY = "parity/v3_test_registry.toml"
 KNOWN_GATES = (
@@ -59,6 +60,8 @@ PY_TEST = re.compile(r"(?m)^\s*(?:async\s+)?def test_|^class Test")
 # registry declares ``complete = true``.
 COMPLETE_GLOBS = (
     "crates/*/tests/*.rs",
+    "crates/*/src/**/*.rs",
+    "python/src/**/*.rs",
     "python/tests/test_*.py",
     "scripts/test_*.py",
 )
@@ -123,14 +126,17 @@ def compiled_by(crate_dir: Path, manifest: dict) -> dict[str, tuple[str, str]]:
         if not isinstance(rel, str):
             continue
         found[rel] = (name, "direct")
-        if Path(rel).name.startswith("suite_") and rel.endswith(".rs"):
+        if rel.endswith(".rs"):
             suites.append((name, rel))
     for name, rel in suites:
         suite = crate_dir / rel
         if not suite.is_file():
             continue
-        for included in PATH_ATTR.findall(suite.read_text(encoding="utf-8")):
-            found.setdefault(f"tests/{included}", (name, "suite"))
+        for included in target_files(suite.resolve(), crate_dir.resolve()):
+            if included == suite.resolve() or not included.is_relative_to(crate_dir.resolve()):
+                continue
+            kind = "suite" if suite.name.startswith("suite_") else "included"
+            found.setdefault(included.relative_to(crate_dir.resolve()).as_posix(), (name, kind))
     return found
 
 
@@ -159,10 +165,16 @@ def runnable_python(text: str) -> bool:
     return bool(PY_TEST.search(text)) or "__main__" in text or "unittest" in text
 
 
-def executes_tests(text: str) -> bool:
+def executes_tests(text: str, path: Path | None = None) -> bool:
     """True when the source carries at least one test that is not ignored."""
-    attrs = len(TEST_ATTR.findall(text))
-    return attrs > len(IGNORED.findall(text))
+    skeleton = source_masked(path.resolve()).skeleton if path is not None else mask_rust(text).skeleton
+    if len(TEST_ATTR.findall(skeleton)) > len(IGNORED.findall(skeleton)):
+        return True
+    return path is not None and any(
+        len(TEST_ATTR.findall(s)) > len(IGNORED.findall(s))
+        for p in target_files(path) if p != path.resolve()
+        for s in [source_masked(p).skeleton]
+    )
 
 
 def unregistered(root: Path, registered: set[str]) -> list[str]:
@@ -171,20 +183,18 @@ def unregistered(root: Path, registered: set[str]) -> list[str]:
     for pattern in COMPLETE_GLOBS:
         for path in sorted(root.glob(pattern)):
             rel = path.relative_to(root).as_posix()
+            if rel in registered:
+                continue
             if path.name.startswith("suite_") or path.name == "__init__.py":
                 continue
-            text = path.read_text(encoding="utf-8")
+            text = (source_masked(path.resolve()).skeleton if path.suffix == ".rs"
+                    else path.read_text(encoding="utf-8"))
             is_test = (
                 bool(PY_TEST.search(text)) if rel.endswith(".py") else bool(TEST_ATTR.search(text))
             )
-            if is_test and rel not in registered and rel not in INCLUDED_MODULES:
+            if is_test and rel not in registered:
                 found.append(rel)
     return found
-
-
-# Files compiled only as a module of another registered test file; they carry
-# tests but have no cargo target of their own.
-INCLUDED_MODULES = {"crates/antecedent/tests/joint_panel_experiment_chain.rs"}
 
 
 def problems(root: Path, head: str | None) -> list[str]:
@@ -203,6 +213,8 @@ def problems(root: Path, head: str | None) -> list[str]:
         errors.append("FAIL: registry points at nothing")
         return errors
     seen: set[str] = set()
+    target_maps: dict[str, dict] = {}
+    suite_maps: dict[str, dict] = {}
     for index, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
             errors.append(f"FAIL: test #{index} is not a table")
@@ -254,7 +266,7 @@ def problems(root: Path, head: str | None) -> list[str]:
         if (
             "named" in gates
             and cargo_target != "script"
-            and not executes_tests(path.read_text(encoding="utf-8"))
+            and not executes_tests(path.read_text(encoding="utf-8"), path)
         ):
             errors.append(f"FAIL: {entry_id}: gate named but {rel} has no non-ignored test")
         if (
@@ -294,7 +306,9 @@ def problems(root: Path, head: str | None) -> list[str]:
             if suite_line is not None:
                 errors.append(f"FAIL: {entry_id}: suite_map_line set but test is not consolidated")
             continue
-        how = compiled_by(root / "crates" / crate, manifest)
+        if crate not in target_maps:
+            target_maps[crate] = compiled_by(crate_dir, manifest)
+        how = target_maps[crate]
         target = how.get(crate_rel)
         if target is None:
             errors.append(
@@ -311,10 +325,16 @@ def problems(root: Path, head: str | None) -> list[str]:
             if suite_line is not None:
                 errors.append(f"FAIL: {entry_id}: suite_map_line set but test is not consolidated")
             continue
-        recorded = suite_map(root / "crates" / crate)
+        if crate not in suite_maps:
+            suite_maps[crate] = suite_map(crate_dir)
+        recorded = suite_maps[crate]
         stem = Path(crate_rel).stem
         line = recorded.get(expected)
-        if line is None or stem not in line[1]:
+        transitively_mapped = line is not None and any(
+            path.resolve() in target_files(crate_dir / "tests" / f"{outer}.rs", crate_dir)
+            for outer in line[1]
+        ) if line is not None and stem not in line[1] else False
+        if line is None or (stem not in line[1] and not transitively_mapped):
             errors.append(f"FAIL: {entry_id}: {rel} missing suite_map line for {expected}")
             continue
         if not isinstance(suite_line, str) or not suite_line.strip():
@@ -638,6 +658,19 @@ autotests = false
             ],
         )
         _expect_fail("named gate on an ignored-only file", root, "has no non-ignored test")
+
+    for decoy in (
+        "// #[test] fn only_a_comment() {}\n",
+        'const DECOY: &str = r#"#[test] fn only_a_string() {}"#;\n',
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _crate(root, "suite_01: foo\n")
+            _write(root, "crates/demo/tests/foo.rs", decoy)
+            _registry(root, [{"id": "decoy", "crate": "demo", "cargo_target": "suite_01",
+                              "path": "crates/demo/tests/foo.rs", "suite_map_line": "suite_01: foo",
+                              "gates": ["named"]}])
+            _expect_fail("named gate on comment/string decoy", root, "has no non-ignored test")
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

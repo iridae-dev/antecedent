@@ -6,8 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "On Least Squares and Linear Combination of Observations (Aitken, Proc. R. Soc. Edinburgh 55, 1935)", doi = "10.1017/S0370164600014346", sections = ["the generalized least squares estimator (X'S^-1 X)^-1 X'S^-1 y with its covariance, specialised to X = a column of ones"] },
-  { title = "Introduction to Meta-Analysis (Borenstein, Hedges, Higgins, Rothstein, 2009)", doi = "10.1002/9780470743386", sections = ["chapter 11: fixed-effect model, inverse-variance weights, variance 1/sum w", "chapter 16: Cochran's Q as the weighted sum of squared deviations"] },
+  { title = "IV.—On Least Squares and Linear Combination of Observations", citation_note = "Previously recorded title and bibliographic detail: On Least Squares and Linear Combination of Observations (Aitken, Proc. R. Soc. Edinburgh 55, 1935)", doi = "10.1017/S0370164600014346", sections = ["the generalized least squares estimator (X'S^-1 X)^-1 X'S^-1 y with its covariance, specialised to X = a column of ones"] },
+  { title = "Introduction to Meta‐Analysis", citation_note = "Previously recorded title and bibliographic detail: Introduction to Meta-Analysis (Borenstein, Hedges, Higgins, Rothstein, 2009)", doi = "10.1002/9780470743386", sections = ["chapter 11: fixed-effect model, inverse-variance weights, variance 1/sum w", "chapter 16: Cochran's Q as the weighted sum of squared deviations"] },
 ]
 implementation_deviations = [
   "Dense Cholesky solve of the validated covariance, at most 256 studies; no sparse or iterative variant.",

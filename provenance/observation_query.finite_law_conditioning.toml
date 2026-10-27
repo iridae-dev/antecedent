@@ -6,8 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Causality: Models, Reasoning, and Inference (2nd ed.)", doi = "10.1017/CBO9780511803161", sections = ["Chapter 1: conditional probability and the Markovian factorization", "Chapter 3: the do-operator and truncated factorization; observing versus intervening"] },
-  { title = "Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Sensitivity and specificity as the declared error of a binary indicator"] },
+  { title = "Causality", citation_note = "Previously recorded title and bibliographic detail: Causality: Models, Reasoning, and Inference (2nd ed.)", doi = "10.1017/CBO9780511803161", sections = ["Chapter 1: conditional probability and the Markovian factorization", "Chapter 3: the do-operator and truncated factorization; observing versus intervening"] },
+  { title = "ESTIMATING PREVALENCE FROM THE RESULTS OF A SCREENING TEST", citation_note = "Previously recorded title and bibliographic detail: Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Sensitivity and specificity as the declared error of a binary indicator"] },
 ]
 
 implementation_deviations = [

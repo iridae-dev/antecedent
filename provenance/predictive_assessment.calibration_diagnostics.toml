@@ -6,9 +6,9 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Probabilistic Forecasts, Calibration and Sharpness (Gneiting, Balabdaoui and Raftery, J. R. Stat. Soc. B 69(2), 2007)", doi = "10.1111/j.1467-9868.2007.00587.x", sections = ["probabilistic calibration, the PIT, and sharpness"] },
- { title = "Predictive Model Assessment for Count Data (Czado, Gneiting and Held, Biometrics 65(4), 2009)", doi = "10.1111/j.1541-0420.2009.01191.x", sections = ["the non-randomized PIT histogram for discrete predictive distributions"] },
- { title = "Statistical Theory: The Prequential Approach (Dawid, J. R. Stat. Soc. A 147(2), 1984)", doi = "10.2307/2981683", sections = ["the PIT of sequential forecasts is uniform under the true law"] },
+ { title = "Probabilistic Forecasts, Calibration and Sharpness", citation_note = "Previously recorded title and bibliographic detail: Probabilistic Forecasts, Calibration and Sharpness (Gneiting, Balabdaoui and Raftery, J. R. Stat. Soc. B 69(2), 2007)", doi = "10.1111/j.1467-9868.2007.00587.x", sections = ["probabilistic calibration, the PIT, and sharpness"] },
+ { title = "Predictive Model Assessment for Count Data", citation_note = "Previously recorded title and bibliographic detail: Predictive Model Assessment for Count Data (Czado, Gneiting and Held, Biometrics 65(4), 2009)", doi = "10.1111/j.1541-0420.2009.01191.x", sections = ["the non-randomized PIT histogram for discrete predictive distributions"] },
+ { title = "Present Position and Potential Developments: Some Personal Views: Statistical Theory: The Prequential Approach", citation_note = "Previously recorded title and bibliographic detail: Statistical Theory: The Prequential Approach (Dawid, J. R. Stat. Soc. A 147(2), 1984)", doi = "10.2307/2981683", sections = ["the PIT of sequential forecasts is uniform under the true law"] },
 ]
 implementation_deviations = [
   "The PIT histogram of a discrete or ensemble law is the non-randomized form (mass spread uniformly over [F(y-), F(y)]); the KS distance is computed on the mid-PIT, which is discrete for ensembles and has a floor of order 1/m, so it is descriptive.",

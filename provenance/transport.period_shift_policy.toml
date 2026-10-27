@@ -10,7 +10,7 @@ copied_tests = false
 # the same sequential g-formula as transport.policy_evaluation; the premise is the
 # selection-diagram rule with time as the population index.
 papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
 ]
 implementation_deviations = [
   "Bounded route, not a published algorithm: no period-drift model beyond the supplied target initial-state law; the target law's support must lie inside the source's.",

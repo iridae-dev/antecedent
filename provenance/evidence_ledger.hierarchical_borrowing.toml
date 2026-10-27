@@ -6,8 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Estimation in Parallel Randomized Experiments (Rubin, 1981)", doi = "10.3102/10769986006004377", sections = ["the normal-normal hierarchical model for parallel experiments and its conditional posteriors"] },
-  { title = "Prior distributions for variance parameters in hierarchical models (Gelman, 2006)", doi = "10.1214/06-BA117A", sections = ["the between-group standard deviation as the parameter that needs a declared prior"] },
+  { title = "Estimation in Parallel Randomized Experiments", citation_note = "Previously recorded title and bibliographic detail: Estimation in Parallel Randomized Experiments (Rubin, 1981)", doi = "10.3102/10769986006004377", sections = ["the normal-normal hierarchical model for parallel experiments and its conditional posteriors"] },
+  { title = "Prior distributions for variance parameters in hierarchical models (comment on article by Browne and Draper)", citation_note = "Previously recorded title and bibliographic detail: Prior distributions for variance parameters in hierarchical models (Gelman, 2006)", doi = "10.1214/06-BA117A", sections = ["the between-group standard deviation as the parameter that needs a declared prior"] },
 ]
 implementation_deviations = [
   "The prior on tau is a declared finite support with explicit probabilities, not a continuous density; a continuous prior is an approximation by its support and the posterior is exact only for the declared one.",

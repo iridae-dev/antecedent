@@ -1,8 +1,9 @@
 # Oracle-fixture closure ledger.
 #
-# Oracle generation is an external operation. Temporary harnesses are deleted
-# after generation; this repository retains only frozen artifacts, provenance,
-# conformance tests, and gate wiring.
+# Oracle generation runs in isolated tooling. Retain independently authored
+# black-box harnesses and pinned environments alongside frozen artifacts,
+# provenance, conformance tests and gate wiring. Historical deleted harnesses
+# are audit gaps, not a policy for new evidence.
 
 schema_version = 1
 target_rows = 60
@@ -67,6 +68,12 @@ status = "closed"
 
 [[method]]
 id = "foundations.ols_wls"
+evidence_kind = "frozen_external_oracle"
+known_truth_fixture = "conformance/stats/ols_wls"
+evidence_test = "crates/antecedent-stats/tests/foundations_oracle.rs"
+evidence_assertion = "least_squares_matches_frozen_statsmodels_outputs"
+additional_evidence = [{ id = "foundations.ols_wls.grid", evidence_kind = "frozen_external_oracle", known_truth_fixture = "conformance/stats/ols_wls_grid", evidence_test = "crates/antecedent-stats/tests/foundations_oracle.rs", evidence_assertion = "weighted_and_categorical_design_grid_matches_external_points_and_hc3" }]
+
 audit_stage = 2
 audit_row = "OLS/WLS least squares"
 oracle_project = "statsmodels"
@@ -80,6 +87,11 @@ status = "closed"
 
 [[method]]
 id = "foundations.sandwich_covariance"
+evidence_kind = "frozen_external_oracle"
+known_truth_fixture = "conformance/stats/sandwich_covariance"
+evidence_test = "crates/antecedent-stats/tests/foundations_oracle.rs"
+evidence_assertion = "sandwich_covariances_match_frozen_statsmodels_outputs"
+
 audit_stage = 2
 audit_row = "HC/cluster/HAC sandwich covariance"
 oracle_project = "statsmodels"
@@ -106,6 +118,11 @@ status = "closed"
 
 [[method]]
 id = "foundations.glm_irls"
+evidence_kind = "frozen_external_oracle"
+known_truth_fixture = "conformance/stats/glm_irls"
+evidence_test = "crates/antecedent-stats/tests/foundations_oracle.rs"
+evidence_assertion = "glm_families_match_frozen_statsmodels_outputs"
+
 audit_stage = 2
 audit_row = "GLM IRLS"
 oracle_project = "statsmodels"

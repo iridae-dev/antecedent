@@ -10,7 +10,7 @@ copied_tests = false
 # that of adaptive_inference.adaptive_weighting; this record covers only the simulation of its
 # law under a declared procedure.
 papers = [
-  { title = "Confidence intervals for policy evaluation in adaptive experiments (Hadad, Hirshberg, Zhan, Wager, Athey, PNAS 118(15):e2014602118)", doi = "10.1073/pnas.2014602118", sections = ["adaptively weighted estimators and their behaviour under adaptive data collection"] },
+  { title = "Confidence intervals for policy evaluation in adaptive experiments", citation_note = "Previously recorded title and bibliographic detail: Confidence intervals for policy evaluation in adaptive experiments (Hadad, Hirshberg, Zhan, Wager, Athey, PNAS 118(15):e2014602118)", doi = "10.1073/pnas.2014602118", sections = ["adaptively weighted estimators and their behaviour under adaptive data collection"] },
 ]
 implementation_deviations = [
   "Monte Carlo law under a hypothesized truth with the caller reporting Monte Carlo error; it is not a coverage claim. Plug-in variance is a diagnostic.",

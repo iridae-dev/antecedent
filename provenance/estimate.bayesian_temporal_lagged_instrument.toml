@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Bayesian Data Analysis, third edition", doi = "10.1201/b16018", sections = ["Gaussian linear-model posterior algebra; normal approximation at the posterior mode"] },
+  { title = "Bayesian Data Analysis", citation_note = "Previously recorded title and bibliographic detail: Bayesian Data Analysis, third edition", doi = "10.1201/b16018", sections = ["Gaussian linear-model posterior algebra; normal approximation at the posterior mode"] },
   { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["Chapter 4: instrumental variables and just-identified linear IV estimation"] },
 ]
 

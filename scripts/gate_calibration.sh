@@ -1654,6 +1654,12 @@ if [ -n "${ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE:-}" ]; then
   fi
 fi
 
+# This complete 200-replicate learner measurement is deliberately ignored by
+# ordinary tests. Keep its exact selection in the frozen-candidate measurement
+# driver; point conformance does not replace its coverage or bias assertions.
+check "learner_ate_known_truth: coverage" cargo test --release -p antecedent-estimate --lib \
+  dml::tests::learner_ate_known_truth_coverage -- --ignored --exact --nocapture
+
 if [ "$FAILED_COUNT" -gt 0 ]; then
   echo "gate_calibration: ${FAILED_COUNT} group(s) failed:"
   printf '%s' "$FAILED"

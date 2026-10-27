@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: the carried object recorded by a transport identity (the ledger does not implement the transport calculus)"] },
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: the carried object recorded by a transport identity (the ledger does not implement the transport calculus)"] },
 ]
 implementation_deviations = [
   "Records and checks transport identity only; it does not identify, estimate or validate a transported effect, and the selection diagram is carried as a digest, not interpreted.",

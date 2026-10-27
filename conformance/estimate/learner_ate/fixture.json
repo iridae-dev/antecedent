@@ -13,5 +13,7 @@
   "oracle": {
     "kind": "closed_form",
     "method": "stated DGP Y = 2T + Z + 0.5 epsilon: the population ATE is the coefficient 2"
-  }
+  },
+  "point_conformance_absolute_tolerance": 0.2,
+  "point_conformance_note": "Single fixed n=600 scenario, population ATE=2. Absolute tolerance 0.2 must also exclude the confounded unadjusted arm contrast. This is a point conformance check, not the 200-replicate bias/coverage measurement."
 }

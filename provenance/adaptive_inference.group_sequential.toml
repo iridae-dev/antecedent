@@ -8,10 +8,10 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Discrete sequential boundaries for clinical trials (Lan, DeMets, Biometrika 70:659-663)", doi = "10.1093/biomet/70.3.659", sections = ["Alpha spending function", "O'Brien-Fleming-type and Pocock-type spending"] },
- { title = "Repeated significance tests on accumulating data (Armitage, McPherson, Rowe, J R Stat Soc A 132:235-244)", doi = "10.2307/2343787", sections = ["Recursive numerical integration of boundary crossing probabilities"] },
- { title = "A multiple testing procedure for clinical trials (O'Brien, Fleming, Biometrics 35:549-556)", doi = "10.2307/2530245", sections = ["Boundary shape"] },
- { title = "Group sequential methods in the design and analysis of clinical trials (Pocock, Biometrika 64:191-199)", doi = "10.1093/biomet/64.2.191", sections = ["Constant boundaries over repeated looks"] },
+ { title = "Discrete sequential boundaries for clinical trials", citation_note = "Previously recorded title and bibliographic detail: Discrete sequential boundaries for clinical trials (Lan, DeMets, Biometrika 70:659-663)", doi = "10.1093/biomet/70.3.659", sections = ["Alpha spending function", "O'Brien-Fleming-type and Pocock-type spending"] },
+ { title = "Repeated Significance Tests on Accumulating Data", citation_note = "Previously recorded title and bibliographic detail: Repeated significance tests on accumulating data (Armitage, McPherson, Rowe, J R Stat Soc A 132:235-244)", doi = "10.2307/2343787", sections = ["Recursive numerical integration of boundary crossing probabilities"] },
+ { title = "A Multiple Testing Procedure for Clinical Trials", citation_note = "Previously recorded title and bibliographic detail: A multiple testing procedure for clinical trials (O'Brien, Fleming, Biometrics 35:549-556)", doi = "10.2307/2530245", sections = ["Boundary shape"] },
+ { title = "Group sequential methods in the design and analysis of clinical trials", citation_note = "Previously recorded title and bibliographic detail: Group sequential methods in the design and analysis of clinical trials (Pocock, Biometrika 64:191-199)", doi = "10.1093/biomet/64.2.191", sections = ["Constant boundaries over repeated looks"] },
 ]
 implementation_deviations = [
  "Only O'Brien-Fleming-type and Pocock-type spending, efficacy boundaries only, equally or unequally spaced pre-specified information fractions.",

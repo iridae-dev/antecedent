@@ -8,8 +8,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Estimator and variance"] },
- { title = "Measurement Error in Nonlinear Models: A Modern Perspective (2nd ed.)", doi = "10.1201/9781420010138", sections = ["Ch. 3 Linear regression and attenuation", "Ch. 4 Regression calibration"] },
+ { title = "ESTIMATING PREVALENCE FROM THE RESULTS OF A SCREENING TEST", citation_note = "Previously recorded title and bibliographic detail: Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Estimator and variance"] },
+ { title = "Measurement Error in Nonlinear Models", citation_note = "Previously recorded title and bibliographic detail: Measurement Error in Nonlinear Models: A Modern Perspective (2nd ed.)", doi = "10.1201/9781420010138", sections = ["Ch. 3 Linear regression and attenuation", "Ch. 4 Regression calibration"] },
 ]
 
 implementation_deviations = [

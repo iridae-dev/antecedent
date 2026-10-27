@@ -6,8 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "The Optimizer's Curse: Skepticism and Postdecision Surprise in Decision Analysis (Smith and Winkler, Management Science 52, 2006)", doi = "10.1287/mnsc.1050.0451", sections = ["upward bias of the maximum of noisy value estimates"] },
-  { title = "A note on data-splitting for the evaluation of significance levels (Cox, Biometrika 62, 1975)", doi = "10.1093/biomet/62.2.441", sections = ["selection on one part of the data and evaluation on the other"] },
+  { title = "The Optimizer’s Curse: Skepticism and Postdecision Surprise in Decision Analysis", citation_note = "Previously recorded title and bibliographic detail: The Optimizer's Curse: Skepticism and Postdecision Surprise in Decision Analysis (Smith and Winkler, Management Science 52, 2006)", doi = "10.1287/mnsc.1050.0451", sections = ["upward bias of the maximum of noisy value estimates"] },
+  { title = "A note on data-splitting for the evaluation of significance levels", citation_note = "Previously recorded title and bibliographic detail: A note on data-splitting for the evaluation of significance levels (Cox, Biometrika 62, 1975)", doi = "10.1093/biomet/62.2.441", sections = ["selection on one part of the data and evaluation on the other"] },
 ]
 implementation_deviations = [
   "The winner's-curse bound is E[e_selected] <= E[max_j e_j] for Gaussian Monte Carlo errors with the estimated standard errors treated as known; the Gaussian expected maximum is exact quadrature and is used only for independent streams or when all pairwise sample covariances are nonnegative (Sudakov-Fernique), otherwise the dependence-free union bound s_max sqrt(2 ln N) is reported. It is an expectation over repetitions of the selection, not an interval for the realized one.",

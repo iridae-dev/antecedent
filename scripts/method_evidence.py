@@ -14,12 +14,13 @@ no inventory has to infer them from prose.
 from __future__ import annotations
 
 import re
-import tomllib
 from functools import cache
 from pathlib import Path
 
+import tomllib
 from _repo import REPO_ROOT as ROOT
 from _repo import ensure_scripts_on_path
+from test_evidence import rust_test_declaration_problems, static_python_test
 
 ensure_scripts_on_path()
 import reconcile_release_scope as scope  # noqa: E402
@@ -112,18 +113,10 @@ class Evidence:
 
     # ---- fixtures -----------------------------------------------------------------------
     def is_test_name(self, path: str, name: str) -> bool:
-        body = self.text(path)
         if path.endswith(".py"):
-            return bool(re.search(rf"^\s*def {re.escape(name)}\b", body, re.M)) and (
-                name.startswith("test") or "/tests/" in path or path.startswith("scripts/test")
-            )
+            return not static_python_test(self.root / path, name)
         if path.endswith(".rs"):
-            return bool(
-                re.search(
-                    rf"#\[(?:tokio::)?test[^\]]*\]\s*(?:#\[[^\]]*\]\s*)*(?:pub )?(?:async )?fn {re.escape(name)}\b",
-                    body,
-                )
-            )
+            return not rust_test_declaration_problems(self.root / path, name)
         return True
 
     def fixture_findings(self, token: str) -> list[str]:

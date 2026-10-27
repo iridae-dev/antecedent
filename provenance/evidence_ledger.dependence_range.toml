@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "On Least Squares and Linear Combination of Observations (Aitken, Proc. R. Soc. Edinburgh 55, 1935)", doi = "10.1017/S0370164600014346", sections = ["generalized least squares under a covariance; the equicorrelated closed form and its extremes over a correlation interval are derived in-repo"] },
+  { title = "IV.—On Least Squares and Linear Combination of Observations", citation_note = "Previously recorded title and bibliographic detail: On Least Squares and Linear Combination of Observations (Aitken, Proc. R. Soc. Edinburgh 55, 1935)", doi = "10.1017/S0370164600014346", sections = ["generalized least squares under a covariance; the equicorrelated closed form and its extremes over a correlation interval are derived in-repo"] },
 ]
 implementation_deviations = [
   "Only one common pairwise correlation (equicorrelation) is ranged over; arbitrary correlation matrices, per-pair intervals and a general positive semidefinite completion are not implemented.",

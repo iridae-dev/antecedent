@@ -248,7 +248,7 @@ description = "Request identity conflicts on a reused key"
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "compiler"
-evidence_test = "crates/antecedent-core/src/execution.rs"
+evidence_test = "crates/antecedent-core/src/execution/tests.rs"
 evidence_assertion = "request_identity_conflicts_on_reused_key"
 notes = "Host request identity unit."
 

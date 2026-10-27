@@ -1270,6 +1270,54 @@ mod tests {
     }
 
     #[test]
+    fn learner_ate_known_truth_point_conformance() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/estimate/learner_ate/fixture.json"
+        ))
+        .unwrap();
+        let n = usize::try_from(fixture["n"].as_u64().unwrap()).unwrap();
+        let seed = fixture["seed_start"].as_u64().unwrap();
+        let truth = fixture["ate"].as_f64().unwrap();
+        let tolerance = fixture["point_conformance_absolute_tolerance"].as_f64().unwrap();
+        let (t, y, z) = confounded_columns(n, seed);
+        let arm_mean = |arm: f64| {
+            let values: Vec<_> =
+                t.iter().zip(&y).filter(|(t, _)| **t == arm).map(|(_, y)| *y).collect();
+            values.iter().sum::<f64>() / values.len() as f64
+        };
+        // The independent target must distinguish adjustment from the biased
+        // observed contrast; merely returning a finite value cannot pass.
+        assert!((arm_mean(1.0) - arm_mean(0.0) - truth).abs() > tolerance);
+        let (data, estimand) = build_dataset(t, y, z);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let dml = DmlAte::new();
+        let prep = dml.prepare(&data, &estimand, &query).unwrap();
+        for method in 0..4 {
+            let effect = fit_learner_method(method, &prep);
+            assert!((effect.ate - truth).abs() < tolerance, "method={method}, ate={}", effect.ate);
+            assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
+        }
+    }
+
+    fn fit_learner_method(method: usize, prep: &PreparedPropensityProblem) -> EffectEstimate {
+        match method {
+            0 => DmlAte::new().fit(prep, &ctx(), AssumptionSet::new()),
+            1 => DmlAte::new().with_score(DmlScore::PartiallyLinear).fit(
+                prep,
+                &ctx(),
+                AssumptionSet::new(),
+            ),
+            2 => crate::DrLearner::new().fit(prep, &ctx(), AssumptionSet::new()),
+            _ => {
+                crate::CausalForest::new().with_n_trees(20).fit(prep, &ctx(), AssumptionSet::new())
+            }
+        }
+        .unwrap()
+    }
+
+    #[test]
+    #[ignore = "calibration: run the complete learner ATE coverage measurement on the frozen candidate"]
     fn learner_ate_known_truth_coverage() {
         // Independent SCM draws; population ATE=2, Gaussian outcome noise,
         // logistic confounding. Fixed seeds make this measurement reproducible.
@@ -1293,21 +1341,7 @@ mod tests {
                 );
                 let dml = DmlAte::new();
                 let prep = dml.prepare(&data, &estimand, &query).unwrap();
-                let effect = match method {
-                    0 => dml.fit(&prep, &ctx(), AssumptionSet::new()),
-                    1 => dml.with_score(DmlScore::PartiallyLinear).fit(
-                        &prep,
-                        &ctx(),
-                        AssumptionSet::new(),
-                    ),
-                    2 => crate::DrLearner::new().fit(&prep, &ctx(), AssumptionSet::new()),
-                    _ => crate::CausalForest::new().with_n_trees(20).fit(
-                        &prep,
-                        &ctx(),
-                        AssumptionSet::new(),
-                    ),
-                }
-                .unwrap();
+                let effect = fit_learner_method(method, &prep);
                 assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
                 let influence = effect.scores.influence.as_ref().unwrap();
                 assert!(influence.iter().sum::<f64>().abs() < 1e-7);

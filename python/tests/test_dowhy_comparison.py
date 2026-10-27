@@ -40,7 +40,7 @@ from antecedent.intervention_programs import (
 )
 from antecedent.outcomes import require_success
 
-from _repo_text import REPO_ROOT, load_toml, read_text
+from _repo_text import REPO_ROOT, load_toml
 
 PIN = load_toml(REPO_ROOT / "parity" / "baselines" / "dowhy.toml")
 
@@ -123,9 +123,8 @@ def test_interventional_mean_under_a_hard_set_matches_dowhy():
     assert abs(ours_c.mean() - theirs_c.mean()) <= 6 * combined
     # Both recover the structural value: the fitted slopes carry about 0.03 of error at n = 5000.
     assert abs(ours_c.mean() - 1.2) <= 0.1 and abs(theirs_c.mean() - 1.2) <= 0.1
-    # The pinned version is recorded in the page that states where the libraries differ.
-    page = read_text(REPO_ROOT / "docs" / "guides" / "intervention-programs.md")
-    assert f"DoWhy {PIN['version']}" in page and "Differences from DoWhy" in page
+    # Documentation/version claims are checked by test_dowhy_comparison_pages;
+    # this assertion establishes the numerical proposition independently of prose.
 
 
 def test_unit_counterfactuals_match_dowhy_for_additive_noise():

@@ -8,7 +8,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Confidence intervals for policy evaluation in adaptive experiments (Hadad, Hirshberg, Zhan, Wager, Athey, PNAS 118(15):e2014602118)", doi = "10.1073/pnas.2014602118", sections = ["Adaptively weighted augmented inverse-probability estimator", "Central limit theorem under stabilizing weights"] },
+ { title = "Confidence intervals for policy evaluation in adaptive experiments", citation_note = "Previously recorded title and bibliographic detail: Confidence intervals for policy evaluation in adaptive experiments (Hadad, Hirshberg, Zhan, Wager, Athey, PNAS 118(15):e2014602118)", doi = "10.1073/pnas.2014602118", sections = ["Adaptively weighted augmented inverse-probability estimator", "Central limit theorem under stabilizing weights"] },
 ]
 implementation_deviations = [
  "Cluster-level assignment with member outcomes is not licensed; the subject-mean reduction is a design choice, not a theorem of the cited paper.",

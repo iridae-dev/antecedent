@@ -6,7 +6,7 @@ cd "$ROOT"
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/test.sh [dev|rust|docs|python-test|python|all] [test arguments...]
+Usage: bash scripts/test.sh [dev|rust|integration|scientific|docs|python-test|python|all] [test arguments...]
 
   dev     Run a focused Rust selection with cheap test compilation (opt-level 0).
           Supply a package/target selection; numerical package overrides remain.
@@ -14,6 +14,9 @@ Usage: bash scripts/test.sh [dev|rust|docs|python-test|python|all] [test argumen
           With no arguments, select the whole workspace and CI calibration features.
           With arguments, forward the exact Cargo/nextest selection you supply.
   docs    Run Rust doctests, with the same workspace default as rust.
+  integration  Run Rust integration targets (excluding library unit tests).
+  scientific   Run exact scientific assertions cited by the evidence registries.
+               No calibration, replay or performance measurement is selected.
   python  Sync the locked dev environment, rebuild the release extension, run pytest.
           Set ANTECEDENT_SKIP_NATIVE_BUILD=1 to reuse an already current extension.
   python-test  Run pytest against the existing extension without sync/rebuild.
@@ -39,11 +42,11 @@ suite="${1:-rust}"
 if [[ $# -gt 0 ]]; then shift; fi
 case "$suite" in
   -h|--help) usage; exit 0 ;;
-  dev|rust|docs|python-test|python|all) ;;
+  dev|rust|integration|scientific|docs|python-test|python|all) ;;
   *) usage >&2; exit 2 ;;
 esac
-if [[ "$suite" == all && $# -gt 0 ]]; then
-  echo "all does not accept extra arguments; use rust, docs or python for a focused run" >&2
+if [[ ( "$suite" == all || "$suite" == scientific ) && $# -gt 0 ]]; then
+  echo "$suite does not accept extra arguments; use rust, docs or python for a focused run" >&2
   exit 2
 fi
 if [[ "$suite" == dev && $# -eq 0 ]]; then
@@ -82,8 +85,13 @@ doctests() {
 python_tests() {
   if [[ "${ANTECEDENT_SKIP_NATIVE_BUILD:-0}" != 1 ]]; then
     uv sync --project "$ROOT/python" --locked --group dev --no-install-project
-    (cd "$ROOT/python" && uv run --no-sync maturin develop --release --locked)
+    (cd "$ROOT/python" && uv run --no-sync python "$ROOT/scripts/native_build_identity.py" begin)
+    # uv selects this project's venv; an inherited Conda prefix must not make
+    # maturin see two competing environments.
+    (cd "$ROOT/python" && env -u CONDA_PREFIX uv run --no-sync maturin develop --release --locked)
+    (cd "$ROOT/python" && uv run --no-sync python "$ROOT/scripts/native_build_identity.py" stamp)
   fi
+  (cd "$ROOT/python" && uv run --no-sync python "$ROOT/scripts/native_build_identity.py" check)
   (cd "$ROOT/python" && uv run --no-sync pytest "$@")
 }
 
@@ -96,8 +104,14 @@ case "$suite" in
     if [[ $# -eq 0 ]]; then set -- "${workspace[@]}"; fi
     doctests "$@"
     ;;
+  integration)
+    if [[ $# -eq 0 ]]; then set -- "${workspace[@]}"; fi
+    rust_tests "$@" -E 'kind(test)'
+    ;;
+  scientific) python3 "$ROOT/scripts/evidence_audit.py" run-scientific ;;
   python) python_tests "$@" ;;
   python-test)
+    (cd "$ROOT/python" && uv run --no-sync python "$ROOT/scripts/native_build_identity.py" check)
     (cd "$ROOT/python" && uv run --no-sync pytest "$@")
     ;;
   all)

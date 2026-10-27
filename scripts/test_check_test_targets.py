@@ -25,6 +25,16 @@ MANIFEST = '[package]\nname = "demo"\nautotests = false\n\n[[test]]\nname = "sui
 
 
 class TestTargetChecks(unittest.TestCase):
+    def test_comments_literals_and_disabled_modules_do_not_register_orphans(self) -> None:
+        for declaration in (
+            '// #[path = "orphan.rs"] mod orphan;\n',
+            'const DECOY: &str = r#"#[path = "orphan.rs"] mod orphan;"#;\n',
+            '#[cfg(any())]\n#[path = "orphan.rs"] mod orphan;\n',
+        ):
+            with self.subTest(declaration=declaration), tempfile.TemporaryDirectory() as tmp:
+                crate = crate_with(Path(tmp), {"suite_01.rs": declaration, "orphan.rs": ""}, MANIFEST)
+                self.assertEqual(check.orphans_of(crate), ["demo/tests/orphan.rs"])
+
     def test_an_unregistered_suite_and_its_includes_are_orphans(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             crate = crate_with(

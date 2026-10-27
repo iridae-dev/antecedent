@@ -9,6 +9,7 @@ evidence_kind = "internal_known_truth"
 python_facade = "full"
 evidence_test = "crates/antecedent-attribution/src/shapley.rs"
 evidence_assertion = "exact_shapley_recovers_additive_game"
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-attribution/src/shapley.rs::exact_shapley_recovers_additive_game", proposition = "For an additive coalition payoff with weights [1,2,3], each exact Shapley allocation equals its weight.", tolerance = "absolute 1e-9", limitations = "Three-player additive game only; this does not validate arbitrary payoff functions or Monte Carlo error estimates." }
 notes = "Exact + Monte Carlo / permutation Shapley with size limits and MC stderr"
 
 [[capabilities]]
@@ -128,5 +129,6 @@ evidence_kind = "internal_known_truth"
 python_facade = "full"
 evidence_test = "crates/antecedent/tests/attribution.rs"
 evidence_assertion = "distribution_change_y_shift_conformance"
+known_truth_fixture = "conformance/attribution/distribution_change_y_shift"
 limitations = "The cited test exercises the distribution_change y-shift facade path against its conformance pin; the mechanism-change and structure-change facade conformances in the same file are cited by their own rows."
 notes = "Facade + conformance tests under crates/antecedent/tests/attribution.rs; Python antecedent.attribution + package helpers"

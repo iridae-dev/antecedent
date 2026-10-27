@@ -385,6 +385,22 @@ core crates/antecedent-validate/src/
 core crates/antecedent/tests/common/
 core scripts/gate_calibration.sh
 core scripts/gate_response_calibration.sh
+# Shared scientific assertion/oracle acceptance inputs. These underpin multiple
+# estimator families, so conservatively invalidate core until Q27 reviews any
+# narrower assignment. This mapping is not a replay waiver or a measurement.
+core scripts/evidence_kinds.py
+core scripts/test_evidence.py
+core scripts/reference_compare.py
+core crates/antecedent-stats/tests/foundations_oracle.rs
+core conformance/stats/ols_wls/expected.json
+core conformance/stats/ols_wls/reference.py
+core conformance/stats/ols_wls/reference.py.lock
+core conformance/stats/ols_wls_grid/expected.json
+core conformance/stats/sandwich_covariance/expected.json
+core conformance/stats/glm_irls/expected.json
+core conformance/estimate/learner_ate/fixture.json
+core conformance/estimate/rd_sharp/reference.py
+core conformance/estimate/path_specific_edge_gformula/reference.py
 
 # ---- mechanism: fitted structural causal models (GCM) ----------------------
 # Reached only by the queries the dispatch routes to attribution_path.rs.

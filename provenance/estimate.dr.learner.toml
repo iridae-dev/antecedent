@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Optimal doubly robust estimation of heterogeneous causal effects", doi = "10.48550/arXiv.2004.14497", sections = ["DR-Learner"] },
+ { title = "Towards optimal doubly robust estimation of heterogeneous causal effects", citation_note = "Previously recorded title and bibliographic detail: Optimal doubly robust estimation of heterogeneous causal effects", doi = "10.48550/arXiv.2004.14497", sections = ["DR-Learner"] },
 ]
 
 implementation_deviations = [

@@ -10,7 +10,7 @@ papers = [
  # old/short works only accessible as scanned or access-gated PDFs, so I could not read the
  # actual section headings the way I did for the other records in this batch. Located by page
  # range / general description instead of asserting an unverified section number.
- { title = "A Value for n-Person Games", doi = "10.1515/9781400829156-012", sections = ["the three value axioms and the resulting permutation-sum formula (pp. 307-317 of the Contributions to the Theory of Games II chapter; internal section number not independently verified)"] },
+ { title = "7. A Value for n-Person Games. Contributions to the Theory of Games II (1953) 307-317.", citation_note = "Previously recorded title and bibliographic detail: A Value for n-Person Games", doi = "10.1515/9781400829156-012", sections = ["the three value axioms and the resulting permutation-sum formula (pp. 307-317 of the Contributions to the Theory of Games II chapter; internal section number not independently verified)"] },
  { title = "Polynomial calculation of the Shapley value based on sampling", doi = "10.1016/j.cor.2008.04.004", sections = ["the sampling-based polynomial estimator for the Shapley value (pp. 1726-1730; internal section number not independently verified)"] },
 ]
 

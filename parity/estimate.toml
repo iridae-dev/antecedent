@@ -520,9 +520,10 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/learner_ate/fixture.json"
 evidence_test = "crates/antecedent-estimate/src/dml.rs"
-evidence_assertion = "learner_ate_known_truth_coverage"
+evidence_assertion = "learner_ate_known_truth_point_conformance"
+calibration_evidence = { test = "crates/antecedent-estimate/src/dml.rs", assertion = "learner_ate_known_truth_coverage", status = "registered_unmeasured", phase = "Q08", group = "learner_ate_known_truth: coverage" }
 owner = "estimate"
-limitations = "Binary 0/1 treatment, IID rows, linear outcome with constant effect and logistic propensity; n=600, 200 deterministic replications. This fixture measures marginal ATE intervals, not CATE intervals, nonlinear-provider calibration, or arbitrary support-matrix cells."
+limitations = "Binary 0/1 treatment, IID rows, linear outcome with constant effect and logistic propensity; the ordinary conformance assertion checks one n=600 scenario against ATE=2 and excludes the biased unadjusted contrast. The separate 200-replicate marginal ATE bias/coverage measurement is registered for Q08 and remains unmeasured on this branch. No CATE-interval, nonlinear-provider or arbitrary support-matrix calibration is claimed."
 
 [[capabilities]]
 id = "estimate.dr.learner"
@@ -532,9 +533,10 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/learner_ate/fixture.json"
 evidence_test = "crates/antecedent-estimate/src/dml.rs"
-evidence_assertion = "learner_ate_known_truth_coverage"
+evidence_assertion = "learner_ate_known_truth_point_conformance"
+calibration_evidence = { test = "crates/antecedent-estimate/src/dml.rs", assertion = "learner_ate_known_truth_coverage", status = "registered_unmeasured", phase = "Q08", group = "learner_ate_known_truth: coverage" }
 owner = "estimate"
-limitations = "Binary 0/1 treatment, IID rows, linear outcome with constant effect and logistic propensity; n=600, 200 deterministic replications. This fixture measures marginal ATE intervals, not CATE intervals, nonlinear-provider calibration, or arbitrary support-matrix cells."
+limitations = "Binary 0/1 treatment, IID rows, linear outcome with constant effect and logistic propensity; the ordinary conformance assertion checks one n=600 scenario against ATE=2 and excludes the biased unadjusted contrast. The separate 200-replicate marginal ATE bias/coverage measurement is registered for Q08 and remains unmeasured on this branch. No CATE-interval, nonlinear-provider or arbitrary support-matrix calibration is claimed."
 
 [[capabilities]]
 id = "estimate.causal.forest"
@@ -544,9 +546,10 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/learner_ate/fixture.json"
 evidence_test = "crates/antecedent-estimate/src/dml.rs"
-evidence_assertion = "learner_ate_known_truth_coverage"
+evidence_assertion = "learner_ate_known_truth_point_conformance"
+calibration_evidence = { test = "crates/antecedent-estimate/src/dml.rs", assertion = "learner_ate_known_truth_coverage", status = "registered_unmeasured", phase = "Q08", group = "learner_ate_known_truth: coverage" }
 owner = "estimate"
-limitations = "Binary 0/1 treatment, IID rows, linear outcome with constant effect and logistic propensity; n=600, 200 deterministic replications. This fixture measures marginal ATE intervals, not CATE intervals, nonlinear-provider calibration, or arbitrary support-matrix cells."
+limitations = "Binary 0/1 treatment, IID rows, linear outcome with constant effect and logistic propensity; the ordinary conformance assertion checks one n=600 scenario against ATE=2 and excludes the biased unadjusted contrast. The separate 200-replicate marginal ATE bias/coverage measurement is registered for Q08 and remains unmeasured on this branch. No CATE-interval, nonlinear-provider or arbitrary support-matrix calibration is claimed."
 
 [[capabilities]]
 id = "estimate.generalized_propensity_aipw"

@@ -13,7 +13,7 @@ copied_tests = false
 # Both are definitions of the intervened model; no estimator and no paper is implemented, so no
 # estimation guarantee is claimed.
 papers = [
- { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Interventions and the do operator", "structural equations and policy-dependent interventions"] },
+ { title = "Causality", citation_note = "Previously recorded title and bibliographic detail: Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Interventions and the do operator", "structural equations and policy-dependent interventions"] },
 ]
 
 implementation_deviations = [

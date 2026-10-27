@@ -2,9 +2,9 @@
 import json
 import re
 import sys
-import tomllib
 from pathlib import Path
 
+import tomllib
 from _repo import ensure_scripts_on_path
 
 root = Path(".")
@@ -22,27 +22,8 @@ BASE_REQUIRED = ("id", "status")
 # The 2026-08 audit found rows whose notes read as external-package agreement
 # while the fixture's own oracle block recorded clean-room enumeration; this
 # field makes the claim strength machine-readable so wording cannot outrun it.
-EVIDENCE_KINDS = {
-    # code + ordinary unit tests; no numerical evidence against a truth
-    "implementation_exists",
-    # conformance fixture/test against closed-form, analytic, or clean-room truth
-    "internal_known_truth",
-    # agreement with another Antecedent estimator/module only
-    "internal_cross_check",
-    # frozen fixture recording an actual pinned upstream-package run, consumed
-    # by an executing test
-    "frozen_external_oracle",
-    # agreement with an upstream package across a range of inputs
-    "behavioral_parity",
-    # theorem-level / method-contract argument
-    "contract_equivalence",
-    # frozen output of this library itself: a change detector, never truth (no
-    # known_truth_fixture; limitations name what is pinned)
-    "regression_pin",
-    # a release-process property enforced by a named gate or workflow, with no
-    # test that could execute it (release.toml only; see the done-row rule below)
-    "process_attested",
-}
+from evidence_kinds import EVIDENCE_KINDS, EXTERNAL_KINDS, inline_reference_problems
+
 # An implementation_exists row that produces one of these is a statistical procedure
 # a reader would take as validated; it must say that no numerical truth backs it.
 # A term matches at a word start or inside a CamelCase name (`PosteriorWidth`,
@@ -55,7 +36,6 @@ STATISTICAL_QUANTITY = re.compile(
     re.I,
 )
 # Kinds that assert an upstream package produced the truth being matched.
-EXTERNAL_KINDS = {"frozen_external_oracle", "behavioral_parity"}
 
 # An external claim is a three-link evidence contract, not just prose on an
 # inventory row: immutable baseline metadata, a frozen JSON fixture, and an
@@ -218,6 +198,7 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
 
         if fixture is not None and (not isinstance(fixture, str) or not (root / fixture).exists()):
             problems.append(f"{rel}: {label} known_truth_fixture {fixture!r} does not exist")
+        problems.extend(f"{rel}: {label}: {p}" for p in inline_reference_problems(row))
 
         if kind in EXTERNAL_KINDS:
             if not isinstance(oracle, str) or not oracle.strip():

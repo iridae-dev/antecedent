@@ -4,10 +4,10 @@ from __future__ import annotations
 import ast
 import re
 import sys
-import tomllib
 from itertools import product
 from pathlib import Path
 
+import tomllib
 from _repo import ensure_scripts_on_path
 
 root = Path(".")
@@ -19,17 +19,10 @@ if matrix_shard != "all":
         flush=True,
     )
 
-EVIDENCE_KINDS = {
-    "implementation_exists",
-    "internal_known_truth",
-    "internal_cross_check",
-    # frozen output of this library itself (a seeded run or a copied value): a change
-    # detector, never truth. Names its test, never a known_truth_fixture.
-    "regression_pin",
-    "frozen_external_oracle",
-    "behavioral_parity",
-    "contract_equivalence",
-}
+from evidence_kinds import EVIDENCE_KINDS as ALL_EVIDENCE_KINDS
+from evidence_kinds import KNOWN_TRUTH_KINDS
+
+EVIDENCE_KINDS = ALL_EVIDENCE_KINDS - {"process_attested"}
 
 
 def regression_pin_problem(fixture: str, inference: str) -> str | None:
@@ -501,7 +494,7 @@ for i, row in enumerate(cells, 1):
     if row.get("status") is not None:
         fail.append(f"{label}: status is illegal on a matrix cell")
     fixture = row.get("known_truth_fixture")
-    if kind in {"internal_known_truth", "frozen_external_oracle"}:
+    if kind in KNOWN_TRUTH_KINDS:
         if not isinstance(fixture, str) or not fixture.strip():
             fail.append(f"{label}: {kind} requires known_truth_fixture")
         elif not (root / fixture).exists():
@@ -574,7 +567,7 @@ for i, row in enumerate(cells, 1):
 # coverage has nothing tying it to the truth. It is licensed only while another cell of
 # the same query and inference mode has known-truth or external-oracle evidence, so the
 # estimand itself is checked against a simulation truth somewhere.
-_truth_kinds = {"internal_known_truth", "frozen_external_oracle"}
+_truth_kinds = KNOWN_TRUTH_KINDS
 _truthful = {
     (c.get("query"), c.get("inference")) for c in cells if c.get("evidence_kind") in _truth_kinds
 }

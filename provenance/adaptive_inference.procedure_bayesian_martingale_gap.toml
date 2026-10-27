@@ -12,7 +12,7 @@ copied_tests = false
 # predictive; a nonzero gap witnesses a failed premise. The likelihood-principle argument for
 # ignoring an ignorable stopping rule is textbook.
 papers = [
-  { title = "Bayesian Data Analysis (3rd ed.)", doi = "10.1201/b16018", sections = ["ignorable stopping rules and ignorable missing data (likelihood principle); Beta-binomial updating"] },
+  { title = "Bayesian Data Analysis", citation_note = "Previously recorded title and bibliographic detail: Bayesian Data Analysis (3rd ed.)", doi = "10.1201/b16018", sections = ["ignorable stopping rules and ignorable missing data (likelihood principle); Beta-binomial updating"] },
 ]
 implementation_deviations = [
   "The gap is a diagnostic computed from the exact prior-predictive law, not a test; a zero gap under outcome-independent loss is the expected result, a nonzero gap under value-dependent loss is the witness.",

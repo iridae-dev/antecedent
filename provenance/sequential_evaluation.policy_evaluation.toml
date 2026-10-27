@@ -8,10 +8,10 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "A new approach to causal inference in mortality studies with a sustained exposure period: application to control of the healthy worker survivor effect (Robins, Mathematical Modelling 7:1393-1512)", doi = "10.1016/0270-0255(86)90088-6", sections = ["The g-computation algorithm formula for time-varying treatments"] },
- { title = "Marginal Mean Models for Dynamic Regimes (Murphy, van der Laan and Robins, J Am Stat Assoc 96:1410-1423)", doi = "10.1198/016214501753382327", sections = ["Dynamic regimes and the value of a regime"] },
- { title = "Planning and acting in partially observable stochastic domains (Kaelbling, Littman and Cassandra, Artif Intell 101:99-134)", doi = "10.1016/S0004-3702(98)00023-X", sections = ["Belief states and the Bayesian belief update"] },
- { title = "A Generalization of Sampling Without Replacement from a Finite Universe (Horvitz and Thompson, J Am Stat Assoc 47:663-685)", doi = "10.1080/01621459.1952.10483446", sections = ["The inverse-probability weighted estimator"] },
+ { title = "A new approach to causal inference in mortality studies with a sustained exposure period—application to control of the healthy worker survivor effect", citation_note = "Previously recorded title and bibliographic detail: A new approach to causal inference in mortality studies with a sustained exposure period: application to control of the healthy worker survivor effect (Robins, Mathematical Modelling 7:1393-1512)", doi = "10.1016/0270-0255(86)90088-6", sections = ["The g-computation algorithm formula for time-varying treatments"] },
+ { title = "Marginal Mean Models for Dynamic Regimes", citation_note = "Previously recorded title and bibliographic detail: Marginal Mean Models for Dynamic Regimes (Murphy, van der Laan and Robins, J Am Stat Assoc 96:1410-1423)", doi = "10.1198/016214501753382327", sections = ["Dynamic regimes and the value of a regime"] },
+ { title = "Planning and acting in partially observable stochastic domains", citation_note = "Previously recorded title and bibliographic detail: Planning and acting in partially observable stochastic domains (Kaelbling, Littman and Cassandra, Artif Intell 101:99-134)", doi = "10.1016/S0004-3702(98)00023-X", sections = ["Belief states and the Bayesian belief update"] },
+ { title = "A Generalization of Sampling Without Replacement from a Finite Universe", citation_note = "Previously recorded title and bibliographic detail: A Generalization of Sampling Without Replacement from a Finite Universe (Horvitz and Thompson, J Am Stat Assoc 47:663-685)", doi = "10.1080/01621459.1952.10483446", sections = ["The inverse-probability weighted estimator"] },
 ]
 
 implementation_deviations = [

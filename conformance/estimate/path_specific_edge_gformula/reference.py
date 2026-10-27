@@ -66,7 +66,10 @@ import math
 import sys
 from pathlib import Path
 
+# Comparison support only; reference calculations remain independent.
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 import numpy as np
+from reference_compare import values_close as compare_values
 
 HERE = Path(__file__).resolve().parent
 BINS = 10
@@ -343,18 +346,8 @@ def build() -> dict:
 
 
 def values_close(left: object, right: object) -> bool:
-    """Float documents compare with ``np.isclose``, not ``!=``."""
-    if isinstance(left, bool) or isinstance(right, bool):
-        return left == right
-    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
-        return bool(np.isclose(left, right, equal_nan=True))
-    if isinstance(left, dict) and isinstance(right, dict):
-        return left.keys() == right.keys() and all(values_close(left[k], right[k]) for k in left)
-    if isinstance(left, list) and isinstance(right, list):
-        return len(left) == len(right) and all(
-            values_close(a, b) for a, b in zip(left, right, strict=True)
-        )
-    return left == right
+    """Compare with the fixture's explicit tolerance, without NumPy defaults."""
+    return compare_values(left, right, rtol=0.0, atol=1e-9)
 
 
 def main() -> None:

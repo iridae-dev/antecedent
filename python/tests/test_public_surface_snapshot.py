@@ -479,6 +479,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "prepared",
     },
     "AnalysisResult": {
+        "counterfactual_contrasts",
         "interval_bindings",
         "structural_aggregation_policy",
         "association",

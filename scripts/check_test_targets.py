@@ -10,28 +10,20 @@ transitively, relative to the including file, so a file pulled in by another inc
 
 from __future__ import annotations
 
-import re
 import sys
-import tomllib
 from pathlib import Path
 
+import tomllib
 from _repo import REPO_ROOT as ROOT
-
-PATH_ATTR = re.compile(r'#\[path\s*=\s*"([^"]+)"\]')
+from test_evidence import target_files
 
 
 def included_files(root_file: Path) -> set[Path]:
     """`root_file` and every file reachable from it through `#[path]` includes."""
-    seen: set[Path] = set()
-    pending = [root_file.resolve()]
-    while pending:
-        current = pending.pop()
-        if current in seen or not current.is_file():
-            continue
-        seen.add(current)
-        for target in PATH_ATTR.findall(current.read_text(encoding="utf-8")):
-            pending.append((current.parent / target).resolve())
-    return seen
+    root_file = root_file.resolve()
+    crate = next((p for p in root_file.parents if (p / "Cargo.toml").is_file()), root_file.parent)
+    boundary = crate.parent.parent if crate.parent.name == "crates" else crate
+    return set(target_files(root_file, boundary))
 
 
 def orphans_of(crate: Path) -> list[str]:

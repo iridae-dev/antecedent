@@ -11,7 +11,7 @@ copied_tests = false
 # premise; the correction entry points are existing code. No paper introduces this binding
 # layer, so the citation is the premise only.
 papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
 ]
 implementation_deviations = [
   "Not an implementation of a published estimator. The route re-binds an existing model to the target population only when every parameter the model's route uses is declared invariant; it then runs the existing correction and returns it with a receipt.",

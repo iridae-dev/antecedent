@@ -11,10 +11,12 @@ from __future__ import annotations
 import argparse
 import json
 import tempfile
-import tomllib
+from collections import Counter
 from pathlib import Path
 
+import tomllib
 from _repo import REPO_ROOT as REPO
+from evidence_audit import claim_rows
 
 
 def build_report(root: Path) -> dict:
@@ -84,6 +86,12 @@ def build_report(root: Path) -> dict:
         "execution_verified": False,
         "calibration_verified": False,
         "release_certified": False,
+        "evidence_classification": {
+            "vocabulary": "scripts/evidence_kinds.py",
+            "declarations_by_kind": dict(sorted(Counter(r["evidence_kind"] for r in claim_rows(root)).items())),
+            "execution_verified": False,
+            "calibration": "separate_attested_measurements_required",
+        },
         "registry": registry,
         "records": summaries,
     }
@@ -100,6 +108,11 @@ def render(report: dict) -> str:
         "",
         f"{report['registry']}; {len(records)} records; {counts}",
     ]
+    classification = report.get("evidence_classification", {})
+    lines.append(
+        "Evidence propositions (registry declarations, not verified execution): "
+        + json.dumps(classification.get("declarations_by_kind", {}), sort_keys=True)
+    )
     for record in records:
         lines.append(
             f"  {record['id']}: {record['status']}; "

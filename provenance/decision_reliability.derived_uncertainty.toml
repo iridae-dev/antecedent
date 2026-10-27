@@ -13,9 +13,9 @@ copied_tests = false
 # critical values (marginal over all candidates, or over the competitors of the best on paired
 # differences), not the exact multivariate-t critical values of Hsu.
 papers = [
-  { title = "Probable Inference, the Law of Succession, and Statistical Inference (Wilson, J. Am. Stat. Assoc. 22:209-212, 1927)", doi = "10.1080/01621459.1927.10502953", sections = ["score interval for a binomial proportion"] },
-  { title = "Multiple Comparisons: Theory and Methods (Hsu, Chapman and Hall, 1996; the DOI is the publisher record titled Multiple Comparisons)", doi = "10.1201/b15074", sections = ["multiple comparisons with the best: the idea of a confidence set for the best candidate; the critical values here are Bonferroni, not Hsu's exact multivariate-t values"] },
-  { title = "The Optimizer's Curse: Skepticism and Postdecision Surprise in Decision Analysis (Smith and Winkler, Management Science 52, 2006)", doi = "10.1287/mnsc.1050.0451", sections = ["upward bias of the selected maximum of noisy estimates"] },
+  { title = "Probable Inference, the Law of Succession, and Statistical Inference", citation_note = "Previously recorded title and bibliographic detail: Probable Inference, the Law of Succession, and Statistical Inference (Wilson, J. Am. Stat. Assoc. 22:209-212, 1927)", doi = "10.1080/01621459.1927.10502953", sections = ["score interval for a binomial proportion"] },
+  { title = "Multiple Comparisons", citation_note = "Previously recorded title and bibliographic detail: Multiple Comparisons: Theory and Methods (Hsu, Chapman and Hall, 1996; the DOI is the publisher record titled Multiple Comparisons)", doi = "10.1201/b15074", sections = ["multiple comparisons with the best: the idea of a confidence set for the best candidate; the critical values here are Bonferroni, not Hsu's exact multivariate-t values"] },
+  { title = "The Optimizer’s Curse: Skepticism and Postdecision Surprise in Decision Analysis", citation_note = "Previously recorded title and bibliographic detail: The Optimizer's Curse: Skepticism and Postdecision Surprise in Decision Analysis (Smith and Winkler, Management Science 52, 2006)", doi = "10.1287/mnsc.1050.0451", sections = ["upward bias of the selected maximum of noisy estimates"] },
 ]
 implementation_deviations = [
   "Source-distribution uncertainty is carried unchanged and never added to the numerical or selection components; a probability is a probability under the supplied law and no interval here covers a wrong law.",

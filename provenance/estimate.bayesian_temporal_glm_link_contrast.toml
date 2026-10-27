@@ -6,8 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Bayesian Data Analysis, third edition", doi = "10.1201/b16018", sections = ["Gaussian linear-model posterior algebra; normal approximation at the posterior mode"] },
-  { title = "Generalized Linear Models, second edition", doi = "10.1201/9780203753736", sections = ["Binomial logit/probit likelihood and Fisher information; asymptotic inference for smooth functions of coefficients"] },
+  { title = "Bayesian Data Analysis", citation_note = "Previously recorded title and bibliographic detail: Bayesian Data Analysis, third edition", doi = "10.1201/b16018", sections = ["Gaussian linear-model posterior algebra; normal approximation at the posterior mode"] },
+  { title = "Generalized Linear Models", citation_note = "Previously recorded title and bibliographic detail: Generalized Linear Models, second edition", doi = "10.1201/9780203753736", sections = ["Binomial logit/probit likelihood and Fisher information; asymptotic inference for smooth functions of coefficients"] },
 ]
 
 upstream_implementations_observed = []

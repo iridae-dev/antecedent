@@ -17,7 +17,7 @@ copied_tests = false
 # truncated-factorization semantics that "clamp then evaluate" actually is.
 papers = [
  { title = "A new approach to causal inference in mortality studies with a sustained exposure period—application to control of the healthy worker survivor effect", doi = "10.1016/0270-0255(86)90088-6", sections = ["g-computation substitution principle only — this module does not implement the paper's iterated g-formula for time-varying, treatment-affected confounders"] },
- { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["do-operator / truncated factorization (single-shot intervention-and-predict)"] },
+ { title = "Causality", citation_note = "Previously recorded title and bibliographic detail: Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["do-operator / truncated factorization (single-shot intervention-and-predict)"] },
 ]
 
 implementation_deviations = [

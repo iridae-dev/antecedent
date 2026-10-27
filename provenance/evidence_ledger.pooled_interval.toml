@@ -7,7 +7,7 @@ copied_tests = false
 
 # The new equal-study Gaussian construction is distinct from legacy Wald/HKSJ pooling.
 papers = [
-  { title = "t-Statistic Based Correlation and Heterogeneity Robust Inference (Ibragimov and Muller, 2010)", doi = "10.1198/jbes.2009.08046", sections = ["2.1: conservative Student t test for independent Gaussian estimates with common marginal mean and unequal unknown variances"] },
+  { title = "t -Statistic Based Correlation and Heterogeneity Robust Inference", citation_note = "Previously recorded title and bibliographic detail: t-Statistic Based Correlation and Heterogeneity Robust Inference (Ibragimov and Muller, 2010)", doi = "10.1198/jbes.2009.08046", sections = ["2.1: conservative Student t test for independent Gaussian estimates with common marginal mean and unequal unknown variances"] },
 ]
 implementation_deviations = [
   "EqualStudyGaussian uses equal study weights and study-level Student t uncertainty, avoiding random estimated-variance precision weights. Independent Gaussian random effects enter the marginal study variances. A common marginal mean is required; arbitrary unequal fixed study means are not covered. This distinct method owns its separately collected known-law Gaussian-study records; no Wald/HKSJ calibration is inherited.",

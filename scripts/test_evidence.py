@@ -31,14 +31,15 @@ import os
 import re
 import subprocess
 import sys
-import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import _py_closure
 import _rust_source as _rust
+import tomllib
 from _repo import REPO_ROOT as ROOT
-from _repo import cargo_target_feature_args, test_target
+from _repo import cargo_target_feature_args
+from evidence_kinds import KNOWN_TRUTH_KINDS
 
 PARSE_MARKERS = re.compile(
     r"serde_json::from_str|serde_json::from_slice|from_str::<|json\.loads|"
@@ -152,9 +153,22 @@ def _attrs_before(skel: str, code: str, pos: int) -> list[str]:
 
 
 @functools.cache
+def source_masked(path: Path) -> Masked:
+    return mask_rust(path.read_text(errors="ignore", encoding="utf-8"))
+
+
+def module_items(masked: Masked) -> list[RustItem]:
+    """Module traversal does not need to parse every function and constant body."""
+    skel, code = masked.skeleton, masked.code
+    return [RustItem("mod", m.group(1), m.start(),
+                     (m.end() - 1, _match_bracket(skel, m.end() - 1) + 1),
+                     _attrs_before(skel, code, m.start()))
+            for m in _MOD_BLOCK.finditer(skel)]
+
+
+@functools.cache
 def rust_items(path: Path) -> tuple[Masked, tuple[RustItem, ...]]:
-    text = path.read_text(errors="ignore", encoding="utf-8")
-    masked = mask_rust(text)
+    masked = source_masked(path)
     skel, code = masked.skeleton, masked.code
     items: list[RustItem] = []
     for m in _FN.finditer(skel):
@@ -194,17 +208,7 @@ def rust_items(path: Path) -> tuple[Masked, tuple[RustItem, ...]]:
     for m in _MACRO.finditer(skel):
         end = _match_bracket(skel, m.end() - 1)
         items.append(RustItem("macro", m.group(1), m.start(), (m.start(), end + 1)))
-    for m in _MOD_BLOCK.finditer(skel):
-        end = _match_bracket(skel, m.end() - 1)
-        items.append(
-            RustItem(
-                "mod",
-                m.group(1),
-                m.start(),
-                (m.end() - 1, end + 1),
-                _attrs_before(skel, code, m.start()),
-            )
-        )
+    items.extend(module_items(masked))
     return masked, tuple(items)
 
 
@@ -232,10 +236,10 @@ def _is_cfg_test(attrs: list[str]) -> bool:
     return any(re.sub(r"\s+", "", a) == "#[cfg(test)]" for a in attrs)
 
 
-def _declared_modules(path: Path) -> list[tuple[Path, bool]]:
+def _declared_modules(path: Path, boundary: Path | None = None) -> list[tuple[Path, bool]]:
     """(module file, declared test-only) for every enabled `mod name;` in `path`."""
-    masked, items = rust_items(path)
-    blocks = [it for it in items if it.kind == "mod"]
+    masked = source_masked(path)
+    blocks = module_items(masked)
     out = []
     for m in _MOD_DECL.finditer(masked.skeleton):
         attrs = _attrs_before(masked.skeleton, masked.code, m.start())
@@ -255,7 +259,7 @@ def _declared_modules(path: Path) -> list[tuple[Path, bool]]:
                 continue
             candidate = (path.parent / declared_path).resolve()
             try:
-                candidate.relative_to(ROOT.resolve())
+                candidate.relative_to((boundary or ROOT).resolve())
             except ValueError:
                 continue
             if candidate.is_file():
@@ -295,7 +299,7 @@ def _rust_path_attribute(attrs: list[str]) -> str | None:
 
 
 @functools.cache
-def target_modules(root_file: Path) -> dict[Path, bool]:
+def target_modules(root_file: Path, boundary: Path | None = None) -> dict[Path, bool]:
     """Every file compiled into the target rooted at `root_file`, mapped to whether it
     is compiled only under `cfg(test)`."""
     seen: dict[Path, bool] = {}
@@ -305,12 +309,12 @@ def target_modules(root_file: Path) -> dict[Path, bool]:
         if p in seen or not p.is_file():
             continue
         seen[p] = test_only
-        todo.extend((child, test_only or flag) for child, flag in _declared_modules(p))
+        todo.extend((child, test_only or flag) for child, flag in _declared_modules(p, boundary))
     return seen
 
 
-def target_files(root_file: Path) -> tuple[Path, ...]:
-    return tuple(target_modules(root_file))
+def target_files(root_file: Path, boundary: Path | None = None) -> tuple[Path, ...]:
+    return tuple(target_modules(root_file, boundary))
 
 
 @functools.cache
@@ -318,6 +322,10 @@ def target_root(path: Path) -> tuple[Path, str, list[str]] | None:
     """(crate root file, crate name, cargo target args) for a Rust source file."""
     path = path.resolve()
     rel = path.relative_to(ROOT.resolve()).parts
+    if rel[0] == "python" and len(rel) >= 3 and rel[1] == "src":
+        crate_dir = ROOT / "python"
+        manifest = tomllib.loads((crate_dir / "Cargo.toml").read_text(encoding="utf-8"))
+        return crate_dir / "src/lib.rs", manifest["package"]["name"], ["--lib"]
     if len(rel) < 4 or rel[0] != "crates":
         return None
     crate_dir = ROOT / "crates" / rel[1]
@@ -327,23 +335,19 @@ def target_root(path: Path) -> tuple[Path, str, list[str]] | None:
     crate = m.group(1) if m else crate
     if rel[2] == "tests":
         tests_dir = crate_dir / "tests"
-        if len(rel) == 4:
-            # A file folded into a suite_NN aggregator is compiled as a module of the suite.
-            name, prefix = test_target(rel[1], Path(rel[3]).stem, ROOT)
-            target = ["--test", name]
-            target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
-            return (tests_dir / f"{name}.rs" if prefix else tests_dir / rel[3]), crate, target
-        main = tests_dir / rel[3] / "main.rs"
-        if main.is_file():
-            target = ["--test", rel[3]]
-            target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
-            return main, crate, target
-        # A file under tests/<dir>/ is compiled only as a module of some target.
-        for top in sorted(tests_dir.glob("*.rs")):
-            if path in target_files(top.resolve()):
-                target = ["--test", top.stem]
+        cargo = tomllib.loads(manifest)
+        entries = list(cargo.get("test", []))
+        if cargo.get("package", {}).get("autotests", True):
+            explicit = {e.get("path", f"tests/{e['name']}.rs") for e in entries}
+            entries += [{"name": p.stem, "path": f"tests/{p.name}"}
+                        for p in sorted(tests_dir.glob("*.rs"))
+                        if f"tests/{p.name}" not in explicit]
+        for entry in entries:
+            root_file = crate_dir / entry.get("path", f"tests/{entry['name']}.rs")
+            if path in target_files(root_file.resolve()):
+                target = ["--test", entry["name"]]
                 target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
-                return top, crate, target
+                return root_file, crate, target
         return None
     if rel[2] == "src":
         lib = crate_dir / "src" / "lib.rs"
@@ -370,15 +374,15 @@ class StaticTest:
 
 
 @functools.cache
-def static_rust_test(path: Path, name: str) -> StaticTest:
-    """Why `name` in `path` is not a compiled, non-ignored `#[test]` (empty = it is)."""
+def rust_test_declaration_problems(path: Path, name: str) -> list[str]:
+    """Declaration checks shared by inventories; no execution claim."""
     problems: list[str] = []
     if not path.is_file():
-        return StaticTest(name, [f"{path} does not exist"])
+        return [f"{path} does not exist"]
     masked, items = rust_items(path)
     fns = [it for it in items if it.kind == "fn" and it.name == name]
     if not fns:
-        return StaticTest(name, [f"no fn {name} outside comments and string literals"])
+        return [f"no fn {name} outside comments and string literals"]
     if len(fns) > 1:
         problems.append(f"fn {name} is defined {len(fns)} times")
     item = fns[0]
@@ -394,6 +398,20 @@ def static_rust_test(path: Path, name: str) -> StaticTest:
             problems.append(f"fn {name} sits in mod {block.name} under {cfg.strip()}")
     if _file_cfg_disabled(masked):
         problems.append(f"{path} is compiled out by an inner #![cfg(...)]")
+    return problems
+
+
+@functools.cache
+def static_rust_test(path: Path, name: str) -> StaticTest:
+    """Why a citation is not a compiled, non-ignored test (empty = it is)."""
+    problems = list(rust_test_declaration_problems(path, name))
+    if not path.is_file():
+        return StaticTest(name, problems)
+    masked, items = rust_items(path)
+    fns = [it for it in items if it.kind == "fn" and it.name == name]
+    if not fns:
+        return StaticTest(name, problems)
+    item = fns[0]
     root = target_root(path)
     file_test_only = bool(root) and target_modules(root[0].resolve()).get(path.resolve(), False)
     if "/src/" in path.as_posix() and not file_test_only:
@@ -651,7 +669,9 @@ def _rust_index(root_file: Path) -> dict[str, list[tuple[Path, RustItem]]]:
     # evidence for a test that never calls them.
     root = target_root(root_file)
     if root:
-        manifest = ROOT / "crates" / root_file.relative_to(ROOT).parts[1] / "Cargo.toml"
+        parts = root_file.relative_to(ROOT).parts
+        manifest = (ROOT / "python/Cargo.toml" if parts[0] == "python"
+                    else ROOT / "crates" / parts[1] / "Cargo.toml")
         data = tomllib.loads(manifest.read_text(encoding="utf-8"))
         dependency = data.get("dev-dependencies", {}).get("antecedent-test-support", {})
         base = manifest.parent
@@ -868,6 +888,47 @@ def _markers(path: Path, name: str) -> tuple[bool, bool]:
     return bool(PARSE_MARKERS.search(body)), bool(ASSERT_MARKERS.search(body))
 
 
+def definite_vacuity_problems(body: str) -> list[str]:
+    """Reject only provably trivial Rust assertions, not general semantic claims.
+
+    Parsing a fixture and asserting `true` or `x == x` cannot demonstrate its
+    truth. Other assertions still require scientific review; this is not a
+    general data-flow or independence proof.
+    """
+    masked = mask_rust(body)
+    meaningful = False
+    count = 0
+    for match in re.finditer(r"\b(assert(?:_eq|_ne)?)!\s*\(", masked.skeleton):
+        count += 1
+        start = match.end()
+        end = _match_bracket(masked.skeleton, start - 1)
+        code, skeleton = masked.code[start:end], masked.skeleton[start:end]
+        args = []
+        depth = 0
+        mark = 0
+        for index, char in enumerate(skeleton):
+            if char in "([{":
+                depth += 1
+            elif char in ")]}":
+                depth -= 1
+            elif char == "," and depth == 0:
+                args.append(code[mark:index].strip())
+                mark = index + 1
+        args.append(code[mark:].strip())
+        if match[1] == "assert":
+            trivial = args[0] in {"true", "false"}
+            equality = re.fullmatch(r"\s*([\w.]+)\s*==\s*([\w.]+)\s*", args[0])
+            trivial = trivial or bool(equality and equality[1] == equality[2])
+        else:
+            trivial = len(args) >= 2 and args[0] == args[1] and bool(
+                re.fullmatch(r'[\w.]+|"[^"\\]*"', args[0]))
+        meaningful |= not trivial
+    conditional_panic = re.search(r"\b(?:if|match)\b", masked.skeleton) and re.search(
+        r"\bpanic!", masked.skeleton)
+    return (["fixture is parsed but every assertion is a constant or self-comparison"]
+            if count and not meaningful and not conditional_panic else [])
+
+
 def consumption_problems(path: Path, name: str, fixture: str) -> list[str]:
     body = closure(path, name)
     parses, asserts = _markers(path, name)
@@ -878,6 +939,8 @@ def consumption_problems(path: Path, name: str, fixture: str) -> list[str]:
         problems.append(f"{name} (with the helpers it calls) parses no fixture")
     if not asserts:
         problems.append(f"{name} (with the helpers it calls) asserts nothing")
+    if path.suffix == ".rs":
+        problems.extend(definite_vacuity_problems(body))
     return problems
 
 
@@ -894,6 +957,7 @@ def _candidate_files() -> tuple[Path, ...]:
     files = [p for p in base.glob("crates/*/tests/**/*.rs")]
     files += [p for p in base.glob("crates/*/src/**/*.rs")]
     files += [p for p in base.glob("python/tests/**/test_*.py")]
+    files += [p for p in base.glob("python/src/**/*.rs")]
     return tuple(p for p in files if "target" not in p.parts)
 
 
@@ -1065,7 +1129,6 @@ def axis_problems(body: str, row: dict) -> list[str]:
     return problems
 
 
-KNOWN_TRUTH_KINDS = {"internal_known_truth", "frozen_external_oracle"}
 AXIS_KEYS = ("query", "graph_class", "structure", "inference", "validation")
 
 

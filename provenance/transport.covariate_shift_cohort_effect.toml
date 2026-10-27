@@ -11,8 +11,8 @@ copied_tests = false
 # implemented as an algorithm: the module is an original bounded route (a weighted mean of the
 # model's own conditional-contrast predictions plus a support-box overlap assessment).
 papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
-  { title = "The use of propensity scores to assess the generalizability of results from randomized trials (Stuart, Cole, Bradshaw and Leaf, 2011)", doi = "10.1111/j.1467-985X.2010.00673.x", sections = ["conditions for generalizing a conditional treatment effect to a target population"] },
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+  { title = "The Use of Propensity Scores to Assess the Generalizability of Results from Randomized Trials", citation_note = "Previously recorded title and bibliographic detail: The use of propensity scores to assess the generalizability of results from randomized trials (Stuart, Cole, Bradshaw and Leaf, 2011)", doi = "10.1111/j.1467-985X.2010.00673.x", sections = ["conditions for generalizing a conditional treatment effect to a target population"] },
 ]
 implementation_deviations = [
   "The invariance premise is a declaration and is never tested; the selection-diagram premise is checked only structurally (the selection node's children are inside the declared modifiers and those modifiers are exactly the model's features).",

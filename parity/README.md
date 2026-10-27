@@ -64,11 +64,14 @@ Each `[[capabilities]]` row uses:
 | `evidence_test` | on support-matrix cross-check rows | Repository-relative Rust/Python test file |
 | `evidence_assertion` | on support-matrix cross-check rows | Executing test-function name |
 | `limitations` | no | What the evidence does **not** demonstrate |
+| `known_truth_reference` | inline analytic/enumerated truth | Origin `kind`, exact `source` (`path::assertion`), `proposition`, `tolerance` and `limitations`; source identity is checked, independence still requires review |
+| `evidence_activity` | no | `statistical_smoke` distinguishes an ordinary stochastic check from scientific conformance and measured calibration |
+| `calibration_evidence` | no | Explicit measurement test/assertion, group, phase and pending status; ordinary point conformance cannot stand in for this measurement |
 
 **`evidence_kind`** states exactly what proposition the row's evidence
 demonstrates, so wording in `notes` cannot outrun it. Required on every `done`
 row except in `release.toml` (infrastructure rows; evidence map lives in
-`gate_release.sh`). Values, weakest to strongest:
+`gate_release.sh`). Values (different propositions, not a scientific sufficiency ranking):
 
 | Value | Demonstrated proposition |
 |-------|--------------------------|
@@ -154,9 +157,20 @@ may still embed `python_facade=full` inside `notes`; prefer the dedicated key
 for new / updated rows.
 
 Recorded black-box outputs live under `conformance/**/expected.json` in a
-`reference` block (`project`, pin, command, `outputs`). Runtime and CI never
-install upstream packages. Regeneration is out-of-repo; keep the frozen
-`reference.command` as the audit trail.
+`reference` block (`project`, pin, command, `outputs`). Runtime and ordinary CI never install upstream packages. Retain independently
+authored black-box generation scripts and locked comparator environments; execute
+them in isolated tooling, outside the runtime environment. Keep the frozen
+`reference.command` and environment pins as the audit trail. Historical deleted
+generators remain reproducibility gaps until their replacements are checked.
+
+`python3 scripts/evidence_audit.py report` joins existing claims, test sources,
+fixtures, method specifications and provenance. `--json` retains the complete
+links, source hashes and review limitations. This is a source inventory, not
+proof that tests ran or that citations/algorithms are scientifically sufficient.
+`python3 scripts/verify_provenance_citations.py --check` checks DOI/title identity
+offline against retained Crossref/DataCite metadata; `--fetch` explicitly refreshes
+unresolved public metadata. Exact theorem/algorithm correspondence is a separate
+review. Measurement still belongs to the frozen-candidate calibration workflow.
 
 Permanent product contracts are marked `done` with an inline note. There is no
 waiver / deviation status. Required chapters are closed in the inventories

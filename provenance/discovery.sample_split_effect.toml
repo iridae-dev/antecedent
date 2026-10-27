@@ -12,8 +12,8 @@ copied_tests = false
 # algorithm and test, reimplemented in this repository; backdoor adjustment by the treatment's
 # parents and the ordinary least-squares interval are textbook.
 papers = [
-  { title = "A note on data-splitting for the evaluation of significance levels (Cox, Biometrika 62, 1975)", doi = "10.1093/biomet/62.2.441", sections = ["selection on one part of the data and evaluation on the other"] },
-  { title = "Causation, Prediction, and Search (Spirtes, Glymour, Scheines, 2nd ed., MIT Press, 2000)", doi = "10.7551/mitpress/1754.001.0001", sections = ["the PC algorithm and collider orientation"] },
+  { title = "A note on data-splitting for the evaluation of significance levels", citation_note = "Previously recorded title and bibliographic detail: A note on data-splitting for the evaluation of significance levels (Cox, Biometrika 62, 1975)", doi = "10.1093/biomet/62.2.441", sections = ["selection on one part of the data and evaluation on the other"] },
+  { title = "Causation, Prediction, and Search", citation_note = "Previously recorded title and bibliographic detail: Causation, Prediction, and Search (Spirtes, Glymour, Scheines, 2nd ed., MIT Press, 2000)", doi = "10.7551/mitpress/1754.001.0001", sections = ["the PC algorithm and collider orientation"] },
 ]
 implementation_deviations = [
   "The interval's coverage is a measured property of the whole method over the declared family (linear-Gaussian, causally sufficient, faithful, fully orientable class, five to seven variables). It is not a statement about the graph discovered on one dataset: faithfulness and causal sufficiency are not testable from that dataset.",

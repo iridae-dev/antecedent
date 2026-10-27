@@ -1,0 +1,37 @@
+{
+  "scope": "ordinary test-source registry checker; not a performance acceptance campaign",
+  "platform": "macOS-26.5.2-arm64-arm-64bit",
+  "machine": "arm64",
+  "cpus": 10,
+  "baseline": {
+    "registered_rows": 1594,
+    "wall_seconds": 82.9,
+    "user_seconds": 43.95,
+    "system_seconds": 38.06,
+    "exit_code": 1,
+    "limitation": "One stale suite-map entry; not a green suite baseline. Peak RSS unavailable from the original timing command."
+  },
+  "after_target_map_cache": {
+    "registered_rows": 1594,
+    "wall_seconds": 3.42351991700707,
+    "user_seconds": 3.034812,
+    "system_seconds": 0.353735,
+    "peak_rss_bytes": 72892416,
+    "exit_code": 0
+  },
+  "final_inventory": {
+    "command": [
+      "python3",
+      "scripts/check_v3_test_registry.py"
+    ],
+    "wall_seconds": 6.376893333042972,
+    "user_seconds": 5.804415,
+    "system_seconds": 0.5352089999999999,
+    "peak_rss_bytes": 210485248,
+    "exit_code": 0,
+    "stdout": "v3 test registry OK: 2388 registered test\n",
+    "source_sha256": "6aabd27fe12f9058d0e1d54a43a9f340d2c0270641337654687eb94c147aa158",
+    "registry_sha256": "0669cd81e6e65cccfcd34a51aca97af390afcb32d2703fcc687a771e755cde98"
+  },
+  "statistical_measurement_run": false
+}

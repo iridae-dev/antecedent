@@ -8,7 +8,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Measurement Error in Nonlinear Models: A Modern Perspective (2nd ed.)", doi = "10.1201/9781420010138", sections = ["Ch. 3 Linear regression and attenuation", "Ch. 4 Regression calibration"] },
+ { title = "Measurement Error in Nonlinear Models", citation_note = "Previously recorded title and bibliographic detail: Measurement Error in Nonlinear Models: A Modern Perspective (2nd ed.)", doi = "10.1201/9781420010138", sections = ["Ch. 3 Linear regression and attenuation", "Ch. 4 Regression calibration"] },
 ]
 
 implementation_deviations = [
