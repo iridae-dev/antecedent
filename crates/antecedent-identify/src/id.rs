@@ -1606,7 +1606,7 @@ mod tests {
             fixture["reference"]["outputs"]["estimand"]
                 .as_str()
                 .unwrap()
-                .contains("Estimand name: backdoor"),
+                .contains("Estimand name: backdoor\nEstimand expression:"),
             "external oracle must identify the frozen Z -> T, Z -> Y, T -> Y graph by backdoor"
         );
 

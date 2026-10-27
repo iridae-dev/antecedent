@@ -247,7 +247,7 @@ fn id_scm_frontdoor_admg_functional_matches_true_intervention() {
         fixture["reference"]["outputs"]["estimand"]
             .as_str()
             .unwrap()
-            .contains("Estimand name: frontdoor"),
+            .contains("Estimand name: frontdoor\nEstimand expression:"),
         "oracle must certify the front-door estimand for this graph"
     );
 

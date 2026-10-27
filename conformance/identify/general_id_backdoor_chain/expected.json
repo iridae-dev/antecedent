@@ -6,9 +6,9 @@
   "graph_dot": "digraph { z -> t; z -> y; t -> y; }",
   "expected_status_family": "identified",
   "generation": {
-    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
+    "script": "conformance/identify/general_id_backdoor_chain/reference.py",
     "baseline_pin": "parity/baselines/dowhy.toml",
-    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
+    "env": "uv run --frozen --script conformance/identify/general_id_backdoor_chain/reference.py --check --self-test"
   },
   "notes": "Consumed by antecedent-identify::backdoor::tests::confounding_requires_z and antecedent-identify::id::tests::backdoor_chain_identified, which compare the frozen status, graph, and backdoor estimand family.",
   "reference": {
@@ -16,14 +16,76 @@
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false,
+    "command": "uv run --frozen --script conformance/identify/general_id_backdoor_chain/reference.py --check --self-test",
+    "generator_retained": true,
+    "note": "Retained independent public CausalModel.identify_effect invocation; original verbatim output preserved and reproduced exactly. Identification only; no estimated causal effect.",
+    "outputs": {
+      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nEstimand expression:\n d          \n────(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U→{t} and U→y then P(y|t,z,U) = P(y|t,z)\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nEstimand expression:\n d          \n────(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U→{t} and U→y then P(y|t,z,U) = P(y|t,z)\n",
+      "estimand_type": "EstimandType.NONPARAMETRIC_ATE"
+    },
+    "generator": "conformance/identify/general_id_backdoor_chain/reference.py",
+    "environment_lock": "conformance/identify/general_id_backdoor_chain/reference.py.lock"
+  },
+  "oracle": {
+    "kind": "external_package",
+    "project": "DoWhy",
+    "version": "0.14",
+    "source": "Retained public DoWhy 0.14 identification generator reproduces reference.outputs verbatim on the declared graph; historical deleted-generator metadata is retained separately.",
+    "reference_review": {
+      "scope": "Exact nonparametric ATE identification status, graph and backdoor adjustment by z for one declared graph; complete printed DoWhy output is regenerated without numerical estimation.",
+      "independence_basis": "Repository-authored public black-box CausalModel.identify_effect calls import no Antecedent implementation or test helpers. Inputs are the declared graph and explicit observed variable names. Two dummy rows provide a schema only; no data values enter graph identification. Product assertions require an estimand expression rather than the always-present method heading.",
+      "historical_exposure": "Original generation environment and harness were deleted; historical author exposure cannot be established. Current review inspected product assertions and official DoWhy public API documentation. No upstream implementation or test source was consulted or copied.",
+      "redistribution": "Only repository-authored harness, frozen graph/output and dependency lock are retained under MIT OR Apache-2.0. DoWhy and transitive packages remain isolated tooling; their sources/tests are not copied into the product or ordinary CI.",
+      "limitations": "A single small graph does not establish completeness, all ADMG structures, positivity, effect estimation, uncertainty, weighted/missing-data handling or calibration. Front-door identification status is distinct from the separate product enumerated-SCM intervention-value assertion. Exact rendering is pinned by the full lock; other environments need a reviewed comparison rather than silently accepting changed output. Product-side DOT preparation uses the repository latent projection; the independent DoWhy call does not. The current simple latent-common-cause projection is exercised by oracle_dot unit assertions; no general projection-correctness review is claimed.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/identify/general_id_backdoor_chain/reference.py",
+          "sha256": "b17d26e149a7b775a03e53461eaa7a571d8534d2a69d9fe8b9cfe159d1d6ae05"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/identify/general_id_backdoor_chain/reference.py.lock",
+          "sha256": "7df06543d21ad58486613ff53d23bb8aacf1f11e43c8159bae900a80ec6ec35b"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-identify/src/id.rs",
+          "sha256": "81ec8069de0d750acd3eafbe013ee185f19dbcc81830e331fff69cc07c1d4af4"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-identify/src/backdoor.rs",
+          "sha256": "53df18f0d16058de42d374e0b2733a0b1a89048c332aa1459e8c7c3669b64d74"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "crates/antecedent-identify/src/oracle_dot.rs",
+          "sha256": "2c00231481aceafe73e48881dd99777ede23c48a66a807e127001d8bfece554f"
+        }
+      ],
+      "fixture_payload_sha256": "1aab1ca609fb98c369016fdfe20c897ffccc5e9b063ced0cfa9142c627b183c8"
+    }
+  },
+  "historical_reference": {
+    "project": "dowhy",
+    "available": true,
+    "version": "0.14",
+    "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "generator_retained": false,
     "note": "black-box execution only; no source translation",
     "outputs": {
-      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nEstimand expression:\n d          \n\u2500\u2500\u2500\u2500(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U\u2192{t} and U\u2192y then P(y|t,z,U) = P(y|t,z)\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nEstimand expression:\n d          \n\u2500\u2500\u2500\u2500(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U\u2192{t} and U\u2192y then P(y|t,z,U) = P(y|t,z)\n",
+      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nEstimand expression:\n d          \n────(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U→{t} and U→y then P(y|t,z,U) = P(y|t,z)\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nEstimand expression:\n d          \n────(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U→{t} and U→y then P(y|t,z,U) = P(y|t,z)\n",
       "estimand_type": "EstimandType.NONPARAMETRIC_ATE"
     }
   },
-  "oracle": {
+  "historical_generation": {
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
+    "baseline_pin": "parity/baselines/dowhy.toml",
+    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
+  },
+  "historical_oracle": {
     "kind": "external_package",
     "project": "DoWhy",
     "version": "0.14",
