@@ -2,16 +2,22 @@
 
 > Install from PyPI: `python -m pip install antecedent`. `calibrated` still requires a coverage record that attests the installed build.
 
-Antecedent exposes the same causal contract as the Rust facade. The root namespace has an explicit exported-name contract; see [the naming dictionary](../docs/api_naming.md). Start with a query and graph, identify it, estimate on data, inspect the claim, and export or refresh the study when appropriate.
+Antecedent exposes the same causal contract as the Rust facade. The root namespace has an explicit exported-name contract; see [the naming dictionary](../docs/api_naming.md). Start with a query and graph, prepare and identify it, estimate on data, inspect the claim, and export the outcome or branch the study with `ant.rebind` / `ant.reconfigure` when appropriate.
 
 ```python
 import antecedent as ant
 
 query = ant.AverageEffect("treatment", "outcome")
-result = ant.analyze(data, graph=graph, query=query)
+study = ant.prepare(data, graph=graph, query=query, execution=ant.Execution(seed=19))
+result = ant.estimate(study)  # an Outcome; ant.analyze(...) is the one-shot form
 print(result.answer)
 print(result.inspect().to_dict())
+
+branch = ant.rebind(study, data=new_data)  # a new immutable study; nothing earlier changes
+artifact = result.export()  # ant.load(bytes(artifact), expected=artifact.expectation)
 ```
+
+Seed, threads, cancellation and resource limits belong to `ant.Execution`; the bootstrap count or posterior draws belong to `ant.Frequentist(...)` / `ant.Bayesian(...)`. A valid question the declared structure cannot answer returns an `Outcome` with a typed `refusal` (add `on_refusal="describe"` for a labelled associational description beside it); invalid arguments and operational failures raise. See the [Python migration table](../docs/migrations/2.4-to-3.0-python.md) for the removed spellings.
 
 For large adjustment problems, Antecedent provides configured DML, DR-Learner, and causal-forest estimators. The standard wheel includes the CPU-native `NeuralNet` nuisance learner; no separate Python extra is needed. These estimators use held-out nuisance predictions and disclose their learner, folds, overlap, and uncertainty limitations; they do not make a CATE interval appear where none was estimated.
 
