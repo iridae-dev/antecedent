@@ -169,8 +169,8 @@ pub(crate) fn xtx_inverse_qr(x_colmajor: &[f64], nrows: usize, ncols: usize) -> 
                 let (head, tail) = a.split_at_mut(c * nrows);
                 let v = &head[k * nrows + k..(k + 1) * nrows];
                 let column = &mut tail[k..nrows];
-                let projection = 2.0 * v.iter().zip(column.iter()).map(|(x, y)| x * y).sum::<f64>()
-                    / v_norm_sq;
+                let projection =
+                    2.0 * v.iter().zip(column.iter()).map(|(x, y)| x * y).sum::<f64>() / v_norm_sq;
                 for (y, x) in column.iter_mut().zip(v) {
                     *y -= projection * x;
                 }
@@ -264,15 +264,15 @@ mod tests {
     #[test]
     fn qr_inverse_matches_the_gram_inverse_and_survives_bad_scaling() {
         // y ~ 1 + x on x = 0..5; (XtX) = [[6, 15], [15, 55]], det 105.
-        let x: Vec<f64> =
-            [vec![1.0; 6], (0..6).map(f64::from).collect::<Vec<_>>()].concat();
+        let x: Vec<f64> = [vec![1.0; 6], (0..6).map(f64::from).collect::<Vec<_>>()].concat();
         let inverse = xtx_inverse_qr(&x, 6, 2).expect("full rank");
         assert!((inverse[0] - 55.0 / 105.0).abs() < 1e-12);
         assert!((inverse[1] + 15.0 / 105.0).abs() < 1e-12);
         assert!((inverse[3] - 6.0 / 105.0).abs() < 1e-12);
         assert_eq!(inverse[1].to_bits(), inverse[2].to_bits());
         // Rescaling a column rescales the inverse accordingly; it is not a rank failure.
-        let scaled: Vec<f64> = x.iter().enumerate().map(|(i, v)| if i >= 6 { v * 1e-9 } else { *v }).collect();
+        let scaled: Vec<f64> =
+            x.iter().enumerate().map(|(i, v)| if i >= 6 { v * 1e-9 } else { *v }).collect();
         let scaled_inverse = xtx_inverse_qr(&scaled, 6, 2).expect("scale-free");
         assert!((scaled_inverse[3] * 1e-18 - 6.0 / 105.0).abs() < 1e-9);
     }

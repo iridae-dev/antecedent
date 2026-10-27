@@ -25,17 +25,17 @@ mod scratch;
 #[cfg(test)]
 pub(crate) mod interval_test_support;
 
+pub(crate) use bootstrap::{
+    BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapDesign, BootstrapOutcome, adaptive_bootstrap_should_stop,
+    bootstrap_by_design, bootstrap_interval_by_design, bootstrap_outcome_by_design,
+    bootstrap_se_with_scratch, finalize_bootstrap_se_ex, rows::ClusterRows,
+};
 pub use bootstrap::{
     BootstrapSeResult, IntervalRequest, ReplicatePolicy, ResamplingReport, SamplingDeclaration,
     WaveBootstrap, bootstrap_interval_with_scratch,
 };
 #[cfg(test)]
 pub(crate) use bootstrap::{bootstrap_se, finalize_bootstrap_se};
-pub(crate) use bootstrap::{
-    BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapDesign, BootstrapOutcome, adaptive_bootstrap_should_stop,
-    bootstrap_by_design, bootstrap_interval_by_design, bootstrap_outcome_by_design,
-    bootstrap_se_with_scratch, finalize_bootstrap_se_ex, rows::ClusterRows,
-};
 pub(crate) use gather::{
     arm_moments, gather, gather_bootstrap_vector, gather_cols, gather_cols_into,
     gather_count_weighted, gather_into, range, resample_counts,

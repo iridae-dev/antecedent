@@ -960,8 +960,7 @@ fn adjustment_columns(
 ) -> Result<usize, EstimationError> {
     let mut added = 0;
     for &dense_var in estimand.adjustment_set.iter() {
-        let key = indexer
-            .key_of(dense_var.raw())?;
+        let key = indexer.key_of(dense_var.raw())?;
         if skip(key.variable) {
             continue;
         }

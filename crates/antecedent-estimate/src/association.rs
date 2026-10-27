@@ -669,9 +669,8 @@ fn numeric_levels(_name: &str, values: &[f64]) -> Result<(Vec<u32>, Vec<String>)
         let mut sorted = values.to_vec();
         sorted.sort_by(f64::total_cmp);
         let total = sorted.len();
-        let edges: Vec<usize> = (0..=MAX_STRATUM_LEVELS)
-            .map(|bin| (bin * total) / MAX_STRATUM_LEVELS)
-            .collect();
+        let edges: Vec<usize> =
+            (0..=MAX_STRATUM_LEVELS).map(|bin| (bin * total) / MAX_STRATUM_LEVELS).collect();
         let mut upper: Vec<f64> = Vec::new();
         let mut labels: Vec<String> = Vec::new();
         for bin in 0..MAX_STRATUM_LEVELS {

@@ -266,8 +266,9 @@ fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
     let (code, message) = refused(query.effect(&panel()).unwrap_err());
     assert_eq!(code, "transport_support_failure");
     assert!(message.contains("initial_state.support_gap"), "{message}");
-    let (_, message) =
-        refused(FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 7 }.effect(&panel()).unwrap_err());
+    let (_, message) = refused(
+        FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 7 }.effect(&panel()).unwrap_err(),
+    );
     assert!(message.contains("initial_state.support_gap"), "{message}");
 
     let many = (0..=INITIAL_STATE_MAX_STATES as u32)

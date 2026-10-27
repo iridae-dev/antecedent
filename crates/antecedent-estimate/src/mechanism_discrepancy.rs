@@ -344,14 +344,16 @@ pub fn summarize_population(
     let invalid = reason_code!("invalid_argument");
     let n = sample.outcome.len();
     let k = sample.measurement.parents.len();
-    let _gram_lease = crate::util::admit_bound_array::<f64>(k.saturating_add(1), k.saturating_add(1))
-        .map_err(|_| {
-            refuse(
-                invalid,
-                "mechanism_discrepancy.too_many_parents",
-                "the parents' normal equations exceed the admitted memory",
-            )
-        })?;
+    let _gram_lease =
+        crate::util::admit_bound_array::<f64>(k.saturating_add(1), k.saturating_add(1)).map_err(
+            |_| {
+                refuse(
+                    invalid,
+                    "mechanism_discrepancy.too_many_parents",
+                    "the parents' normal equations exceed the admitted memory",
+                )
+            },
+        )?;
     if n == 0 {
         return Err(refuse(invalid, "mechanism_discrepancy.sample_too_small", "no rows"));
     }

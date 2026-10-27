@@ -120,13 +120,17 @@ impl TemporalPropensityDesign {
         Ok(Self { x_colmajor, y, nrows, ncols, dependence })
     }
 
-
     /// Borrow the same validated numerical storage without another ownership copy.
     #[must_use]
     pub fn as_ref(&self) -> TemporalPropensityDesignRef<'_> {
-        TemporalPropensityDesignRef { x_colmajor: &self.x_colmajor, y: &self.y, nrows: self.nrows, ncols: self.ncols, dependence: self.dependence }
+        TemporalPropensityDesignRef {
+            x_colmajor: &self.x_colmajor,
+            y: &self.y,
+            nrows: self.nrows,
+            ncols: self.ncols,
+            dependence: self.dependence,
+        }
     }
-
 }
 
 /// Ridge penalty on the temporal propensity. The intercept is unpenalized.
@@ -542,16 +546,25 @@ mod borrowed_design_regression {
     use super::*;
     #[test]
     fn borrowed_temporal_fit_matches_owned_ridge_and_posterior_without_design_copies() {
-        let mut x=vec![1.0;200]; x.extend((0..200).map(|i|if i>=100 {1.0}else{0.0}));
-        let y=(0..200).map(|i|if i<30 || (100..160).contains(&i) {1.0}else{0.0}).collect();
-        let design=TemporalPropensityDesign::try_new(x,y,200,TrajectoryDependence::IndependentSubjects).unwrap();
-        let borrowed=design.as_ref();
-        assert_eq!(borrowed.x_colmajor.as_ptr(),design.x_colmajor.as_ptr());
-        assert_eq!(borrowed.y.as_ptr(),design.y.as_ptr());
-        let ridge=FrequentistTemporalPropensity::new(2.0).unwrap();
-        assert_eq!(ridge.fit(&design).unwrap().coefficients,ridge.fit_borrowed(&borrowed).unwrap().coefficients);
-        let prior=BayesianTemporalPropensity::new(1.0,0.5,8,13).unwrap();
-        let owned=prior.fit(&design).unwrap(); let viewed=prior.fit_borrowed(&borrowed).unwrap();
-        assert_eq!(owned.mode,viewed.mode); assert_eq!(owned.draws,viewed.draws);
+        let mut x = vec![1.0; 200];
+        x.extend((0..200).map(|i| if i >= 100 { 1.0 } else { 0.0 }));
+        let y =
+            (0..200).map(|i| if i < 30 || (100..160).contains(&i) { 1.0 } else { 0.0 }).collect();
+        let design =
+            TemporalPropensityDesign::try_new(x, y, 200, TrajectoryDependence::IndependentSubjects)
+                .unwrap();
+        let borrowed = design.as_ref();
+        assert_eq!(borrowed.x_colmajor.as_ptr(), design.x_colmajor.as_ptr());
+        assert_eq!(borrowed.y.as_ptr(), design.y.as_ptr());
+        let ridge = FrequentistTemporalPropensity::new(2.0).unwrap();
+        assert_eq!(
+            ridge.fit(&design).unwrap().coefficients,
+            ridge.fit_borrowed(&borrowed).unwrap().coefficients
+        );
+        let prior = BayesianTemporalPropensity::new(1.0, 0.5, 8, 13).unwrap();
+        let owned = prior.fit(&design).unwrap();
+        let viewed = prior.fit_borrowed(&borrowed).unwrap();
+        assert_eq!(owned.mode, viewed.mode);
+        assert_eq!(owned.draws, viewed.draws);
     }
 }

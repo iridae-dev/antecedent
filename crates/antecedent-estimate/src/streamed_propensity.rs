@@ -186,14 +186,8 @@ impl PropensityWeighting {
         let arm = arm_pass(&inputs, target, &logistic.beta)?;
         let se_analytic = influence_se(&inputs, target, &logistic.beta, &arm)?;
         let overlap_report = overlap_report_of(&inputs, &arm);
-        let LogisticPasses {
-            beta,
-            iterations,
-            source_passes,
-            reserved_bytes,
-            batches,
-            choice,
-        } = logistic;
+        let LogisticPasses { beta, iterations, source_passes, reserved_bytes, batches, choice } =
+            logistic;
         Ok(StreamedPropensityEstimate {
             ate: arm.means.0 - arm.means.1,
             se_analytic,

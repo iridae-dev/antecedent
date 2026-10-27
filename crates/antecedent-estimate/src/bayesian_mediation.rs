@@ -315,10 +315,8 @@ pub fn compose_temporal_mediation_set(
             .ok_or_else(|| EstimationError::stats_msg("mediation posterior missing coefficient"))?;
         Ok(post.draws.column(col)?.to_vec())
     };
-    let a: Vec<Vec<f64>> = mediators
-        .iter()
-        .map(|mediator| coefficient(mediator, 1))
-        .collect::<Result<_, _>>()?;
+    let a: Vec<Vec<f64>> =
+        mediators.iter().map(|mediator| coefficient(mediator, 1)).collect::<Result<_, _>>()?;
     let cp = coefficient(outcome, 1)?;
     let b: Vec<Vec<f64>> =
         (0..mediators.len()).map(|j| coefficient(outcome, 2 + j)).collect::<Result<_, _>>()?;

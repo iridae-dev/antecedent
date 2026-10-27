@@ -453,12 +453,13 @@ where
     F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError>,
 {
     let mut state = (make_scratch(), Vec::<usize>::new(), Vec::new());
-    let run = run_waves_serial(rule, ctx, stream_base, &mut state, |(scratch, idx, drawn), id, _rng| {
-        let replicate = usize::try_from(id)
-            .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds usize"))?;
-        rows.fill(replicate, idx, drawn)?;
-        estimate(scratch, idx)
-    });
+    let run =
+        run_waves_serial(rule, ctx, stream_base, &mut state, |(scratch, idx, drawn), id, _rng| {
+            let replicate = usize::try_from(id)
+                .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds usize"))?;
+            rows.fill(replicate, idx, drawn)?;
+            estimate(scratch, idx)
+        });
     match run {
         Ok(run) => Ok(WaveBootstrap::from_run(run)),
         Err(DriveError::Estimator(error)) => Err(error),

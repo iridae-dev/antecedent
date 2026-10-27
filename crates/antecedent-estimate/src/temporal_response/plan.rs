@@ -308,8 +308,7 @@ fn plan_sequence(
             ));
         }
         let (variable, level, shift) = resolve_one(&step.intervention, depth + 1)?;
-        let offsets =
-            step.temporal.active_offsets()?;
+        let offsets = step.temporal.active_offsets()?;
         leaves.push((variable, level, shift, offsets));
     }
     if leaves.len() == 1 {

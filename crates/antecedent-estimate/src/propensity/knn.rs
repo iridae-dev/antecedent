@@ -21,10 +21,10 @@ use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext};
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 
-use crate::arm::TreatmentArm;
 use super::distance::DistanceMatching;
 use super::prepare::{PreparedPropensityProblem, PropensityEstimationWorkspace};
 use crate::adjustment::EffectEstimate;
+use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
 
 /// Identity of the `M`-nearest-neighbour covariate-distance matching construction; also the
@@ -145,10 +145,12 @@ mod tests {
     fn oracle(population: &Population, caliper: Option<f64>) -> Oracle {
         let dim = population.covariates.len();
         let features = standardized(population);
-        let treated: Vec<usize> =
-            (0..population.treatment.len()).filter(|&r| TreatmentArm::is_treated_indicator(population.treatment[r])).collect();
-        let controls: Vec<usize> =
-            (0..population.treatment.len()).filter(|&r| !TreatmentArm::is_treated_indicator(population.treatment[r])).collect();
+        let treated: Vec<usize> = (0..population.treatment.len())
+            .filter(|&r| TreatmentArm::is_treated_indicator(population.treatment[r]))
+            .collect();
+        let controls: Vec<usize> = (0..population.treatment.len())
+            .filter(|&r| !TreatmentArm::is_treated_indicator(population.treatment[r]))
+            .collect();
         let row = |r: usize| &features[r * dim..(r + 1) * dim];
         // OLS of the control outcome on [1, x].
         let p = dim + 1;

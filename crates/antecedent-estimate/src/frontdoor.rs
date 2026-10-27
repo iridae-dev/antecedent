@@ -66,7 +66,7 @@ use crate::error::EstimationError;
 use crate::inference::InferenceSpec;
 use crate::overlap::OverlapPolicy;
 use crate::se::{AnalyticSeKind, require_clusters};
-use crate::util::{BootstrapSeResult};
+use crate::util::BootstrapSeResult;
 
 /// Stable id of the functional-form restriction the product-of-coefficients shortcut relies on.
 pub(crate) const LINEAR_PATH_PRODUCT_ASSUMPTION_ID: &str = "frontdoor.linear_path_product";
@@ -723,7 +723,9 @@ impl FrontDoorTwoStage {
         let n = treatment.len();
         let ncols = 2 + mediators.len();
         let x = stage2_matrix(treatment, mediators);
-        self.backend.least_squares(&x, n, ncols, outcome, &mut workspace.ols).map_err(crate::error::EstimationError::from)
+        self.backend
+            .least_squares(&x, n, ncols, outcome, &mut workspace.ols)
+            .map_err(crate::error::EstimationError::from)
     }
 
     fn bootstrap_se(
@@ -743,7 +745,8 @@ impl FrontDoorTwoStage {
             crate::se::require_clusters(Some(labels.as_ref()), n)?;
         }
         // Each worker gathers treatment, outcome, and `k` mediator columns.
-        let _gather = crate::util::admit_gather_scratch(ctx, n, k + 2, self.inference.bootstrap_replicates)?;
+        let _gather =
+            crate::util::admit_gather_scratch(ctx, n, k + 2, self.inference.bootstrap_replicates)?;
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_by_design(
             crate::util::BootstrapDesign {

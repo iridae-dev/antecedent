@@ -81,8 +81,7 @@ fn bootstrap_checks_capacity_before_allocation() {
     let result = bootstrap_se(2, &ctx, 1, usize::MAX, |_| panic!("must not estimate"));
     assert!(result.unwrap_err().to_string().contains("capacity"));
     ctx.cancellation.cancel();
-    let cancelled =
-        bootstrap_se(2, &ctx, 1, usize::MAX, |_| panic!("must not estimate")).unwrap();
+    let cancelled = bootstrap_se(2, &ctx, 1, usize::MAX, |_| panic!("must not estimate")).unwrap();
     assert!(cancelled.cancelled);
     assert_eq!(cancelled.replicates_failed, 0);
 }
@@ -113,8 +112,7 @@ fn finalize_early_stop_does_not_count_unattempted_as_failures() {
 #[test]
 fn adaptive_stop_is_the_monte_carlo_error_floor() {
     // ε = 5% needs 201 successes; the explicit floor of 4 is below that.
-    let budget =
-        AdaptiveBootstrapBudget { enabled: true, min_replicates: 4, se_rel_epsilon: 0.05 };
+    let budget = AdaptiveBootstrapBudget { enabled: true, min_replicates: 4, se_rel_epsilon: 0.05 };
     assert!(!adaptive_bootstrap_should_stop(budget, 4));
     assert!(!adaptive_bootstrap_should_stop(budget, 200));
     assert!(adaptive_bootstrap_should_stop(budget, 201));
@@ -233,12 +231,8 @@ fn cluster_replicate_ceiling_covers_the_sample_and_is_enforced_when_skewed() {
         stream_base: 7,
     };
     assert!(tight.fill(0, &mut Vec::new(), &mut Vec::new()).is_err());
-    let admitted = ReplicateRows::Clusters {
-        members: clusters.members(),
-        ceiling,
-        ctx: &ctx,
-        stream_base: 7,
-    };
+    let admitted =
+        ReplicateRows::Clusters { members: clusters.members(), ceiling, ctx: &ctx, stream_base: 7 };
     let mut out = Vec::new();
     admitted.fill(0, &mut out, &mut Vec::new()).unwrap();
     assert!(out.len() <= ceiling);
@@ -248,8 +242,7 @@ fn cluster_replicate_ceiling_covers_the_sample_and_is_enforced_when_skewed() {
 fn cluster_members_follow_ascending_labels() {
     let labels = [2_u32, 0, 2, 0];
     let clusters = ClusterRows::new(&labels).unwrap();
-    let ids =
-        |slot: usize| clusters.members()[slot].iter().map(|id| id.get()).collect::<Vec<_>>();
+    let ids = |slot: usize| clusters.members()[slot].iter().map(|id| id.get()).collect::<Vec<_>>();
     assert_eq!(ids(0), vec![1, 3]);
     assert_eq!(ids(1), vec![0, 2]);
     let ctx = ExecutionContext::for_tests(9);
@@ -312,11 +305,12 @@ fn cluster_bootstrap_writes_one_replicate_per_worker() {
     .unwrap();
     assert_eq!(result.replicates_ok, replicates);
     assert_eq!(calls.load(Ordering::Relaxed), replicates);
-    let refused = ExecutionContext::production(11, u32::try_from(workers).unwrap())
-        .with_admission(AdmissionPool::fixed(
+    let refused = ExecutionContext::production(11, u32::try_from(workers).unwrap()).with_admission(
+        AdmissionPool::fixed(
             u32::try_from(workers).unwrap(),
             u64::try_from(retained_bytes - 1).unwrap(),
-        ));
+        ),
+    );
     let refused_calls = AtomicU32::new(0);
     let error = bootstrap_se_clusters_with_scratch(
         replicates,
@@ -508,10 +502,8 @@ fn a_row_level_bootstrap_is_refused_under_every_declared_design() {
 fn an_undeclared_design_takes_the_one_the_grouping_implies() {
     let undeclared = SamplingDeclaration::Undeclared;
     let labels = [0_u32, 0, 1, 1, 2, 2];
-    let (rows, _) = design_run(
-        BootstrapDesign { clusters: None, series_block: None, declared: undeclared },
-        6,
-    );
+    let (rows, _) =
+        design_run(BootstrapDesign { clusters: None, series_block: None, declared: undeclared }, 6);
     assert!(rows.is_ok());
     let (clusters, _) = design_run(
         BootstrapDesign { clusters: Some(&labels), series_block: None, declared: undeclared },
@@ -565,15 +557,11 @@ fn a_declared_design_refuses_the_grouping_that_contradicts_it() {
         4,
     );
     assert!(is_design_refusal(&clusters_under_series));
-    let (blocks_under_panel, _) = design_run(
-        BootstrapDesign { clusters: None, series_block: Some(2), declared: panel },
-        4,
-    );
+    let (blocks_under_panel, _) =
+        design_run(BootstrapDesign { clusters: None, series_block: Some(2), declared: panel }, 4);
     assert!(is_design_refusal(&blocks_under_panel));
-    let (blocks_under_series, _) = design_run(
-        BootstrapDesign { clusters: None, series_block: Some(2), declared: series },
-        4,
-    );
+    let (blocks_under_series, _) =
+        design_run(BootstrapDesign { clusters: None, series_block: Some(2), declared: series }, 4);
     assert!(blocks_under_series.is_ok());
 }
 

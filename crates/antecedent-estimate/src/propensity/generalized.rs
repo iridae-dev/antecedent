@@ -49,7 +49,7 @@ use crate::crossfit_plan::{
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::scores::{ScoreColumn, ScoreTable};
-use crate::util::{refuse};
+use crate::util::refuse;
 
 /// Provenance tag frozen on the generalized-propensity score table.
 pub const GENERALIZED_PROPENSITY_PROVENANCE: &str = "gps.crossfit.multinomial_logit.ols.v1";

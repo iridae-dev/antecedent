@@ -129,23 +129,18 @@ pub fn prepare_sequence_level(
             "sequential overlay requires an identified unfolded design",
         ));
     }
-    let unfolded =
-        graph.unfold(indexer.clone())?;
+    let unfolded = graph.unfold(indexer.clone())?;
     let dag = &unfolded.dag;
     let node_count = dag.node_count();
-    let key_of = |dense: usize| {
-        indexer
-            .key_of(u32::try_from(dense).unwrap_or(u32::MAX))
-    };
-    let outcome = indexer
-        .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })? as usize;
+    let key_of = |dense: usize| indexer.key_of(u32::try_from(dense).unwrap_or(u32::MAX));
+    let outcome =
+        indexer.dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })? as usize;
     let mut overlay_at = vec![None; node_count];
     for &overlay in overlays {
-        let dense = indexer
-            .dense_id(TemporalNodeKey {
-                variable: overlay.node.variable,
-                offset: overlay.node.offset,
-            })? as usize;
+        let dense = indexer.dense_id(TemporalNodeKey {
+            variable: overlay.node.variable,
+            offset: overlay.node.offset,
+        })? as usize;
         if overlay_at[dense].is_some() {
             return Err(EstimationError::unsupported(
                 "Sequence assigns the same (variable, time) twice; refuse rather than collapse",

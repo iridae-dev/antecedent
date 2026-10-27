@@ -642,9 +642,8 @@ impl ContinuousResponseEstimator {
             if ctx.cancellation.is_cancelled() {
                 return Err(EstimationError::unsupported("Bayesian ADE cancelled"));
             }
-            let mut rng = ctx
-                .rng
-                .stream_for(StreamDomain::Bayesian, (0xADEB_0001_u64 << 32) | draw as u64);
+            let mut rng =
+                ctx.rng.stream_for(StreamDomain::Bayesian, (0xADEB_0001_u64 << 32) | draw as u64);
             let weights = bootstrap_weights(sample.len(), &mut rng);
             self.weighted_cross_fitted_ade(&sample, &folds, &weights)
         })?;
@@ -800,9 +799,8 @@ impl ContinuousResponseEstimator {
             if ctx.cancellation.is_cancelled() {
                 return Err(EstimationError::unsupported("Bayesian derivative cancelled"));
             }
-            let mut rng = ctx
-                .rng
-                .stream_for(StreamDomain::Bayesian, (0xADEB_0002_u64 << 32) | draw as u64);
+            let mut rng =
+                ctx.rng.stream_for(StreamDomain::Bayesian, (0xADEB_0002_u64 << 32) | draw as u64);
             let weights = bootstrap_weights(n, &mut rng);
             let mut out = DerivativeDraw {
                 scalar: 0.0,
@@ -813,11 +811,7 @@ impl ContinuousResponseEstimator {
             match functional {
                 ResponseFunctional::PointDerivative { at, order, scale, .. } => {
                     let pseudo = self
-                        .cross_fitted_pseudo_outcome_weighted(
-                            &samples[0],
-                            folds,
-                            Some(&weights),
-                        )?
+                        .cross_fitted_pseudo_outcome_weighted(&samples[0], folds, Some(&weights))?
                         .values;
                     let p = antecedent_stats::gaussian_local_quadratic_weighted(
                         &samples[0].treatments,

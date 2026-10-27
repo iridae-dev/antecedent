@@ -3,8 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace, fit_glm_ridge,
-    fit_glm_ridge_weighted, fit_glm_weighted, form_xtx, invert_square,
+    DenseLinearAlgebra, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
+    fit_glm_ridge, fit_glm_ridge_weighted, fit_glm_weighted, form_xtx, invert_square,
 };
 
 use crate::error::EstimationError;
@@ -55,8 +55,7 @@ pub(crate) fn ls_fit(
     y: &[f64],
     workspace: &mut LeastSquaresWorkspace,
 ) -> Result<LsFit, EstimationError> {
-    let fit =
-        backend.least_squares(design_colmajor, nrows, ncols, y, workspace)?;
+    let fit = backend.least_squares(design_colmajor, nrows, ncols, y, workspace)?;
     Ok(LsFit { coefficients: fit.coefficients, rank: fit.rank })
 }
 
@@ -84,12 +83,12 @@ pub(crate) fn ols_sigma2(
             *acc += value * coefficient;
         }
     }
-    let rss = antecedent_kernels::numeric::CompensatedSum::of(
-        y.iter().zip(&fitted).map(|(&observed, &pred)| {
+    let rss = antecedent_kernels::numeric::CompensatedSum::of(y.iter().zip(&fitted).map(
+        |(&observed, &pred)| {
             let e = observed - pred;
             e * e
-        }),
-    );
+        },
+    ));
     rss / (nrows - ncols) as f64
 }
 

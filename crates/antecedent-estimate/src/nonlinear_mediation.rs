@@ -32,8 +32,8 @@
 )]
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
-use crate::arm::TreatmentArm;
 use crate::EstimationError;
+use crate::arm::TreatmentArm;
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 use crate::util::mean;
 use crate::util::{count, refuse};
@@ -378,7 +378,11 @@ fn validate(
         ));
     }
     Ok(Columns {
-        a: input.treatment.iter().map(|&v| if TreatmentArm::is_treated_indicator(v) { 1.0 } else { 0.0 }).collect(),
+        a: input
+            .treatment
+            .iter()
+            .map(|&v| if TreatmentArm::is_treated_indicator(v) { 1.0 } else { 0.0 })
+            .collect(),
         m: input.mediator.to_vec(),
         y: input.outcome.to_vec(),
         x: input.covariates.iter().map(|c| c.to_vec()).collect(),

@@ -277,8 +277,8 @@ fn a_bayesian_vector_run_stacks_joint_draws() {
         fitted.iter().map(|(beta, _)| beta[0]).sum::<f64>() / m,
         fitted.iter().map(|(beta, _)| beta[1]).sum::<f64>() / m,
     );
-    let between = fitted.iter().map(|(beta, _)| (beta[0] - mean_a) * (beta[1] - mean_b)).sum::<f64>()
-        / m;
+    let between =
+        fitted.iter().map(|(beta, _)| (beta[0] - mean_a) * (beta[1] - mean_b)).sum::<f64>() / m;
     let expected = within + between;
     assert!(
         (stacked.covariance[1] - expected).abs() <= 0.1 * expected.abs(),

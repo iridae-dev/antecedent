@@ -78,8 +78,11 @@ pub(crate) fn point_coefficients(
     labels.dedup();
     for fold in labels {
         for active in [false, true] {
-            let rows: Vec<usize> =
-                (0..n).filter(|&i| folds[i] != fold && (TreatmentArm::is_treated_indicator(treatment[i])) == active).collect();
+            let rows: Vec<usize> = (0..n)
+                .filter(|&i| {
+                    folds[i] != fold && (TreatmentArm::is_treated_indicator(treatment[i])) == active
+                })
+                .collect();
             if rows.len() <= p {
                 return Err(EstimationError::data_msg("insufficient linear AIPW training arm"));
             }
@@ -92,9 +95,10 @@ pub(crate) fn point_coefficients(
             // The learner judges the intercept on the design before prior-weight scaling (the
             // scaling would make a ones column non-constant) and then penalizes the rest.
             let intercept = antecedent_stats::RidgeIntercept::sniff(&unscaled, m, p);
-            let inverse = antecedent_stats::ridge_gram_inverse_with(&design, m, p, ridge, intercept)
-                .map_err(crate::error::EstimationError::from)?
-                .ok_or_else(|| EstimationError::stats_msg("singular AIPW training design"))?;
+            let inverse =
+                antecedent_stats::ridge_gram_inverse_with(&design, m, p, ridge, intercept)
+                    .map_err(crate::error::EstimationError::from)?
+                    .ok_or_else(|| EstimationError::stats_msg("singular AIPW training design"))?;
             let mut load = vec![0.0; p];
             for i in (0..n).filter(|&i| folds[i] == fold) {
                 let u = if active {
@@ -134,7 +138,9 @@ fn correct_mean(
                 / total
                 * if active { 1.0 } else { -1.0 };
             rhs[c] = target;
-            for i in (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active) {
+            for i in (0..n)
+                .filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active)
+            {
                 rhs[c] -= x[c * n + i] * h[i];
                 for d in 0..p {
                     gram[c * p + d] += x[c * n + i] * x[d * n + i];
@@ -143,7 +149,9 @@ fn correct_mean(
         }
         let beta = crate::util::solve_spd(&gram, &rhs, p)
             .ok_or_else(|| EstimationError::stats_msg("singular AIPW mean correction"))?;
-        for i in (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active) {
+        for i in
+            (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active)
+        {
             h[i] += (0..p).map(|c| x[c * n + i] * beta[c]).sum::<f64>();
         }
     }

@@ -19,12 +19,12 @@ pub mod adaptive_inference;
 pub mod adaptive_measured_interval;
 pub mod adaptive_resample_waves;
 pub mod adjustment;
-pub mod admg_conditional_transport;
+pub(crate) mod admg_conditional_transport;
 pub mod aipw;
-pub mod arm;
 pub mod ancova;
 mod ar_kernel;
-pub mod association;
+pub mod arm;
+pub(crate) mod association;
 pub mod bayesian;
 pub mod bayesian_iv;
 pub mod bayesian_local_ratio;
@@ -46,10 +46,10 @@ pub mod constraint_likelihood;
 pub mod continuous_dose;
 pub mod continuous_dose_posterior;
 pub mod count_fitted_posterior;
-pub mod counterfactual_transport;
+pub(crate) mod counterfactual_transport;
 pub mod counterfactual_transport_sampled;
 pub mod cpdag_scenarios;
-pub mod crossfit_aipw;
+pub(crate) mod crossfit_aipw;
 mod crossfit_cache;
 mod crossfit_plan;
 pub mod cyclic_adam;
@@ -67,17 +67,17 @@ pub mod dr;
 pub mod effect_constancy;
 pub mod effect_estimate;
 pub mod empirical_table;
-pub mod envelope;
+pub(crate) mod envelope;
 pub mod error;
 pub mod estimator;
 pub mod experimental_fit;
 pub mod factorial_bernoulli;
 pub mod frontdoor;
-pub mod frontdoor_functional;
+pub(crate) mod frontdoor_functional;
 pub mod functional_distribution;
 pub mod gaussian_linear_posterior;
 mod gcomp;
-pub mod glm_adjustment;
+pub(crate) mod glm_adjustment;
 pub mod history_match;
 pub mod history_outcome_model;
 mod inference;
@@ -87,26 +87,26 @@ pub mod population_aipw;
 mod population_atc;
 pub use antecedent_stats::identified_set;
 pub mod heterogeneity_robust_did;
-pub mod interference;
-pub mod interference_observational;
-pub mod interference_saturation;
+pub(crate) mod interference;
+pub(crate) mod interference_observational;
+pub(crate) mod interference_saturation;
 pub mod iv;
 pub mod iv_bounds;
 pub mod joint_bayesian_transport;
 mod joint_coefficients;
 pub mod joint_design;
-pub mod joint_if;
+pub(crate) mod joint_if;
 pub mod joint_panel;
 pub mod lagged_instrument;
 pub mod latent_class_effects;
-mod linalg;
 mod learn_nuisance;
+mod linalg;
 pub mod local_polynomial_ratio;
 pub mod local_ratio_design;
 pub mod matching_posterior_boundary;
 pub mod mechanism_discrepancy;
 pub mod missing_policy;
-pub mod mixed_source;
+pub(crate) mod mixed_source;
 pub mod multi_arm;
 pub mod multiple_imputation;
 pub mod nested_markov_binary;
@@ -114,7 +114,7 @@ pub mod nested_markov_uncertainty;
 pub mod nonlinear_mediation;
 pub mod nuisance_cache;
 mod nuisance_keys;
-pub mod observation;
+pub(crate) mod observation;
 pub mod observational_policy;
 pub mod observational_survival;
 pub mod overlap;
@@ -123,7 +123,7 @@ pub mod policy_value;
 pub mod policy_value_posterior;
 mod posterior_lattice;
 pub mod posterior_mean;
-pub mod prediction;
+pub(crate) mod prediction;
 pub mod prepare;
 pub mod propensity;
 pub mod quantile;
@@ -132,9 +132,9 @@ pub mod randomized_missing;
 pub mod randomized_neyman;
 pub mod randomized_posterior;
 pub mod randomized_scores;
-pub mod rd;
+pub(crate) mod rd;
 pub mod recovery;
-pub mod recovery_chain;
+pub(crate) mod recovery_chain;
 pub mod recovery_sampled;
 pub mod response;
 pub mod retarget;
@@ -160,7 +160,7 @@ pub mod switchback;
 pub mod switchback_posterior;
 pub mod synthetic_control;
 pub mod synthetic_rollout;
-pub mod temporal_adjustment;
+pub(crate) mod temporal_adjustment;
 mod temporal_block;
 pub mod temporal_curve_posterior_meaning;
 pub mod temporal_dependent_interval;
@@ -168,11 +168,11 @@ pub mod temporal_design;
 pub mod temporal_history_fit;
 pub mod temporal_initial_state;
 pub mod temporal_link;
-pub mod temporal_mediation;
+pub(crate) mod temporal_mediation;
 pub mod temporal_observed_bayes;
 pub mod temporal_penalized_score;
 pub mod temporal_refresh;
-pub mod temporal_response;
+pub(crate) mod temporal_response;
 mod temporal_response_dispersion;
 pub mod temporal_sequential;
 mod temporal_sequential_tuples;
@@ -199,12 +199,12 @@ pub use effect_estimate::{
     EstimateScores, EstimateUncertainty, FamilyInference, JointRecord, PreparationSummary,
     ScenarioBand,
 };
-pub mod cluster_dml_aipw;
-pub mod descriptive_comparison;
+pub(crate) mod cluster_dml_aipw;
+pub(crate) mod descriptive_comparison;
 pub mod dose_basis_regression;
 pub mod dose_grid_functional;
 pub mod dose_grid_posterior;
-pub mod estimator_menu;
+pub(crate) mod estimator_menu;
 mod fit_plan;
 mod joint_cell_factorized;
 pub mod learned_continuous;
@@ -212,7 +212,7 @@ pub mod learned_joint_transport;
 pub mod learned_trial;
 pub use antecedent_stats::longitudinal_regime;
 pub mod marginal_structural_model;
-pub mod matched_case_control;
+pub(crate) mod matched_case_control;
 pub mod measurement;
 pub mod smoothed_dose;
 pub mod smoothed_dose_posterior;
@@ -255,6 +255,7 @@ pub use antecedent_learn::{
 pub use antecedent_model::history_operators::HistoryScan;
 pub use antecedent_stats::FirstStageDiagnostics;
 pub use ar_kernel::kernel_bias_factor;
+pub use arm::TreatmentArm;
 pub use association::{
     AssociationAnalysis, AssociationEstimate, AssociationEstimator, AssociationSelection,
     AssociationTerm, BayesianSettings, HeldOutCase, MAX_STRATA, MAX_STRATUM_LEVELS, MIN_REPLICATES,
@@ -314,9 +315,7 @@ pub use error::{
     RefusalFields, RefusalMessage, ResampleBufferFault,
 };
 pub use estimator::Estimator;
-pub use arm::TreatmentArm;
 pub use fit_plan::JointFitPlan;
-pub use inference::InferenceSpec;
 pub use frontdoor::{
     CheckedFrontDoorLowering, CheckedFrontDoorPreparation, FrontDoorTwoStage, FrontDoorWorkspace,
     PreparedFrontDoorProblem, linear_path_product_restriction,
@@ -334,6 +333,7 @@ pub use identified_set::{
     IdentifiedSetInterval, IdentifiedSetIntervalMethod, imbens_manski_critical_value,
     imbens_manski_influence, imbens_manski_posterior_draws, imbens_manski_shared_replicates,
 };
+pub use inference::InferenceSpec;
 pub use interference::{
     BayesianInterferenceEstimate, ClusterTotalInterval, InterferenceEstimate,
     estimate_cluster_interference_bayesian_bootstrap, estimate_cluster_interference_total,
@@ -428,10 +428,10 @@ pub use statistical_transport::{
     BayesianStatisticalTransportEstimate, INTERVAL_NUMERICAL_FAILURE, NominalZTransportInterval,
     PERCENTILE_BOOTSTRAP, POSTERIOR_EQUAL_TAIL, StatisticalTransportEstimate,
     TransportIntervalReason, TransportUncertaintyRow, Z_TRANSPORT_INTERVAL_NOT_MEASURED,
-    bayesian_z_transport_interval,
-    evaluate_bayesian_statistical_transport, evaluate_bayesian_statistical_transport_grid,
-    evaluate_statistical_transport, mz_interval_withheld_reason, mz_sampling_dependence,
-    nominal_z_transport_interval, percentile_interval, z_transport_bootstrap_law_draws,
+    bayesian_z_transport_interval, evaluate_bayesian_statistical_transport,
+    evaluate_bayesian_statistical_transport_grid, evaluate_statistical_transport,
+    mz_interval_withheld_reason, mz_sampling_dependence, nominal_z_transport_interval,
+    percentile_interval, z_transport_bootstrap_law_draws,
 };
 #[cfg(feature = "calibration-internal")]
 pub use statistical_transport::{

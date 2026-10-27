@@ -1207,7 +1207,8 @@ pub fn evaluate_smoothed_dose_models(
     // piece, which the `Q`-node rule integrates exactly while that degree is below `2Q`; a
     // higher degree is gated by the quadrature comparison like any other curve.
     let exact = piecewise_polynomial(models)
-        && usize::from(options.basis.degree) + KERNEL_POLYNOMIAL_DEGREE < 2 * options.quadrature_nodes;
+        && usize::from(options.basis.degree) + KERNEL_POLYNOMIAL_DEGREE
+            < 2 * options.quadrature_nodes;
     let knots = &options.basis.knots;
     let h = query.bandwidth;
     let predictor = |fold: usize, design: &[f64], rows: usize, c: &ExecutionContext| {

@@ -46,10 +46,10 @@ use antecedent_stats::{QuantileRule, equal_tail_interval_sorted};
 
 use crate::dose_basis_regression::{ResidualPrior, fit_basis_regression};
 use crate::error::EstimationError;
-use crate::util::dot;
 use crate::smoothed_dose::{
     DoseBasis, SmoothedDoseInput, check_grid_windows, outcome_design, split_rule,
 };
+use crate::util::dot;
 
 /// Gauss-Legendre nodes per window piece.
 const WINDOW_NODES: usize = 16;

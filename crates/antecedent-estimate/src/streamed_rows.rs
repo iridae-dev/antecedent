@@ -242,11 +242,10 @@ pub(crate) fn run_engine(
     crate::error::EstimationError,
 > {
     use antecedent_io_core::capacity_account::{CapacityControl, run_weighted_capacity};
-    let result = run_weighted_capacity(CapacityControl::Glm, source, options)?
-        .into_resident()
-        .ok_or_else(|| {
-            crate::error::EstimationError::data_msg("the reduction summary was not resident")
-        })?;
+    let result =
+        run_weighted_capacity(CapacityControl::Glm, source, options)?.into_resident().ok_or_else(
+            || crate::error::EstimationError::data_msg("the reduction summary was not resident"),
+        )?;
     facts.absorb(&result);
     Ok(result)
 }

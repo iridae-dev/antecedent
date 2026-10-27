@@ -36,7 +36,12 @@ fn kinds(hetero: bool) -> Vec<VectorCovariance> {
     }
     v
 }
-fn vector_input(n: usize, seed: u64, hetero: bool, beta: [f64; 2]) -> VectorTreatmentInput<'static> {
+fn vector_input(
+    n: usize,
+    seed: u64,
+    hetero: bool,
+    beta: [f64; 2],
+) -> VectorTreatmentInput<'static> {
     let mut rng = candidate::Generator::new(seed);
     let (mut y, mut t1, mut t2, mut z) = (
         Vec::with_capacity(n),

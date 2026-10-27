@@ -196,7 +196,9 @@ fn fit_history_units(
                 if levels.is_empty() {
                     levels = vec![BINARY_LEVELS; coordinates.len()];
                 } else if levels.len() != coordinates.len() {
-                    return Err(EstimationError::data_msg("temporal_recalc.history_horizon_mismatch"));
+                    return Err(EstimationError::data_msg(
+                        "temporal_recalc.history_horizon_mismatch",
+                    ));
                 }
                 for (level, &code) in levels.iter_mut().zip(&coordinates) {
                     *level = (*level).max(code.saturating_add(1));
@@ -211,7 +213,9 @@ fn fit_history_units(
             let cells = levels
                 .iter()
                 .try_fold(1_usize, |cells, &level| cells.checked_mul(level as usize))
-                .ok_or_else(|| EstimationError::data_msg("temporal_recalc.history_cells_overflow"))?;
+                .ok_or_else(|| {
+                    EstimationError::data_msg("temporal_recalc.history_cells_overflow")
+                })?;
             let _lease = crate::util::admit_bound_array::<u64>(cells, 2)?;
             let mut counts = vec![0_u64; cells];
             for h in units.iter().flat_map(|u| &u.histories) {
@@ -446,7 +450,10 @@ mod categorical_tests {
         assert_eq!(binary.empirical_counts(), general.empirical_counts());
         let counts = binary.empirical_counts().unwrap();
         // cell = s0*16 + a1*8 + l2*4 + a2*2 + y
-        assert_eq!((counts.len(), counts[16 + 4 + 2 + 1], counts[8], counts[16 + 4 + 2]), (32, 1, 1, 1));
+        assert_eq!(
+            (counts.len(), counts[16 + 4 + 2 + 1], counts[8], counts[16 + 4 + 2]),
+            (32, 1, 1, 1)
+        );
     }
 
     #[test]
@@ -461,7 +468,8 @@ mod categorical_tests {
         assert_eq!(law.axes().iter().map(|axis| axis.values.len()).collect::<Vec<_>>(), radix);
         let counts = law.empirical_counts().unwrap();
         assert_eq!(counts.len(), 3 * 2 * 2 * 2 * 3);
-        let cell = |c: [usize; 5]| c.iter().zip(radix).fold(0, |cell, (&code, level)| cell * level + code);
+        let cell =
+            |c: [usize; 5]| c.iter().zip(radix).fold(0, |cell, (&code, level)| cell * level + code);
         assert_eq!(counts[cell([2, 0, 1, 1, 1])], 1);
         assert_eq!(counts[cell([0, 1, 0, 0, 2])], 1);
         assert_eq!(counts.iter().sum::<u64>(), 2);

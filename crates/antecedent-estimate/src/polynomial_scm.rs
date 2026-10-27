@@ -404,7 +404,8 @@ impl PolynomialCausalProgram {
             .candidates
             .iter()
             .try_fold(0_usize, |total, candidate| total.checked_add(candidate.atoms.len()))?;
-        let per_state = self.candidates.first()?.model.variables.len().checked_mul(128)?.checked_add(512)?;
+        let per_state =
+            self.candidates.first()?.model.variables.len().checked_mul(128)?.checked_add(512)?;
         let states = count.checked_mul(self.worlds.len())?.checked_mul(per_state)?;
         let training = self.training.len().checked_mul(128)?;
         u64::try_from(states.checked_add(training)?).ok()
@@ -510,9 +511,9 @@ impl PolynomialCausalProgram {
     ) -> Result<PolynomialCausalReport, EquilibriumError> {
         self.validate()?;
         let count = self.candidates.iter().map(|c| c.atoms.len()).sum::<usize>();
-        let retained = self
-            .retained_bytes()
-            .ok_or_else(|| EquilibriumError::Resource("joint root-execution size overflows".into()))?;
+        let retained = self.retained_bytes().ok_or_else(|| {
+            EquilibriumError::Resource("joint root-execution size overflows".into())
+        })?;
         let _retention = ctx
             .acquire_admission(0, retained)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;

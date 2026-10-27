@@ -1115,8 +1115,7 @@ fn two_sls_coverage(
 ) {
     let query =
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
-    let est =
-        TwoStageLeastSquares::new().with_bootstrap_replicates(0).with_se_kind(se_kind);
+    let est = TwoStageLeastSquares::new().with_bootstrap_replicates(0).with_se_kind(se_kind);
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::for_record(test, "two_sls_scm");
     // Per replicate: the point and the Anderson–Rubin set the tally scores
@@ -1510,8 +1509,7 @@ fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
     let hc1 = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
         .with_bootstrap_replicates(0)
         .with_se_kind(AnalyticSeKind::Hc1);
-    let classical =
-        hc1.clone().with_se_kind(AnalyticSeKind::Homoskedastic);
+    let classical = hc1.clone().with_se_kind(AnalyticSeKind::Homoskedastic);
     let ctx = ExecutionContext::for_tests(16);
     let mut tally = Tally::for_record("rd_sharp_hc1_heteroskedastic_ci_coverage", "rd_scm");
     // Out-of-assumption probe (homoskedastic SE on a heteroskedastic law): no record.
@@ -1923,9 +1921,8 @@ fn frontdoor_stacked_hc1_curved_mediator_ci_coverage() {
         Arc::from([VariableId::from_raw(2)]),
         ExprId::from_raw(0),
     );
-    let est = FrontDoorTwoStage::new()
-        .with_bootstrap_replicates(0)
-        .with_se_kind(AnalyticSeKind::Hc1);
+    let est =
+        FrontDoorTwoStage::new().with_bootstrap_replicates(0).with_se_kind(AnalyticSeKind::Hc1);
     let ctx = ExecutionContext::for_tests(40);
     let mut tally = Tally::for_record(
         "frontdoor_stacked_hc1_curved_mediator_ci_coverage",

@@ -332,7 +332,9 @@ mod tests {
             [(400, 3, 0.5), (400, 4, 0.5), (600, 5, 0.5), (600, 6, 0.5), (400, 3, 0.2)]
         {
             let xs: Vec<Vec<f64>> = (0..covariate_count)
-                .map(|j| (0..n).map(|i| (0.17 * (j + 1) as f64 * i as f64 + j as f64).sin()).collect())
+                .map(|j| {
+                    (0..n).map(|i| (0.17 * (j + 1) as f64 * i as f64 + j as f64).sin()).collect()
+                })
                 .collect();
             let refs: Vec<&[f64]> = xs.iter().map(Vec::as_slice).collect();
             let effect = (0..n).map(|i| 1.4 + 0.2 * xs[0][i]).sum::<f64>() / n as f64;

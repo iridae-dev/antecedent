@@ -47,8 +47,8 @@ use crate::propensity::{
 use crate::se::AnalyticSeKind;
 use crate::streamed_rows::{
     ArmFilter, BOUNDARY, EngineFacts, MaskedRows, RowFilter, RowMode, RowView, WeightSums,
-    clip_sensitivity_report, clip_sensitivity_thresholds, fit_logistic_streamed,
-    fitted_propensity, for_each_kept_row, run_engine,
+    clip_sensitivity_report, clip_sensitivity_thresholds, fit_logistic_streamed, fitted_propensity,
+    for_each_kept_row, run_engine,
 };
 use crate::util::dot;
 

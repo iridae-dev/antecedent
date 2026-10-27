@@ -5,13 +5,13 @@
 use antecedent_core::{DeclaredSamplingDesign, ExecutionContext, ResamplingRule};
 use antecedent_data::{ResamplingPlan, resample::fill_resample_index_replicate};
 
-use crate::util::scratch::admit_bootstrap_scratch;
 use super::{
     BootstrapSeResult, adaptive_bootstrap_should_stop, design_err, finalize_bootstrap_se_ex,
 };
 use crate::adaptive_resample_waves::{DriveError, StopReason, WaveStoppingRule, run_waves_serial};
 use crate::bootstrap_wave::{fill_worker_replicate, retained_index_slots};
 use crate::error::EstimationError;
+use crate::util::scratch::admit_bootstrap_scratch;
 
 /// The rows of each cluster, in ascending label order, for whole-cluster resampling.
 #[derive(Clone, Debug)]

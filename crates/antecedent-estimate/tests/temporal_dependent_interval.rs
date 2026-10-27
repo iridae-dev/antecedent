@@ -265,7 +265,15 @@ fn dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation() 
     let p = panel(30);
     // Replicates above the reference count are admitted: the budget bounds them, not a cap.
     let many = DependentIntervalConfig { replicates: 2001, ..config(1) };
-    let interval = dependent_unit_interval(&p, &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(target_query()), &many, &ctx()).unwrap();
+    let interval = dependent_unit_interval(
+        &p,
+        &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(
+            target_query(),
+        ),
+        &many,
+        &ctx(),
+    )
+    .unwrap();
     assert_eq!(interval.replicates.len(), 2001);
 
     let few = panel(5);

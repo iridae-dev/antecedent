@@ -69,7 +69,7 @@ use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::frontdoor::{PreparedFrontDoorProblem, prepare_frontdoor_problem};
 use crate::overlap::OverlapPolicy;
-use crate::util::{BootstrapSeResult};
+use crate::util::BootstrapSeResult;
 
 /// Distinct treatment values always treated as arms; a larger sample admits `n / 4` (an average
 /// of four rows per arm), so only a treatment with nearly unique values is read as continuous.
@@ -591,7 +591,9 @@ impl OutcomeFit {
             if n_arm < ncols {
                 return Err(rank_deficient);
             }
-            let fit = backend.least_squares(&x, n_arm, ncols, &y, ols).map_err(crate::error::EstimationError::from)?;
+            let fit = backend
+                .least_squares(&x, n_arm, ncols, &y, ols)
+                .map_err(crate::error::EstimationError::from)?;
             if fit.rank < ncols {
                 return Err(rank_deficient);
             }

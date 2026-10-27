@@ -156,8 +156,8 @@ impl TwoStageLeastSquares {
             nrows: n,
         };
         debug_assert_eq!(result.cross_products.xtwx.len(), p * p);
-        let fit =
-            antecedent_stats::fit_2sls_from_moments(&moments).map_err(crate::error::EstimationError::from)?;
+        let fit = antecedent_stats::fit_2sls_from_moments(&moments)
+            .map_err(crate::error::EstimationError::from)?;
         let mut first_stage = fit.first_stage_diagnostics;
         if matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic) {
             let (set, reason) =

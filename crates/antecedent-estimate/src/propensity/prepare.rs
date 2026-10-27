@@ -145,7 +145,10 @@ impl PreparedPropensityProblem {
     /// `0`/`1` column keeps the plan its arm indicator always gave.
     pub(crate) fn fold_strata(&self) -> Vec<u32> {
         let active_is_higher = self.treatment_levels.active > self.treatment_levels.control;
-        self.treatment.iter().map(|&t| u32::from((TreatmentArm::is_treated_indicator(t)) == active_is_higher)).collect()
+        self.treatment
+            .iter()
+            .map(|&t| u32::from((TreatmentArm::is_treated_indicator(t)) == active_is_higher))
+            .collect()
     }
 }
 
@@ -437,9 +440,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
             )?;
         }
         TargetPopulation::CustomDistribution(_) => {
-            let sel = query
-                .target_population
-                .resolve(n_full, None, registry)?;
+            let sel = query.target_population.resolve(n_full, None, registry)?;
             // Keep complete-case rows; weights apply at estimation time (aligned below).
             full_weights = sel.weights;
         }

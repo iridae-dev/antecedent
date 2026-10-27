@@ -28,10 +28,10 @@ use crate::{
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, CausalRng, Diagnostic, DiagnosticKind, DiagnosticScope,
-    DiagnosticSeverity, ExecutionContext, HorizonIdentification, IdentificationStatus, ObservationSpec,
-    ParametricAssumption, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
-    SupportStatus, TemporalResponseSpec, VariableId,
+    DiagnosticSeverity, ExecutionContext, HorizonIdentification, IdentificationStatus,
+    ObservationSpec, ParametricAssumption, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion,
+    SupportReport, SupportStatus, TemporalResponseSpec, VariableId,
 };
 use antecedent_data::{TableView, TemporalIndexer, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
@@ -417,8 +417,7 @@ impl Evaluation {
         horizon: u32,
         overlays: Vec<SequentialMechanismOverlay>,
     ) -> Result<Self, EstimationError> {
-        let unfolded =
-            graph.unfold(indexer.clone())?;
+        let unfolded = graph.unfold(indexer.clone())?;
         let mut order: Vec<usize> = unfolded
             .dag
             .topological_order()
@@ -709,11 +708,7 @@ fn require_observation_containment(
     let mut adjustment = Vec::new();
     for &(estimand, indexer) in identifications {
         for id in estimand.adjustment_set.iter() {
-            adjustment.push(
-                indexer
-                    .key_of(id.raw())?
-                    .variable,
-            );
+            adjustment.push(indexer.key_of(id.raw())?.variable);
         }
     }
     crate::observation::require_temporal_observation_containment(
@@ -1080,10 +1075,7 @@ fn assemble_response(
                 adjustment: id
                     .adjustment_set
                     .iter()
-                    .map(|v| {
-                        indexer
-                            .key_of(v.raw())
-                    })
+                    .map(|v| indexer.key_of(v.raw()))
                     .collect::<Result<Vec<_>, _>>()?
                     .into(),
             })

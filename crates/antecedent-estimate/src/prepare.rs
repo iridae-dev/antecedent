@@ -244,8 +244,7 @@ pub(crate) fn intersect_predicate_mask(
     if !matches!(target, TargetPopulation::Predicate(_)) {
         return Ok(());
     }
-    let sel = target
-        .resolve(n_full, None, registry)?;
+    let sel = target.resolve(n_full, None, registry)?;
     for (i, slot) in row_mask.iter_mut().enumerate() {
         *slot = *slot && sel.keep.get(i);
     }

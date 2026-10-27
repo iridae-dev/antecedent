@@ -58,11 +58,11 @@ use antecedent_core::{
 };
 
 use crate::EstimationError;
-use crate::util::{mean, sigmoid as logistic};
 use crate::rollout_resampling::{
     DesignEffect, DesignEffectKind, ReplicateSummary, UnitWeighting, block_draws, resample_draws,
     summarize_posterior, summarize_replicates, unit_weights,
 };
+use crate::util::{mean, sigmoid as logistic};
 
 /// Semantic operation tag of the rollout difference-in-differences resample.
 const RESAMPLE_OPERATION: u64 = 0x5244_4944_0001;

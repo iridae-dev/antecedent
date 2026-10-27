@@ -296,8 +296,7 @@ fn vector_treatment_order_permutes_the_covariance_consistently() {
 #[test]
 fn vector_refuses_different_adjustment_sets() {
     let mut input = base_input();
-    input.adjustment =
-        vec![NamedColumn::new("z", vec![0.0, 1.0, 2.0, 0.0, 1.0, 3.0])];
+    input.adjustment = vec![NamedColumn::new("z", vec![0.0, 1.0, 2.0, 0.0, 1.0, 3.0])];
     input.treatments[0].adjustment_set = vec!["z".into()];
     // t2 was declared against an empty set while the shared block holds `z`.
     let (code, message) = refusal(

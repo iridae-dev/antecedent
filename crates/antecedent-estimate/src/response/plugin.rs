@@ -4,9 +4,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "calibration-internal")]
 use antecedent_core::{DerivativeScale, ResponseFunctional, ResponseUncertainty, ResponseValue};
-use antecedent_core::{
-    Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention, VariableId,
-};
+use antecedent_core::{Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention, VariableId};
 use antecedent_data::TabularData;
 #[cfg(feature = "calibration-internal")]
 use antecedent_stats::normal_ppf;

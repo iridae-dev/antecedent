@@ -74,13 +74,13 @@ use antecedent_expr::{
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::arm::TreatmentArm;
 use crate::adjustment::{EffectEstimate, intervention_f64};
+use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
 use crate::inference::InferenceSpec;
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
-use crate::util::{BootstrapSeResult};
+use crate::util::BootstrapSeResult;
 
 /// Local-linear RD design column count: `[1, T, (R-c), T·(R-c)]`.
 const RD_NCOLS: usize = 4;
@@ -590,8 +590,12 @@ impl SharpRegressionDiscontinuity {
         let n = problem.nrows;
         // Each worker holds at most `n * RD_NCOLS` design cells, `n` outcomes and `n` counts
         // (the distinct rows of a resample, scaled by the root of their multiplicity).
-        let _gather =
-            crate::util::admit_gather_scratch(ctx, n, RD_NCOLS + 2, self.inference.bootstrap_replicates)?;
+        let _gather = crate::util::admit_gather_scratch(
+            ctx,
+            n,
+            RD_NCOLS + 2,
+            self.inference.bootstrap_replicates,
+        )?;
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_se_with_scratch(
             self.inference.bootstrap_replicates,
@@ -865,8 +869,9 @@ mod tests {
     #[test]
     fn targets_the_cutoff_effect_not_the_window_or_population_average() {
         let data = heterogeneous_curved_scm(60_000, 11);
-        let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, KNOWN_TRUTH_BANDWIDTH)
-            .with_bootstrap_replicates(0);
+        let est =
+            SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, KNOWN_TRUTH_BANDWIDTH)
+                .with_bootstrap_replicates(0);
         let prep = est.prepare(&data, &rd_estimand(), &local_query(0.0)).unwrap();
         let mut ws = RdWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();

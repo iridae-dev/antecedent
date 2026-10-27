@@ -874,9 +874,7 @@ impl<'a> Frame<'a> {
                 count: request.draw_count,
             });
         }
-        if !matches!(request.reduction, Reduction::Full)
-            && request.draw_count > EXACT_DRAW_COUNT
-        {
+        if !matches!(request.reduction, Reduction::Full) && request.draw_count > EXACT_DRAW_COUNT {
             return Err(TileError::DrawCountNotExact { count: request.draw_count });
         }
         let row_end = checked_add(request.row_start, request.row_count).map_err(|_| {

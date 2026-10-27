@@ -65,7 +65,9 @@ pub(crate) fn support_gap(s0: u32, gap: ResponseGap) -> EstimationError {
             format!("no history with step-2 covariate {covariate} takes the second action")
         }
         ResponseGap::NoCell { step, covariate } => {
-            format!("no history with step-{step} covariate {covariate} takes the step-{step} action")
+            format!(
+                "no history with step-{step} covariate {covariate} takes the step-{step} action"
+            )
         }
     };
     EstimationError::refused_detail(

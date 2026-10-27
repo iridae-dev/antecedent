@@ -329,11 +329,8 @@ pub(crate) fn validate_input(
         ));
     }
     let mut seen: BTreeSet<&str> = BTreeSet::new();
-    let all_names = input
-        .adjustment
-        .iter()
-        .map(|c| &*c.name)
-        .chain(input.treatments.iter().map(|t| &*t.name));
+    let all_names =
+        input.adjustment.iter().map(|c| &*c.name).chain(input.treatments.iter().map(|t| &*t.name));
     for name in all_names {
         if name.is_empty() || name == VECTOR_TREATMENT_INTERCEPT || !seen.insert(name) {
             return Err(refuse(

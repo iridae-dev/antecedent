@@ -151,7 +151,9 @@ fn arm_residual_variance(
     for active in [false, true] {
         let mut gram = vec![0.0; p * p];
         let mut rhs = vec![0.0; p];
-        for i in (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active) {
+        for i in
+            (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active)
+        {
             for c in 0..p {
                 rhs[c] += x[c * n + i] * problem.outcome[i];
                 for d in 0..p {

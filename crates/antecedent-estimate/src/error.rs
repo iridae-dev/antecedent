@@ -492,13 +492,11 @@ impl From<antecedent_io_core::capacity_account::WeightedCapacityError> for Capac
         use antecedent_io_core::capacity_account::WeightedCapacityError as Engine;
         let kind = match &error {
             Engine::Cancelled => CapacityFaultKind::Cancelled,
-            Engine::OverCeiling { ceiling, total, over_by, .. } => {
-                CapacityFaultKind::OverCeiling {
-                    ceiling: *ceiling,
-                    total: *total,
-                    over_by: *over_by,
-                }
-            }
+            Engine::OverCeiling { ceiling, total, over_by, .. } => CapacityFaultKind::OverCeiling {
+                ceiling: *ceiling,
+                total: *total,
+                over_by: *over_by,
+            },
             Engine::Singular | Engine::Solve(_) => CapacityFaultKind::Singular,
             Engine::Empty => CapacityFaultKind::Empty,
             Engine::Weight { .. } | Engine::NonFinite { .. } => CapacityFaultKind::InvalidRow,
@@ -872,7 +870,8 @@ mod tests {
     /// The refusal text keeps its detail apart from its explanation and renders both.
     #[test]
     fn refusal_message_keeps_detail_and_explanation_apart() {
-        let detailed = EstimationError::refused_detail("route_not_supported", "area.reason", "no: go");
+        let detailed =
+            EstimationError::refused_detail("route_not_supported", "area.reason", "no: go");
         let (code, message) = detailed.coded_refusal().expect("a coded refusal");
         assert_eq!(code, "route_not_supported");
         assert_eq!(message.detail(), Some("area.reason"));

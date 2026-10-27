@@ -179,14 +179,16 @@ mod tests {
         let mut repeated_y = vec![0.0; idx.len()];
         gather_cols(&mut repeated_x, &design, n, 2, &idx);
         gather_bootstrap_vector(&mut repeated_y, &y, &idx);
-        let repeated =
-            FaerBackend.least_squares(&repeated_x, idx.len(), 2, &repeated_y, &mut workspace).unwrap();
+        let repeated = FaerBackend
+            .least_squares(&repeated_x, idx.len(), 2, &repeated_y, &mut workspace)
+            .unwrap();
 
         let mut counts = Vec::new();
         resample_counts(&mut counts, n, &idx);
         assert_eq!(counts.iter().sum::<u32>() as usize, idx.len());
         let (mut weighted_x, mut weighted_y) = (Vec::new(), Vec::new());
-        let rows = gather_count_weighted(&mut weighted_x, &mut weighted_y, &design, &y, n, 2, &counts, 2);
+        let rows =
+            gather_count_weighted(&mut weighted_x, &mut weighted_y, &design, &y, n, 2, &counts, 2);
         assert_eq!(rows, counts.iter().filter(|&&c| c > 0).count());
         let weighted =
             FaerBackend.least_squares(&weighted_x, rows, 2, &weighted_y, &mut workspace).unwrap();

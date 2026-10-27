@@ -356,7 +356,8 @@ impl ObservationalSurvival {
                 ),
             ));
         }
-        let event = cox_breslow(&time, &events, &covariates(p), p).map_err(crate::error::EstimationError::from)?;
+        let event = cox_breslow(&time, &events, &covariates(p), p)
+            .map_err(crate::error::EstimationError::from)?;
         let censoring_p = match self.censoring {
             CensoringAssumption::IndependentWithinArm => 0,
             CensoringAssumption::AtRandomGivenCovariates => p,

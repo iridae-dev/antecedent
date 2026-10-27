@@ -169,14 +169,13 @@ impl CheckedIvPreparation {
         let active = intervention_f64(&self.query.active)?;
         let control = intervention_f64(&self.query.control)?;
         let mut arena = self.outcome_program().arena().clone();
-        let expected_functional = arena
-            .iv_wald(
-                self.query.treatment,
-                self.query.outcome,
-                &self.target.instruments,
-                &Value::f64(active),
-                &Value::f64(control),
-            )?;
+        let expected_functional = arena.iv_wald(
+            self.query.treatment,
+            self.query.outcome,
+            &self.target.instruments,
+            &Value::f64(active),
+            &Value::f64(control),
+        )?;
         if self.outcome_program().schema() != &schema
             || self.treatment_program().schema() != &schema
             || self.lowering.functional != self.target.functional
@@ -296,14 +295,13 @@ fn prepare_iv_checked(
         ));
     }
     let mut arena = identification.arena.clone();
-    let expected = arena
-        .iv_wald(
-            query.treatment,
-            query.outcome,
-            &target.instruments,
-            &Value::f64(active),
-            &Value::f64(control),
-        )?;
+    let expected = arena.iv_wald(
+        query.treatment,
+        query.outcome,
+        &target.instruments,
+        &Value::f64(active),
+        &Value::f64(control),
+    )?;
     if expected != target.functional {
         return Err(EstimationError::data_msg(
             "selected IV functional does not match query treatment/outcome and instrument roles",
@@ -649,14 +647,10 @@ impl WaldIv {
         let n = problem.nrows;
         // The arm of every row's instrument when there is exactly one instrument, no covariate
         // and the instrument is coded exactly 0 or 1.
-        let instrument_arms: Option<Vec<TreatmentArm>> =
-            (problem.instruments.len() == 1 && problem.adjustment_set.is_empty())
-                .then(|| {
-                    (0..n)
-                        .map(|r| TreatmentArm::exact(problem.instruments_matrix[n + r]))
-                        .collect()
-                })
-                .flatten();
+        let instrument_arms: Option<Vec<TreatmentArm>> = (problem.instruments.len() == 1
+            && problem.adjustment_set.is_empty())
+        .then(|| (0..n).map(|r| TreatmentArm::exact(problem.instruments_matrix[n + r])).collect())
+        .flatten();
         let Some(instrument_arms) = instrument_arms else {
             // The ratio of two arm differences is the one-binary-instrument case. Several or
             // multi-valued instruments and exogenous covariates are its instrument-weighted

@@ -61,13 +61,7 @@ impl ContinuousResponseEstimator {
                     DerivativeScale::LogTreatment => at.to_vec(),
                     DerivativeScale::LogOutcome | DerivativeScale::LogLog => return Ok(None),
                 };
-                let run = self.plugin_gradient_run(
-                    data,
-                    outcomes,
-                    treatments,
-                    at,
-                    true,
-                )?;
+                let run = self.plugin_gradient_run(data, outcomes, treatments, at, true)?;
                 let mut columns = Vec::with_capacity(outcomes.len() * treatments.len());
                 for influence in &run.influence {
                     for (column, factor) in influence.columns.iter().zip(&factors) {
@@ -77,13 +71,7 @@ impl ContinuousResponseEstimator {
                 Ok(Some(ResponseInfluence { columns, row_index: row_ids(&run.keep)? }))
             }
             ResponseFunctional::DirectionalDerivative { outcomes, treatments, at, direction } => {
-                let run = self.plugin_gradient_run(
-                    data,
-                    outcomes,
-                    treatments,
-                    at,
-                    true,
-                )?;
+                let run = self.plugin_gradient_run(data, outcomes, treatments, at, true)?;
                 let mut columns = Vec::with_capacity(outcomes.len());
                 for influence in &run.influence {
                     let mut combined = vec![0.0; run.n];

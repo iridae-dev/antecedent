@@ -418,8 +418,7 @@ impl TemporalLinearAdjustment {
 
         let mut adj_keys = Vec::new();
         for &dense_var in estimand.adjustment_set.iter() {
-            let key = indexer
-                .key_of(dense_var.raw())?;
+            let key = indexer.key_of(dense_var.raw())?;
             let lag = offset_to_lag(key.offset - sample_anchor).map_err(|_| {
                 EstimationError::unsupported(
                     "adjustment node sits after this horizon's sample anchor and \
@@ -992,8 +991,7 @@ pub fn temporal_coefficient_names(
         )),
     ];
     for &dense_var in estimand.adjustment_set.iter() {
-        let key = indexer
-            .key_of(dense_var.raw())?;
+        let key = indexer.key_of(dense_var.raw())?;
         let lag = offset_to_lag(key.offset - sample_anchor)?;
         names.push(Arc::from(format!(
             "coef_{}{TEMPORAL_COEF_LAG_MARKER}{}",
@@ -1267,8 +1265,7 @@ pub fn temporal_conditional_marginal_effect_with_gaps(
     cols.extend(modifiers.iter().map(|&variable| LaggedColumn { variable, lag: y_lag }));
     let mut adjustment = Vec::new();
     for &dense_var in estimand.adjustment_set.iter() {
-        let key = indexer
-            .key_of(dense_var.raw())?;
+        let key = indexer.key_of(dense_var.raw())?;
         if modifiers.contains(&key.variable)
             || key.variable == query.treatment
             || key.variable == query.outcome
@@ -1399,8 +1396,7 @@ pub fn temporal_linear_slopes(
     let treatment_count = treatments.len();
     let mut adjustment = Vec::new();
     for &dense_var in estimand.adjustment_set.iter() {
-        let key = indexer
-            .key_of(dense_var.raw())?;
+        let key = indexer.key_of(dense_var.raw())?;
         if key.variable == outcome || treatments.contains(&key.variable) {
             continue;
         }

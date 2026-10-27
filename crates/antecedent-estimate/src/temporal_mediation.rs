@@ -530,8 +530,10 @@ impl TemporalMediationEstimator {
         gaps: bool,
     ) -> Result<MediationDesign, EstimationError> {
         let q = mediators.len();
-        let mut cols =
-            vec![LaggedColumn { variable: query.treatment, lag: Lag::from_raw(treatment_lag(query)) }];
+        let mut cols = vec![LaggedColumn {
+            variable: query.treatment,
+            lag: Lag::from_raw(treatment_lag(query)),
+        }];
         cols.extend(
             mediators.iter().map(|&variable| LaggedColumn { variable, lag: Lag::CONTEMPORANEOUS }),
         );
@@ -606,8 +608,7 @@ impl TemporalMediationEstimator {
         let mut lead: Vec<&[f64]> = Vec::with_capacity(1 + q);
         lead.push(t);
         lead.extend((0..q).map(|j| column(1 + j)));
-        let (coef_b, design_b, sigma2_b, resid_b) =
-            ols_mechanism(self.backend, &lead, &extras, y)?;
+        let (coef_b, design_b, sigma2_b, resid_b) = ols_mechanism(self.backend, &lead, &extras, y)?;
         let c_prime = coef_b[1];
         let b: Vec<f64> = coef_b[2..2 + q].to_vec();
         designs.push(design_b);
@@ -746,7 +747,8 @@ impl MediationDesign {
             } else {
                 let mut others: Vec<&[f64]> = Vec::with_capacity(q);
                 others.push(t);
-                others.extend(mediators.iter().enumerate().filter(|(l, _)| *l != j).map(|(_, m)| *m));
+                others
+                    .extend(mediators.iter().enumerate().filter(|(l, _)| *l != j).map(|(_, m)| *m));
                 let partialled = self.partial_residuals(backend, &others, mediators[j])?;
                 psi_b.push(score(r_b, &partialled)?);
             }
@@ -842,13 +844,18 @@ impl ContrastFit {
     fn coefficient_variance(&self, which: usize, ncols: usize, col: usize) -> f64 {
         let inverse = self.gram_inverse[which]
             .get_or_init(|| xtx_inverse(&self.designs[which], self.n, ncols));
-        inverse.as_ref().map_or(f64::NAN, |inv| {
-            self.sigma2[which] * inv[col * ncols + col].max(0.0)
-        })
+        inverse
+            .as_ref()
+            .map_or(f64::NAN, |inv| self.sigma2[which] * inv[col * ncols + col].max(0.0))
     }
 
     /// `σ² · [(XᵀX)⁻¹]_{row,col}` of design `which`, `NaN` when `XᵀX` is singular.
-    fn coefficient_covariance(&self, which: usize, ncols: usize, (row, col): (usize, usize)) -> f64 {
+    fn coefficient_covariance(
+        &self,
+        which: usize,
+        ncols: usize,
+        (row, col): (usize, usize),
+    ) -> f64 {
         if row == col {
             return self.coefficient_variance(which, ncols, col);
         }
@@ -1436,9 +1443,7 @@ mod tests {
         let m2: Vec<f64> =
             (0..n).map(|i| 0.4 * m1[i] + 0.2 * t[i] + 0.3 * (2.3 * i as f64).cos()).collect();
         let y: Vec<f64> = (0..n)
-            .map(|i| {
-                0.25 * t[i] + 0.6 * m1[i] + 0.8 * m2[i] + 0.2 * (0.9 * i as f64).sin()
-            })
+            .map(|i| 0.25 * t[i] + 0.6 * m1[i] + 0.8 * m2[i] + 0.2 * (0.9 * i as f64).sin())
             .collect();
         let design = MediationDesign {
             columns: [t.as_slice(), &m1, &m2, &y].concat(),
@@ -1466,6 +1471,8 @@ mod tests {
         assert!((fit.mediated - (0.5 * 0.6 + 0.4 * 0.8)).abs() < 0.15, "{}", fit.mediated);
         let [total, direct, mediated] = design.contrast_scores(estimator.backend, &fit).unwrap();
         assert!([total, direct, mediated].iter().all(|score| score.len() == n));
-        assert!(estimator.fit_design(&design, Some(&(0..n).rev().collect::<Vec<_>>()), 1.0).is_ok());
+        assert!(
+            estimator.fit_design(&design, Some(&(0..n).rev().collect::<Vec<_>>()), 1.0).is_ok()
+        );
     }
 }

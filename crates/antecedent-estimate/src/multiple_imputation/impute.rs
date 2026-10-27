@@ -19,8 +19,8 @@ use crate::linalg::{Jitter, SpdFactor, symmetrize_average};
 use crate::util::{dot, sigmoid as logistic};
 
 use super::{
-    DECLARE_COMPLETE_CASE, IMPUTATION_OPERATION, ImputationUnits,
-    MultipleImputationError, USE_CHAINED_EQUATIONS, check_spec,
+    DECLARE_COMPLETE_CASE, IMPUTATION_OPERATION, ImputationUnits, MultipleImputationError,
+    USE_CHAINED_EQUATIONS, check_spec,
 };
 
 /// Ridge on the non-intercept coefficients of a logistic conditional model; keeps a
@@ -677,15 +677,8 @@ impl Imputer {
         let y: Vec<f64> = observed.iter().map(|&i| self.values[j][i]).collect();
         let row_weights: Vec<f64> = observed.iter().map(|&i| weights[i]).collect();
         // The shared GLM engine, intercept unpenalised and a small ridge on the rest.
-        crate::util::fit_logistic_ridge(
-            &matrix,
-            nrows,
-            k,
-            &y,
-            Some(&row_weights),
-            LOGISTIC_RIDGE,
-        )
-        .map_err(|_| not_fitted(&self.names[j]))
+        crate::util::fit_logistic_ridge(&matrix, nrows, k, &y, Some(&row_weights), LOGISTIC_RIDGE)
+            .map_err(|_| not_fitted(&self.names[j]))
     }
 
     /// One data-augmentation sweep of the joint normal model: draw the mean and covariance

@@ -709,21 +709,19 @@ impl SequentialSetup {
         let SequenceTarget { outcome, outcome_offset, overlays } = *target;
         let modifiers =
             if matches!(eval, SequentialEval::Contrast { .. }) { modifiers } else { &[] };
-        let unfolded =
-            graph.unfold(indexer.clone())?;
+        let unfolded = graph.unfold(indexer.clone())?;
         let dag = &unfolded.dag;
         let node_count = dag.node_count();
         let outcome = indexer
-            .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })? as usize;
+            .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })?
+            as usize;
         let mut intervention = vec![false; node_count];
         let mut overlay_at = vec![None; node_count];
         for &overlay in overlays {
-            let dense = indexer
-                .dense_id(TemporalNodeKey {
-                    variable: overlay.node.variable,
-                    offset: overlay.node.offset,
-                })?
-                as usize;
+            let dense = indexer.dense_id(TemporalNodeKey {
+                variable: overlay.node.variable,
+                offset: overlay.node.offset,
+            })? as usize;
             if intervention[dense] {
                 return Err(EstimationError::unsupported(
                     "Sequence assigns the same (variable, time) twice; refuse rather than collapse",
@@ -769,8 +767,7 @@ impl SequentialSetup {
         let mut column_of = vec![0; node_count];
         let mut max_lag = 0;
         for &i in &order {
-            let key =
-                indexer.key_of(i as u32)?;
+            let key = indexer.key_of(i as u32)?;
             let lag = u32::try_from(anchor - key.offset)
                 .map_err(|_| EstimationError::unsupported("invalid unfolded time offset"))?;
             max_lag = max_lag.max(lag);
@@ -789,8 +786,7 @@ impl SequentialSetup {
                 if hard || parent_ids.is_empty() || !parent_ids.iter().any(|&p| intervention[p]) {
                     continue;
                 }
-                let key = indexer
-                    .key_of(i as u32)?;
+                let key = indexer.key_of(i as u32)?;
                 let lag = u32::try_from(anchor - key.offset)
                     .map_err(|_| EstimationError::unsupported("invalid unfolded time offset"))?;
                 max_lag = max_lag.max(lag);
@@ -824,12 +820,10 @@ impl SequentialSetup {
                 dag.parents(DenseNodeId::from_raw(i as u32)).iter().map(|p| p.as_usize()).collect();
             // Stable coefficient positions across time copies, independent of dense
             // node order in the unfolding.
-            let child =
-                indexer.key_of(i as u32)?;
+            let child = indexer.key_of(i as u32)?;
             let mut keyed = Vec::with_capacity(parents[i].len());
             for &p in &parents[i] {
-                let parent = indexer
-                    .key_of(p as u32)?;
+                let parent = indexer.key_of(p as u32)?;
                 let lag = child.offset.checked_sub(parent.offset).ok_or_else(|| {
                     EstimationError::unsupported("unfolded parent lag overflowed")
                 })?;
@@ -1332,7 +1326,8 @@ fn estimate_sequential_with_gaps(
         let (effect, posterior) = composition.estimate(assumptions, validation, &mut ls_ws)?;
         return Ok((effect, Some(posterior), selection));
     }
-    let effect = block_bootstrap_estimate(&setup, assumptions, bootstrap_replicates, ctx, &mut ls_ws)?;
+    let effect =
+        block_bootstrap_estimate(&setup, assumptions, bootstrap_replicates, ctx, &mut ls_ws)?;
     Ok((effect, None, selection))
 }
 
@@ -1423,11 +1418,7 @@ impl BayesianComposition<'_> {
             if base[i].is_empty() {
                 continue;
             }
-            let variable = self
-                .problem
-                .indexer
-                .key_of(i as u32)?
-                .variable;
+            let variable = self.problem.indexer.key_of(i as u32)?.variable;
             let entry = gradients.entry(variable).or_insert_with(|| vec![0.0; base[i].len()]);
             for k in 0..base[i].len().min(entry.len()) {
                 entry[k] += per_node[i][k];
@@ -1442,8 +1433,7 @@ impl BayesianComposition<'_> {
         let child = indexer.key_of(i as u32)?;
         let mut parent_columns = Vec::with_capacity(self.setup.parents[i].len());
         for &p in &self.setup.parents[i] {
-            let parent =
-                indexer.key_of(p as u32)?;
+            let parent = indexer.key_of(p as u32)?;
             let lag = child
                 .offset
                 .checked_sub(parent.offset)
@@ -1453,7 +1443,8 @@ impl BayesianComposition<'_> {
                         EstimationError::unsupported("causal lag is not a nonnegative offset")
                     })
                 })?;
-            parent_columns.push(LaggedColumn { variable: parent.variable, lag: Lag::from_raw(lag) });
+            parent_columns
+                .push(LaggedColumn { variable: parent.variable, lag: Lag::from_raw(lag) });
         }
         Ok(parent_columns)
     }
@@ -1477,15 +1468,11 @@ impl BayesianComposition<'_> {
             if designs[i].is_none() {
                 continue;
             }
-            let child = self
-                .problem
-                .indexer
-                .key_of(i as u32)?;
+            let child = self.problem.indexer.key_of(i as u32)?;
             let parent_columns = self.parent_columns(i)?;
-            if mechanisms
-                .iter()
-                .any(|(variable, columns, _)| *variable == child.variable && columns != &parent_columns)
-            {
+            if mechanisms.iter().any(|(variable, columns, _)| {
+                *variable == child.variable && columns != &parent_columns
+            }) {
                 return Err(EstimationError::unsupported(
                     "stationary mechanism has inconsistent unfolded parents",
                 ));
@@ -1538,7 +1525,9 @@ impl BayesianComposition<'_> {
                 let modifier_is_parent: Vec<bool> = setup
                     .modifiers
                     .iter()
-                    .map(|modifier| parent_columns.iter().any(|column| column.variable == *modifier))
+                    .map(|modifier| {
+                        parent_columns.iter().any(|column| column.variable == *modifier)
+                    })
                     .collect();
                 let (design, slots) = extend_mechanism_design(
                     design,
@@ -1617,9 +1606,9 @@ impl BayesianComposition<'_> {
             let Some(design) = &setup.designs[i] else {
                 continue;
             };
-            let post = posts[owner[i]]
-                .as_ref()
-                .ok_or_else(|| EstimationError::unsupported("stationary mechanism was not fitted"))?;
+            let post = posts[owner[i]].as_ref().ok_or_else(|| {
+                EstimationError::unsupported("stationary mechanism was not fitted")
+            })?;
             coefficient_columns[i] = (0..design.ncols)
                 .map(|index| {
                     post.draws
@@ -1731,10 +1720,7 @@ fn level_posterior_assumption() -> AssumptionRecord {
 /// returned on the estimate so callers can report the resampling geometry without rebuilding
 /// the design. The lengthening refits every mechanism for its scores and scans each; without
 /// replicates no interval is published and the rule length is returned instead.
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "the maximum lag is a small u32 history length"
-)]
+#[allow(clippy::cast_possible_truncation, reason = "the maximum lag is a small u32 history length")]
 fn block_bootstrap_estimate(
     setup: &SequentialSetup,
     assumptions: AssumptionSet,

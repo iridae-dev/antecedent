@@ -778,7 +778,8 @@ impl Layout {
 fn validate_config(config: &SampledRecoveryConfig) -> Result<(), SampledRecoveryError> {
     let invalid = |message: &str| Err(refusal(SampledRecoveryDetail::InvalidInput, message));
     if config.interval_method == SampledIntervalMethod::Bca
-        && (config.replicates < SAMPLED_RECOVERY_MIN_REPLICATES || config.max_failed_fraction != 0.0)
+        && (config.replicates < SAMPLED_RECOVERY_MIN_REPLICATES
+            || config.max_failed_fraction != 0.0)
     {
         return invalid("BCa requires at least 2000 replicates and zero allowed failed replicates");
     }

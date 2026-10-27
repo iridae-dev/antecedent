@@ -981,7 +981,12 @@ fn fit_evaluation(
         return Err(refused("an evaluation fold has no rows; next attempt: assign that fold"));
     }
     let outcome = if let Some(terminal) = request.terminal {
-        std::borrow::Cow::Owned(pseudo_outcomes(request.panel, intercept, evaluation_fold, terminal)?)
+        std::borrow::Cow::Owned(pseudo_outcomes(
+            request.panel,
+            intercept,
+            evaluation_fold,
+            terminal,
+        )?)
     } else {
         std::borrow::Cow::Borrowed(outcome_column(request.panel, request.family, request.features))
     };

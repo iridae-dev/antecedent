@@ -281,7 +281,10 @@ fn survival_mean(arm: &[IntervalHazardPosterior]) -> f64 {
 }
 
 /// `E[(1 - exp(-h l)) / h] = ∫_0^l (rate / (rate + s))^shape ds`.
-#[allow(clippy::float_cmp, reason = "exactly shape 1 is the exponential-mixture branch of the integral")]
+#[allow(
+    clippy::float_cmp,
+    reason = "exactly shape 1 is the exponential-mixture branch of the integral"
+)]
 fn interval_area(posterior: &IntervalHazardPosterior) -> f64 {
     let IntervalHazardPosterior { length, shape, rate, .. } = *posterior;
     // `ln(rate / (rate + length))`, exact for a small `length / rate`.

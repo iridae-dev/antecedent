@@ -108,9 +108,13 @@ impl StaticPropensityDesign {
     /// Borrow the same validated numerical storage without another ownership copy.
     #[must_use]
     pub fn as_ref(&self) -> StaticPropensityDesignRef<'_> {
-        StaticPropensityDesignRef { x_colmajor: &self.x_colmajor, treatment: &self.treatment, nrows: self.nrows, ncols: self.ncols }
+        StaticPropensityDesignRef {
+            x_colmajor: &self.x_colmajor,
+            treatment: &self.treatment,
+            nrows: self.nrows,
+            ncols: self.ncols,
+        }
     }
-
 }
 
 /// Gaussian prior and draw settings of the propensity posterior.
@@ -410,16 +414,19 @@ mod borrowed_design_regression {
     use super::*;
     #[test]
     fn borrowed_and_owned_laplace_paths_share_inputs_and_identical_mode_draws() {
-        let mut x=vec![1.0;200]; x.extend((0..200).map(|i|if i>=100 {1.0}else{0.0}));
-        let y=(0..200).map(|i|if i<30 || (100..160).contains(&i) {1.0}else{0.0}).collect();
-        let design=StaticPropensityDesign::try_new(x,y,200).unwrap();
-        let borrowed=design.as_ref();
-        assert_eq!(borrowed.x_colmajor.as_ptr(),design.x_colmajor.as_ptr());
-        assert_eq!(borrowed.treatment.as_ptr(),design.treatment.as_ptr());
-        let prior=PropensityCoefficientPrior::new(2.0,8,13).unwrap();
-        let owned=prior.fit(&design).unwrap();
-        let viewed=prior.fit_borrowed(&borrowed).unwrap();
-        assert_eq!(owned.mode,viewed.mode); assert_eq!(owned.draws,viewed.draws);
-        assert!((viewed.score_at(&[1.0,0.0],0.05).unwrap().at_mode-0.305_098).abs()<1e-4);
+        let mut x = vec![1.0; 200];
+        x.extend((0..200).map(|i| if i >= 100 { 1.0 } else { 0.0 }));
+        let y =
+            (0..200).map(|i| if i < 30 || (100..160).contains(&i) { 1.0 } else { 0.0 }).collect();
+        let design = StaticPropensityDesign::try_new(x, y, 200).unwrap();
+        let borrowed = design.as_ref();
+        assert_eq!(borrowed.x_colmajor.as_ptr(), design.x_colmajor.as_ptr());
+        assert_eq!(borrowed.treatment.as_ptr(), design.treatment.as_ptr());
+        let prior = PropensityCoefficientPrior::new(2.0, 8, 13).unwrap();
+        let owned = prior.fit(&design).unwrap();
+        let viewed = prior.fit_borrowed(&borrowed).unwrap();
+        assert_eq!(owned.mode, viewed.mode);
+        assert_eq!(owned.draws, viewed.draws);
+        assert!((viewed.score_at(&[1.0, 0.0], 0.05).unwrap().at_mode - 0.305_098).abs() < 1e-4);
     }
 }

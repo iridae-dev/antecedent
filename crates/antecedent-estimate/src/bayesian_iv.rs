@@ -901,7 +901,9 @@ mod tests {
             assert!((accepted / (2.0 * VARIANCE_FLOOR_FRACTION * scale) - 1.0).abs() < 1e-12);
             assert!(matches!(
                 plug_in_variance(below, 7, column),
-                Err(EstimationError::Stats(antecedent_stats::StatsError::NonPositiveVariance { .. }))
+                Err(EstimationError::Stats(
+                    antecedent_stats::StatsError::NonPositiveVariance { .. }
+                ))
             ));
             assert!(plug_in_variance(0.0, 7, column).is_err());
         }

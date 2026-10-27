@@ -26,8 +26,11 @@
     )
 )]
 
+mod balanced;
 mod distance;
 mod generalized;
+#[cfg(test)]
+mod ipw_oracle;
 mod knn;
 mod levels;
 mod matching;
@@ -37,9 +40,6 @@ mod prepare;
 #[cfg(test)]
 pub(crate) mod scale_fixture;
 mod stratification;
-mod balanced;
-#[cfg(test)]
-mod ipw_oracle;
 pub(crate) mod weighting;
 
 pub use distance::DistanceMatching;
@@ -84,6 +84,7 @@ pub(crate) fn require_supported_inference(
     Ok(())
 }
 
+pub(crate) use balanced::population_linear_noise;
 pub(crate) use prepare::PropensityModel;
 pub use prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, default_propensity_overlap,
@@ -94,7 +95,6 @@ pub(crate) use prepare::{
     trim_of, trim_retained_rows,
 };
 pub use stratification::PropensityStratification;
-pub(crate) use balanced::population_linear_noise;
 pub use weighting::{BalancedWeightingInterval, PopulationLinearVariance, PropensityWeighting};
 
 use crate::overlap::{IpwTarget, OverlapReport};
@@ -336,8 +336,7 @@ mod tests {
         let (data, estimand) = confounded_scm_with_outlier(800, 21);
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let untrimmed =
-            PropensityWeighting::new().with_bootstrap_replicates(0);
+        let untrimmed = PropensityWeighting::new().with_bootstrap_replicates(0);
         let trimmed = PropensityWeighting { overlap: trim_overlap(), ..untrimmed.clone() };
         let mut ws = PropensityEstimationWorkspace::default();
         let raw = untrimmed
@@ -539,8 +538,8 @@ mod tests {
         let treatment = [1.0, 1.0, 0.0, 0.0];
         let outcome = [3.0, 4.0, 1.0, 2.0];
         let weights = [0.0, 0.0, 1.0, 1.0];
-        let err = hajek_difference(&TreatmentArm::classify(&treatment), &outcome, &weights)
-            .unwrap_err();
+        let err =
+            hajek_difference(&TreatmentArm::classify(&treatment), &outcome, &weights).unwrap_err();
         assert!(matches!(err, EstimationError::Data(_)), "err={err:?}");
     }
 
@@ -569,8 +568,7 @@ mod tests {
         let (data, estimand) = confounded_scm_with_outlier(800, 12);
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let untrimmed =
-            PropensityStratification::new().with_bootstrap_replicates(0);
+        let untrimmed = PropensityStratification::new().with_bootstrap_replicates(0);
         let trimmed = PropensityStratification { overlap: trim_overlap(), ..untrimmed.clone() };
 
         let mut ws = PropensityEstimationWorkspace::default();
@@ -711,12 +709,12 @@ mod tests {
                 AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                     .with_target_population(target.clone());
             for kind in kinds {
-                let propensity =
-                    PropensityMatching::new().with_bootstrap_replicates(0)
-                        .with_se_kind(kind)
-                        .with_cluster_ids(clusters.clone())
-                        .with_multiway_ids(vec![clusters.clone(), other.clone()])
-                        .with_panel_times(times.clone());
+                let propensity = PropensityMatching::new()
+                    .with_bootstrap_replicates(0)
+                    .with_se_kind(kind)
+                    .with_cluster_ids(clusters.clone())
+                    .with_multiway_ids(vec![clusters.clone(), other.clone()])
+                    .with_panel_times(times.clone());
                 let mut ws = PropensityEstimationWorkspace::default();
                 let prep = propensity.prepare(&data, &estimand, &query).unwrap();
                 let err = propensity.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap_err();
@@ -728,12 +726,12 @@ mod tests {
                     "propensity matching {target:?} {kind:?}: {err}"
                 );
 
-                let distance =
-                    DistanceMatching::new().with_bootstrap_replicates(0)
-                        .with_se_kind(kind)
-                        .with_cluster_ids(clusters.clone())
-                        .with_multiway_ids(vec![clusters.clone(), other.clone()])
-                        .with_panel_times(times.clone());
+                let distance = DistanceMatching::new()
+                    .with_bootstrap_replicates(0)
+                    .with_se_kind(kind)
+                    .with_cluster_ids(clusters.clone())
+                    .with_multiway_ids(vec![clusters.clone(), other.clone()])
+                    .with_panel_times(times.clone());
                 let mut ws = PropensityEstimationWorkspace::default();
                 let prep = distance.prepare(&data, &estimand, &query).unwrap();
                 let err = distance.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap_err();
@@ -746,8 +744,7 @@ mod tests {
                 );
             }
             // The licensed Abadie–Imbens homoskedastic SE is still published on the same data.
-            let licensed =
-                PropensityMatching::new().with_bootstrap_replicates(0);
+            let licensed = PropensityMatching::new().with_bootstrap_replicates(0);
             let mut ws = PropensityEstimationWorkspace::default();
             let prep = licensed.prepare(&data, &estimand, &query).unwrap();
             let fit = licensed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();

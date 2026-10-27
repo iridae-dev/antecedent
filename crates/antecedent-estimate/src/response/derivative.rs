@@ -17,10 +17,9 @@ use super::{
     AverageDerivativeScores, ContinuousResponseEstimator, CrossFitFold, PseudoOutcome,
     bias_corrected_interval_note, delta_method_interval_note, delta_method_standard_error,
     ensure_crossfit_size, fieller_elasticity_interval, fieller_interval_note, local_design_refusal,
-    multivariate_support, plugin::plugin_gradient_interval_withheld,
-    plugin::predict_one, push_outcome_tail_diagnostic, sample::CompleteSample, support_report,
-    transform_derivative, transform_point_derivative, transform_point_derivative_gradient,
-    treatment_sigma,
+    multivariate_support, plugin::plugin_gradient_interval_withheld, plugin::predict_one,
+    push_outcome_tail_diagnostic, sample::CompleteSample, support_report, transform_derivative,
+    transform_point_derivative, transform_point_derivative_gradient, treatment_sigma,
 };
 
 impl ContinuousResponseEstimator {
@@ -270,13 +269,7 @@ impl ContinuousResponseEstimator {
         at: &[f64],
         scale: DerivativeScale,
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
-        let run = self.plugin_gradient_run(
-            data,
-            outcomes,
-            treatments,
-            at,
-            false,
-        )?;
+        let run = self.plugin_gradient_run(data, outcomes, treatments, at, false)?;
         let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
         for (level, gradient) in run.levels.iter().zip(&run.gradients) {
             for (j, &raw) in gradient.iter().enumerate() {
@@ -305,13 +298,7 @@ impl ContinuousResponseEstimator {
         at: &[f64],
         direction: &[f64],
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
-        let run = self.plugin_gradient_run(
-            data,
-            outcomes,
-            treatments,
-            at,
-            false,
-        )?;
+        let run = self.plugin_gradient_run(data, outcomes, treatments, at, false)?;
         let values: Vec<f64> = run
             .gradients
             .iter()

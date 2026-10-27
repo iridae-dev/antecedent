@@ -8,9 +8,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::arm::TreatmentArm;
 use super::prepare::PreparedPropensityProblem;
 use super::weighting::{PopulationLinearVariance, hajek_iid_se};
+use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
 
 /// Positive exponential calibration of each arm to the full weighted covariate moments.
@@ -26,7 +26,9 @@ pub(super) fn balance_arm_weights(
     let target: Vec<f64> = (0..p).map(|c| (0..n).map(|i| mass(i) * x[c * n + i]).sum()).collect();
     let scale = (0..n).map(mass).sum::<f64>();
     for active in [false, true] {
-        let rows: Vec<usize> = (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(treatment[i])) == active).collect();
+        let rows: Vec<usize> = (0..n)
+            .filter(|&i| (TreatmentArm::is_treated_indicator(treatment[i])) == active)
+            .collect();
         let base: Vec<f64> = rows.iter().map(|&i| weights[i]).collect();
         let mut lambda = vec![0.0; p];
         let evaluate = |lambda: &[f64]| -> Option<(f64, Vec<f64>)> {
@@ -199,7 +201,9 @@ pub(crate) fn population_linear_noise(
     for active in [false, true] {
         let mut gram = vec![0.0; p * p];
         let mut rhs = vec![0.0; p];
-        for i in (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active) {
+        for i in
+            (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active)
+        {
             for c in 0..p {
                 rhs[c] += x[c * n + i] * h[i];
                 for d in 0..p {
@@ -209,7 +213,9 @@ pub(crate) fn population_linear_noise(
         }
         let coefficients = crate::util::solve_spd(&gram, &rhs, p)
             .ok_or_else(|| EstimationError::stats_msg("singular linear noise projection"))?;
-        for i in (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active) {
+        for i in
+            (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active)
+        {
             residual_direction[i] -= (0..p).map(|c| x[c * n + i] * coefficients[c]).sum::<f64>();
         }
     }
@@ -479,8 +485,7 @@ fn balanced_linearization(
         let raw = sign * weights[i] / (1.0 - leverage);
         diagonal[i] = scaling * raw;
         for (c, slot) in prop_row.iter_mut().enumerate() {
-            *slot =
-                score[i] * (0..p).map(|d| x[d * n + i] * prop_inverse[d * p + c]).sum::<f64>();
+            *slot = score[i] * (0..p).map(|d| x[d * n + i] * prop_inverse[d * p + c]).sum::<f64>();
         }
         for a in 0..2 {
             for c in 0..p {
@@ -584,22 +589,16 @@ mod tests {
         let mut design = vec![1.0; n];
         design.extend_from_slice(&z);
         let (_, e) = oracle_fit(&t, &y, &z, &mass, IpwTarget::Ate, None, None);
-        let mut weights: Vec<f64> =
-            (0..n).map(|i| mass[i] / if TreatmentArm::is_treated_indicator(t[i]) { e[i] } else { 1.0 - e[i] }).collect();
+        let mut weights: Vec<f64> = (0..n)
+            .map(|i| {
+                mass[i] / if TreatmentArm::is_treated_indicator(t[i]) { e[i] } else { 1.0 - e[i] }
+            })
+            .collect();
         balance_arm_weights(&design, 2, &t, Some(&mass), &mut weights).unwrap();
         let point = hajek_difference(&TreatmentArm::classify(&t), &y, &weights).unwrap();
-        let (psi, linear) = balanced_influence_values(
-            &design,
-            2,
-            &t,
-            &y,
-            Some(&mass),
-            &e,
-            None,
-            &weights,
-            point,
-        )
-        .unwrap();
+        let (psi, linear) =
+            balanced_influence_values(&design, 2, &t, &y, Some(&mass), &e, None, &weights, point)
+                .unwrap();
         let mean = psi.iter().sum::<f64>() / n as f64;
         let mapped = linear.operator.apply(&y);
         for i in 0..n {

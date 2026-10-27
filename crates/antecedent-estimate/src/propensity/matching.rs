@@ -38,7 +38,7 @@ use crate::inference::InferenceSpec;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::sampling_weights::SamplingWeights;
 use crate::se::{AnalyticSeKind, SeSpec};
-use crate::util::{sample_std};
+use crate::util::sample_std;
 
 /// Queries matched between cancellation checks when several donors are searched per query.
 const MATCH_CANCELLATION_CHUNK: usize = 1024;
@@ -825,7 +825,9 @@ fn match_scalar_sorted(
     ctx: &ExecutionContext,
 ) -> Result<(), EstimationError> {
     if queries.len() != n_queries {
-        return Err(EstimationError::from(StatsError::Shape { message: "queries length != n_queries * dim" }));
+        return Err(EstimationError::from(StatsError::Shape {
+            message: "queries length != n_queries * dim",
+        }));
     }
     let index = SortedScalarIndex::from_donors(donors);
     for (q, &query) in queries.iter().enumerate() {
@@ -833,7 +835,9 @@ fn match_scalar_sorted(
             return Err(EstimationError::from(StatsError::Cancelled));
         }
         if !query.is_finite() {
-            return Err(EstimationError::from(StatsError::Shape { message: "matching query must be finite" }));
+            return Err(EstimationError::from(StatsError::Shape {
+                message: "matching query must be finite",
+            }));
         }
         if let Some((donor, distance)) = index.nearest(query, caliper) {
             donor_rows[q] = donor;
@@ -1302,10 +1306,21 @@ pub(crate) fn matching_contrast(
         ));
     }
     let ate = matched_point_effect(&effects, target_weights)?;
-    let variance =
-        MatchedVariance { sample: &sample, target, arms: &arms, effects: &effects, target_weights, ate };
+    let variance = MatchedVariance {
+        sample: &sample,
+        target,
+        arms: &arms,
+        effects: &effects,
+        target_weights,
+        ate,
+    };
     let se_analytic = variance.analytic_se(se.kind)?;
-    Ok(MatchedEstimate { ate, se_analytic, retained_fraction, n_obs: effects.per_unit_effects.len() })
+    Ok(MatchedEstimate {
+        ate,
+        se_analytic,
+        retained_fraction,
+        n_obs: effects.per_unit_effects.len(),
+    })
 }
 
 /// Coefficient `c_i` of each sample row's outcome in the weighted pooled matching estimator

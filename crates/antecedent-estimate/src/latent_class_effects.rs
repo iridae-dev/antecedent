@@ -1076,11 +1076,10 @@ mod assignment_tests {
             vec![5.0, 4.0, 1.0, 8.0, 0.0],
             vec![1.0, 6.0, 4.0, 2.0, 3.0],
         ];
-        let total = |perm: &[usize]| -> f64 { perm.iter().enumerate().map(|(r, &c)| cost[r][c]).sum() };
-        let best = permutations(5)
-            .into_iter()
-            .map(|perm| total(&perm))
-            .fold(f64::INFINITY, f64::min);
+        let total =
+            |perm: &[usize]| -> f64 { perm.iter().enumerate().map(|(r, &c)| cost[r][c]).sum() };
+        let best =
+            permutations(5).into_iter().map(|perm| total(&perm)).fold(f64::INFINITY, f64::min);
         let assignment = min_cost_assignment(&cost).expect("finite costs");
         let mut seen = assignment.clone();
         seen.sort_unstable();

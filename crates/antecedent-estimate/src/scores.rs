@@ -13,7 +13,7 @@ use antecedent_core::VariableId;
 pub use antecedent_io_core::score_wire::{ScoreColumn, ScoreTableWire};
 
 use crate::error::EstimationError;
-use crate::joint_if::{joint_influence_covariance, kish_n_eff, weighted_mean, JointCovariance};
+use crate::joint_if::{JointCovariance, joint_influence_covariance, kish_n_eff, weighted_mean};
 
 /// Per-row cross-fitted AIPW scores.
 ///

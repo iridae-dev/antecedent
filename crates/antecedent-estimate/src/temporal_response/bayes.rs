@@ -39,8 +39,8 @@ use super::{
     assumptions::temporal_bayesian_tempering_assumption, band::max_deviation_band_columns,
     band::publish_simultaneous_band, plan::TemporalInterventionPlan,
     plan::plan_temporal_intervention, support::intervention_support, support::mean_curve_support,
-    surface::TREATMENT_COL, surface::design_column_means, surface::flatten_dose_horizon_grid,
-    surface::horizon_identification_of, surface::HorizonTreatmentRange,
+    surface::HorizonTreatmentRange, surface::TREATMENT_COL, surface::design_column_means,
+    surface::flatten_dose_horizon_grid, surface::horizon_identification_of,
 };
 
 /// Support diagnostic id of the residual test behind an untempered temporal curve.
@@ -157,15 +157,8 @@ impl TemporalResponseEstimator {
             status: identification_status,
             ctx,
         };
-        let HorizonFits {
-            mut rows,
-            ranges,
-            horizons,
-            levels,
-            tempering,
-            fits,
-            whiteness,
-        } = self.fit_horizons(&run, &mut assumptions)?;
+        let HorizonFits { mut rows, ranges, horizons, levels, tempering, fits, whiteness } =
+            self.fit_horizons(&run, &mut assumptions)?;
         let (joint_block, joint_unavailable) =
             tie_horizons(&mut rows, fits, temporal, estimator.seed, ctx)?;
         let cell_count = if target.intervention.is_some() { 1 } else { target.doses.len() };
@@ -176,7 +169,8 @@ impl TemporalResponseEstimator {
         // independent fits whose index pairing is a product of marginals, not a joint
         // trajectory posterior. Within a horizon every dose shares one coefficient draw.
         let n_joint = band_columns.iter().map(Vec::len).min().unwrap_or(0);
-        let cell_draws: Vec<&[f64]> = band_columns.iter().map(|values| &values[..n_joint]).collect();
+        let cell_draws: Vec<&[f64]> =
+            band_columns.iter().map(|values| &values[..n_joint]).collect();
         let simultaneous = max_deviation_band_columns(&mean, &cell_draws, 0.95);
         let (grid, dimension, mut support) = if let Some((level, shift)) = target.intervention {
             (
@@ -425,7 +419,13 @@ impl TemporalResponseEstimator {
             if intervention.is_some() {
                 fitted.levels.push(grid[0]);
             }
-            fitted.fits.push(HorizonFit::of(&posterior, &prep, aligned, base_weights, grid.clone()));
+            fitted.fits.push(HorizonFit::of(
+                &posterior,
+                &prep,
+                aligned,
+                base_weights,
+                grid.clone(),
+            ));
             let mut row = Vec::new();
             for dose in grid {
                 weights[1] = dose;
@@ -462,12 +462,10 @@ fn bayesian_target(
                     intervention: Some((level, shift)),
                 }),
                 TemporalInterventionPlan::Sequential { .. }
-                | TemporalInterventionPlan::Mechanisms { .. } => {
-                    Err(EstimationError::unsupported(
-                        "Bayesian multi-step Sequence uses sequential mechanism overlays, \
+                | TemporalInterventionPlan::Mechanisms { .. } => Err(EstimationError::unsupported(
+                    "Bayesian multi-step Sequence uses sequential mechanism overlays, \
                          not response.temporal.bayesian / bayesian.gcomp",
-                    ))
-                }
+                )),
             }
         }
         _ => Err(EstimationError::unsupported(
@@ -498,9 +496,10 @@ fn tie_horizons(
         .unwrap_or(1)
         .saturating_add(temporal.max_history_lag.unwrap_or(0));
     let span = usize::try_from(span).unwrap_or(usize::MAX);
-    let outcome = fits.into_iter().collect::<Result<Vec<_>, _>>().and_then(|fits| {
-        joint_trajectory_draws(&fits, span, seed, &ctx.rng).map(|j| (fits, j))
-    });
+    let outcome = fits
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .and_then(|fits| joint_trajectory_draws(&fits, span, seed, &ctx.rng).map(|j| (fits, j)));
     match outcome {
         Ok((fits, (theta, block))) => {
             for ((fit, columns), row) in fits.iter().zip(&theta).zip(rows.iter_mut()) {

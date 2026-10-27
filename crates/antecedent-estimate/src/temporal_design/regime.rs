@@ -48,8 +48,8 @@ use antecedent_core::{ExecutionContext, StreamDomain};
 use super::linalg::{cholesky, cholesky_solve, fit_logistic};
 use super::{MIN_CLUSTERS, PosteriorSummary, dense_labels, invalid, posterior_by_cluster_weights};
 use crate::error::EstimationError;
-use crate::util::refuse;
 use crate::util::dot;
+use crate::util::refuse;
 
 /// Stream key of the unit bootstrap.
 const BOOTSTRAP_STREAM: u64 = 0x7E5D_4E61_0000_0000;

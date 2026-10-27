@@ -163,8 +163,7 @@ pub fn temporal_curve_outcome_regressors(
             offset: treatment_offset.saturating_sub(outcome_offset),
         });
         for &dense in estimand.adjustment_set.iter() {
-            let key = indexer
-                .key_of(dense.raw())?;
+            let key = indexer.key_of(dense.raw())?;
             keys.push(TemporalNodeKey {
                 variable: key.variable,
                 offset: key.offset.saturating_sub(outcome_offset),

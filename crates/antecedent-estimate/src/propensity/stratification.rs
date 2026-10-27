@@ -9,8 +9,6 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions};
 
-use crate::inference::InferenceSpec;
-use crate::arm::TreatmentArm;
 use super::levels::OtherLevels;
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
@@ -18,7 +16,9 @@ use super::prepare::{
     prepare_propensity_problem_with_levels, restrict_to_rows, trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
+use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
+use crate::inference::InferenceSpec;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::sampling_weights::SamplingWeights;
 use crate::se::AnalyticSeKind;
@@ -576,7 +576,8 @@ pub(crate) fn stratified_ate(
     let weight_of = |i: usize| weights.map_or(1.0, |w| w[i]);
     let mut cells = vec![[ArmCell::default(); 2]; n_strata];
     for i in 0..treatment.len() {
-        let cell = &mut cells[stratum[i]][usize::from(TreatmentArm::is_treated_indicator(treatment[i]))];
+        let cell =
+            &mut cells[stratum[i]][usize::from(TreatmentArm::is_treated_indicator(treatment[i]))];
         cell.count += 1;
         cell.mass += weight_of(i);
         cell.sum += weight_of(i) * outcome[i];
@@ -590,7 +591,8 @@ pub(crate) fn stratified_ate(
     // outcome's mean dwarfs its spread (relative error ≈ ε·(ȳ/s)²), then the `max(0)` would
     // hide the negative result as a zero variance.
     for i in 0..treatment.len() {
-        let cell = &mut cells[stratum[i]][usize::from(TreatmentArm::is_treated_indicator(treatment[i]))];
+        let cell =
+            &mut cells[stratum[i]][usize::from(TreatmentArm::is_treated_indicator(treatment[i]))];
         let deviation = weight_of(i) * (outcome[i] - cell.mean);
         cell.squared_deviations += if weights.is_some() {
             deviation * deviation
@@ -751,7 +753,9 @@ fn regression_stratified_ate(
         let mut rhs = vec![0.0; p];
         let mut arm_count = 0;
         for i in 0..n {
-            if (TreatmentArm::is_treated_indicator(treatment[i])) != active || stratum_column[stratum[i]].is_none() {
+            if (TreatmentArm::is_treated_indicator(treatment[i])) != active
+                || stratum_column[stratum[i]].is_none()
+            {
                 continue;
             }
             arm_count += 1;

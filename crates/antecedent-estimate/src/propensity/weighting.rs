@@ -7,8 +7,6 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions};
 
-use crate::inference::InferenceSpec;
-use crate::arm::TreatmentArm;
 use super::balanced::{BalancedLinearization, balance_arm_weights, balanced_influence_values};
 use super::levels::OtherLevels;
 use super::prepare::{
@@ -16,7 +14,9 @@ use super::prepare::{
     clip_of, default_propensity_overlap, prepare_propensity_problem_with_levels, trim_of,
 };
 use crate::adjustment::EffectEstimate;
+use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
+use crate::inference::InferenceSpec;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::sampling_weights::SamplingWeights;
 use crate::se::AnalyticSeKind;
