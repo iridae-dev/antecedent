@@ -33,7 +33,7 @@ fn stamp_functional(
     defer: bool,
 ) -> Result<Option<StudyResult>, CausalError> {
     let input = DataInput::Tabular(data.clone());
-    result.custom_validator_names = custom_validator_names.to_vec();
+    result.extras.custom_validator_names = custom_validator_names.to_vec();
     crate::analysis::execute::push_gaussian_likelihood_disclosure(&mut result, inference, &input);
     if !defer {
         result.executed_contract = Some(handle.executed_contract(&input, refute, None)?);
@@ -221,7 +221,7 @@ impl SealedOperation for CheckedAipwOperation {
             Some(sink) => rebound.execute_observed(data, ctx, Some(sink))?,
             None => rebound.execute(data, ctx)?,
         };
-        result.custom_validator_names = rebound.custom_validator_names.to_vec();
+        result.extras.custom_validator_names = rebound.custom_validator_names.to_vec();
         let result = handle.stamp_aipw(
             &DataInput::Tabular(data.clone()),
             &rebound,
@@ -259,7 +259,7 @@ impl SealedOperation for CheckedDistributionOperation {
             common: Arc::clone(&self.common),
         };
         let mut result = rebound.execute_bound(data, ctx)?;
-        result.custom_validator_names = rebound.custom_validator_names.to_vec();
+        result.extras.custom_validator_names = rebound.custom_validator_names.to_vec();
         let stamped = handle
             .stamp_distribution(
                 &DataInput::Tabular(data.clone()),

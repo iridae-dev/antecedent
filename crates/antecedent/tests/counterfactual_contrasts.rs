@@ -285,8 +285,117 @@ fn the_result_artifact_round_trips_every_contrast() {
         )
         .is_err()
     );
-    // The portable static result states one contrast and refuses a set rather than truncate it.
-    assert!(result.static_result_wire(&CausalQuery::Counterfactual(joint_query()), None).is_err());
+}
+
+fn static_round_trip(
+    wire: &antecedent_io::StaticResultWire,
+    names: &[String],
+) -> Result<antecedent_io::StaticResultWire, antecedent_io::IoError> {
+    let payload = antecedent_io::CausalPayloadWire::StaticResult(Box::new(wire.clone()));
+    let encoded =
+        antecedent_io::encode_causal_payload_artifact(&payload, names.to_vec(), "static")?;
+    let mut bytes = Vec::new();
+    encoded.write_to(&mut bytes)?;
+    let (_, header, decoded) = antecedent_io::decode_causal_payload_artifact(&bytes)?;
+    assert_eq!(header.variable_names, names);
+    let antecedent_io::CausalPayloadWire::StaticResult(back) = decoded else {
+        panic!("a static result decodes as a static result");
+    };
+    Ok(*back)
+}
+
+/// Whether the CBOR of `wire` has a map key `contrasts` (a nine-byte text string).
+fn cbor_names_contrasts(wire: &antecedent_io::StaticResultWire) -> bool {
+    let mut cbor = Vec::new();
+    ciborium::into_writer(wire, &mut cbor).unwrap();
+    let key = b"\x69contrasts";
+    cbor.windows(key.len()).any(|window| window == key)
+}
+
+/// The portable static result carries every contrast of a result over several outcomes, validates
+/// them on encode and decode, and a single-contrast result keeps the bytes it always had.
+#[test]
+fn the_static_result_wire_carries_every_contrast_and_leaves_one_contrast_unchanged() {
+    let (data, graph) = scm();
+    let names: Vec<String> = ["x1", "x2", "y1", "y2"].map(String::from).to_vec();
+    let query = CausalQuery::Counterfactual(joint_query());
+    for replicates in [0, 12] {
+        let result = estimate(&data, &graph, joint_query(), InferenceMode::Frequentist, replicates);
+        let set = result.counterfactual_contrasts().expect("a contrast set payload");
+        let wire = result.static_result_wire(&query, None).expect("a static result of the set");
+        assert_eq!(wire.contrasts.iter().map(|c| c.outcome).collect::<Vec<_>>(), [2, 3]);
+        for (published, contrast) in wire.contrasts.iter().zip(&set.contrasts) {
+            assert_eq!(published.mean.to_bits(), contrast.mean_ite.to_bits());
+            assert_eq!(published.standard_error, contrast.standard_error);
+            assert_eq!(published.unit_effects.effects.as_slice(), contrast.unit_effects.as_ref());
+            assert_eq!(
+                published.unit_effects.extrapolative.as_ref().map(Vec::len),
+                Some(ROWS),
+                "the per-unit support flags are carried"
+            );
+        }
+        // The scalar and the single-form fields are the first outcome's.
+        let primary = set.primary();
+        assert_eq!(wire.estimate.to_bits(), result.estimate().as_effect().unwrap().ate.to_bits());
+        assert_eq!(wire.unit_effects.as_deref(), Some(primary.unit_effects.as_ref()));
+        assert_eq!((wire.control_level, wire.active_level), (0.0, 1.0));
+        assert!(cbor_names_contrasts(&wire), "a contrast set names its contrasts");
+
+        let back = static_round_trip(&wire, &names).expect("a contrast set round trips");
+        assert_eq!(back.contrasts, wire.contrasts);
+        assert_eq!(back.unit_effects, wire.unit_effects);
+        assert_eq!(back.estimate.to_bits(), wire.estimate.to_bits());
+
+        // Contrasts that are not the query's outcomes in order, that cover other units, or whose
+        // first is not the result's single form are refused, not repaired.
+        let mut swapped = wire.clone();
+        swapped.contrasts.swap(0, 1);
+        assert!(static_round_trip(&swapped, &names).is_err());
+        let mut truncated = wire.clone();
+        truncated.contrasts.pop();
+        assert!(static_round_trip(&truncated, &names).is_err());
+        let mut ragged = wire.clone();
+        ragged.contrasts[1].unit_effects.effects.pop();
+        assert!(static_round_trip(&ragged, &names).is_err());
+        let mut moved = wire.clone();
+        moved.unit_effects.as_mut().unwrap()[0] += 1.0;
+        assert!(static_round_trip(&moved, &names).is_err());
+        let mut non_finite = wire.clone();
+        non_finite.contrasts[1].mean = f64::NAN;
+        assert!(static_round_trip(&non_finite, &names).is_err());
+    }
+
+    // A single-contrast result states no contrasts: its bytes are those it always had, and a
+    // body written before the section existed still decodes.
+    let single = CounterfactualQuery::new(v(2), vec![Intervention::set(v(0), Value::f64(1.0))])
+        .with_control_level(0.0);
+    let result = estimate(&data, &graph, single.clone(), InferenceMode::Frequentist, 0);
+    let wire = result
+        .static_result_wire(&CausalQuery::Counterfactual(single), None)
+        .expect("a static result of the single form");
+    assert!(wire.contrasts.is_empty());
+    assert!(!cbor_names_contrasts(&wire), "a single contrast adds no key to its bytes");
+    let json = serde_json::to_value(&wire).unwrap();
+    assert!(json.get("contrasts").is_none());
+    let back = static_round_trip(&wire, &names).expect("a single contrast round trips");
+    assert!(back.contrasts.is_empty());
+    assert_eq!(back.unit_effects, wire.unit_effects);
+    let parsed: antecedent_io::StaticResultWire = serde_json::from_value(json).unwrap();
+    assert!(parsed.contrasts.is_empty());
+    // The single form refuses contrasts that are not its one outcome's.
+    let mut forged = wire.clone();
+    forged.contrasts = vec![antecedent_io::OutcomeContrastWire {
+        outcome: 3,
+        mean: 0.0,
+        standard_error: None,
+        unit_effects: antecedent_io::UnitEffectsWire {
+            effects: vec![0.0; ROWS],
+            homogeneous: false,
+            intervals: None,
+            extrapolative: None,
+        },
+    }];
+    assert!(static_round_trip(&forged, &names).is_err(), "contrasts must name the query's outcome");
 }
 
 /// The query's joint baseline is part of its wire and its canonical identity; a single control

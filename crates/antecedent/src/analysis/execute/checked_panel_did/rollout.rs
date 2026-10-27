@@ -128,12 +128,12 @@ impl super::CheckedPanelDidOperation {
         });
         if let Some(config) = self.extra.bayesian.as_ref() {
             let mut result = self.rollout_posterior(data, &panel, &spec, config, n, ctx)?;
-            result.missing_data = Some(self.missing_report(data, &complete, &kept)?);
+            result.extras.missing_data = Some(self.missing_report(data, &complete, &kept)?);
             return Ok(result);
         }
         let fit = estimate_rollout_did(&panel, &spec, resampling, ctx).map_err(estimation)?;
         let mut result = finish_rollout(self, data, self.query.outcome, self.report(&fit, n));
-        result.missing_data = Some(self.missing_report(data, &complete, &kept)?);
+        result.extras.missing_data = Some(self.missing_report(data, &complete, &kept)?);
         Ok(result)
     }
 

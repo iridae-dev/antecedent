@@ -331,7 +331,7 @@ impl CheckedRandomizedOperation {
         }
         result.rebind_interval(false);
         result.treatment = None;
-        result.missing_data = Some(self.missing_report(data, &observed)?);
+        result.extras.missing_data = Some(self.missing_report(data, &observed)?);
         Ok(result)
     }
 

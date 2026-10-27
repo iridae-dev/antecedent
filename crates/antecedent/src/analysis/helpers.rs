@@ -87,7 +87,6 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         provenance: args.provenance,
         support_status: None,
         structure_source: crate::support::StructureSource::Explicit,
-        candidate_selection: None,
         performance: ExecutionPerformanceRecord {
             native_execution: None,
             wall_time_ns: Some(args.wall_time_ns),
@@ -105,10 +104,13 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         },
         treatment: Some(args.treatment),
         outcome: args.outcome,
-        interval: None,
-        row_weights: None,
-        missing_data: None,
-        custom_validator_names: Vec::new(),
+        extras: crate::result::ResultExtras {
+            candidate_selection: None,
+            interval: None,
+            row_weights: None,
+            missing_data: None,
+            custom_validator_names: Vec::new(),
+        },
         executed_contract: None,
         population_registry: None,
         lowered_identity: None,
@@ -133,7 +135,7 @@ pub(crate) fn stamp_result_context(
     result.support_status = support_status;
     result.structure_source = structure_source;
     result.population_registry = population_registry.cloned();
-    result.custom_validator_names = custom_validator_names.to_vec();
+    result.extras.custom_validator_names = custom_validator_names.to_vec();
 }
 
 pub(crate) type ProvStep<'a> = (&'a str, &'a str, &'a [&'a str], &'a AssumptionSet);

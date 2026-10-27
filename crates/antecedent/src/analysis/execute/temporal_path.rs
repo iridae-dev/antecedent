@@ -758,7 +758,7 @@ impl super::Study {
             point_only,
             self.finish_identified_execute(args),
         );
-        result.missing_data = missing_data;
+        result.extras.missing_data = missing_data;
         Ok(result)
     }
 
@@ -825,7 +825,7 @@ impl super::Study {
             elapsed_ns(started),
         );
         let mut result = self.finish_identified_execute(args);
-        result.missing_data = missing_data;
+        result.extras.missing_data = missing_data;
         Ok(result)
     }
 
@@ -3084,7 +3084,7 @@ impl super::Study {
             point_only,
             self.finish_identified_execute(args),
         );
-        result.missing_data = missing_data;
+        result.extras.missing_data = missing_data;
         Ok(result)
     }
 
@@ -6081,7 +6081,7 @@ impl super::Study {
         ));
         let mut result = self.finish_identified_execute(finish.extra_diagnostics(diagnostics));
         if replicates.is_none() {
-            result.interval = None;
+            result.extras.interval = None;
         }
         result.posterior = None;
         result

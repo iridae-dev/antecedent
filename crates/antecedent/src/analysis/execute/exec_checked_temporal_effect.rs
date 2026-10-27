@@ -105,7 +105,7 @@ impl CheckedTemporalEffectExecution {
             point_only,
             super::finish_identified_execute_with_context(&self.result_context, None, args),
         );
-        result.missing_data = missing_data;
+        result.extras.missing_data = missing_data;
         Ok(result)
     }
 }

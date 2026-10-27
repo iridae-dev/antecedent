@@ -134,7 +134,7 @@ impl PreparedStudy {
         if result.estimate.as_effect().is_some_and(|effect| effect.joint.covariance.is_some()) {
             result.retained_resources.push(Arc::new(covariance_retention));
         }
-        if let (Some(retention), Some(_)) = (weight_retention, result.row_weights.as_ref()) {
+        if let (Some(retention), Some(_)) = (weight_retention, result.extras.row_weights.as_ref()) {
             result.retained_resources.push(Arc::new(retention));
         }
         check_retarget_cancelled(ctx)?;
@@ -544,7 +544,7 @@ impl PreparedStudy {
                     *target = binding.population();
                 }
             }
-            result.row_weights = Some(binding);
+            result.extras.row_weights = Some(binding);
         }
         if let CausalQuery::Response(q) = &self.analysis.query {
             result.payload = crate::result::ResultPayload::Response(

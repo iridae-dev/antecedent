@@ -24,19 +24,31 @@
 //!   same functional, re-evaluated without re-identifying.
 //!
 //! The population-level reading is not a per-unit counterfactual and says so in the result.
+//!
+//! Several outcomes under one hard intervention are answered from the same graph class: each
+//! outcome is identified (ID* per ADMG candidate, the per-unit route per DAG completion) and
+//! evaluated on the same table, and the result publishes one contrast per outcome as a
+//! counterfactual contrast set whose first outcome is the scalar estimate. A joint baseline of
+//! simultaneous interventions is answered where each completion is a DAG (a CPDAG, whose
+//! per-unit route replays every completion). The ID* decision procedure of the population-level
+//! route observes one treatment per outcome event, so a joint baseline on an ADMG, a PAG or a
+//! temporal ADMG is refused with that reason rather than reduced to one treatment of the set.
 
 use super::{
     AcceptedGraph, Arc, CausalError, CausalExprArena, CausalPosterior, CausalQuery,
     ClassAtomOutcome, CounterfactualProcedure, DerivationMeta, DerivationTrace, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate, EstimandMethod, EstimatorId,
-    ExecutionContext, ExprNode, GraphRef, IdentificationEnvelope, IdentificationPerformanceRecord,
-    IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
-    IdentifiedExecuteFinish, IdentifierId, Instant, OutcomeExprId, OverlapPolicy,
-    PhysicalExecutionPlan, RefuteSuite, Strategy, StudyResult, TableView, TabularData, VariableId,
-    elapsed_ns, provenance_ids,
+    ExecutionContext, ExprNode, GcmSlot, GraphRef, IdentificationEnvelope,
+    IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, Instant,
+    OutcomeExprId, OverlapPolicy, PhysicalExecutionPlan, RefuteSuite, Strategy, StudyResult,
+    TableView, TabularData, VariableId, elapsed_ns, provenance_ids,
 };
 use crate::counterfactual_id::{
     CounterfactualIdOptions, PreparedCounterfactualId, prepare_counterfactual_id,
+};
+use crate::gcm::{
+    ContrastedOutcome, CounterfactualContrasts, ExogenousPosterior, NoiseInferenceKind,
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
@@ -83,19 +95,78 @@ fn bounds(message: impl Into<String>) -> CausalError {
     CausalError::Compile { message: format!("{}{refusal}", crate::error::REASON_PREFIX) }
 }
 
+/// Say which outcome of a multi-outcome query a refusal belongs to (the text of a single outcome
+/// is left as the facade wrote it).
+fn name_outcome(error: CausalError, shape: &Shape, index: usize) -> CausalError {
+    match error {
+        CausalError::Compile { message } if shape.outcomes.len() > 1 => CausalError::Compile {
+            message: format!("{message} (outcome {:?})", shape.outcomes[index]),
+        },
+        other => other,
+    }
+}
+
 fn index_of(variable: VariableId) -> usize {
     variable.as_usize()
 }
 
-/// The treatment contrast and outcome of a pipeline counterfactual query.
-#[derive(Clone, Copy, Debug)]
+/// The treatment contrast and outcomes of a pipeline counterfactual query.
+#[derive(Clone, Debug)]
 struct Shape {
     treatment: VariableId,
+    /// The first outcome: the one the result's scalar estimate describes.
     outcome: VariableId,
+    /// Every outcome, in the query's order (the first is [`Self::outcome`]).
+    outcomes: Vec<VariableId>,
     /// The query's active level `x`.
     active: f64,
     /// The query's control level `x'`: the treatment level the population is observed at.
     observed: f64,
+}
+
+/// The treatment and its two levels of a query that is not the one-outcome, one-`Set` form.
+///
+/// # Errors
+///
+/// A reason-coded refusal for a nested intervention, an intervention that is not a hard `Set`,
+/// a control world on other variables than the active world, or a joint set of simultaneous
+/// interventions, whose effect on the jointly treated the ID* decision does not state.
+fn contrast_levels(query: &CounterfactualQuery) -> Result<(VariableId, f64, f64), CausalError> {
+    if query.allow_nested {
+        return Err(outside_contract(
+            "a nested intervention replays an ordered sequence of worlds on each unit's abducted \
+             noise, which a latent common cause makes undefined; the population-level route reads \
+             one hard intervention against a hard control of the same variable",
+        ));
+    }
+    let wrap = |error: CausalError| {
+        outside_contract(format!(
+            "{error}; the population-level route identifies hard interventions against a hard \
+             control of the same variables"
+        ))
+    };
+    let active = crate::gcm::world_levels(&query.interventions, false).map_err(wrap)?;
+    let control = crate::gcm::world_levels(&query.control_world(), false).map_err(wrap)?;
+    if active.iter().map(|(variable, _)| variable).ne(control.iter().map(|(variable, _)| variable))
+    {
+        return Err(outside_contract(
+            "the control world must intervene on the same variables as the active world",
+        ));
+    }
+    match (active.as_slice(), control.as_slice()) {
+        (&[(treatment, active)], &[(_, control)]) => Ok((treatment, active, control)),
+        ([], _) => Err(invalid_query("a counterfactual query names no intervention")),
+        _ => Err(outside_contract(format!(
+            "the query intervenes on {} variables at once ({:?}); the population-level route \
+             decides P(Y_x = y, X = x') by ID*, whose licensed shape observes one treatment per \
+             outcome event, so a joint baseline of simultaneous interventions on an Admg, a Pag \
+             or a temporal Admg is refused rather than reduced to one treatment of the set. Next \
+             attempt: state each treatment's contrast as its own query, or supply a Dag or a \
+             Cpdag, which answer simultaneous interventions",
+            active.len(),
+            active.iter().map(|(variable, _)| *variable).collect::<Vec<_>>(),
+        ))),
+    }
 }
 
 /// Compile the pipeline query into the contrast the population-level route answers.
@@ -103,21 +174,34 @@ struct Shape {
 /// # Errors
 ///
 /// A reason-coded refusal when the query is not one hard intervention against a hard control of
-/// the same variable on one outcome.
+/// the same variable (on one or several distinct outcomes).
 fn shape_of(query: &CounterfactualQuery) -> Result<Shape, CausalError> {
     query.validate()?;
-    let (treatment, active, observed) = super::binary_cf_interventions(query).map_err(|error| {
-        outside_contract(format!(
-            "{error}; the population-level route identifies one hard intervention against a \
-             hard control of the same variable on one outcome"
-        ))
-    })?;
-    let outcome = *query
-        .outcomes
+    let (treatment, active, observed) = if query.outcomes.len() == 1
+        && query.interventions.len() == 1
+        && query.joint_control.is_empty()
+        && !query.allow_nested
+    {
+        super::binary_cf_interventions(query).map_err(|error| {
+            outside_contract(format!(
+                "{error}; the population-level route identifies one hard intervention against a \
+                 hard control of the same variable on one outcome"
+            ))
+        })?
+    } else {
+        contrast_levels(query)?
+    };
+    let outcomes: Vec<VariableId> = query.outcomes.to_vec();
+    let outcome = *outcomes
         .first()
         .ok_or_else(|| invalid_query("a counterfactual query names no outcome"))?;
-    if outcome == treatment {
-        return Err(invalid_query("treatment and outcome must be distinct"));
+    for (index, candidate) in outcomes.iter().enumerate() {
+        if *candidate == treatment {
+            return Err(invalid_query("treatment and outcome must be distinct"));
+        }
+        if outcomes[..index].contains(candidate) {
+            return Err(invalid_query("the outcomes of a counterfactual must be distinct"));
+        }
     }
     if !active.is_finite()
         || !observed.is_finite()
@@ -127,7 +211,7 @@ fn shape_of(query: &CounterfactualQuery) -> Result<Shape, CausalError> {
             "the counterfactual and the control levels must be finite and distinct",
         ));
     }
-    Ok(Shape { treatment, outcome, active, observed })
+    Ok(Shape { treatment, outcome, outcomes, active, observed })
 }
 
 /// The finite-discrete table of the graph's variables: levels, names and the cell of every row.
@@ -271,10 +355,11 @@ impl Table {
     }
 }
 
-/// The event query of the facade: `P(Y_x = y | X = x')` at the outcome's first level, whose
-/// published contrast `E[Y_x | X = x'] - E[Y | X = x']` is over every level.
+/// The event query of the facade for `outcome`: `P(Y_x = y | X = x')` at the outcome's first
+/// level, whose published contrast `E[Y_x | X = x'] - E[Y | X = x']` is over every level.
 fn event_query(
     shape: &Shape,
+    outcome: VariableId,
     order: &[VariableId],
     table: &Table,
 ) -> Result<CounterfactualEventQuery, CausalError> {
@@ -286,7 +371,7 @@ fn event_query(
             .map(VariableId::from_raw)
             .ok_or_else(|| invalid_query("a query variable is not a variable of the graph"))
     };
-    let (treatment, outcome) = (node(shape.treatment)?, node(shape.outcome)?);
+    let (treatment, outcome) = (node(shape.treatment)?, node(outcome)?);
     let level = table
         .levels
         .get(index_of(outcome))
@@ -315,9 +400,10 @@ fn node_variables(nodes: &[antecedent_core::NodeRef]) -> Result<Vec<VariableId>,
         .collect()
 }
 
-/// One identified functional: a completion's candidate graph and its ID* derivation.
+/// One identified candidate: a completion's candidate graph and its ID* derivation of each
+/// outcome, in the query's order.
 struct Case {
-    prepared: PreparedCounterfactualId,
+    prepared: Vec<PreparedCounterfactualId>,
     /// Share of its completion's unit weight (candidates with distinct functionals split it).
     share: f64,
 }
@@ -342,25 +428,38 @@ struct Record {
     refusal: Option<String>,
 }
 
-fn pool(values: &[f64], cases: &[Case]) -> f64 {
+/// The share-weighted mean over the cases of outcome `outcome`, from values laid out as
+/// [`case_values`] lays them (case-major, `width` outcomes per case).
+fn pool(values: &[f64], cases: &[Case], width: usize, outcome: usize) -> f64 {
     let total: f64 = cases.iter().map(|case| case.share).sum();
-    values.iter().zip(cases).map(|(value, case)| value * case.share).sum::<f64>() / total
+    cases
+        .iter()
+        .enumerate()
+        .map(|(index, case)| values[index * width + outcome] * case.share)
+        .sum::<f64>()
+        / total
 }
 
-/// Values of every case's identified functional on `law`.
+/// The values of `outcome` over the cases, from values laid out as [`case_values`] lays them.
+fn outcome_column(values: &[f64], width: usize, outcome: usize) -> Vec<f64> {
+    values.iter().skip(outcome).step_by(width).copied().collect()
+}
+
+/// Values of every case's identified functional on `law`: case-major, one value per outcome.
 fn case_values(
     cases: &[Case],
     law: &ExactDiscreteLaw,
     ctx: &ExecutionContext,
 ) -> Result<Vec<f64>, CausalError> {
-    cases
-        .iter()
-        .map(|case| {
-            case.prepared.evaluate(law, ctx)?.effect.ok_or_else(|| {
+    let mut values = Vec::with_capacity(cases.iter().map(|case| case.prepared.len()).sum());
+    for case in cases {
+        for prepared in &case.prepared {
+            values.push(prepared.evaluate(law, ctx)?.effect.ok_or_else(|| {
                 invalid_query("the outcome levels are not numeric; the contrast has no value")
-            })
-        })
-        .collect()
+            })?);
+        }
+    }
+    Ok(values)
 }
 
 /// Whether every value is the first one, up to the agreement tolerance.
@@ -402,11 +501,12 @@ fn assumptions() -> AssumptionSet {
     set
 }
 
-/// The identification result and estimand of one identified case.
+/// The identification result and estimand of one identified case: the first outcome's
+/// functional is the estimand, and the derivation text names every outcome's ID* derivation.
 fn identified_case(
     query: &CounterfactualQuery,
     shape: &Shape,
-    prepared: &PreparedCounterfactualId,
+    prepared: &[PreparedCounterfactualId],
     required: &AssumptionSet,
 ) -> (IdentificationResult, IdentifiedEstimand) {
     let mut arena = CausalExprArena::new();
@@ -419,7 +519,17 @@ fn identified_case(
         function: OutcomeExprId::identity(shape.outcome),
         distribution,
     });
-    let derivation = prepared.derivation();
+    let derivation = prepared[0].derivation();
+    let others = if prepared.len() > 1 {
+        format!(
+            "; the {} outcomes {:?} are each identified from the same graph by one ID* \
+             derivation, and this functional names the first",
+            prepared.len(),
+            shape.outcomes,
+        )
+    } else {
+        String::new()
+    };
     arena.set_derivation(
         functional,
         DerivationMeta::rule(
@@ -428,7 +538,7 @@ fn identified_case(
                 "ID* identification of P(Y_x = y, X = x') for treatment {:?} (active {}, \
                  control {}) and outcome {:?}: {} district term(s) over {} search operation(s); \
                  the functional carried here names the outcome and treatment, the derivation \
-                 itself is the counterfactual-identification derivation",
+                 itself is the counterfactual-identification derivation{others}",
                 shape.treatment,
                 shape.active,
                 shape.observed,
@@ -481,13 +591,13 @@ fn refused_case(query: &CounterfactualQuery, message: &str) -> IdentificationRes
     })
 }
 
-/// Posterior of one column of Bayesian-bootstrap draws.
+/// Posterior of columns of Bayesian-bootstrap draws, the first being the primary effect.
 fn posterior_of(
-    column: Vec<f64>,
+    columns: Vec<(String, Vec<f64>)>,
     required: &AssumptionSet,
 ) -> Result<CausalPosterior, CausalError> {
     let mut posterior = super::attribution_path::attribution_posterior(
-        vec![("counterfactual_effect".to_owned(), column)],
+        columns,
         AssumptionSet::default(),
         IdentificationStatus::NonparametricallyIdentified,
         POSTERIOR_BACKEND,
@@ -495,6 +605,16 @@ fn posterior_of(
     )?;
     posterior.assumptions = required.clone();
     Ok(posterior)
+}
+
+/// The posterior column of outcome `outcome`: the established name for one outcome, the
+/// outcome's raw id beside it for several.
+fn column_name(shape: &Shape, outcome: usize) -> String {
+    if shape.outcomes.len() == 1 {
+        "counterfactual_effect".to_owned()
+    } else {
+        format!("counterfactual_effect[{}]", shape.outcomes[outcome].raw())
+    }
 }
 
 /// What the resampling of the identified functional produced.
@@ -662,8 +782,13 @@ impl super::Study {
                     )?;
                 }
                 let requested = self.settings.bootstrap_replicates;
-                let _admitted =
-                    super::gcm_bootstrap::admit_replicates(ctx, requested, cases.len(), rows)?;
+                let width = cases.first().map_or(1, |case| case.prepared.len());
+                let _admitted = super::gcm_bootstrap::admit_replicates(
+                    ctx,
+                    requested,
+                    cases.len() * width,
+                    rows,
+                )?;
                 let mut matrix = Vec::new();
                 let mut failed = 0_u32;
                 for replicate in 0..requested {
@@ -706,11 +831,16 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let shape = shape_of(query)?;
+        let width = shape.outcomes.len();
         let (completions, order, incomplete) = self.latent_completions(ctx)?;
         let completions_retained = completions.len();
         let variables = order.len();
         let table = Table::read(data, &order)?;
-        let event = event_query(&shape, &order, &table)?;
+        let events = shape
+            .outcomes
+            .iter()
+            .map(|&outcome| event_query(&shape, outcome, &order, &table))
+            .collect::<Result<Vec<_>, CausalError>>()?;
         let required = assumptions();
 
         // Identify every candidate of every completion. A completion any of whose candidates
@@ -722,7 +852,7 @@ impl super::Study {
             let found = match completion.candidates {
                 Candidates::Refused(error) => Err(error),
                 Candidates::Open(admgs) => {
-                    let mut found: Vec<PreparedCounterfactualId> = Vec::new();
+                    let mut found: Vec<Vec<PreparedCounterfactualId>> = Vec::new();
                     let mut forms: Vec<String> = Vec::new();
                     let mut refusal = None;
                     for admg in &admgs {
@@ -731,25 +861,36 @@ impl super::Study {
                                 stage: super::super::stage::STAGE_ESTIMATE_POINT,
                             });
                         }
-                        match prepare_counterfactual_id(
-                            admg.clone(),
-                            table.names.clone(),
-                            table.levels.clone(),
-                            &event,
-                            CounterfactualIdOptions::default(),
-                            ctx,
-                        ) {
-                            Ok(prepared) => {
-                                let form = prepared.derivation().canonical_text();
-                                if !forms.contains(&form) {
-                                    forms.push(form);
-                                    found.push(prepared);
+                        // One ID* derivation per outcome on this candidate: a candidate any of
+                        // whose outcomes ID* refuses is refused as a whole.
+                        let mut derived = Vec::with_capacity(width);
+                        for (index, event) in events.iter().enumerate() {
+                            match prepare_counterfactual_id(
+                                admg.clone(),
+                                table.names.clone(),
+                                table.levels.clone(),
+                                event,
+                                CounterfactualIdOptions::default(),
+                                ctx,
+                            ) {
+                                Ok(prepared) => derived.push(prepared),
+                                Err(error) => {
+                                    refusal = Some(name_outcome(error, &shape, index));
+                                    break;
                                 }
                             }
-                            Err(error) => {
-                                refusal = Some(error);
-                                break;
-                            }
+                        }
+                        if refusal.is_some() {
+                            break;
+                        }
+                        let form = derived
+                            .iter()
+                            .map(|prepared| prepared.derivation().canonical_text())
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        if !forms.contains(&form) {
+                            forms.push(form);
+                            found.push(derived);
                         }
                     }
                     match refusal {
@@ -798,9 +939,11 @@ impl super::Study {
         // The point: the identified functionals on the observed cell counts.
         let point_law = table.empirical_law(table.counts(&vec![1.0; table.cells.len()]))?;
         let values = case_values(&cases, &point_law, ctx)?;
-        let pooled = pool(&values, &cases);
+        let columns: Vec<Vec<f64>> =
+            (0..width).map(|outcome| outcome_column(&values, width, outcome)).collect();
+        let pooled = pool(&values, &cases, width, 0);
         let unidentified = records.iter().any(|record| record.case.is_none());
-        let agreeing = agree(&values);
+        let agreeing = columns.iter().all(|column| agree(column));
         let resampled = self.resample_counterfactual(&table, &cases, ctx)?;
 
         // Identification: one case's own result for an ADMG, the completion envelope for a PAG.
@@ -840,7 +983,7 @@ impl super::Study {
         let outcomes: Vec<ClassAtomOutcome> = records
             .iter()
             .map(|record| match record.case {
-                Some(case) => ClassAtomOutcome::Evaluated(values[case]),
+                Some(case) => ClassAtomOutcome::Evaluated(columns[0][case]),
                 None => ClassAtomOutcome::NotEvaluated,
             })
             .collect();
@@ -861,6 +1004,11 @@ impl super::Study {
         let mut posterior: Option<CausalPosterior> = None;
         let mut replicates_ok = None;
         let mut n_draws = None;
+        // Each outcome's published mean and standard error: the pooled point and no standard
+        // error until a resampling forms one.
+        let mut means: Vec<f64> =
+            (0..width).map(|outcome| pool(&values, &cases, width, outcome)).collect();
+        let mut standard_errors: Vec<Option<f64>> = vec![None; width];
         match resampled {
             Resampled::None => diagnostics.push(Diagnostic::new(
                 "estimate.counterfactual.uncertainty_unavailable",
@@ -876,9 +1024,17 @@ impl super::Study {
                 replicates_ok = Some(ok);
                 if publishes_own_uncertainty {
                     let pooled_rows: Vec<f64> =
-                        matrix.iter().map(|row| pool(row, &cases)).collect();
+                        matrix.iter().map(|row| pool(row, &cases, width, 0)).collect();
                     estimate.uncertainty.bootstrap =
                         super::gcm_bootstrap::accounting(&pooled_rows, failed, requested);
+                    standard_errors[0] = estimate.uncertainty.bootstrap.se;
+                    for (outcome, standard_error) in standard_errors.iter_mut().enumerate().skip(1)
+                    {
+                        let rows: Vec<f64> =
+                            matrix.iter().map(|row| pool(row, &cases, width, outcome)).collect();
+                        *standard_error =
+                            super::gcm_bootstrap::accounting(&rows, failed, requested).se;
+                    }
                 } else {
                     estimate.uncertainty.bootstrap = BootstrapAccounting {
                         se: None,
@@ -890,10 +1046,12 @@ impl super::Study {
                     diagnostics
                         .extend(super::envelope_se_omission_diagnostic(cases.len(), f64::NAN));
                     if let Some(mixture) = mixture.as_mut() {
+                        let primary: Vec<Vec<f64>> =
+                            matrix.iter().map(|row| outcome_column(row, width, 0)).collect();
                         mixture.identified_set_interval =
                             antecedent_estimate::imbens_manski_shared_replicates(
-                                &values,
-                                &matrix,
+                                &columns[0],
+                                &primary,
                                 1.0,
                                 table.cells.len(),
                                 0.95,
@@ -925,8 +1083,18 @@ impl super::Study {
             Resampled::Draws { matrix } => {
                 n_draws = Some(u32::try_from(matrix.len()).unwrap_or(u32::MAX));
                 if publishes_own_uncertainty {
-                    let column: Vec<f64> = matrix.iter().map(|row| pool(row, &cases)).collect();
-                    let draws = posterior_of(column, &required)?;
+                    let named: Vec<(String, Vec<f64>)> = (0..width)
+                        .map(|outcome| {
+                            (
+                                column_name(&shape, outcome),
+                                matrix
+                                    .iter()
+                                    .map(|row| pool(row, &cases, width, outcome))
+                                    .collect(),
+                            )
+                        })
+                        .collect();
+                    let draws = posterior_of(named, &required)?;
                     let index = draws.effect_column().ok_or_else(|| CausalError::Compile {
                         message: "counterfactual posterior missing effect column".into(),
                     })?;
@@ -937,6 +1105,12 @@ impl super::Study {
                         OverlapPolicy::ExplicitOverride,
                     );
                     estimate.uncertainty.analytic.se = draws.summaries.sd[index];
+                    for (outcome, (mean, standard_error)) in
+                        means.iter_mut().zip(standard_errors.iter_mut()).enumerate()
+                    {
+                        *mean = draws.summaries.mean[outcome];
+                        *standard_error = Some(draws.summaries.sd[outcome]);
+                    }
                     posterior = Some(draws);
                 } else {
                     diagnostics
@@ -944,8 +1118,12 @@ impl super::Study {
                     if let Some(mixture) = mixture.as_mut() {
                         for (atom, record) in mixture.atoms.iter_mut().zip(&records) {
                             if let Some(case) = record.case {
-                                let column: Vec<f64> = matrix.iter().map(|row| row[case]).collect();
-                                atom.posterior = Some(posterior_of(column, &required)?);
+                                let column: Vec<f64> =
+                                    matrix.iter().map(|row| row[case * width]).collect();
+                                atom.posterior = Some(posterior_of(
+                                    vec![(column_name(&shape, 0), column)],
+                                    &required,
+                                )?);
                             }
                         }
                     }
@@ -990,7 +1168,7 @@ impl super::Study {
                 ),
             ));
         }
-        if let Some(derivation) = cases.first().map(|case| case.prepared.derivation()) {
+        if let Some(derivation) = cases.first().map(|case| case.prepared[0].derivation()) {
             diagnostics.push(Diagnostic::new(
                 "estimate.counterfactual.id_star",
                 DiagnosticKind::Scientific,
@@ -1006,6 +1184,38 @@ impl super::Study {
                 ),
             ));
         }
+
+        if width > 1 {
+            diagnostics.push(outcomes_diagnostic(
+                &shape.outcomes,
+                &columns,
+                publishes_own_uncertainty,
+            ));
+        }
+
+        // Several outcomes publish one contrast each. The contrast is the population-level mean
+        // effect, so it carries no per-unit effects, support flags or noise abduction.
+        let contrasts = (width > 1).then(|| {
+            Box::new(CounterfactualContrasts {
+                treatments: Arc::from([shape.treatment]),
+                contrasts: shape
+                    .outcomes
+                    .iter()
+                    .enumerate()
+                    .map(|(index, &outcome)| ContrastedOutcome {
+                        outcome,
+                        unit_effects: Arc::from([]),
+                        mean_ite: means[index],
+                        standard_error: standard_errors[index],
+                        unit_effect_intervals: None,
+                        unit_extrapolative: None,
+                        unit_effects_homogeneous: false,
+                    })
+                    .collect(),
+                noise_inference: NoiseInferenceKind::AssumedNoise,
+                exogenous: unabducted_exogenous(),
+            })
+        });
 
         let certificate = envelope.map(|envelope| crate::Identification::Envelope {
             envelope,
@@ -1029,6 +1239,7 @@ impl super::Study {
                 certificate,
                 n_draws,
                 posterior,
+                gcm: contrasts.map(GcmSlot::CounterfactualContrasts),
                 structural_response: mixture,
                 identify_provenance: Some(provenance_ids(
                     "identify.counterfactual_id",
@@ -1100,11 +1311,22 @@ impl super::Study {
             });
             results.push(completion.execute_counterfactual(data, dag, query, physical, ctx)?);
         }
-        let values: Vec<f64> = results
-            .iter()
-            .map(|result| result.estimate.as_effect().map_or(f64::NAN, |effect| effect.ate))
+        // One column of completion values per outcome: a contrast set carries each outcome's
+        // mean effect, the single form its one scalar.
+        let width = results[0].counterfactual_contrasts().map_or(1, |set| set.contrasts.len());
+        let columns: Vec<Vec<f64>> = (0..width)
+            .map(|outcome| {
+                results
+                    .iter()
+                    .map(|result| match result.counterfactual_contrasts() {
+                        Some(set) => set.contrasts.get(outcome).map_or(f64::NAN, |c| c.mean_ite),
+                        None => result.estimate.as_effect().map_or(f64::NAN, |effect| effect.ate),
+                    })
+                    .collect()
+            })
             .collect();
-        if values.iter().any(|value| !value.is_finite()) {
+        let values: Vec<f64> = columns[0].clone();
+        if columns.iter().flatten().any(|value| !value.is_finite()) {
             return Err(CausalError::Compile {
                 message: "a DAG completion produced no finite counterfactual effect".into(),
             });
@@ -1121,7 +1343,7 @@ impl super::Study {
         let posteriors: Vec<Option<CausalPosterior>> =
             results.iter().map(|result| result.posterior.clone()).collect();
         let envelope = IdentificationEnvelope::from_cases(cases);
-        let agreeing = agree(&values);
+        let agreeing = columns.iter().all(|column| agree(column));
         let outcomes: Vec<ClassAtomOutcome> =
             values.iter().map(|&value| ClassAtomOutcome::Evaluated(value)).collect();
         let mut mixture = if agreeing {
@@ -1151,6 +1373,27 @@ impl super::Study {
             ));
         } else {
             let pooled = values.iter().sum::<f64>() / values.len() as f64;
+            // Per-unit effects belong to no single completion: the contrast set keeps each
+            // outcome's enumeration-weighted mean and nothing per unit.
+            let pooled_set = result.counterfactual_contrasts().map(|set| CounterfactualContrasts {
+                treatments: Arc::clone(&set.treatments),
+                contrasts: set
+                    .contrasts
+                    .iter()
+                    .zip(&columns)
+                    .map(|(contrast, column)| ContrastedOutcome {
+                        outcome: contrast.outcome,
+                        unit_effects: Arc::from([]),
+                        mean_ite: column.iter().sum::<f64>() / column.len() as f64,
+                        standard_error: None,
+                        unit_effect_intervals: None,
+                        unit_extrapolative: None,
+                        unit_effects_homogeneous: false,
+                    })
+                    .collect(),
+                noise_inference: NoiseInferenceKind::AssumedNoise,
+                exogenous: unabducted_exogenous(),
+            });
             if let Some(effect) = result.estimate.as_effect_mut() {
                 effect.ate = pooled;
                 effect.uncertainty.analytic.se = f64::NAN;
@@ -1163,14 +1406,20 @@ impl super::Study {
                 }
             }
             result.posterior = None;
-            result.payload = crate::result::ResultPayload::Scalar;
-            result.interval = None;
+            result.payload = match pooled_set {
+                Some(set) => crate::result::ResultPayload::CounterfactualContrasts(Box::new(set)),
+                None => crate::result::ResultPayload::Scalar,
+            };
+            result.extras.interval = None;
             result.rebind_interval(self.settings.inference.is_bayesian());
             diagnostics.extend(super::envelope_se_omission_diagnostic(dags.len(), f64::NAN));
             if let Some(set) = mixture.as_ref().and_then(|mixture| {
                 super::pag_path::static_class_identified_set_diagnostic(mixture, "cpdag")
             }) {
                 diagnostics.push(set);
+            }
+            if width > 1 {
+                diagnostics.push(outcomes_diagnostic(&query.outcomes, &columns, false));
             }
             diagnostics.push(Diagnostic::new(
                 "estimate.counterfactual.completions_disagree",
@@ -1215,6 +1464,54 @@ impl super::Study {
         };
         Ok(self.attach_certificate(result, certificate))
     }
+}
+
+/// The exogenous state of a contrast set no unit's noise was abducted for: empty, and labelled
+/// as assumed because nothing was recovered from the factual rows.
+fn unabducted_exogenous() -> ExogenousPosterior {
+    ExogenousPosterior {
+        noise: Arc::from([]),
+        n_units: 0,
+        n_nodes: 0,
+        kind: NoiseInferenceKind::AssumedNoise,
+        assumed_columns: Arc::from([]),
+    }
+}
+
+/// What a result over several outcomes states: each outcome's contrast from the same structure,
+/// and the range of each outcome's value over the identified functionals when they disagree.
+fn outcomes_diagnostic(
+    outcomes: &[VariableId],
+    columns: &[Vec<f64>],
+    own_uncertainty: bool,
+) -> Diagnostic {
+    let mut message = format!(
+        "{} outcomes {:?} are contrasted from the same structure and table: the scalar estimate \
+         is the first outcome's and the contrast set carries every outcome's mean effect",
+        outcomes.len(),
+        outcomes,
+    );
+    if !own_uncertainty {
+        let ranges: Vec<String> = outcomes
+            .iter()
+            .zip(columns)
+            .map(|(outcome, column)| {
+                let low = column.iter().copied().fold(f64::INFINITY, f64::min);
+                let high = column.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                format!(
+                    "outcome {outcome:?} ranges over [{low}, {high}] across {} value(s)",
+                    column.len()
+                )
+            })
+            .collect();
+        message = format!("{message}; {}", ranges.join("; "));
+    }
+    Diagnostic::new(
+        "estimate.counterfactual.outcomes",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        message,
+    )
 }
 
 /// The estimand the population-level route answers, stated in the result.

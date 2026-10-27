@@ -219,7 +219,7 @@ impl super::Study {
             started,
             ctx,
         );
-        result.missing_data = missing_data;
+        result.extras.missing_data = missing_data;
         Ok(result)
     }
 

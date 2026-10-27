@@ -382,7 +382,7 @@ where
     };
     // The interval of the first completed table does not describe the pooled estimate, and
     // the pooled construction has no coverage record yet.
-    result.interval = None;
+    result.extras.interval = None;
     result.executed_contract = None;
     let variables: Vec<VariableId> = analysed_variables(&result);
     let mask = data.storage().analysis_mask();
@@ -394,7 +394,7 @@ where
         .collect();
     let mut missing = missing_data::report(MissingRoute::Static, true, covariates, accounting);
     missing.imputation = Some(report);
-    result.missing_data = Some(missing);
+    result.extras.missing_data = Some(missing);
     Ok(result)
 }
 

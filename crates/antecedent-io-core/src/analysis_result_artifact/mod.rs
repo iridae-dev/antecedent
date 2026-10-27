@@ -1493,6 +1493,7 @@ pub use association::{
     AssociationPosteriorWire, AssociationPredictionWire, AssociationResamplingWire,
     AssociationTermWire, AssociationWire,
 };
+pub(crate) use counterfactual_contrasts::validate_outcome_contrasts;
 pub use counterfactual_contrasts::{CounterfactualContrastsWire, OutcomeContrastWire};
 pub use iv_bounds::{
     IV_BOUNDS_BAYESIAN_METHOD, IV_BOUNDS_FREQUENTIST_METHOD, IV_BOUNDS_POINT_UNCERTAINTY,

@@ -364,7 +364,7 @@ impl ContrastTarget {
 }
 
 /// The hard levels a world sets, flattened over nested sequences, ordered by variable.
-fn world_levels(
+pub(crate) fn world_levels(
     world: &[Intervention],
     allow_nested: bool,
 ) -> Result<Vec<(VariableId, f64)>, CausalError> {

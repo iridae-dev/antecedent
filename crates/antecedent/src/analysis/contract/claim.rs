@@ -20,7 +20,7 @@ pub(super) fn claim_evidence(result: &StudyResult, contract: &CausalContract) ->
             contract.identities.program.map_or_else(String::new, |p| p.to_hex())
         )),
     ];
-    if let Some(report) = result.missing_data.as_ref().filter(|report| report.non_default) {
+    if let Some(report) = result.extras.missing_data.as_ref().filter(|report| report.non_default) {
         evidence.push(Arc::from(format!("missing_policy:{}", report.policy().name())));
         evidence.push(Arc::from(format!("missing_assumption:{}", report.assumption)));
         evidence.push(Arc::from(format!("missing_dropped:{}", report.accounting.dropped_digest)));
@@ -230,8 +230,13 @@ impl StudyResult {
     /// The portable static-result body of an executed mediation or
     /// counterfactual result: the one producer of
     /// [`antecedent_io::StaticResultWire`]. `query` is the query that produced
-    /// the result and fixes the control and active levels; `registry` is the
-    /// originating study's population registry.
+    /// the result and fixes the control and active levels (the first
+    /// intervention's, for a joint baseline); `registry` is the originating
+    /// study's population registry.
+    ///
+    /// A counterfactual over several outcomes or a joint baseline carries every
+    /// outcome's contrast in [`antecedent_io::StaticResultWire::contrasts`]; the
+    /// scalar, the per-unit effects and the flags are the first outcome's.
     ///
     /// # Errors
     ///
@@ -259,15 +264,17 @@ impl StudyResult {
             }
             _ => (None, None),
         };
-        if self.counterfactual_contrasts().is_some() {
-            return Err(compile(
-                "the portable static result states one counterfactual contrast; a result over \
-                 several outcomes or a joint baseline is carried by the analysis result body",
-            ));
-        }
-        if self.mediation().is_none() && self.counterfactual().is_none() {
+        let set = self.counterfactual_contrasts();
+        if self.mediation().is_none() && self.counterfactual().is_none() && set.is_none() {
             return Err(compile("static result requires a mediation or counterfactual payload"));
         }
+        if set.is_some() && !matches!(query, CausalQuery::Counterfactual(_)) {
+            return Err(compile("a counterfactual contrast set answers a counterfactual query"));
+        }
+        // The first contrast's per-unit effects stand for the result's single form; a
+        // population-level contrast has none.
+        let primary_units =
+            set.map(|set| set.primary()).filter(|primary| !primary.unit_effects.is_empty());
         let effect = self
             .estimate
             .as_effect()
@@ -286,10 +293,14 @@ impl StudyResult {
             support: self.support_diagnostics().map(antecedent_io::diagnostic_to_wire).collect(),
             diagnostics: self.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
             refutations: self.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
-            unit_effects: self.counterfactual().map(|c| c.unit_effects.to_vec()),
+            unit_effects: self
+                .counterfactual()
+                .map(|c| c.unit_effects.to_vec())
+                .or_else(|| primary_units.map(|primary| primary.unit_effects.to_vec())),
             unit_extrapolative: self
                 .counterfactual()
                 .and_then(|c| c.unit_extrapolative.as_ref())
+                .or_else(|| primary_units.and_then(|primary| primary.unit_extrapolative.as_ref()))
                 .map(|flags| flags.to_vec()),
             mediation: self
                 .mediation()
@@ -303,13 +314,16 @@ impl StudyResult {
                 .transpose()?,
             control_level: control_level.ok_or_else(|| compile("missing control"))?,
             active_level: active_level.ok_or_else(|| compile("missing active"))?,
+            contrasts: set
+                .map(|set| counterfactual_contrasts_wire(set).contrasts)
+                .unwrap_or_default(),
         })
     }
 }
 
 pub(super) fn attested_evidence(result: &StudyResult) -> Arc<[AttestedEvidence]> {
     let names: std::collections::HashSet<&str> =
-        result.custom_validator_names.iter().map(Arc::as_ref).collect();
+        result.extras.custom_validator_names.iter().map(Arc::as_ref).collect();
     result
         .refutations
         .iter()

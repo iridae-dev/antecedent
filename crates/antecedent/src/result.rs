@@ -647,7 +647,7 @@ impl StudyResult {
     /// the prepared query.
     #[must_use]
     pub fn retarget_population(&self) -> Option<antecedent_core::TargetPopulation> {
-        self.row_weights.as_ref().map(RowWeightsBinding::population)
+        self.extras.row_weights.as_ref().map(RowWeightsBinding::population)
     }
 }
 
@@ -1463,16 +1463,6 @@ pub struct StudyResult {
     pub treatment: Option<VariableId>,
     /// Outcome variable.
     pub outcome: VariableId,
-    /// Candidate-selection screen recorded for a prepared batch family.
-    pub(crate) candidate_selection: Option<crate::analysis::CandidateSelection>,
-    /// How this execution formed its reported interval.
-    pub(crate) interval: Option<IntervalBinding>,
-    /// Row-weight population recorded by a nonconstant retarget.
-    pub(crate) row_weights: Option<RowWeightsBinding>,
-    /// Missing-data policy, assumption and row accounting of this execution.
-    pub(crate) missing_data: Option<MissingDataReport>,
-    /// Names of caller-supplied custom validators that ran on this execution.
-    pub(crate) custom_validator_names: Vec<std::sync::Arc<str>>,
     /// Prepared contract this result was executed under, stamped by the
     /// [`crate::PreparedStudy`] entry point that produced it. `None` for
     /// results no prepared handle executed; those cannot be exported as claims.
@@ -1485,6 +1475,23 @@ pub struct StudyResult {
     /// The producing program's scientific data and uncertainty classification.
     /// Dedicated response posteriors need not occupy the scalar posterior slot.
     pub(crate) lowered_quadrant: Option<antecedent_validate::target_native::TargetQuadrant>,
+    /// The optional report layers of this result.
+    pub(crate) extras: ResultExtras,
+}
+
+/// The optional report layers of a [`StudyResult`], held together.
+#[derive(Clone, Debug)]
+pub(crate) struct ResultExtras {
+    /// Candidate-selection screen recorded for a prepared batch family.
+    pub(crate) candidate_selection: Option<crate::analysis::CandidateSelection>,
+    /// How this execution formed its reported interval.
+    pub(crate) interval: Option<IntervalBinding>,
+    /// Row-weight population recorded by a nonconstant retarget.
+    pub(crate) row_weights: Option<RowWeightsBinding>,
+    /// Missing-data policy, assumption and row accounting of this execution.
+    pub(crate) missing_data: Option<MissingDataReport>,
+    /// Names of caller-supplied custom validators that ran on this execution.
+    pub(crate) custom_validator_names: Vec<std::sync::Arc<str>>,
 }
 
 impl StudyResult {
@@ -1503,31 +1510,31 @@ impl StudyResult {
     /// Candidate-selection record, when the study selected among candidates.
     #[must_use]
     pub const fn candidate_selection(&self) -> &Option<crate::analysis::CandidateSelection> {
-        &self.candidate_selection
+        &self.extras.candidate_selection
     }
 
     /// How the reported interval was formed, when the execution reported one.
     #[must_use]
     pub const fn interval(&self) -> &Option<IntervalBinding> {
-        &self.interval
+        &self.extras.interval
     }
 
     /// Row-weight binding, when the analysis was weighted.
     #[must_use]
     pub const fn row_weights(&self) -> &Option<RowWeightsBinding> {
-        &self.row_weights
+        &self.extras.row_weights
     }
 
     /// Missing-data report, when the analysis handled missing values.
     #[must_use]
     pub const fn missing_data(&self) -> &Option<MissingDataReport> {
-        &self.missing_data
+        &self.extras.missing_data
     }
 
     /// Names of the custom validators that ran.
     #[must_use]
     pub fn custom_validator_names(&self) -> &[std::sync::Arc<str>] {
-        &self.custom_validator_names
+        &self.extras.custom_validator_names
     }
 
     /// The route-specific result payload the estimate was drawn from.
@@ -2375,7 +2382,7 @@ impl StudyResult {
 
     /// Re-derive [`Self::interval`] from the reported content.
     pub(crate) fn rebind_interval(&mut self, bayesian: bool) {
-        self.interval = Some(self.primary_interval_binding(bayesian));
+        self.extras.interval = Some(self.primary_interval_binding(bayesian));
     }
 
     /// Primary scalar effect for display and tests.

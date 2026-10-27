@@ -75,6 +75,12 @@ pub struct StaticResultWire {
     pub control_level: f64,
     /// Active intervention level.
     pub active_level: f64,
+    /// One contrast per outcome of a counterfactual over several outcomes or a joint baseline
+    /// of simultaneous interventions, in the query's order. The first is the primary contrast
+    /// that [`Self::estimate`] and [`Self::unit_effects`] state. Empty (and absent from the
+    /// bytes) for every other result, so their artifacts are unchanged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub contrasts: Vec<crate::OutcomeContrastWire>,
 }
 
 /// Small self-describing header; variable names map stable wire ids to language names.
@@ -222,6 +228,35 @@ pub fn decode_causal_payload_artifact(
     Ok((artifact, header, payload))
 }
 
+/// Check the contrasts of a static counterfactual result against its query: they name the query's
+/// outcomes in order, and the primary one carries the per-unit effects the result states.
+fn validate_static_contrasts(
+    wire: &StaticResultWire,
+    outcomes: &[antecedent_core::VariableId],
+    variable_count: usize,
+) -> Result<(), IoError> {
+    let outcomes: Vec<u32> = outcomes.iter().map(|outcome| outcome.raw()).collect();
+    crate::analysis_result_artifact::validate_outcome_contrasts(
+        &wire.contrasts,
+        &outcomes,
+        variable_count,
+    )?;
+    let primary = &wire.contrasts[0];
+    let units = primary.unit_effects.effects.len();
+    let consistent = match &wire.unit_effects {
+        Some(effects) => effects.as_slice() == primary.unit_effects.effects.as_slice(),
+        None => units == 0,
+    };
+    if !consistent {
+        return Err(IoError::Convert(
+            "static result contrasts must lead with the primary contrast whose unit effects the \
+             result states"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_header(header: &CausalPayloadHeader) -> Result<(), IoError> {
     validate_variable_names(&header.variable_names)
 }
@@ -260,6 +295,18 @@ fn validate_payload(payload: &CausalPayloadWire, variable_count: usize) -> Resul
                     wire.mediation.is_some()
                         && wire.unit_effects.is_none()
                         && wire.unit_extrapolative.is_none()
+                        && wire.contrasts.is_empty()
+                }
+                antecedent_core::CausalQuery::Counterfactual(_) if !wire.contrasts.is_empty() => {
+                    // A contrast set states each outcome's standard error on its own contrast;
+                    // the primary one is also the scalar's. Per-unit effects are the primary
+                    // contrast's, absent for a population-level contrast that has none.
+                    let units = wire.unit_effects.as_ref().map(Vec::len);
+                    wire.mediation.is_none()
+                        && wire
+                            .unit_extrapolative
+                            .as_ref()
+                            .is_none_or(|flags| Some(flags.len()) == units)
                 }
                 antecedent_core::CausalQuery::Counterfactual(_) => {
                     wire.unit_effects.is_some()
@@ -281,13 +328,17 @@ fn validate_payload(payload: &CausalPayloadWire, variable_count: usize) -> Resul
                 || !wire.control_level.is_finite()
                 || !wire.active_level.is_finite()
                 || wire.standard_error.is_some_and(|v| !v.is_finite() || v < 0.0)
-                || wire
-                    .unit_effects
-                    .as_ref()
-                    .is_some_and(|v| v.is_empty() || v.iter().any(|x| !x.is_finite()))
+                || wire.unit_effects.as_ref().is_some_and(|v| {
+                    (v.is_empty() && wire.contrasts.is_empty()) || v.iter().any(|x| !x.is_finite())
+                })
                 || wire.mediation.is_some_and(|v| v.iter().any(|x| !x.is_finite()))
             {
                 return Err(IoError::Convert("static result has invalid numerical values".into()));
+            }
+            if let antecedent_core::CausalQuery::Counterfactual(query) = &id.query {
+                if !wire.contrasts.is_empty() {
+                    validate_static_contrasts(wire, &query.outcomes, variable_count)?;
+                }
             }
         }
         CausalPayloadWire::Query(wire) => {

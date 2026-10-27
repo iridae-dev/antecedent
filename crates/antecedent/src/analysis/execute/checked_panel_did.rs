@@ -276,7 +276,7 @@ impl CheckedPanelDidOperation {
         if observed.iter().all(|seen| *seen) {
             let mut result = self.execute_rows(data, y, ctx)?;
             let keep = vec![true; y.len()];
-            result.missing_data = Some(self.missing_report(data, &observed, &keep)?);
+            result.extras.missing_data = Some(self.missing_report(data, &observed, &keep)?);
             return Ok(result);
         }
         let (keep, available_case) = self.restriction(data, &observed)?;
@@ -296,7 +296,7 @@ impl CheckedPanelDidOperation {
             ..self.clone()
         };
         let mut result = restricted.execute_rows(data, &restricted_y, ctx)?;
-        result.missing_data = Some(self.missing_report(data, &observed, &keep)?);
+        result.extras.missing_data = Some(self.missing_report(data, &observed, &keep)?);
         Ok(result)
     }
 

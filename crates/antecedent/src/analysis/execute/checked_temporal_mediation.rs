@@ -307,7 +307,7 @@ impl CheckedTemporalMediationOperation {
             elapsed_ns(started),
         );
         let mut result = finish_identified_execute_with_context(&bound.result_context, None, args);
-        result.missing_data = missing_data;
+        result.extras.missing_data = missing_data;
         Ok(result)
     }
 }

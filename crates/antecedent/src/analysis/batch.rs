@@ -2187,7 +2187,7 @@ fn attach_candidate_selection(
         }
     };
     for result in results.iter_mut() {
-        result.candidate_selection = Some(selection.clone());
+        result.extras.candidate_selection = Some(selection.clone());
         if let Some(effect) = result.estimate.as_effect_mut() {
             effect.family.candidate_selection =
                 Some(antecedent_estimate::CandidateSelectionRecord {

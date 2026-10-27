@@ -736,7 +736,7 @@ impl super::Study {
         };
         push_gaussian_likelihood_disclosure(&mut result, &self.settings.inference, data);
         push_lag_zero_average_effect_disclosure(self, &mut result);
-        result.custom_validator_names = self
+        result.extras.custom_validator_names = self
             .declared
             .custom_validators
             .iter()
@@ -1893,7 +1893,7 @@ impl super::Study {
             estimate.uncertainty.analytic.se = f64::NAN;
             estimate.uncertainty.bootstrap.se = None;
         }
-        result.interval = None;
+        result.extras.interval = None;
         if let Some(components) = result.payload.mediation_mut() {
             components.direct = Some(effect_point);
             if let (Some(total), Some(direct)) = (components.total, components.direct) {

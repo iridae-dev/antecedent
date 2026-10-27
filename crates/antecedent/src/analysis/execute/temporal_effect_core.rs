@@ -125,7 +125,7 @@ impl TemporalEffectFit {
 /// Strip the interval and posterior a point-only fit never publishes.
 pub(super) fn seal_point_only(point_only: bool, mut result: StudyResult) -> StudyResult {
     if point_only {
-        result.interval = None;
+        result.extras.interval = None;
         result.posterior = None;
     }
     result

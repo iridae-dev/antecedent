@@ -262,7 +262,7 @@ impl PreparedStudy {
         // record which refutation reports are caller-attested. Without the names,
         // the claim would drop custom-validator evidence from `attested` and from
         // the claim identity.
-        result.custom_validator_names = click_analysis
+        result.extras.custom_validator_names = click_analysis
             .declared
             .custom_validators
             .iter()

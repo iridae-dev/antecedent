@@ -47,7 +47,7 @@ impl Study {
         data: &TabularData,
         result: &mut StudyResult,
     ) -> Result<(), CausalError> {
-        if result.missing_data.is_some() {
+        if result.extras.missing_data.is_some() {
             return Ok(());
         }
         let mut variables: Vec<antecedent_core::VariableId> = Vec::new();
@@ -79,7 +79,7 @@ impl Study {
         let mask = data.storage().analysis_mask();
         let keep = complete_rows(data, mask, &variables)?;
         let accounting = RowAccounting::from_selection(data, mask, policy, &variables, &keep)?;
-        result.missing_data = Some(missing_data::report(
+        result.extras.missing_data = Some(missing_data::report(
             MissingRoute::Static,
             declared,
             std::sync::Arc::from([]),

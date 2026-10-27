@@ -43,7 +43,7 @@ impl SealedOperation for CheckedBayesianDagAteExecution {
         notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let mut result = self.execute(data, ctx)?;
-        result.custom_validator_names = self.custom_validator_names();
+        result.extras.custom_validator_names = self.custom_validator_names();
         handle
             .stamp_with_likelihood(
                 data,

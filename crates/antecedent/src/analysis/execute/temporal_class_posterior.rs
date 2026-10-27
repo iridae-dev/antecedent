@@ -398,7 +398,7 @@ impl super::Study {
                 ..Default::default()
             }),
         );
-        result.missing_data = missing_data;
+        result.extras.missing_data = missing_data;
         Ok(result)
     }
 

@@ -68,14 +68,31 @@ pub(super) fn validate(
             "counterfactual contrasts need a noise-inference kind".into(),
         ));
     }
-    let published: Vec<u32> = section.contrasts.iter().map(|c| c.outcome).collect();
-    if &published != outcomes {
+    validate_outcome_contrasts(&section.contrasts, outcomes, variable_count)
+}
+
+/// Check contrasts against the query's outcomes: they name those outcomes in order, every mean
+/// and standard error is finite (the latter nonnegative), and every contrast covers the same
+/// units. A contrast over units carries well-formed per-unit effects; a population-level
+/// contrast (no units, every contrast empty) carries no per-unit intervals or flags.
+///
+/// # Errors
+///
+/// Outcomes other than the query's, an outcome out of range, a non-finite mean or standard
+/// error, contrasts over different unit counts, or malformed per-unit effects.
+pub(crate) fn validate_outcome_contrasts(
+    contrasts: &[OutcomeContrastWire],
+    outcomes: &[u32],
+    variable_count: usize,
+) -> Result<(), IoError> {
+    let published: Vec<u32> = contrasts.iter().map(|c| c.outcome).collect();
+    if published != outcomes {
         return Err(IoError::Convert(
             "counterfactual contrasts must name the query's outcomes in order".into(),
         ));
     }
-    let n_units = section.contrasts.first().map(|c| c.unit_effects.effects.len());
-    for contrast in &section.contrasts {
+    let n_units = contrasts.first().map(|c| c.unit_effects.effects.len());
+    for contrast in contrasts {
         if usize::try_from(contrast.outcome).map_or(true, |id| id >= variable_count) {
             return Err(IoError::Convert("counterfactual contrast outcome is out of range".into()));
         }
@@ -92,7 +109,19 @@ pub(super) fn validate(
                 "counterfactual contrasts must cover the same units".into(),
             ));
         }
-        super::validate::validate_unit_effects(&contrast.unit_effects)?;
+        if n_units == Some(0) {
+            if contrast.unit_effects.intervals.is_some()
+                || contrast.unit_effects.extrapolative.is_some()
+            {
+                return Err(IoError::Convert(
+                    "a counterfactual contrast without units carries no per-unit intervals or \
+                     flags"
+                        .into(),
+                ));
+            }
+        } else {
+            super::validate::validate_unit_effects(&contrast.unit_effects)?;
+        }
     }
     Ok(())
 }

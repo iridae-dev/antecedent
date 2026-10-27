@@ -1337,7 +1337,7 @@ fn pool_into_result(
     debug_assert_eq!(report.vector.as_ref().map(|v| v.points.len()), Some(m));
     // The interval of the first completed table does not describe the pooled answer, and the
     // pooled construction has no coverage record yet.
-    result.interval = None;
+    result.extras.interval = None;
     result.executed_contract = None;
     Ok((result, report))
 }
@@ -1518,7 +1518,7 @@ where
         .collect();
     let mut missing = missing_data::report(route_of(study), true, covariates, accounting);
     missing.imputation = Some(report);
-    result.missing_data = Some(missing);
+    result.extras.missing_data = Some(missing);
     Ok(result)
 }
 
@@ -1760,6 +1760,6 @@ where
         .collect();
     let mut missing = missing_data::report(MissingRoute::Temporal, true, covariates, accounting);
     missing.imputation = Some(report);
-    result.missing_data = Some(missing);
+    result.extras.missing_data = Some(missing);
     Ok(result)
 }

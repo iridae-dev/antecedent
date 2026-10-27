@@ -881,7 +881,7 @@ impl PreparedStudy {
         })?;
         let retargeted = result.retarget_population();
         let compiled = self.compiled_contract_for(executed.refute, retargeted.as_ref())?;
-        if let Some(binding) = &result.row_weights {
+        if let Some(binding) = &result.extras.row_weights {
             // Row weights index the rows of one snapshot and one score table.
             // Re-derive the binding here, before the identity comparison, so
             // the refusal names the weights rather than the snapshot layer.
@@ -981,7 +981,7 @@ impl PreparedStudy {
             contract.score_reuse = Some(score_reuse_digest(&score).map_err(|err| io_err(&err))?);
             reuse.score_reuse = Some(score);
         }
-        if let Some(binding) = &result.row_weights {
+        if let Some(binding) = &result.extras.row_weights {
             contract.target_weights = Some(binding.target_weights);
             reuse.target_weights = Some(TargetWeightsSectionWire {
                 identity: binding.identity.clone(),

@@ -237,7 +237,7 @@ pub(super) fn finish_design_posterior_as(
     result.treatment = None;
     result.support_status = None;
     if fit.interval_withheld {
-        result.interval = None;
+        result.extras.interval = None;
     }
     Ok(result)
 }
