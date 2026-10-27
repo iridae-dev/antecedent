@@ -556,7 +556,7 @@ pub(crate) fn observation_options(options: &ObservationEstimatorOptions) -> Obse
             SelectedOutcomeCorrection::Aipw => "aipw",
         }
         .into(),
-        observation_probability_floor_bits: options.observation_probability_floor.to_bits(),
+        observation_probability_floor_bits: options.observation_floor().to_bits(),
         censoring_survival_floor_bits: options.censoring_survival_floor.to_bits(),
         crossfit_folds: options.crossfit_folds as u64,
     }

@@ -711,6 +711,18 @@ impl EstimationError {
             }
             Self::Stats(StatsError::GlmRefused { .. }) => Some(reason_code!("glm_fit_refused")),
             Self::Stats(StatsError::FewClusters { .. }) => Some(reason_code!("too_few_clusters")),
+            Self::Overlap { message } => Some(if message.contains("RequireDiagnostics") {
+                // An explicit override has no meaning on a route whose positivity is mandatory.
+                reason_code!("option_not_applicable")
+            } else {
+                // A route that cannot check positivity needs the override declared.
+                reason_code!("required_option_missing")
+            }),
+            Self::IncompatibleEstimand { .. } => Some(reason_code!("strategy_incompatible")),
+            Self::EffectModifiers => Some(reason_code!("route_not_supported")),
+            // A plain `Unsupported` message mixes scientific limits with malformed input across
+            // hundreds of raise sites; a code inferred from its wording could misname the
+            // refusal, so it carries none until its raise site declares one.
             _ => None,
         }
     }
@@ -943,5 +955,34 @@ mod tests {
         let read = rich.refusal_fields().expect("fields were attached");
         assert_eq!(read.numerical_rank, Some(174));
         assert!(read.stage.is_none() && read.arm_ess.is_empty() && read.propensity_min.is_none());
+    }
+
+    /// A plain refusal that says the request as declared cannot be answered by the route
+    /// carries a registered code, and a malformed-input or operational message carries none.
+    #[test]
+    fn declaration_refusals_carry_codes_by_variant_never_by_wording() {
+        let code = |error: EstimationError| error.reason_code();
+        assert_eq!(
+            code(EstimationError::Overlap {
+                message: "LinearAdjustmentAte requires ExplicitOverride overlap policy"
+            }),
+            Some("required_option_missing")
+        );
+        assert_eq!(
+            code(EstimationError::Overlap {
+                message: "propensity estimators require RequireDiagnostics overlap policy"
+            }),
+            Some("option_not_applicable")
+        );
+        assert_eq!(
+            code(EstimationError::IncompatibleEstimand { message: "expects an iv estimand" }),
+            Some("strategy_incompatible")
+        );
+        assert_eq!(code(EstimationError::EffectModifiers), Some("route_not_supported"));
+        // A plain `Unsupported` carries no inferred code.
+        assert_eq!(
+            code(EstimationError::unsupported("sharp RD does not support effect modifiers")),
+            None
+        );
     }
 }

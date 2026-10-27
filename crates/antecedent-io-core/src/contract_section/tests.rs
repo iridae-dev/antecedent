@@ -1307,7 +1307,7 @@ fn resealed_domains_kind_and_support_are_rederived() {
 
 #[test]
 fn support_empirical_distinguishes_pass_failure_limit_and_absence() {
-    assert_eq!(support_empirical(&[refutation("placebo.treatment.permute", false)], &[]), None);
+    assert_eq!(support_empirical(&[refutation("placebo.treatment.permute", true)], &[]), None);
     assert_eq!(
         support_empirical(&[refutation("overlap.assessment", true)], &[]).as_deref(),
         Some("supported")
@@ -1330,6 +1330,57 @@ fn support_empirical_distinguishes_pass_failure_limit_and_absence() {
         Some("limited:overlap")
     );
     assert_eq!(support_empirical(&failed, &limited).as_deref(), Some("failed:overlap.rule"));
+    // Any body diagnostic whose code ends in `.limited` limits support; the label is the code
+    // without the suffix and without a leading `estimate.`.
+    let limited_code = |code: &str| {
+        [crate::DiagnosticWire {
+            code: code.into(),
+            kind: "scientific".into(),
+            severity: "warning".into(),
+            message: "weakly supported".into(),
+            artifact_id: None,
+            fields: Vec::new(),
+        }]
+    };
+    for (code, label) in [
+        (crate::BOOTSTRAP_LIMITED_DIAGNOSTIC, "limited:bootstrap"),
+        (crate::MCMC_LIMITED_DIAGNOSTIC, "limited:mcmc"),
+        ("cyclic.fit.limited", "limited:cyclic.fit"),
+    ] {
+        assert_eq!(support_empirical(&[], &limited_code(code)).as_deref(), Some(label));
+    }
+    // A code that merely mentions `limited`, or is only the suffix, does not limit support.
+    assert_eq!(support_empirical(&[], &limited_code("estimate.overlap.limited_note")), None);
+    assert_eq!(support_empirical(&[], &limited_code(".limited")), None);
+    // A failed non-support refuter limits support under its own id, never contradicts it.
+    let placebo_failed = [refutation("placebo.treatment.permute", false)];
+    assert_eq!(
+        support_empirical(&placebo_failed, &[]).as_deref(),
+        Some("limited:refuter.placebo.treatment.permute")
+    );
+    let rcc_failed =
+        [refutation("placebo.treatment.permute", true), refutation("random_common_cause", false)];
+    assert_eq!(
+        support_empirical(&rcc_failed, &[]).as_deref(),
+        Some("limited:refuter.random_common_cause")
+    );
+    // Precedence: failed support check > limited diagnostic > failed other refuter > supported.
+    let mixed = [refutation("overlap.rule", false), refutation("placebo.treatment.permute", false)];
+    assert_eq!(
+        support_empirical(&mixed, &limited_code(crate::BOOTSTRAP_LIMITED_DIAGNOSTIC)).as_deref(),
+        Some("failed:overlap.rule")
+    );
+    assert_eq!(
+        support_empirical(&placebo_failed, &limited_code(crate::BOOTSTRAP_LIMITED_DIAGNOSTIC))
+            .as_deref(),
+        Some("limited:bootstrap")
+    );
+    let passing_support_failed_other =
+        [refutation("overlap.assessment", true), refutation("placebo.treatment.permute", false)];
+    assert_eq!(
+        support_empirical(&passing_support_failed_other, &[]).as_deref(),
+        Some("limited:refuter.placebo.treatment.permute")
+    );
     let support = |empirical: &str| SupportSlotWire {
         matrix_status: "licensed".into(),
         matrix_coordinate: None,
@@ -1337,7 +1388,11 @@ fn support_empirical_distinguishes_pass_failure_limit_and_absence() {
     };
     assert_eq!(claim_domains(Some(&support("supported")), None).support, "supported");
     assert_eq!(claim_domains(Some(&support("failed:overlap.rule")), None).support, "contradicted");
-    assert_eq!(claim_domains(Some(&support("limited:overlap")), None).support, "limited");
+    for label in
+        ["limited:overlap", "limited:bootstrap", "limited:refuter.placebo.treatment.permute"]
+    {
+        assert_eq!(claim_domains(Some(&support(label)), None).support, "limited", "{label}");
+    }
     assert_eq!(claim_domains(Some(&support("unavailable:not_evaluated")), None).support, "unknown");
 }
 

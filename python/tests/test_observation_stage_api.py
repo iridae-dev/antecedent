@@ -6,7 +6,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import observation
-from antecedent.errors import CausalEstimateError, CausalValueError
+from antecedent.errors import CausalEstimateError, CausalUnsupportedError, CausalValueError
 from antecedent.outcomes import require_success
 from antecedent.query import DirectionalDerivative, ResponseCurve
 
@@ -33,6 +33,36 @@ def test_selected_outcome_stage_returns_pseudo_values_and_diagnostic_weights() -
     assert all(
         weight == 0.0 for weight, r in zip(adjusted.weights, selected, strict=True) if r == 0.0
     )
+
+
+def _saturated_selection_inputs() -> tuple[dict[str, Any], ResponseCurve]:
+    x = np.asarray([-3.0 + 6.0 * (i + 0.5) / 400.0 for i in range(400)])
+    flips = {190, 193, 196, 198, 201, 203, 206, 209}
+    selected = np.asarray([float((v > 0.0) != (i in flips)) for i, v in enumerate(x)])
+    outcome = np.where(selected == 1.0, 2.0 + 3.0 * x, np.nan)
+    data = {"a": x, "y_observed": outcome, "r": selected, "x": x.copy()}
+    query = ResponseCurve(
+        "a",
+        "y_latent",
+        grid=[0.0, 1.0],
+        observation=observation.Selected("y_latent", "y_observed", "r"),
+        observation_assumptions=[observation.OutcomeIndependentGiven(["x"])],
+    )
+    return data, query
+
+
+def test_saturated_observation_probability_refuses_unless_a_floor_is_declared() -> None:
+    data, query = _saturated_selection_inputs()
+
+    with pytest.raises(CausalUnsupportedError) as excinfo:
+        observation.adjusted_outcome(data, query, correction="ipw")
+    assert getattr(excinfo.value, "reason_code", None) == "positivity_violated"
+
+    adjusted = observation.adjusted_outcome(
+        data, query, correction="ipw", observation_probability_floor=0.01
+    )
+    assert all(np.isfinite(adjusted.weights))
+    assert max(adjusted.weights) <= 1.0 / 0.01 + 1e-9
 
 
 def test_gaussian_interval_likelihood_requires_and_honours_structural_opt_in() -> None:

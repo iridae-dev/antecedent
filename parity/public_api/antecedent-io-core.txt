@@ -10415,6 +10415,7 @@ pub const antecedent_io_core::ASSOCIATION_POSTERIOR_UNCERTAINTY: &str
 pub const antecedent_io_core::ASSOCIATION_RESAMPLING_UNCERTAINTY: &str
 pub const antecedent_io_core::AUTO_COMPRESS_MAX_RATIO: f64
 pub const antecedent_io_core::AUTO_COMPRESS_MIN_BYTES: usize
+pub const antecedent_io_core::BOOTSTRAP_LIMITED_DIAGNOSTIC: &str
 pub const antecedent_io_core::COMPRESSION_ZSTD: &str
 pub const antecedent_io_core::CONTAINER_VERSION: u32
 pub const antecedent_io_core::CONTENT_BYTES: &str
@@ -10430,6 +10431,7 @@ pub const antecedent_io_core::JOINT_LAW_PROPAGATION_ARTIFACT_VERSION: u32
 pub const antecedent_io_core::JOINT_LAW_PROPAGATION_LEGACY_ARTIFACT_VERSION: u32
 pub const antecedent_io_core::JOINT_LAW_PROPAGATION_MAX_INPUTS: usize
 pub const antecedent_io_core::MAGIC: &[u8; 8]
+pub const antecedent_io_core::MCMC_LIMITED_DIAGNOSTIC: &str
 pub const antecedent_io_core::MECHANISM_COMPOSITION_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::MECHANISM_COMPOSITION_ARTIFACT_VERSION: u32
 pub const antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_FEATURE: &str
@@ -16460,6 +16462,7 @@ pub use antecedent_io_core::contract_section::AnalysisResultConsumption = antece
 pub use antecedent_io_core::contract_section::AnalysisResultContractWire = antecedent_io_core::AnalysisResultContractWire
 pub use antecedent_io_core::contract_section::AssumptionSlotWire = antecedent_io_core::AssumptionSlotWire
 pub use antecedent_io_core::contract_section::AttestedEvidenceWire = antecedent_io_core::AttestedEvidenceWire
+pub use antecedent_io_core::contract_section::BOOTSTRAP_LIMITED_DIAGNOSTIC = antecedent_io_core::BOOTSTRAP_LIMITED_DIAGNOSTIC
 pub use antecedent_io_core::contract_section::CONTRACT_SECTION = antecedent_io_core::CONTRACT_SECTION
 pub use antecedent_io_core::contract_section::CONTRACT_SECTION_FORMAT = antecedent_io_core::CONTRACT_SECTION_FORMAT
 pub use antecedent_io_core::contract_section::CalibrationSlotWire = antecedent_io_core::CalibrationSlotWire
@@ -16473,6 +16476,7 @@ pub use antecedent_io_core::contract_section::ClaimSectionWire = antecedent_io_c
 pub use antecedent_io_core::contract_section::ContractIdentitiesWire = antecedent_io_core::ContractIdentitiesWire
 pub use antecedent_io_core::contract_section::ContractReason = antecedent_io_core::ContractReason
 pub use antecedent_io_core::contract_section::IdentificationSlotWire = antecedent_io_core::IdentificationSlotWire
+pub use antecedent_io_core::contract_section::MCMC_LIMITED_DIAGNOSTIC = antecedent_io_core::MCMC_LIMITED_DIAGNOSTIC
 pub use antecedent_io_core::contract_section::OVERLAP_LIMITED_DIAGNOSTIC = antecedent_io_core::OVERLAP_LIMITED_DIAGNOSTIC
 pub use antecedent_io_core::contract_section::ObligationSectionWire = antecedent_io_core::ObligationSectionWire
 pub use antecedent_io_core::contract_section::ReasoningSectionWire = antecedent_io_core::ReasoningSectionWire

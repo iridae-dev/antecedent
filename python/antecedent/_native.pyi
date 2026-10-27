@@ -3493,7 +3493,7 @@ def observation_adjusted_outcome(
     structural_model: str | None = None,
     delayed_entry: str | None = None,
     correction: str = "aipw",
-    observation_probability_floor: float = 0.01,
+    observation_probability_floor: float | None = None,
     censoring_survival_floor: float = 0.01,
     crossfit_folds: int = 5,
 ) -> ObservationAdjustedOutcomeResult: ...
@@ -3518,7 +3518,7 @@ def prepare_observation_response(
     structural_model: str | None = None,
     delayed_entry: str | None = None,
     correction: str = "aipw",
-    observation_probability_floor: float = 0.01,
+    observation_probability_floor: float | None = None,
     censoring_survival_floor: float = 0.01,
     crossfit_folds: int = 5,
     accepted: bool = False,

@@ -82,6 +82,13 @@ the rest (review pending, an assumption or binding missing, a check not run, a r
 limit, unknown support) is `partial`. A status is advice about use, not a verdict about the
 world: `supported` does not certify the assumptions.
 
+A claim's support domain is `limited`, and its status `partial`, when the computation itself
+flagged a weakness the answer rests on: an overlap clip or trim that bound
+(`limited:overlap`), dropped bootstrap replicates (`limited:bootstrap`), weak sampler
+diagnostics (`limited:mcmc`), or a failed non-support refuter such as a placebo
+(`limited:refuter.<id>`). The result's diagnostics carry the numbers. A failed overlap or
+positivity check still reads `contradicted`.
+
 ```python
 report = prepared.inspect()
 host.inspection_status(report)                    # before running

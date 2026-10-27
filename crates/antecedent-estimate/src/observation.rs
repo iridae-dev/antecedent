@@ -23,8 +23,8 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_stats::{
     FaerBackend, GaussianObservation, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
-    fit_glm, fit_observation_logistic, gaussian_observation_log_likelihood, kaplan_meier_ipcw,
-    selected_outcome_pseudo_values,
+    fit_glm, fit_observation_logistic_admitting, gaussian_observation_log_likelihood,
+    kaplan_meier_ipcw, selected_outcome_pseudo_values,
 };
 
 use crate::arm::TreatmentArm;
@@ -84,8 +84,15 @@ pub(crate) fn observation_fit_error(error: antecedent_stats::StatsError) -> Esti
 pub struct ObservationEstimatorOptions {
     /// Selected-outcome correction.
     pub selected_correction: SelectedOutcomeCorrection,
-    /// Floor for fitted observation probabilities.
-    pub observation_probability_floor: f64,
+    /// Declared floor for fitted observation probabilities; `None` when the caller declared
+    /// none.
+    ///
+    /// An undeclared floor computes, identifies and binds calibration exactly as the declared
+    /// default [`DEFAULT_OBSERVATION_PROBABILITY_FLOOR`], but a fitted observation probability
+    /// within `1e-8` of 0 or 1 refuses as `positivity_violated` instead of being clamped. A
+    /// declared floor governs those rows. Read the resolved value with
+    /// [`Self::observation_floor`].
+    pub observation_probability_floor: Option<f64>,
     /// Floor for estimated censoring survival.
     pub censoring_survival_floor: f64,
     /// Deterministic row-index folds for augmented-path nuisance cross-fitting.
@@ -95,11 +102,31 @@ pub struct ObservationEstimatorOptions {
     pub crossfit_folds: usize,
 }
 
+/// The observation-probability floor used when the caller declares none.
+pub const DEFAULT_OBSERVATION_PROBABILITY_FLOOR: f64 = 0.01;
+
+impl ObservationEstimatorOptions {
+    /// The resolved observation-probability floor: the declared value, else the default.
+    /// Identity, wire and calibration bindings use this value, so an undeclared floor and the
+    /// same value declared explicitly are indistinguishable there.
+    #[must_use]
+    pub fn observation_floor(&self) -> f64 {
+        self.observation_probability_floor.unwrap_or(DEFAULT_OBSERVATION_PROBABILITY_FLOOR)
+    }
+
+    /// Whether the caller declared the floor, so that it governs saturated observation
+    /// probabilities rather than leaving them refused.
+    #[must_use]
+    pub const fn observation_floor_declared(&self) -> bool {
+        self.observation_probability_floor.is_some()
+    }
+}
+
 impl Default for ObservationEstimatorOptions {
     fn default() -> Self {
         Self {
             selected_correction: SelectedOutcomeCorrection::Aipw,
-            observation_probability_floor: 0.01,
+            observation_probability_floor: None,
             censoring_survival_floor: 0.01,
             crossfit_folds: 5,
         }
@@ -963,8 +990,9 @@ impl ObservationMechanismEstimator {
     }
 
     fn validate_options(&self) -> Result<(), EstimationError> {
-        if !self.options.observation_probability_floor.is_finite()
-            || !(0.0..0.5).contains(&self.options.observation_probability_floor)
+        let floor = self.options.observation_floor();
+        if !floor.is_finite()
+            || !(0.0..0.5).contains(&floor)
             || !self.options.censoring_survival_floor.is_finite()
             || !(0.0..1.0).contains(&self.options.censoring_survival_floor)
             || self.options.crossfit_folds < 2
@@ -1033,11 +1061,12 @@ impl ObservationMechanismEstimator {
             // published estimator, and estimating the propensity in sample is what makes it
             // efficient — cross-fitting here would deviate from the citation to no end.
             SelectedOutcomeCorrection::Ipw => {
-                let fit = fit_observation_logistic(
+                let fit = fit_observation_logistic_admitting(
                     indicator,
                     covariates,
                     n_cov,
-                    self.options.observation_probability_floor,
+                    self.options.observation_floor(),
+                    self.options.observation_floor_declared(),
                 )
                 .map_err(observation_fit_error)?;
                 (fit.probabilities, None)
@@ -1126,11 +1155,12 @@ impl ObservationMechanismEstimator {
             }
             let train_indicator: Vec<f64> = train.iter().map(|&i| indicator[i]).collect();
             let train_covariates = subset_colmajor(covariates, n, ncols, &train);
-            let fit = fit_observation_logistic(
+            let fit = fit_observation_logistic_admitting(
                 &train_indicator,
                 &train_covariates,
                 ncols,
-                self.options.observation_probability_floor,
+                self.options.observation_floor(),
+                self.options.observation_floor_declared(),
             )
             .map_err(|error| {
                 if matches!(
@@ -1693,10 +1723,10 @@ fn binary_events(events: &[f64]) -> Result<(), EstimationError> {
 
 #[cfg(test)]
 mod tests {
-    use antecedent_stats::fit_observation_logistic;
     use antecedent_core::{
         ContinuousDomain, GridSpec, ObservationAssumption, ResponseFunctional, ResponseQuery,
     };
+    use antecedent_stats::fit_observation_logistic;
 
     use super::*;
 
@@ -1756,6 +1786,50 @@ mod tests {
         );
     }
 
+    /// Observed iff `x > 0` except a few flips at the boundary: the converged, unseparated
+    /// logistic fit saturates far from the flips.
+    fn saturated_selection_sample() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+        let x: Vec<f64> = (0..400).map(|i| -3.0 + 6.0 * (f64::from(i) + 0.5) / 400.0).collect();
+        let flips = [190, 193, 196, 198, 201, 203, 206, 209];
+        let r: Vec<f64> = x
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| f64::from((v > 0.0) != flips.contains(&i)))
+            .collect();
+        let y: Vec<f64> = x
+            .iter()
+            .zip(&r)
+            .map(|(&x, &r)| if r == 1.0 { 2.0 + 3.0 * x } else { f64::NAN })
+            .collect();
+        (x, r, y)
+    }
+
+    #[test]
+    fn a_saturated_observation_probability_refuses_unless_a_floor_is_declared() {
+        let (x, r, y) = saturated_selection_sample();
+        let data = selected_table(&x, &y, &r);
+        for correction in [SelectedOutcomeCorrection::Ipw, SelectedOutcomeCorrection::Aipw] {
+            let undeclared = ObservationMechanismEstimator::new(ObservationEstimatorOptions {
+                selected_correction: correction,
+                ..ObservationEstimatorOptions::default()
+            });
+            let err = undeclared.adjusted_outcome(&data, &selected_query(), None).unwrap_err();
+            assert_eq!(err.reason_code(), Some("positivity_violated"), "{correction:?}: {err}");
+
+            let declared = ObservationMechanismEstimator::new(ObservationEstimatorOptions {
+                selected_correction: correction,
+                observation_probability_floor: Some(0.01),
+                ..ObservationEstimatorOptions::default()
+            });
+            let adjusted = declared.adjusted_outcome(&data, &selected_query(), None).unwrap();
+            for (&weight, &seen) in adjusted.weights.iter().zip(&r) {
+                if seen == 1.0 {
+                    assert!(weight.is_finite() && weight <= 1.0 / 0.01 + 1e-9, "{weight}");
+                }
+            }
+        }
+    }
+
     #[test]
     fn selected_aipw_nuisances_are_fit_without_the_row_they_are_applied_to() {
         // The property cross-fitting exists to provide. Row 0 falls in fold 0, so the
@@ -1776,16 +1850,15 @@ mod tests {
             &train_indicator,
             &train_covariates,
             1,
-            estimator.options.observation_probability_floor,
+            estimator.options.observation_floor(),
         )
         .unwrap()
         .probability_at(&[x[0]])
         .unwrap();
 
-        let in_sample =
-            fit_observation_logistic(&r, &x, 1, estimator.options.observation_probability_floor)
-                .unwrap()
-                .probabilities[0];
+        let in_sample = fit_observation_logistic(&r, &x, 1, estimator.options.observation_floor())
+            .unwrap()
+            .probabilities[0];
 
         assert_eq!(r[0], 1.0, "row 0 must be selected for its weight to be 1/p");
         let used = 1.0 / adjusted.weights[0];

@@ -101,7 +101,7 @@ pub(crate) struct ObservationArgs {
     names, columns, treatment, outcome, observation_kind, latent, *, observed=None,
     censoring=None, event=None, lower=None, upper=None, indicator=None,
     assumption_kind, assumption_variables=Vec::new(), structural_model=None,
-    delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
+    delayed_entry=None, correction="aipw", observation_probability_floor=None,
     censoring_survival_floor=0.01, crossfit_folds=5
 ))]
 #[allow(clippy::too_many_arguments)]
@@ -124,7 +124,7 @@ fn observation_adjusted_outcome(
     structural_model: Option<String>,
     delayed_entry: Option<String>,
     correction: &str,
-    observation_probability_floor: f64,
+    observation_probability_floor: Option<f64>,
     censoring_survival_floor: f64,
     crossfit_folds: usize,
 ) -> PyResult<ObservationAdjustedOutcomeResult> {
@@ -173,7 +173,7 @@ fn observation_adjusted_outcome(
     names, columns, edges, treatment, outcome, grid, observation_kind, latent, *,
     observed=None, censoring=None, event=None, lower=None, upper=None, indicator=None,
     assumption_kind, assumption_variables=Vec::new(), structural_model=None,
-    delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
+    delayed_entry=None, correction="aipw", observation_probability_floor=None,
     censoring_survival_floor=0.01, crossfit_folds=5, accepted=false, seed=1, threads=None,
     options=None
 ))]
@@ -199,7 +199,7 @@ fn prepare_observation_response(
     structural_model: Option<String>,
     delayed_entry: Option<String>,
     correction: &str,
-    observation_probability_floor: f64,
+    observation_probability_floor: Option<f64>,
     censoring_survival_floor: f64,
     crossfit_folds: usize,
     accepted: bool,

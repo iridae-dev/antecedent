@@ -62,7 +62,19 @@ pub(crate) struct AssembleArgs<'a> {
     pub(crate) bayesian: bool,
 }
 
-pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
+pub(crate) fn assemble_result(mut args: AssembleArgs<'_>) -> StudyResult {
+    let bootstrap = args.estimate.uncertainty.bootstrap;
+    args.diagnostics.extend(bootstrap_limit_diagnostic(
+        args.bootstrap_replicates_requested,
+        args.bootstrap_replicates_ok.or(bootstrap.replicates_ok),
+        bootstrap.replicates_failed,
+        args.early_stopped,
+    ));
+    args.diagnostics.extend(
+        args.posterior
+            .as_ref()
+            .and_then(|posterior| sampler_limit_diagnostic(&posterior.diagnostics)),
+    );
     let copy_count = args
         .physical
         .materializations
@@ -423,6 +435,100 @@ pub(crate) fn overlap_limit_diagnostic(
             ("clipped_fraction", clipped.to_string()),
             ("excluded_fraction", report.excluded_fraction.to_string()),
             ("saturated", saturated.to_string()),
+        ]),
+    )
+}
+
+/// Diagnostic recording that the resampling interval silently dropped replicates, which
+/// limits its support ([`antecedent_io::BOOTSTRAP_LIMITED_DIAGNOSTIC`]).
+///
+/// Fires when any replicate failed, or when fewer succeeded than were requested and the loop
+/// was not stopped early on purpose. `None` when no bootstrap ran or every replicate survived.
+pub(crate) fn bootstrap_limit_diagnostic(
+    requested: Option<u32>,
+    ok: Option<u32>,
+    failed: Option<u32>,
+    early_stopped: bool,
+) -> Option<Diagnostic> {
+    let failed_count = failed.unwrap_or(0);
+    let shortfall = match (requested, ok) {
+        (Some(requested), Some(ok)) if !early_stopped && ok < requested => requested - ok,
+        _ => 0,
+    };
+    if failed_count == 0 && shortfall == 0 {
+        return None;
+    }
+    let requested_text = requested.map_or_else(|| "unrecorded".to_owned(), |n| n.to_string());
+    let ok_text = ok.map_or_else(|| "unrecorded".to_owned(), |n| n.to_string());
+    Some(
+        Diagnostic::new(
+            antecedent_io::BOOTSTRAP_LIMITED_DIAGNOSTIC,
+            DiagnosticKind::Support,
+            DiagnosticSeverity::Warning,
+            format!(
+                "the resampling interval dropped replicates: {requested_text} requested, \
+                 {ok_text} succeeded, {failed_count} failed. The interval rests on the \
+                 surviving replicates only"
+            ),
+        )
+        .with_fields([
+            ("replicates_requested", requested_text),
+            ("replicates_ok", ok_text),
+            ("replicates_failed", failed_count.to_string()),
+        ]),
+    )
+}
+
+/// Diagnostic recording that a returned posterior's sampler or optimizer diagnostics fall short
+/// of the publication criteria ([`antecedent_io::MCMC_LIMITED_DIAGNOSTIC`]).
+///
+/// An MCMC factorization is judged by the full publication predicate; any other posterior that
+/// records sampler measurements (split R-hat, bulk ESS) is judged by split R-hat at most 1.01
+/// and bulk ESS at least 100 per chain, and every posterior by its `converged` flag. `None`
+/// when every recorded diagnostic is adequate.
+pub(crate) fn sampler_limit_diagnostic(
+    diagnostics: &antecedent_prob::InferenceDiagnostics,
+) -> Option<Diagnostic> {
+    let mut reasons: Vec<String> = Vec::new();
+    if diagnostics.factorization == antecedent_prob::HessianFactorization::Mcmc {
+        reasons.extend(diagnostics.mcmc_publication_failures().into_iter().map(str::to_owned));
+    } else {
+        if let Some(rhat) = diagnostics.rhat_max.filter(|r| !r.is_finite() || *r > 1.01) {
+            reasons.push(format!("split R-hat {rhat} is above 1.01"));
+        }
+        let floor = 100.0 * f64::from(diagnostics.n_chains.unwrap_or(1));
+        if let Some(ess) = diagnostics.ess_bulk_min.filter(|e| !e.is_finite() || *e < floor) {
+            reasons.push(format!("bulk ESS {ess} is below {floor} (100 per chain)"));
+        }
+    }
+    if !diagnostics.converged && reasons.is_empty() {
+        reasons.push("the optimizer or sampler did not report convergence".to_owned());
+    }
+    if reasons.is_empty() {
+        return None;
+    }
+    Some(
+        Diagnostic::new(
+            antecedent_io::MCMC_LIMITED_DIAGNOSTIC,
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "the posterior was returned with weak sampler diagnostics: {}. Treat its draws \
+                 and intervals as provisional",
+                reasons.join("; ")
+            ),
+        )
+        .with_fields([
+            (
+                "rhat_max",
+                diagnostics.rhat_max.map_or_else(|| "unrecorded".into(), |v| v.to_string()),
+            ),
+            (
+                "ess_bulk_min",
+                diagnostics.ess_bulk_min.map_or_else(|| "unrecorded".into(), |v| v.to_string()),
+            ),
+            ("converged", diagnostics.converged.to_string()),
+            ("reasons", reasons.join("; ")),
         ]),
     )
 }
@@ -1474,5 +1580,44 @@ mod cdf_review_tests {
         );
         assert!(!super::project_conditional_cdf(&mut values).unwrap());
         assert!(super::project_conditional_cdf(&mut [f64::NAN, 0.5]).is_err());
+    }
+
+    fn field<'a>(diagnostic: &'a antecedent_core::Diagnostic, key: &str) -> &'a str {
+        diagnostic.fields.iter().find(|(k, _)| &**k == key).map(|(_, v)| &**v).unwrap()
+    }
+
+    #[test]
+    fn dropped_bootstrap_replicates_limit_support() {
+        let d = super::bootstrap_limit_diagnostic(Some(200), Some(190), Some(10), false).unwrap();
+        assert_eq!(&*d.code, antecedent_io::BOOTSTRAP_LIMITED_DIAGNOSTIC);
+        assert_eq!(d.severity, antecedent_core::DiagnosticSeverity::Warning);
+        assert_eq!(field(&d, "replicates_requested"), "200");
+        assert_eq!(field(&d, "replicates_ok"), "190");
+        assert_eq!(field(&d, "replicates_failed"), "10");
+        // A shortfall with no recorded failure still limits support; a deliberate early stop,
+        // a clean run and no bootstrap do not.
+        assert!(super::bootstrap_limit_diagnostic(Some(200), Some(150), None, false).is_some());
+        assert!(super::bootstrap_limit_diagnostic(Some(200), Some(150), Some(0), true).is_none());
+        assert!(super::bootstrap_limit_diagnostic(Some(200), Some(200), Some(0), false).is_none());
+        assert!(super::bootstrap_limit_diagnostic(None, None, None, false).is_none());
+    }
+
+    #[test]
+    fn weak_sampler_diagnostics_limit_support() {
+        let mut inference = antecedent_prob::InferenceDiagnostics::analytic("test");
+        assert!(super::sampler_limit_diagnostic(&inference).is_none());
+        inference.n_chains = Some(4);
+        inference.rhat_max = Some(1.2);
+        inference.ess_bulk_min = Some(800.0);
+        let d = super::sampler_limit_diagnostic(&inference).unwrap();
+        assert_eq!(&*d.code, antecedent_io::MCMC_LIMITED_DIAGNOSTIC);
+        assert_eq!(field(&d, "rhat_max"), "1.2");
+        inference.rhat_max = Some(1.0);
+        assert!(super::sampler_limit_diagnostic(&inference).is_none());
+        inference.ess_bulk_min = Some(50.0);
+        assert!(super::sampler_limit_diagnostic(&inference).is_some());
+        inference.ess_bulk_min = Some(800.0);
+        inference.converged = false;
+        assert!(super::sampler_limit_diagnostic(&inference).is_some());
     }
 }

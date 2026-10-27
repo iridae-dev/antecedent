@@ -780,17 +780,26 @@ fn build_glm_options(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmOptions>> {
     if let Some(tol) = get_f64(sub, "tol")? {
         opts.tol = tol;
     }
+    // Estimation refuses every separated fit, so a separation ridge would be computed and
+    // discarded: a value here would change the analysis identity without changing any number.
+    // `None` (the setting estimation always uses) is accepted; a value is refused and the
+    // penalty that does reach a kept fit is named.
     if let Some(raw) = sub.get_item("ridge_on_separation")? {
-        opts.ridge_on_separation = if raw.is_none() {
-            None
-        } else {
-            Some(raw.extract::<f64>().map_err(|_| {
+        if !raw.is_none() {
+            raw.extract::<f64>().map_err(|_| {
                 crate::value_err(
                     "estimator_config['glm_options']['ridge_on_separation'] must be a float or \
                      None",
                 )
-            })?)
-        };
+            })?;
+            return Err(crate::value_err(
+                "glm_options ridge_on_separation has no effect on an estimate: every estimator \
+                 refuses a separated propensity or outcome fit rather than keep a ridge refit. To \
+                 estimate with a penalized propensity, declare Aipw(propensity_penalty=...); to \
+                 handle extreme propensities, declare an overlap clip or trim",
+            ));
+        }
+        opts.ridge_on_separation = None;
     }
     Ok(Some(opts))
 }

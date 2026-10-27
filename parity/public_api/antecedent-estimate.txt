@@ -13014,7 +13014,7 @@ pub field antecedent_estimate::ObservationAdjustedOutcome::values: alloc::vec::V
 pub field antecedent_estimate::ObservationAdjustedOutcome::weights: alloc::vec::Vec<f64>
 pub field antecedent_estimate::ObservationEstimatorOptions::censoring_survival_floor: f64
 pub field antecedent_estimate::ObservationEstimatorOptions::crossfit_folds: usize
-pub field antecedent_estimate::ObservationEstimatorOptions::observation_probability_floor: f64
+pub field antecedent_estimate::ObservationEstimatorOptions::observation_probability_floor: core::option::Option<f64>
 pub field antecedent_estimate::ObservationEstimatorOptions::selected_correction: antecedent_estimate::SelectedOutcomeCorrection
 pub field antecedent_estimate::ObservationMechanismEstimator::options: antecedent_estimate::ObservationEstimatorOptions
 pub field antecedent_estimate::ObservationPattern::fully: u8
@@ -16993,6 +16993,8 @@ pub fn <antecedent_estimate::MultiLevelPopulation>::const fn as_str(self) -> &'s
 pub fn <antecedent_estimate::MultiLevelTarget>::const fn as_str(&self) -> &'static str
 pub fn <antecedent_estimate::MultiLevelTarget>::const fn population(&self) -> antecedent_estimate::MultiLevelPopulation
 pub fn <antecedent_estimate::ObservationAdjustedOutcome>::fn censoring_diagnostics(&self) -> alloc::vec::Vec<antecedent_core::diagnostic::Diagnostic>
+pub fn <antecedent_estimate::ObservationEstimatorOptions>::const fn observation_floor_declared(&self) -> bool
+pub fn <antecedent_estimate::ObservationEstimatorOptions>::fn observation_floor(&self) -> f64
 pub fn <antecedent_estimate::ObservationMechanismEstimator>::const fn new(options: antecedent_estimate::ObservationEstimatorOptions) -> Self
 pub fn <antecedent_estimate::ObservationMechanismEstimator>::fn adjust_temporal_anchors(&self, data: &antecedent_data::dataset::TimeSeriesData, query: &antecedent_core::query::response::ResponseQuery, adjustment: &[antecedent_core::ids::VariableId], outcome_regressors: &[antecedent_core::temporal::TemporalNodeKey], anchors: &[usize]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::ObservationMechanismEstimator>::fn adjust_temporal_series(&self, data: &antecedent_data::dataset::TimeSeriesData, query: &antecedent_core::query::response::ResponseQuery, adjustment: &[antecedent_core::ids::VariableId], outcome_regressors: &[antecedent_core::temporal::TemporalNodeKey]) -> core::result::Result<(antecedent_data::dataset::TimeSeriesData, antecedent_estimate::ObservationAdjustedOutcome), antecedent_estimate::EstimationError>

@@ -393,6 +393,11 @@ applies_to = ["runtime_refusal"]
 meaning = "An opt-in rank-deficiency drop would remove a column the query needs (a treatment, outcome or effect modifier) or the declared column priority does not cover the design; nothing is dropped."
 
 [[code]]
+id = "stratum_too_sparse"
+applies_to = ["runtime_refusal"]
+meaning = "A retained propensity stratum has fewer than two treated or two control rows, so its within-stratum variance and the analytic interval are undefined. The refusal names the stratum and its counts; use fewer strata, declare an overlap trim that removes the sparse region, or request a bootstrap interval."
+
+[[code]]
 id = "arm_not_populated"
 applies_to = ["runtime_refusal"]
 meaning = "A treatment arm or joint cell has no complete-case rows, so no contrast against it is estimable; the refusal names the arm and its counts."

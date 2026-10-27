@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 from ._freeze import freeze
 from .errors import (
     CausalCancelledError,
+    CausalEstimateError,
     CausalResourceError,
     CausalSerializationError,
     CausalStateError,
@@ -168,6 +169,22 @@ _OPERATIONAL_CODES = frozenset(
 )
 
 
+# Codes an estimator names when its fixed refusal says the request, as declared, cannot be
+# answered by this estimator or route (an estimand, population, option or inference mode it does
+# not implement, a companion option it needs, an overlap declaration, a positivity requirement).
+# An estimate error without one of these codes is an operational failure and raises.
+_ESTIMATE_REFUSAL_CODES = frozenset(
+    {
+        "route_not_supported",
+        "strategy_incompatible",
+        "required_option_missing",
+        "option_not_applicable",
+        "estimator_inference_mismatch",
+        "positivity_violated",
+    }
+)
+
+
 def is_scientific_refusal(error: BaseException) -> bool:
     """Explicit typed classification; no exception-text matching or broad catch-all."""
     if getattr(error, "_antecedent_operational_callback", False):
@@ -197,6 +214,11 @@ def is_scientific_refusal(error: BaseException) -> bool:
     fields = getattr(error, "refusal_fields", None)
     if isinstance(fields, Mapping) and fields:
         return True
+    if (
+        isinstance(error, CausalEstimateError)
+        and getattr(error, "reason_code", None) in _ESTIMATE_REFUSAL_CODES
+    ):
+        return True
     return isinstance(error, (EffectNotIdentified, ReviewRequired, StructuredRefusal)) or (
         isinstance(error, CausalUnsupportedError)
         and getattr(error, "reason_code", None)
@@ -207,6 +229,7 @@ def is_scientific_refusal(error: BaseException) -> bool:
             "row_weights_bound_to_snapshot",
             "treatment_level_undeclared",
             "population_not_estimable",
+            "stratum_too_sparse",
             "policy_dependency_circular",
             "policy_dependency_unavailable",
             "policy_directive_conflict",

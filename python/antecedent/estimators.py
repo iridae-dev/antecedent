@@ -214,6 +214,12 @@ class GlmOptions:
     deliberately not exposed: Rust's own parser (``estimator_config.rs``'s
     ``build_glm_options``) pins it to ``MethodOfMoments`` and does not accept it from
     Python either, so there would be nothing for a field here to wire through.
+
+    ``ridge_on_separation`` accepts only ``None``. Every estimator refuses a separated
+    fit rather than keep a ridge refit, so a value would change nothing but the
+    analysis identity, and it is refused with a ``ValueError`` when the study is
+    prepared. Declare ``Aipw(propensity_penalty=...)`` for a penalized propensity, or
+    an ``Overlap`` clip or trim for extreme propensities.
     """
 
     max_iter: int | None = None

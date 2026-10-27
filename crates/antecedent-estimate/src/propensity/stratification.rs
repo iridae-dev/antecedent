@@ -606,8 +606,16 @@ pub(crate) fn stratified_ate(
             continue;
         }
         if treated.count < 2 || control.count < 2 {
-            return Err(EstimationError::data_msg(
-                "analytic stratification uncertainty requires at least two treated and two control observations per retained stratum",
+            return Err(EstimationError::refused_detail(
+                antecedent_core::reason_code!("stratum_too_sparse"),
+                "stratification.stratum_too_sparse",
+                format!(
+                    "analytic stratification uncertainty requires at least two treated and two \
+                     control observations per retained stratum; stratum {s} has {} treated and \
+                     {} control. Use fewer strata, declare an overlap trim, or request a \
+                     bootstrap interval",
+                    treated.count, control.count
+                ),
             ));
         }
         let (n1, n0) = (treated.count as f64, control.count as f64);

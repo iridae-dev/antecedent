@@ -243,13 +243,32 @@ pub(in crate::contract_section) fn is_support_refuter(refuter: &str) -> bool {
 /// [`support_empirical`]).
 pub const OVERLAP_LIMITED_DIAGNOSTIC: &str = "estimate.overlap.limited";
 
+/// Diagnostic code an estimate records when its resampling interval dropped replicates.
+pub const BOOTSTRAP_LIMITED_DIAGNOSTIC: &str = "estimate.bootstrap.limited";
+
+/// Diagnostic code a result records when its returned posterior has weak sampler diagnostics.
+pub const MCMC_LIMITED_DIAGNOSTIC: &str = "estimate.mcmc.limited";
+
+/// Suffix that marks a body diagnostic as limiting empirical support.
+const LIMITED_DIAGNOSTIC_SUFFIX: &str = ".limited";
+
+/// Area a `.limited` diagnostic code names: the code without the `.limited` suffix and without
+/// a leading `estimate.` (`estimate.overlap.limited` is `overlap`, `cyclic.limited` is
+/// `cyclic`). `None` for a code that does not end in `.limited`.
+fn limited_area(code: &str) -> Option<&str> {
+    let area = code.strip_suffix(LIMITED_DIAGNOSTIC_SUFFIX)?;
+    let area = area.strip_prefix("estimate.").unwrap_or(area);
+    (!area.is_empty()).then_some(area)
+}
+
 /// Empirical support label from executed refutations and the estimate's diagnostics.
 ///
-/// `failed:<refuter>` naming the first failed overlap / positivity check; otherwise
-/// `limited:overlap` when the estimate records a binding overlap policy
-/// ([`OVERLAP_LIMITED_DIAGNOSTIC`]); otherwise `supported` when every support check passed;
-/// `None` when no support check ran and nothing limits support. Other refuters (placebo,
-/// sensitivity, ...) do not speak to support.
+/// Precedence: `failed:<refuter>` naming the first failed overlap / positivity check; then
+/// `limited:<area>` for the first body diagnostic whose code ends in `.limited` (the code
+/// without `.limited` and a leading `estimate.`, so `estimate.overlap.limited` gives
+/// `limited:overlap`); then `limited:refuter.<id>` for the first failed non-support refuter
+/// (evidence against the assumptions, not a contradiction of support); then `supported` when
+/// every support check passed; `None` when no support check ran and nothing limits support.
 #[must_use]
 pub fn support_empirical(
     refutations: &[RefutationReportWire],
@@ -260,8 +279,13 @@ pub fn support_empirical(
     if let Some(failed) = checks.clone().find(|report| !report.passed) {
         return Some(format!("failed:{}", failed.refuter));
     }
-    if diagnostics.iter().any(|diagnostic| diagnostic.code == OVERLAP_LIMITED_DIAGNOSTIC) {
-        return Some("limited:overlap".into());
+    if let Some(area) = diagnostics.iter().find_map(|diagnostic| limited_area(&diagnostic.code)) {
+        return Some(format!("limited:{area}"));
+    }
+    if let Some(failed) =
+        refutations.iter().find(|report| !is_support_refuter(&report.refuter) && !report.passed)
+    {
+        return Some(format!("limited:refuter.{}", failed.refuter));
     }
     checks.peek().map(|_| "supported".into())
 }

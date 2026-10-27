@@ -390,3 +390,22 @@ def test_matching_refuses_clustered_multiway_and_hac_se(cls, se):
         )
     assert refused.value.reason_code == "estimator_inference_mismatch"
     assert "matching has no valid cluster, multiway or HAC standard error" in str(refused.value)
+
+
+def test_a_set_separation_ridge_is_refused_because_no_estimate_keeps_it():
+    data, graph = _public_scm()
+    with pytest.raises(ValueError, match="ridge_on_separation has no effect on an estimate"):
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect("t", "y"),
+            estimator=PropensityWeighting(glm_options=GlmOptions(ridge_on_separation=1e-3)),
+        )
+    # The setting estimation always uses is accepted.
+    outcome = antecedent.analyze(
+        data,
+        graph=graph,
+        query=antecedent.AverageEffect("t", "y"),
+        estimator=PropensityWeighting(glm_options=GlmOptions(ridge_on_separation=None)),
+    )
+    assert outcome.refusal is None
