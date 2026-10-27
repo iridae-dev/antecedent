@@ -37,6 +37,8 @@ The default, ``on_refusal="refuse"``, is unchanged: the refusal is the outcome.
 
 from __future__ import annotations
 
+import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -67,9 +69,10 @@ __all__ = [
     "EvidenceNeeds",
     "FallbackRoles",
     "FallbackUnavailable",
-    "describe",
     "described",
+    "fallback_declaration",
     "fallback_roles",
+    "from_native",
     "is_identification_refusal",
 ]
 
@@ -305,6 +308,14 @@ class EvidenceNeeds:
         }
 
 
+def _figure(value: float) -> float | str:
+    """A reported number as the renderer reads it: finite as is, else its text."""
+    number = float(value)
+    if math.isfinite(number):
+        return number
+    return "nan" if math.isnan(number) else ("inf" if number > 0 else "-inf")
+
+
 def _claim_of(result: Any) -> dict[str, Any]:
     """The contract claim of an associational result, or the one its kind states."""
     try:
@@ -394,76 +405,103 @@ class AnalysisWithFallback:
             text += f" Ranked plan over the declared studies: {len(needs.plan.options)} option(s)."
         return text
 
-    def report(self, format: Literal["markdown"] = "markdown") -> str:
-        """The report of the fallback as Markdown: the refusal first, then the two parts."""
-        if format != "markdown":
+    def report(self, format: Literal["markdown", "html"] = "markdown") -> str:
+        """The report of the fallback: the refusal first, then the two parts.
+
+        ``format`` is ``"markdown"`` or ``"html"`` (one self-contained document with inline style
+        and no script). Rust writes the document from the values this object holds, so the
+        wording, escaping and layout are the same as for a fallback produced by the Rust
+        facade. Nothing is executed and no figure is computed: every number is read from the
+        fallback Rust produced, or, for an object assembled by hand, from the parts it holds.
+        """
+        if format not in ("markdown", "html"):
             from .errors import CausalValueError
 
-            raise CausalValueError("report supports format='markdown'")
-        code = getattr(self.refusal, "reason_code", None)
-        lines = [
-            "# Refusal with descriptive fallback",
-            "",
-            "## Causal question",
-            "",
-            "The causal query is refused. The refusal below is the answer to the causal "
-            "question and is unchanged by anything else in this report.",
-            "",
-            "- Status: unsupported",
-            f"- Reason code: {code}",
-            f"- Message: {' '.join(str(self.refusal).split())}",
-            f"- Remedy: {getattr(self.refusal, 'remedy', None)}",
-            "",
-            "## Noncausal description",
-            "",
-            NONCAUSAL_NOTICE,
-            "",
-        ]
+            raise CausalValueError("report supports format='markdown' or format='html'")
+        stage = getattr(self.refusal, "fallback", None)
+        if stage is not None:
+            # The refusal came with the fallback Rust ran on the refused study: Rust reads it
+            # and writes the document (``report::render_fallback_report``).
+            return cast("str", stage.report(format))
+        return _native.render_fallback_report(json.dumps(self._report_parts()), format)
+
+    def _report_parts(self) -> dict[str, Any]:
+        """The plain values of the report, in the shape the Rust renderer reads."""
+        refusal = self.refusal
+        associational: dict[str, Any]
         if isinstance(self.associational, FallbackUnavailable):
-            lines += [f"The associational description is unavailable: {self.associational}", ""]
+            associational = {"unavailable": str(self.associational)}
         else:
+            claim = _claim_of(self.associational)
+            domains = claim.get("domains")
+            identification = domains.get("identification") if isinstance(domains, Mapping) else None
             section = self.associational.association
-            lines += [
-                "- Claim kind: associational",
-                "- Identification: not_claimed",
-                f"- Analysis: {section.analysis}" if section is not None else "- Analysis: n/a",
-                f"- Refusal retained: {section.refused_after}" if section is not None else "",
-                "- Ranks actions: no",
-                "- Is an intervention effect: no",
-                "",
-            ]
-        lines += ["## Evidence that would resolve the refusal", ""]
+            figures = None
+            if section is not None:
+                figures = {
+                    "analysis": section.analysis,
+                    "rows": section.rows,
+                    "uncertainty": section.uncertainty,
+                    "calibration": section.calibration,
+                    "refused_after": section.refused_after,
+                    "terms": [[term.label, _figure(term.estimate)] for term in section.terms],
+                }
+            associational = {
+                "described": {
+                    "claim_kind": str(claim.get("kind")),
+                    "identification": str(identification),
+                    "rule": self.roles.rule if self.roles is not None else "declared",
+                    "figures": figures,
+                }
+            }
         needs = self.evidence_plan
+        evidence: dict[str, Any]
         if isinstance(needs, FallbackUnavailable):
-            lines += [f"The evidence plan is unavailable: {needs}", ""]
+            evidence = {"unavailable": str(needs)}
         else:
-            lines += ["| Obligation | Kind | Route | Proof step | A study can satisfy it |"]
-            lines += ["| --- | --- | --- | --- | --- |"]
-            for o in needs.obligations:
-                lines.append(
-                    f"| {o.id} | {o.kind} | {o.family} | {o.proof_step or 'unrecorded'} | "
-                    f"{'yes' if o.satisfiable_by_study else 'no'} |"
-                )
-            lines.append("")
-            for action in needs.next_actions:
-                lines.append(f"- {action['id']}: {action['description']}")
-            lines.append("")
+            ranking: Any
             if needs.plan is None:
-                lines += ["No candidate studies were declared, so the options are not ranked.", ""]
+                ranking = "not_requested"
             elif isinstance(needs.plan, FallbackUnavailable):
-                lines += [f"The ranked plan is unavailable: {needs.plan}", ""]
+                ranking = {"unavailable": str(needs.plan)}
             else:
-                lines += [
-                    "| Rank | Route | Studies | Gate | Cost |",
-                    "| --- | --- | --- | --- | --- |",
-                ]
-                for option in needs.plan.options:
-                    lines.append(
-                        f"| {option.rank} | {option.route} | {', '.join(option.labels)} | "
-                        f"{option.gate} | {option.cost} {option.cost_unit} |"
-                    )
-                lines.append("")
-        return "\n".join(lines)
+                ranking = {
+                    "ranked": [
+                        {
+                            "rank": str(option.rank),
+                            "route": option.route,
+                            "studies": list(option.labels),
+                            "gate": option.gate,
+                            "cost": f"{option.cost} {option.cost_unit}",
+                        }
+                        for option in needs.plan.options
+                    ]
+                }
+            evidence = {
+                "needs": {
+                    "obligations": [
+                        {
+                            "id": o.id,
+                            "kind": o.kind,
+                            "route": o.family,
+                            "proof_step": o.proof_step,
+                            "satisfiable_by_study": bool(o.satisfiable_by_study),
+                        }
+                        for o in needs.obligations
+                    ],
+                    "next_actions": [
+                        [str(a["id"]), str(a["description"])] for a in needs.next_actions
+                    ],
+                    "ranking": ranking,
+                }
+            }
+        return {
+            "reason_code": getattr(refusal, "reason_code", None),
+            "message": str(refusal),
+            "remedy": getattr(refusal, "remedy", None),
+            "associational": associational,
+            "evidence": evidence,
+        }
 
     def to_dict(self) -> dict[str, Any]:
         """The host record of the fallback (the schema's ``fallback_response``).
@@ -508,122 +546,137 @@ class AnalysisWithFallback:
         )
 
 
-def _stopped(cancel: Any) -> bool:
-    is_cancelled = getattr(cancel, "is_cancelled", None)
-    return bool(is_cancelled()) if callable(is_cancelled) else False
+def fallback_declaration(candidates: Sequence[StudyCandidate] | None) -> dict[str, Any]:
+    """The ``fallback`` prepare option: the declared studies, ranked by Rust when the refusal comes.
+
+    Rust runs the fallback on the refused study itself (``Study::analyze_with_fallback``); this
+    only spells the caller's candidate studies and the bounds of their plan, the defaults of
+    :func:`antecedent.design.evidence_plan`.
+    """
+    from .errors import CausalTypeError
+    from .repair import RepairLimits, StudyCandidate
+
+    limits = RepairLimits()
+    wire: str | None = None
+    if candidates is not None:
+        declared = tuple(candidates)
+        if any(not isinstance(c, StudyCandidate) for c in declared):
+            raise CausalTypeError("candidates must be StudyCandidate values")
+        wire = json.dumps([c._wire() for c in declared])
+    return {
+        "candidates": wire,
+        "objective": "minimize_cost",
+        "max_operations": int(limits.max_operations),
+        "max_depth": int(limits.max_depth),
+        "memory_bytes": limits.memory_bytes,
+    }
 
 
-def _associational(
+def _unavailable(part: tuple[str, str, str, str]) -> FallbackUnavailable:
+    return FallbackUnavailable(cast("Any", part[0]), part[1], part[2], part[3])
+
+
+def from_native(
     refusal: CausalError,
-    roles: FallbackRoles,
-    data: Any,
-    options: Mapping[str, Any],
-) -> AnalysisResult | FallbackUnavailable:
-    from .descriptive import Association
-    from .estimation import _PreparedEngine
+    stage: Any,
+    *,
+    query: Any,
+    graph: Any,
+    columns: Sequence[str],
+    seed: int = 1,
+    threads: int | None = None,
+    controls: Any = None,
+) -> AnalysisWithFallback:
+    """Read the fallback Rust ran on the refused study as an :class:`AnalysisWithFallback`.
 
-    reason = getattr(refusal, "reason_code", None) or "effect_not_identified"
-    try:
-        query = Association(
+    ``stage`` is the ``fallback`` attribute the native prepare attached to the refusal: Rust's
+    ``AnalysisWithFallback``, produced by ``Study::analyze_with_fallback``. The associational
+    description is its compiled study and result, the evidence needs its obligations, next
+    actions, templates and ranked plan; nothing is recomputed here.
+    """
+    from .descriptive import Association
+    from .estimation import _Controls, _PreparedEngine
+
+    roles_wire = stage.roles()
+    roles = (
+        None
+        if roles_wire is None
+        else FallbackRoles(
+            outcome=roles_wire[0],
+            treatment=roles_wire[1],
+            adjustment=tuple(roles_wire[2]),
+            rule=roles_wire[3],
+        )
+    )
+    associational: AnalysisResult | FallbackUnavailable
+    missing = stage.associational_unavailable()
+    if missing is not None:
+        associational = _unavailable(missing)
+    else:
+        native, raw = stage.associational()
+        assert roles is not None
+        reason = getattr(refusal, "reason_code", None) or "effect_not_identified"
+        description = Association(
             roles.outcome,
             (roles.treatment,),
             conditioning=roles.adjustment,
             refused_after=str(reason),
         )
-        prepared = _PreparedEngine.prepare(data, query=query, **options)
-        result = prepared.estimate()
-    except (CausalCancelledError, CausalResourceError):
-        raise
-    except (CausalError, ValueError, TypeError) as error:
-        if _stopped(options.get("cancel")):
-            raise
-        code = getattr(error, "reason_code", None)
-        return FallbackUnavailable(
-            "associational",
-            str(code) if code else "route_not_supported",
-            "fallback.association_refused",
-            str(error),
+        engine: _PreparedEngine[Any] = _PreparedEngine(
+            native,
+            kind="average",
+            query=description,
+            seed=seed,
+            threads=threads,
+            controls=controls if isinstance(controls, _Controls) else None,
         )
-    from .errors import CausalStateError
-    from .results import AnalysisResult
+        associational = cast("AnalysisResult", engine._wrap(raw))
+    return AnalysisWithFallback(
+        refusal=refusal,
+        associational=associational,
+        evidence_plan=_evidence_needs(stage, query=query, graph=graph, columns=columns),
+        roles=roles,
+    )
 
-    if not isinstance(result, AnalysisResult):
-        raise CausalStateError("associational execution returned an unexpected result type")
-    return result
 
-
-def _evidence(
-    query: Any,
-    graph: Any,
-    columns: Sequence[str],
-    candidates: Sequence[StudyCandidate] | None,
-    cancel: Any,
+def _evidence_needs(
+    stage: Any, *, query: Any, graph: Any, columns: Sequence[str]
 ) -> EvidenceNeeds | FallbackUnavailable:
+    """The evidence part of Rust's fallback, with the frozen failure to plan over again."""
     from . import design, repair
+    from .accepted_graph import AcceptedGraph
+    from .errors import CausalStateError
 
+    missing = stage.evidence_unavailable()
+    if missing is not None:
+        return _unavailable(missing)
+    declared = graph.graph if isinstance(graph, AcceptedGraph) else graph
+    directed = _directed_graph(declared, columns)
     roles = _roles_of(query)
-    if roles is None:
-        return _no_form("evidence_plan", query)
+    if directed is None or roles is None:
+        raise CausalStateError("the evidence needs were produced for a study this call cannot read")
     treatment, outcome, _ = roles
-    if treatment not in columns or outcome not in columns:
-        return _unmeasured("evidence_plan", "the treatment or the outcome")
-    directed = _directed_graph(graph, columns)
-    if directed is None:
-        return FallbackUnavailable(
-            "evidence_plan",
-            "route_not_supported",
-            "fallback.graph_class_not_read",
-            "the evidence routes (back-door, front-door, instrument, hedge) are read from a "
-            "declared directed or bidirected graph, and this study declares another graph "
-            "class. Next attempt: declare a Dag or an Admg",
-        )
     nodes = set(directed.nodes())
-    try:
-        contract = repair.FailureContract(
-            graph=directed,
-            treatment=treatment,
-            outcome=outcome,
-            population=_POPULATION,
-            observed=[name for name in columns if name in nodes],
-        )
-        obligations = repair.obligations(contract)
-        actions = contract.next_actions()
-        templates = repair.generate_candidates(contract)
-    except (CausalCancelledError, CausalResourceError):
-        raise
-    except (CausalError, ValueError, TypeError) as error:
-        if _stopped(cancel):
-            raise
-        code = getattr(error, "reason_code", None)
-        detail = getattr(error, "detail", None) or "fallback.evidence_refused"
-        return FallbackUnavailable(
-            "evidence_plan",
-            str(code) if code else "invalid_argument",
-            str(detail),
-            str(error),
-        )
-    plan: EvidencePlan | FallbackUnavailable | None = None
-    if candidates is not None:
-        try:
-            plan = design.evidence_plan(contract, list(candidates), cancel=cancel)
-        except (CausalCancelledError, CausalResourceError):
-            raise
-        except (CausalError, ValueError, TypeError) as error:
-            if _stopped(cancel):
-                raise
-            code = getattr(error, "reason_code", None)
-            detail = getattr(error, "detail", None) or "fallback.evidence_refused"
-            plan = FallbackUnavailable(
-                "evidence_plan",
-                str(code) if code else "invalid_argument",
-                str(detail),
-                str(error),
-            )
+    contract = repair.FailureContract(
+        graph=directed,
+        treatment=treatment,
+        outcome=outcome,
+        population=_POPULATION,
+        observed=[name for name in columns if name in nodes],
+    )
+    kind = stage.ranking_kind()
+    plan: EvidencePlan | FallbackUnavailable | None
+    if kind == "ranked":
+        plan = design.EvidencePlan(stage.ranked_plan())
+    elif kind == "unavailable":
+        plan = _unavailable(stage.ranking_unavailable())
+    else:
+        plan = None
     return EvidenceNeeds(
         contract=contract,
-        obligations=obligations,
-        next_actions=actions,
-        templates=templates,
+        obligations=tuple(repair.EvidenceObligation._from_native(o) for o in stage.obligations()),
+        next_actions=tuple(dict(action) for action in stage.next_actions()),
+        templates=repair._generation_of(stage.templates()),
         plan=plan,
     )
 
@@ -638,10 +691,8 @@ def described(outcome: Any) -> AnalysisWithFallback:
     and host record. It executes nothing and re-reads no data; a refusal that carries no
     description is an invalid argument.
     """
-    from ._names import table_names
     from .errors import CausalTypeError, CausalValueError
     from .outcomes import Outcome
-    from .prepared import PreparedAnalysis
 
     if not isinstance(outcome, Outcome):
         raise CausalTypeError("described needs the Outcome of an on_refusal='describe' analysis")
@@ -657,52 +708,22 @@ def described(outcome: Any) -> AnalysisWithFallback:
         associational = FallbackUnavailable(
             "associational", unavailable.code, unavailable.detail or "", unavailable.message
         )
-        roles = None
     else:
         associational = cast("AnalysisResult", outcome.associational.value)
-        study = outcome.study
-        roles = None
-        if isinstance(study, PreparedAnalysis) and study._data is not None:
-            found = fallback_roles(
-                study.query, study._declarations.get("graph"), table_names(study._data)
-            )
-            roles = None if isinstance(found, FallbackUnavailable) else found
+    # The roles are Rust's: the stage the native prepare attached to the refusal read them off
+    # the refused query.
+    stage = getattr(error, "fallback", None)
+    found = None if stage is None else stage.roles()
+    roles = (
+        None
+        if found is None
+        else FallbackRoles(
+            outcome=found[0], treatment=found[1], adjustment=tuple(found[2]), rule=found[3]
+        )
+    )
     return AnalysisWithFallback(
         refusal=cast("CausalError", error),
         associational=associational,
         evidence_plan=outcome.evidence_plan,
         roles=roles,
-    )
-
-
-def describe(
-    refusal: CausalError,
-    data: Any,
-    *,
-    query: Any,
-    graph: Any = None,
-    candidates: Sequence[StudyCandidate] | None = None,
-    options: Mapping[str, Any] | None = None,
-) -> AnalysisWithFallback:
-    """Keep ``refusal`` and add the noncausal description and the evidence plan beside it.
-
-    ``options`` are the ``analyze`` arguments the description inherits (``inference``,
-    ``seed``, ``bootstrap``, ``threads``, ``latency``, ``cancel``, ``participant``,
-    ``missing``, ``sampling_design``); the graph, estimator and refutation choices belong to the
-    causal route and are not passed on. Cancellation and resource limits are raised, never
-    described.
-    """
-    from ._names import table_names
-
-    options = {} if options is None else options
-    columns = table_names(data)
-    roles = fallback_roles(query, graph, columns)
-    associational: AnalysisResult | FallbackUnavailable
-    if isinstance(roles, FallbackUnavailable):
-        associational, kept = roles, None
-    else:
-        associational, kept = _associational(refusal, roles, data, options), roles
-    evidence = _evidence(query, graph, columns, candidates, options.get("cancel"))
-    return AnalysisWithFallback(
-        refusal=refusal, associational=associational, evidence_plan=evidence, roles=kept
     )

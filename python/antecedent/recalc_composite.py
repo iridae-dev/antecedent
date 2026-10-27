@@ -25,7 +25,7 @@ from .design import StructuralCandidate, StructuralEntry
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .outcomes import Answer, outcome_operation, require_success
 from .program_claims import ProgramBinding
-from .recalc import RecalcPlan, RecalcReceipt, _seed
+from .recalc import RecalcPlan, RecalcReceipt, SessionStanding, _seed, session_standing
 from .recalc_external import CallbackProvider, ExternalCallbackRefusal, ExternalCallbackRequest
 from .recalc_static import StaticResponseRequest, StaticResponseSession, _response_spec
 
@@ -331,6 +331,11 @@ class CompositeSession:
         return _conditional_result(
             self._handle.rank_conditional_studies(json.dumps(policy._wire()))
         )
+
+    @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing("composite")
 
     @property
     def native_response(self):

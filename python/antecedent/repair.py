@@ -1280,7 +1280,11 @@ def generate_candidates(contract: FailureContract) -> CandidateGeneration:
     """
     if not isinstance(contract, FailureContract):
         raise CausalTypeError("generate_candidates requires a FailureContract")
-    wire = contract._stage.templates()
+    return _generation_of(contract._stage.templates())
+
+
+def _generation_of(wire: Mapping[str, Any]) -> CandidateGeneration:
+    """The candidate generation Rust wrote as ``wire`` (templates and unmatched obligations)."""
     return CandidateGeneration(
         templates=tuple(StudyTemplate._from_native(t) for t in wire["templates"]),
         unmatched=tuple(

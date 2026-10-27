@@ -36,6 +36,7 @@ from .recalc import (
     RecalcReceipt,
     RecalcResult,
     ResumeContext,
+    SessionStanding,
     Stage,
     TargetWeights,
     Utility,
@@ -44,6 +45,7 @@ from .recalc import (
     _declared_json,
     _refusal_type,
     _seed,
+    session_standing,
 )
 from .recalc_cell import FrozenScores, _frozen
 
@@ -121,6 +123,11 @@ class DrSession:
             _declared_json(declared), json.dumps(ctx.to_wire())
         )
         return session
+
+    @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing("doubly_robust")
 
     @property
     def is_live(self) -> bool:

@@ -52,7 +52,12 @@ from ._estimate_helpers import (
     _not_applicable,
     _unwrap_estimator,
 )
-from ._from_raw import _execution_slots, _missing_data_from_raw, _wrap_ate
+from ._from_raw import (
+    _execution_slots,
+    _interval_bindings_from_raw,
+    _missing_data_from_raw,
+    _wrap_ate,
+)
 from ._native import (
     MediationEffectsSummary,
     _identify_ate,
@@ -254,6 +259,11 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
                 reason_code="invalid_argument",
             )
         kw["draw_controls"] = inference.draw_controls
+    if inference.predictive_replicates is not None:
+        kw["predictive_replicates"] = (
+            inference.predictive_replicates.n_sims,
+            inference.predictive_replicates.max_rows,
+        )
     if inference.white_innovation is not None:
         max_lag, level = inference.white_innovation
         if (
@@ -473,6 +483,15 @@ def _wrap_prepared_response(
                 ],
                 raw.weight_basis,
             ),
+            aggregation_policy=cast(
+                Literal[
+                    "same_estimand_weighted_mean",
+                    "identified_set_envelope",
+                    "graph_dependent_atoms",
+                ]
+                | None,
+                getattr(raw, "aggregation_policy", None),
+            ),
             atom_keys=tuple(raw.atom_keys),
             atom_weights=tuple(raw.atom_weights),
             atom_statuses=tuple(raw.atom_statuses),
@@ -536,6 +555,7 @@ def _wrap_prepared_response(
         allowlist_parent=getattr(raw, "allowlist_parent", None),
         diagnostics=tuple(getattr(raw, "diagnostics", ()) or ()),
         missing_data=_missing_data_from_raw(raw, prepared),
+        interval_bindings=_interval_bindings_from_raw(raw),
         _prepared=prepared,
         _execution=execution,
         _raw=raw,
@@ -908,6 +928,8 @@ def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
         wire["draw_controls"] = kw["draw_controls"]
     if "white_innovation" in kw:
         wire["white_innovation"] = kw["white_innovation"]
+    if "predictive_replicates" in kw:
+        wire["predictive_replicates"] = kw["predictive_replicates"]
     if "design_model" in kw:
         wire["design_model"] = kw["design_model"]
     return wire
@@ -1027,8 +1049,8 @@ class _PreparedEngine(Generic[ResultT]):
 
     Arrow CDI / stream inputs may be borrowed without copying. Keep their
     exported buffers unchanged while this handle retains them, including any
-    writable NumPy aliases backing Arrow arrays. To replace observations, use
-    new backing buffers and call :meth:`refresh`; ordinary mappings of NumPy
+    writable NumPy aliases backing Arrow arrays. To bind other observations, use
+    new backing buffers and ``rebind``; ordinary mappings of NumPy
     columns are copied during ingest.
 
     ``analyze`` is ``prepare(...).estimate()``; its result retains this handle
@@ -1094,7 +1116,7 @@ class _PreparedEngine(Generic[ResultT]):
         self._cancelled = False
         # Set by transport/_day1.py::prepare_transport when identification is
         # deferred (no native execution yet): the frozen inputs needed to
-        # re-derive identification (inspect()) or re-bind data (refresh())
+        # re-derive identification (inspect()) or re-bind data (rebind())
         # without one. Absent for every non-transport study.
         self._transport_stage: TransportStage | None = None
         self._last_result: ResultT | None = None
@@ -1198,6 +1220,8 @@ class _PreparedEngine(Generic[ResultT]):
         ]
         | None = None,
         retain_joint_horizons: bool = False,
+        on_refusal: Literal["refuse", "describe"] = "refuse",
+        evidence_candidates: Sequence[Any] | None = None,
     ) -> _PreparedEngine[_PreparedResult] | PreparedPolicyAnalysis:
         """Compile a durable plan for a licensed analysis cell.
 
@@ -1259,7 +1283,7 @@ class _PreparedEngine(Generic[ResultT]):
         ``PolicyProgramValue(programs, outcome, n_draws=...)`` with ``graph=Dag(...)`` (or an
         edge list) prepares a policy question: the structural model is fitted on ``data`` once,
         the program is compiled and the licence of each route resolved once, and every
-        ``estimate`` / ``refresh`` reruns the policy value without compiling the program again
+        ``estimate`` reruns the policy value without compiling the program again
         (``handle.preparation`` is the receipt). Its result carries the support decision, the
         contract and the provenance record, and equals ``policy_value`` on the same model and
         seed. Estimand-only options (``discovery``, ``estimator``, ``refute``, ...) are refused.
@@ -1696,6 +1720,12 @@ class _PreparedEngine(Generic[ResultT]):
         }
         if retain_joint_horizons:
             options["retain_joint_horizons"] = True
+        if on_refusal == "describe":
+            # A study refused for want of identification keeps its refusal; Rust runs the
+            # descriptive fallback on that same study and attaches it to the raised refusal.
+            from .fallback import fallback_declaration
+
+            options["fallback"] = fallback_declaration(evidence_candidates)
         if missing_policy is not None:
             options["missing"] = native_declaration(missing_policy, names)
         if sampling_design is not None:
@@ -1792,7 +1822,7 @@ class _PreparedEngine(Generic[ResultT]):
         if no claim was produced."""
         if self._transport is not None:
             # A transport handle retains its previous claim through a cancelled
-            # click (every refresh is atomic) and refuses on its own when it
+            # click (every snapshot change is atomic) and refuses on its own when it
             # holds none, so the native export decides.
             return self._native.export()
         if getattr(self, "_cancelled", False):
@@ -2077,18 +2107,6 @@ class _PreparedEngine(Generic[ResultT]):
             kernels=raw.get("kernels") or None,
         )
 
-    def replace_snapshot(self, data: Any, *, cancel: Any = _UNSET) -> None:
-        """Replace exact-law providers and invalidate execution claims atomically."""
-        guard_design(self, data)
-        if self._transport is not None:
-            self._native.replace_snapshot(
-                self._transport.payload(data),
-                cancel=self._controls.cancel if cancel is _UNSET else cancel,
-            )
-            self._last_result = None
-            return
-        raise ValueError("Use refresh for this sampled-data modality")
-
     def _click_controls(self, cancel: Any, on_progress: Any, on_stage: Any) -> dict[str, Any]:
         """The study's retained controls, with any per-click override applied."""
         controls = self._controls
@@ -2236,7 +2254,6 @@ class _PreparedEngine(Generic[ResultT]):
         self,
         data: Any,
         *,
-        refresh: bool,
         seed: int | None,
         threads: int | None,
         controls: dict[str, Any],
@@ -2255,7 +2272,6 @@ class _PreparedEngine(Generic[ResultT]):
                 lambda: self._transport.execute(
                     self._native,
                     data,
-                    refresh=refresh,
                     seed=seed,
                     threads=threads,
                     controls=controls,
@@ -2298,17 +2314,13 @@ class _PreparedEngine(Generic[ResultT]):
                     columns,
                     frame,
                     response=response,
-                    refresh=refresh,
                     seed=seed,
                     threads=threads,
                     **controls,
                 )
             )
             return self._wrap(raw)
-        if refresh:
-            fn = native.refresh_response if response else native.refresh
-        else:
-            fn = native.estimate_response if response else native.estimate
+        fn = native.estimate_response if response else native.estimate
         raw = self._run_click(lambda: fn(names, columns, seed=seed, threads=threads, **controls))
         return self._with_deferred_suite(self._wrap(raw), data, seed=seed, threads=threads)
 
@@ -2411,7 +2423,6 @@ class _PreparedEngine(Generic[ResultT]):
             ResultT,
             self._click(
                 data,
-                refresh=False,
                 seed=seed,
                 threads=threads,
                 controls=self._click_controls(cancel, on_progress, on_stage),
@@ -2473,50 +2484,6 @@ class _PreparedEngine(Generic[ResultT]):
             )
         raw = self._native.reexecute_retarget(bytes(artifact), seed=seed, threads=threads)
         return _wrap_ate(raw, prepared=self)
-
-    @describe_refusal
-    def refresh(
-        self,
-        data: Mapping[str, Any] | Any,
-        *,
-        seed: int | None = None,
-        threads: int | None = None,
-        cancel: Any = _UNSET,
-        on_progress: Any = _UNSET,
-        on_stage: Any = _UNSET,
-    ) -> ResultT:
-        """Replace retained data and re-estimate (controls as in :meth:`estimate`).
-
-        Arrow inputs may be borrowed. Supply new backing buffers for changed
-        observations and keep those buffers, including writable NumPy aliases,
-        unchanged while the refreshed handle retains them.
-        """
-        data = coerce_table_source(data)
-        previous_stage = self._transport_stage
-        if isinstance(self._query, Transport):
-            from .transport._day1 import catalog_from_evidence
-
-            stage: Mapping[str, Any] = previous_stage or {}
-            catalog, bound = catalog_from_evidence(self._query, data, graph=stage.get("graph"))
-            if bound is not None:
-                data = bound
-            self._transport_stage = retain({**stage, "catalog": catalog, "bound": bound})
-        try:
-            # TransportLifecycle.refresh already commits its native snapshot atomically.
-            # Keep the Python evidence view in the same transaction as that execution.
-            return cast(
-                ResultT,
-                self._click(
-                    data,
-                    refresh=True,
-                    seed=seed,
-                    threads=threads,
-                    controls=self._click_controls(cancel, on_progress, on_stage),
-                ),
-            )
-        except BaseException:
-            self._transport_stage = previous_stage
-            raise
 
     def _staleness_payload(self, data: Any) -> tuple[list[str], list[Any]]:
         """Every column of ``data`` (encoded like a click, never projected onto the schema)."""
@@ -2655,7 +2622,7 @@ class _PreparedEngine(Generic[ResultT]):
         threads: int | None = None,
         cancel: Any = _UNSET,
     ) -> AnalysisResult:
-        """Second-click refute against the last :meth:`estimate` / :meth:`refresh`.
+        """Second-click refute against the last :meth:`estimate`.
 
         Interactive first clicks typically use ``refute=False`` or ``cheap``;
         call this with ``suite="placebo"`` or ``"full"`` for the deferred suite.

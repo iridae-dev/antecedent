@@ -32,6 +32,7 @@ from .recalc import (
     RecalcReceipt,
     RecalcResult,
     ResumeContext,
+    SessionStanding,
     Stage,
     TargetWeights,
     Utility,
@@ -40,6 +41,7 @@ from .recalc import (
     _declared_json,
     _refusal_type,
     _seed,
+    session_standing,
 )
 
 Covariance = Literal["model_based", "hc0", "hc1", "hc2", "hc3"]
@@ -210,6 +212,11 @@ class AdjustedSession:
             _declared_json(declared), json.dumps(ctx.to_wire())
         )
         return session
+
+    @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing("adjusted")
 
     @property
     def is_live(self) -> bool:

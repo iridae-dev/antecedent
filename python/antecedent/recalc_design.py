@@ -134,6 +134,8 @@ class DesignSession(_Session):
 
     __slots__ = ()
 
+    _standing_kind = "design"
+
     @staticmethod
     def _native_type() -> Any:
         return _native.DesignSessionHandle

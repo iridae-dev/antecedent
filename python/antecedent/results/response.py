@@ -21,7 +21,7 @@ from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct
 from ._report import ResultModel
 from ._slots import ReasoningSlots, mass_limitation
-from ._views import IdentificationView, MissingDataView
+from ._views import IdentificationView, IntervalBindingView, MissingDataView
 
 #: Empirical support labels, weakest last. ``missing_evidence`` marks a coordinate
 #: whose required evidence (a supplied law, provider or declared domain) is absent; it is
@@ -128,6 +128,14 @@ class ResponseEnvelopeView(ResultModel):
     weight_basis: Literal[
         "posterior_probability", "completion_enumeration", "caller_supplied_class_prior"
     ] = "completion_enumeration"
+    #: How identified graph atoms were combined: ``"same_estimand_weighted_mean"``,
+    #: ``"identified_set_envelope"`` (the set, not a scalar mixture) or
+    #: ``"graph_dependent_atoms"`` (different estimands: no mixture). ``None`` when the route
+    #: does not aggregate across graphs.
+    aggregation_policy: (
+        Literal["same_estimand_weighted_mean", "identified_set_envelope", "graph_dependent_atoms"]
+        | None
+    ) = None
     atom_keys: Sequence[int] = ()
     atom_weights: Sequence[float] = ()
     atom_statuses: Sequence[str] = ()
@@ -442,6 +450,8 @@ class CausalResponseView(ResultModel, ResultAPI):
     reasoning: ReasoningSlots | None = None
     #: The missing-data policy, its assumption and the row accounting, when the route reports it.
     missing_data: MissingDataView | None = None
+    #: Every interval this execution reported, primary first.
+    interval_bindings: tuple[IntervalBindingView, ...] = ()
     #: Compiled program identity. Distinct from ``claim_id``.
     program_id: str | None = None
     #: Execution claim identity. Distinct from ``program_id``.

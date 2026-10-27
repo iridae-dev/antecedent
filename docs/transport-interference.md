@@ -33,7 +33,7 @@ query = transport.advanced.TransportQuery(
 )
 result = ant.analyze(data, graph=admg, query=query)   # admg: an Admg over data's columns
 study = result.study
-updated = study.refresh(new_data)
+updated = ant.estimate(ant.rebind(study, data=new_data))
 report = result.inspect().to_dict()
 loaded = ant.load(result.export())
 

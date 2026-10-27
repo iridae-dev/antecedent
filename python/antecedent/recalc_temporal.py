@@ -168,6 +168,8 @@ def _result(payload: tuple[str | None, bytes | None, str | None]) -> TemporalRes
 class TemporalSession(_Session):
     __slots__ = ()
 
+    _standing_kind = "temporal"
+
     @staticmethod
     def _native_type() -> Any:
         return _native.TemporalSessionHandle

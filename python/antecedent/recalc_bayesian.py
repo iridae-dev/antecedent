@@ -110,6 +110,8 @@ class BayesianSession(_Session):
 
     __slots__ = ()
 
+    _standing_kind = "bayesian"
+
     @staticmethod
     def _native_type() -> Any:
         return _native.BayesianSessionHandle
@@ -373,6 +375,8 @@ class JointBayesianSession(_Session):
     """
 
     __slots__ = ()
+
+    _standing_kind = "joint_bayesian"
 
     @staticmethod
     def _native_type() -> Any:

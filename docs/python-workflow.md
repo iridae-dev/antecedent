@@ -89,12 +89,12 @@ Keep `result.study` to reuse the graph, question, and settings. Here we simulate
 ```python
 new_data = {**data, "outcome": data["outcome"] + treatment}
 study = result.study
-updated = study.refresh(new_data)
+updated = ant.estimate(ant.rebind(study, data=new_data))
 print("Original:", result.answer.value)
 print("Updated:", updated.answer.value)
 ```
 
-The updated estimate should be one unit larger. The original result stays unchanged. Refresh replaces the study's data only after a successful run; new data must have the same schema.
+The updated estimate should be one unit larger. The original result stays unchanged. `ant.rebind` returns a new branch on the new data and leaves the source study unchanged; new data must have the same schema.
 
 ## Save and reload a result
 
@@ -115,7 +115,7 @@ A refusal explains why the requested analysis cannot run. Keep the explanation v
 <!-- exec: quickstart -->
 ```python
 try:
-    updated = study.refresh(new_data)
+    updated = ant.estimate(ant.rebind(study, data=new_data))
 except ant.CausalError as error:
     print(error)
     print(error.report.to_dict())

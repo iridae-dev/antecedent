@@ -232,9 +232,9 @@ assert loaded.answer == result.answer
 report = loaded.inspect().to_dict()
 assert loaded.export() == encoded
 
-# Refreshing the study does not change this execution or its archive.
-# The five-line second click is result.refresh; a second analyze() re-prepares.
-updated = result.refresh(new_data)
+# Rebinding the study does not change this execution or its archive.
+# The second click is estimate(rebind(study, data=...)); a second analyze() re-prepares.
+updated = ant.estimate(ant.rebind(result.study, data=new_data))
 assert result.export() == encoded
 ```
 
@@ -323,7 +323,7 @@ spreadsheet / dashboard spine:
 ```text
 discover_* once  →  AcceptedGraph (versioned) / JSON hold
   →  analyze(graph=..., latency="interactive") once → result.study
-  →  study.estimate() or study.refresh(new_data)
+  →  study.estimate() or estimate(rebind(study, data=new_data))
   →  rediscover only on an explicit AcceptedGraph.rediscover call
 ```
 

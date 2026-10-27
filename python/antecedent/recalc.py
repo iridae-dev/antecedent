@@ -190,6 +190,94 @@ def stage_identity(stage: Stage | str, *parts: bytes | str) -> str:
     return _native.recalc_stage_identity(label, raw)
 
 
+SessionKind = Literal[
+    "receipt",
+    "adjusted",
+    "cell",
+    "design",
+    "doubly_robust",
+    "static",
+    "temporal",
+    "bayesian",
+    "joint_bayesian",
+    "external",
+    "composite",
+]
+"""The recalculation session families, each with its own standing declarations."""
+
+_SESSION_KINDS = (
+    "receipt",
+    "adjusted",
+    "cell",
+    "design",
+    "doubly_robust",
+    "static",
+    "temporal",
+    "bayesian",
+    "joint_bayesian",
+    "external",
+    "composite",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class StandingInput:
+    """How a session states one standing input in its stage identities.
+
+    ``status`` is ``declared`` (a change in the input moves the law and the decision and nothing
+    that reads only data), ``not_applicable`` (the claim does not rest on it; ``reason`` says why)
+    or ``undeclared`` (the session does not hold what the input names; ``finding`` names what is
+    missing and ``remedy`` what would make it declarable, so a claim that needs it is not
+    licensed by this session's identities alone).
+    """
+
+    status: Literal["declared", "not_applicable", "undeclared"]
+    reason: str | None = None
+    finding: str | None = None
+    remedy: str | None = None
+
+    @classmethod
+    def from_wire(cls, wire: Mapping[str, Any]) -> StandingInput:
+        status = wire["status"]
+        if status not in ("declared", "not_applicable", "undeclared"):
+            raise CausalSerializationError(f"unrecognized standing declaration {status!r}")
+        return cls(status, wire.get("reason"), wire.get("finding"), wire.get("remedy"))
+
+
+@dataclass(frozen=True, slots=True)
+class SessionStanding:
+    """The three standing inputs of a session family's stage identities.
+
+    ``calibration`` is the calibration record behind an interval or posterior statement,
+    ``representation`` the model family and version a score artifact was built with and
+    ``coupling`` the coupling between streams a joint statement relies on.
+    """
+
+    kind: SessionKind
+    calibration: StandingInput
+    representation: StandingInput
+    coupling: StandingInput
+
+
+def session_standing(kind: SessionKind) -> SessionStanding:
+    """The standing inputs the recalculation session family ``kind`` declares, and why each other is not.
+
+    Rust owns the declarations. The Bayesian families declare their calibration and coupling;
+    point-valued families state that their law is a point and form no joint statement; the
+    external and composite families, whose providers' calibration and coupling the session does
+    not hold, say so with a finding and a remedy. No family declares a representation.
+    """
+    if kind not in _SESSION_KINDS:
+        raise CausalValueError(f"kind must be one of {', '.join(_SESSION_KINDS)}")
+    wire = json.loads(_native.recalc_session_standing(kind))
+    return SessionStanding(
+        kind=kind,
+        calibration=StandingInput.from_wire(wire["calibration"]),
+        representation=StandingInput.from_wire(wire["representation"]),
+        coupling=StandingInput.from_wire(wire["coupling"]),
+    )
+
+
 def _stage(value: Stage | str) -> Stage:
     try:
         return Stage(value)
@@ -967,6 +1055,11 @@ class RecalcSession:
         return self._handle.is_live()
 
     @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session's stage identities declare."""
+        return session_standing("receipt")
+
+    @property
     def identities(self) -> dict[Stage, str]:
         """Own-input digests of the last successful run (or the resumed ones)."""
         return _declared(json.loads(self._handle.identities_json()))
@@ -1101,12 +1194,16 @@ __all__ = [
     "RequestKind",
     "ResumeContext",
     "Retarget",
+    "SessionKind",
+    "SessionStanding",
     "Stage",
     "StageCounts",
     "StageStatus",
+    "StandingInput",
     "TargetWeights",
     "Utility",
     "consume",
     "plan_recalculation",
+    "session_standing",
     "stage_identity",
 ]

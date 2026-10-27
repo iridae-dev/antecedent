@@ -227,7 +227,7 @@ def outcome_from_error(error: BaseException, *, operation: str | None = None) ->
         {
             key: value
             for key, value in vars(error).items()
-            if not key.startswith("_") and key not in {"study", "report", "fields"}
+            if not key.startswith("_") and key not in {"study", "report", "fields", "fallback"}
         }
     )
     refusal = Refusal(

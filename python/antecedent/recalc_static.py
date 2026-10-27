@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from numpy.typing import ArrayLike
 
@@ -28,12 +28,15 @@ from .recalc import (
     RecalcPlan,
     RecalcReceipt,
     ResumeContext,
+    SessionKind,
+    SessionStanding,
     Stage,
     Utility,
     _declared,
     _declared_json,
     _refusal_type,
     _seed,
+    session_standing,
 )
 from .transport._impl import EvidenceCatalog, ExactDiscreteLaw
 from .transport._multi_source import MultiSourceZTransportQuery
@@ -171,6 +174,8 @@ def _result(payload: tuple[str | None, bytes | None, str | None]) -> StaticResul
 class _Session:
     __slots__ = ("_handle",)
 
+    _standing_kind: ClassVar[SessionKind]
+
     @staticmethod
     def _native_type() -> Any:
         raise NotImplementedError
@@ -202,6 +207,11 @@ class _Session:
     def capabilities(self) -> Capabilities:
         return Capabilities.from_wire(json.loads(self._handle.capabilities_json()))
 
+    @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing(self._standing_kind)
+
     @artifact_export
     def export(self, *, seed: int = 1, threads: int | None = None) -> ExportedArtifact:
         """Export the retained original engine artifact, independently consumable.
@@ -220,6 +230,8 @@ class StaticResponseSession(_Session):
     """Retained checked finite ADMG response program and evaluated response grid."""
 
     __slots__ = ()
+
+    _standing_kind = "static"
 
     # Resolve lazily so importing this module does not instantiate native state.
     @staticmethod
@@ -302,6 +314,8 @@ class MultiSourceSession(_Session):
     """Retained checked multi-source proof, catalog, exact laws and compiled plans."""
 
     __slots__ = ()
+
+    _standing_kind = "static"
 
     @staticmethod
     def _native_type() -> Any:

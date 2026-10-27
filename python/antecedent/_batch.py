@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
@@ -103,14 +103,39 @@ class CellFamily:
                 raise CausalValueError("cell family posterior_draws must be positive")
 
 
+@dataclass(frozen=True, slots=True)
+class ScreenSplitReceipt:
+    """What a generated screen/estimate split was built from.
+
+    ``unit_kind`` is ``"entity"`` for owner labels and ``"dyad_component"`` for connected
+    endpoint components; ``n_units`` units were dealt, ``screen_units`` to the screen half and
+    ``estimate_units`` to the estimate half. ``unit_digest`` is the hex digest of the sorted
+    distinct unit ids, so it does not depend on row order; the extended screen id carries the
+    same seed and digest.
+    """
+
+    seed: int
+    unit_kind: Literal["entity", "dyad_component"]
+    n_units: int
+    screen_units: int
+    estimate_units: int
+    unit_digest: str
+
+
 @dataclass(frozen=True)
 class CandidateScreen:
-    """Declared screen/estimate split for a batch family."""
+    """Declared screen/estimate split for a batch family.
+
+    A split built by :meth:`from_units` also carries its :class:`ScreenSplitReceipt` in
+    ``receipt``; a screen declared directly from row lists has none. The receipt describes how
+    the rows were dealt and is not part of the screen's equality.
+    """
 
     screen_id: str
     procedure: Literal["max_t", "bh", "by", "unrecorded"]
     screen_rows: Sequence[int]
     estimate_rows: Sequence[int]
+    receipt: ScreenSplitReceipt | None = field(default=None, compare=False)
 
     @classmethod
     def from_units(
@@ -137,7 +162,17 @@ class CandidateScreen:
         """
         from ._native import candidate_screen_from_units
 
-        recorded_id, screen_rows, estimate_rows, *_receipt = candidate_screen_from_units(
+        (
+            recorded_id,
+            screen_rows,
+            estimate_rows,
+            seed_used,
+            unit_kind,
+            n_units,
+            screen_units,
+            estimate_units,
+            unit_digest,
+        ) = candidate_screen_from_units(
             screen_id,
             procedure,
             screen_fraction=float(screen_fraction),
@@ -146,7 +181,20 @@ class CandidateScreen:
             first=None if first is None else [int(i) for i in first],
             second=None if second is None else [int(i) for i in second],
         )
-        return cls(recorded_id, procedure, screen_rows, estimate_rows)
+        return cls(
+            recorded_id,
+            procedure,
+            screen_rows,
+            estimate_rows,
+            ScreenSplitReceipt(
+                seed=seed_used,
+                unit_kind="dyad_component" if unit_kind == "dyad_component" else "entity",
+                n_units=n_units,
+                screen_units=screen_units,
+                estimate_units=estimate_units,
+                unit_digest=unit_digest,
+            ),
+        )
 
 
 def _screen_kwargs(screen: CandidateScreen | None) -> dict[str, Any]:

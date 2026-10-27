@@ -67,7 +67,7 @@ from ._freeze import thaw
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
-from .errors import CausalTypeError, CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 __all__ = [
     "Bernoulli",
@@ -85,10 +85,12 @@ __all__ = [
     "Observations",
     "OverlapStatus",
     "PointEvaluated",
+    "PosteriorReplicates",
     "PredictiveAssessment",
     "PredictiveAssessmentRefusal",
     "PredictiveReport",
     "Predictor",
+    "ReplicateBounds",
     "ScoreDifference",
     "ScoreInterval",
     "Target",
@@ -100,6 +102,7 @@ __all__ = [
     "keys",
     "ledger_observations",
     "observation_key",
+    "posterior_replicates",
     "replicate_laws",
     "score_case",
 ]
@@ -623,6 +626,104 @@ class Predictor:
             "laws": [law.to_wire() for law in self.laws],
             "fit": fit.wire,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class ReplicateBounds:
+    """Bounds of the posterior predictive replicates a Bayesian study retains.
+
+    Declared on the study (``Bayesian(predictive_replicates=ReplicateBounds(...))``): the fit
+    builds ``n_sims`` replicates (capped by the posterior draws it holds) of every design row,
+    for a design of at most ``max_rows`` rows, and the Execution memory pool must admit them for
+    as long as the result holds them. Read them back with :func:`posterior_replicates`.
+    """
+
+    n_sims: int = 200
+    max_rows: int = 10_000
+
+    def __post_init__(self) -> None:
+        _count(self.n_sims, "n_sims", minimum=1, maximum=2**32 - 1, reason_code="invalid_argument")
+        _count(
+            self.max_rows, "max_rows", minimum=1, maximum=2**32 - 1, reason_code="invalid_argument"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PosteriorReplicates:
+    """The posterior predictive replicates of one Bayesian fit as predictive laws.
+
+    ``laws[i]`` is the sample law of design row ``i`` (the replicates of that row), ``outcomes[i]``
+    the outcome observed there and ``rows[i]`` its row in the source table. The replicates are
+    drawn at parameters fitted to these very rows, so :meth:`predictor` declares the fit as all of
+    them (an ``in_sample`` assessment, refused when held-out observations are required) unless
+    the caller supplies the declaration.
+    """
+
+    target: Target
+    model: str
+    laws: tuple[EmpiricalSample, ...]
+    outcomes: tuple[float, ...]
+    rows: tuple[int, ...]
+
+    @classmethod
+    def from_native(cls, native: Any) -> PosteriorReplicates:
+        """The replicates a native result retained."""
+        return cls(
+            target=Target(str(native.quantity), str(native.population), str(native.units)),
+            model=str(native.model),
+            laws=tuple(EmpiricalSample(list(draws)) for draws in native.laws),
+            outcomes=tuple(float(value) for value in native.outcomes),
+            rows=tuple(int(row) for row in native.rows),
+        )
+
+    @property
+    def n_sims(self) -> int:
+        """Replicate draws behind every row's law."""
+        return len(self.laws[0].draws) if self.laws else 0
+
+    def ids(self, domain: str) -> list[str]:
+        """Observation keys of the design rows: ``keys(domain, rows)`` of the source table."""
+        return keys(domain, self.rows)
+
+    def observations(self, domain: str = "analysis_rows") -> Observations:
+        """The observed outcomes of the design rows as realized observations."""
+        return Observations(self.target, self.ids(domain), "real", list(self.outcomes))
+
+    def predictor(
+        self,
+        name: str = "posterior_predictive",
+        *,
+        domain: str = "analysis_rows",
+        fit: FitDeclaration | None = None,
+    ) -> Predictor:
+        """The replicates as a native predictor of the design rows.
+
+        ``fit`` defaults to a fit on every design row of ``domain``, which is what the posterior
+        was conditioned on; pass :meth:`FitDeclaration.undeclared` or a ledger declaration to
+        state otherwise.
+        """
+        declared = fit if fit is not None else FitDeclaration.fitted_on(self.ids(domain))
+        return Predictor(
+            name, self.laws, self.target, source=LawSource.native(self.model), fit=declared
+        )
+
+
+def posterior_replicates(result: Any) -> PosteriorReplicates:
+    """The posterior predictive replicates a Bayesian result retained at fit time.
+
+    Raises:
+        CausalUnsupportedError: ``option_not_applicable`` when the study did not declare
+            ``Bayesian(predictive_replicates=ReplicateBounds(...))``.
+    """
+    posterior = getattr(result, "posterior", None)
+    replicates = getattr(posterior, "predictive_replicates", None)
+    if not isinstance(replicates, PosteriorReplicates):
+        raise CausalUnsupportedError(
+            "this result retained no posterior predictive replicates; declare "
+            "Bayesian(predictive_replicates=ReplicateBounds(n_sims, max_rows)) on the study",
+            reason_code="option_not_applicable",
+        )
+    return replicates
 
 
 # --------------------------------------------------------------------------- results

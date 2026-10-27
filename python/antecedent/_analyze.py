@@ -411,7 +411,7 @@ def analyze(
     """Identify then estimate a causal effect.
 
     Runs the published interval once. The five-line second click reuses
-    identification: ``result = analyze(...); result.refresh(new_data)``.
+    identification: ``result = analyze(...); estimate(rebind(result.study, data=new_data))``.
     A second ``analyze()`` still re-prepares.
 
     Parameters
@@ -429,7 +429,7 @@ def analyze(
         Arrow CDI / stream inputs may be borrowed without copying. Keep their
         exported buffers unchanged while a data or prepared handle retains them,
         including any writable NumPy aliases backing an Arrow array. Supply new
-        buffers and call ``result.refresh(new_data)`` to replace observations;
+        buffers and call ``rebind(result.study, data=new_data)`` to bind other observations;
         ordinary mappings of NumPy columns are copied during ingest.
         For ``discovery=JPCMCIPlus(...)``, pass a sequence of environment frames
         or a ``MultiEnvFrame``.
@@ -508,7 +508,7 @@ def analyze(
     participant:
         Optional name of a data column of participant (row-owner) labels, strings or whole
         numbers. The labels are read from the raw table, kept with their original rows and
-        frozen in the prepared study: ``refresh`` refuses a table that holds other labels or
+        frozen in the prepared study: ``rebind`` refuses a table that holds other labels or
         other rows, and ``reprepare`` rebuilds them.
     missing:
         How rows with missing values are handled: a policy name (``"error"``,
@@ -749,6 +749,8 @@ def analyze(
             provider=provider,
             controls=controls,
             sampling_design=sampling_design,
+            on_refusal="describe" if on_refusal == "describe" else "refuse",
+            evidence_candidates=evidence_candidates,
         )
         result = prepared.estimate()
     except (CausalError, ValueError, TypeError) as error:
@@ -763,29 +765,19 @@ def analyze(
         if graph is not None:
             call_kwargs["graph"] = graph
         attach_refusal_report(analyze, (data,), call_kwargs, error)
-        return fallback.describe(
+        stage = getattr(error, "fallback", None)
+        if stage is None:
+            raise
+        from ._names import table_names
+
+        return fallback.from_native(
             error,
-            data,
+            stage,
             query=query,
             graph=graph,
-            candidates=evidence_candidates,
-            options={
-                key: value
-                for key, value in {
-                    "inference": inference
-                    if isinstance(inference, (Frequentist, Bayesian))
-                    else None,
-                    "seed": seed,
-                    "bootstrap": bootstrap,
-                    "threads": threads,
-                    "latency": latency,
-                    "cancel": cancel,
-                    "participant": participant,
-                    "missing": missing,
-                    "sampling_design": sampling_design,
-                }.items()
-                if value is not None
-            },
+            columns=table_names(data),
+            seed=seed,
+            threads=threads,
         )
     if return_posterior_artifact:
         from .errors import CausalUnsupportedError as _Unsupported

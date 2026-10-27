@@ -15,6 +15,7 @@ from ._native import (
 
 if TYPE_CHECKING:
     from .design_models import DesignModel
+    from .predictive_assessment import ReplicateBounds
     from .priors import ComposedPrior, PriorMapping
 
 
@@ -117,6 +118,14 @@ class Bayesian:
         ratio that needs no ``design_model`` and refuses a first stage whose posterior reaches
         zero; a cluster-randomized interference total runs
         ``interference.cluster_bayesian_bootstrap`` likewise.
+    predictive_replicates:
+        :class:`~antecedent.predictive_assessment.ReplicateBounds` that make the fit retain its
+        posterior predictive replicates (``n_sims`` draws over at most ``max_rows`` design rows),
+        admitted against the Execution memory pool and read back with
+        :func:`antecedent.predictive_assessment.posterior_replicates`. Only the tabular
+        ``AverageEffect`` mean on a fixed ``Dag`` under Bayesian g-computation builds them; any
+        other route refuses the declaration (``option_not_applicable``), and a design with more
+        rows than ``max_rows`` is refused (``invalid_argument``).
     white_innovation:
         ``(max_lag, level)`` declares that the outcome innovation of a single-step temporal
         pulse, one-step sustained effect or one-step single-horizon ``ResponseCurve`` on a
@@ -143,9 +152,17 @@ class Bayesian:
     white_innovation: tuple[int, float] | None = None
     design_model: DesignModel | None = None
     profile: Literal["interactive", "standard", "report"] | None = None
+    predictive_replicates: ReplicateBounds | None = None
 
     def __post_init__(self) -> None:
         _validate_profile(self.profile)
+        if self.predictive_replicates is not None:
+            from .predictive_assessment import ReplicateBounds  # noqa: PLC0415
+
+            if not isinstance(self.predictive_replicates, ReplicateBounds):
+                from .errors import CausalTypeError  # noqa: PLC0415
+
+                raise CausalTypeError("predictive_replicates must be a ReplicateBounds")
 
     @property
     def n_draws_explicit(self) -> bool:

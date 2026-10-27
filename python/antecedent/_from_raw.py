@@ -61,6 +61,7 @@ from .results import (
     ImputationVectorView,
     ImputationView,
     ImputationWaldView,
+    IntervalBindingView,
     MediationView,
     MissingDataView,
     PerformanceView,
@@ -113,6 +114,15 @@ def _refutation_reports_from_raw(validation: Any) -> list[RefutationReport]:
         )
         for r in getattr(validation, "reports", None) or ()
     ]
+
+
+def _predictive_replicates_from_raw(raw: Any) -> Any:
+    native = getattr(raw, "predictive_replicates", None)
+    if native is None:
+        return None
+    from .predictive_assessment import PosteriorReplicates  # noqa: PLC0415
+
+    return PosteriorReplicates.from_native(native)
 
 
 def _plan_from_raw(raw: Any) -> PlanView:
@@ -376,6 +386,14 @@ def row_accounting_from_dict(
         dropped_labels=named,
         dropped_labels_digest=None if named is None else _label_digest(named),
     )
+
+
+def _interval_bindings_from_raw(raw: Any) -> tuple[IntervalBindingView, ...]:
+    """The intervals a native result reported, primary first."""
+    payload = getattr(raw, "interval_bindings_json", None)
+    if not payload:
+        return ()
+    return tuple(IntervalBindingView(**entry) for entry in json.loads(payload))
 
 
 def _missing_data_from_raw(raw: Any, prepared: Any | None) -> MissingDataView | None:
@@ -1346,6 +1364,7 @@ def _wrap_ate(
             envelope=envelope,
             conflict=_conflict_from_raw(raw),
             subsampled_out_mass=skipped,
+            predictive_replicates=_predictive_replicates_from_raw(raw),
         )
 
     # The predictive-check fields are static-DTO only; the temporal DTO does not
@@ -1578,6 +1597,7 @@ def _wrap_ate(
         structural_identified_mass=getattr(raw, "structural_identified_mass", None),
         structural_unidentified_mass=getattr(raw, "structural_unidentified_mass", None),
         structural_unevaluable_mass=getattr(raw, "structural_unevaluable_mass", None),
+        structural_aggregation_policy=getattr(raw, "structural_aggregation_policy", None),
         structural_identified_set=getattr(raw, "structural_identified_set", None),
         structural_identified_set_interval=getattr(raw, "structural_identified_set_interval", None),
         structural_identified_set_interval_level=getattr(
@@ -1590,6 +1610,7 @@ def _wrap_ate(
             raw, "structural_identified_set_interval_truncated", None
         ),
         missing_data=_missing_data_from_raw(raw, prepared),
+        interval_bindings=_interval_bindings_from_raw(raw),
         transport_overlap=_transport_overlap_from_raw(raw),
         interference=_interference_from_raw(raw),
         randomized_effect=_randomized_effect_from_raw(raw),

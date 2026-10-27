@@ -28,7 +28,14 @@ from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .external import BoundExternalClaim, ExternalSpec, ProviderObject, Response
 from .outcomes import outcome_operation
 from .program_claims import ProgramBinding
-from .recalc import RecalcPlan, RecalcReceipt, RecalcRefusal, _seed
+from .recalc import (
+    RecalcPlan,
+    RecalcReceipt,
+    RecalcRefusal,
+    SessionStanding,
+    _seed,
+    session_standing,
+)
 
 CallbackPolicy = Literal["deterministic", "seeded", "stateful", "side_effecting", "unknown"]
 
@@ -182,6 +189,11 @@ class ExternalCallbackSession:
 
     def __init__(self) -> None:
         self._handle = _native.ExternalCallbackSessionHandle()
+
+    @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing("external")
 
     @property
     def is_live(self) -> bool:

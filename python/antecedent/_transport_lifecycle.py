@@ -20,7 +20,6 @@ class TransportLifecycle:
         native: Any,
         data: Any,
         *,
-        refresh: bool,
         seed: int | None,
         threads: int | None,
         controls: dict[str, Any],
@@ -34,16 +33,11 @@ class TransportLifecycle:
                 "Transport retains inference settings; only cancellation can change per execution",
                 reason_code="option_not_applicable",
             )
-        if refresh:
-            execute = native.refresh_summary if self.compact_payload else native.refresh
-            raw = execute(self.payload(data), cancel=controls.get("cancel"))
-        elif data is None:
+        if data is None:
             execute = native.estimate_summary if self.compact_payload else native.estimate
             raw = execute(cancel=controls.get("cancel"))
         else:
-            raise CausalValueError(
-                "Use replace_snapshot or refresh for an explicit transport snapshot change"
-            )
+            raise CausalValueError("Use rebind for an explicit transport snapshot change")
         return self.wrap(native, raw)
 
 

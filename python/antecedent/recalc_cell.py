@@ -72,11 +72,13 @@ from .recalc import (
     RecalcResult,
     RecalcUnavailable,
     Retarget,
+    SessionStanding,
     Stage,
     TargetWeights,
     Utility,
     _column,
     _seed,
+    session_standing,
     stage_identity,
 )
 
@@ -299,6 +301,11 @@ class CellSession:
         self._handle.set_retarget_support(retarget)
 
     @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing("cell")
+
+    @property
     def is_live(self) -> bool:
         """Whether the session holds live cell scores."""
         return self._handle.is_live()
@@ -394,6 +401,11 @@ class CrossfitSession:
 
     def __init__(self) -> None:
         self._handle = _native.CrossfitSessionHandle()
+
+    @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing("receipt")
 
     @property
     def is_live(self) -> bool:

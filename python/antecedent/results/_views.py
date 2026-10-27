@@ -398,6 +398,11 @@ class PosteriorView(ResultModel):
     #: envelope subsample. Those atoms were not evaluated, so this is neither
     #: unidentified mass nor part of the published mixture.
     subsampled_out_mass: float = 0.0
+    #: Posterior predictive replicates retained at fit time when the declaration asked for them
+    #: (``Bayesian(predictive_replicates=ReplicateBounds(...))``): an
+    #: :class:`~antecedent.predictive_assessment.PosteriorReplicates`, otherwise ``None``. Not part
+    #: of the serialized view; it is n_sims x n_rows values.
+    predictive_replicates: Any = Field(default=None, exclude=True)
     #: Rendering-limitation id of the enclosing result. When set, the moments
     #: and quantiles describe a mixture, not an interval for the claim, and
     #: displays withhold them behind the caveat.
@@ -814,6 +819,34 @@ class ImputationView(ResultModel):
     vector: ImputationVectorView | None = None
 
 
+class IntervalBindingView(ResultModel):
+    """How one interval an execution reported was formed.
+
+    Read from the facade's own derivation (what the execution reported, never what was
+    requested). ``method`` is ``analytic_se``, ``bootstrap_se``, ``circular_block_se``,
+    ``posterior_quantile``, ``unit_posterior_quantile``, ``identified_set``,
+    ``simultaneous_band``, ``anderson_rubin`` or ``none``. ``dependence`` is the dependence
+    rule of the construction: ``iid``, ``cluster``, ``panel_cluster``, ``serial_unmodelled``,
+    ``serial_hac`` or ``circular_block:<family>`` with family ``single_window``, ``mediation``,
+    ``sequential``, ``mixture`` or ``row_block``. ``level`` is ``None`` when no interval was
+    formed.
+    """
+
+    method: str
+    level: float | None
+    dependence: str
+    se_kind: str | None = None
+    replicates_ok: int | None = None
+    replicates_failed: int | None = None
+    posterior_draws: int | None = None
+
+    @property
+    def block_family(self) -> str | None:
+        """The circular-block family of a block-resampled interval, else ``None``."""
+        prefix = "circular_block:"
+        return self.dependence[len(prefix) :] if self.dependence.startswith(prefix) else None
+
+
 class MissingDataView(ResultModel):
     """The missing-data policy of an execution, the assumption it needs, and the accounting."""
 
@@ -927,6 +960,9 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: Missing-data policy, the assumption it needs and the row accounting, for routes that
     #: read rows of a table; ``None`` for routes that account for none.
     missing_data: MissingDataView | None = None
+    #: Every interval this execution reported, primary first: its method, level, dependence
+    #: rule and replicate or draw counts.
+    interval_bindings: tuple[IntervalBindingView, ...] = ()
     plan: PlanView | None = None
     evidence_status: str | None = None
     allowlist_reason: str | None = None
@@ -935,6 +971,11 @@ class AnalysisResult(ResultModel, ResultAPI):
     structural_identified_mass: float | None = None
     structural_unidentified_mass: float | None = None
     structural_unevaluable_mass: float | None = None
+    #: How identified graph atoms were combined: ``"same_estimand_weighted_mean"`` (one estimand,
+    #: probability-weighted), ``"identified_set_envelope"`` (partially identified: the set, not a
+    #: scalar mixture) or ``"graph_dependent_atoms"`` (atoms name different estimands: no scalar
+    #: mixture). ``None`` when the route does not aggregate across graphs.
+    structural_aggregation_policy: str | None = None
     #: Scalar identified set ``(lower, upper)`` over identified class completions.
     structural_identified_set: tuple[float, float] | None = None
     #: Interval for the identified set at ``structural_identified_set_interval_level``

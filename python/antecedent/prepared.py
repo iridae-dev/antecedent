@@ -538,6 +538,10 @@ def prepare(
         return Engine.prepare(
             owned,
             **options,
+            # Rust describes a refusal on the study that was refused (the transport families
+            # keep their own refusal records).
+            on_refusal="refuse" if transport else on_refusal,
+            evidence_candidates=None if transport else evidence_candidates,
             bootstrap=bootstrap,
             latency=getattr(inference, "profile", None),
             # Legacy transport lowering rejects ordinary loose controls. The
@@ -663,29 +667,30 @@ def _finish_outcome(study: PreparedAnalysis[T], outcome: Outcome[T]) -> Outcome[
         if declarations.get("on_refusal") != "describe":
             return replace(outcome, _study=study)
         from . import fallback
+        from ._names import table_names
         from .errors import CausalError, StructuredRefusal
+        from .estimation import _Controls
         from .outcomes import outcome_from_error
 
         error = outcome.refusal._error
         if not isinstance(error, CausalError) or not fallback.is_identification_refusal(error):
             return replace(outcome, _study=study)
-        description = study.execution._call(
-            fallback.describe,
+        stage = getattr(error, "fallback", None)
+        if stage is None:
+            return replace(outcome, _study=study)
+        description = fallback.from_native(
             error,
-            study._data,
+            stage,
             query=study.query,
             graph=declarations.get("graph"),
-            candidates=declarations.get("evidence_candidates"),
-            options={
-                "inference": declarations.get("inference"),
-                "seed": study.execution.seed,
-                "threads": study.execution.threads,
-                "bootstrap": getattr(declarations.get("inference"), "bootstrap", None),
-                "cancel": study.execution.cancel,
-                "participant": declarations.get("participant"),
-                "missing": declarations.get("missing"),
-                "sampling_design": declarations.get("sampling_design"),
-            },
+            columns=table_names(study._data),
+            seed=study.execution.seed,
+            threads=study.execution.threads,
+            controls=_Controls(
+                cancel=study.execution.cancel,
+                on_progress=study.execution.on_progress,
+                on_stage=study.execution.on_stage,
+            ),
         )
         if isinstance(description.associational, fallback.FallbackUnavailable):
             unavailable = description.associational
