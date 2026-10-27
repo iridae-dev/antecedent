@@ -40,6 +40,9 @@ where
 {
     T::deserialize(deserializer).map(Some)
 }
+pub(crate) mod borrowed;
+pub use borrowed::BorrowedRetainedQueryWire;
+
 use crate::response_wire::{ResponseQueryWire, response_query_from_wire, response_query_to_wire};
 
 /// Wire scalar value.

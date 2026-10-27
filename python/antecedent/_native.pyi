@@ -1369,6 +1369,11 @@ class AnalysisResult:
     derivation_step_count: int
     estimator_id: str
 
+class _IdentificationMaterialization:
+    def to_dict(self) -> dict[str, Any]: ...
+    def retained_bytes(self) -> int: ...
+    def encoded_bytes(self) -> int: ...
+
 class PreparedIdentificationView:
     def summary_json(self) -> str: ...
     def estimands_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
@@ -1381,7 +1386,9 @@ class PreparedIdentificationView:
     def derivation_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
     def child(self, index: int) -> PreparedIdentificationView: ...
     def children(self, *, offset: int = 0, limit: int = 32) -> list[PreparedIdentificationView]: ...
-    def materialize_json(self, *, seed: int = 1, threads: int | None = None) -> str: ...
+    def materialize(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> _IdentificationMaterialization: ...
     def schema_names(self) -> list[str]: ...
 
 class TrialIdentificationView:
@@ -1684,7 +1691,7 @@ class PreparedAnalysis:
         edges: list[tuple[str, str]],
         treatment: Any,
         outcome: Any,
-        modifier: Any,
+        modifiers: list[str],
         *,
         graph: Any = None,
         control_level: float = 0.0,
@@ -2311,7 +2318,7 @@ class PreparedAnalysis:
         columns: Sequence[Any],
         treatment: Any,
         outcome: Any,
-        modifier: Any,
+        modifiers: list[str],
         *,
         control_level: float = 0.0,
         active_level: float = 1.0,
@@ -3542,7 +3549,7 @@ def _identify_structure(
     outcome: str,
     *,
     identifier: str | None = None,
-    modifier: str | None = None,
+    modifiers: list[str] | None = None,
     policy: str | None = None,
     treatment_lag: int = 1,
     horizon_steps: int = 1,

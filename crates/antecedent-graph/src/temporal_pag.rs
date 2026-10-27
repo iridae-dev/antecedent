@@ -191,6 +191,13 @@ impl TemporalPag {
         marked_storage::all_marked_edges(&self.adj)
     }
 
+    /// Each marked pair once, lazily and without allocating, in dense adjacency order.
+    ///
+    /// Covers the same pairs and marks as [`Self::edges`] (which sorts and collects them).
+    pub fn edges_lazy(&self) -> impl Iterator<Item = MarkedEdge> + Clone + '_ {
+        marked_storage::marked_edges_lazy(&self.adj)
+    }
+
     /// Edge between nodes.
     #[must_use]
     pub fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {

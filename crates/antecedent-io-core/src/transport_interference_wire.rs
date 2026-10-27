@@ -13,6 +13,9 @@ use antecedent_identify::{
 };
 use serde::{Deserialize, Serialize};
 
+mod borrowed;
+pub use borrowed::BorrowedTransportIdentificationWire;
+
 /// Population-labelled symbolic distribution wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PopulationFactorWire {

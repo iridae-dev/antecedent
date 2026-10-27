@@ -11,6 +11,8 @@
 
 use std::sync::Arc;
 
+pub(crate) mod borrowed;
+
 use antecedent_core::{
     CausalResponse, ContinuousDomain, DerivativeScale, DerivativeWeighting, DiagnosticScope,
     GridSpec, HorizonIdentification, IdentificationStatus, IntervalInterpretation,

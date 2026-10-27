@@ -187,21 +187,27 @@ pub(super) fn temporal_mediation_query(
     Ok(q)
 }
 
-/// Conditional-effect query with one modifier and the declared population.
+/// Conditional-effect query over a set of effect modifiers and the declared population.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn conditional_query(
     data: &TabularData,
     treatment: &str,
     outcome: &str,
-    modifier: &str,
+    modifiers: &[String],
     control_level: f64,
     active_level: f64,
     functional: Option<antecedent_core::OutcomeFunctional>,
     opts: &PrepareOptions,
 ) -> PyResult<CausalQuery> {
-    let w_id = data.schema().id_of(modifier).map_err(py_err)?;
+    if modifiers.is_empty() {
+        return Err(crate::value_err("ConditionalEffect requires at least one effect modifier"));
+    }
+    let w_ids = modifiers
+        .iter()
+        .map(|name| data.schema().id_of(name).map_err(py_err))
+        .collect::<PyResult<Vec<_>>>()?;
     let mut inner = static_ate_query(data, treatment, outcome, control_level, active_level, opts)?
-        .with_effect_modifiers([w_id]);
+        .with_effect_modifiers(w_ids);
     if let Some(functional) = functional {
         inner = inner.with_outcome_functional(functional);
     }

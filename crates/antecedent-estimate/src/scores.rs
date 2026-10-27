@@ -13,7 +13,7 @@ use antecedent_core::VariableId;
 pub use antecedent_io_core::score_wire::{ScoreColumn, ScoreTableWire};
 
 use crate::error::EstimationError;
-use crate::joint_if::{JointCovariance, joint_influence_covariance, kish_n_eff, weighted_mean};
+use crate::joint_if::{joint_influence_covariance, kish_n_eff, weighted_mean, JointCovariance};
 
 /// Per-row cross-fitted AIPW scores.
 ///
@@ -59,6 +59,31 @@ pub struct ScoreTable {
     /// them through the preparation path. A physical fact about the run, so it is not part of
     /// the score artifact's wire form or identity; a table read back from a wire has none.
     pub preparation: Option<Arc<crate::PreparationSummary>>,
+}
+
+impl ScoreTable {
+    /// Whether the cross-fit read a batch's shared covariate design.
+    #[must_use]
+    pub fn reads_shared_design(&self) -> bool {
+        self.nuisance_provenance.starts_with(crate::crossfit_aipw::AIPW_SHARED_DESIGN_PROVENANCE)
+    }
+
+    /// The same table named as read from a batch's shared covariate design.
+    ///
+    /// The scores of a cross-fit do not depend on which of two identical designs supplied its
+    /// covariates; only the provenance records it. A table already so named is unchanged, and a
+    /// table of another construction is returned as it is.
+    #[must_use]
+    pub fn named_for_shared_design(mut self) -> Self {
+        use crate::crossfit_aipw::{AIPW_CROSSFIT_PROVENANCE, AIPW_SHARED_DESIGN_PROVENANCE};
+        if let Some(suffix) = self.nuisance_provenance.strip_prefix(AIPW_CROSSFIT_PROVENANCE) {
+            if !self.reads_shared_design() {
+                self.nuisance_provenance =
+                    format!("{AIPW_SHARED_DESIGN_PROVENANCE}{suffix}").into();
+            }
+        }
+        self
+    }
 }
 
 impl PartialEq for ScoreTable {

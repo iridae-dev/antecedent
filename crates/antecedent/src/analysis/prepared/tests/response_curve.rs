@@ -144,6 +144,7 @@ fn legacy_mean_curve_overlaps_the_static_dag_response_and_yields_to_it() {
         route: source.route_input_classified(),
         counterfactual: None,
         nested_counterfactual: None,
+        previous: None,
     };
     let admitting: Vec<_> = SEALERS
         .iter()

@@ -356,3 +356,6 @@ pub mod native_execution_wire;
 
 /// Complete target-bound compiled identification proof interchange.
 pub mod compiled_identification_wire;
+
+/// Exact admitted JSON encoding for borrowed native read models.
+pub mod admitted_json;

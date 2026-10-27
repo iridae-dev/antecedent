@@ -9,6 +9,10 @@ use antecedent_expr::{
     ProgramSchema, ProgramVariable, VarSetId,
 };
 use serde::{Deserialize, Serialize};
+
+mod borrowed;
+pub use borrowed::BorrowedExprArenaWire;
+pub(crate) use borrowed::Sequence;
 use std::sync::Arc;
 
 use crate::error::IoError;

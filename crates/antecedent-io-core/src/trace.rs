@@ -12,6 +12,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::IoError;
 
+mod borrowed;
+pub use borrowed::BorrowedAssumptionsWire;
+
 /// Wire form of an assumption tag .
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

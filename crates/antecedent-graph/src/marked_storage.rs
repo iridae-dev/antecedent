@@ -127,6 +127,23 @@ pub(crate) fn all_marked_edges(adj: &[Vec<AdjEntry>]) -> Vec<MarkedEdge> {
     out
 }
 
+/// Every marked pair once, lazily and without allocating: each adjacency entry seen from its
+/// lower dense id. Order is dense-adjacency order; [`all_marked_edges`] is the sorted collection.
+pub(crate) fn marked_edges_lazy(
+    adj: &[Vec<AdjEntry>],
+) -> impl Iterator<Item = MarkedEdge> + Clone + '_ {
+    adj.iter().enumerate().flat_map(|(i, nbrs)| {
+        let a = DenseNodeId::from_index(i);
+        nbrs.iter().filter(move |e| a.raw() < e.neighbor.raw()).map(move |e| MarkedEdge {
+            a,
+            b: e.neighbor,
+            at_a: e.at_self,
+            at_b: e.at_neighbor,
+            middle: e.middle,
+        })
+    })
+}
+
 /// Neighbors with marks at `(self, neighbor)` from `id`'s perspective (PAG marks).
 pub(crate) fn neighbors(
     adj: &[Vec<AdjEntry>],

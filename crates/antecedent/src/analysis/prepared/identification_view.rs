@@ -13,6 +13,10 @@ use antecedent_prob::WeightedGraphSamples;
 use serde_json::{Value, json};
 use std::sync::Arc;
 
+mod borrowed_summary;
+mod borrowed_graph;
+mod admitted_materialization;
+
 /// A bounded borrowed node in the complete retained identification hierarchy.
 ///
 /// The lifetime is the prepared owner's. Native host adapters retain that owner
@@ -1062,6 +1066,48 @@ mod tests {
             .unwrap()
             .prepare_deferred(&ExecutionContext::for_tests(17))
             .unwrap()
+    }
+
+    #[test]
+    fn admitted_full_materialization_preserves_native_records_and_keeps_output_funded() {
+        use antecedent_core::execution::AdmissionPool;
+        let owner = named_prepared();
+        let view = owner.identification_view();
+        let mut expected = view.materialize().unwrap();
+        expected["names"] = json!(owner.schema().variables().iter()
+            .map(|variable| variable.name.as_ref()).collect::<Vec<_>>());
+        let budget = 16_000_000;
+        let pool = AdmissionPool::fixed(1, budget);
+        let context = ExecutionContext::for_tests(17).with_admission(pool.clone());
+        let observed = antecedent_core::execution_attempt::observe_execution(|| view.materialize_admitted(&context));
+        assert!(observed.report.is_empty());
+        let encoded = std::sync::Arc::new(observed.result.unwrap());
+        assert_eq!(serde_json::from_slice::<Value>(encoded.as_bytes()).unwrap(), expected);
+        let bytes = u64::try_from(encoded.retained_bytes()).unwrap();
+        assert_eq!(pool.available().bytes(), budget - bytes);
+        let shared = std::sync::Arc::clone(&encoded);
+        drop(encoded);
+        context.cancellation.cancel();
+        assert_eq!(pool.available().bytes(), budget - bytes);
+        assert_eq!(serde_json::from_slice::<Value>(shared.as_bytes()).unwrap(), expected);
+        drop(shared);
+        assert_eq!(pool.available().bytes(), budget);
+        let short = AdmissionPool::fixed(1, bytes - 1);
+        let context = ExecutionContext::for_tests(17).with_admission(short.clone());
+        assert!(matches!(view.materialize_admitted(&context), Err(crate::CausalError::Resource { .. })));
+        assert_eq!(short.available().bytes(), bytes - 1);
+        assert_eq!(view.materialize().unwrap()["summary"], expected["summary"]);
+    }
+
+    #[test]
+    fn borrowed_summary_matches_existing_headers_without_copying_a_value_tree() {
+        fn compare(view: &PreparedIdentificationView<'_>) {
+            let borrowed = super::borrowed_summary::BorrowedSummary::new(view);
+            assert_eq!(serde_json::to_vec(&borrowed).unwrap(), serde_json::to_vec(&view.summary()).unwrap());
+            for index in 0..view.child_count() { compare(&view.child(index).unwrap()); }
+        }
+        let owner = named_prepared();
+        compare(&owner.identification_view());
     }
 
     #[test]

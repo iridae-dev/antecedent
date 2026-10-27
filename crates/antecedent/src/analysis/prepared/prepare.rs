@@ -2,14 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::sealers::{SealContext, seal_deferred_execution, seal_execution};
+use super::sealers::{seal_deferred_execution, seal_execution, SealContext};
 use super::{
-    CachedTemporalClassIdentification, IdentificationCache, PreparedModality, PreparedStudy,
-    SampledPreparedState, build_admg_graph_posterior_response_identification_cache,
+    build_admg_graph_posterior_response_identification_cache,
     build_dbn_posterior_identification_cache, build_dbn_posterior_mediation_identification_cache,
     build_dbn_posterior_response_identification_cache, build_graph_posterior_identification_cache,
     build_temporal_class_posterior_identification_cache, ensure_prepared_supported,
-    multi_env_regularity,
+    multi_env_regularity, CachedTemporalClassIdentification, IdentificationCache, PreparedModality,
+    PreparedStudy, SampledPreparedState,
 };
 use crate::accepted::{GraphClass, GraphRef};
 use crate::analysis::builder::DataInput;
@@ -163,6 +163,7 @@ impl Study {
             route: self.route_input_classified(),
             counterfactual: counterfactual.as_ref(),
             nested_counterfactual: nested_counterfactual.as_ref(),
+            previous: None,
         };
         let execution = if materialized {
             seal_execution(&seal_context)?
@@ -191,6 +192,7 @@ impl Study {
                 score_table,
                 execution,
                 temporal_log: antecedent_state::InvalidationLog::new(),
+                retained: None,
             },
         };
         ready.seal_inspection_metadata()?;
@@ -836,6 +838,55 @@ impl PreparedStudy {
     /// # Errors
     /// Statistical, resource, or cancellation failures while building retained operations.
     pub fn materialize(&self, ctx: &ExecutionContext) -> Result<Self, CausalError> {
+        self.materialize_scored(ctx, true)
+    }
+
+    /// Materialize for an execution that is about to estimate on the bound rows.
+    ///
+    /// A branch rebound from one that retained cross-fitted scores does not build them here:
+    /// the estimate that follows constructs the same table from the same rows, and
+    /// [`Self::retain_estimated_scores`] keeps it, so each branch constructs its scores once.
+    /// The second value is `Some` while the table is still owed, saying whether it is read from a
+    /// shared design.
+    pub(crate) fn materialize_for_estimate(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<(Self, Option<bool>), CausalError> {
+        let owed = if self.materialized {
+            None
+        } else {
+            self.retained.as_ref().and_then(|branch| branch.scored)
+        };
+        Ok((self.materialize_scored(ctx, owed.is_none())?, owed))
+    }
+
+    /// Keep the score table of the estimate this branch just ran as its prepared table, or
+    /// build it when the estimate published none.
+    pub(crate) fn retain_estimated_scores(
+        &mut self,
+        estimated: &crate::StudyResult,
+        shared: bool,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        self.score_table =
+            match estimated.estimate.as_effect().and_then(|effect| effect.scores.table.clone()) {
+                // The estimate reads the rows' own design, while the prepared table is named for
+                // the shared design the branch it was rebound from read.
+                Some(table) if shared => Some(table.named_for_shared_design()),
+                Some(table) => Some(table),
+                None => self.analysis.prepare_score_table(ctx)?,
+            };
+        self.program_cache = std::sync::OnceLock::new();
+        self.contract_cache = std::sync::OnceLock::new();
+        self.inspection_header = std::sync::OnceLock::new();
+        self.seal_inspection_metadata()
+    }
+
+    fn materialize_scored(
+        &self,
+        ctx: &ExecutionContext,
+        build_scores: bool,
+    ) -> Result<Self, CausalError> {
         if self.materialized {
             return Ok(self.clone());
         }
@@ -862,8 +913,10 @@ impl PreparedStudy {
                     route: source.route_input_classified(),
                     counterfactual: counterfactual.as_ref(),
                     nested_counterfactual: nested_counterfactual.as_ref(),
+                    previous: self.retained.as_ref().map(|retained| &retained.execution),
                 })?;
-                ready.score_table = if self.plan.streams_design() {
+                ready.retained = None;
+                ready.score_table = if self.plan.streams_design() || !build_scores {
                     None
                 } else {
                     source.prepare_score_table(ctx)?

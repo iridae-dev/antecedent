@@ -21,6 +21,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
+
+pub(crate) mod borrowed;
+pub use borrowed::BorrowedIdentificationWire;
 use crate::expr_wire::{ExprArenaWire, expr_arena_from_wire, expr_arena_to_wire};
 use crate::query_wire::{CausalQueryWire, causal_query_from_wire};
 use crate::trace::{

@@ -1205,7 +1205,7 @@ fn structure_query(
     names: &[String],
     treatment: &str,
     outcome: &str,
-    modifier: Option<&str>,
+    modifiers: Option<&[String]>,
     policy: Option<&str>,
     treatment_lag: u32,
     horizon_steps: u32,
@@ -1246,10 +1246,14 @@ fn structure_query(
             })))
         }
         "conditional" | "conditional_effect" => {
-            let modifier = modifier
-                .ok_or_else(|| crate::value_err("ConditionalEffect identify requires modifier="))?;
-            let w_id = structure_var_id(names, modifier)?;
-            let inner = AverageEffectQuery::binary_ate(t_id, y_id).with_effect_modifiers([w_id]);
+            let modifiers = modifiers.filter(|m| !m.is_empty()).ok_or_else(|| {
+                crate::value_err("ConditionalEffect identify requires modifiers=")
+            })?;
+            let w_ids = modifiers
+                .iter()
+                .map(|name| structure_var_id(names, name))
+                .collect::<PyResult<Vec<_>>>()?;
+            let inner = AverageEffectQuery::binary_ate(t_id, y_id).with_effect_modifiers(w_ids);
             let cq = ConditionalEffectQuery::try_new(inner)
                 .map_err(|e| crate::value_err(e.to_string()))?;
             Ok(CausalQuery::ConditionalEffect(cq))
@@ -1355,7 +1359,7 @@ fn identification_tuple(
     outcome,
     *,
     identifier=None,
-    modifier=None,
+    modifiers=None,
     policy=None,
     treatment_lag=1,
     horizon_steps=1,
@@ -1376,7 +1380,7 @@ fn identify_structure(
     treatment: String,
     outcome: String,
     identifier: Option<String>,
-    modifier: Option<String>,
+    modifiers: Option<Vec<String>>,
     policy: Option<String>,
     treatment_lag: u32,
     horizon_steps: u32,
@@ -1419,7 +1423,7 @@ fn identify_structure(
             &names,
             &treatment,
             &outcome,
-            modifier.as_deref(),
+            modifiers.as_deref(),
             policy.as_deref(),
             treatment_lag,
             horizon_steps,

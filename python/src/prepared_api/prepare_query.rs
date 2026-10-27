@@ -13,8 +13,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
 use super::{
-    PrepareRequest, PyPreparedAnalysis, StaticClassGraph, conditional_query,
-    intervention_response_query, parse_estimator, parse_identifier, with_graph,
+    conditional_query, intervention_response_query, parse_estimator, parse_identifier, with_graph,
+    PrepareRequest, PyPreparedAnalysis, StaticClassGraph,
 };
 use crate::{dag_from_named_edges, graphs, py_err, py_msg, require_named_graph_order};
 
@@ -169,7 +169,7 @@ impl PyPreparedAnalysis {
         edges,
         treatment,
         outcome,
-        modifier,
+        modifiers,
         *,
         graph=None,
         control_level=0.0,
@@ -190,7 +190,7 @@ impl PyPreparedAnalysis {
         edges: Vec<(String, String)>,
         treatment: String,
         outcome: String,
-        modifier: String,
+        modifiers: Vec<String>,
         graph: Option<Bound<'_, PyAny>>,
         control_level: f64,
         active_level: f64,
@@ -214,7 +214,7 @@ impl PyPreparedAnalysis {
                 &data,
                 &treatment,
                 &outcome,
-                &modifier,
+                &modifiers,
                 control_level,
                 active_level,
                 functional,
@@ -429,7 +429,7 @@ impl PyPreparedAnalysis {
         let data = req.load_columns(py, columns)?;
         let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
         req.off_gil(py, move |req| {
-            use crate::transport_interference_api::{ResponseArgs, schema_ids, transport_query};
+            use crate::transport_interference_api::{schema_ids, transport_query, ResponseArgs};
             let schema = data.schema().clone();
             let mut query = transport_query(
                 ResponseArgs {
@@ -511,7 +511,7 @@ impl PyPreparedAnalysis {
         req.refuse_population("an interference exposure contrast")?;
         let data = req.load_columns(py, columns)?;
         req.off_gil(py, move |req| {
-            use crate::transport_interference_api::{InterferenceArgs, interference_query};
+            use crate::transport_interference_api::{interference_query, InterferenceArgs};
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let query = interference_query(
                 InterferenceArgs {

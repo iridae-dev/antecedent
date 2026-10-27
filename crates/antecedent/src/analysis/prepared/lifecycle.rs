@@ -5,13 +5,13 @@
 use super::estimate::{ClickNotes, ClickScores, Rebound};
 use super::sealed::{SeriesCall, SeriesEntry};
 use super::{
-    PreparedExecution, PreparedModality, PreparedStudy, overlay_prepared_score_functional,
+    overlay_prepared_score_functional, PreparedExecution, PreparedModality, PreparedStudy,
 };
 use crate::analysis::builder::{DataInput, RefuteSuite};
 use crate::analysis::execute::Study;
-use crate::analysis::helpers::{RefutationRun, project_for_ate_estimate};
+use crate::analysis::helpers::{project_for_ate_estimate, RefutationRun};
 use crate::analysis::route_guards::series_input;
-use crate::analysis::stage::{STAGE_VALIDATE, StageClock};
+use crate::analysis::stage::{StageClock, STAGE_VALIDATE};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::RouteDefaults;
@@ -62,7 +62,28 @@ impl PreparedStudy {
         let mut analysis = self.analysis.clone();
         analysis.data = DataInput::Tabular(data);
         analysis.shared_batch_design = shared;
-        analysis.prepare_deferred_retaining(&self.plan, ctx)
+        let mut next = analysis.prepare_deferred_retaining(&self.plan, ctx)?;
+        next.retained = self.branch_retention();
+        Ok(next)
+    }
+
+    /// The operation a branch rebound from this one offers to its own materialization: this
+    /// branch's, when it owns one, else the one it was itself offered.
+    fn branch_retention(&self) -> Option<Arc<super::RetainedBranch>> {
+        if self.materialized {
+            Some(Arc::new(super::RetainedBranch {
+                execution: self.execution.clone(),
+                // Only a checked mean ATE estimate publishes the table it builds; every other
+                // route reads its frozen scores while it estimates.
+                scored: self
+                    .score_table
+                    .as_ref()
+                    .filter(|_| self.execution.aipw_operation().is_some())
+                    .map(antecedent_estimate::ScoreTable::reads_shared_design),
+            }))
+        } else {
+            self.retained.clone()
+        }
     }
 
     /// Whether the branch already owns a materialized statistical operation.
@@ -92,6 +113,8 @@ impl PreparedStudy {
             next.program_cache = std::sync::OnceLock::new();
             next.contract_cache = std::sync::OnceLock::new();
             next.inspection_header = std::sync::OnceLock::new();
+        } else {
+            next.retained = self.branch_retention();
         }
         next.seal_inspection_metadata()?;
         Ok(next)
@@ -148,7 +171,12 @@ impl PreparedStudy {
         analysis.data = data;
         // Identification caches are immutable, key-checked scientific products. A new
         // physical plan admits the new row count; preparation retains no old fitted law.
-        analysis.prepare_deferred_retaining(&self.plan, ctx)
+        let tabular = matches!(analysis.data, DataInput::Tabular(_));
+        let mut next = analysis.prepare_deferred_retaining(&self.plan, ctx)?;
+        if tabular {
+            next.retained = self.branch_retention();
+        }
+        Ok(next)
     }
 
     /// The retained snapshot, operation, caches, scores and invalidation log
@@ -202,7 +230,8 @@ impl PreparedStudy {
             )
         {
             return Err(CausalError::Unsupported {
-                message: "AIPW configuration refresh requires the same checked average-effect study",
+                message:
+                    "AIPW configuration refresh requires the same checked average-effect study",
             });
         }
 
@@ -256,6 +285,7 @@ impl PreparedStudy {
             route: analysis.route_input_classified(),
             counterfactual: None,
             nested_counterfactual: None,
+            previous: Some(&self.execution),
         })?;
         self.analysis = analysis;
         self.plan = plan;

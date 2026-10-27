@@ -43,6 +43,44 @@ impl PyPreparedIdentificationView {
     }
 }
 
+/// Explicit materialization owner. No live preparation or rows are retained.
+#[pyclass(name = "_IdentificationMaterialization", frozen)]
+pub(super) struct PyIdentificationMaterialization {
+    inner: antecedent_io_core::admitted_json::AdmittedJson,
+    cancellation: antecedent_core::CancellationToken,
+}
+
+impl PyIdentificationMaterialization {
+    fn check_cancelled(&self) -> PyResult<()> {
+        if self.cancellation.is_cancelled() {
+            return Err(crate::py_err(antecedent::CausalError::Cancelled {
+                stage: "identification_materialize",
+            }));
+        }
+        Ok(())
+    }
+}
+
+#[pymethods]
+impl PyIdentificationMaterialization {
+    /// Requested Python conversion. Keep the native output admission alive
+    /// throughout decoding; the Python dict is the caller-owned materialization.
+    fn to_dict(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        self.check_cancelled()?;
+        let value = py.import("json")?.call_method1("loads", (self.inner.as_str(),))?;
+        self.check_cancelled()?;
+        Ok(value.unbind())
+    }
+
+    fn retained_bytes(&self) -> usize { self.inner.retained_bytes() }
+    fn encoded_bytes(&self) -> usize { self.inner.as_bytes().len() }
+
+    fn __repr__(&self) -> String {
+        format!("IdentificationMaterialization(encoded_bytes={}, retained_bytes={})",
+            self.inner.as_bytes().len(), self.inner.retained_bytes())
+    }
+}
+
 #[pymethods]
 impl PyPreparedIdentificationView {
     /// Fixed-size retained metadata, without proof conversion or scientific work.
@@ -111,12 +149,12 @@ impl PyPreparedIdentificationView {
     /// Explicit full conversion of this proof subtree. Cancellation is checked
     /// between nodes. This is a materialization boundary, never notebook inspection.
     #[pyo3(signature = (*, seed=1, threads=None))]
-    fn materialize_json(
+    fn materialize(
         &self,
         py: Python<'_>,
         seed: u64,
         threads: Option<u32>,
-    ) -> PyResult<String> {
+    ) -> PyResult<PyIdentificationMaterialization> {
         let owner = Arc::clone(&self.owner);
         let path = self.path.clone();
         crate::detach_catch(py, move || {
@@ -127,15 +165,8 @@ impl PyPreparedIdentificationView {
                     crate::value_err("invalid retained identification coordinate")
                 })?;
             }
-            let payload = view.materialize_with_context(&context).map_err(crate::py_err)?;
-            let encoded = serde_json::to_string(&payload)
-                .map_err(|error| crate::value_err(error.to_string()))?;
-            if context.cancellation.is_cancelled() {
-                return Err(crate::py_err(antecedent::CausalError::Cancelled {
-                    stage: "identification_materialize",
-                }));
-            }
-            Ok(encoded)
+            let inner = view.materialize_admitted(&context).map_err(crate::py_err)?;
+            Ok(PyIdentificationMaterialization { inner, cancellation: context.cancellation.clone() })
         })
     }
 
@@ -231,5 +262,6 @@ impl PyPreparedAnalysis {
 }
 
 pub(super) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyIdentificationMaterialization>()?;
     m.add_class::<PyPreparedIdentificationView>()
 }

@@ -75,6 +75,9 @@ pub(super) struct SealContext<'a> {
     pub(super) counterfactual: Option<&'a crate::gcm::CheckedCounterfactualOperation>,
     /// The compiled cross-world operation of a nested counterfactual query.
     pub(super) nested_counterfactual: Option<&'a crate::gcm::NestedCounterfactualOperation>,
+    /// The operation of the branch this one was rebound from, offered so a sealer may rebind
+    /// its checked receipt to the new rows instead of compiling the same program again.
+    pub(super) previous: Option<&'a PreparedExecution>,
 }
 
 impl<'a> SealContext<'a> {

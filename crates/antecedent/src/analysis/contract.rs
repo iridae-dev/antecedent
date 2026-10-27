@@ -1379,6 +1379,11 @@ pub(crate) struct ProgramPayloads {
 }
 
 impl ProgramPayloads {
+    /// Borrow the producer's already compiled, population-bound query wire.
+    pub(crate) fn retained_query_wire(&self) -> &antecedent_io::CausalQueryWire {
+        &self.target.query
+    }
+
     fn identities(&self, data_snapshot: antecedent_core::SemanticDigest) -> ContractIdentities {
         ContractIdentities::new(
             self.target_digest,

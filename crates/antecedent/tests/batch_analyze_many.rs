@@ -926,3 +926,64 @@ fn checked_aipw_point_observer_cancellation_precedes_bootstrap_work() {
     assert_eq!(prepared.materialized_plan_count(), 0);
     assert_eq!(prepared.retained_score_table_count(), 0);
 }
+
+#[test]
+fn rebound_batch_executes_without_compiling_its_checked_programs_again() {
+    use antecedent_core::execution_attempt::{Operation, observe_with_context};
+    let (data, graph) = two_by_two(500, 79);
+    let (other, _) = two_by_two(420, 80);
+    let queries = [ate(T1, Y1), ate(T1, Y2)];
+    let ctx = ExecutionContext::for_tests(79);
+    let prepared = deferred_batch(&data, &graph, &queries, &ctx);
+    let first = observe_with_context(&ctx, || prepared.execute_retained(&ctx));
+    let compiled_once = first.report.counts(Operation::ProgramCompilation).attempted;
+    assert_eq!(compiled_once, queries.len() as u64, "first execution compiles each member");
+    let completed = first.result.unwrap();
+
+    let rebound = completed.prepared().rebind_data(other.clone(), &ctx).unwrap();
+    assert_eq!(rebound.materialized_plan_count(), 0);
+    let branch = observe_with_context(&ctx, || rebound.execute_retained(&ctx));
+    assert_eq!(
+        branch.report.counts(Operation::ProgramCompilation).attempted,
+        0,
+        "a rebound member keeps the checked program of the branch it was rebound from"
+    );
+    assert_eq!(
+        branch.report.counts(Operation::ScoreConstruction).attempted,
+        queries.len() as u64,
+        "each rebound member constructs its scores once"
+    );
+    let branch = branch.result.unwrap();
+
+    // The rebound results are the results of a fresh execution on the new rows, and the
+    // program is the same program while the observations are the new ones.
+    let fresh = deferred_batch(&other, &graph, &queries, &ctx).execute_retained(&ctx).unwrap();
+    assert_eq!(branch.prepared().retained_score_table_count(), queries.len());
+    for (index, query) in queries.iter().enumerate() {
+        assert_eq!(
+            branch.prepared().prepared_scores().table(index),
+            fresh.prepared().prepared_scores().table(index),
+            "the retained table is the table a fresh preparation constructs on the new rows"
+        );
+        assert_bit_identical(
+            &branch.results()[index],
+            &fresh.results()[index],
+            &format!("rebound member {index}"),
+        );
+        assert_bit_identical(
+            &branch.results()[index],
+            &solo(&other, &graph, query, 79),
+            &format!("rebound member {index} against its solo run"),
+        );
+        assert_eq!(
+            branch.results()[index].lowered_program_identity(),
+            completed.results()[index].lowered_program_identity(),
+            "the program does not change with the rows"
+        );
+        assert_ne!(
+            branch.results()[index].estimate.as_effect().unwrap().ate.to_bits(),
+            completed.results()[index].estimate.as_effect().unwrap().ate.to_bits(),
+            "the new rows move the estimate"
+        );
+    }
+}

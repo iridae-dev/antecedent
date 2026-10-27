@@ -187,6 +187,15 @@ struct RetainedPosteriorPrograms {
     programs: antecedent_io::GraphPosteriorProgramsWire,
 }
 
+/// The sealed operation of a materialized branch, offered to the branch rebound from it.
+#[derive(Clone, Debug)]
+struct RetainedBranch {
+    execution: PreparedExecution,
+    /// For a checked mean ATE that retained a cross-fitted score table, whether that table
+    /// was read from a batch's shared design; `None` when it retained none.
+    scored: Option<bool>,
+}
+
 /// Retained state for sampled-data modalities of the common prepared handle.
 #[derive(Clone, Debug)]
 pub struct SampledPreparedState {
@@ -218,6 +227,9 @@ pub struct SampledPreparedState {
     /// Sealed route selection and its checked operation, or the ordinary dispatcher
     /// for a configuration no sealed operation admits.
     execution: PreparedExecution,
+    /// The materialized operation of the branch this one was rebound from. Materialization
+    /// rebinds its checked receipt to the new rows; it is dropped once this branch owns one.
+    retained: Option<Arc<RetainedBranch>>,
     /// What each refreshed series period invalidated (see
     /// [`antecedent_state::TemporalProduct`]); empty until a period is applied.
     temporal_log: antecedent_state::InvalidationLog,

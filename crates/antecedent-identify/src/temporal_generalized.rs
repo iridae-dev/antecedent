@@ -9,6 +9,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::cell::Cell;
 use std::sync::Arc;
 
 use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
@@ -61,54 +62,49 @@ impl TemporalCompletionGraph {
             Self::Dag(graph) => (0, graph.nodes(), graph.edges().collect()),
             Self::Mag(graph) => (1, graph.nodes(), graph.edges()),
         };
-        let key = |node: &antecedent_graph::NodeRef| match node {
-            antecedent_graph::NodeRef::Lagged { variable, lag } => {
-                (u64::from(variable.raw()), u64::from(lag.raw()))
-            }
-            _ => unreachable!("temporal graphs contain lagged nodes"),
-        };
-        let mut vertices: Vec<_> = nodes.iter().map(key).collect();
+        let mut vertices: Vec<_> = nodes.iter().map(coordinate).collect();
         vertices.sort_unstable();
-        let mut edges: Vec<_> = marked
-            .iter()
-            .map(|edge| {
-                let a = key(&nodes[edge.a.raw() as usize]);
-                let b = key(&nodes[edge.b.raw() as usize]);
-                let (a, b, at_a, at_b, middle) = if a <= b {
-                    (a, b, edge.at_a, edge.at_b, middle_code(edge.middle))
-                } else {
-                    let middle = match edge.middle {
-                        antecedent_graph::MiddleMark::Left => antecedent_graph::MiddleMark::Right,
-                        antecedent_graph::MiddleMark::Right => antecedent_graph::MiddleMark::Left,
-                        other => other,
-                    };
-                    (b, a, edge.at_b, edge.at_a, middle_code(middle))
-                };
-                (
-                    a,
-                    b,
-                    u64::from(endpoint_code(at_a)),
-                    u64::from(endpoint_code(at_b)),
-                    u64::from(middle),
-                )
-            })
-            .collect();
+        let mut edges: Vec<_> = marked.iter().map(|edge| edge_record(nodes, edge)).collect();
         edges.sort_unstable();
-        let mut stream = antecedent_core::CanonicalWriter::new(
-            "antecedent.identify.temporal_completion_graph.v1",
-        );
-        stream.word(kind);
-        stream.word(vertices.len() as u64);
-        for (variable, lag) in vertices {
-            stream.word(variable).word(lag);
-        }
-        stream.word(edges.len() as u64);
-        for (a, b, at_a, at_b, middle) in edges {
-            for word in [a.0, a.1, b.0, b.1, at_a, at_b, middle] {
-                stream.word(word);
+        digest_stream(kind, vertices.len(), edges.len(), vertices, edges)
+    }
+
+    /// [`Self::digest`] computed without allocating, for callers that must fund every
+    /// allocation before it happens.
+    ///
+    /// The canonical stream is the same: vertices and edge records are emitted in ascending
+    /// order by repeated successor selection over the borrowed graph instead of a sorted copy,
+    /// so the cost is quadratic in the vertex and edge counts rather than linearithmic.
+    /// `should_stop` is polled once per selected record; when it returns true the traversal
+    /// stops and `None` is returned. The result is otherwise byte-identical to
+    /// [`Self::digest`].
+    #[must_use]
+    pub fn digest_without_allocation(&self, should_stop: &dyn Fn() -> bool) -> Option<[u8; 32]> {
+        let stopped = Cell::new(false);
+        let digest = match self {
+            Self::Dag(graph) => {
+                let nodes = graph.nodes();
+                streamed_digest(0, nodes, || graph.edges(), should_stop, &stopped)
             }
+            Self::Mag(graph) => {
+                let nodes = graph.nodes();
+                streamed_digest(1, nodes, || graph.edges_lazy(), should_stop, &stopped)
+            }
+        };
+        if stopped.get() {
+            None
+        } else {
+            Some(digest)
         }
-        stream.finish()
+    }
+
+    /// [`Self::fingerprint`] computed by [`Self::digest_without_allocation`].
+    #[must_use]
+    pub fn fingerprint_without_allocation(&self, should_stop: &dyn Fn() -> bool) -> Option<u64> {
+        let digest = self.digest_without_allocation(should_stop)?;
+        let mut low = [0u8; 8];
+        low.copy_from_slice(&digest[..8]);
+        Some(u64::from_le_bytes(low))
     }
 
     /// Whether this MAG completion has a bidirected edge (no DAG sequential factorization).
@@ -137,6 +133,134 @@ impl TemporalCompletionGraph {
             Self::Mag(_) => None,
         }
     }
+}
+
+type Coordinate = (u64, u64);
+type EdgeRecord = (Coordinate, Coordinate, u64, u64, u64);
+
+fn coordinate(node: &antecedent_graph::NodeRef) -> Coordinate {
+    match node {
+        antecedent_graph::NodeRef::Lagged { variable, lag } => {
+            (u64::from(variable.raw()), u64::from(lag.raw()))
+        }
+        _ => unreachable!("temporal graphs contain lagged nodes"),
+    }
+}
+
+/// Semantic edge record: endpoints ordered by coordinate, marks and middle reversed with them.
+fn edge_record(
+    nodes: &[antecedent_graph::NodeRef],
+    edge: &antecedent_graph::MarkedEdge,
+) -> EdgeRecord {
+    let a = coordinate(&nodes[edge.a.raw() as usize]);
+    let b = coordinate(&nodes[edge.b.raw() as usize]);
+    let (a, b, at_a, at_b, middle) = if a <= b {
+        (a, b, edge.at_a, edge.at_b, middle_code(edge.middle))
+    } else {
+        let middle = match edge.middle {
+            antecedent_graph::MiddleMark::Left => antecedent_graph::MiddleMark::Right,
+            antecedent_graph::MiddleMark::Right => antecedent_graph::MiddleMark::Left,
+            other => other,
+        };
+        (b, a, edge.at_b, edge.at_a, middle_code(middle))
+    };
+    (a, b, u64::from(endpoint_code(at_a)), u64::from(endpoint_code(at_b)), u64::from(middle))
+}
+
+/// The one canonical byte stream for a completion digest; callers supply sorted records.
+fn digest_stream(
+    kind: u64,
+    vertex_count: usize,
+    edge_count: usize,
+    vertices: impl IntoIterator<Item = Coordinate>,
+    edges: impl IntoIterator<Item = EdgeRecord>,
+) -> [u8; 32] {
+    let mut stream =
+        antecedent_core::CanonicalWriter::new("antecedent.identify.temporal_completion_graph.v1");
+    stream.word(kind);
+    stream.word(vertex_count as u64);
+    for (variable, lag) in vertices {
+        stream.word(variable).word(lag);
+    }
+    stream.word(edge_count as u64);
+    for (a, b, at_a, at_b, middle) in edges {
+        for word in [a.0, a.1, b.0, b.1, at_a, at_b, middle] {
+            stream.word(word);
+        }
+    }
+    stream.finish()
+}
+
+/// Ascending successor selection over a re-iterable source: yields exactly the sorted
+/// multiset without holding a copy. Each step rescans the source.
+struct Ascending<'a, T, S> {
+    source: S,
+    last: Option<T>,
+    run: Option<(T, usize)>,
+    should_stop: &'a dyn Fn() -> bool,
+    stopped: &'a Cell<bool>,
+}
+impl<T: Ord + Copy, I: Iterator<Item = T>, S: Fn() -> I> Iterator for Ascending<'_, T, S> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        if let Some((value, remaining)) = &mut self.run {
+            if *remaining > 0 {
+                *remaining -= 1;
+                return Some(*value);
+            }
+        }
+        if self.stopped.get() || (self.should_stop)() {
+            self.stopped.set(true);
+            return None;
+        }
+        let mut best: Option<(T, usize)> = None;
+        for item in (self.source)() {
+            if self.last.is_some_and(|last| item <= last) {
+                continue;
+            }
+            match &mut best {
+                None => best = Some((item, 1)),
+                Some((value, count)) => match item.cmp(value) {
+                    std::cmp::Ordering::Less => best = Some((item, 1)),
+                    std::cmp::Ordering::Equal => *count += 1,
+                    std::cmp::Ordering::Greater => {}
+                },
+            }
+        }
+        let (value, count) = best?;
+        self.last = Some(value);
+        self.run = Some((value, count - 1));
+        Some(value)
+    }
+}
+
+fn streamed_digest<'a, E, I>(
+    kind: u64,
+    nodes: &'a [antecedent_graph::NodeRef],
+    edges: E,
+    should_stop: &'a dyn Fn() -> bool,
+    stopped: &'a Cell<bool>,
+) -> [u8; 32]
+where
+    E: Fn() -> I + 'a,
+    I: Iterator<Item = antecedent_graph::MarkedEdge>,
+{
+    let edge_count = edges().count();
+    let vertices = Ascending {
+        source: || nodes.iter().map(coordinate),
+        last: None,
+        run: None,
+        should_stop,
+        stopped,
+    };
+    let records = Ascending {
+        source: || edges().map(|edge| edge_record(nodes, &edge)),
+        last: None,
+        run: None,
+        should_stop,
+        stopped,
+    };
+    digest_stream(kind, nodes.len(), edge_count, vertices, records)
 }
 
 const fn endpoint_code(endpoint: antecedent_graph::Endpoint) -> u8 {
@@ -427,6 +551,89 @@ mod tests {
     }
 
     #[test]
+    fn allocation_free_digest_is_byte_identical_on_varied_fixtures() {
+        use antecedent_graph::{Endpoint, MarkedEdge, MiddleMark, TemporalPag};
+        let never = || false;
+        let mut cases: Vec<TemporalCompletionGraph> = Vec::new();
+        cases.push(TemporalCompletionGraph::Dag(TemporalDag::empty()));
+        cases.push(TemporalCompletionGraph::Mag(TemporalPag::empty()));
+        for seed in 0..40_u32 {
+            let mut dag = TemporalDag::empty();
+            let mut ids = Vec::new();
+            // Deterministic scrambled insertion order so dense ids disagree with coordinates.
+            let count = 3 + seed % 7;
+            for index in 0..count {
+                let scramble = (index * 5 + seed) % count;
+                let variable = VariableId::from_raw((scramble * 3 + seed) % 11);
+                let lag = Lag::from_raw((scramble + seed / 3) % 4);
+                if let Ok(id) = dag.add_lagged(variable, lag) {
+                    ids.push(id);
+                }
+            }
+            let mut mag = TemporalPag::empty();
+            let mut mag_ids = Vec::new();
+            for node in dag.nodes() {
+                if let antecedent_core::NodeRef::Lagged { variable, lag } = node {
+                    mag_ids.push(mag.add_lagged(*variable, *lag).unwrap());
+                }
+            }
+            let middles = [
+                MiddleMark::Unknown,
+                MiddleMark::Left,
+                MiddleMark::Right,
+                MiddleMark::Both,
+                MiddleMark::Empty,
+            ];
+            let marks = [Endpoint::Tail, Endpoint::Arrow, Endpoint::Circle];
+            for (i, &a) in ids.iter().enumerate() {
+                for (j, &b) in ids.iter().enumerate().skip(i + 1) {
+                    if (i * 7 + j * 3 + seed as usize) % 3 == 0 {
+                        let _ = dag.insert_directed(a, b);
+                    }
+                    if (i * 5 + j * 11 + seed as usize) % 2 == 0 {
+                        let edge = MarkedEdge {
+                            a: mag_ids[i],
+                            b: mag_ids[j],
+                            at_a: marks[(i + seed as usize) % 3],
+                            at_b: marks[(j + seed as usize / 2) % 3],
+                            middle: middles[(i + j + seed as usize) % 5],
+                        };
+                        let _ = mag.insert_marked(edge);
+                    }
+                }
+            }
+            cases.push(TemporalCompletionGraph::Dag(dag));
+            cases.push(TemporalCompletionGraph::Mag(mag));
+        }
+        let mut with_edges = 0;
+        for case in &cases {
+            let streamed = case.digest_without_allocation(&never).expect("not stopped");
+            assert_eq!(streamed, case.digest());
+            assert_eq!(case.fingerprint_without_allocation(&never), Some(case.fingerprint()));
+            let edge_total = match case {
+                TemporalCompletionGraph::Dag(graph) => graph.edges().count(),
+                TemporalCompletionGraph::Mag(graph) => {
+                    assert_eq!(graph.edges_lazy().count(), graph.edges().len());
+                    graph.edges().len()
+                }
+            };
+            with_edges += usize::from(edge_total > 0);
+        }
+        assert!(with_edges > 20, "fixtures must exercise non-empty edge sets");
+        // The pinned golden vector is the same through the allocation-free traversal.
+        let mut graph = TemporalDag::empty();
+        let source = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let target = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(source, target).unwrap();
+        let completion = TemporalCompletionGraph::Dag(graph);
+        assert_eq!(
+            antecedent_core::to_hex(&completion.digest_without_allocation(&never).unwrap()),
+            "87167be0773ad1c53a6da42994b4ec3699caf525b7c80f5003e178c551f587ce"
+        );
+        assert_eq!(completion.digest_without_allocation(&|| true), None);
+    }
+
+    #[test]
     fn completion_agreement_uses_a_shared_temporal_indexer() {
         struct Completion(TemporalDag);
         impl CompletionGraph for Completion {
@@ -479,11 +686,10 @@ mod tests {
             .envelope;
         assert_eq!(env.cases.len(), 2);
         assert_eq!(env.status, IdentificationStatus::NotIdentified);
-        assert!(
-            env.critical_graph_features
-                .iter()
-                .any(|f| f.kind.as_ref() == "temporal_pag_mixed_completion_audit")
-        );
+        assert!(env
+            .critical_graph_features
+            .iter()
+            .any(|f| f.kind.as_ref() == "temporal_pag_mixed_completion_audit"));
     }
 
     #[test]

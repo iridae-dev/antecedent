@@ -42,6 +42,8 @@ pub const DEFAULT_AIPW_FOLDS: usize = 5;
 
 /// Provenance tag frozen on the score table.
 pub(crate) const AIPW_CROSSFIT_PROVENANCE: &str = "aipw.crossfit.v1";
+/// The provenance of a cross-fit that read a batch's shared covariate design.
+pub(crate) const AIPW_SHARED_DESIGN_PROVENANCE: &str = "aipw.crossfit.v1;batch.shared_design";
 
 /// Build a score table from a prepared propensity problem.
 ///
@@ -592,7 +594,7 @@ fn build_scores_pass(
     let provenance = format!(
         "{}{}",
         if problem.shared_design {
-            "aipw.crossfit.v1;batch.shared_design"
+            AIPW_SHARED_DESIGN_PROVENANCE
         } else {
             AIPW_CROSSFIT_PROVENANCE
         },

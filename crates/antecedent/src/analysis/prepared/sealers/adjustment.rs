@@ -5,7 +5,6 @@
 
 use super::{SealContext, SealOutcome};
 use crate::accepted::GraphClass;
-use crate::analysis::CheckedConditionalOperation;
 use crate::analysis::builder::RefuteSuite;
 use crate::analysis::checked_propensity::{
     CheckedPropensityContext, CheckedPropensityEstimator, CheckedPropensityOperation,
@@ -13,12 +12,13 @@ use crate::analysis::checked_propensity::{
 use crate::analysis::execute::CheckedStaticCommon;
 use crate::analysis::execute::RouteInput;
 use crate::analysis::prepared::{
-    CheckedAipwOperation, CheckedFrontDoorOperation, CheckedGlmAdjustmentOperation,
-    CheckedIvOperation, CheckedLinearOperation, CheckedRdOperation,
-    CheckedUnknownTieredAverageOperation, PreparedExecution, checked_aipw_fitter,
-    conditional_class_proof_is_complete,
+    checked_aipw_fitter, conditional_class_proof_is_complete, CheckedAipwOperation,
+    CheckedFrontDoorOperation, CheckedGlmAdjustmentOperation, CheckedIvOperation,
+    CheckedLinearOperation, CheckedRdOperation, CheckedUnknownTieredAverageOperation,
+    PreparedExecution,
 };
 use crate::analysis::proof_support::EstimandClaim;
+use crate::analysis::CheckedConditionalOperation;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::RouteDefaults;
@@ -504,7 +504,10 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
         {
             let fitter = checked_aipw_fitter(analysis);
             if matches!(fitter.overlap, OverlapPolicy::RequireDiagnostics { .. }) {
-                let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
+                let preparation = match rebound_checked_aipw(cx, &fitter, data, cache, query) {
+                    Some(rebound) => rebound,
+                    None => fitter.prepare_checked(data, &cache.identification, 0)?,
+                };
                 let (identifier, estimator) = cx.binding.resolve(RouteDefaults::STATIC_ATE)?;
                 Some(CheckedAipwOperation {
                     fitter,
@@ -523,6 +526,29 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
         _ => None,
     };
     Ok(sealed.map(PreparedExecution::CheckedAipw))
+}
+
+/// Rebind the checked receipt of the branch's previous operation to the new rows.
+///
+/// The receipt's selected claim, query, checked program and procedure are the same product
+/// whenever the retained identification is the one the previous operation was sealed to; only
+/// the row-bound problem changes, so the checked program is not compiled again. `None` offers
+/// no previous operation, a different claim, rows the checked route would refuse, or a
+/// configuration the receipt does not admit, and the caller prepares the receipt afresh.
+fn rebound_checked_aipw(
+    cx: &SealContext<'_>,
+    fitter: &antecedent_estimate::AipwAte,
+    data: &antecedent_data::TabularData,
+    cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
+    query: &antecedent_core::AverageEffectQuery,
+) -> Option<antecedent_estimate::CheckedAipwPreparation> {
+    let previous = cx.previous?.aipw_operation()?;
+    if previous.query != *query || previous.preparation.target() != &cache.estimand {
+        return None;
+    }
+    let rebound = fitter.rebind_checked(&previous.preparation, data).ok()?;
+    // The fresh receipt refuses rows at undeclared treatment levels; so must a rebound one.
+    (rebound.problem().treatment_levels.excluded_rows == 0).then_some(rebound)
 }
 
 pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
