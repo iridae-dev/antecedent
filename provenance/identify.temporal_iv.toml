@@ -22,3 +22,29 @@ test_sources = [
   "crates/antecedent-identify/tests/temporal_iv.rs",
   "crates/antecedent/tests/temporal_lagged_instrument_route.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "TemporalIvIdentifier::identify_temporal_iv in crates/antecedent-identify/src/temporal_iv.rs for a pulse or one-step sustained Set contrast on a stationary temporal DAG: candidate enumeration, per-candidate window growth and certification, reuse of the static singleton test on the unfolded window, and the assembled Wald estimands and assumption records. Not a review of window growth itself (temporal_window.rs), of the static criterion's graph primitives, or of lagged-instrument estimation."
+assumptions = ["Stationary template: the lagged edges repeat at every time step, so the finite unfolding with certified ancestry represents the infinite-history graph for d-separation among the treatment, outcome and candidate.", "d-connection and d-separation of the candidate with the treatment and outcome depend only on the ancestors of those nodes, so a window containing their full ancestry decides the static test; the review of temporal_window.rs's boundary rule is not part of this record.", "The graph supplies exclusion and exogeneity; a lag, by itself, supplies neither. Relevance is graph connection, not strength.", "The Wald estimand carries the static restriction iv.constant_linear_effect_or_monotonicity; the temporal construction adds the stationarity assumption."]
+historical_exposure = "The earlier record listed no observed implementations; historical author exposure cannot be independently established. This review read the product source and the existing integration tests; no upstream implementation or test source was consulted or copied."
+redistribution = "Repository-authored tests under MIT OR Apache-2.0; the cited text is linked by DOI, not redistributed."
+limitations = "The primary papers were not re-read in this review (the copies reachable from this environment were scanned or paywalled); the section citations are inherited from the earlier record, and the criteria were checked against the implementation and an independent enumeration instead. A mistake in how the record states a theorem would therefore not be detected here. Candidates are only variables at offsets 1..max(max template lag, 1) before the treatment; contemporaneous or older instruments are not considered, so a valid instrument outside that range is missed (conservative, not unsound). A candidate whose ancestry no finite window certifies is listed as uncertified, never reported valid; the final window grown for the Wald functional is built from the treatment, outcome and valid instruments only. Candidates are tested in individually grown windows, so the verdict for one candidate does not depend on another. The six integration cases are hand-derived small templates; no exhaustive comparison with an independent enumeration was added and window growth correctness is assumed from its own tests. Calibration remains deferred."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["Verified that each candidate is examined in a window grown from the seeds (treatment, outcome, candidate) and that a NotCertified growth error is recorded as uncertified rather than treated as invalid or valid; any other growth error propagates.", "Verified that the static test is applied unchanged to the unfolded DAG with dense seed ids read back in seed order, and that the Wald estimand ids index the final window in the same order as the valid list (treatment, outcome, then instruments).", "Verified the assumption records: causal Markov, stationarity, the effect restriction shared by all estimands, and per-instrument exclusion and relevance in each claim.", "Confirmed that the existing integration tests execute the positive case (lagged cause of the treatment is an instrument, the confounder is not) and counterexamples for confounded instrument, direct effect on the outcome, irrelevance, uncertified autoregressive chain and unsupported multi-step schedule. No defect was found and no code was changed."]
+record_sha256 = "10c818d0d9383caa2162cbbc0b74cbd4468feaf2ffa40ed5acbf895d258ff51b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/temporal_iv.rs"
+sha256 = "d8f7183b144721c86411498e8d58db7dc40f32653ebdb5fee10659b1e1c6547b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/iv.rs"
+sha256 = "2207056d7f4225eeb62f4c046ca2647bbef08c7fddb32848a577a561d6691fdf"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/temporal_iv.rs"
+sha256 = "a17bab7214d149bdfe8a0d02a2e9adfa2e8a4c6ec2f402f976e1624cfa89e366"

@@ -1,4 +1,10 @@
 {
+  "oracle": {
+    "kind": "closed_form",
+    "method": "declared linear response and affine utilities",
+    "independence_basis": "Native data follow Y=1+2A+0.2X with X symmetric about zero, so the intervention means at A=1,2 are 3 and 5; the named affine utilities 2*mean1-1 and 0.5*mean2 give 5 and 2.5. The arithmetic is repository-authored closed form and was rechecked during classification. Utility coefficients and units are caller declarations; no calibration or external reference is supplied.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "native_means": [3.0, 5.0],
   "external_means": [3.0, 5.0],
   "utilities": {"A": 5.0, "B": 2.5},

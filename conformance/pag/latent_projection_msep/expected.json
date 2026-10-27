@@ -1,4 +1,17 @@
 {
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/pag.rs::latent_projection_msep",
+  "evidence_proposition": "Projecting out a latent common cause yields a bidirected x<->y edge with no directed children, and the sampled m-separation check agrees with d-separation on the observed query.",
+  "limitations": "One small DAG with hand-chosen structure; a sampled m-separation comparison is not a proof of projection correctness in general.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "preserve_msep": true,
   "tolerance_class": "Exact"
 }

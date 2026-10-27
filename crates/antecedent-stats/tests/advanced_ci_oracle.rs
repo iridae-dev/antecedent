@@ -133,13 +133,18 @@ fn gpdc_matches_oracle_decisions_after_stable_residualization() {
 fn advanced_ci_fixture_has_pinned_reproducible_provenance() {
     let fixture = fixture();
     let oracle = &fixture["oracle"];
+    assert_eq!(oracle["generator_retained"], true, "the generator must be retained");
+    assert_eq!(oracle["generator"], "conformance/discovery/advanced_ci/reference.py");
     assert_eq!(
-        oracle["generation_location"], "temporary external harness; not retained",
-        "the repository must retain artifacts, not the external generator"
+        fixture["historical_oracle"]["generation_location"], "temporary external harness; not retained",
+        "the historical deleted-generator disclosure must be preserved"
     );
     assert_eq!(oracle["packages"]["tigramite"]["version"], "5.2.1.30");
     assert_eq!(oracle["packages"]["numpy"]["version"], "1.23.5");
-    assert!(oracle["command"].as_str().unwrap().contains("tigramite==5.2.1.30"));
+    assert!(oracle["command"].as_str().unwrap().contains("reference.py --check"));
+    assert!(
+        fixture["historical_oracle"]["command"].as_str().unwrap().contains("tigramite==5.2.1.30")
+    );
     for package in ["tigramite", "numpy", "scipy", "scikit-learn", "dcor"] {
         assert_eq!(oracle["packages"][package]["metadata_sha256"].as_str().unwrap().len(), 64);
     }

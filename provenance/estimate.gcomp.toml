@@ -28,3 +28,39 @@ test_sources = [
  "conformance/estimate/glm_adjustment_grid (statsmodels-oracle fixture; exercises gcomp.rs via crates/antecedent-estimate/src/glm_adjustment.rs)",
  "conformance/bayesian/shared_functional_ate (exercises gcomp.rs via crates/antecedent-estimate/src/bayesian/gcomp.rs bayesian_gcomp path)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "GcompContrast in crates/antecedent-estimate/src/gcomp.rs (linear_predictors, diffs, contrast_row_etas, mean_contrast) with its mean/link helpers GlmFamily::mean_from_eta, sigmoid and norm_cdf: the standardized point-treatment contrast mean_r[mu(T=active, Z_r) - mu(T=control, Z_r)] from a fitted main-effect GLM. Not model fitting, the delta-method or bootstrap variance, ATT subsetting, or any longitudinal g-formula."
+assumptions = ["Conditional exchangeability, consistency and positivity for the single time-point treatment given the covariates in the design are established by the caller or identifier, not by this kernel; the kernel only evaluates the plug-in functional E_Z[mu(a, Z)] on the sample rows.", "The fitted model is a main-effect GLM: the design holds an intercept, the treatment column and covariate main effects, and no column that is a function of the treatment. Replacing only the treatment column leaves any treatment-derived column at its observed value, so interaction or lagged-treatment columns would give a contrast that is not do(T=a).", "The identity-link shortcut (active - control) * beta_T is exact only under that main-effect structure; nonlinear links average the row-wise mean-scale differences, so the result is not the contrast at the mean covariate.", "Outcome-model correctness is not checked; misspecification yields a biased standardized contrast."]
+historical_exposure = "No upstream implementation was consulted or observed for this review. Historical author exposure cannot be independently established. Robins (1986) was not retrieved and its text was not read; the review checked the code against the standard point-treatment standardization formula E_Z[E[Y|T=a,Z]] stated in the record, not against Robins's equations, and the record's disclaimer that the iterated g-formula is not implemented stands unchanged."
+redistribution = "The cited paper is linked, not redistributed. The unit test added in this review is original repository-authored code under MIT OR Apache-2.0; the retained statsmodels fixture keeps its existing redistribution and isolation terms. No upstream code or tests were copied."
+limitations = "Verifies the plug-in standardization arithmetic and numerical helpers, the identity shortcut and the bit-identity of the blocked kernels to the row-first walk. It is not a review of Robins (1986) against the implementation, of GLM fitting, of variance, or of any causal identification; the external statsmodels fixture asserts coefficients and an ATE for one fixed table and no repeated-sampling property. New and existing unit tests live in the bound implementation and test files and were not executed by the reviewer in this session. Calibration remains deferred."
+sources = ["https://doi.org/10.1016/0270-0255(86)90088-6", "https://www.statsmodels.org/v0.14.4/generated/statsmodels.genmod.generalized_linear_model.GLM.html"]
+findings_resolved = ["Read the column-outer diffs, the row-first single-row etas and the blocked mean_contrast against each other and the existing bit-identity unit test; they apply the intervention only to the treatment column and sum rows in a fixed order.", "Read the numerical helpers: sigmoid is overflow-safe and tail-accurate for both signs, norm_cdf uses 0.5*erfc(-x/sqrt2) for left-tail accuracy, and Poisson/NB means use exp with no clipping (overflow to infinity propagates rather than being hidden).", "Found that the identity-link shortcut and the treatment-column replacement silently assume a main-effect design. Added an executing assertion pinning a hand-computed two-row logit standardization and a counterexample showing the shortcut and the true do(T) contrast differ by more than 1 when a treatment-by-covariate column is present; verified the design compiler emits only intercept, treatment and covariate columns, so the production path does not trigger it.", "Linked the executing external fixture and its asserted outputs (all_observed_ate, intercept/treatment/covariate coefficients) rather than only the unit-test descriptions."]
+record_sha256 = "9db39287fa2d644d8cd535614c9a0a324ecdfc4ff74bbe3adba9c01ccd964faf"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/gcomp.rs"
+sha256 = "eae5d4257a9ead8ea0d1885d02ee59c916c883b38f368419cb8e747bd3afc83c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/glm.rs"
+sha256 = "de469faef1d5757bac03d7fb7707654b018eef37a50f85ac944626c6955df047"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-kernels/src/numeric.rs"
+sha256 = "c17444482d21c072e7c4b92e3be0379cc2089f5c9c616652964ef2b18da42afa"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/src/glm_adjustment/tests.rs"
+sha256 = "800d0754de7cf7b495f7b1c1c7472ba9e5ff8b26df803de1b55a63c43df591ad"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/estimate/glm_adjustment_grid/expected.json"
+sha256 = "a9d4a85a45ecc38b9dbef26528643515554f8353d70b5ced3b77cef094cfb6ff"

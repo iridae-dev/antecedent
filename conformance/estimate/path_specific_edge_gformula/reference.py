@@ -350,8 +350,23 @@ def values_close(left: object, right: object) -> bool:
     return compare_values(left, right, rtol=0.0, atol=1e-9)
 
 
+ORACLE = {'kind': 'enumeration',
+ 'method': 'enumeration of the structural noise cells',
+ 'independence_basis': 'Binary SCM on c,t,m,y: reference.py enumerates the equally '
+                       'likely noise cells of the structural equations (counterfactual '
+                       'truth from the SCM itself, not from a g-formula), reproduces '
+                       'the observational counts, and recomputes the edge g-formula '
+                       'with numpy; path-specific effect 0.12, total 0.356, natural '
+                       'direct 0.156. The generator is retained and checked by the '
+                       'conformance reference check; the author of the reference is '
+                       'the repository author and independence from the production '
+                       'implementation has not been reviewed.',
+ 'generator': 'conformance/estimate/path_specific_edge_gformula/reference.py',
+ 'historical_exposure': 'Historical author exposure is unrecorded and remains unknown.'}
+
+
 def main() -> None:
-    expected = build()
+    expected = {"oracle": ORACLE, **build()}
     path = HERE / "expected.json"
     text = json.dumps(expected, indent=2) + "\n"
     if "--write" in sys.argv:

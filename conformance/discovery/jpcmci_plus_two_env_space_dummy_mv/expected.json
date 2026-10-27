@@ -1,4 +1,18 @@
 {
+  "evidence_roles": [
+    "software",
+    "statistical_smoke"
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_source": "crates/antecedent/tests/context_effects.rs::jpcmci_plus_space_dummy_mv_pin",
+  "evidence_proposition": "With three environments and the multivariate-block space-dummy mode, J-PCMCI+ reports the declared algorithm, at least two nodes and one link, the multivariate diagnostic, and no more than one logical space-dummy id.",
+  "limitations": "Library-only structural pin; no external multivariate space-dummy oracle exists for it. Does not establish discovery accuracy, error control or calibration.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "algorithm_id": "jpcmci_plus",
   "min_envs": 3,
   "min_nodes": 2,

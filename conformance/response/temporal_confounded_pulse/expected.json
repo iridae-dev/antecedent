@@ -1,4 +1,10 @@
 {
+  "oracle": {
+    "kind": "closed_form",
+    "method": "deterministic structural model",
+    "independence_basis": "Deterministic stationary linear SCM Z_s=V_s, A_s=Z_s+U_s, Y_s=1+2A_{s-1}+5Z_{s-1} with period-four exogenous sequences, so E[Y_0|do(A_{-1}=d)]=1+2d and doses [0,1] give surface [1,3]; the adjustment set {Z@-1} follows from the declared template edges. Hand-derived by repository authors; reviewer independence is not established.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "fixture_id": "antecedent.temporal_response.confounded_pulse",
   "claim": "under lagged confounding, temporal backdoor identification returns Z at offset -1 (not empty) with method temporal.backdoor.unfolded, and the estimator recovers the structural pulse; omitting Z leaves that method with an empty adjustment set and the confounded association",
   "contract": {

@@ -1,4 +1,18 @@
 {
+  "evidence_roles": [
+    "software",
+    "statistical_smoke"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent-estimate/src/bayesian/tests.rs::hierarchical_unit_effects_widen_posterior_vs_stacked",
+  "evidence_proposition": "On the seeded unit-intercept design, the hierarchical posterior effect SD exceeds the stacked posterior SD by at least the pinned ratio.",
+  "limitations": "A direction-and-magnitude floor on one seeded DGP; not an external parity claim, not a known-truth posterior SD and not calibration.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "min_posterior_sd_ratio_hierarchical_over_stacked": 1.15,
   "dgp": "Repeated measures with an additive unit intercept (static ATE or lag-1 Pulse). Stacked conjugate g-comp treats within-unit rows as iid; random-intercept GLS must report a wider effect posterior SD.",
   "tolerance": {"atol": 1e-12}

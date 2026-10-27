@@ -1,4 +1,18 @@
 {
+  "evidence_roles": [
+    "software",
+    "statistical_smoke"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/numeric_pins.rs::kernel_target_population_coverage_over_seed_grid",
+  "evidence_proposition": "Over an 80-seed grid, at least 68 kernel-target AIPW intervals cover the closed-form population functional 1+0.6/(1+0.7^2) asserted in the test.",
+  "limitations": "A coarse seeded coverage count on one design, not a calibrated coverage measurement; the target formula is repository-authored.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "true_effect": 1.4026845637583893,
   "formula": "1 + 0.6 / (1 + 0.7^2)",
   "tolerance": 0.15,

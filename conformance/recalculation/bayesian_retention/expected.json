@@ -1,4 +1,10 @@
 {
+  "oracle": {
+    "kind": "closed_form",
+    "method": "conjugate algebra from declared design matrices",
+    "independence_basis": "Gaussian, quadratic-basis and joint-internal posterior moments are computed in closed form from the declared design matrices and priors (for example precision [[128.01,128],[128,256.25]] and moment [384,512] for the joint candidate); no native draws are frozen. The algebra is repository-authored; its independence from the production implementation has not been reviewed. The joint candidate is inspection evidence, not calibrated inference.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "gaussian": {
     "mean": 1.9997656677160285,
     "variance": 0.015621948861949177

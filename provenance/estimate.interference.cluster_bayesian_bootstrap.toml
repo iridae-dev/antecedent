@@ -7,7 +7,7 @@ copied_tests = false
 
 papers = [
  { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1..1) observation weights, here on independent clusters"] },
- { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3, definitions 1-2: exposure mappings under a known assignment design"] },
+ { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3: exposure mapping f(z, theta_i) and Condition 1 (properly specified exposure mapping); section numbering is that of the arXiv v4 manuscript"] },
 ]
 
 implementation_deviations = [
@@ -22,3 +22,29 @@ test_sources = [
  "crates/antecedent/tests/interference_interval_route.rs",
  "crates/antecedent/src/analysis/execute/checked_interference.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_cluster_interference_bayesian_bootstrap in crates/antecedent-estimate/src/interference.rs and the shared Dirichlet weight draws in score_posterior.rs: Dirichlet(1..1) cluster weights, arm-restricted weighted means of K/n-scaled cluster totals, contrast draws. A posterior over the finite cluster-score law, not an interval with frequentist coverage."
+assumptions = ["Complete cluster randomization and partial interference as for the design-based cluster estimator; every design refusal of that estimator applies first.", "Dirichlet(1,..,1) weights over all clusters, restricted to an arm and renormalised, are independent Dirichlet(1,..,1) posteriors for the two arms (Dirichlet aggregation property), so the arm means are independent given the data.", "The posterior is for the mean of the observed arm cluster-score distributions; the Bayesian bootstrap prior identifies nothing and no calibration is claimed."]
+historical_exposure = "No upstream implementation was consulted or observed for this review. Historical author exposure cannot be independently established. The review read the arXiv v4 manuscript of Aronow and Samii (1305.6156) as a PDF retrieved on 27 October 2026 (Rubin 1981 itself was not retrieved) and the product source; it did not read the typeset Annals of Applied Statistics pagination."
+redistribution = "Primary papers are linked, not redistributed. The unit tests added in this review are original repository-authored code under MIT OR Apache-2.0; no upstream code, comments or tests were copied."
+limitations = "Verifies the posterior spread and mean of the arm-weighted contrast against the exact Dirichlet moment on one 8-cluster fixture (4 clusters per arm) and the shared score-posterior moment tests. It does not establish frequentist coverage of the credible interval, behavior with few clusters, or Rubin's argument beyond the standard Dirichlet(1,...,1) property; Rubin's paper text was not read. The new moment assertion lives in the bound implementation file and was not executed in this session. Unlicensed and uncalibrated."
+sources = ["https://doi.org/10.1214/aos/1176345338", "https://arxiv.org/abs/1305.6156"]
+findings_resolved = ["Verified that the ratio of Dirichlet-weighted treated-cluster totals over treated weight mass equals the arm weighted mean, with both arms drawn from one shared weight vector, and that the posterior mean equals the design-based Horvitz-Thompson contrast.", "Added an executing assertion that the contrast draws' standard deviation matches sqrt(spread_t/(m_t+1)+spread_c/(m_c+1)) to 5% and that the draw mean matches the design estimate, replacing the earlier route test's loose 0.4x-1.6x comparison to the Neyman standard error as the only spread check.", "Corrected the exposure-mapping section reference to Section 3 / Condition 1 of the arXiv v4 manuscript."]
+record_sha256 = "226d6b6d5780a2a908b39cd93c76fbb0a7e7435b13c707d70afe6d7e3ca1f52d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/interference.rs"
+sha256 = "c602194efda3001f586e9b38f5cccd1b8a8aedfbce1222f8906f5c1b6220869d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/score_posterior.rs"
+sha256 = "ac11546d4d6634c669f0daf2d27f7371dda72fe78041527cb3f430b27dde8933"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/interference_interval_route.rs"
+sha256 = "eacc881c767395681d2dc0ca5a5ee1d6948b0f62722d306dcd18a08a6d52d715"

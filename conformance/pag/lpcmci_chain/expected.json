@@ -1,4 +1,17 @@
 {
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "regression_pin",
+  "evidence_source": "crates/antecedent/tests/pag.rs::lpcmci_chain_matches_upstream_reference_links_and_marks",
+  "evidence_proposition": "LPCMCI on the retained series reproduces the links and marks recorded from a historical black-box Tigramite 5.2.1.30 run.",
+  "limitations": "The recorded Tigramite output comes from a deleted harness and cannot be regenerated here; author exposure is unknown. One fixed realization; no error-rate or calibration claim. The sibling structural assertion lpcmci_chain checks only counts and rule identifiers.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Frozen output of a historical black-box Tigramite 5.2.1.30 run on the retained series; the harness is not retained.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "algorithm_id": "lpcmci",
   "min_nodes": 2,
   "min_links_retained": 0,

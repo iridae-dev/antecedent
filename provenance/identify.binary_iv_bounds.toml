@@ -5,7 +5,11 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-implementation_deviations = []
+implementation_deviations = [
+ "Bounds are the minimum and maximum of the linear objective over the vertices of the feasible type polytope, found by enumerating every 7-column basis of the rank-7 constraint system (3 cells per instrument arm plus normalization, C(16,7) = 11440 bases) and solving each by Gauss-Jordan elimination with partial pivoting; this replaces the paper's symbolic linear-programming derivation by an exact finite vertex search.",
+ "Numerical policy: a basis is skipped when a pivot is at most 1e-9, a basic solution is rejected below -1e-9, and a vertex is kept only if it reproduces every observed cell within 1e-7. A law that violates the instrumental inequality by less than about that tolerance may therefore be reported feasible.",
+ "The returned interval is clamped to [-1, 1]; a law with no feasible vertex is refused with an error naming the instrumental inequality rather than returned as an empty set.",
+]
 
 papers = [
   { title = "Bounds on Treatment Effects From Studies With Imperfect Compliance", doi = "10.1080/01621459.1997.10474074", sections = ["Section 2, equations (1)-(3): binary IV model and average causal effect", "Section 2: sixteen response-function classes and linear-programming optimization"] },
@@ -18,4 +22,47 @@ upstream_implementations_observed = [
 test_sources = [
   "crates/antecedent-identify/src/bounds.rs",
   "conformance/response/binary_iv_balke_pearl_table1 (bpbounds 0.1.8 black-box fixture)",
+  "conformance/identify/binary_iv_lp (retained independent linear-programming reference, 32 laws including infeasible counterexamples)",
+  "crates/antecedent-identify/tests/binary_iv_lp_oracle.rs::matches_independent_linear_program_cases",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "binary_iv_ate_bounds, BinaryIvLaw::validate and the feasibility search in crates/antecedent-identify/src/bounds.rs for an exactly known law of a binary instrument, treatment and outcome, without monotonicity. Not a review of the estimated-law/sampling-uncertainty wrappers in antecedent-estimate/iv_bounds.rs or of the analysis-result artifact that carries the bounds."
+assumptions = ["Instrument exogeneity and exclusion, encoded by one distribution over the 16 latent (D(0), D(1), Y(0), Y(1)) types shared by both instrument arms; no monotonicity or other restriction on the types.", "The supplied cells are the exact population conditional law P(Y,D | Z), not a sample estimate. Sampling variability and an instrument that is estimated to violate the inequality are outside the routine.", "Binary instrument, treatment and outcome."]
+historical_exposure = "The earlier record disclosed black-box comparison with bpbounds 0.1.8 only; historical author exposure cannot be independently established. This review read the product source and wrote a separate linear-programming reference with a type encoding of its own; no upstream implementation or test source was consulted."
+redistribution = "The retained LP generator and its 32 deterministic laws are repository-authored under MIT OR Apache-2.0; SciPy and NumPy are isolated locked tooling. The primary paper is linked by DOI, not redistributed. The bpbounds fixture is unchanged."
+limitations = "The primary paper (Balke and Pearl 1997) was not re-read in this review: the section citations are inherited from the earlier record and the model statement was checked instead against the independent bpbounds values for the paper's Table 1 law, which the separate LP reproduces to 1e-4 and the product to 1e-12. A common mistake in the textbook 16-type model would not be detected by either solver. No behavior for laws within the 1e-7 feasibility tolerance of the inequality boundary, no sampling uncertainty, covariates, weights or missingness. Calibration remains deferred."
+sources = ["https://doi.org/10.1080/01621459.1997.10474074", "https://cran.r-project.org/web/packages/bpbounds/bpbounds.pdf", "https://docs.scipy.org/doc/scipy-1.14.1/reference/generated/scipy.optimize.linprog.html"]
+findings_resolved = ["Verified the constraint system against the model: bit decoding (y0, y1, d0, d1), cell index d*2+y matching the documented (Y,D) order, three free cells per arm plus normalization giving rank 7, and the objective y1 - y0.", "Verified that basis enumeration reaches degenerate vertices (any support of a degenerate vertex extends to a nonsingular 7-column basis because the system has full row rank) and that the keep-test uses the original cells rather than the pivoted solution.", "Documented the vertex-search method and its 1e-9/1e-7 numerical policy as deviations; no defect requiring a code change was found.", "Added an executing comparison against a separate linear-programming solve of the same model over 32 fixed laws, with feasible, degenerate and two inequality-violating counterexamples, asserting both bounds (atol 1e-8) and the refusal verdicts."]
+record_sha256 = "4871ab2886495f9a31806d1b623786e87b45d810fb68ed391a44d7a1f3c11454"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/bounds.rs"
+sha256 = "688e600fa78776a81ccac34dc17530d2ef73d8e558bee87ba5a56762329c92e9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/binary_iv_lp_oracle.rs"
+sha256 = "17e76feee1a8f9f09105eb4701aea3abd8ff43ec95d12b56228003272e8e9e4e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/identify/binary_iv_lp/expected.json"
+sha256 = "f215d25856c371df60c980b5c3ffbe528f8c59e980a58522bcd7c298e4459b35"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "conformance/identify/binary_iv_lp/reference.py"
+sha256 = "f646ca79d7f069313ed918c7196853abe23c1a87beb5886d175ef15fdf1db37d"
+
+[[method_review.artifacts]]
+role = "environment"
+path = "conformance/identify/binary_iv_lp/reference.py.lock"
+sha256 = "87774211723939884a170d86e8670db50824f24dae6ac357b443a107d4915711"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/response/binary_iv_balke_pearl_table1/expected.json"
+sha256 = "ee0bab97c2bf53f39d81b0ef9985c29dbfde002069a6f6d0d6298b109ab30645"

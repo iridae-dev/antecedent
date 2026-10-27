@@ -1,4 +1,11 @@
 {
+  "oracle": {
+    "kind": "closed_form",
+    "method": "retained structural data generator with population truth",
+    "independence_basis": "reference.py generates the six retained artifacts from the declared structural design (four groups, AR(1) errors, saturated lagged exposures, additive and interaction variants) and its population truth is computed from the structural mean, using no production estimator, simulator or identification routine; reference.py --check reproduces the artifacts. The generator is retained; reviewer independence and transitive helpers have not been reviewed.",
+    "generator": "conformance/response/joint_panel/reference.py",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "dependence": {
     "ar_coefficient": 0.45,
     "independent_groups": true,

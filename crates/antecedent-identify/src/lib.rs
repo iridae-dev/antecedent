@@ -4,6 +4,9 @@
 //! [`BackdoorIdentifier`], [`FrontDoorIdentifier`], [`IdIdentifier`],
 //! [`IdcIdentifier`], and [`AutoIdentifier`].
 //!
+//! This example is a compile check that the entry point is exported and constructible; it
+//! asserts no behaviour (behaviour is covered by the crate's tests).
+//!
 //! ```
 //! use antecedent_identify::BackdoorIdentifier;
 //!

@@ -1,4 +1,10 @@
 {
+  "oracle": {
+    "kind": "closed_form",
+    "method": "exact conditional-mean polynomial",
+    "independence_basis": "m(d)=1+0.5d+0.25d^2, m'(d)=0.5+0.5d and m(3)-m(1)=3 (arithmetic rechecked during classification); the local polynomial design spans this mean exactly under the declared model, so smoothing bias is zero by assumption. Not a coverage oracle or general bias correction; author independence has not been reviewed.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "oracle_kind": "closed_form",
   "conditional_mean_coefficients": [
     1.0,

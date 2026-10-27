@@ -1,4 +1,10 @@
 {
+  "oracle": {
+    "kind": "independent_reimplementation",
+    "method": "finite-sample F critical values by numerical integration",
+    "independence_basis": "The F(1,n-2) 0.95 critical values for n=150,300,600 were computed with Python standard-library lgamma and Simpson integration of the Student t density with bisection on its 0.975 quantile, using no production incomplete-beta, F quantile or generator. The harness was not retained. The structural effect 2 is the declared DGP coefficient. Measurement tests that use these pins are ignored until calibration.",
+    "historical_exposure": "The computing harness is not retained; historical author exposure is unrecorded and remains unknown."
+  },
   "effect": 2.0,
   "strengths": [
     0.02,

@@ -8,17 +8,12 @@
   "gpdc_rtol_stat": 1.0,
   "n": 200,
   "seed": 11,
-  "generation": {
-    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
-    "baseline_pin": "parity/baselines/tigramite.toml",
-    "env": "uv run --python 3.10 --with numpy --with scipy --with dcor --with scikit-learn --with tigramite==5.2.1.30"
-  },
   "reference": {
     "project": "tigramite",
     "available": true,
     "version": "unknown",
     "commit": "5a8768754e6103755b006e9357e21c1a58534927",
-    "command": "uv run --python 3.10 --with numpy --with scipy --with dcor --with scikit-learn --with tigramite==5.2.1.30",
+    "command": "uv run --frozen --script conformance/discovery/ci_stats/reference.py --check",
     "note": null,
     "outputs": {
       "methods": {
@@ -70,6 +65,63 @@
     "kind": "external_package",
     "project": "Tigramite",
     "version": "5.2.1.30",
-    "source": "the `reference` block: a black-box run of tigramite==5.2.1.30 (parity/baselines/tigramite.toml) whose statistics and p-values the consuming test compares within the stated bands; generator deleted after artifact import"
+    "source": "the `reference` block: a black-box run of tigramite==5.2.1.30 (parity/baselines/tigramite.toml) whose statistics and p-values the consuming test compares within the stated bands; generator deleted after artifact import",
+    "generator": "conformance/discovery/ci_stats/reference.py",
+    "environment_lock": "conformance/discovery/ci_stats/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "G-squared statistic and p-value (xd vs yd, dependent and independent)",
+      "CMIknn statistic (x vs y given z, knn 5) and p-value ordering",
+      "GPDC statistic (x vs y given z) within the declared wide band"
+    ],
+    "context_only_outputs": [
+      "robust_parcorr_dep and robust_parcorr_ind (not reproduced)",
+      "weighted_parcorr_error, regressionCI_error, cmisymb_error (failed probes)",
+      "mixed_cmiknn_dep (treated as continuous)"
+    ],
+    "reference_review": {
+      "scope": "One fixed n=200 synthetic table. The retained generator reproduces, from data.csv alone, the tigramite 5.2.1.30 GPDC statistics and p-values, CMIknn (k=5) statistics (exact) and Monte Carlo p-values (within 0.1), and G-squared statistics and analytic p-values (relative 1e-9) for the dependent and independent pairs.",
+      "independence_basis": "The retained script reads data.csv and calls the public tigramite test classes; it imports no Antecedent code and stores no tigramite source. It also fixes the product's comparison bands, so widening them fails. The product assertion compares within the declared bands (statistic atol 0.15 / rtol 0.35 and GPDC atol 0.5 / rtol 1.0) which are far wider than the regeneration tolerance and are product-chosen compatibility bands, not derived tolerances.",
+      "historical_exposure": "Original harness deleted (preserved in historical_oracle). The replacement was written from public class names and run_test_raw signatures; no tigramite source or tests were consulted, and the call convention for each test was found by matching the frozen values.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 script; data.csv is deterministic synthetic data. tigramite (GPL-3.0), dcor, scikit-learn, NumPy and SciPy are isolated locked tooling outside the product and ordinary CI; no upstream source or tests are stored.",
+      "limitations": "The RobustParCorr result and the three failed probes could not be reproduced and are context only, not evidence. The wide product bands mean the product assertion would accept GPDC statistics several-fold from the reference, so it establishes ordering and order of magnitude, not numerical agreement. Single table, single seed; native-versus-upstream GPDC differences are expected inside the band. G-squared has no conditioning set. Calibration remains deferred.",
+      "sources": [
+        "https://github.com/jakobrunge/tigramite",
+        "https://pypi.org/project/tigramite/5.2.1.30/"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/discovery/ci_stats/reference.py",
+          "sha256": "9fd9311495fc1ce39e00d18dbd234fa46e8adb832c24e34b772425fa315217c6"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/discovery/ci_stats/reference.py.lock",
+          "sha256": "37035451488896b9c9f0751ccbfe26848981da81307ed4e65efb877c00953317"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/discovery/ci_stats/data.csv",
+          "sha256": "06a4d3b9eada2a8eb6666eb33a92324320af51f14846dfe239ce5a279822efe8"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-stats/tests/discovery_ci_stats.rs",
+          "sha256": "f5be9e174f4c57c15fbdc60342a9b58fbaa38c783f095364dd9241f0d6408b23"
+        }
+      ],
+      "fixture_payload_sha256": "45af55a63ecd1559c62ba5dd6140a0c7363286754ead3351fcf84dd8db7075ad"
+    }
+  },
+  "historical_oracle": {
+    "generation": {
+      "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
+      "baseline_pin": "parity/baselines/tigramite.toml",
+      "env": "uv run --python 3.10 --with numpy --with scipy --with dcor --with scikit-learn --with tigramite==5.2.1.30"
+    },
+    "reference_command": "uv run --python 3.10 --with numpy --with scipy --with dcor --with scikit-learn --with tigramite==5.2.1.30",
+    "reference_version": "unknown",
+    "disclosure": "The original harness was a temporary script deleted after import; its exact calls were not recorded. The reference block recorded version 'unknown' and several failed probes (weighted_parcorr_error, regressionCI_error, cmisymb_error) and an unreproduced RobustParCorr result; all are preserved unchanged and the replacement does not erase them."
   }
 }

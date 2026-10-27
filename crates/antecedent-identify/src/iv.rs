@@ -448,3 +448,7 @@ mod tests {
         assert!(res.estimands.is_empty());
     }
 }
+
+#[cfg(test)]
+#[path = "iv_enumeration_tests.rs"]
+mod enumeration_tests;

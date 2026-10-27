@@ -7,12 +7,13 @@ copied_tests = false
 
 papers = [
  { title = "Optimal Design of Experiments in the Presence of Interference", sections = ["two-stage saturation: clusters allocated to low and high treatment fractions, then units randomized within clusters"] },
- { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3: exposure mappings whose probabilities are known from the design"] },
+ { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3: exposure mapping f(z, theta_i) and Condition 1; Section 4, estimator (1) and Lemma 4.1: Horvitz-Thompson estimator with known exposure probabilities; section numbering is that of the arXiv v4 manuscript"] },
 ]
 
 implementation_deviations = [
  "Exposure probabilities are the exact two-stage law: complete randomization of clusters to the declared low and high probabilities, then independent Bernoulli assignment inside the cluster. The design is not optimized.",
  "One declared direct, spillover, or total contrast is estimated. The interval is pointwise for that contrast from between-cluster variation, not a simultaneous decomposition.",
+ "The conservative_variance field uses a covariance-free Cauchy bound over Horvitz-Thompson terms (descriptive); the pointwise interval instead uses cluster scores with a Welch t critical value, a 24-clusters-per-arm and 8-exposed-clusters policy gate that comes from neither cited paper.",
  "The network is fixed and partial interference is declared. Cross-cluster edges are outside the estimator.",
 ]
 
@@ -23,3 +24,34 @@ test_sources = [
  "crates/antecedent/src/analysis/execute/checked_interference.rs",
  "crates/antecedent/tests/interference_interval_route.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_saturation_interference and its helpers (level_probabilities, treated_weight_distribution, weighted_mean, saturation_cluster_interval) in interference_saturation.rs, with exposures/randomization_mean from antecedent-stats. One declared exposure contrast under complete high/low cluster allocation then independent Bernoulli unit assignment, with partial interference."
+assumptions = ["Complete randomization of a declared number of high-saturation clusters, then independent Bernoulli(saturation) assignment inside each cluster; realized saturation per cluster is checked against the declared low/high values and the declared high count.", "Partial interference (checked: no cross-cluster edge, nonnegative finite weights) and a properly specified built-in neighbor exposure mapping (declared, not tested). A unit's own treatment is independent of its neighbors' given the cluster saturation, and the neighbor set excludes the unit itself.", "Exact exposure probability = sum over the two saturations of P(cluster arm) x P(own) x P(neighbor exposure), valid because other clusters' allocation does not affect the unit's exposure; every unit needs strictly positive probability for each requested level.", "The interval treats each cluster's contrast score as one independent draw within its saturation arm; it relies on the declared complete allocation across clusters and independence of within-cluster Bernoulli draws."]
+historical_exposure = "No upstream implementation was consulted or observed for this review. Historical author exposure cannot be independently established. The review read the arXiv v4 manuscript of Aronow and Samii (1305.6156) as a PDF retrieved on 27 October 2026 and the product source; it did not read the typeset Annals of Applied Statistics pagination. The Baird et al. design paper cited by the record was not retrieved or read."
+redistribution = "Primary papers are linked, not redistributed. The unit tests added or edited in this review are original repository-authored code under MIT OR Apache-2.0; no upstream code, comments or tests were copied."
+limitations = "Covers exposure-probability exactness (global enumeration test), the HT/Hajek point estimates, and the first-stage-allocation cluster score variance. The cluster-arm variance is argued analytically: the expected arm-sample score variance is the between-cluster score variance plus mean within-cluster variance, and the resulting estimator exceeds the exact two-stage variance by a nonnegative quadratic term in the arm score means; this derivation was done by the reviewer on paper and is not machine-checked. The 24-clusters-per-arm and 8-exposed-clusters gates and the Welch t interval are repository policy. The covariance-free conservative_variance field is a descriptive Cauchy bound and is not used for the interval. Existing coverage and enumeration tests live in the bound implementation and calibration test files and were not executed by the reviewer in this session. Calibration remains deferred; nothing here covers Bernoulli-only, observational or cross-cluster-interference designs."
+sources = ["https://arxiv.org/abs/1305.6156", "https://doi.org/10.1214/16-AOAS1005"]
+findings_resolved = ["Read the local exposure-probability mixture against the two-stage law and the existing global complete-allocation enumeration test that exercises NeighborFraction and weighted exposure; no discrepancy found.", "Found and fixed a defect in the descriptive Cauchy variance bound: the standard deviation of an HT term is |y| sqrt((1-p)/p), but the realized sum weighted observed units by |y| sqrt(1-p)/p, whose expectation is only sum |y| sqrt(1-p), short by sqrt(p). Observed units are now weighted by p^(-3/2), making the sum unbiased for the sum of standard deviations. Added an executing single-unit assertion (p = 1/4, y = 2) that p times the realized sum equals the exact standard deviation. This changes conservative_variance values and needs a build.", "Verified the interval scores combine to-level minus from-level cluster totals scaled by K/n so the point estimate is the mean of cluster scores, and that each arm's variance contribution is (arm share)^2 S^2 / arm clusters.", "Corrected the paper section references to Section 3 / Condition 1 and Section 4 estimator (1) and Lemma 4.1 of the arXiv v4 manuscript."]
+record_sha256 = "84e515ac5b5bd8130438195b18ebfccb5e9785afad7419eee6bb5f35255249cd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/interference_saturation.rs"
+sha256 = "d67939cf0e0d59a16a77985304d82d9667da1ee16c9042580dd003facbffb029"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/interference.rs"
+sha256 = "7f383d786158a103f2adcbb2ed2008f74774bda85a676ec18aedfd74293fc20d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/saturation_interference_route.rs"
+sha256 = "98f78038cd124ea4f3734b01280231963888d43bed89cc0c8016d8f7d4250063"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/interference_saturation_calibration.rs"
+sha256 = "1b69d3772e9b647df1bbd9c52b1f4d653de28ee1f3520c8e390f90d5f4c4d8f7"

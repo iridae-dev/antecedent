@@ -1,4 +1,10 @@
 {
+  "oracle": {
+    "kind": "closed_form",
+    "method": "hand-derived scalar chain",
+    "independence_basis": "Misclassification correction pi=(0.41+0.8-1)/(0.9+0.8-1)=0.3, inverse-variance pool 0.15, composed mean 0.145, excess 0.045, utility 15, and after new observations pool 0.08, excess 0.024, utility -6. Every figure is closed-form arithmetic written by repository authors in the fixture README; the arithmetic was rechecked during classification. Agreement among Antecedent routes is not external-oracle evidence and no calibration or interval guarantee follows.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "scenario": {
     "measurement": {
       "sensitivity": 0.9,

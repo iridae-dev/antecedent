@@ -1,4 +1,18 @@
 {
+  "evidence_roles": [
+    "software",
+    "statistical_smoke"
+  ],
+  "evidence_kind": "regression_pin",
+  "evidence_source": "crates/antecedent-stats/tests/foundations_oracle.rs::rng_stream_and_gaussian_sampler_match_frozen_scipy_battery",
+  "evidence_proposition": "The repository SplitMix64 stream and Box-Muller sampler reproduce the recorded moments and satisfy the pinned acceptance thresholds on the recorded SciPy battery results.",
+  "limitations": "The recorded statistics come from a SciPy 1.14.1 harness that is not retained; the fixture analyzes this library's own stream, so it is a frozen statistic with acceptance thresholds, not an independent generator comparison. p-value thresholds are screening bands, not a calibrated test.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Statistics of this library's own seeded stream, analyzed by a SciPy battery whose harness is not retained.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "acceptance": {
     "absolute_lag1_correlation_max": 0.03,
     "absolute_mean_max": 0.03,

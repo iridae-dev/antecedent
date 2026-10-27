@@ -19,8 +19,10 @@
 //! every term of the oracle's formula is a margin or conditional of the one input
 //! distribution. Cases whose formula is not expressible here (selection and
 //! transportability nodes) are recorded out of scope and are not compared. The
-//! generator scripts were deleted after the import, per convention: their hashes
-//! are provenance only and the outputs are not reproducible from this repository.
+//! original one-off harnesses were deleted after the first import; the retained
+//! `reference.py` (Ananke) and `reference.R` (dosearch) regenerate every recorded
+//! verdict and formula in locked isolated environments, outside this test and
+//! ordinary CI.
 //!
 //! Citing the same distributions is not the same as computing the same number, so
 //! every proof this route returns on an agreed case is also executed: its
@@ -344,8 +346,16 @@ fn derive_agreement(case: &Value, outcome: &str, proof_cited: &BTreeSet<Cited>) 
 fn ananke_gid_and_aid_cases_agree_and_every_disagreement_is_recorded() {
     let fixture = fixture();
     assert_eq!(fixture["oracle"]["executed_here"], true);
-    assert_eq!(fixture["oracle"]["generation"]["generator_retained"], false);
-    assert_eq!(fixture["oracle"]["generation"]["reproducible_from_repo"], false);
+    assert_eq!(fixture["oracle"]["generation"]["generator_retained"], true);
+    assert_eq!(fixture["oracle"]["generation"]["reproducible_from_repo"], true);
+    for artifact in fixture["oracle"]["reference_review"]["artifacts"].as_array().unwrap() {
+        let path = format!(
+            "{}/../../{}",
+            env!("CARGO_MANIFEST_DIR"),
+            artifact["path"].as_str().unwrap()
+        );
+        assert!(std::path::Path::new(&path).is_file(), "{path}");
+    }
     let (mut agreed, mut named) = (0, 0);
     for case in fixture["cases"].as_array().unwrap() {
         let id = case["id"].as_str().unwrap();

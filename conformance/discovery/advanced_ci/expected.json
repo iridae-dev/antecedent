@@ -27,8 +27,46 @@
     },
     "python": "3.10.17",
     "seed": 20260725,
-    "command": "uv run --python 3.10 --with numpy==1.23.5 --with scipy==1.10.1 --with scikit-learn==1.3.2 --with dcor==0.6 --with tigramite==5.2.1.30 python /tmp/antecedent_tigramite_advanced_ci.py", "generator_retained": false,
-    "generation_location": "temporary external harness; not retained"
+    "command": "uv run --frozen --script conformance/discovery/advanced_ci/reference.py --check",
+    "generator": "conformance/discovery/advanced_ci/reference.py",
+    "environment_lock": "conformance/discovery/advanced_ci/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "natural-log conditional mutual information statistic (tolerance 1e-12) and shuffle p-value decision bands for discrete cases",
+      "GPDC statistic within a wide band and p-value decisions"
+    ],
+    "context_only_outputs": [
+      "null_q95 of every case"
+    ],
+    "reference_review": {
+      "scope": "Six discrete conditional-mutual-information cases (conditional/unconditional, dependent/null, relabelled symbols, sparse strata) and six GPDC cases (nonlinear conditional, nulls, two conditioners, translated/scaled inputs). The retained generator reproduces every frozen statistic at absolute 1e-9 and every shuffle p-value within the fixture's Monte Carlo bands, from the declared columns and conditioning indices only.",
+      "independence_basis": "The retained script calls the public tigramite CMIsymb and GPDC classes on the fixture's columns; it imports no Antecedent code and stores no tigramite source. It also fixes the product's comparison tolerances, so widening them fails. The frozen GPDC product band (stat atol 0.35, rtol 1.0) is far wider than the regeneration tolerance, so the product assertion establishes decisions and ordering, not numerical agreement of GPDC statistics.",
+      "historical_exposure": "Original harness deleted (preserved in historical_oracle). The replacement was written from the public class names and run_test_raw signature; no tigramite source or tests were consulted. Original package pins and metadata digests are unchanged.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 script and deterministic inputs. tigramite (GPL-3.0), dcor, scikit-learn, NumPy and SciPy are isolated locked tooling outside the product and ordinary CI; no upstream source or tests are stored.",
+      "limitations": "Fixed small samples (240 discrete, 120 continuous rows), one seed; p-values are Monte Carlo so they are compared as bands and decisions. Discrete data with small alphabets only, and a single GP kernel configuration. No calibration of error rates. Calibration remains deferred.",
+      "sources": [
+        "https://github.com/jakobrunge/tigramite",
+        "https://pypi.org/project/tigramite/5.2.1.30/"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/discovery/advanced_ci/reference.py",
+          "sha256": "a532109535c992de56cad26df840f477881657ccdbd019e19cdf139dfe4d13db"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/discovery/advanced_ci/reference.py.lock",
+          "sha256": "3d984649f5599ea91cec5966a28f1743fd92c3f38e4034758018b430605daa41"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-stats/tests/advanced_ci_oracle.rs",
+          "sha256": "ee0e664407455820535010bced2278d4cf732548cc093a478a842bf5bd9be995"
+        }
+      ],
+      "fixture_payload_sha256": "538f5f3ffcc2da5847bc2191f6369844b910219fb88e1378a6bddf5dd3e247bf"
+    }
   },
   "normalization": {
     "symbolic_statistic": "natural-log conditional mutual information",
@@ -6140,5 +6178,11 @@
         "null_q95": 0.22772914608406103
       }
     }
-  ]
+  ],
+  "historical_oracle": {
+    "command": "uv run --python 3.10 --with numpy==1.23.5 --with scipy==1.10.1 --with scikit-learn==1.3.2 --with dcor==0.6 --with tigramite==5.2.1.30 python /tmp/antecedent_tigramite_advanced_ci.py",
+    "generator_retained": false,
+    "generation_location": "temporary external harness; not retained",
+    "disclosure": "The original statistics were produced by a temporary harness (/tmp/antecedent_tigramite_advanced_ci.py) deleted after import; that disclosure is preserved and is not erased by the retained replacement."
+  }
 }

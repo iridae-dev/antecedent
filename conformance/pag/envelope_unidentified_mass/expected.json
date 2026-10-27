@@ -1,4 +1,17 @@
 {
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/pag.rs::envelope_unidentified_mass",
+  "evidence_proposition": "The PAG adjustment envelope accounts for every completion: total case mass equals the number of cases.",
+  "limitations": "Mass bookkeeping of one envelope; does not validate identification of any completion or the PAG itself.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "require_mass_accounted": true,
   "tolerance_class": "Exact"
 }

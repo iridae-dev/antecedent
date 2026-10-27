@@ -1,4 +1,17 @@
 {
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/attribution.rs::structure_change_parent_swap_conformance",
+  "evidence_proposition": "On the declared two-graph parent swap, exact Shapley structure attribution returns a single y contribution equal to the total change within 1e-6, with total change magnitude at least the pinned lower bound.",
+  "limitations": "Only total_change_min is read from the fixture; dominant_component and allocation are descriptive. With one component the equality of contribution and total is an efficiency identity of the allocator, not an independent Shapley value. No closed-form or external attribution oracle and no calibration is supplied.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "outcome": "y",
   "total_change_min": 2.0,
   "dominant_component": "y",

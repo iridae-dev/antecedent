@@ -1,4 +1,17 @@
 {
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/proposal_arrival.rs::arrival_checked_transport_evaluates_actual_counts_and_full_atom_truth",
+  "evidence_proposition": "On the finite arrived-study counts (80,20) and (20,80), checked transport reports the pinned sample size, arm means 0.2 and 0.8 within 1e-12, probabilities [0.2,0.8], contrast 0.6, empirical point-only inference with calibration unmeasured, and nonzero compiled work.",
+  "limitations": "Counts and the binary SCM are repository-authored acceptance inputs; the means are count arithmetic. Sampling uncertainty remains unmeasured; not calibration or interval validation.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "schema_version": 1,
   "scm": "X is assigned by the source experiment; Y=I(U < 0.2+0.6X), U uniform on [0,1], the Y mechanism is shared; selection changes only root X",
   "arm0_counts": [80, 20],

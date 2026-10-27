@@ -8,6 +8,8 @@ copied_tests = false
 implementation_deviations = [
  "Searches only singleton, unconditional instruments for a single-treatment, single-outcome AverageEffect query; conditioned instruments and instrumental sets are not implemented.",
  "The emitted estimand is a Wald ratio with status IdentifiedUnderParametricRestrictions. The identifier records per-instrument exclusion and a non-zero first stage, plus iv.constant_linear_effect_or_monotonicity: a constant linear structural effect for an average effect, or monotonicity for a complier local effect under the corresponding IV premises. These are declared restrictions, not tests of instrument strength or effect homogeneity; monotonicity alone does not identify a general heterogeneous ATE.",
+ "Exogeneity and exclusion are tested by removing the treatment's outgoing edges and requiring d-separation of the candidate from the outcome given the empty set, rather than conditioning on the treatment; relevance is d-connection to the treatment given the empty set; descendants of the treatment are excluded.",
+ "Every node of the supplied DAG other than the treatment and outcome is a candidate and is treated as a measured variable; parents of the treatment are examined first and the listing stops at InstrumentSearchConfig::max_results (default 64) without recording that it was truncated.",
 ]
 
 papers = [
@@ -21,4 +23,31 @@ upstream_implementations_observed = [
 
 test_sources = [
  "crates/antecedent-identify/src/iv.rs (synthetic graphs and each_instrument_claims_its_own_exclusion_and_the_wald_restriction)",
+ "crates/antecedent-identify/src/iv_enumeration_tests.rs::search_agrees_with_the_common_ancestor_criterion_on_every_four_node_dag (all 543 four-node DAGs against an independent common-ancestor criterion)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "InstrumentalVariableIdentifier::identify / is_valid_instrument in crates/antecedent-identify/src/iv.rs for a single treatment, single outcome AverageEffect query on a known DAG whose nodes are all candidates: the graphical test for a singleton, unconditional instrument and the assumption records attached to the Wald estimand. Not a review of the Wald/2SLS estimators, of instrument strength, of conditional instruments or instrumental sets, or of the temporal unfolding in temporal_iv.rs (separately recorded)."
+assumptions = ["Known DAG whose directed edges are complete: every common cause of the instrument and the outcome that is not a node would invalidate the verdict; unmeasured confounding is represented only by explicit nodes.", "Instrument criterion (graphical form, unconditional): Z is not a descendant of T, Z is d-connected to T given the empty set, and Z is d-separated from Y in the graph with T's outgoing edges removed (exclusion plus no Z-Y confounding).", "The Wald ratio is reported as the average effect only under the declared iv.constant_linear_effect_or_monotonicity restriction: a constant linear structural effect for an average effect, or monotonicity for the complier local effect. The graph neither tests nor implies either.", "Relevance is a graphical connection, not a non-zero or strong first stage; the record iv.relevance states that the strength is not shown by the graph."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own (a closed-form common-ancestor restatement of marginal d-connection); no upstream implementation or test source was consulted or copied. The earlier record disclosed black-box comparison with dowhy only."
+redistribution = "The enumeration reference is repository-authored under MIT OR Apache-2.0 and runs inside the crate's own unit tests. Primary papers are linked by DOI, not redistributed."
+limitations = "The primary papers were not re-read in this review (the copies reachable from this environment were scanned or paywalled); the section citations are inherited from the earlier record, and the criteria were checked against the implementation and an independent enumeration instead. A mistake in how the record states a theorem would therefore not be detected here. Only marginal singleton instruments are searched; conditioned instruments, instrumental sets, binary-outcome or monotone-bounds identification are absent. Every DAG node is a candidate and is treated as measured, so a node the caller means as latent would be reported as an instrument and fail only when data are bound. The result limit (default 64 instruments) truncates the listing in candidate order without a flag in the result. The exhaustive comparison covers four-node graphs only; larger graphs rely on the same code path and the pre-existing unit tests. No claim about estimator behavior, finite-sample inference or calibration. Calibration remains deferred."
+sources = ["https://doi.org/10.1017/CBO9780511803161", "https://doi.org/10.2307/2951620"]
+findings_resolved = ["Verified from the code that the exogeneity/exclusion test mutilates (removes T's outgoing edges) and tests d-separation of Z and Y given the empty set, rather than conditioning on T, which would open the T-collider between Z and a T-Y confounder; the existing U-confounder test exercises this.", "Added an exhaustive executing comparison: for every one of the 543 labelled DAGs on four nodes and every ordered treatment/outcome pair, the set of reported instruments and the identified/not-identified status equal an independent closed-form criterion (common ancestor with the treatment, none with the outcome after cutting T's out-edges, not a treatment descendant). The test requires both verdicts to occur in many cases so agreement cannot be vacuous.", "Added counterexamples: a candidate sharing a cause with the outcome (Z <- U -> Y) is rejected, and the result limit truncates in candidate order.", "Recorded the result-limit truncation, the measured-node assumption and the marginal-singleton scope as deviations; no logic defect requiring a change to the identifier was found. Code edits: a new unit-test module only (crates/antecedent-identify/src/iv_enumeration_tests.rs, included from iv.rs); no change to identification code."]
+record_sha256 = "a303adc87709506302ac24180df5cdcb6ad8ec37fbed341c5551494635ce38a1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/iv.rs"
+sha256 = "2207056d7f4225eeb62f4c046ca2647bbef08c7fddb32848a577a561d6691fdf"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/backdoor.rs"
+sha256 = "53df18f0d16058de42d374e0b2733a0b1a89048c332aa1459e8c7c3669b64d74"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/src/iv_enumeration_tests.rs"
+sha256 = "ec1e559303000c0c65e10ef82ab506a21b927ce09858a70846225d9193a7fbda"

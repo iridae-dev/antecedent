@@ -1,4 +1,10 @@
 {
+  "oracle": {
+    "kind": "closed_form",
+    "method": "independent stratified multinomial algebra",
+    "independence_basis": "Selected binary Verma SCM with 16 multinomial cells at N=16000 and contrast 0.2; the covariance of [mean0,mean1,contrast] times N is [[0.34,0.2,-0.14],[0.2,67/150,37/150],[-0.14,37/150,29/75]], derived by stratified multinomial algebra and score orthogonality, whereas the implementation inverts the expected Fisher information. The algebra is repository-authored and independence of the author has not been reviewed. No coverage is measured.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "oracle_kind": "closed_form",
   "contrast": 0.2,
   "sample_size": 16000,

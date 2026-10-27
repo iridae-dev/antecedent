@@ -43,8 +43,48 @@
     },
     "python": "3.11.5",
     "seed": 20260730,
-    "command": "uv run --python 3.11 --with numpy==1.26.4 --with scipy==1.12.0 --with scikit-learn==1.4.2 --with pandas==2.2.2 --with causal-learn==0.1.4.3 --with lingam==1.9.1 python /tmp/antecedent_static_discovery_oracles.py", "generator_retained": false,
-    "generation_location": "temporary external harness; not retained"
+    "command": "uv run --managed-python --frozen --script conformance/discovery/static_oracle_matrix/reference.py --check",
+    "generator": "conformance/discovery/static_oracle_matrix/reference.py",
+    "environment_lock": "conformance/discovery/static_oracle_matrix/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "FCI edge endpoints and GES CPDAG edges per variable permutation",
+      "DirectLiNGAM causal order and coefficients within the declared band"
+    ],
+    "context_only_outputs": [
+      "GES score is regenerated at 1e-6 but not asserted against the product"
+    ],
+    "reference_review": {
+      "scope": "Four static cases (chain, collider, latent-confounder, null) with six column permutations each under causal-learn 0.1.4.3 FCI (Fisher-z, alpha 0.01) and GES (BIC), and three DirectLiNGAM cases with six permutations. The retained generator reproduces every frozen edge set, GES score (1e-6), causal order and coefficient (1e-9) from the declared data only.",
+      "independence_basis": "The retained script calls the public causal-learn and lingam APIs on the fixture's data and canonicalizes their outputs; it imports no Antecedent code and stores no upstream source. It fixes the product's lingam comparison bands so widening them fails. The product compares coefficients at atol 0.12 / rtol 0.18, far looser than the regeneration tolerance.",
+      "historical_exposure": "Original harness deleted (preserved in historical_oracle). The replacement was written from public function names and result structures only; no causal-learn or lingam source or tests were consulted. Original package pins and metadata digests are unchanged.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 script and deterministic inputs. causal-learn (MIT), lingam (MIT), NumPy, SciPy, scikit-learn and pandas remain isolated locked tooling outside the product and ordinary CI; no upstream source or tests are stored.",
+      "limitations": "Three-variable linear-Gaussian (and non-Gaussian for LiNGAM) systems, one sample of 700 rows per case, one seed. FCI/GES agreement is on fixed data, not a sampling-distribution or error-rate comparison; the latent case records the oracle's output for a latent confounder without asserting it recovers the truth. Larger graphs, non-linear dependence, mixed data and algorithm defaults beyond those declared are not covered. Calibration remains deferred.",
+      "sources": [
+        "https://causal-learn.readthedocs.io/en/latest/",
+        "https://github.com/cdt15/lingam",
+        "https://pypi.org/project/causal-learn/0.1.4.3/",
+        "https://pypi.org/project/lingam/1.9.1/"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/discovery/static_oracle_matrix/reference.py",
+          "sha256": "8b767fffb2fe3135de7faebd834da10b09f38dcca07ecc5c202d2874790e057c"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/discovery/static_oracle_matrix/reference.py.lock",
+          "sha256": "62562a0058cb6b9cb0671bc13fc670ea4fe7e14096d8b23df6f6a8abb3b75b5a"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-discovery/tests/static_discovery_oracle.rs",
+          "sha256": "840ebaa20fb95e964f7bfe120e5d47e05c9bcceb173fe6ded3ff9add049eadf0"
+        }
+      ],
+      "fixture_payload_sha256": "58114a5246058d565218745b969d84ae471c361a385f915a0b507cceb7103df3"
+    }
   },
   "canonicalization": {
     "graph": "variable names plus endpoint at each named node; edge-list ordering ignored",
@@ -25900,5 +25940,11 @@
         }
       ]
     }
-  ]
+  ],
+  "historical_oracle": {
+    "command": "uv run --python 3.11 --with numpy==1.26.4 --with scipy==1.12.0 --with scikit-learn==1.4.2 --with pandas==2.2.2 --with causal-learn==0.1.4.3 --with lingam==1.9.1 python /tmp/antecedent_static_discovery_oracles.py",
+    "generator_retained": false,
+    "generation_location": "temporary external harness; not retained",
+    "disclosure": "The original references were produced by a temporary harness (/tmp/antecedent_static_discovery_oracles.py) deleted after import; that disclosure is preserved and is not erased by the retained replacement."
+  }
 }

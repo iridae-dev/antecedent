@@ -1,4 +1,18 @@
 {
+  "evidence_roles": [
+    "software",
+    "statistical_smoke"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/bayesian_functional_routes.rs::static_mediation_named_prior_hydrates_only_the_outcome_treatment_slope",
+  "evidence_proposition": "A named ATE/delta prior transferred onto the mediation route hydrates only the outcome-mechanism treatment slope, keeps isotropic priors on the other mechanisms, and the source total effect stays within the pinned tolerance of the declared truth.",
+  "limitations": "Seeded synthetic data; the declared truth is the data-generating arithmetic in the test. Checks prior routing and refusal behavior, not posterior calibration, mediation identification beyond the declared graph or any external reference.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "schema_version": 1,
   "n_draws": 64,
   "seed": 18,

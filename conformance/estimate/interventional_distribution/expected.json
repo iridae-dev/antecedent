@@ -1,4 +1,17 @@
 {
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "regression_pin",
+  "evidence_source": "crates/antecedent/src/tests.rs::end_to_end_interventional_distribution",
+  "evidence_proposition": "On the declared eight-cell count table, the general-ID functional distribution reports the pinned mean within tolerance, finite effect, atom intervals ordered around each probability and the mean.",
+  "limitations": "The pinned mean is a frozen value of this library on a fixed table; no enumeration derivation is recorded here. Interval ordering is a sanity property, not coverage. Separate known-truth rows carry their own evidence.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "method": "general.id",
   "estimator": "functional.distribution",
   "mean": 0.7,

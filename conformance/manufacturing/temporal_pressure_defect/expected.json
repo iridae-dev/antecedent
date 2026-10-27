@@ -1,4 +1,18 @@
 {
+  "evidence_roles": [
+    "software",
+    "statistical_smoke"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/manufacturing_temporal.rs::manufacturing_pressure_defect_bayesian",
+  "evidence_proposition": "On the lagged series defect_t=0.9*pressure_{t-1}, the Bayesian pulse effect at the declared lag and horizon lies within the pinned tolerance of 0.9 and the query carries the declared policy and sampling interval.",
+  "limitations": "Synthetic series; the declared 0.9 is the structural coefficient. Tolerance check only, no posterior calibration or real-process validity.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "scm": "defect_t = 0.9 * pressure_{t-1}",
   "true_effect_per_unit": 0.9,
   "pulse_active_level": 1.0,

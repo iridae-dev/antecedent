@@ -1,4 +1,17 @@
 {
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "regression_pin",
+  "evidence_source": "crates/antecedent/tests/estimate_noisy_estimators.rs::estimate_noisy_estimators_val_and_se",
+  "evidence_proposition": "On the retained backdoor, IV and front-door CSVs, each listed estimator's value and standard error lies within its pinned band of the recorded historical value.",
+  "limitations": "Recorded values come from a deleted DoWhy 0.14 harness and cannot be regenerated; the fixture itself states that the linear-regression and AIPW references are the same estimator family as the Rust path and the IPW standard errors do not correspond to the Rust influence-function error. This is a change detector, not independent truth, coverage or calibration.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Frozen outputs of a historical black-box DoWhy 0.14 run on the retained CSVs; the harness is not retained.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "true_ate": 2.0,
   "tolerance_class": "StableFloat",
   "atol_val": 0.35,

@@ -1,0 +1,700 @@
+{
+  "schema_version": 1,
+  "estimand": "E[Y(1)-Y(0)] without monotonicity under instrument exogeneity and exclusion",
+  "cell_order": "within each Z arm: (Y,D)=(0,0),(1,0),(0,1),(1,1)",
+  "atol": 1e-08,
+  "cases": [
+    {
+      "name": "balke_pearl_table1",
+      "cells": [
+        [
+          0.0064,
+          0.9936,
+          0.0,
+          0.0
+        ],
+        [
+          0.0028,
+          0.1972,
+          0.001,
+          0.799
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.1946,
+      "upper": 0.0054
+    },
+    {
+      "name": "perfect_compliance_effect_one",
+      "cells": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "feasible": true,
+      "lower": 1.0,
+      "upper": 1.0
+    },
+    {
+      "name": "never_takers_only",
+      "cells": [
+        [
+          0.3,
+          0.7,
+          0.0,
+          0.0
+        ],
+        [
+          0.3,
+          0.7,
+          0.0,
+          0.0
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.7,
+      "upper": 0.3
+    },
+    {
+      "name": "always_takers_only",
+      "cells": [
+        [
+          0.0,
+          0.0,
+          0.4,
+          0.6
+        ],
+        [
+          0.0,
+          0.0,
+          0.4,
+          0.6
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.4,
+      "upper": 0.6
+    },
+    {
+      "name": "null_instrument_mixed",
+      "cells": [
+        [
+          0.1,
+          0.2,
+          0.3,
+          0.4
+        ],
+        [
+          0.1,
+          0.2,
+          0.3,
+          0.4
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.5,
+      "upper": 0.5
+    },
+    {
+      "name": "violates_instrumental_inequality",
+      "cells": [
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "feasible": false,
+      "lower": null,
+      "upper": null
+    },
+    {
+      "name": "violates_instrumental_inequality_treated_arm_sum",
+      "cells": [
+        [
+          0.1,
+          0.1,
+          0.0,
+          0.8
+        ],
+        [
+          0.1,
+          0.0,
+          0.8,
+          0.1
+        ]
+      ],
+      "feasible": false,
+      "lower": null,
+      "upper": null
+    },
+    {
+      "name": "point_identified_zero_effect",
+      "cells": [
+        [
+          0.0,
+          0.5,
+          0.5,
+          0.0
+        ],
+        [
+          0.5,
+          0.0,
+          0.0,
+          0.5
+        ]
+      ],
+      "feasible": true,
+      "lower": 0.0,
+      "upper": 0.0
+    },
+    {
+      "name": "random_feasible_00",
+      "cells": [
+        [
+          0.209009,
+          0.341559,
+          0.254142,
+          0.19529
+        ],
+        [
+          0.275206,
+          0.316931,
+          0.279839,
+          0.128024
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.529504,
+      "upper": 0.378602
+    },
+    {
+      "name": "random_feasible_01",
+      "cells": [
+        [
+          0.089006,
+          0.309059,
+          0.072578,
+          0.529357
+        ],
+        [
+          0.394368,
+          0.214156,
+          0.154742,
+          0.236734
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.07627499999999995,
+      "upper": 0.536199
+    },
+    {
+      "name": "random_feasible_02",
+      "cells": [
+        [
+          0.245661,
+          0.207087,
+          0.321237,
+          0.226015
+        ],
+        [
+          0.417466,
+          0.225445,
+          0.170577,
+          0.186512
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.356519,
+      "upper": 0.45331799999999994
+    },
+    {
+      "name": "random_feasible_03",
+      "cells": [
+        [
+          0.509566,
+          0.122426,
+          0.121557,
+          0.246451
+        ],
+        [
+          0.146667,
+          0.221385,
+          0.247271,
+          0.384677
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.10575700000000002,
+      "upper": 0.531344
+    },
+    {
+      "name": "random_feasible_04",
+      "cells": [
+        [
+          0.153839,
+          0.468645,
+          0.242001,
+          0.135515
+        ],
+        [
+          0.023814,
+          0.423424,
+          0.415986,
+          0.136776
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.709385,
+      "upper": 0.11536899999999997
+    },
+    {
+      "name": "random_feasible_05",
+      "cells": [
+        [
+          0.403825,
+          0.141523,
+          0.006134,
+          0.448518
+        ],
+        [
+          0.647944,
+          0.014815,
+          0.236544,
+          0.100697
+        ]
+      ],
+      "feasible": true,
+      "lower": 0.18534899999999996,
+      "upper": 0.621933
+    },
+    {
+      "name": "random_feasible_06",
+      "cells": [
+        [
+          0.33935,
+          0.138604,
+          0.197462,
+          0.324584
+        ],
+        [
+          0.18925,
+          0.269688,
+          0.260565,
+          0.280497
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.336066,
+      "upper": 0.469747
+    },
+    {
+      "name": "random_feasible_07",
+      "cells": [
+        [
+          0.668017,
+          0.096992,
+          0.123688,
+          0.111303
+        ],
+        [
+          0.211875,
+          0.03579,
+          0.207355,
+          0.54498
+        ]
+      ],
+      "feasible": true,
+      "lower": 0.21299699999999988,
+      "upper": 0.695653
+    },
+    {
+      "name": "random_feasible_08",
+      "cells": [
+        [
+          0.40589,
+          0.217118,
+          0.10098,
+          0.276012
+        ],
+        [
+          0.118584,
+          0.050838,
+          0.401434,
+          0.429144
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.16496600000000006,
+      "upper": 0.381448
+    },
+    {
+      "name": "random_feasible_09",
+      "cells": [
+        [
+          0.28661,
+          0.062883,
+          0.301666,
+          0.348841
+        ],
+        [
+          0.244771,
+          0.249485,
+          0.245555,
+          0.260189
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.364549,
+      "upper": 0.448849
+    },
+    {
+      "name": "random_feasible_10",
+      "cells": [
+        [
+          0.003962,
+          0.467904,
+          0.374215,
+          0.153919
+        ],
+        [
+          0.275448,
+          0.334522,
+          2.9e-05,
+          0.390001
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.334551,
+      "upper": 0.059143
+    },
+    {
+      "name": "random_feasible_11",
+      "cells": [
+        [
+          0.624168,
+          0.142,
+          0.077843,
+          0.155989
+        ],
+        [
+          0.500219,
+          0.149196,
+          0.093841,
+          0.256744
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.11908800000000001,
+      "upper": 0.7569629999999999
+    },
+    {
+      "name": "random_feasible_12",
+      "cells": [
+        [
+          0.206131,
+          0.043402,
+          0.543272,
+          0.207195
+        ],
+        [
+          0.238119,
+          0.365699,
+          0.160934,
+          0.235248
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.526633,
+      "upper": 0.091029
+    },
+    {
+      "name": "random_feasible_13",
+      "cells": [
+        [
+          0.524955,
+          0.016803,
+          0.211637,
+          0.246605
+        ],
+        [
+          0.273418,
+          0.002195,
+          0.137882,
+          0.586505
+        ]
+      ],
+      "feasible": true,
+      "lower": 0.18301999999999996,
+      "upper": 0.7715599999999999
+    },
+    {
+      "name": "random_feasible_14",
+      "cells": [
+        [
+          0.187065,
+          0.45189,
+          0.219035,
+          0.14201
+        ],
+        [
+          0.28554,
+          0.322796,
+          0.09426,
+          0.297404
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.41705600000000004,
+      "upper": 0.329075
+    },
+    {
+      "name": "random_feasible_15",
+      "cells": [
+        [
+          0.171004,
+          0.324711,
+          0.205315,
+          0.29897
+        ],
+        [
+          0.171631,
+          0.239281,
+          0.309407,
+          0.279681
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.529399,
+      "upper": 0.36588200000000004
+    },
+    {
+      "name": "random_feasible_16",
+      "cells": [
+        [
+          0.347484,
+          0.247374,
+          0.079201,
+          0.325941
+        ],
+        [
+          0.272813,
+          0.429371,
+          0.065216,
+          0.2326
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.31712,
+      "upper": 0.491428
+    },
+    {
+      "name": "random_feasible_17",
+      "cells": [
+        [
+          0.200256,
+          0.305155,
+          0.275361,
+          0.219228
+        ],
+        [
+          0.210969,
+          0.299488,
+          0.26082,
+          0.228723
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.560308,
+      "upper": 0.41948399999999997
+    },
+    {
+      "name": "random_feasible_18",
+      "cells": [
+        [
+          0.336533,
+          0.202547,
+          0.190434,
+          0.270486
+        ],
+        [
+          0.284668,
+          0.211347,
+          0.169067,
+          0.334918
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.328549,
+      "upper": 0.5982190000000001
+    },
+    {
+      "name": "random_feasible_19",
+      "cells": [
+        [
+          0.726415,
+          0.07577,
+          0.0993,
+          0.098515
+        ],
+        [
+          0.671923,
+          0.034499,
+          0.078341,
+          0.215237
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.05834800000000001,
+      "upper": 0.82493
+    },
+    {
+      "name": "random_feasible_20",
+      "cells": [
+        [
+          0.554538,
+          0.015479,
+          0.20053,
+          0.229453
+        ],
+        [
+          0.36511,
+          0.188513,
+          0.126341,
+          0.320036
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.125426,
+      "upper": 0.610957
+    },
+    {
+      "name": "random_feasible_21",
+      "cells": [
+        [
+          0.101201,
+          0.236039,
+          0.367735,
+          0.295025
+        ],
+        [
+          0.388485,
+          0.474321,
+          0.064696,
+          0.072498
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.31648999999999994,
+      "upper": 0.15794399999999997
+    },
+    {
+      "name": "random_feasible_22",
+      "cells": [
+        [
+          0.241355,
+          0.134828,
+          0.320389,
+          0.303428
+        ],
+        [
+          0.291547,
+          0.223014,
+          0.280538,
+          0.204901
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.40502499999999997,
+      "upper": 0.456597
+    },
+    {
+      "name": "random_feasible_23",
+      "cells": [
+        [
+          0.217235,
+          0.360781,
+          0.03981,
+          0.382174
+        ],
+        [
+          0.031237,
+          0.630943,
+          0.035191,
+          0.302629
+        ]
+      ],
+      "feasible": true,
+      "lower": -0.249784,
+      "upper": 0.32924700000000007
+    }
+  ],
+  "evidence_roles": [
+    "scientific"
+  ],
+  "oracle": {
+    "kind": "independent_reimplementation",
+    "project": "SciPy HiGHS linear programming over the 16 binary-IV response types",
+    "version": "scipy 1.14.1 with numpy 2.1.3",
+    "generator": "conformance/identify/binary_iv_lp/reference.py",
+    "command": "uv run --frozen --script conformance/identify/binary_iv_lp/reference.py --check",
+    "environment_lock": "conformance/identify/binary_iv_lp/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "sharp lower and upper bound on E[Y(1)-Y(0)] without monotonicity",
+      "feasibility verdict (instrumental inequality)"
+    ],
+    "reference_review": {
+      "scope": "Thirty-two fixed laws: the Balke-Pearl Table 1 law, five analytic/degenerate laws, two inequality-violating laws and 24 seeded random laws drawn from random response-type distributions. Bounds and verdicts are compared at absolute 1e-8 with the product's exact response-type optimizer.",
+      "independence_basis": "The generator states the binary-IV model itself (four response functions per latent type, exclusion and exogeneity by a single type distribution shared across instrument arms) and solves the resulting linear program with a simplex/interior-point solver, a different algorithm from the product's enumeration of basic solutions. It imports no Antecedent code and no causal-inference package. The shared object is the model statement: a mistake in the 16-type encoding common to both would not be detected here, which is why the Balke-Pearl Table 1 law is also pinned to the independent bpbounds values (-0.1946, 0.0054) that the LP reproduces.",
+      "historical_exposure": "Authored in this repository after reading the product's constraint construction in order to review it; the encoding was written independently as named tuples and not copied. No upstream implementation or test source was consulted.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. SciPy and NumPy are tooling dependencies in an isolated locked script environment, outside the product and ordinary CI.",
+      "limitations": "Binary instrument, treatment and outcome; exact finite laws only. No sampling uncertainty, weak-instrument behavior, covariates, weights or missingness. Infeasibility cases violate the instrumental inequality by large margins (L1 slack 1.2 and 2.0); behavior within the product's 1e-7 feasibility tolerance is a declared numerical policy, not compared. Calibration remains deferred.",
+      "sources": [
+        "https://docs.scipy.org/doc/scipy-1.14.1/reference/generated/scipy.optimize.linprog.html",
+        "https://doi.org/10.1080/01621459.1997.10474074"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/identify/binary_iv_lp/reference.py",
+          "sha256": "f646ca79d7f069313ed918c7196853abe23c1a87beb5886d175ef15fdf1db37d"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/identify/binary_iv_lp/reference.py.lock",
+          "sha256": "87774211723939884a170d86e8670db50824f24dae6ac357b443a107d4915711"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "scripts/reference_compare.py",
+          "sha256": "79904dc8724633c835ca4bcd894bedee2938a1ecbb7d4e4eda02be0b2b27d134"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-identify/tests/binary_iv_lp_oracle.rs",
+          "sha256": "17e76feee1a8f9f09105eb4701aea3abd8ff43ec95d12b56228003272e8e9e4e"
+        }
+      ],
+      "fixture_payload_sha256": "9be09fec84e3861b13fe04be3dd207ef4c394173e7ec4efb155aa834d1e19477"
+    }
+  },
+  "evidence_proposition": "The product's sharp binary-IV bounds equal the optimum of the response-type linear program, and laws that no type distribution reproduces are refused.",
+  "limitations": "Binary instrument, treatment and outcome; exact finite laws only. No sampling uncertainty, weak-instrument behavior, covariates, weights or missingness. Infeasibility cases violate the instrumental inequality by large margins (L1 slack 1.2 and 2.0); behavior within the product's 1e-7 feasibility tolerance is a declared numerical policy, not compared. Calibration remains deferred."
+}

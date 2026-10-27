@@ -14,7 +14,7 @@ implementation_deviations = [
  "The target is restricted to the population of trial nonparticipants under direct Dahabreh-compatible identification. General target populations, longitudinal treatments, and recursive graphical transport are outside scope.",
  "Only binary treatment contrasts are supported.",
  "Probabilities are validated but not clipped or stabilized by the estimator; weak-overlap information is diagnostic only.",
- "No sandwich, bootstrap, or influence-function uncertainty is returned, despite the cited paper providing inferential procedures.",
+ "Uncertainty is limited to a ratio-of-means delta-method SE and a HAC SE for the IPW contrast and an IPW Bayesian bootstrap, all conditional on the supplied probabilities; no AIPW standard error and none of the paper's Section 5.4 inference for estimated nuisances is implemented.",
 ]
 
 upstream_implementations_observed = []
@@ -23,3 +23,29 @@ test_sources = [
  "crates/antecedent-estimate/src/transport.rs",
  "conformance/response/trial_transport (independent paper-equation fixture)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "trial_to_target_parts / trial_to_target_effect / trial_aipw_row_scores, validate_trial_to_target_inputs, the ratio-of-means IPW standard errors (trial_to_target_ipw_se and the HAC variant) and the IPW Bayesian bootstrap in crates/antecedent-estimate/src/transport.rs. Binary time-fixed treatment, nonparticipant target population, caller-supplied nuisances. Not the exact-law transport evaluators or the grid/response transport in the same file."
+assumptions = ["Dahabreh et al. identification conditions 1-5 (Section 4.1): consistency, conditional mean exchangeability over A in the trial and treatment positivity, conditional mean exchangeability over S (trial participation) and participation positivity. Only positivity of the supplied probabilities is checked; the exchangeability conditions are certified upstream or declared and untestable here.", "The target is E[Y^1 - Y^0 | S=0] over the nonparticipant rows in the supplied table; selection_probability is P(S=1|X) for every row and treatment_probability is P(A=1|X,S=1), read on trial rows only; both strictly inside (0,1) (participation probability may not be 1 even though the paper only needs it below 1 on the target support).", "Nuisances (participation, treatment, outcome regressions mu0, mu1) are treated as known or fixed; outcome regressions must be evaluated on every row. DR1 is consistent if either the odds weights or the regressions are correct, but only when those inputs were estimated out of band.", "The IPW SE and Bayesian bootstrap condition on supplied probabilities and treat rows as iid; the HAC SE assumes the rows are consecutive times of one stationary series."]
+historical_exposure = "No upstream implementation was consulted or observed for this review. Historical author exposure cannot be independently established. The review read the arXiv v4 manuscript of Dahabreh et al. (1805.00550, version dated 28 Oct 2019) as a PDF retrieved on 27 October 2026, Sections 4-5, and the product source."
+redistribution = "The primary paper is linked, not redistributed. The heterogeneous-nuisance unit test added in this review has expected values evaluated by the reviewer in a separate calculation from the paper's equations; they are repository-authored data under MIT OR Apache-2.0. No upstream code or tests were copied."
+limitations = "Establishes correspondence of IPW to equation (2) and AIPW to DR1 equation (4) for the difference of a=1 and a=0, the ratio-of-means linearization of the IPW SE, and input validation. It does not cover the paper's normalized variants IOW2, DR2, DR3, estimation of nuisance models, its Section 5.4 inference for estimated nuisances, longitudinal or non-nested designs, or the exact-law and grid transport routines sharing the file. The IPW SE and bootstrap carry no nuisance-estimation uncertainty and no AIPW standard error is computed here. The existing symmetric closed-form fixture (all probabilities 0.5, constant regressions) cannot detect an inverted odds orientation; the added heterogeneous test and its inverted-odds counterexample do but live in the bound implementation file and were not executed by the reviewer in this session. The bound separate assertion file only executes the recursive-factorization refusal. Calibration remains deferred."
+sources = ["https://arxiv.org/abs/1805.00550", "https://doi.org/10.1002/sim.8426"]
+findings_resolved = ["Verified the IPW sum sign*(1-s)/(s*arm)*Y over trial rows divided by the nonparticipant count equals equation (2) differenced across arms, and that AIPW sum of sign*w*(Y-mu_arm) on trial rows plus (mu1-mu0) on target rows divided by the nonparticipant count equals DR1 equation (4); the per-row scores are scaled by n/n_target so their mean is the augmented estimate.", "Verified the SE sqrt(sum (psi_i - ipw*(1-S_i))^2)/n_target is the linearization of the ratio sum(psi)/sum(1-S); no defect found.", "Found that the previous fixture's symmetric nuisances left weight orientation and arm/sign handling unexercised; added an executing heterogeneous-nuisance assertion against independently evaluated equation values (IPW, AIPW, SE) together with an inverted-selection counterexample that must differ.", "Corrected the record's stale claim that no uncertainty is returned: the module supplies an IPW delta-method SE, a HAC SE and an IPW Bayesian bootstrap, all conditional on supplied probabilities, and no AIPW SE."]
+record_sha256 = "68862f0fba503a6f14690cbad4dc273ce8d803b8af1dfb1152330e018d1e0931"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/transport.rs"
+sha256 = "a190456f974409a14fdac5312ba8e5367ed1c71452285b261a0560bc03706b1f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/statistical_transport_numeric.rs"
+sha256 = "9d5d4fef467593d506e2f6b9a50c7d4122b57835c8d4412649efc7d2aa201d7e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/response/trial_transport/expected.json"
+sha256 = "40d4e2c1f72e96b74e963ba09fdab1a996b2db4f4963b8734ea6eadd89bf8076"

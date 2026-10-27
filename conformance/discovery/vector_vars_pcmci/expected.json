@@ -19,17 +19,12 @@
     ]
   ],
   "scm": "x0 white; x1=0.5*x0+noise; y=0.8*x0_{t-1}+noise; seed=0",
-  "generation": {
-    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
-    "baseline_pin": "parity/baselines/tigramite.toml",
-    "env": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30"
-  },
   "reference": {
     "project": "tigramite",
     "available": true,
     "version": "5.2.1.30",
     "commit": "5a8768754e6103755b006e9357e21c1a58534927",
-    "command": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30",
+    "command": "uv run --frozen --script conformance/discovery/vector_vars_pcmci/reference.py --check",
     "note": "black-box execution only; no source translation",
     "outputs": {
       "graph_shape": [
@@ -67,6 +62,61 @@
     "project": "Tigramite",
     "version": "5.2.1.30",
     "source": "the `reference` block: a black-box run of the pinned package (parity/baselines/tigramite.toml) whose outputs the consuming test compares; generator deleted after artifact import",
-    "note": "the recovered parent set is also the generating SCM's (scm field)"
+    "note": "the recovered parent set is also the generating SCM's (scm field)",
+    "generator": "conformance/discovery/vector_vars_pcmci/reference.py",
+    "environment_lock": "conformance/discovery/vector_vars_pcmci/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "scalar logical parent set (source, source lag, target) at alpha, max_lag and BH-FDR"
+    ],
+    "context_only_outputs": [
+      "vector_vars_probe, graph_shape and pin_note are informational and not compared"
+    ],
+    "reference_review": {
+      "scope": "One fixed 500-row three-variable series (x0 white, x1 = 0.5 x0 + noise, y = 0.8 x0 at lag 1 + noise): the set of lagged parents tigramite 5.2.1.30 PCMCI with ParCorr recovers at alpha 0.01 and tau_max 1 after fdr_bh, reproduced exactly and equal to the generating SCM's parent set.",
+      "independence_basis": "The retained script reads data.csv, runs the public tigramite PCMCI/ParCorr API and compares the recovered edge set; it imports no Antecedent code and no tigramite source is stored. The generating-SCM parent set (a closed-form fact of the construction) is checked separately from the package output.",
+      "historical_exposure": "Original harness deleted (preserved in historical_oracle). The replacement was written from the public API signatures only; no tigramite source or tests were consulted, and the PyPI-5.2.1.25 unavailability note is kept in the frozen outputs.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 script; data.csv is a deterministic synthetic series. tigramite (GPL-3.0), NumPy and SciPy remain isolated tooling in a locked script environment, outside the product and ordinary CI; no upstream source or tests are stored.",
+      "limitations": "The reference runs scalar PCMCI with ParCorr on the logical variables. It does not execute tigramite's vector-variable (ParCorrMult) mode: the vector_vars_probe is informational and the vector-group semantics of the product are therefore not externally verified by this fixture. One series, one seed, one level; no calibration of error rates, no autocorrelation or contemporaneous links. Calibration remains deferred.",
+      "sources": [
+        "https://github.com/jakobrunge/tigramite",
+        "https://pypi.org/project/tigramite/5.2.1.30/"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/discovery/vector_vars_pcmci/reference.py",
+          "sha256": "9bee50e348c879550c007be09bdea8717684fbfdfc495e6033a59cf7891e8a27"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/discovery/vector_vars_pcmci/reference.py.lock",
+          "sha256": "b8a907061adfa47e97d91864eca40ceae23d962832e835816a96e9e7a62bc828"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/discovery/vector_vars_pcmci/data.csv",
+          "sha256": "07a495a3c8d0a420e2cfbcf7756bfd6f73d69d3fdddaa614cc0bf26964e7921d"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-discovery/tests/discovery_vector_vars_pcmci.rs",
+          "sha256": "155d768036de41e78846893c4cfa0c47fe9ee8f6321e99b1132d0345982793a2"
+        }
+      ],
+      "fixture_payload_sha256": "6f509f86be4eadc425e2c23a3f48b43eec2a3ebcdd1d86b2c65abbbd669c74dc"
+    }
+  },
+  "historical_oracle": {
+    "generation": {
+      "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
+      "baseline_pin": "parity/baselines/tigramite.toml",
+      "env": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30"
+    },
+    "reference_command": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30",
+    "disclosure": "The original harness was a temporary script deleted after import; its authorship and exact inputs beyond the retained data.csv cannot be reconstructed. The disclosure is preserved and is not erased by the retained replacement."
+  },
+  "generation": {
+    "baseline_pin": "parity/baselines/tigramite.toml"
   }
 }

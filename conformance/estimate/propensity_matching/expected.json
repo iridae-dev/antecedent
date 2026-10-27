@@ -1,4 +1,18 @@
 {
+  "evidence_roles": [
+    "software",
+    "statistical_smoke"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/estimate_conformance.rs::estimate_propensity_matching_recovers_att",
+  "evidence_proposition": "On the seeded inline SCM, propensity matching recovers the declared ATT within the pinned tolerance with the declared identifier and estimator.",
+  "limitations": "Seeded realization; the declared effect is the SCM coefficient in the test. No unasserted standard error or matching-quality claim is made. The recorded DoWhy 0.14 block comes from a black-box harness that was deleted after import and cannot be regenerated here; it is retained as historical context only and no executing assertion compares against it.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "true_effect": 2.0,
   "tolerance": 0.2,
   "identifier": "backdoor.adjustment",
@@ -9,7 +23,7 @@
     "baseline_pin": "parity/baselines/dowhy.toml",
     "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
   },
-  "reference": {
+  "historical_reference": {
     "project": "dowhy",
     "available": true,
     "version": "0.14",

@@ -1,4 +1,17 @@
 {
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "regression_pin",
+  "evidence_source": "crates/antecedent-discovery/tests/discovery_pcmci_multivar.rs::discovery_pcmci_multivar_edges_and_matrices",
+  "evidence_proposition": "PCMCI on the retained four-variable series reproduces the edge set and the val/p matrix entries within the pinned tolerances recorded from a historical black-box Tigramite 5.2.1.30 run.",
+  "limitations": "The recorded Tigramite output comes from a harness deleted after import; it is a frozen historical value that cannot be regenerated here, and author exposure is unknown. One fixed realization; no error-rate or calibration claim.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Frozen output of a historical black-box Tigramite 5.2.1.30 run on the retained CSV; the harness is not retained.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "true_parents": [
     {
       "source": "a",

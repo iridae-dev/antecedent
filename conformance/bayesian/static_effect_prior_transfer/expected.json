@@ -1,4 +1,18 @@
 {
+  "evidence_roles": [
+    "software",
+    "statistical_smoke"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/bayesian_functional_routes.rs::static_effect_and_response_prior_transfer",
+  "evidence_proposition": "On the exact noiseless linear table y=2t+z, same-design and mapped prior transfer yield a posterior average effect within the pinned tolerance of 2, the incompatible catalog is refused as an estimand mismatch, and the named compatibility filter is the one used.",
+  "limitations": "One deterministic noiseless table; the true effect is the coefficient written in the test. Cell labels are descriptive strings except where asserted. This checks routing, hydration and refusal of prior transfer, not posterior calibration, a numerical posterior reference or identification of any other design.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "schema_version": 1,
   "n": 200,
   "n_draws": 128,

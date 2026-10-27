@@ -1,4 +1,11 @@
 {
+  "oracle": {
+    "kind": "closed_form",
+    "method": "enumeration over the latent confounder",
+    "independence_basis": "Binary SCM U~Bern(.5), P(T=1|U)=.1+.5U, P(M=1|T)=.1+.7T, P(Y=1|M,U)=.05+.9MU with U dropped; the front-door contrast by enumeration over U is 0.7*0.9*E[U]=0.315, while the product of coefficients converges to 0.3631. Derived by hand from the structural equations, independent of the estimator; the arithmetic was rechecked during classification. Reviewer independence of the author is not established.",
+    "formula": "sum_u P(u) sum_m [P(m|T=1)-P(m|T=0)] E[Y|do(m),u] = 0.7*0.9*0.5 = 0.315",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "true_effect": 0.315,
   "tolerance": 1e-12,
   "identifier": "frontdoor",

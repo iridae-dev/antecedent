@@ -3,28 +3,29 @@
   "oracle": {
     "kind": "external_package",
     "executed_here": true,
-    "note": "Every case's oracle output below was produced by running the pinned released package on the documented graph and inputs in a temporary environment that was deleted after import. Only the recorded output is durable: this version of the oracle, with these inputs, produced this output. Disagreements and out-of-scope cases are recorded, never bent. The parity test parses each verbatim output: the verdict must equal oracle_result and the distributions the oracle's formula cites must equal the distributions our recorded proof cites; a named route is an agreement of a weaker class (agree_named_route).",
+    "note": "Every case's oracle output below was produced by running the pinned released package on the documented graph and inputs. The recorded outputs were first produced in a temporary environment that was deleted after import and have since been reproduced by the retained locked generators named in generation. Disagreements and out-of-scope cases are recorded, never bent. The parity test parses each verbatim output: the verdict must equal oracle_result and the distributions the oracle's formula cites must equal the distributions our recorded proof cites; a named route is an agreement of a weaker class (agree_named_route).",
     "sources": {
       "ananke": "https://ananke.readthedocs.io/en/latest/notebooks/identification_surrogates.html",
       "dosearch": "https://santikka.r-universe.dev/dosearch/doc/manual.html"
     },
     "generation": {
-      "script": "/tmp/oracle_harness_deleted_after_artifact_import (harness_ananke.py, harness_dosearch.R)",
-      "script_sha256": {
-        "harness_ananke.py": "2836ee4d3e24e3e6a7fa4ff06f9ff8ebbee1331c6361aeb6a6c22f42a6b203a4",
-        "harness_dosearch.R": "e4e5c326a181a7d0981de33bda948f69b996d26d705b89424fc1b87eb1136301"
-      },
+      "script": "conformance/identify/mixed_source_external/reference.py and conformance/identify/mixed_source_external/reference.R",
       "baseline_pin": [
         "parity/baselines/ananke-causal.toml",
         "parity/baselines/dosearch.toml"
       ],
-      "env": {
-        "ananke": "uv venv --python 3.11 <tmp>/venv && uv pip install --python <tmp>/venv/bin/python ananke-causal==0.5.0 scipy==1.11.4 'numpy<2' 'pandas<2.3' && <tmp>/venv/bin/python harness_ananke.py",
-        "dosearch": "R_LIBS_USER=<tmp>/rlib Rscript -e 'install.packages(\"dosearch\", lib=Sys.getenv(\"R_LIBS_USER\"), repos=\"https://cloud.r-project.org\")' && R_LIBS_USER=<tmp>/rlib Rscript harness_dosearch.R"
-      },
-      "generator_retained": false,
-      "reproducible_from_repo": false,
-      "script_note": "The harness scripts were deleted after the import, per convention. Their sha256 hashes are provenance only: the outputs below cannot be reproduced from this repository, and the parity test reads the recorded verbatim output rather than re-running an oracle."
+      "command": [
+        "uv run --frozen --script conformance/identify/mixed_source_external/reference.py --check --self-test",
+        "Rscript --vanilla conformance/identify/mixed_source_external/prepare.R",
+        "Rscript --vanilla conformance/identify/mixed_source_external/reference.R --check --self-test"
+      ],
+      "environment_lock": [
+        "conformance/identify/mixed_source_external/reference.py.lock",
+        "conformance/identify/mixed_source_external/renv.lock"
+      ],
+      "generator_retained": true,
+      "reproducible_from_repo": true,
+      "script_note": "Each retained generator regenerates its cases through the packages' public API in an isolated locked environment (Ananke 0.5.0 on CPython 3.11; dosearch 1.0.12 on R 4.6.1) and compares verdict, formula and verbatim output with this file; it never rewrites the file. The Rust parity test still parses the recorded verbatim output rather than running an oracle."
     },
     "reference": [
       {
@@ -43,7 +44,47 @@
         "runtime": "R 4.6.1 (2026-06-24), CRAN source install into a temporary library",
         "note": "black-box execution only; the CRAN release does not record a source commit"
       }
-    ]
+    ],
+    "reference_review": {
+      "scope": "Six cases of the Ananke OneLineGID/OneLineAID/OneLineID and dosearch 1.0.12 public APIs on one four-variable ADMG with two experiments, one ancestral-margin surrogate experiment and an observational-only specification, and four dosearch specifications (back-door, front-door, two-study mixed data, transportability with selection bias). The generators regenerate each verdict and printed formula; they do not check that a formula is numerically correct.",
+      "independence_basis": "The repository-authored Python and R harnesses pin the graphs, experiment sets and queries themselves, call only the public Ananke and dosearch entry points, and compare verdict, formula text and the recorded verbatim output with the fixture. They import no product code and read no product output or upstream source/test file. The Ananke experiment encoding (fix the treatments, restrict to the measured vertices) was established by exercising the public API until the recorded outputs were matched, so the encoding is the author's reading of the documented interface. The asserting Rust test additionally parses the recorded outputs and executes the product proofs against enumerated truth.",
+      "historical_exposure": "The original harnesses were deleted after the first import, so historical author exposure is unknown. The retained harnesses were written from the packages' public documentation and signatures; no upstream algorithm or test source was consulted or copied.",
+      "redistribution": "Ananke is Apache-2.0 and dosearch is GPL (>= 3); both, and their locked dependencies, remain isolated tooling outside the product runtime and ordinary CI. The repository retains its MIT OR Apache-2.0 harnesses, locks, scenario coordinates and the factual formula strings the packages printed, with no upstream source or tests.",
+      "limitations": "Six small fixed graphs. Agreement is on verdict and formula text; an alternative equivalent formula would be reported as a difference and not judged. The Ananke runtime is pinned older than current releases (scipy 1.11.4, numpy<2) for import compatibility. The product returns a named route or a weaker verdict on several cases (agreement classes are recorded per case) and the transportability and selection-bias case is out of scope for the product. This fixture establishes no estimation accuracy, uncertainty or calibration.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/identify/mixed_source_external/reference.py",
+          "sha256": "43800215ff9e4bf7aad94fe6b223ee591c1c15e3b6c740ed544f79bacadeb4a6"
+        },
+        {
+          "role": "generator",
+          "path": "conformance/identify/mixed_source_external/reference.R",
+          "sha256": "f855fa7208f1db1eab29a1fe2799ed03b02da70f40e3734e2fe5919122c517a7"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/identify/mixed_source_external/reference.py.lock",
+          "sha256": "e5b1c3437980af9da14fa5f55bef4c021385b3f5220a418e69090a728ded6e7e"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/identify/mixed_source_external/renv.lock",
+          "sha256": "a9d7804581e8d0a1f7dccd1b8b4691c61751a03afddedfa52c1385a475258af6"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "conformance/identify/mixed_source_external/prepare.R",
+          "sha256": "0e80f315e22e6f829d4e62f109ede51045ad2f972734526d3a7d773c0c43bdaa"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-identify/tests/mixed_source_external_parity.rs",
+          "sha256": "b53d1a8b03b0153329d4537521b4b7e6b5fb7141e9ad11cedf516b21bea14c7d"
+        }
+      ],
+      "fixture_payload_sha256": "341d4783a1202f93447c87a7f384b46ff801b122bdd2107e616cc554b5bf7856"
+    }
   },
   "cases": [
     {
@@ -488,5 +529,27 @@
       "oracle_formula": "\\sum_{z}\\left(p(z|x,s)p(y|do(x),z,t)\\right)",
       "oracle_output_verbatim": "\\sum_{z}\\left(p(z|x,s)p(y|do(x),z,t)\\right)"
     }
-  ]
+  ],
+  "historical_reference": {
+    "note": "The original one-off harnesses and temporary environments were deleted after the first import; the hashes are provenance only. The retained generators below were written afterwards and reproduce every recorded oracle output.",
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import (harness_ananke.py, harness_dosearch.R)",
+    "script_sha256": {
+      "harness_ananke.py": "2836ee4d3e24e3e6a7fa4ff06f9ff8ebbee1331c6361aeb6a6c22f42a6b203a4",
+      "harness_dosearch.R": "e4e5c326a181a7d0981de33bda948f69b996d26d705b89424fc1b87eb1136301"
+    },
+    "env": {
+      "ananke": "uv venv --python 3.11 <tmp>/venv && uv pip install --python <tmp>/venv/bin/python ananke-causal==0.5.0 scipy==1.11.4 'numpy<2' 'pandas<2.3' && <tmp>/venv/bin/python harness_ananke.py",
+      "dosearch": "R_LIBS_USER=<tmp>/rlib Rscript -e 'install.packages(\"dosearch\", lib=Sys.getenv(\"R_LIBS_USER\"), repos=\"https://cloud.r-project.org\")' && R_LIBS_USER=<tmp>/rlib Rscript harness_dosearch.R"
+    },
+    "generator_retained": false
+  },
+  "reference": {
+    "project": "ananke-causal 0.5.0 and dosearch 1.0.12",
+    "available": true,
+    "command": "uv run --frozen --script conformance/identify/mixed_source_external/reference.py --check --self-test && Rscript --vanilla conformance/identify/mixed_source_external/reference.R --check --self-test",
+    "execution_note": "Retained independently authored public-API harnesses in isolated locked environments (prepare the R library first with Rscript --vanilla conformance/identify/mixed_source_external/prepare.R). They check the recorded verdicts and formulas; they do not rewrite this file.",
+    "generator": "conformance/identify/mixed_source_external/reference.py and conformance/identify/mixed_source_external/reference.R",
+    "environment_lock": "conformance/identify/mixed_source_external/reference.py.lock and conformance/identify/mixed_source_external/renv.lock",
+    "generator_retained": true
+  }
 }

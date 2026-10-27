@@ -1,4 +1,17 @@
 {
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_source": "crates/antecedent/tests/context_effects.rs::rpcmci_two_regime_pin",
+  "evidence_proposition": "Typed regime assignments produce exactly one graph per regime, each with at least the declared number of nodes, under the declared algorithm id.",
+  "limitations": "Honest structural pin only. The recorded Tigramite reference is marked unavailable and is not compared; no equality with an external implementation, recovery accuracy or calibration is established.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "algorithm_id": "rpcmci",
   "n_regimes": 2,
   "min_nodes_per_regime": 2,

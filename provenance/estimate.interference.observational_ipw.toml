@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3, definitions 1-2: exposure mappings; Section 4: Horvitz–Thompson exposure contrasts when exposure probabilities are known"] },
+ { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3: exposure mapping f(z, theta_i) and Condition 1; Section 4, estimator (1) and Lemma 4.1: Horvitz-Thompson exposure contrasts when exposure probabilities are known; section numbering is that of the arXiv v4 manuscript"] },
 ]
 
 implementation_deviations = [
@@ -21,3 +21,29 @@ test_sources = [
  "crates/antecedent-estimate/src/interference_observational.rs",
  "crates/antecedent/src/analysis/execute/checked_interference.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_observational_exposure in interference_observational.rs: Horvitz-Thompson and Hajek exposure contrasts with caller-supplied per-unit marginal exposure probabilities, and the CR1 cluster-score variance and interval. Not estimation of the probabilities, not design-based randomization."
+assumptions = ["Supplied probabilities are the true marginal probabilities of the requested exposure levels (Known provenance) or fixed externally fitted values; neither case represents estimation uncertainty. Positivity: each probability in (0,1] and the two level probabilities sum to at most one.", "Exposure mapping is properly specified and interference is partial: clusters are independent draws, edges stay within clusters (checked), so cluster score sums are independent.", "Caller-declared network exchangeability (no unmeasured confounding of the exposure) is not testable here and is the only identification of the causal contrast.", "The variance is a CR1 sandwich over cluster influence sums (mean-centred, C/(C-1)); the pointwise t interval requires Known probabilities, 30 clusters and 8 exposed clusters per level."]
+historical_exposure = "No upstream implementation was consulted or observed for this review. Historical author exposure cannot be independently established. The review read the arXiv v4 manuscript of Aronow and Samii (1305.6156) as a PDF retrieved on 27 October 2026 and the product source; it did not read the typeset Annals of Applied Statistics pagination."
+redistribution = "Primary papers are linked, not redistributed. The unit tests added or edited in this review are original repository-authored code under MIT OR Apache-2.0; no upstream code, comments or tests were copied."
+limitations = "Establishes correspondence of the HT/Hajek formulas to the cited HT estimator with supplied probabilities and the algebra of the sandwich. Conservativeness of the CR1 variance is argued analytically for independent cluster assignment with known probabilities (the expectation of centred squared cluster influences exceeds the sum of cluster variances by the squared spread of cluster influence means) and rests on the retained 2000-replicate coverage test, not exact enumeration; exact enumeration is blocked because the function refuses realizations lacking support at one level. The 30-cluster and 8-exposed-cluster gates are repository policy. No repeated-sampling guarantee of the paper's design-based variance is inherited. The coverage and numeric unit tests live in the bound implementation file and were not executed by the reviewer in this session. Calibration remains deferred."
+sources = ["https://arxiv.org/abs/1305.6156", "https://doi.org/10.1214/16-AOAS1005"]
+findings_resolved = ["Verified HT = (sum_to y/pi_to - sum_from y/pi_from)/n and Hajek = ratio of weighted sums per level against the cited estimator (1); positivity and sum-to-at-most-one checks are consistent with distinct levels being disjoint events.", "Verified the CR1 factor C/(C-1) and mean-centring of cluster influence sums target Var of the sum of independent cluster terms and are conservative when cluster influence means differ; no defect found.", "Corrected the paper section references to Section 3 / Condition 1 and Section 4 estimator (1) of the arXiv v4 manuscript, and recorded that the paper's Proposition 6.2 Wald interval needs its Conditions 3, 5 and 6 (bounded outcomes/probabilities, local dependence, nondegenerate variance) which are not checked here."]
+record_sha256 = "7416887a6d7e0b7223435698d151f52f5675e6b570f3a1f5573f353eec973dbe"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/interference_observational.rs"
+sha256 = "976de99d9a4f6b0f9d28bc0e5bd78e53168602553d4301834733b78c9e2f676a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/observational_interference_route.rs"
+sha256 = "a48607a2cf6489a493caec855c1a8db3fa2c683cf8c813d95bd5eac00d33ba7a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/interference_interval_route.rs"
+sha256 = "eacc881c767395681d2dc0ca5a5ee1d6948b0f62722d306dcd18a08a6d52d715"

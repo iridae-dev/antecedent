@@ -529,3 +529,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "rd_design_tests.rs"]
+mod design_tests;

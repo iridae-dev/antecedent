@@ -1,4 +1,10 @@
 {
+  "oracle": {
+    "kind": "enumeration",
+    "method": "finite state-law enumeration",
+    "independence_basis": "Equal-mass state law theta in {1/4,3/4}; wait pays 0, bet pays theta-1/2; prior expected utilities both 0; EVPI 1/8; two Bernoulli observations have predictive counts 5/16, 6/16, 5/16; only count two licenses the positive bet with posterior payoff 1/5, so EVSI is 1/16. The enumeration is repository-authored and its arithmetic was rechecked during classification. Agreement among Antecedent routes is not external-oracle evidence; no calibration is supplied.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "state_draws": [0.25, 0.75],
   "terminal_actions": ["wait", "bet"],
   "utilities": [[0.0, 0.0], [-0.25, 0.25]],

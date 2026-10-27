@@ -219,12 +219,18 @@ fn direct_lingam_matches_external_orders_edges_and_coefficients() {
 }
 
 #[test]
-fn static_discovery_fixture_records_exact_pins_and_no_generator() {
+fn static_discovery_fixture_records_exact_pins_and_retained_generator() {
     let fixture = fixture();
     let oracle = &fixture["oracle"];
     assert_eq!(oracle["projects"]["fci_ges"]["package"]["version"], "0.1.4.3");
     assert_eq!(oracle["projects"]["direct_lingam"]["package"]["version"], "1.9.1");
-    assert_eq!(oracle["generation_location"], "temporary external harness; not retained");
+    assert_eq!(oracle["generator_retained"], true);
+    assert_eq!(oracle["generator"], "conformance/discovery/static_oracle_matrix/reference.py");
+    assert_eq!(
+        fixture["historical_oracle"]["generation_location"],
+        "temporary external harness; not retained",
+        "the historical deleted-generator disclosure must be preserved"
+    );
     for package in ["numpy", "scipy", "scikit-learn", "pandas"] {
         assert_eq!(oracle["packages"][package]["metadata_sha256"].as_str().unwrap().len(), 64);
     }

@@ -23,4 +23,26 @@ test_sources = [
  "crates/antecedent-identify/src/rd.rs",
  "crates/antecedent-identify/src/auto.rs",
  "conformance/estimate/rd_sharp",
+ "crates/antecedent-identify/src/rd_design_tests.rs (bandwidth/cutoff validation, bandwidth-independence of the functional, cutoff carried into the estimand)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "SharpRdIdentifier::identify and identify_on in crates/antecedent-identify/src/rd.rs: the declared sharp design (running variable, cutoff, bandwidth), the target-population relabelling or refusal, the graph compatibility check and the emitted boundary-contrast functional and assumption records. Not a review of the local-polynomial estimator, bandwidth selection, density/manipulation testing or inference in antecedent-estimate/rd.rs, and not fuzzy designs."
+assumptions = ["Sharp assignment T = 1{R >= c}: treatment is a deterministic function of the running variable; the estimator checks this against the treatment column row by row.", "Continuity of E[Y(1) | R = r] and E[Y(0) | R = r] in r at the cutoff (recorded as rd.continuity, status untestable) and existence of the one-sided limits.", "No precise manipulation of the running variable around the cutoff (recorded as rd.no_manipulation, declared, never tested here).", "The identified quantity is the average effect for units at the cutoff only; no population or away-from-cutoff effect is identified."]
+historical_exposure = "The earlier record listed no observed implementations; historical author exposure cannot be independently established. This review read the product source and its unit tests; no upstream implementation or test source was consulted or copied."
+redistribution = "Repository-authored tests under MIT OR Apache-2.0; the primary paper is linked by DOI, not redistributed."
+limitations = "The primary papers were not re-read in this review (the copies reachable from this environment were scanned or paywalled); the section citations are inherited from the earlier record, and the criteria were checked against the implementation and an independent enumeration instead. A mistake in how the record states a theorem would therefore not be detected here. The frozen rd_sharp conformance fixture records that its original dowhy comparison failed and its generator was deleted; it is software evidence for the estimator, not an independent reference, and this review does not rely on it. The bandwidth is validated (finite, positive) and carried with the design but takes no part in identification. The graph check requires the running variable to be the treatment's only parent and says nothing about whether other variables affect the outcome discontinuously at the cutoff. Calibration remains deferred."
+sources = ["https://doi.org/10.1111/1468-0262.00183"]
+findings_resolved = ["Verified from the code that an AllObserved request is relabelled to LocalAtCutoff with a Scientific warning, an explicit matching cutoff population is accepted without a warning, any other population (treated, a different cutoff) is NotIdentified with identify.rd.population_not_identified, and the result's query always carries the local population.", "Verified the graph rule: a graph without R -> T, or with any second parent of T, is refused with identify.rd.graph_incompatible (a second parent is a fuzzy design); the existing unit tests execute both counterexamples.", "Verified the functional is a contrast of two conditional means whose conditioning intervention pins R to the cutoff, not the unadjusted treated/control contrast (existing unit test inspects the arena nodes).", "Added executing assertions that invalid bandwidth (zero, negative, NaN, infinite) and non-finite cutoff are refused while a negative cutoff is accepted, that the bandwidth does not alter the functional, and that the cutoff is carried into both the estimand and the target population.", "Recorded that the algorithm-default assumptions are declarations and that identification status NonparametricallyIdentified is conditional on the untestable continuity record. No defect requiring a change to identification code was found. Code edits: a new unit-test module only (crates/antecedent-identify/src/rd_design_tests.rs, included from rd.rs)."]
+record_sha256 = "211c65eaf7740c99ff97472dc2d4edada22a523faf0d50b6e41d39d36ddd2ee2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/rd.rs"
+sha256 = "b401bc61008761bac5bc784e8e87ec720c1eefc6440f7bb125d232092fd4394f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/src/rd_design_tests.rs"
+sha256 = "f55f0dea05ab61b617665c5151e377b541623a3ffc6104a84f7e77d5819fa2f2"

@@ -1,4 +1,18 @@
 {
+  "evidence_roles": [
+    "software",
+    "statistical_smoke"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/numeric_pins.rs::variance_only_exceedance_covers_and_mean_misses",
+  "evidence_proposition": "On the seeded variance-only design the mean ATE stays within the pinned tolerance of zero while the 1.96-standard-error interval for the exceedance contrast covers the declared positive shift.",
+  "limitations": "Seeded synthetic realization with an approximate declared shift (about 0.08), not an exact value; not an independently reviewed reference and not a coverage measurement.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "mean_ate": 0.0,
   "mean_tolerance": 0.06,
   "exceedance_delta": 0.08,

@@ -2,7 +2,6 @@
   "schema_version": 1,
   "oracle": {
     "kind": "external_package",
-    "executed_here": true,
     "project": "dit (discrete information theory)",
     "package": {
       "name": "dit",
@@ -18,18 +17,50 @@
     ],
     "cross_check": "scipy==1.18.1 scipy.stats.entropy: sum_y p(y)[H(G)-H(G|y)] agreed with dit's I(G;Y) to 1e-13 on every case",
     "algorithm": "I(G;Y) = sum_g p(g) sum_y p(y|g,d) [H(G)-H(G|y,d)] on the joint law of graph and observation",
-    "note": "Every expected_information_gain below was produced by running the pinned released dit package on the recorded posterior, features and reliabilities in a temporary environment that was deleted after import: this version of dit, with these inputs, produced this output.",
-    "generation": {
-      "script": "<tmp>/eig_dit_harness.py (deleted after the artifact import)",
-      "script_sha256": {
-        "eig_dit_harness.py": "eb7220d738a7b4bb850aafd443343feb3ccd572bcde462350a1e35f57e3acdf5"
-      },
-      "env": "uv venv <tmp>/eigenv --python 3.12 && VIRTUAL_ENV=<tmp>/eigenv uv pip install dit && <tmp>/eigenv/bin/python eig_dit_harness.py",
-      "python": "3.12.7",
-      "resolved_dependencies": "numpy==2.5.3, scipy==1.18.1, networkx==3.7, xarray==2026.9.0, boltons==26.2.0, debtcollector==3.1.0, lattices==0.5.1, pltable==1.1.0, loguru==0.7.3, pandas==3.0.6",
-      "generator_retained": false,
-      "reproducible_from_repo": false,
-      "generated": "2026-10-01"
+    "generator": "conformance/design/expected_information_gain/reference.py",
+    "command": "uv run --frozen --script conformance/design/expected_information_gain/reference.py --check",
+    "environment_lock": "conformance/design/expected_information_gain/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "exact expected information gain per candidate case, compared with product scores at score_atol",
+      "candidate ordering and monotonicity in design amount"
+    ],
+    "context_only_outputs": [
+      "reliability and prior_entropy are retained inputs/context, not product outputs"
+    ],
+    "reference_review": {
+      "scope": "Six fixed candidate cases on one three-graph posterior: mutual information I(G;Y) of the joint law of graph and a symmetric-noise observation channel at the recorded reliabilities. Regeneration reproduces the frozen values at absolute 1e-12 from the declared posterior and reliabilities only.",
+      "independence_basis": "The retained script constructs the joint law from the declared weights, feature labels and reliability and evaluates it with the public dit.shannon.mutual_information API, then cross-checks against the direct definition with scipy.stats.entropy (the two must agree to 1e-12 before any comparison). It imports no Antecedent code. The map from a candidate's amount to its reliability is a recorded input, not recomputed here, so the product's reliability formula is not independently verified by this fixture.",
+      "historical_exposure": "The original harness was deleted; its authorship and exposure cannot be reconstructed beyond the retained digest and environment note (preserved in historical_oracle). The replacement was written from the fixture's normalization statement and the public dit API; no dit source or tests were consulted.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 script and deterministic inputs. dit (BSD-3-Clause), NumPy and SciPy are tooling dependencies in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "One posterior (3 graphs, 3 categories), symmetric uniform-noise channel, discrete exact information gain only. Sampling-based objectives, non-uniform noise, continuous observations and the amount-to-reliability mapping are outside this reference. The product assertion compares Monte Carlo/exact scores at score_atol 0.006, not at the reference's 1e-12 regeneration tolerance. Calibration remains deferred.",
+      "sources": [
+        "https://pypi.org/project/dit/2.3/",
+        "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.entropy.html"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/design/expected_information_gain/reference.py",
+          "sha256": "5ea8a9f9e7cf498a8f435f48bdbd72f944802580cd04a0fead5a3294a2d40284"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/design/expected_information_gain/reference.py.lock",
+          "sha256": "4c4903bd0e2401fc8e886ecbac3a5e122ed662cd9dabe6a31bfeaf435bbf0c12"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "scripts/reference_compare.py",
+          "sha256": "79904dc8724633c835ca4bcd894bedee2938a1ecbb7d4e4eda02be0b2b27d134"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-design/tests/design_oracle.rs",
+          "sha256": "c49305e23348b9f40062d1e98da0534a2fae0c446a75c5fe77977c9987e39564"
+        }
+      ],
+      "fixture_payload_sha256": "5066b617b57196aaa2558d5ff3b3e13be5ad2e21f80155d836a755caeb83232c"
     }
   },
   "normalization": {
@@ -40,8 +71,16 @@
     "information_gain": "expectation is taken before any non-negativity check; individual entropy reductions are not clipped"
   },
   "posterior": {
-    "weights": [0.5, 0.3, 0.2],
-    "features": [0, 1, 2],
+    "weights": [
+      0.5,
+      0.3,
+      0.2
+    ],
+    "features": [
+      0,
+      1,
+      2
+    ],
     "prior_entropy": 1.0296530140645737
   },
   "cases": [
@@ -91,10 +130,31 @@
   "acceptance": {
     "fixed_budget_samples": 100000,
     "score_atol": 0.006,
-    "seeds": [1701, 1702, 1703],
+    "seeds": [
+      1701,
+      1702,
+      1703
+    ],
     "adaptive_min_batches": 8,
     "adaptive_max_batches": 256,
     "adaptive_batch_size": 32,
     "adaptive_rank_threshold": 0.025
+  },
+  "historical_oracle": {
+    "generation": {
+      "script": "<tmp>/eig_dit_harness.py (deleted after the artifact import)",
+      "script_sha256": {
+        "eig_dit_harness.py": "eb7220d738a7b4bb850aafd443343feb3ccd572bcde462350a1e35f57e3acdf5"
+      },
+      "env": "uv venv <tmp>/eigenv --python 3.12 && VIRTUAL_ENV=<tmp>/eigenv uv pip install dit && <tmp>/eigenv/bin/python eig_dit_harness.py",
+      "python": "3.12.7",
+      "resolved_dependencies": "numpy==2.5.3, scipy==1.18.1, networkx==3.7, xarray==2026.9.0, boltons==26.2.0, debtcollector==3.1.0, lattices==0.5.1, pltable==1.1.0, loguru==0.7.3, pandas==3.0.6",
+      "generator_retained": false,
+      "reproducible_from_repo": false,
+      "generated": "2026-10-01"
+    },
+    "note": "Every expected_information_gain below was produced by running the pinned released dit package on the recorded posterior, features and reliabilities in a temporary environment that was deleted after import: this version of dit, with these inputs, produced this output.",
+    "executed_here": true,
+    "disclosure": "Original values were produced by a temporary harness that was deleted after import; that disclosure is preserved here and is not erased by the retained replacement generator."
   }
 }

@@ -1,4 +1,17 @@
 {
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/temporal_response_redundancy.rs::horizon_support_is_per_cell_not_union",
+  "evidence_proposition": "On the deterministic series with a late high-treatment block, the reported support status, per-point statuses, per-horizon treatment ranges (within the pinned tolerance) and warning code equal the fixture values, and the dose lies inside the union range while per-cell support differs.",
+  "limitations": "Deterministic construction; the declared supports follow from the generator written in the fixture. Support classification is a screening rule, not coverage, positivity certification or calibration.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "fixture_id": "antecedent.temporal_response.horizon_support",
   "claim": "empirical support on a dose × horizon surface is classified per cell against that horizon's lag-aligned treatment range, not the union of ranges",
   "contract": {

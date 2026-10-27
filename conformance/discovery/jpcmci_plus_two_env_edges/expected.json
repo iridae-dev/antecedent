@@ -1,4 +1,17 @@
 {
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "regression_pin",
+  "evidence_source": "crates/antecedent-discovery/tests/discovery_jpcmci_plus_two_env_edges.rs::discovery_jpcmci_plus_two_env_edge_equality",
+  "evidence_proposition": "System-only J-PCMCI+ on the retained two-environment CSVs reproduces the frozen edge set recorded from a historical black-box Tigramite 5.2.9.7 run.",
+  "limitations": "The frozen edge set is a historical external output whose harness was not retained; no generator can be rerun here and independence of the original author is unknown. One fixed realization, no space dummies or context, no error rate or calibration.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Frozen output of a historical black-box Tigramite 5.2.9.7 run on the retained CSVs; the harness is not retained, so this is a change detector against that recorded output, not reproducible external evidence.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "algorithm_id": "jpcmci_plus",
   "n_per_env": 400,
   "n_envs": 2,

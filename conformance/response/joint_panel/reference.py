@@ -279,8 +279,25 @@ def csv_text(rows: list[dict]) -> str:
     return target.getvalue()
 
 
+ORACLE = {'kind': 'closed_form',
+ 'method': 'retained structural data generator with population truth',
+ 'independence_basis': 'reference.py generates the six retained artifacts from the '
+                       'declared structural design (four groups, AR(1) errors, '
+                       'saturated lagged exposures, additive and interaction variants) '
+                       'and its population truth is computed from the structural mean, '
+                       'using no production estimator, simulator or identification '
+                       'routine; reference.py --check reproduces the artifacts. The '
+                       'generator is retained; reviewer independence and transitive '
+                       'helpers have not been reviewed.',
+ 'generator': 'conformance/response/joint_panel/reference.py',
+ 'historical_exposure': 'Historical author exposure is unrecorded and remains unknown.'}
+
+
 def artifacts() -> dict[str, str]:
-    files = {"expected.json": json.dumps(reference(), indent=2, sort_keys=True) + "\n"}
+    files = {
+        "expected.json": json.dumps({"oracle": ORACLE, **reference()}, indent=2, sort_keys=True)
+        + "\n"
+    }
     for design in ("randomized", "confounded"):
         for name, coefficient in (("additive", 0.0), ("interaction", 1.5)):
             rows, _ = panel(design, coefficient)

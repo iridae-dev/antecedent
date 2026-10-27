@@ -1,4 +1,18 @@
 {
+  "evidence_roles": [
+    "software",
+    "statistical_smoke"
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_source": "crates/antecedent/tests/temporal_class_observation.rs::licensed_observation_pairs_run_on_temporal_cpdag_and_pag",
+  "evidence_proposition": "Every pair named in licensed_pairs (at least five) is listed in the fixture, runs on the temporal CPDAG and PAG classes under the declared inference modes, and its result retains the observation claim.",
+  "limitations": "Execution and routing coverage on seeded series; completion-wise band structure is checked elsewhere. No calibration of censoring or selection adjustment and no external reference is established.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "schema_version": 1,
   "case": "temporal_class_observation",
   "notes": "Incomplete-class observation uses per-completion IPCW or observed-data Bayes, then the class-mass contract. Frequentist requested replicates run the outer circular-block that refits the observation nuisance and every horizon or Sequence overlay per completion. A multi-completion identified set withholds the class band; atoms retain their outer-block bands. Complete-data bands are not reused. Delayed entry, interval, and truncation stay refused.",

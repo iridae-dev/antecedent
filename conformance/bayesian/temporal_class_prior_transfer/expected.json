@@ -1,4 +1,18 @@
 {
+  "evidence_roles": [
+    "software",
+    "statistical_smoke"
+  ],
+  "evidence_kind": "internal_cross_check",
+  "evidence_source": "crates/antecedent/tests/temporal_class_bayesian_envelope.rs::temporal_class_prior_transfer_conflict_does_not_flip_identification",
+  "evidence_proposition": "On the stationary two-completion temporal class law, a mechanism-prior transfer with a conflict diagnostic leaves the identification status unchanged, and the pinned transfer cells name the filter used.",
+  "limitations": "A mechanism prior is not a class prior; this checks that transfer cannot upgrade identification and that routes hydrate per completion. Seeded synthetic law; no posterior calibration, numerical reference or class-probability validity is established.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the values are repository-authored inputs and pins, and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "fixture_id": "temporal_class_prior_transfer",
   "compatibility_filter": "PriorCatalog.filter_compatible",
   "n": 240,

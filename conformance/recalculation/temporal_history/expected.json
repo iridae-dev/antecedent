@@ -1,4 +1,10 @@
 {
+  "oracle": {
+    "kind": "enumeration",
+    "method": "enumeration of 640 exogenous configurations",
+    "independence_basis": "The point oracle enumerates 640 independent exogenous configurations of the stated binary structural model with two identical histories per unit and integrates the structural probabilities to obtain the numeric pins, independently of identification, fitted counts and the recalculation adapter. The additive candidate fixture (paired effect exactly 5, response 7.165) checks dependence preservation only and stays unmeasured. Author independence has not been reviewed.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "case": "observational_dag_root_initial_state_shift",
   "rule": "dag_root_initial_shift_v1",
   "scope": "binary two-step DAG; root S0 is the only population-varying mechanism; empirical point only",
