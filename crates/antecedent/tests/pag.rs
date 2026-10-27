@@ -294,7 +294,7 @@ fn dag_only_pag_reject() {
     let id = expected["identifier"].as_str().unwrap();
     let err = reject_dag_only_on_pag(&AcceptedGraph::pag(pag), id.parse().unwrap());
     assert!(expected["expect_compile_error"].as_bool().unwrap());
-    assert!(err.is_err());
+    assert!(matches!(err, Err(antecedent::CausalError::Compile { .. })));
 }
 
 #[test]

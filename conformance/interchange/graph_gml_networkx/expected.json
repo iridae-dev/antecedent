@@ -27,5 +27,17 @@
         "target": "Y"
       }
     ]
+  },
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_source": "crates/antecedent/tests/graph_interchange.rs::conformance_gml_networkx_round_trip",
+  "evidence_proposition": "GML and NetworkX-style node-link documents parse and round-trip the declared three-node chain, preserving every directed edge and absent edge.",
+  "limitations": "Hand-authored interchange documents; no NetworkX package execution, causal identification, model accuracy or scientific calibration is implied.",
+  "oracle": {
+    "kind": "regression_pin",
+    "origin": "Retained local API/format contract inputs, reviewed against the exact executing assertion; no external package execution or independent scientific reference is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
   }
 }

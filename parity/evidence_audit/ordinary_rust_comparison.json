@@ -1,0 +1,103 @@
+{
+  "schema": 1,
+  "activity": "ordinary_rust_feedback_and_coverage_disposition",
+  "calibration_attestation": false,
+  "baseline": {
+    "junit": "target/test-performance/20261027T180314Z-19351/rust-1.xml",
+    "junit_sha256": "ad24e5b9d9724bb7378c880fc6776c90a364334f2c946cc801ea5976d90907bc",
+    "executed": 13674,
+    "failed": 16,
+    "execution_seconds": 744.162,
+    "checkout_snapshot": "not retained for this original run",
+    "build_and_resource_measurements": "not retained for this original run"
+  },
+  "after": {
+    "junit": "target/test-performance/20261027T190352Z-60316/rust-1.xml",
+    "junit_sha256": "2ce4e37f9f6984b32e1827880d80798a0cc77f27c1588bf11a074f0c5101d77a",
+    "executed": 12916,
+    "failed": 0,
+    "execution_seconds": 903.397,
+    "receipt": "target/test-performance/20261027T190352.053905Z-60306.json",
+    "receipt_sha256": "5e8a330f5a6f24ec8b98e336323c708fd64a8fff2b53980db5ccb53815961921",
+    "settings": {
+      "CARGO_PROFILE_TEST_OPT_LEVEL": "2",
+      "CARGO_PROFILE_TEST_DEBUG": "line-tables-only",
+      "CARGO_INCREMENTAL": "0"
+    },
+    "wall_seconds_including_discovery_builds_and_lock_waits": 4301.2471060830285,
+    "user_seconds": 12299.29049,
+    "system_seconds": 386.424949,
+    "peak_child_rss_bytes": 10759864320,
+    "checkout_before_commit": "8f8a9f2bd252c30865a04a5451b47b6166ccacff",
+    "checkout_after_commit": "c55b9973fe0d467d8e67409b82b37592a32315e2",
+    "checkout_unchanged": false
+  },
+  "coverage_disposition": {
+    "ledger": "parity/test_refactor_dispositions.toml",
+    "ledger_sha256": "c087de7ba44be8e0118b18ccd21f8059d4bc54c9ba3f2a212a809e71c3a97795",
+    "baseline_identities_absent_after": 773,
+    "replacement_or_new_identities": 15,
+    "shared_control_occurrences_consolidated": 756,
+    "shared_control_replacements": [
+      "antecedent::calibration_decision_contract::tests::binomial_tails_match_independent_integer_enumeration",
+      "antecedent::calibration_decision_contract::tests::malformed_families_and_unregistered_looks_fail_closed",
+      "antecedent::calibration_decision_contract::tests::one_cell_cannot_test_conflicting_prefixes_at_the_same_look",
+      "antecedent::calibration_decision_contract::tests::registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed",
+      "antecedent::calibration_decision_contract::tests::reported_denominator_does_not_choose_the_spending_look",
+      "antecedent::calibration_decision_contract::tests::tiny_prefix_misses_are_distinct_from_clear_miscalibration"
+    ],
+    "duplicate_executions_removed": 750,
+    "explicit_pending_calibration_deselections": [
+      "antecedent-design::suite_01::decision_reliability::every_published_route_is_licensed_inside_a_measured_coverage_record",
+      "antecedent-design::suite_01::decision_reliability_intervals::a_derivation_is_published_inside_a_measured_record_and_refused_outside_it",
+      "antecedent-io::measured_inference::transport::native_lifecycle_tests::every_measured_transport_variant_matches_original_execution_basis_bit_for_bit",
+      "antecedent-io::sampled_counterfactual_transport_artifact::a_measured_construction_reports_an_interval_bound_to_its_coverage_record",
+      "antecedent::suite_01::adaptive_inference_facade::a_group_sequential_repeated_interval_is_bound_to_its_record",
+      "antecedent::suite_01::adaptive_inference_facade::a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record",
+      "antecedent::suite_01::adaptive_inference_facade::a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records",
+      "antecedent::suite_03::composed_uncertainty_facade::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate",
+      "antecedent::suite_04::evidence_ledger_facade::a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record",
+      "antecedent::suite_07::scientific_bridge_interval_facade::a_correction_inside_a_measured_record_is_published_bound_to_it",
+      "antecedent::suite_07::scientific_bridge_interval_facade::a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound_to_it",
+      "antecedent::suite_09::predictive_score_interval_facade::an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record",
+      "antecedent::suite_09::predictive_score_interval_facade::the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_a_boundary"
+    ],
+    "renames": [
+      {
+        "previous_compiled_identity": "antecedent-discovery::suite_01::jpcmci_plus_oracle_matrix::jpcmci_plus_fixture_records_pins_and_no_generator",
+        "replacement_compiled_identity": "antecedent-discovery::suite_01::jpcmci_plus_oracle_matrix::jpcmci_plus_fixture_records_retained_harness_and_historical_pins",
+        "disposition": "crates/antecedent-discovery/tests/jpcmci_plus_oracle_matrix.rs::jpcmci_plus_fixture_records_pins_and_no_generator"
+      },
+      {
+        "previous_compiled_identity": "antecedent-discovery::suite_01::lpcmci_oracle_matrix::lpcmci_fixture_records_pins_and_no_generator",
+        "replacement_compiled_identity": "antecedent-discovery::suite_01::lpcmci_oracle_matrix::lpcmci_fixture_records_retained_harness_and_historical_pins",
+        "disposition": "crates/antecedent-discovery/tests/lpcmci_oracle_matrix.rs::lpcmci_fixture_records_pins_and_no_generator"
+      },
+      {
+        "previous_compiled_identity": "antecedent-discovery::suite_01::rpcmci_fixed_regime_oracle::fixed_regime_fixture_records_scope_pins_and_no_generator",
+        "replacement_compiled_identity": "antecedent-discovery::suite_01::rpcmci_fixed_regime_oracle::fixed_regime_fixture_records_scope_and_retained_harness",
+        "disposition": "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs::fixed_regime_fixture_records_scope_pins_and_no_generator"
+      },
+      {
+        "previous_compiled_identity": "antecedent-prob::prior_support_oracle::prior_fixture_records_scipy_pins_and_no_generator",
+        "replacement_compiled_identity": "antecedent-prob::prior_support_oracle::prior_fixture_records_retained_scipy_harness_and_historical_metadata",
+        "disposition": "crates/antecedent-prob/tests/prior_support_oracle.rs::prior_fixture_records_scipy_pins_and_no_generator"
+      }
+    ],
+    "additional_assertions_in_run": [
+      "antecedent-estimate::error::tests::declaration_refusals_carry_codes_by_variant_never_by_wording",
+      "antecedent-estimate::observation::tests::a_saturated_observation_probability_refuses_unless_a_floor_is_declared",
+      "antecedent-prob::prior_support_oracle::frozen_distribution_normalization_context_is_consistent",
+      "antecedent::analysis::helpers::cdf_review_tests::dropped_bootstrap_replicates_limit_support",
+      "antecedent::analysis::helpers::cdf_review_tests::weak_sampler_diagnostics_limit_support"
+    ],
+    "unaccounted_removed_identities": [],
+    "count_identity": "13674 - 750 duplicate executions - 13 explicit calibration acceptance deselections + 5 added assertions = 12916"
+  },
+  "limitations": [
+    "Every absent baseline identity is accounted for by the existing disposition ledger or exact calibration registry. A renamed or deduplicated identity does not by itself prove assertion quality; the source bodies were reviewed separately.",
+    "These runs differ in selection, source, cache state and concurrent work. The after-run disabled Cargo incremental compilation following a compiler ICE; matching baseline settings were not retained. The checkout changed during the after-run.",
+    "Raw execution time increased from 744.162 to 903.397 seconds. No full-workspace speed improvement, reproducible build-cost improvement or controlled before/after comparison is claimed.",
+    "Later Gaussian, negative-oracle and interchange assertion repairs have separate targeted verification. This full run is not final frozen-source verification. Calibration and performance acceptance remain deferred."
+  ]
+}

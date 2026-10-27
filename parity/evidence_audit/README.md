@@ -304,3 +304,26 @@ checkout and per-assertion receipts under `target/test-performance/`; its checko
 changed during concurrent work, so it is not final frozen-candidate verification
 or a controlled before/after performance comparison. Measured-record acceptance
 remains explicitly excluded pending lockdown and calibration.
+
+`ordinary_rust_comparison.json` accounts for every absent baseline compiled test
+identity using the existing disposition ledger and calibration registry: 756
+copies become six controls, thirteen measured-record consumers remain explicit
+post-lockdown selections, and four metadata assertions are renamed. Five added
+assertions account for the resulting 12,916 executions. No baseline identity is
+unaccounted for. Raw execution time increased from 744.162 to 903.397 seconds;
+matching source/cache/contention and baseline resource settings were not retained,
+so this is coverage accounting and an uncontrolled feedback record, not evidence
+of a whole-workspace speedup. A controlled comparison remains open.
+
+The graph interchange assertions now check complete three-node chain adjacency,
+including absent extra edges, for each original parse and round trip. A fault
+control rejects missing, reversed and extra edges; all three interchange tests
+pass. The DOT/JSON and GML/NetworkX-style fixtures are software format contracts,
+not independent scientific evidence. The parsing capability uses the same
+classification. The PAG input-domain fixture is also software evidence; its
+assertion now requires the expected compile-refusal variant and passes.
+
+Optional ordinary feature verification passed 95 learner tests with
+`ml-full,ml-neural` and 386 model tests with `gaussian-process,ml-full`, with no
+skips or failures. Their doctest targets contain zero examples. These feature
+runs remain ordinary verification and do not supply calibration evidence.

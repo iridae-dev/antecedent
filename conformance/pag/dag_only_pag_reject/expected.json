@@ -1,5 +1,17 @@
 {
   "identifier": "backdoor.adjustment",
   "expect_compile_error": true,
-  "tolerance_class": "Exact"
+  "tolerance_class": "Exact",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_source": "crates/antecedent/tests/pag.rs::dag_only_pag_reject",
+  "evidence_proposition": "A DAG-only backdoor identifier is refused when presented with the fixture two-node PAG.",
+  "limitations": "Software input-domain refusal on one empty PAG. It establishes neither correctness of PAG identification nor general soundness/completeness of any discovery or identification method.",
+  "oracle": {
+    "kind": "regression_pin",
+    "origin": "Retained local API/format contract inputs, reviewed against the exact executing assertion; no external package execution or independent scientific reference is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  }
 }

@@ -32,7 +32,19 @@
     ]
   ],
   "oracle": {
+    "kind": "regression_pin",
+    "origin": "Retained local API/format contract inputs, reviewed against the exact executing assertion; no external package execution or independent scientific reference is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
+  "historical_oracle": {
     "kind": "closed_form",
     "method": "hand-authored DOT and JSON documents of one DAG: node count and directed edges are stated by construction"
-  }
+  },
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_source": "crates/antecedent/tests/graph_interchange.rs::conformance_dot_json_round_trip",
+  "evidence_proposition": "DOT and JSON documents parse and round-trip the declared three-node chain, preserving node count, reachability and its complete directed adjacency.",
+  "limitations": "Exact software syntax and serialization contract. Hand-authored graph structure is not an independent scientific numerical reference or calibration evidence."
 }

@@ -30,12 +30,13 @@ id = "estimate.model.parsing"
 group = "model_and_graph_workflow"
 description = "Graph parsing and validation"
 status = "done"
-evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/interchange/graph_dot_json"
+evidence_kind = "implementation_exists"
 owner = "release"
 evidence_test = "crates/antecedent/tests/graph_interchange.rs"
 evidence_assertion = "conformance_dot_json_round_trip"
 notes = "DOT+JSON+GML+NetworkX via antecedent-io; programmatic DAG + CBOR"
+
+limitations = "Exact graph syntax and serialization coverage on the hand-authored three-node chain in conformance/interchange/graph_dot_json; no scientific identification or calibration claim. GML/NetworkX-style documents have a separate software round-trip assertion in the same source file."
 
 [[capabilities]]
 id = "estimate.model.assumptions"

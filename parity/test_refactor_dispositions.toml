@@ -1038,3 +1038,17 @@ previous = "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs::fix
 replacement = "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs::fixed_regime_fixture_records_scope_and_retained_harness"
 disposition = "renamed_and_strengthened"
 reason = "Retain every original pin, metadata hash and fixed-scope assertion; require the independently authored public-API generator and lock, preserving the deleted-harness metadata. Every numerical canonical-skeleton case remains unchanged. Full marked matrices are reference context; the product does not compare endpoint marks or statistics, and fixed labels do not establish regime inference."
+
+[[case]]
+previous = "crates/antecedent/tests/graph_interchange.rs::conformance_dot_json_round_trip"
+replacement = "crates/antecedent/tests/graph_interchange.rs::conformance_dot_json_round_trip"
+additional_replacements = ["crates/antecedent/tests/graph_interchange.rs::interchange_assertion_rejects_missing_reversed_and_extra_edges"]
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Keep both original parse/node-count/reachability checks and both round trips. Every parsed/restored graph now checks its complete declared chain adjacency, including absent extra edges. A dedicated mutation control rejects missing, reversed and extra edges; no fixture, case or tolerance is removed."
+
+[[case]]
+previous = "crates/antecedent/tests/graph_interchange.rs::conformance_gml_networkx_round_trip"
+replacement = "crates/antecedent/tests/graph_interchange.rs::conformance_gml_networkx_round_trip"
+additional_replacements = ["crates/antecedent/tests/graph_interchange.rs::interchange_assertion_rejects_missing_reversed_and_extra_edges"]
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Keep both original parsers and both round trips. Node-count-only checks now also require every directed edge and absent edge in the declared three-node chain. This remains software interchange coverage, with no asserted external NetworkX execution or scientific accuracy."
