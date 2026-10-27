@@ -84,8 +84,22 @@ pub fn gaussian_kl(mu0: f64, var0: f64, mu1: f64, var1: f64) -> Result<f64, Stat
     } else {
         var0 / var1 - 1.0 + var1.ln() - var0.ln()
     };
-    let standardized_shift = (mu0 - mu1) / var1.sqrt();
-    Ok(0.5 * (variance_term + standardized_shift * standardized_shift))
+    let scale = var1.sqrt();
+    let difference = mu0 - mu1;
+    let standardized_shift = difference / scale;
+    let divergence = 0.5 * (variance_term + standardized_shift * standardized_shift);
+    if divergence.is_finite() {
+        return Ok(divergence);
+    }
+    // Keep the ordinary arithmetic unchanged. Only when an intermediate overflows,
+    // distribute the final half over the terms and scale before subtracting means.
+    let half_variance = if variance_term.is_finite() {
+        0.5 * variance_term
+    } else {
+        (0.5 * var0) / var1 - 0.5 + 0.5 * (var1.ln() - var0.ln())
+    };
+    let shift = if difference.is_finite() { standardized_shift } else { mu0 / scale - mu1 / scale };
+    Ok(half_variance + (0.5 * shift) * shift)
 }
 
 /// Population mean and variance of a slice (`Σ(x − mean)² / n`, with `n` at least 1).
@@ -579,6 +593,7 @@ fn partition_labels(ia: &[usize], ib: &[usize], out: &mut [f64]) {
 }
 
 /// Biased MMD² for the index sets `ia` / `ib` of a precomputed pooled Gram matrix.
+#[cfg(test)]
 fn mmd2_from_gram(k: &[f64], n: usize, ia: &[usize], ib: &[usize]) -> f64 {
     let mut labels = vec![0.0; n];
     partition_labels(ia, ib, &mut labels);
@@ -779,6 +794,24 @@ mod tests {
         for bad in [f64::NAN, f64::INFINITY, -1.0, 0.0] {
             assert!(gaussian_kl(0.0, bad, 0.0, 1.0).is_err());
         }
+    }
+
+    #[test]
+    fn gaussian_kl_keeps_representable_results_when_intermediates_overflow() {
+        // Equal variances give (mu0 - mu1)^2 / (2 * variance). For the
+        // variance-only cases, the logarithmic term is below one ULP here.
+        let cases = [
+            (1e308, f64::MAX, -1e308, f64::MAX, 2.0 * (1e308 / f64::MAX) * 1e308),
+            (1.4e154, 1.0, 0.0, 1.0, 9.8e307),
+            (0.0, f64::MAX, 0.0, 0.75, f64::MAX / 1.5),
+            (1e154, f64::MAX, 0.0, 1.0, 0.5 * f64::MAX + 5e307),
+        ];
+        for (mu0, var0, mu1, var1, expected) in cases {
+            let actual = gaussian_kl(mu0, var0, mu1, var1).unwrap();
+            assert!(actual.is_finite(), "{mu0}, {var0}, {mu1}, {var1}: {actual}");
+            assert!((actual / expected - 1.0).abs() < 1e-14);
+        }
+        assert!(gaussian_kl(f64::MAX, 1.0, -f64::MAX, 1.0).unwrap().is_infinite());
     }
 
     #[test]
