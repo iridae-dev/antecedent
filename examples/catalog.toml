@@ -89,15 +89,15 @@ claim = "A propensity model with scores at the boundary refuses as positivity_vi
 
 [[example]]
 id = "observational_study"
-title = "Estimate a training programme's effect from observational data"
-summary = "Estimate a job-training effect on participants from a non-experimental comparison group: see weighting refuse without overlap, restrict to common support, and compare with the experiment."
+title = "Estimate the effect of quitting smoking from observational data"
+summary = "Estimate the weight change that follows quitting smoking from the NHEFS cohort: declare the graph and the missing-outcome policy, read the overlap diagnostics, cross-check estimators, and read an E-value for unmeasured confounding."
 python = "examples/python/observational_study.py"
 unreleased = true
 topic = "Tutorials"
 level = "intermediate"
 dependencies = ["numpy"]
 runtime = "up to 1 min"
-claim = "Effect on the treated under a declared no-unmeasured-confounding graph, on a comparison group restricted by pre-programme covariates. On the verified real files the whole comparison group refuses for extreme propensity scores; estimators then disagree and neither is known causal truth. Offline runs use a synthetic stand-in with a known truth. See examples/data/nsw_psid.toml for provenance and licence."
+claim = "Average effect of quitting on weight change under a declared no-unmeasured-confounding graph and a declared complete-case policy for 63 missing outcomes; multiple imputation and other estimators are cross-checks. On the verified real file the estimates are not known causal truth, and the published analysis is close to but not the same computation. Offline runs use a synthetic stand-in with a stated fixture effect. See examples/data/nhefs.toml for provenance and licence."
 
 [[example]]
 id = "analysis_workflow"

@@ -8,13 +8,14 @@ Real observational data are never presented as known causal truth. An example bu
 
 | Dataset | Used by | Licence |
 | --- | --- | --- |
-| [`nsw_psid`](nsw_psid.toml): NSW job-training experiment with a PSID comparison group | `examples/python/observational_study.py` | not stated by the publisher; downloaded on request, not redistributed |
+| [`nhefs`](nhefs.toml): NHEFS smoking-cessation subset from Hernán and Robins, *Causal Inference: What If* | `examples/python/observational_study.py` | not stated by the publisher; downloaded on request, not redistributed |
+| [`nsw_psid`](nsw_psid.toml): NSW job-training experiment with a PSID comparison group | `examples/python/when_overlap_fails.py` | not stated by the publisher; downloaded on request, not redistributed |
 
 ## Fetch, verify, use offline
 
 ```bash
-python examples/data/fetch.py nsw_psid             # download, then verify every checksum
-python examples/data/fetch.py nsw_psid --offline   # verify the cache without the network
+python examples/data/fetch.py nhefs             # download, then verify every checksum
+python examples/data/fetch.py nhefs --offline   # verify the cache without the network
 ```
 
 Files are cached in `$ANTECEDENT_DATA_DIR`, or `~/.cache/antecedent/data` when that is unset. A file is used only if its SHA-256 matches the manifest; a manifest whose checksum is empty is never treated as verified. Nothing is fetched when a module is imported.

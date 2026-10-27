@@ -9,9 +9,9 @@ licence, checksums and preprocessing.
 
 Most PSID respondents earned far more than anyone who entered the programme, so a propensity
 model gives many of them essentially no chance of treatment. The script follows what Antecedent
-reports at each step: the diagnostics of a default run, the ``positivity_violated`` refusal
-when no overlap policy is declared, the common-support estimate once a trim is declared, and
-how far the answer moves with that choice. On the real files it ends by comparing with the
+reports at each step: the ``positivity_violated`` refusal when no overlap policy is declared,
+the estimate a declared clip yields and the ``partial`` status it carries, the common-support
+estimate once a trim is declared, and how far the answer moves with that choice. On the real files it ends by comparing with the
 randomised NSW benchmark, which estimates the same effect on the treated.
 
 Data. By default this script runs on a **synthetic stand-in** with the same ten columns and
@@ -28,7 +28,7 @@ from pathlib import Path
 
 import antecedent as ant
 import numpy as np
-from antecedent import population
+from antecedent import host, population
 from antecedent.estimators import Aipw, Overlap, PropensityWeighting
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data"))
@@ -160,28 +160,30 @@ def main() -> None:
     n_treated = int(data["treat"].sum())
     assert n_treated == 185 and len(data["treat"]) == 2675
 
-    # 1. A default run. Weighting clips propensities to [0.01, 0.99] by default.
-    default = ant.outcomes.require_success(
-        ask(data, PropensityWeighting(bootstrap=100))
-    )
-    est = default.estimate
-    print(
-        f"Default clip: effect on the treated {default.answer.value:,.0f}; "
-        f"effective sample size {est.overlap_ess:.0f} of {len(data['treat'])} rows; "
-        f"smallest raw propensity {est.overlap_propensity_min:.1e}"
-    )
-    assert est.overlap_ess < 0.2 * len(data["treat"])
-
-    # 2. Ask without a clip: the scores cannot be used as they are, and Antecedent says why.
-    refused = ask(data, PropensityWeighting(bootstrap=100, overlap=Overlap(clip=None)))
+    # 1. Ask with no overlap policy. Antecedent will not decide a positivity question for you.
+    refused = ask(data, PropensityWeighting(bootstrap=100))
     refusal = refused.refusal
     assert refusal is not None and refusal.code == "positivity_violated"
     rows = refusal.fields["refusal_fields"]["boundary_count"]
     assert rows > 0
-    print(f"Without a clip: {refusal.code}. {refusal.message.split(': ', 2)[-1]}")
+    print(f"No overlap policy: {refusal.code}. {refusal.message.split(': ', 2)[-1]}")
     print(f"Remedy: {refusal.remedy}")
 
-    # 3. Follow the remedy: declare a trim. The target becomes the treated rows with common support.
+    # 2. Declare a clip. The answer exists, and the claim says it rests on the clip.
+    clipped = ant.outcomes.require_success(
+        ask(data, PropensityWeighting(bootstrap=100, overlap=Overlap(clip=0.01)))
+    )
+    claim = clipped.inspect().contract["claim"]
+    assert claim["support_domain"] == "limited"
+    assert host.claim_status(claim) == "partial"
+    est = clipped.estimate
+    print(
+        f"Declared clip at 0.01: effect on the treated {clipped.answer.value:,.0f}; "
+        f"effective sample size {est.overlap_ess:.0f} of {len(data['treat'])} rows; "
+        f"support {claim['support_domain']}, host status {host.claim_status(claim)}"
+    )
+
+    # 3. Declare a trim instead. The target becomes the treated rows with common support.
     trim = Overlap(clip=None, trim=0.01)
     trimmed = ant.outcomes.require_success(
         ask(data, PropensityWeighting(bootstrap=100, overlap=trim))
@@ -189,14 +191,16 @@ def main() -> None:
     aipw = ant.outcomes.require_success(ask(data, Aipw(bootstrap=100, overlap=trim)))
     excluded = trimmed.estimate.overlap_excluded_fraction
     assert excluded is not None and 0.0 < excluded < 1.0
+    assert host.claim_status(trimmed.inspect().contract["claim"]) == "partial"
     se = trimmed.estimate.se_bootstrap or trimmed.estimate.se_analytic
     print(
-        f"Trim at 0.01: {excluded:.0%} of rows excluded; weighting {trimmed.answer.value:,.0f} "
-        f"(se {se:,.0f}), AIPW {aipw.answer.value:,.0f}, on the common-support treated rows."
+        f"Declared trim at 0.01: {excluded:.0%} of rows excluded; weighting "
+        f"{trimmed.answer.value:,.0f} (se {se:,.0f}), AIPW {aipw.answer.value:,.0f}, "
+        "on the common-support treated rows."
     )
 
     # 4. How far the answer moves with the overlap choice is itself a finding.
-    answers = [default.answer.value, trimmed.answer.value, aipw.answer.value]
+    answers = [clipped.answer.value, trimmed.answer.value, aipw.answer.value]
     print(
         f"Spread across declared overlap choices and estimators: {max(answers) - min(answers):,.0f}"
     )
