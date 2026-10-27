@@ -246,6 +246,7 @@ def build(tmp: Path) -> None:
         "run_evidence_rows.py",
         "_py_closure.py",
         "_rust_source.py",
+        "_source_cache.py",
         "_repo.py",
     ):
         shutil.copy(HERE / helper, tmp / "scripts" / helper)

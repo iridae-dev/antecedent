@@ -8,6 +8,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-design/tests/design_oracle.rs"
 evidence_assertion = "fixed_budget_scores_match_exact_expected_information_gain"
+limitations = "Implementation-exists evidence: the cited assertion fixed_budget_scores_match_exact_expected_information_gain shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Measure / Intervene / ObserveEnvironment / IncreaseSamplingRate plans"
 
 [[capabilities]]
@@ -16,7 +17,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-design/tests/design_oracle.rs"
 evidence_assertion = "fixed_budget_scores_match_exact_expected_information_gain"
-known_truth_fixture = "conformance/design_state/rank_candidates_eig"
+known_truth_fixture = "conformance/design/expected_information_gain"
 notes = "Discrete graph-posterior EIG via observation sampling + reweight; ID via unlock/identifier flags; SE via Gram/design analysis"
 
 [[capabilities]]
@@ -52,7 +53,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-design/tests/design_oracle.rs"
 evidence_assertion = "candidate_ranking_replays_and_calibrates_across_seed_grid"
-known_truth_fixture = "conformance/design_state/rank_candidates_eig"
+known_truth_fixture = "conformance/design/candidate_ranking"
 notes = "Batched MC with CRN, adaptive stop, constraint violations recorded; examples/python/rank_designs.py"
 
 [[capabilities]]
@@ -61,6 +62,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-state/src/state.rs"
 evidence_assertion = "append_marks_results_stale_without_autorun"
+limitations = "Implementation-exists evidence: the cited assertion append_marks_results_stale_without_autorun shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "CausalState event/apply/invalidation without auto-rerun (ADR 0016); examples/python/causal_state_workflow.py"
 
 [[capabilities]]
@@ -79,6 +81,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-state/src/suff_stats.rs"
 evidence_assertion = "streaming_cov_matches_batch"
+limitations = "Implementation-exists evidence: the cited assertion streaming_cov_matches_batch shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "StreamingCovariance Welford updates"
 
 [[capabilities]]
@@ -87,6 +90,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-state/src/state.rs"
 evidence_assertion = "cache_budget_refuses_oversized_insert"
+limitations = "Implementation-exists evidence: the cited assertion cache_budget_refuses_oversized_insert shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "ResultStore refuses over-budget inserts"
 
 [[capabilities]]
@@ -95,6 +99,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "design_ranking_composes_the_existing_ranker"
+limitations = "Implementation-exists evidence: the cited assertion design_ranking_composes_the_existing_ranker shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "rank_designs / new_antecedent_state / apply_state_event + Python surfaces. Adapters: design_rank_* in crates/antecedent/tests/identity_contract.rs (licensed-cell gate, then this ranker). Does not invent a parallel ranking API."
 
 [[capabilities]]

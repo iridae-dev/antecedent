@@ -6,6 +6,7 @@ here, including agreement with an external package, grants a calibration license
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 EVIDENCE_KINDS = frozenset(
@@ -45,6 +46,18 @@ def evidence_roles(kind: str | None, activity: str | None = None) -> list[str]:
     if kind in KNOWN_TRUTH_KINDS or kind == "contract_equivalence":
         return ["software", "scientific"]
     return ["software"]
+
+
+def software_only_roles(roles: object) -> bool:
+    """One predicate for fixtures that serve software checks only.
+
+    A statistical-smoke check is still software coverage; neither role is a
+    scientific proposition, and every consumer must apply this same test."""
+    return (
+        isinstance(roles, list)
+        and "software" in roles
+        and all(role in ("software", "statistical_smoke") for role in roles)
+    )
 
 
 def kind_problems(
@@ -163,6 +176,43 @@ def fixture_review_problems(root: Path, document: dict) -> list[str]:
     return problems
 
 
+PRODUCT_IMPORT = re.compile(
+    r"^\s*(?:from|import)\s+antecedent\b|\bcargo\s+(?:run|test|build)\b|"
+    r"\bantecedent[-_](?:estimate|stats|identify|discovery|core)\b",
+    re.MULTILINE,
+)
+
+
+def false_independence_problems(root: Path, oracle: dict, artifacts: list) -> list[str]:
+    """Reject review shapes that contradict the independence they claim.
+
+    Source scanning cannot establish independence; it can only refuse a review
+    whose own bound artifacts show the reference is the product, a product
+    output, or the asserting test."""
+    problems = []
+    if oracle.get("kind") == "regression_pin" and not oracle.get("independent_fields"):
+        problems.append(
+            "reference_review cannot claim independence for a regression_pin oracle"
+        )
+    by_role: dict[str, list[str]] = {}
+    for artifact in artifacts:
+        if isinstance(artifact, dict) and isinstance(artifact.get("path"), str):
+            by_role.setdefault(str(artifact.get("role")), []).append(artifact["path"])
+    generators = by_role.get("generator", [])
+    if set(generators) & set(by_role.get("assertion_source", [])):
+        problems.append("reference_review generator is also the asserting test")
+    for rel in generators:
+        path = (root / rel).resolve()
+        if not path.is_relative_to(root.resolve()):
+            continue
+        if rel.startswith("crates/") and "/tests/" not in rel:
+            problems.append(f"reference_review generator is product source: {rel}")
+        elif path.suffix == ".py" and path.is_file():
+            if PRODUCT_IMPORT.search(path.read_text(encoding="utf-8", errors="ignore")):
+                problems.append(f"reference_review generator depends on product code: {rel}")
+    return problems
+
+
 def reference_review_problems(root: Path, oracle: dict) -> list[str]:
     """Check a retained review's integrity, never infer independence from source scanning."""
     if not isinstance(oracle, dict):
@@ -212,6 +262,7 @@ def reference_review_problems(root: Path, oracle: dict) -> list[str]:
             problems.append(f"reference_review missing artifact: {rel}")
         elif hashlib.sha256(path.read_bytes()).hexdigest() != artifact.get("sha256"):
             problems.append(f"reference_review stale artifact: {rel}")
+    problems.extend(false_independence_problems(root, oracle, artifacts))
     if not {"generator", "environment_lock", "assertion_source"}.issubset(roles):
         problems.append(
             "reference_review must bind generator, environment lock and assertion source"

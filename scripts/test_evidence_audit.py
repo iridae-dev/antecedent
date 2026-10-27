@@ -25,6 +25,7 @@ from evidence_kinds import (
     inline_reference_problems,
     kind_problems,
     reference_review_problems,
+    software_only_roles,
 )
 from reference_compare import values_close
 
@@ -244,6 +245,214 @@ class Classification(unittest.TestCase):
             self.assertIn("software-only", evidence.fixture_kind_problems(root, row)[0])
             path.write_text(json.dumps({"evidence_roles": None}), encoding="utf-8")
             self.assertTrue(evidence.fixture_kind_problems(root, row))
+
+    def test_unclassified_fixture_is_reported_and_software_declarations_need_a_live_assertion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "test_live.py").write_text(
+                "def test_live():\n    assert 1 == 1\n", encoding="utf-8"
+            )
+            path = root / "expected.json"
+            declared = {
+                "evidence_roles": ["software"],
+                "evidence_kind": "regression_pin",
+                "evidence_source": "test_live.py::test_live",
+                "evidence_proposition": "A declared proposition.",
+                "limitations": "A declared limit.",
+            }
+
+            def gaps(document):
+                path.write_text(json.dumps(document), encoding="utf-8")
+                return audit.fixture_report(root, path)["gaps"]
+
+            self.assertIn("oracle_origin_unrecorded", gaps({"tolerance": 1.0}))
+            self.assertEqual(gaps(declared), [])
+            self.assertEqual(
+                gaps({**declared, "evidence_roles": ["software", "statistical_smoke"]}), []
+            )
+            self.assertIn(
+                "software_fixture_missing_exact_assertion",
+                gaps({**declared, "evidence_source": "test_live.py"}),
+            )
+            self.assertTrue(
+                gaps({**declared, "evidence_source": "test_live.py::test_removed"})
+            )
+            (root / "test_live.py").write_text(
+                "import pytest\n@pytest.mark.skip\ndef test_live():\n    assert 1 == 1\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(gaps(declared))
+            (root / "test_live.py").write_text(
+                "def test_live():\n    assert 1 == 1\n", encoding="utf-8"
+            )
+            for field in ("evidence_proposition", "limitations"):
+                self.assertIn(
+                    f"software_fixture_missing_{field}", gaps({**declared, field: " "})
+                )
+            self.assertIn(
+                "invalid_fixture_evidence_roles",
+                gaps({**declared, "evidence_roles": ["software", "verified"]}),
+            )
+            # A scientific role is not a software-only declaration, so it needs an origin.
+            self.assertIn(
+                "oracle_origin_unrecorded",
+                gaps({**declared, "evidence_roles": ["software", "scientific"]}),
+            )
+
+    def test_known_truth_claim_must_cite_a_test_that_names_its_fixture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "tests").mkdir()
+            test = root / "tests" / "it.rs"
+            claim = {
+                "evidence_kind": "internal_known_truth",
+                "evidence_test": "tests/it.rs",
+                "known_truth_fixture": "conformance/area/case",
+            }
+            test.write_text("#[test]\nfn other() {}\n", encoding="utf-8")
+            self.assertEqual(
+                audit.fixture_load_problems(root, claim),
+                ["known_truth_fixture_not_named_by_cited_test"],
+            )
+            test.write_text('const F: &str = "conformance/area/case/expected.json";\n', encoding="utf-8")
+            self.assertEqual(audit.fixture_load_problems(root, claim), [])
+            (root / "tests" / "common").mkdir()
+            test.write_text("#[test]\nfn other() {}\n", encoding="utf-8")
+            (root / "tests" / "common" / "load.rs").write_text('fn f() { fixture_dir("case"); }\n', encoding="utf-8")
+            self.assertEqual(audit.fixture_load_problems(root, claim), [])
+            self.assertEqual(
+                audit.fixture_load_problems(root, {**claim, "evidence_kind": "regression_pin"}), []
+            )
+
+    def test_reviews_that_contradict_their_independence_claim_are_rejected(self):
+        import hashlib
+
+        def build(root, generator_source, generator_path="reference.py", kind="closed_form",
+                  assertion_path="test_truth.py"):
+            artifacts = []
+            for role, rel, text in (
+                ("generator", generator_path, generator_source),
+                ("environment_lock", "reference.py.lock", "v = 1\n"),
+                ("assertion_source", assertion_path, "def test_t():\n    assert 1\n"),
+            ):
+                target = root / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if not target.exists():
+                    target.write_text(text, encoding="utf-8")
+                artifacts.append(
+                    {"role": role, "path": rel, "sha256": hashlib.sha256(target.read_bytes()).hexdigest()}
+                )
+            review = {
+                key: "reviewed scope, with explicit limits"
+                for key in ("scope", "independence_basis", "historical_exposure", "redistribution", "limitations")
+            }
+            return {"kind": kind, "reference_review": {**review, "artifacts": artifacts}}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertEqual(reference_review_problems(root, build(root, "import numpy\n")), [])
+        for name, source, kwargs, expected in (
+            ("imports product", "import antecedent\n", {}, "depends on product code"),
+            ("invokes cargo", "import subprocess\nsubprocess.run('cargo test', shell=True)\n", {}, "depends on product code"),
+            ("regression pin", "import numpy\n", {"kind": "regression_pin"}, "regression_pin"),
+            ("product source", "fn main() {}\n", {"generator_path": "crates/antecedent-stats/src/lib.rs"}, "product source"),
+            ("test as generator", "import numpy\n", {"generator_path": "test_truth.py"}, "also the asserting test"),
+        ):
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                problems = reference_review_problems(root, build(root, source, **kwargs))
+                self.assertTrue(any(expected in p for p in problems), problems)
+
+    def test_software_only_claim_must_state_its_limits(self):
+        claim = {"roles": ["software"], "evidence_kind": "implementation_exists"}
+        self.assertEqual(
+            audit.software_claim_problems(claim), ["software_claim_missing_limitations"]
+        )
+        self.assertTrue(audit.software_claim_problems({**claim, "limitations": "  "}))
+        self.assertFalse(audit.software_claim_problems({**claim, "limitations": "Smoke only."}))
+        self.assertFalse(
+            audit.software_claim_problems({"roles": ["software", "scientific"], "evidence_kind": "internal_known_truth"})
+        )
+
+    def test_every_consumer_shares_one_software_only_predicate(self):
+        self.assertTrue(software_only_roles(["software"]))
+        self.assertTrue(software_only_roles(["software", "statistical_smoke"]))
+        for roles in (None, [], ["scientific"], ["software", "scientific"], ["process"]):
+            self.assertFalse(software_only_roles(roles))
+
+    def test_known_truth_claim_cannot_rest_on_a_software_only_fixture(self):
+        for roles in (["software"], ["software", "statistical_smoke"]):
+            for kind in ("internal_known_truth", "frozen_external_oracle", "behavioral_parity"):
+                self.assertTrue(
+                    audit.software_fixture_claim_problems(
+                        {"evidence_kind": kind}, {"evidence_roles": roles}
+                    )
+                )
+        self.assertFalse(
+            audit.software_fixture_claim_problems(
+                {"evidence_kind": "regression_pin"}, {"evidence_roles": ["software"]}
+            )
+        )
+        self.assertFalse(
+            audit.software_fixture_claim_problems(
+                {"evidence_kind": "internal_known_truth"},
+                {"evidence_roles": ["software", "scientific"]},
+            )
+        )
+
+    def test_altered_tolerance_or_false_independence_invalidates_a_retained_review(self):
+        import hashlib
+
+        from evidence_kinds import fixture_payload_digest, fixture_review_problems
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifacts = []
+            for role, rel in (
+                ("generator", "reference.py"),
+                ("environment_lock", "reference.py.lock"),
+                ("assertion_source", "test_truth.py"),
+            ):
+                (root / rel).write_text("x = 1\n", encoding="utf-8")
+                artifacts.append(
+                    {
+                        "role": role,
+                        "path": rel,
+                        "sha256": hashlib.sha256((root / rel).read_bytes()).hexdigest(),
+                    }
+                )
+            review = {
+                key: "reviewed scope, with explicit limits"
+                for key in (
+                    "scope",
+                    "independence_basis",
+                    "historical_exposure",
+                    "redistribution",
+                    "limitations",
+                )
+            }
+            review["artifacts"] = artifacts
+            document = {
+                "oracle": {"kind": "external_package", "reference_review": review},
+                "tolerance": {"absolute": 1e-9},
+            }
+            review["fixture_payload_sha256"] = fixture_payload_digest(document)
+            self.assertEqual(fixture_review_problems(root, document), [])
+            loosened = {**document, "tolerance": {"absolute": 1e-3}}
+            self.assertTrue(fixture_review_problems(root, loosened))
+            # Re-declaring the origin cannot reuse a review recorded for another origin.
+            relabelled = {
+                **document,
+                "oracle": {**document["oracle"], "kind": "closed_form"},
+            }
+            self.assertTrue(fixture_review_problems(root, relabelled))
+            # A review that states no independence basis is not a review.
+            blank = {**review, "independence_basis": " "}
+            self.assertTrue(
+                fixture_review_problems(
+                    root, {"oracle": {"reference_review": blank}, "tolerance": 0}
+                )
+            )
 
     def test_retained_review_rejects_removed_assertions_and_changed_helpers(self):
         import hashlib
@@ -593,6 +802,38 @@ class NativeBuildIdentity(unittest.TestCase):
             source.unlink()
             with self.assertRaisesRegex(ValueError, "stale"):
                 native.check(root)
+
+
+class PythonSkipGuard(unittest.TestCase):
+    def run_session(self, tests: str, *args: str) -> subprocess.CompletedProcess:
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "conftest.py").write_text(
+                (repo / "python/tests/conftest.py").read_text(encoding="utf-8"), encoding="utf-8"
+            )
+            (root / "_repo_text.py").write_text(f"from pathlib import Path\nREPO_ROOT = Path({str(repo)!r})\n", encoding="utf-8")
+            (root / "test_session.py").write_text(tests, encoding="utf-8")
+            return subprocess.run(
+                [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *args],
+                cwd=root, capture_output=True, text=True, check=False,
+            )
+
+    def test_a_session_that_mostly_skips_or_selects_nothing_fails(self):
+        def session(skipped: int) -> str:
+            lines = ["import pytest"]
+            for i in range(30):
+                action = "pytest.skip('injected')" if i < skipped else "assert 1 + 1 == 2"
+                lines.append(f"def test_{i}():\n    {action}")
+            return "\n".join(lines) + "\n"
+
+        body = session(3)
+        failed = self.run_session(body)
+        self.assertNotEqual(failed.returncode, 0, failed.stdout)
+        self.assertIn("collected tests skipped", failed.stdout)
+        few = session(1)
+        self.assertEqual(self.run_session(few).returncode, 0)
+        self.assertEqual(self.run_session(few, "-k", "no_such_test").returncode, 5)
 
 
 class CitationIdentity(unittest.TestCase):

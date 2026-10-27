@@ -9,6 +9,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-model/src/compile.rs"
 evidence_assertion = "compile_chain_topo_order"
+limitations = "Implementation-exists evidence: the cited assertion compile_chain_topo_order shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 python_facade = "full"
 notes = "CompiledCausalModel topo + ParentGatherPlan (Rust); Python FittedGcm + mechanism_kinds()"
 
@@ -67,7 +68,7 @@ notes = "Weighting, KDE, MCMC do-samplers; Python sample_do / sample_interventio
 id = "gcm.do_sampling.shift"
 status = "done"
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/gcm/do_sampling_grid"
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent/tests/gcm.rs::gcm_shift_intervention_differs_from_hard_set", proposition = "An additive shift do(X := X + delta) moves the outcome mean by the analytic 2*delta on the declared linear Gaussian model and differs from the hard set.", tolerance = "analytic expectation in the test; see test", limitations = "Inline analytic expectation on one linear Gaussian model; no shift-specific frozen fixture exists and no distributional or calibration claim is made." }
 evidence_test = "crates/antecedent/tests/gcm.rs"
 evidence_assertion = "gcm_shift_intervention_differs_from_hard_set"
 limitations = "Shift semantics asserted via inline analytic expectation (2*delta); no shift-specific frozen fixture exists."
@@ -98,8 +99,9 @@ notes = "Graph-and-data falsification with no fitted mechanisms: local Markov im
 [[capabilities]]
 id = "gcm.counterfactual.aap"
 status = "done"
-evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/gcm/nested_temporal_counterfactual"
+evidence_kind = "internal_cross_check"
+known_truth_fixture = "conformance/gcm/gcm_cf_ite"
+limitations = "The cited assertion loads conformance/gcm/gcm_cf_ite, a software-only fixture: the mean counterfactual ITE is checked within 0.15 of the declared structural 2 and streaming means equal retained means. The declared effect is the data-generating coefficient; independence is not reviewed and no abduction-action-prediction accuracy beyond this seeded case is established."
 evidence_test = "crates/antecedent/tests/gcm.rs"
 evidence_assertion = "gcm_cf_ite"
 python_facade = "full"

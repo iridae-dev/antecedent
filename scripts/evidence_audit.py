@@ -29,6 +29,7 @@ from evidence_kinds import (
     fixture_review_problems,
     inline_reference_problems,
     kind_problems,
+    software_only_roles,
 )
 from provenance_links import method_review_problems
 from test_evidence import (
@@ -138,11 +139,7 @@ def fixture_report(root: Path, path: Path) -> dict:
         )
     ):
         gaps.append("invalid_fixture_evidence_roles")
-    software_only = (
-        isinstance(roles, list)
-        and "software" in roles
-        and all(role in ("software", "statistical_smoke") for role in roles)
-    )
+    software_only = software_only_roles(roles)
     if software_only:
         source, _, assertion = str(data.get("evidence_source", "")).partition("::")
         source_path = in_repo(root, source)
@@ -257,6 +254,74 @@ def claim_rows(root: Path) -> list[dict]:
     return claims
 
 
+def cited_test_text(root: Path, test: str) -> str:
+    """Cited test source plus its sibling module directory and shared test helpers."""
+    path = in_repo(root, test)
+    if not path or not path.is_file():
+        return ""
+    files = {path}
+    if path.suffix == ".rs":
+        if path.with_suffix("").is_dir():
+            files.update(path.with_suffix("").glob("**/*.rs"))
+        files.update((path.parent / "common").glob("**/*.rs"))
+    return "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in sorted(files))
+
+
+def fixture_load_problems(root: Path, claim: dict) -> list[str]:
+    """A known-truth claim's cited test must actually name the fixture it cites."""
+    fixture, test = claim.get("known_truth_fixture"), claim.get("evidence_test")
+    if (
+        claim.get("evidence_kind") not in KNOWN_TRUTH_KINDS
+        or not isinstance(fixture, str)
+        or not test
+        or fixture.endswith((".rs", ".py"))
+    ):
+        return []
+    fixture = fixture.removesuffix("/expected.json").removesuffix(".json")
+    text = cited_test_text(root, test)
+    if not text:
+        return []
+    if fixture in text or fixture.rsplit("/", 1)[-1] in text:
+        return []
+    return ["known_truth_fixture_not_named_by_cited_test"]
+
+
+def software_claim_problems(claim: dict) -> list[str]:
+    """A claim without a scientific role must say what its evidence does not show."""
+    if (
+        "scientific" not in claim["roles"]
+        and claim["evidence_kind"] != "process_attested"
+        and not str(claim.get("limitations", "")).strip()
+    ):
+        return ["software_claim_missing_limitations"]
+    return []
+
+
+def software_fixture_claim_problems(claim: dict, fixture: dict) -> list[str]:
+    """A known-truth claim must not rest on a fixture declared software-only."""
+    if claim.get("evidence_kind") in KNOWN_TRUTH_KINDS and software_only_roles(
+        fixture.get("evidence_roles")
+    ):
+        return ["software_only_fixture_cannot_back_known_truth"]
+    return []
+
+
+def axis_coverage(claims: list[dict]) -> dict[str, dict[str, int]]:
+    """Licensed rows per graph class and inference, split by evidence role.
+
+    A cell with no scientific row is software coverage only; this is a map of
+    where evidence is thin, not a verdict on any row."""
+    table: dict[str, dict[str, int]] = {}
+    for claim in claims:
+        if claim["registry"] != "parity/support_licensed.toml":
+            continue
+        key = f"{claim.get('graph_class')}/{claim.get('inference')}"
+        row = table.setdefault(key, {"rows": 0, "scientific": 0, "software_only": 0})
+        row["rows"] += 1
+        row["scientific" if "scientific" in claim["roles"] else "software_only"] += 1
+    return dict(sorted(table.items()))
+
+
 def build_report(root: Path) -> dict:
     root = root.resolve()
     claims = claim_rows(root)
@@ -293,6 +358,10 @@ def build_report(root: Path) -> dict:
                 )
             else:
                 problems.append("missing_or_unrecognized_fixture")
+        problems.extend(fixture_load_problems(root, claim))
+        problems.extend(software_claim_problems(claim))
+        if fixture and info:
+            problems.extend(software_fixture_claim_problems(claim, info))
         if fixture and info:
             problems.extend(
                 kind_problems(
@@ -478,9 +547,53 @@ def build_report(root: Path) -> dict:
         if dispositions_path.is_file()
         else []
     )
+    def scientific_assertions():
+        return {
+            (c.get("evidence_test"), c.get("evidence_assertion"))
+            for c in claims
+            if "scientific" in c["roles"]
+            and c.get("evidence_activity") != "calibration_acceptance"
+            and c.get("evidence_test")
+            and c.get("evidence_assertion")
+        }
+
+    partition = {
+        # Each count answers one question; none is derived from another.
+        "software_coverage": {
+            "claims_with_software_role": sum("software" in c["roles"] for c in claims),
+            "software_only_fixtures": sum(
+                software_only_roles(f.get("evidence_roles")) for f in fixtures
+            ),
+        },
+        "scientific_propositions": {
+            "distinct_cited_assertions": len(scientific_assertions()),
+            "claims_with_scientific_role": sum(
+                "scientific" in c["roles"]
+                and c.get("evidence_activity") != "calibration_acceptance"
+                for c in claims
+            ),
+        },
+        "licensed_claims": {
+            "registry": "parity/support_licensed.toml",
+            "claims": sum(c["registry"] == "parity/support_licensed.toml" for c in claims),
+        },
+        "licensed_axis_coverage": axis_coverage(claims),
+        "pending_calibration": {
+            "acceptance_assertions": len(calibration_acceptance),
+            "status": "pending_frozen_candidate",
+        },
+        "evidence_gaps": {
+            "claims_with_gaps": sum(bool(c["gaps"]) for c in claims),
+            "fixtures_with_gaps": sum(bool(f["gaps"]) for f in fixtures),
+            "oracle_origin_unrecorded": sum(
+                "oracle_origin_unrecorded" in f["gaps"] for f in fixtures
+            ),
+        },
+    }
     return {
         "schema": 1,
         "report_kind": "source_evidence_audit",
+        "partition": partition,
         "commit": proc.stdout.strip(),
         "worktree_changes": status.stdout.splitlines(),
         "execution_verified": False,
@@ -561,8 +674,34 @@ def render(report: dict) -> str:
     ):
         roles, activity = classification
         lines.append(f"| {roles} / {activity} | {count} |")
+    partition = report["partition"]
+    lines += [
+        "",
+        "## Evidence partition (separate questions; none implies another)",
+        "",
+        f"- Software coverage: {partition['software_coverage']['claims_with_software_role']} claims with a software role; "
+        f"{partition['software_coverage']['software_only_fixtures']} software-only fixtures.",
+        f"- Scientific propositions: {partition['scientific_propositions']['distinct_cited_assertions']} distinct cited assertions "
+        f"({partition['scientific_propositions']['claims_with_scientific_role']} claims); declarations, not verified execution or independence.",
+        f"- Licensed claims: {partition['licensed_claims']['claims']} rows in {partition['licensed_claims']['registry']}; a licensed row is not calibration.",
+        f"- Pending calibration: {partition['pending_calibration']['acceptance_assertions']} acceptance assertions; "
+        f"{partition['pending_calibration']['status']}; no measurements or attestations are made here.",
+        f"- Evidence gaps: {partition['evidence_gaps']['claims_with_gaps']} claims and "
+        f"{partition['evidence_gaps']['fixtures_with_gaps']} fixtures with gaps; "
+        f"{partition['evidence_gaps']['oracle_origin_unrecorded']} with unrecorded oracle origin.",
+    ]
+    thin = [
+        f"{key} ({v['software_only']} of {v['rows']})"
+        for key, v in partition["licensed_axis_coverage"].items()
+        if v["scientific"] == 0
+    ]
+    lines.append(
+        "- Licensed graph-class/inference cells with no scientific row: "
+        + (", ".join(thin) if thin else "none")
+        + "."
+    )
     software_fixtures = [
-        f for f in report["fixtures"] if f.get("evidence_roles") == ["software"]
+        f for f in report["fixtures"] if software_only_roles(f.get("evidence_roles"))
     ]
     reviewed = [
         f

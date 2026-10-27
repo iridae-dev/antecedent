@@ -19,6 +19,7 @@ evidence_kind = "implementation_exists"
 python_facade = "thin"
 evidence_test = "crates/antecedent-attribution/src/coalition.rs"
 evidence_assertion = "cache_hit_miss_and_disable"
+limitations = "Implementation-exists evidence: the cited assertion cache_hit_miss_and_disable shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Semantic coalition cache keyed by mask + tag under CachePolicy (ExecutionContext; no dedicated Python type)"
 
 [[capabilities]]

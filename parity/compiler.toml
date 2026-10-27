@@ -14,6 +14,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/licensed_compiler.rs"
 evidence_assertion = "every_licensed_cell_inspects_as_a_first_class_contract"
+limitations = "Implementation-exists evidence: the cited assertion every_licensed_cell_inspects_as_a_first_class_contract shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Cartesian inspect only. Identification remains Unavailable. Lifecycle close is compiler.e2e_licensed_cells."
 
 [[capabilities]]
@@ -37,6 +38,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "inspect_does_not_identify"
+limitations = "Implementation-exists evidence: the cited assertion inspect_does_not_identify shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Identification-product and uncertainty slots stay Unavailable. Parent: estimate.model.workflow."
 
 [[capabilities]]
@@ -61,6 +63,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "composition_inspect_and_metadata_read_do_not_identify"
+limitations = "Implementation-exists evidence: the cited assertion composition_inspect_and_metadata_read_do_not_identify shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "decode_analysis_result_contract reads the contract section only."
 
 [[capabilities]]
@@ -72,6 +75,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent-io-core/src/analysis_result_artifact/tests.rs"
 evidence_assertion = "validate_result_refuses_wrong_query_ids_and_keeps_the_valid_counterpart"
+limitations = "Implementation-exists evidence: the cited assertion validate_result_refuses_wrong_query_ids_and_keeps_the_valid_counterpart shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 composition_filter = "validate_result_"
 notes = "Also: validate_result_refuses_changed_horizon_*, *_inconsistent_atom_totals_*, *_inconsistent_masses_*. Mapped temporal IDs skip raw equality. Parent: release.artifact_schema."
 
@@ -84,6 +88,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "claim_handoff_sender_restricted_forward_preserves_losses"
+limitations = "Implementation-exists evidence: the cited assertion claim_handoff_sender_restricted_forward_preserves_losses shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 composition_filter = "claim_handoff_|derived_claim_"
 notes = "Semantic acceptance is distinct from storage/forwarding. Lossy scalar views cannot recover meaning."
 
@@ -96,6 +101,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "composition_request_lifecycle_duplicate_conflict_cancel_and_order"
+limitations = "Implementation-exists evidence: the cited assertion composition_request_lifecycle_duplicate_conflict_cancel_and_order shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Only Completed publishes a claim. Changed inputs on a reused key conflict. Parent unit: request_identity_conflicts_on_reused_key."
 
 [[capabilities]]
@@ -107,6 +113,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "composition_pc_and_ges_accepted_class_stays_cpdag"
+limitations = "Implementation-exists evidence: the cited assertion composition_pc_and_ges_accepted_class_stays_cpdag shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Also composition_pcmci_plus_accepted_temporal_cpdag_retains_class. Completing via orient is not the class path. Does not inherit discovery.pc/ges/pcmci_plus oracle kinds."
 
 [[capabilities]]
@@ -142,6 +149,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "composition_adversarial_boundaries_refuse_stronger_claims"
+limitations = "Implementation-exists evidence: the cited assertion composition_adversarial_boundaries_refuse_stronger_claims shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Stale preview, ChangeGraph re-ID, unweighted class mass drop, duplicate evidence, unaligned contrast, lossy scalar, pointwise≠simultaneous, refused support."
 
 [[capabilities]]
@@ -238,6 +246,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent-io-core/src/contract_section/tests.rs"
 evidence_assertion = "contracted_artifact_is_accepted_from_bytes_alone"
+limitations = "Implementation-exists evidence: the cited assertion contracted_artifact_is_accepted_from_bytes_alone shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 composition_filter = "contract_section"
 notes = "Lib tests under contract_section."
 
@@ -250,6 +259,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent-core/src/execution/tests.rs"
 evidence_assertion = "request_identity_conflicts_on_reused_key"
+limitations = "Implementation-exists evidence: the cited assertion request_identity_conflicts_on_reused_key shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Host request identity unit."
 
 [[capabilities]]
@@ -261,6 +271,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent-contract/src/provenance.rs"
 evidence_assertion = "try_push_rejects_duplicates_and_cycles"
+limitations = "Implementation-exists evidence: the cited assertion try_push_rejects_duplicates_and_cycles shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Ancestry unit."
 
 [[capabilities]]
@@ -272,6 +283,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "inspect_does_not_identify"
+limitations = "Implementation-exists evidence: the cited assertion inspect_does_not_identify shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 composition_filter = ""
 notes = "Whole-file composition enrollment."
 
@@ -284,6 +296,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "inspect_does_not_identify"
+limitations = "Implementation-exists evidence: the cited assertion inspect_does_not_identify shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 composition_filter = "licensed_family_"
 notes = "Family prefix enrollment."
 
@@ -296,6 +309,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "prepared_second_shot_reuses_identification"
+limitations = "Implementation-exists evidence: the cited assertion prepared_second_shot_reuses_identification shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Prepared identification cache."
 
 [[capabilities]]
@@ -320,6 +334,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent-io-core/src/identity.rs"
 evidence_assertion = "encoding_rule_changes_change_the_advertised_digest"
+limitations = "Implementation-exists evidence: the cited assertion encoding_rule_changes_change_the_advertised_digest shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Identity encoding."
 
 [[capabilities]]
@@ -343,6 +358,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent-io-core/src/identity.rs"
 evidence_assertion = "score_reuse_keys_are_stricter_than_identification"
+limitations = "Implementation-exists evidence: the cited assertion score_reuse_keys_are_stricter_than_identification shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Score reuse identity."
 
 [[capabilities]]
@@ -354,6 +370,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent-state/src/state.rs"
 evidence_assertion = "refresh_results_at_rejects_a_stale_expected_version"
+limitations = "Implementation-exists evidence: the cited assertion refresh_results_at_rejects_a_stale_expected_version shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "State expected version."
 
 [[capabilities]]
@@ -365,6 +382,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/src/analysis/prepared/tests/refresh.rs"
 evidence_assertion = "failed_series_refresh_leaves_handle_unchanged"
+limitations = "Implementation-exists evidence: the cited assertion failed_series_refresh_leaves_handle_unchanged shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Series refresh atomicity."
 
 [[capabilities]]
@@ -376,6 +394,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "failed_series_refresh_then_estimate_on_old_data"
+limitations = "Implementation-exists evidence: the cited assertion failed_series_refresh_then_estimate_on_old_data shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 composition_filter = "failed_series_refresh_then_estimate_on_old_data|temporal_state_events_keep_lineage_and_refuse_stale_publish"
 notes = "Series/state reuse."
 
@@ -388,6 +407,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/numeric_pins.rs"
 evidence_assertion = "prepared_batch_shares_fold_object_and_covariate_design"
+limitations = "Implementation-exists evidence: the cited assertion prepared_batch_shares_fold_object_and_covariate_design shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 composition_filter = "prepared_batch_shares_fold_object_and_covariate_design|replacement_data_changes_score_reuse_not_identification"
 notes = "Score/batch reuse keys."
 
@@ -400,6 +420,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent-contract/src/capability.rs"
 evidence_assertion = "cancel_is_not_scientific_impossibility"
+limitations = "Implementation-exists evidence: the cited assertion cancel_is_not_scientific_impossibility shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 composition_filter = "capability"
 notes = "Core capability reports."
 
@@ -412,6 +433,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/src/support/tests.rs"
 evidence_assertion = "licensed_neighbors_keep_graph_class_and_never_relabel"
+limitations = "Implementation-exists evidence: the cited assertion licensed_neighbors_keep_graph_class_and_never_relabel shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Support neighbors."
 
 [[capabilities]]
@@ -423,6 +445,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "inspect_does_not_identify"
+limitations = "Implementation-exists evidence: the cited assertion inspect_does_not_identify shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 composition_filter = "capability_"
 notes = "Capability prefix enrollment."
 
@@ -435,6 +458,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent-contract/src/claim.rs"
 evidence_assertion = "chained_receipts_accumulate_losses"
+limitations = "Implementation-exists evidence: the cited assertion chained_receipts_accumulate_losses shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 composition_filter = "claim"
 notes = "Core claim module."
 
@@ -447,6 +471,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "inspect_does_not_identify"
+limitations = "Implementation-exists evidence: the cited assertion inspect_does_not_identify shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 composition_filter = "design_rank_"
 notes = "Design ranking prefix."
 
@@ -459,6 +484,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "composition_inspect_and_metadata_read_do_not_identify"
+limitations = "Implementation-exists evidence: the cited assertion composition_inspect_and_metadata_read_do_not_identify shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 composition_filter = "composition_"
 notes = "Composition prefix enrollment."
 
@@ -471,6 +497,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "python/tests/test_contract.py"
 evidence_assertion = "test_prepared_contract_has_domain_separated_identities"
+limitations = "Implementation-exists evidence: the cited assertion test_prepared_contract_has_domain_separated_identities shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Python contract smoke."
 
 [[capabilities]]
@@ -482,6 +509,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "python/tests/test_native_stub_conformance.py"
 evidence_assertion = "test_stub_file_exists"
+limitations = "Implementation-exists evidence: the cited assertion test_stub_file_exists shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Python stub conformance."
 
 [[capabilities]]
