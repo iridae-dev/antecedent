@@ -41,7 +41,7 @@
         {
           "role": "generator",
           "path": "conformance/identify/general_id_backdoor_chain/reference.py",
-          "sha256": "b17d26e149a7b775a03e53461eaa7a571d8534d2a69d9fe8b9cfe159d1d6ae05"
+          "sha256": "e940c420d6d422fb3b2ed0b35f51bec25c142b0738f538d76f39f0c5bd37e23a"
         },
         {
           "role": "environment_lock",
@@ -51,7 +51,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/src/id.rs",
-          "sha256": "81ec8069de0d750acd3eafbe013ee185f19dbcc81830e331fff69cc07c1d4af4"
+          "sha256": "70930332d6cd257d7c3feff349978e965da25665c07005050400f1a9292f0ff0"
         },
         {
           "role": "assertion_source",

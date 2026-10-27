@@ -2,7 +2,7 @@
 # requires-python = ">=3.13,<3.14"
 # dependencies = ["dowhy==0.14"]
 # ///
-"""Reproduce two frozen identification results through public DoWhy APIs.
+"""Reproduce frozen positive and negative identification results through public DoWhy APIs.
 
 No product implementation, numeric estimation or calibration is imported/run.
 SPDX-License-Identifier: MIT OR Apache-2.0
@@ -19,6 +19,12 @@ from dowhy import CausalModel
 
 HERE = Path(__file__).resolve().parent
 SCENARIOS = {
+    "general_id_hedge": (
+        "nonidentifiable_or_unidentified",
+        "digraph { t -> y; U[latent]; U -> t; U -> y; }",
+        ["t", "y"],
+        None,
+    ),
     "general_id_backdoor_chain": (
         "identifiable_backdoor",
         "digraph { z -> t; z -> y; t -> y; }",
@@ -45,7 +51,11 @@ def regenerate(name: str) -> dict:
         graph=graph,
     )
     result = model.identify_effect(proceed_when_unidentifiable=False)
-    if not result.estimands.get(method):
+    if method is None and any(result.estimands.values()):
+        raise AssertionError(
+            "DoWhy unexpectedly found a standard estimand on the bow arc"
+        )
+    if method is not None and not result.estimands.get(method):
         raise AssertionError(f"DoWhy did not identify {name} through {method}")
     return {"estimand": str(result), "estimand_type": str(result.estimand_type)}
 
@@ -60,15 +70,26 @@ def check(name: str, document: dict, actual: dict) -> list[str]:
         document.get("outcome"),
         document.get("expected_status_family"),
         document.get("tolerance_class"),
-    ) != (case, graph, "t", "y", "identified", "Exact"):
+    ) != (case, graph, "t", "y", "identified" if method else "unidentified", "Exact"):
         problems.append("scenario or exact comparison changed")
     outputs = document.get("reference", {}).get("outputs", {})
     if outputs != actual:
         problems.append("frozen DoWhy output differs from regenerated result")
-    if f"Estimand name: {method}\nEstimand expression:" not in outputs.get(
-        "estimand", ""
+    text = outputs.get("estimand", "")
+    if (
+        method is not None
+        and f"Estimand name: {method}\nEstimand expression:" not in text
     ):
         problems.append("required method has no executing estimand expression")
+    if method is None and (
+        "Estimand expression:" in text or text.count("No such variable(s) found!") != 4
+    ):
+        problems.append("negative fixture must refuse all four standard strategies")
+    if (
+        document.get("reference", {}).get("available"),
+        document.get("reference", {}).get("version"),
+    ) != (True, "0.14"):
+        problems.append("required pinned comparator missing")
     if document.get("oracle", {}).get("kind") != "external_package":
         problems.append("incorrect oracle origin")
     return problems
@@ -89,7 +110,7 @@ def main() -> int:
         if args.self_test:
             for field, value in (
                 ("graph_dot", "digraph { t -> y; }"),
-                ("expected_status_family", "not_identified"),
+                ("expected_status_family", "wrong_status"),
                 ("tolerance_class", "StableFloat"),
             ):
                 changed = copy.deepcopy(document)
@@ -114,7 +135,7 @@ def main() -> int:
     print(
         "\n".join(problems)
         if problems
-        else "Two DoWhy identification references and fault controls passed"
+        else "Three DoWhy identification references and fault controls passed"
     )
     return int(bool(problems))
 

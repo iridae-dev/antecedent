@@ -6,9 +6,9 @@
   "graph_dot": "digraph { t -> y; U[latent]; U -> t; U -> y; }",
   "expected_status_family": "unidentified",
   "generation": {
-    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
+    "script": "conformance/identify/general_id_backdoor_chain/reference.py",
     "baseline_pin": "parity/baselines/dowhy.toml",
-    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
+    "env": "uv run --frozen --script conformance/identify/general_id_backdoor_chain/reference.py --check --self-test"
   },
   "notes": "Consumed by antecedent-identify::id::tests::hedge_not_identified, which compares the frozen unidentified status and graph_dot on the same bow-arc graph and requires Antecedent's hedge diagnostic.",
   "reference": {
@@ -16,11 +16,68 @@
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false,
+    "command": "uv run --frozen --script conformance/identify/general_id_backdoor_chain/reference.py --check --self-test",
+    "generator_retained": true,
+    "note": "Retained independent public DoWhy graph-identification call; the original verbatim negative output is preserved. Failure of these strategies alone is not a nonidentifiability theorem.",
+    "outputs": {
+      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nNo such variable(s) found!\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nNo such variable(s) found!\n",
+      "estimand_type": "EstimandType.NONPARAMETRIC_ATE"
+    },
+    "generator": "conformance/identify/general_id_backdoor_chain/reference.py",
+    "environment_lock": "conformance/identify/general_id_backdoor_chain/reference.py.lock"
+  },
+  "historical_reference": {
+    "project": "dowhy",
+    "available": true,
+    "version": "0.14",
+    "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "generator_retained": false,
     "note": "black-box execution only; no source translation",
     "outputs": {
       "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nNo such variable(s) found!\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nNo such variable(s) found!\n",
       "estimand_type": "EstimandType.NONPARAMETRIC_ATE"
+    }
+  },
+  "historical_generation": {
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
+    "baseline_pin": "parity/baselines/dowhy.toml",
+    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
+  },
+  "oracle": {
+    "kind": "external_package",
+    "project": "DoWhy",
+    "version": "0.14",
+    "source": "Retained public CausalModel.identify_effect call on the declared bow-arc graph; all four standard estimands are absent. The product hedge certificate is a separate assertion.",
+    "reference_review": {
+      "scope": "Exact negative standard-strategy result for one bow-arc graph. DoWhy produces no backdoor, IV, front-door or general-adjustment estimand; the product separately returns NotIdentified with identify.hedge on the same graph.",
+      "independence_basis": "Repository-authored public black-box CausalModel.identify_effect calls import no Antecedent implementation or test helpers. Inputs are the declared graph and explicit observed variable names. Two dummy rows provide a schema only; no data values enter graph identification. The negative product assertion requires all four strategy failures and no estimand expression, rather than one generic refusal substring.",
+      "historical_exposure": "Original generation environment and harness were deleted; historical author exposure cannot be established. Current review inspected product assertions and official DoWhy public API documentation. No upstream implementation or test source was consulted or copied.",
+      "redistribution": "Only repository-authored harness, frozen graph/output and dependency lock are retained under MIT OR Apache-2.0. DoWhy and transitive packages remain isolated tooling; their sources/tests are not copied into the product or ordinary CI.",
+      "limitations": "Failure of four standard DoWhy strategies does not prove general nonidentifiability or validate a hedge certificate. The product certificate assertion and separate exact SCM/completeness controls are distinct evidence. No effect estimation, positivity, uncertainty or calibration is established. Product DOT preparation uses its own latent projection; the black-box generator does not.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/identify/general_id_backdoor_chain/reference.py",
+          "sha256": "e940c420d6d422fb3b2ed0b35f51bec25c142b0738f538d76f39f0c5bd37e23a"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/identify/general_id_backdoor_chain/reference.py.lock",
+          "sha256": "7df06543d21ad58486613ff53d23bb8aacf1f11e43c8159bae900a80ec6ec35b"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-identify/src/id.rs",
+          "sha256": "70930332d6cd257d7c3feff349978e965da25665c07005050400f1a9292f0ff0"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "crates/antecedent-identify/src/oracle_dot.rs",
+          "sha256": "2c00231481aceafe73e48881dd99777ede23c48a66a807e127001d8bfece554f"
+        }
+      ],
+      "fixture_payload_sha256": "626be449c87a1ab194e814d86b665400d4bbf5b3ba10ddf36cb26f312b5b144e"
     }
   }
 }

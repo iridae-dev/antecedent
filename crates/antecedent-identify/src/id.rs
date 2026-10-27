@@ -1659,11 +1659,10 @@ mod tests {
         assert_eq!(external["treatment"], "t");
         assert_eq!(external["outcome"], "y");
         assert_eq!(external["expected_status_family"], "unidentified");
+        let oracle_estimand = external["reference"]["outputs"]["estimand"].as_str().unwrap();
+        assert_eq!(oracle_estimand.matches("No such variable(s) found!").count(), 4);
         assert!(
-            external["reference"]["outputs"]["estimand"]
-                .as_str()
-                .unwrap()
-                .contains("No such variable(s) found!"),
+            !oracle_estimand.contains("Estimand expression:"),
             "external oracle must refuse every standard identification strategy on the bow arc"
         );
         let (g, nodes) = admg_from_oracle_dot(external["graph_dot"].as_str().unwrap());

@@ -145,7 +145,7 @@ assertions pass; the ten foundations assertions pass. These are fixed-input
 comparisons. Temporal Sobel uncertainty is checked only under explicit iid
 opt-in, and GAM fit outputs remain product regression pins.
 
-Twenty-three retained reference reviews bind generator, transitive comparison
+Twenty-four retained reference reviews bind generator, transitive comparison
 helper, lock, assertion source and fixture payload by digest. Gates reject
 changed inputs, expected outputs, tolerances, origins, assertions and helpers
 until reviewed again. Reviews record limited independence, redistribution
@@ -287,3 +287,20 @@ errors before those reads, for both known and estimated residual variance. All
 separates conjugate scale parameters, power-likelihood weights and the
 data-dependent residual-variance plug-in from calibrated uncertainty claims.
 This repair does not close the outstanding primary-method review.
+
+The bow-arc fixture now also has a retained DoWhy generator, preserving its
+original verbatim output and deleted-harness history. Its product assertion
+requires all four standard strategies to fail and no estimand expression to
+appear. A single "not found" substring could previously pass alongside another
+successful strategy. This comparison establishes the pinned standard-strategy
+result; nonidentifiability and certificate correctness require separate evidence.
+The strengthened product assertion and all three regenerated DoWhy references
+pass.
+
+The complete explicit Rust software selection passed 12,916 assertions in
+903.397 seconds of test execution, with 877 default-filter/ignored/calibration
+selection skips recorded by nextest. The run retains build, discovery, resource,
+checkout and per-assertion receipts under `target/test-performance/`; its checkout
+changed during concurrent work, so it is not final frozen-candidate verification
+or a controlled before/after performance comparison. Measured-record acceptance
+remains explicitly excluded pending lockdown and calibration.
