@@ -7,6 +7,7 @@ copied_tests = false
 
 implementation_deviations = [
  "Does not implement the paper's direct complete generalized-adjustment algorithm; it streams graph completions and applies ordinary adjustment separately to each completion.",
+ "A Jacobian or directional derivative over two or more treatments is not answered by this module's per-pair adjustment search: on an ADMG, each CPDAG/PAG completion and a temporal ADMG window it takes the joint back-door route (all treatments at once, with PAG edge visibility) and is reported not identified when no common joint set exists; per-pair sets identify single-treatment effects, not the joint partial derivative.",
  "Completion and covariate enumeration default to hard caps of 32 completions and 40 candidate covariates, so class-level conclusions are exact only when those enumerations are exhaustive; capped mass is reported through an envelope.",
 ]
 

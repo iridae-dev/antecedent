@@ -222,7 +222,7 @@ fn identify_joint(
 /// The joint search under the caller's `(candidate ceiling, examination budget)` and context:
 /// the enumeration's storage is leased from the context's pool before it is allocated and the
 /// context's cancellation is observed at every test.
-fn identify_joint_within(
+pub(crate) fn identify_joint_within(
     graph: &Admg,
     nodes: &[NodeRef],
     response: &ResponseQuery,

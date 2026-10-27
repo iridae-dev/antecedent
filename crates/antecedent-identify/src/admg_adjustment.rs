@@ -150,7 +150,31 @@ pub fn identify_admg_response_adjustment(
         admg.static_variable(node)
             .ok_or(IdentificationError::UnknownVariable { id: VariableId::from_raw(node.raw()) })
     };
+    if let Some(joint) = joint_multi_treatment(query, |surface| {
+        GeneralizedAdjustmentIdentifier::new().identify_joint_admg_response(admg, surface)
+    })? {
+        return Ok(joint);
+    }
     adjustment_on(admg, query, &NodeMap { dense: &dense, variable: &variable })
+}
+
+/// A Jacobian or directional derivative over two or more treatments holds the other treatments
+/// fixed, so per-pair adjustment sets (which identify each treatment's marginal effect,
+/// including paths through the other treatments) cannot answer it. It is decided by the joint
+/// back-door search over all treatments for each outcome, or reported not identified.
+fn joint_multi_treatment(
+    query: &ResponseQuery,
+    identify_surface: impl FnMut(&ResponseQuery) -> Result<IdentificationResult, IdentificationError>,
+) -> Result<Option<IdentificationResult>, IdentificationError> {
+    query
+        .validate()
+        .map_err(|error| IdentificationError::InvalidQuery { message: error.to_string() })?;
+    crate::response::multi_treatment_joint_route(
+        &CausalQuery::Response(query.clone()),
+        query,
+        AssumptionSet::default(),
+        identify_surface,
+    )
 }
 
 /// Identify a derivative or Jacobian over every DAG completion of a CPDAG.
@@ -729,6 +753,11 @@ impl GeneralizedAdjustmentIdentifier {
         query: &ResponseQuery,
     ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
         self.cpdag_envelope_with(cpdag, |dag| {
+            if let Some(joint) = joint_multi_treatment(query, |surface| {
+                self.identify_joint_dag_response(dag, surface)
+            })? {
+                return Ok(joint);
+            }
             let admg = crate::prepared::dag_to_admg(dag)?;
             identify_admg_response_adjustment(&admg, query)
         })
@@ -750,6 +779,18 @@ impl GeneralizedAdjustmentIdentifier {
                     "completion is not a directed/bidirected MAG; adjustment was not attempted",
                 ));
             };
+            if let Some(joint) = joint_multi_treatment(query, |surface| {
+                crate::joint_response::identify_joint_within(
+                    &admg,
+                    mag.nodes(),
+                    surface,
+                    (self.config.max_candidates, self.config.max_examinations),
+                    self.config.context.as_ref(),
+                    |from, to| crate::joint_response::visible(mag, from, to),
+                )
+            })? {
+                return Ok(joint);
+            }
             let dense = |variable: VariableId| pag_var_to_dense(mag, variable);
             let variable = |node: DenseNodeId| mag_dense_to_var(mag, node);
             for (treatment, outcome) in response_pairs(&query.functional)? {
@@ -886,5 +927,85 @@ mod tests {
         assert!(
             identify_admg_front_door_derivative(&g, &point_derivative(0, 2)).unwrap().is_none()
         );
+    }
+
+    fn multi_treatment(treatments: &[u32], outcomes: &[u32], directional: bool) -> ResponseQuery {
+        let tr: Arc<[VariableId]> = treatments.iter().map(|&t| VariableId::from_raw(t)).collect();
+        let out: Arc<[VariableId]> = outcomes.iter().map(|&y| VariableId::from_raw(y)).collect();
+        let at: Arc<[f64]> = treatments.iter().map(|_| 0.0).collect();
+        ResponseQuery::new(if directional {
+            ResponseFunctional::DirectionalDerivative {
+                outcomes: out,
+                treatments: tr,
+                at,
+                direction: treatments.iter().map(|_| 1.0).collect(),
+            }
+        } else {
+            ResponseFunctional::Jacobian {
+                outcomes: out,
+                treatments: tr,
+                at,
+                scale: DerivativeScale::Identity,
+            }
+        })
+    }
+
+    /// `T1 -> T2 -> Y`: per-pair sets would both be empty and describe T1's total effect, but
+    /// the partial derivative holds T2 fixed. The joint route answers with one joint-response
+    /// estimand for the outcome and never the per-pair back-door contrasts.
+    #[test]
+    fn chain_derivative_is_the_joint_response_not_per_pair_total_effects() {
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(node(0), node(1)).unwrap();
+        g.insert_directed(node(1), node(2)).unwrap();
+        for directional in [false, true] {
+            let result =
+                identify_admg_response_adjustment(&g, &multi_treatment(&[0, 1], &[2], directional))
+                    .unwrap();
+            assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+            assert_eq!(result.estimands.len(), 1, "one joint estimand per outcome, not per pair");
+            assert!(
+                result.derivation.steps.iter().any(|s| &*s.rule == "response.joint_adjustment")
+            );
+            assert!(
+                !result.derivation.steps.iter().any(|s| &*s.rule == "generalized.adjustment.admg")
+            );
+        }
+    }
+
+    /// `T1 -> U -> T2`, `U -> Y`, `T2 -> Y`: each treatment has a pairwise set ({} and {U}) but
+    /// no common set is valid jointly (U descends from T1), so the derivative is not identified
+    /// and the single-treatment derivative of T2 still is.
+    #[test]
+    fn shared_confounder_downstream_of_a_treatment_refuses_the_joint_derivative() {
+        let mut g = Admg::with_variables(4);
+        // 0 = T1, 1 = T2, 2 = U, 3 = Y
+        for (a, b) in [(0, 2), (2, 1), (2, 3), (1, 3)] {
+            g.insert_directed(node(a), node(b)).unwrap();
+        }
+        for directional in [false, true] {
+            let result =
+                identify_admg_response_adjustment(&g, &multi_treatment(&[0, 1], &[3], directional))
+                    .unwrap();
+            assert_eq!(result.status, IdentificationStatus::NotIdentified);
+            assert!(result.estimands.is_empty());
+        }
+        let single =
+            identify_admg_response_adjustment(&g, &multi_treatment(&[1], &[3], false)).unwrap();
+        assert_eq!(single.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(single.estimands[0].adjustment_set.contains(&VariableId::from_raw(2)));
+    }
+
+    /// A latent common cause of the two treatments' outcome path stays an open back-door in the
+    /// joint route: `T1 <-> Y` is refused even though `T2` alone is adjustable.
+    #[test]
+    fn latent_confounding_of_one_treatment_refuses_the_joint_derivative() {
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(node(0), node(2)).unwrap();
+        g.insert_directed(node(1), node(2)).unwrap();
+        g.insert_bidirected(node(0), node(2)).unwrap();
+        let result =
+            identify_admg_response_adjustment(&g, &multi_treatment(&[0, 1], &[2], false)).unwrap();
+        assert_eq!(result.status, IdentificationStatus::NotIdentified);
     }
 }

@@ -256,6 +256,30 @@ impl ResponseIdentifier {
         query: &CausalQuery,
         response: &ResponseQuery,
     ) -> Result<Option<IdentificationResult>, IdentificationError> {
+        let mut joint = crate::GeneralizedAdjustmentIdentifier::new();
+        joint.config.context.clone_from(&self.backdoor.config.context);
+        multi_treatment_joint_route(
+            query,
+            response,
+            prepared.declared_assumptions().clone(),
+            |surface| joint.identify_joint_dag_response(prepared.dag(), surface),
+        )
+    }
+}
+
+/// The joint route for a Jacobian or directional derivative over two or more treatments, on any
+/// graph class: `identify_surface` decides the joint response surface of one outcome over all
+/// treatments (a joint-adjustment search on the caller's graph). `None` when the functional is
+/// not such a derivative; not identified as soon as one outcome has no common joint set.
+pub(crate) fn multi_treatment_joint_route(
+    query: &CausalQuery,
+    response: &ResponseQuery,
+    declared: AssumptionSet,
+    mut identify_surface: impl FnMut(
+        &ResponseQuery,
+    ) -> Result<IdentificationResult, IdentificationError>,
+) -> Result<Option<IdentificationResult>, IdentificationError> {
+    {
         let (outcomes, treatments) = match &response.functional {
             ResponseFunctional::Jacobian { outcomes, treatments, .. }
             | ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. } => {
@@ -266,12 +290,10 @@ impl ResponseIdentifier {
         if treatments.len() < 2 {
             return Ok(None);
         }
-        let mut joint = crate::GeneralizedAdjustmentIdentifier::new();
-        joint.config.context.clone_from(&self.backdoor.config.context);
         let mut arena = CausalExprArena::new();
         let mut estimands = Vec::with_capacity(outcomes.len());
         let mut derivation = DerivationTrace::default();
-        let mut assumptions = prepared.declared_assumptions().clone();
+        let mut assumptions = declared;
         let mut performance = IdentificationPerformanceRecord::default();
         let mut diagnostics = Vec::new();
         for &outcome in outcomes.iter() {
@@ -285,7 +307,7 @@ impl ResponseIdentifier {
                     .map(|&t| antecedent_core::Intervention::set(t, Value::f64(0.0)))
                     .collect(),
             };
-            let mut result = joint.identify_joint_dag_response(prepared.dag(), &surrogate)?;
+            let mut result = identify_surface(&surrogate)?;
             for record in &result.required_assumptions.entries {
                 if !assumptions.entries.contains(record) {
                     assumptions.push(record.clone());
@@ -498,11 +520,7 @@ mod tests {
         }));
     }
 
-    fn jacobian_over(
-        treatments: &[u32],
-        outcomes: &[u32],
-        directional: bool,
-    ) -> CausalQuery {
+    fn jacobian_over(treatments: &[u32], outcomes: &[u32], directional: bool) -> CausalQuery {
         let tr: Arc<[VariableId]> = treatments.iter().map(|&t| VariableId::from_raw(t)).collect();
         let out: Arc<[VariableId]> = outcomes.iter().map(|&y| VariableId::from_raw(y)).collect();
         let at: Arc<[f64]> = treatments.iter().map(|_| 0.0).collect();
@@ -550,7 +568,9 @@ mod tests {
                 ),
                 "the joint response is a mean over both treatments, not a one-treatment contrast"
             );
-            assert!(result.derivation.steps.iter().any(|s| &*s.rule == "response.joint_adjustment"));
+            assert!(
+                result.derivation.steps.iter().any(|s| &*s.rule == "response.joint_adjustment")
+            );
             assert!(!result.derivation.steps.iter().any(|s| &*s.rule == "response.backdoor"));
             assert!(matches!(result.query, CausalQuery::Response(_)));
         }
