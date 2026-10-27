@@ -2,8 +2,45 @@
   "oracle": {
     "kind": "closed_form",
     "method": "independent stratified multinomial algebra",
-    "independence_basis": "Selected binary Verma SCM with 16 multinomial cells at N=16000 and contrast 0.2; the covariance of [mean0,mean1,contrast] times N is [[0.34,0.2,-0.14],[0.2,67/150,37/150],[-0.14,37/150,29/75]], derived by stratified multinomial algebra and score orthogonality, whereas the implementation inverts the expected Fisher information. The algebra is repository-authored and independence of the author has not been reviewed. No coverage is measured.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "independence_basis": "Multinomial delta method with exact forward-mode derivatives over rationals on the saturated 8-cell (X2,M,Y) table: covariance of [mean0, mean1, contrast] times N, compared entrywise with the fixture at 1e-12; cell counts verified integral at N=16000. The generator uses dual-number differentiation of the Verma functional on cell probabilities and the multinomial covariance, which is neither the stratified block algebra written in the README nor the product's inversion of the 11-parameter expected Fisher information. The saturation of the 8-cell parameterization and the Verma functional itself are shared modelling statements.",
+    "generator": "conformance/transport/nested_fisher/reference.py",
+    "command": "uv run --frozen --script conformance/transport/nested_fisher/reference.py --check",
+    "environment_lock": "conformance/transport/nested_fisher/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "covariance_times_n entries",
+      "sample_size and contrast"
+    ],
+    "context_only_outputs": [
+      "oracle_kind label"
+    ],
+    "historical_exposure": "Written during this review from the fixture README and the asserting test (which restates the stratified algebra); no product implementation source was consulted. Authorship of the original algebra is unrecorded.",
+    "reference_review": {
+      "scope": "One selected binary Verma model at N=16000; asymptotic covariance of the maximum-likelihood do-means and their contrast.",
+      "independence_basis": "The generator uses dual-number differentiation of the Verma functional on cell probabilities and the multinomial covariance, which is neither the stratified block algebra written in the README nor the product's inversion of the 11-parameter expected Fisher information. The saturation of the 8-cell parameterization and the Verma functional itself are shared modelling statements.",
+      "historical_exposure": "Written during this review from the fixture README and the asserting test (which restates the stratified algebra); no product implementation source was consulted. Authorship of the original algebra is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Asymptotic covariance at one law and one N; no coverage or finite-sample behavior; interval routes remain withheld and calibration unmeasured.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/transport/nested_fisher/reference.py",
+          "sha256": "16b95630cdf68d2c2fb3cc96d5fb7068c2c98d8e02f66ba5710f063dee1b3600"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/transport/nested_fisher/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-estimate/tests/nested_markov_uncertainty.rs",
+          "sha256": "a0148e30f4a03e48d99148f6b34b3b79d492bfbfdad9f6c96fc5477a420dd40d"
+        }
+      ],
+      "fixture_payload_sha256": "a4e3a4a3ef8b7cd95c2547a36c0256d9ced83826701dc21bec6fa2e9ac087a30"
+    }
   },
   "oracle_kind": "closed_form",
   "contrast": 0.2,

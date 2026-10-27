@@ -2,8 +2,50 @@
   "oracle": {
     "kind": "closed_form",
     "method": "hand-derived scalar chain",
-    "independence_basis": "Misclassification correction pi=(0.41+0.8-1)/(0.9+0.8-1)=0.3, inverse-variance pool 0.15, composed mean 0.145, excess 0.045, utility 15, and after new observations pool 0.08, excess 0.024, utility -6. Every figure is closed-form arithmetic written by repository authors in the fixture README; the arithmetic was rechecked during classification. Agreement among Antecedent routes is not external-oracle evidence and no calibration or interval guarantee follows.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "independence_basis": "Exact rational recomputation (fractions.Fraction) of every numeric value from the declared scenario inputs: misclassification-corrected prevalence (0.41+0.8-1)/(0.9+0.8-1)=0.3, inverse-variance pool 0.15 / 0.0002, covariance-aware generalized-least-squares pool 0.15 / 0.0003 by explicit 2x2 inversion, row-overlap counts from the declared row spans, composed risks, excess risk, aligned product-lattice mean and decision utilities before and after the revision. The generator reads only the scenario block of expected.json and recomputes values, revised_values and the overlap pool in exact rational arithmetic; it imports no Antecedent code and no statistics package, and the covariance-aware pool is solved by explicit 2x2 inversion rather than by the product's pooling routine. The shared object is the fixture README's modelling statement (risk-difference composition, prevalence-weighted risk, utility = benefit*excess - cost): a misreading common to the README and the generator would not be detected.",
+    "generator": "conformance/composition/release_boundary/reference.py",
+    "command": "uv run --frozen --script conformance/composition/release_boundary/reference.py --check",
+    "environment_lock": "conformance/composition/release_boundary/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "corrected and naive prevalence",
+      "pooled estimate and variance (disjoint and overlapping evidence)",
+      "declared-slot and distinct-observation counts",
+      "composed outcome risks and excess risk before and after the revision",
+      "aligned product-lattice mean",
+      "decision utilities and selected action before and after the revision"
+    ],
+    "context_only_outputs": [
+      "refusal/mutation/conversion/variant code and detail strings (product contract labels)",
+      "tolerance, calibration and label declarations"
+    ],
+    "historical_exposure": "Written during this review from the fixture README and scenario inputs; the executing assertion was read to establish which values it compares; no product implementation source was consulted. Who first derived the hand arithmetic is unrecorded.",
+    "reference_review": {
+      "scope": "One end-to-end scenario: the numeric chain from the declared inputs to the decision utilities, before and after the study revision, recomputed exactly and compared with the fixture at the fixture's own exact tolerance (1e-12).",
+      "independence_basis": "The generator reads only the scenario block of expected.json and recomputes values, revised_values and the overlap pool in exact rational arithmetic; it imports no Antecedent code and no statistics package, and the covariance-aware pool is solved by explicit 2x2 inversion rather than by the product's pooling routine. The shared object is the fixture README's modelling statement (risk-difference composition, prevalence-weighted risk, utility = benefit*excess - cost): a misreading common to the README and the generator would not be detected.",
+      "historical_exposure": "Written during this review from the fixture README and scenario inputs; the executing assertion was read to establish which values it compares; no product implementation source was consulted. Who first derived the hand arithmetic is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Numeric chain for one scenario only. The refusal codes and details in mutations, conversions and variants are product contract strings: this reference neither derives nor compares them, and the delta-method variance of the corrected prevalence is asserted by the test against a formula inside the test and is not a fixture value. Point-only claims; no interval, coverage or calibration (unmeasured).",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/composition/release_boundary/reference.py",
+          "sha256": "f7d6f48e38c8e39150d4018dee86fd67a6ba969da2a741e6302f45edcee40ad6"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/composition/release_boundary/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/composition_release_fixture.rs",
+          "sha256": "889843f86665a5945e44f1e75ed3686ee7085d576e4b770ec644ed1879b6aace"
+        }
+      ],
+      "fixture_payload_sha256": "846c3d92933177ef90f9c9a9476fff2ea80b15b5babfca7abb52674e63cfdc06"
+    }
   },
   "scenario": {
     "measurement": {
@@ -16,16 +58,68 @@
       "min_youden": 0.1
     },
     "baseline_risk": 0.1,
-    "survey_rows": [2000, 3000],
-    "studies": [
-      {"label": "study_a", "rows": [0, 500], "estimate": 0.10, "variance": 0.0004},
-      {"label": "study_b", "rows": [500, 1000], "estimate": 0.20, "variance": 0.0004}
+    "survey_rows": [
+      2000,
+      3000
     ],
-    "revision": {"study": "study_b", "rows": [500, 1100], "estimate": 0.07, "variance": 0.0002},
-    "overlapping_study": {"label": "study_c", "rows": [300, 800], "estimate": 0.20, "variance": 0.0004, "covariance": 0.0002},
-    "vendor_claim": {"label": "vendor", "estimate": 0.20, "variance": 0.0004},
-    "decision": {"benefit_per_unit_risk": 1000.0, "programme_cost": 30.0},
-    "marginal_draws": {"prevalence": [0.25, 0.35], "effect": [0.13, 0.17]}
+    "studies": [
+      {
+        "label": "study_a",
+        "rows": [
+          0,
+          500
+        ],
+        "estimate": 0.1,
+        "variance": 0.0004
+      },
+      {
+        "label": "study_b",
+        "rows": [
+          500,
+          1000
+        ],
+        "estimate": 0.2,
+        "variance": 0.0004
+      }
+    ],
+    "revision": {
+      "study": "study_b",
+      "rows": [
+        500,
+        1100
+      ],
+      "estimate": 0.07,
+      "variance": 0.0002
+    },
+    "overlapping_study": {
+      "label": "study_c",
+      "rows": [
+        300,
+        800
+      ],
+      "estimate": 0.2,
+      "variance": 0.0004,
+      "covariance": 0.0002
+    },
+    "vendor_claim": {
+      "label": "vendor",
+      "estimate": 0.2,
+      "variance": 0.0004
+    },
+    "decision": {
+      "benefit_per_unit_risk": 1000.0,
+      "programme_cost": 30.0
+    },
+    "marginal_draws": {
+      "prevalence": [
+        0.25,
+        0.35
+      ],
+      "effect": [
+        0.13,
+        0.17
+      ]
+    }
   },
   "values": {
     "prevalence": 0.3,
@@ -57,27 +151,79 @@
     "hold": 0.0,
     "selected": "hold"
   },
-  "tolerance": {"exact": 1e-12, "decision": 1e-9},
+  "tolerance": {
+    "exact": 1e-12,
+    "decision": 1e-09
+  },
   "mutations": {
-    "quantity": {"stage": "decision", "code": "quantity_semantics_mismatch", "detail": "decision_evaluation.quantity_not_found"},
-    "law": {"stage": "decision", "code": "decision_contract_unsatisfied", "detail": "decision_evaluation.mean_source_insufficient"},
-    "support": {"stage": "interface", "code": "interface_contract_quantity_mismatch", "detail": "interface_contract.support_mismatch"},
-    "snapshot": {"stage": "ledger", "code": "route_not_supported", "detail": "evidence_ledger.identity_mismatch"},
-    "evidence_overlap": {"stage": "evidence", "code": "evidence_double_counted", "detail": "evidence_ledger.shared_observations"}
+    "quantity": {
+      "stage": "decision",
+      "code": "quantity_semantics_mismatch",
+      "detail": "decision_evaluation.quantity_not_found"
+    },
+    "law": {
+      "stage": "decision",
+      "code": "decision_contract_unsatisfied",
+      "detail": "decision_evaluation.mean_source_insufficient"
+    },
+    "support": {
+      "stage": "interface",
+      "code": "interface_contract_quantity_mismatch",
+      "detail": "interface_contract.support_mismatch"
+    },
+    "snapshot": {
+      "stage": "ledger",
+      "code": "route_not_supported",
+      "detail": "evidence_ledger.identity_mismatch"
+    },
+    "evidence_overlap": {
+      "stage": "evidence",
+      "code": "evidence_double_counted",
+      "detail": "evidence_ledger.shared_observations"
+    }
   },
   "conversions": {
-    "measured_as_construct": {"code": "proxy_offered_as_construct", "detail": "measurement_model.indicator_as_construct"},
-    "measurement_model_missing": {"code": "interface_contract_assumption_mismatch", "detail": "interface_contract.measurement_assumption_mismatch"},
-    "mean_for_law": {"code": "interface_contract_operation_unavailable", "detail": "interface_contract.operation_unavailable"}
+    "measured_as_construct": {
+      "code": "proxy_offered_as_construct",
+      "detail": "measurement_model.indicator_as_construct"
+    },
+    "measurement_model_missing": {
+      "code": "interface_contract_assumption_mismatch",
+      "detail": "interface_contract.measurement_assumption_mismatch"
+    },
+    "mean_for_law": {
+      "code": "interface_contract_operation_unavailable",
+      "detail": "interface_contract.operation_unavailable"
+    }
   },
   "variants": {
-    "revalidation_pending": {"code": "claim_revalidation_required", "detail": "composition_verification.recompute_required"},
-    "withdrawal": {"code": "claim_license_withdrawn", "detail": "composition_verification.input_retired"},
-    "dependence_gap_ledger": {"code": "evidence_overlap_unknown", "detail": "evidence_ledger.overlap_unknown"},
-    "dependence_gap_rule": {"code": "sampling_dependence_unknown", "detail": "joint_law_propagation.dependence_unknown"},
-    "unpaired_marginals": {"code": "joint_law_required", "detail": "joint_law_propagation.index_pairing_refused"},
-    "shared_evidence_declared_independent": {"code": "evidence_double_counted", "detail": "joint_law_propagation.shared_evidence_declared_independent"},
-    "interval": {"code": "cell_not_licensed"}
+    "revalidation_pending": {
+      "code": "claim_revalidation_required",
+      "detail": "composition_verification.recompute_required"
+    },
+    "withdrawal": {
+      "code": "claim_license_withdrawn",
+      "detail": "composition_verification.input_retired"
+    },
+    "dependence_gap_ledger": {
+      "code": "evidence_overlap_unknown",
+      "detail": "evidence_ledger.overlap_unknown"
+    },
+    "dependence_gap_rule": {
+      "code": "sampling_dependence_unknown",
+      "detail": "joint_law_propagation.dependence_unknown"
+    },
+    "unpaired_marginals": {
+      "code": "joint_law_required",
+      "detail": "joint_law_propagation.index_pairing_refused"
+    },
+    "shared_evidence_declared_independent": {
+      "code": "evidence_double_counted",
+      "detail": "joint_law_propagation.shared_evidence_declared_independent"
+    },
+    "interval": {
+      "code": "cell_not_licensed"
+    }
   },
   "calibration": "unmeasured",
   "label": "point_only"

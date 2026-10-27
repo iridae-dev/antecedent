@@ -2,8 +2,52 @@
   "oracle": {
     "kind": "closed_form",
     "method": "closed-form algebra and enumerated finite laws",
-    "independence_basis": "Front-door contrast 0.282 and Verma do-means 0.3275 and 0.5025 (contrast 0.175) are enumerated from explicit latent SCMs; IV effect 2, sharp RD jump 2.5 with HC1 variance 0.04*160/156 and linear front-door path product 1.5 with HC0 variance 0.4505 are algebraic. Raw rows and laws are constructed independently of the selective engine, but the author is the repository author and the review of independence is pending. Full/selective agreement is not an oracle.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "independence_basis": "Front-door adjustment evaluated in exact rationals on the retained contingency table (0.282), and E[X4|do(X2=x)] for the latent Verma SCM by enumeration over the latent variable (0.3275, 0.5025, contrast 0.175), with the 16000-row population cells verified to be integers. Both quantities are computed from structural/enumerated definitions in exact arithmetic with no Antecedent code. The front-door value uses the retained table of the front-door fixture as input (bound as an input fixture); its own derivation of that table is not re-reviewed here.",
+    "generator": "conformance/recalculation/checked_static_design/reference.py",
+    "command": "uv run --frozen --script conformance/recalculation/checked_static_design/reference.py --check",
+    "environment_lock": "conformance/recalculation/checked_static_design/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "frontdoor_discrete_contrast",
+      "verma_do_means",
+      "verma_contrast"
+    ],
+    "context_only_outputs": [
+      "iv_effect, rd_jump, rd_hc1_variance, frontdoor_linear_effect and frontdoor_hc0_variance: no executing assertion reads these fixture fields (the design test hard-codes its own literals); not derived here",
+      "oracle_kind label"
+    ],
+    "historical_exposure": "Written during this review from the fixture README and the test's data construction; no product implementation source was consulted. Authorship of the original arithmetic is unrecorded.",
+    "reference_review": {
+      "scope": "Only the three fixture fields the static recalculation test reads. The design-recalculation constants are explicitly outside this review.",
+      "independence_basis": "Both quantities are computed from structural/enumerated definitions in exact arithmetic with no Antecedent code. The front-door value uses the retained table of the front-door fixture as input (bound as an input fixture); its own derivation of that table is not re-reviewed here.",
+      "historical_exposure": "Written during this review from the fixture README and the test's data construction; no product implementation source was consulted. Authorship of the original arithmetic is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Static binary cases only. IV, regression-discontinuity and linear front-door design constants (and their HC variances) remain unreviewed because nothing reads them from the fixture. No coverage claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/recalculation/checked_static_design/reference.py",
+          "sha256": "aafbd4bd5cb930673bae42bbc9041aaedaaef5da504219c4bd720680fc9ac08a"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/recalculation/checked_static_design/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/estimate/admg_frontdoor_functional/expected.json",
+          "sha256": "8a97b3b3281f2f60dfc8c4c6423b1d04b4e51c69710e22517b2708a3759d8000"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/recalc_static.rs",
+          "sha256": "457b6a5b2d26b8a683b381ab60deea91775743c99ccc4a223e9cb364841d078e"
+        }
+      ],
+      "fixture_payload_sha256": "75806cabb949592c60d26b8994ac9e6f25ed438007431888bc82a9f0d7407cde"
+    }
   },
   "oracle_kind": "closed_form_and_enumerated_finite_law",
   "frontdoor_discrete_contrast": 0.282,

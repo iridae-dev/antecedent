@@ -207,7 +207,8 @@ notes = "PriorSourceMeta / PriorCatalog / CompatibilityReport; CBOR prior_source
 [[capabilities]]
 id = "bayes.prior_bank.effect_map"
 status = "done"
-evidence_kind = "internal_known_truth"
+evidence_kind = "regression_pin"
+limitations = "The pinned tolerance (mapped_mean_tol 0.85) was widened after the mapped posterior mean was observed (about 1.235 against a source mean near 2.0), and the other assertions are qualitative (closer to the source than a weak baseline, required assumption ids, identical mapping errors). No closed-form posterior is derived, so this is a regression and direction check, not independent known truth."
 known_truth_fixture = "conformance/bayesian/prior_bank_effect_map"
 evidence_test = "crates/antecedent/tests/bayesian.rs"
 evidence_assertion = "prior_bank_effect_map"
@@ -225,7 +226,8 @@ notes = "ExternalPriorWeight + compose_external_priors (power precision-add + mi
 [[capabilities]]
 id = "bayes.prior_bank.conflict"
 status = "done"
-evidence_kind = "internal_known_truth"
+evidence_kind = "implementation_exists"
+limitations = "Evaluates the declared ConflictPolicy rule (alpha is set to 0 at p <= p_min and never increased); the rule is a repository-authored design choice, so agreement is a software contract check, not independent scientific truth or a calibration of the conflict test."
 known_truth_fixture = "conformance/bayesian/prior_bank_conflict_shrink"
 evidence_test = "crates/antecedent/tests/bayesian.rs"
 evidence_assertion = "prior_bank_conflict_shrink"
@@ -234,7 +236,8 @@ notes = "ConflictPolicy α shrink via prior-PPC/KL; BayesianConfig.prior_from_co
 [[capabilities]]
 id = "bayes.prior_bank.transport"
 status = "done"
-evidence_kind = "internal_known_truth"
+evidence_kind = "implementation_exists"
+limitations = "Checks the declared TransportPolicy contract (named refusal code, required assumption ids, alpha forced to 0 without propensity weights); these are repository-authored rules, so agreement is a software contract check and validates no transport assumption or numerical prior."
 known_truth_fixture = "conformance/bayesian/prior_bank_transport"
 evidence_test = "crates/antecedent/tests/bayesian.rs"
 evidence_assertion = "prior_bank_transport"

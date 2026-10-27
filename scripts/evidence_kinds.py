@@ -263,6 +263,15 @@ def reference_review_problems(root: Path, oracle: dict) -> list[str]:
         elif hashlib.sha256(path.read_bytes()).hexdigest() != artifact.get("sha256"):
             problems.append(f"reference_review stale artifact: {rel}")
     problems.extend(false_independence_problems(root, oracle, artifacts))
+    bound = {
+        (a.get("role"), a.get("path")) for a in artifacts if isinstance(a, dict)
+    }
+    for role, key in (("generator", "generator"), ("environment_lock", "environment_lock")):
+        declared = oracle.get(key)
+        if isinstance(declared, str) and (role, declared) not in bound:
+            problems.append(
+                f"reference_review does not bind the oracle's declared {key}: {declared}"
+            )
     if not {"generator", "environment_lock", "assertion_source"}.issubset(roles):
         problems.append(
             "reference_review must bind generator, environment lock and assertion source"

@@ -2,9 +2,52 @@
   "oracle": {
     "kind": "enumeration",
     "method": "enumeration of the structural noise cells",
-    "independence_basis": "Binary SCM on c,t,m,y: reference.py enumerates the equally likely noise cells of the structural equations (counterfactual truth from the SCM itself, not from a g-formula), reproduces the observational counts, and recomputes the edge g-formula with numpy; path-specific effect 0.12, total 0.356, natural direct 0.156. The generator is retained and checked by the conformance reference check; the author of the reference is the repository author and independence from the production implementation has not been reviewed.",
+    "independence_basis": "Enumeration of the 10^4 (and 4^6) equally likely noise cells of the declared binary SCMs gives the cross-world counterfactual truth straight from the structural equations; the expanded contingency table is rebuilt from the same cells and the edge g-formula is recomputed from it with numpy and must reproduce the structural truth to 1e-12. Counterfactuals come from evaluating the structural equations under the cross-world assignment on every noise cell, not from any g-formula; the g-formula is then applied to the table as a cross-check, so the truth and the table share only the declared SCM. Imports no Antecedent code; numpy and the comparison helper are tooling.",
     "generator": "conformance/estimate/path_specific_edge_gformula/reference.py",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "command": "uv run --frozen --script conformance/estimate/path_specific_edge_gformula/reference.py --check",
+    "environment_lock": "conformance/estimate/path_specific_edge_gformula/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "path-specific, total and natural direct effects for the two-path case",
+      "shared-descendant path effect and total effect",
+      "retained contingency tables, graphs and queries"
+    ],
+    "context_only_outputs": [
+      "bayesian posterior_mean_tolerance and interval note (declared acceptance band)",
+      "identification status and rule labels"
+    ],
+    "historical_exposure": "The original generator's authorship is unrecorded. Its source was read in full during this review; the product implementation was not consulted. The generator itself was edited here only to carry the reference_review block and its locked environment.",
+    "reference_review": {
+      "scope": "Two binary SCMs (a recanting-witness-free two-path graph and a shared-descendant graph); truth by noise-cell enumeration, observational counts frozen by the same enumeration.",
+      "independence_basis": "Counterfactuals come from evaluating the structural equations under the cross-world assignment on every noise cell, not from any g-formula; the g-formula is then applied to the table as a cross-check, so the truth and the table share only the declared SCM. Imports no Antecedent code; numpy and the comparison helper are tooling.",
+      "historical_exposure": "The original generator's authorship is unrecorded. Its source was read in full during this review; the product implementation was not consulted. The generator itself was edited here only to carry the reference_review block and its locked environment.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. NumPy is a tooling dependency in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Binary variables, thresholds that are multiples of 1/10 (1/4 for the shared case), population tables with no sampling error. The Bayesian tolerance and interval-coverage statement are acceptance bands, not derived. Recanting-witness refusal is a software behavior outside this reference. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/path_specific_edge_gformula/reference.py",
+          "sha256": "539f7e7a0c8fa430ab14e3a1f48da832af91aaffa73cc2ffb52f2769b6487874"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/path_specific_edge_gformula/reference.py.lock",
+          "sha256": "1f04f8f8656e5327de48c7e011511e1777da8d2a9979916bdd4c6fc541583d12"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "scripts/reference_compare.py",
+          "sha256": "79904dc8724633c835ca4bcd894bedee2938a1ecbb7d4e4eda02be0b2b27d134"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/path_specific_edge_gformula_pins.rs",
+          "sha256": "965f6a6ae249e44212c5971bd654f186b902452012dd0cbe125a72ce1e83c45b"
+        }
+      ],
+      "fixture_payload_sha256": "ba21ee55eed8f15615a44eec2e0ed4af25e2c039e7349907cb13314e95b466d3"
+    }
   },
   "schema_version": 1,
   "case": "two_path_edge_g_formula",

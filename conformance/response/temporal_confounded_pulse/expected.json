@@ -2,8 +2,49 @@
   "oracle": {
     "kind": "closed_form",
     "method": "deterministic structural model",
-    "independence_basis": "Deterministic stationary linear SCM Z_s=V_s, A_s=Z_s+U_s, Y_s=1+2A_{s-1}+5Z_{s-1} with period-four exogenous sequences, so E[Y_0|do(A_{-1}=d)]=1+2d and doses [0,1] give surface [1,3]; the adjustment set {Z@-1} follows from the declared template edges. Hand-derived by repository authors; reviewer independence is not established.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "independence_basis": "Backdoor sets decided by exhaustive d-separation over simple paths of the unrolled template graph, and the n=241 deterministic series solved by exact OLS normal equations: adjusted g-computation surface [1,3], unadjusted surface [1,5.5], contrast 2 versus 4.5, and the horizon-2 unadjusted lag-2 cells (0.97046..., 0). The graph reasoning and the regression are implemented from definitions (d-separation by path enumeration; normal equations over Fractions) with no Antecedent code. The structural equations and period-four exogenous sequences are the fixture's statement, shared with the product input.",
+    "generator": "conformance/response/temporal_confounded_pulse/reference.py",
+    "command": "uv run --frozen --script conformance/response/temporal_confounded_pulse/reference.py --check",
+    "environment_lock": "conformance/response/temporal_confounded_pulse/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "adjustment set z@-1 for horizon 1 and the empty set for horizon 2",
+      "adjusted and unadjusted surfaces",
+      "pulse and sustained contrast",
+      "horizon-2 surface cells"
+    ],
+    "context_only_outputs": [
+      "method and status labels",
+      "estimator ids",
+      "prose note and claim text"
+    ],
+    "historical_exposure": "Written during this review from the fixture README and the asserting test; no product implementation source was consulted. Authorship of the original hand derivation is unrecorded.",
+    "reference_review": {
+      "scope": "One linear confounded temporal pulse; exact rational OLS on the retained deterministic series; surface and contrast values compared at 1e-8.",
+      "independence_basis": "The graph reasoning and the regression are implemented from definitions (d-separation by path enumeration; normal equations over Fractions) with no Antecedent code. The structural equations and period-four exogenous sequences are the fixture's statement, shared with the product input.",
+      "historical_exposure": "Written during this review from the fixture README and the asserting test; no product implementation source was consulted. Authorship of the original hand derivation is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Deterministic periodic data; horizon-2 cells are finite-sample associations of this sample, not structural truth. Label and estimator-id strings are software contracts. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/temporal_confounded_pulse/reference.py",
+          "sha256": "81347309d61bd90570a3ec2f3a0406bf7455a7b4001e5ca0dd31b6fdfca1d283"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/temporal_confounded_pulse/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_response_redundancy.rs",
+          "sha256": "bdf985b0dea1c89e9e767c44ea01284eefc89780dbc99f756a4d5f2cd274a6ca"
+        }
+      ],
+      "fixture_payload_sha256": "f72f9c8e9f1fa7aa5dd2823d853abbb3780345a01da218d225be0fdd73bd53a3"
+    }
   },
   "fixture_id": "antecedent.temporal_response.confounded_pulse",
   "claim": "under lagged confounding, temporal backdoor identification returns Z at offset -1 (not empty) with method temporal.backdoor.unfolded, and the estimator recovers the structural pulse; omitting Z leaves that method with an empty adjustment set and the confounded association",
@@ -110,35 +151,60 @@
       "contrast": 2.0
     },
     "multi_horizon": {
-      "horizons": [1, 2],
+      "horizons": [
+        1,
+        2
+      ],
       "identification": [
         {
           "horizon": 1,
           "status": "NonparametricallyIdentified",
           "method": "temporal.backdoor.unfolded",
-          "treatment": { "variable": "t", "offset": -1 },
-          "outcome": { "variable": "y", "offset": 0 },
-          "adjustment_set": [{ "variable": "z", "offset": -1 }]
+          "treatment": {
+            "variable": "t",
+            "offset": -1
+          },
+          "outcome": {
+            "variable": "y",
+            "offset": 0
+          },
+          "adjustment_set": [
+            {
+              "variable": "z",
+              "offset": -1
+            }
+          ]
         },
         {
           "horizon": 2,
           "status": "NonparametricallyIdentified",
           "method": "temporal.backdoor.unfolded",
-          "treatment": { "variable": "t", "offset": -1 },
-          "outcome": { "variable": "y", "offset": 1 },
+          "treatment": {
+            "variable": "t",
+            "offset": -1
+          },
+          "outcome": {
+            "variable": "y",
+            "offset": 1
+          },
           "adjustment_set": []
         }
       ],
       "surface": {
         "layout": "dose_major",
         "index_formula": "dose_index * n_horizons + horizon_index",
-        "mean": [1.0, 0.9704641350210989, 3.0, 0.0],
+        "mean": [
+          1.0,
+          0.9704641350210989,
+          3.0,
+          0.0
+        ],
         "note": "Cells are (dose=0,h=1), (dose=0,h=2), (dose=1,h=1), (dose=1,h=2). Horizon 1 stays the structural pulse [1, 3]. Horizon 2 has no graph backdoor (I(2)={}); the cells are the unadjusted lag-2 association in this periodic sample, not E[Y]=1. Reusing I(2)={} at h=1 yields the confounded [1, 5.5] at the short cells."
       },
-      "horizon_2_atol": 1e-8
+      "horizon_2_atol": 1e-08
     }
   },
-    "estimator_contract": {
+  "estimator_contract": {
     "estimator": "temporal response linear g-computation over a lag-aligned OLS design that includes the temporal-backdoor adjustment set identified for that horizon",
     "claim": "identification is Z@-1 with method temporal.backdoor.unfolded at horizon 1; with that Z, finite-sample OLS recovers the structural intercept and pulse coefficient; PulseEffect / single-step SustainedEffect recover the two-point contrast 2. Empty Z on this graph at horizon 1 is not a valid identification. Horizons [1, 2] identify I(1)={Z@-1} and I(2)={} separately; reusing I(2) at horizon 1 recovers the confounded association.",
     "not_claimed": "no outcome noise beyond the treatment equation A=Z+U, no Python offset-level adjustment view on the scalar IdentificationView.adjustment_set (Python pins names plus horizon_adjustment_sets; Rust pins (variable, offset) on CausalResponse.horizon_identification)"

@@ -15,8 +15,11 @@
   "p_min": 0.05,
   "kl_scale": 1.0,
   "notes": "P4C ConflictPolicy α shrink; never increases α",
-  "oracle": {
-    "kind": "closed_form",
-    "method": "ConflictPolicy rule evaluated by hand: p <= p_min gives alpha' = 0; no conflict leaves alpha unchanged"
-  }
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_source": "crates/antecedent/tests/bayesian.rs::prior_bank_conflict_shrink",
+  "evidence_proposition": "The declared ConflictPolicy sets the applied power-prior alpha to zero when the conflict p-value is at most p_min, never raises alpha, and leaves alpha unchanged without conflict.",
+  "limitations": "Evaluates a repository-authored rule; it validates no conflict-test calibration, numerical prior content or posterior behavior."
 }

@@ -2,13 +2,63 @@
   "oracle": {
     "kind": "closed_form",
     "method": "declared linear response and affine utilities",
-    "independence_basis": "Native data follow Y=1+2A+0.2X with X symmetric about zero, so the intervention means at A=1,2 are 3 and 5; the named affine utilities 2*mean1-1 and 0.5*mean2 give 5 and 2.5. The arithmetic is repository-authored closed form and was rechecked during classification. Utility coefficients and units are caller declarations; no calibration or external reference is supplied.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "independence_basis": "Exact rational evaluation of the data-generating equation Y=1+2A+0.2X on the 80-point symmetric X grid (E[X]=0 verified, not assumed), giving intervention means 3 and 5 and the caller-declared affine utilities 2*m1-1=5 and 0.5*m2=2.5. The generator evaluates the structural mean by exact arithmetic over the declared grid and applies the declared affine maps; no regression is fitted and no Antecedent code is imported. The utility rules are caller declarations repeated in the fixture, so the check is of the arithmetic, not of the declared utilities' merit.",
+    "generator": "conformance/composition/source_projection/reference.py",
+    "command": "uv run --frozen --script conformance/composition/source_projection/reference.py --check",
+    "environment_lock": "conformance/composition/source_projection/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "affine utilities of actions A and B"
+    ],
+    "context_only_outputs": [
+      "native_means and external_means (not read by an executing assertion)",
+      "utility_rule strings and units",
+      "native_tolerance and calibration declarations"
+    ],
+    "historical_exposure": "Written during this review from the fixture README and the executing assertion's data construction; no product implementation source was consulted. Authorship of the original arithmetic is unrecorded.",
+    "reference_review": {
+      "scope": "One linear structural response and two declared affine utilities; exact values compared with the test's tolerance of twice native_tolerance.",
+      "independence_basis": "The generator evaluates the structural mean by exact arithmetic over the declared grid and applies the declared affine maps; no regression is fitted and no Antecedent code is imported. The utility rules are caller declarations repeated in the fixture, so the check is of the arithmetic, not of the declared utilities' merit.",
+      "historical_exposure": "Written during this review from the fixture README and the executing assertion's data construction; no product implementation source was consulted. Authorship of the original arithmetic is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Linear response with a known, exactly balanced X grid; the product estimator's regularization is covered only through the test tolerance. No standard error, interval or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/composition/source_projection/reference.py",
+          "sha256": "52ce4731bb10d49d1ad86fb6229cb2e7dec4096a1567d28b3818becb7654516c"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/composition/source_projection/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/source_projection.rs",
+          "sha256": "be0faaf6096d4089b8170715a6dd6b17981e47f5733bc388eff092ccc36a279c"
+        }
+      ],
+      "fixture_payload_sha256": "a1626415293db6820be0cd2324fffd1c9d47949cd866469396c0ecdd50752553"
+    }
   },
-  "native_means": [3.0, 5.0],
-  "external_means": [3.0, 5.0],
-  "utilities": {"A": 5.0, "B": 2.5},
-  "utility_rule": {"A": "2 * E[Y|do(a=1)] - 1", "B": "0.5 * E[Y|do(a=2)]"},
+  "native_means": [
+    3.0,
+    5.0
+  ],
+  "external_means": [
+    3.0,
+    5.0
+  ],
+  "utilities": {
+    "A": 5.0,
+    "B": 2.5
+  },
+  "utility_rule": {
+    "A": "2 * E[Y|do(a=1)] - 1",
+    "B": "0.5 * E[Y|do(a=2)]"
+  },
   "utility_units": "caller_declared_utility_points",
   "native_tolerance": 0.0001,
   "calibration": "unmeasured",

@@ -363,6 +363,40 @@ class Classification(unittest.TestCase):
                 problems = reference_review_problems(root, build(root, source, **kwargs))
                 self.assertTrue(any(expected in p for p in problems), problems)
 
+    def test_review_must_bind_the_generator_and_lock_the_oracle_declares(self):
+        import hashlib
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifacts = []
+            for role, rel in (
+                ("generator", "other_reference.py"),
+                ("environment_lock", "other_reference.py.lock"),
+                ("assertion_source", "test_truth.py"),
+            ):
+                (root / rel).write_text("x = 1\n", encoding="utf-8")
+                artifacts.append(
+                    {"role": role, "path": rel, "sha256": hashlib.sha256((root / rel).read_bytes()).hexdigest()}
+                )
+            oracle = {
+                "kind": "closed_form",
+                "generator": "reference.py",
+                "environment_lock": "reference.py.lock",
+                "reference_review": {
+                    **{
+                        key: "reviewed scope, with explicit limits"
+                        for key in ("scope", "independence_basis", "historical_exposure", "redistribution", "limitations")
+                    },
+                    "artifacts": artifacts,
+                },
+            }
+            problems = reference_review_problems(root, oracle)
+            self.assertTrue(any("declared generator" in p for p in problems), problems)
+            self.assertTrue(any("declared environment_lock" in p for p in problems), problems)
+            oracle["generator"] = "other_reference.py"
+            oracle["environment_lock"] = "other_reference.py.lock"
+            self.assertEqual(reference_review_problems(root, oracle), [])
+
     def test_software_only_claim_must_state_its_limits(self):
         claim = {"roles": ["software"], "evidence_kind": "implementation_exists"}
         self.assertEqual(

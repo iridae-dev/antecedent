@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = []
+# ///
 """Independent finite-lag two-channel panel reference, never a fitted causal route.
 
 Run with --write to regenerate the retained CSV/truth; --check checks them.
@@ -281,16 +285,36 @@ def csv_text(rows: list[dict]) -> str:
 
 ORACLE = {'kind': 'closed_form',
  'method': 'retained structural data generator with population truth',
- 'independence_basis': 'reference.py generates the six retained artifacts from the '
-                       'declared structural design (four groups, AR(1) errors, '
-                       'saturated lagged exposures, additive and interaction variants) '
-                       'and its population truth is computed from the structural mean, '
-                       'using no production estimator, simulator or identification '
-                       'routine; reference.py --check reproduces the artifacts. The '
-                       'generator is retained; reviewer independence and transitive '
-                       'helpers have not been reviewed.',
+ 'independence_basis': 'Structural-mean population truth for a four-group, 24-period '
+                       'two-channel panel (seeded stdlib generator): world mean paths, '
+                       'delta = joint-a-b+reference. This review added an independent '
+                       'identity check: the retained delta equals interaction*(S_joint '
+                       '- S_a - S_b + S_ref) with S_w the product of saturated lagged '
+                       'exposures from the retained initial histories, so group '
+                       'intercepts, seasons, z and AR errors must cancel. Only the '
+                       'Python standard library is used; no estimator, simulator or '
+                       'identification routine is imported. Truth is the structural '
+                       'mean with noise integrated out. The cancellation identity is a '
+                       'second derivation of the delta from the lag weights and '
+                       'saturation alone.',
  'generator': 'conformance/response/joint_panel/reference.py',
- 'historical_exposure': 'Historical author exposure is unrecorded and remains unknown.'}
+ 'command': 'uv run --frozen --script conformance/response/joint_panel/reference.py '
+            '--check',
+ 'environment_lock': 'conformance/response/joint_panel/reference.py.lock',
+ 'generator_retained': True,
+ 'asserted_outputs': ['world mean paths and the interaction delta used by the '
+                      'shared-draw response test',
+                      'retained group intercepts and initial histories',
+                      'randomized_interaction.csv rows'],
+ 'context_only_outputs': ['confounded design obligations',
+                          'whole-program assignment and acceptance artifacts not read '
+                          'by the cited assertion',
+                          'evidence/format labels'],
+ 'historical_exposure': "The original generator's authorship is unrecorded; its source "
+                        'was read in full during this review and the product '
+                        'implementation was not consulted. The generator was edited '
+                        'here only to add the identity check, the locked-environment '
+                        'header and review carry-through.'}
 
 
 def artifacts() -> dict[str, str]:
@@ -330,8 +354,39 @@ def same_truth(expected, generated) -> bool:
 def matches_artifact(name: str, retained: str, generated: str) -> bool:
     """CSV remains byte exact; JSON numeric truth has the declared absolute tolerance."""
     if name == "expected.json":
-        return same_truth(json.loads(retained), json.loads(generated))
+        kept = json.loads(retained)
+        # The retained reference_review binds this script by digest and is carried through.
+        kept["oracle"] = {k: v for k, v in kept["oracle"].items() if k != "reference_review"}
+        return same_truth(kept, json.loads(generated))
     return retained == generated
+
+
+def interaction_identity_problems(document: dict) -> list[str]:
+    """delta_ab must equal interaction * (S_joint - S_a - S_b + S_ref).
+
+    A second derivation from the lag weights and the saturation only: group intercepts,
+    seasons, the observed covariate and AR errors all cancel in the double difference."""
+    problems = []
+    for name, variant in document["variants"].items():
+        c = variant["interaction_coefficient"]
+        for t in range(PERIODS):
+            total = 0.0
+            for group in variant["latent_truth"]:
+                products = {}
+                for world, levels in WORLDS.items():
+                    a, b = list(group["initial_a"]), list(group["initial_b"])
+                    for _ in range(t + 1):
+                        a.append(levels[0])
+                        b.append(levels[1])
+                    products[world] = saturation(carryover(a, LAG_A)) * saturation(carryover(b, LAG_B))
+                total += c * (
+                    products["joint"] - products["a"] - products["b"] + products["reference"]
+                )
+            if abs(total / GROUPS - variant["delta_ab_by_time"][t]) > TRUTH_ABSOLUTE_TOLERANCE:
+                problems.append(f"{name}: delta at t={t} differs from the interaction identity")
+        if name == "additive" and any(abs(v) > TRUTH_ABSOLUTE_TOLERANCE for v in variant["delta_ab_by_time"]):
+            problems.append("additive variant has a nonzero interaction delta")
+    return problems
 
 
 def main() -> int:
@@ -343,12 +398,22 @@ def main() -> int:
     failed = []
     for name, content in artifacts().items():
         path = HERE / name
+        if args.write and name == "expected.json" and path.is_file():
+            review = json.loads(path.read_text(encoding="utf-8"))["oracle"].get("reference_review")
+            if review:
+                document = json.loads(content)
+                document["oracle"]["reference_review"] = review
+                content = json.dumps(document, indent=2, sort_keys=True) + "\n"
         if args.write:
             path.write_text(content, encoding="utf-8", newline="\n")
         elif not path.is_file() or not matches_artifact(
             name, path.read_text(encoding="utf-8"), content
         ):
             failed.append(name)
+    if args.check:
+        failed += interaction_identity_problems(
+            json.loads((HERE / "expected.json").read_text(encoding="utf-8"))
+        )
     if failed:
         parser.exit(1, f"joint panel reference differs: {', '.join(failed)}\n")
     print(

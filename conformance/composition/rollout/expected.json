@@ -2,12 +2,67 @@
   "oracle": {
     "kind": "enumeration",
     "method": "finite state-law enumeration",
-    "independence_basis": "Equal-mass state law theta in {1/4,3/4}; wait pays 0, bet pays theta-1/2; prior expected utilities both 0; EVPI 1/8; two Bernoulli observations have predictive counts 5/16, 6/16, 5/16; only count two licenses the positive bet with posterior payoff 1/5, so EVSI is 1/16. The enumeration is repository-authored and its arithmetic was rechecked during classification. Agreement among Antecedent routes is not external-oracle evidence; no calibration is supplied.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "independence_basis": "Exact enumeration of the two equal-mass states and the Bernoulli outcome sequences: prior expected utility, EVPI as E[max payoff] minus the best prior action, EVSI as the preposterior value of the sample counts, and the predictive count law (5/16, 3/8, 5/16). The generator enumerates states and outcome sequences with Fractions and maximizes over actions directly; no Antecedent code, no sampling and no value-of-information routine. The payoff table (wait = 0, bet = theta - 1/2) is the fixture's statement and is shared with the product input.",
+    "generator": "conformance/composition/rollout/reference.py",
+    "command": "uv run --frozen --script conformance/composition/rollout/reference.py --check",
+    "environment_lock": "conformance/composition/rollout/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "prior expected utility",
+      "EVPI",
+      "EVSI for two observations",
+      "terminal utility table"
+    ],
+    "context_only_outputs": [
+      "rank (single candidate)",
+      "calibration label"
+    ],
+    "historical_exposure": "Written during this review from the fixture README and the executing assertion; no product implementation source was consulted. Authorship of the original hand enumeration is unrecorded.",
+    "reference_review": {
+      "scope": "Two states, two terminal actions, a two-observation Bernoulli study; exact rational EVPI and EVSI compared at the test's 1e-12.",
+      "independence_basis": "The generator enumerates states and outcome sequences with Fractions and maximizes over actions directly; no Antecedent code, no sampling and no value-of-information routine. The payoff table (wait = 0, bet = theta - 1/2) is the fixture's statement and is shared with the product input.",
+      "historical_exposure": "Written during this review from the fixture README and the executing assertion; no product implementation source was consulted. Authorship of the original hand enumeration is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "One finite decision problem; Bernoulli sampling only; no continuous states, costs of sampling or ranking among several designs (rank is a single-entry context value). Calibration unmeasured.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/composition/rollout/reference.py",
+          "sha256": "b9b873c00d114b458994527ebf155350d3596cf8ca3b6da2b5c91779da6b3794"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/composition/rollout/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/rollout_artifact.rs",
+          "sha256": "1329fc4808b78c3c9b0016ba555d11ee3abb75797fd2cb1f276092107f5cdc91"
+        }
+      ],
+      "fixture_payload_sha256": "293f527285c6906088201a666b1258d5b2ecac400097687227d34795ac9caa14"
+    }
   },
-  "state_draws": [0.25, 0.75],
-  "terminal_actions": ["wait", "bet"],
-  "utilities": [[0.0, 0.0], [-0.25, 0.25]],
+  "state_draws": [
+    0.25,
+    0.75
+  ],
+  "terminal_actions": [
+    "wait",
+    "bet"
+  ],
+  "utilities": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      -0.25,
+      0.25
+    ]
+  ],
   "prior_expected_utility": 0.0,
   "evpi": 0.125,
   "sample_size": 2,

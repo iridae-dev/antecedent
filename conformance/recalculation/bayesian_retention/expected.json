@@ -2,8 +2,53 @@
   "oracle": {
     "kind": "closed_form",
     "method": "conjugate algebra from declared design matrices",
-    "independence_basis": "Gaussian, quadratic-basis and joint-internal posterior moments are computed in closed form from the declared design matrices and priors (for example precision [[128.01,128],[128,256.25]] and moment [384,512] for the joint candidate); no native draws are frozen. The algebra is repository-authored; its independence from the production implementation has not been reviewed. The joint candidate is inspection evidence, not calibrated inference.",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "independence_basis": "Exact rational conjugate algebra on rows rebuilt from the declared designs: Gaussian posterior mean and variance, the five-column quadratic-basis normal-inverse-gamma coefficient means, precision inverse, shape, scale and effect variance, and the joint internal [T,1] posterior from precision [[128.01,128],[128,256.25]] and moment [384,512]. The generator rebuilds the design rows, solves the normal equations exactly and forms the posterior moments; it imports no Antecedent code and draws nothing. The asserting tests also restate parts of this algebra in floating point, so the comparison here is the exact-arithmetic version of the same conjugate formulas: independence is of implementation, not of the Bayesian-linear-model theory.",
+    "generator": "conformance/recalculation/bayesian_retention/reference.py",
+    "command": "uv run --frozen --script conformance/recalculation/bayesian_retention/reference.py --check",
+    "environment_lock": "conformance/recalculation/bayesian_retention/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "Gaussian posterior mean and variance",
+      "quadratic-basis treatment coefficient mean and effect variance",
+      "joint internal posterior mean and variance"
+    ],
+    "context_only_outputs": [
+      "prior_transfer source/target effects (declared structural effects used as a bracket)",
+      "quadratic precision_inverse, nig_shape and nig_scale entries not read by an executing assertion (verified here)",
+      "other coefficient means"
+    ],
+    "historical_exposure": "Written during this review from the fixture README and the asserting tests (which restate the algebra); no product implementation source was consulted. Authorship of the original algebra is unrecorded.",
+    "reference_review": {
+      "scope": "Three declared designs and priors; all fixture moments recomputed by Gaussian elimination over rationals and compared at 1e-12.",
+      "independence_basis": "The generator rebuilds the design rows, solves the normal equations exactly and forms the posterior moments; it imports no Antecedent code and draws nothing. The asserting tests also restate parts of this algebra in floating point, so the comparison here is the exact-arithmetic version of the same conjugate formulas: independence is of implementation, not of the Bayesian-linear-model theory.",
+      "historical_exposure": "Written during this review from the fixture README and the asserting tests (which restate the algebra); no product implementation source was consulted. Authorship of the original algebra is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Known-variance Gaussian and normal-inverse-gamma conjugate cases only; the prior_transfer block is a declared bracket, not a derived posterior. Posterior-draw behavior is checked by Monte Carlo tolerances in the tests, not here. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/recalculation/bayesian_retention/reference.py",
+          "sha256": "2ea5d2531732c030a7430b3f0d20a17ea727179efc65a883c1ed8cbf98890d59"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/recalculation/bayesian_retention/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/recalc_bayesian.rs",
+          "sha256": "b533426947efd7bf2a9111c225b8b05f7b5940f768de06893bbf3aaacae4d45a"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/recalc_joint_bayesian.rs",
+          "sha256": "5ce49bfa2c0563cf0f932597e7e08f40c2b947b738082c9e6ab786376151c5e1"
+        }
+      ],
+      "fixture_payload_sha256": "5e230779ba6f90b9f5eec6eb9c0bdfa26fe1cf62e5031ccc9bb94f399d86e38c"
+    }
   },
   "gaussian": {
     "mean": 1.9997656677160285,

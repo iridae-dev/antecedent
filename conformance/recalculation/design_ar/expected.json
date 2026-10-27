@@ -2,8 +2,45 @@
   "oracle": {
     "kind": "independent_reimplementation",
     "method": "finite-sample F critical values by numerical integration",
-    "independence_basis": "The F(1,n-2) 0.95 critical values for n=150,300,600 were computed with Python standard-library lgamma and Simpson integration of the Student t density with bisection on its 0.975 quantile, using no production incomplete-beta, F quantile or generator. The harness was not retained. The structural effect 2 is the declared DGP coefficient. Measurement tests that use these pins are ignored until calibration.",
-    "historical_exposure": "The computing harness is not retained; historical author exposure is unrecorded and remains unknown."
+    "independence_basis": "F(1,n-2) 0.95 critical values from two different stdlib-only computations that must agree to 1e-9: Simpson integration of the Student t density with bisection on the 0.975 quantile, and Lentz's continued fraction for the regularized incomplete beta with bisection on x^2. Neither computation uses Antecedent's incomplete-beta, F quantile or generators; the two routes are mathematically distinct quadrature and continued-fraction evaluations. The t-squared-equals-F identity for one numerator degree of freedom is the shared theorem.",
+    "generator": "conformance/recalculation/design_ar/reference.py",
+    "command": "uv run --frozen --script conformance/recalculation/design_ar/reference.py --check",
+    "environment_lock": "conformance/recalculation/design_ar/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "finite F critical value for n=150 (non-ignored role/diagnostic test)",
+      "finite F critical values for n=150,300,600 (ignored calibration measurement test only)"
+    ],
+    "context_only_outputs": [
+      "effect and strengths (declared data-generating inputs)"
+    ],
+    "historical_exposure": "The original harness was not retained; this replacement was written during this review from the README's stated method plus an independent continued-fraction cross-check. No product source was consulted.",
+    "reference_review": {
+      "scope": "Three sample sizes at level 0.95; fixture values agree with both computations at 1e-8, the test's tolerance.",
+      "independence_basis": "Neither computation uses Antecedent's incomplete-beta, F quantile or generators; the two routes are mathematically distinct quadrature and continued-fraction evaluations. The t-squared-equals-F identity for one numerator degree of freedom is the shared theorem.",
+      "historical_exposure": "The original harness was not retained; this replacement was written during this review from the README's stated method plus an independent continued-fraction cross-check. No product source was consulted.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Critical values only. The ignored measurement tests that consume the larger-n pins are not run here and are final-calibration only; the IV design, its Anderson-Rubin inversion and error rates are not covered. Calibration unmeasured.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/recalculation/design_ar/reference.py",
+          "sha256": "30f5b8faf4d20f9431e792b769ff5c2df1b07a7cb60bdbd90c8c0b51569e1f4d"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/recalculation/design_ar/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/design_ar_precision_calibration.rs",
+          "sha256": "8b66f1b5f7323cf28ce1e330d6956ece9dca236c36aee9d181129c85b8428c53"
+        }
+      ],
+      "fixture_payload_sha256": "0baccffa027a5478c5ef3baae6aa2b408380065e994e2b673940da0461406b48"
+    }
   },
   "effect": 2.0,
   "strengths": [
