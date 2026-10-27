@@ -200,7 +200,17 @@ keeps its documented drop-last rule. These are limits on comparator parity.
 Two more reference reviews and one bounded primary implementation review bind
 the exact Vehtari/Geyer sections, assumptions, source, assertions and fixtures.
 Citation/deviation-content edits also make that method review stale. This is
-one reviewed method record among 495; other primary reviews remain open.
+two reviewed method records among 495; other primary reviews remain open.
+
+The second bounded primary review covers BH/BY/Bonferroni/Holm adjusted p-values
+and the explicitly declared temporal correction family. It verifies the original
+BH procedure/theorem, BY harmonic/PRDS results and Holm's ordered rejection
+scheme/union-bound theorem, and repairs the missing Holm/Bonferroni citation.
+All six primitive controls, three comparator/routing assertions and the five
+pinned reference cases pass. Underlying p-value validity and adaptive discovery
+families remain outside this review; raw contemporaneous tests do not inherit
+the lagged family's FDR control. The Holm citation retains its publisher stable
+identifier without asserting a DOI-registry verification that did not resolve.
 The prior-support reference now reproduces 24 domain cases in its own pinned
 SciPy environment. Exact evidence fields cover support and coefficient precision;
 upstream normalization checks are separate fixture context, not product density
