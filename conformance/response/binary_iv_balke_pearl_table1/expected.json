@@ -3,12 +3,22 @@
   "estimand": "E[Y(1)-Y(0)] without monotonicity",
   "cell_order": "within each Z arm: (Y,D)=(0,0),(1,0),(0,1),(1,1)",
   "cells": [
-    [0.0064, 0.9936, 0.0, 0.0],
-    [0.0028, 0.1972, 0.001, 0.799]
+    [
+      0.0064,
+      0.9936,
+      0.0,
+      0.0
+    ],
+    [
+      0.0028,
+      0.1972,
+      0.001,
+      0.799
+    ]
   ],
   "expected": {
     "lower": -0.1946,
-    "upper": 0.0054000000000000003,
+    "upper": 0.0054,
     "iv_inequality_satisfied": true
   },
   "tolerance": {
@@ -20,18 +30,84 @@
     "version": "0.1.8",
     "source": "https://cran.r-project.org/src/contrib/bpbounds_0.1.8.tar.gz",
     "available": true,
-    "command": "Rscript -e 'install.packages(\"https://cran.r-project.org/src/contrib/bpbounds_0.1.8.tar.gz\", repos=NULL, type=\"source\"); library(bpbounds); cp<-c(.0064,0,.9936,0,.0028,.001,.1972,.799); p<-as.table(array(cp,dim=c(2,2,2),dimnames=list(x=c(0,1),y=c(0,1),z=c(0,1)))); r<-bpbounds(p); dput(c(lower=r$bplb,upper=r$bpub,iv_inequality_satisfied=r$inequality))'",
-    "execution_note": "The exact 0.1.8 CRAN tarball was executed unmodified as a black box. Only public-API inputs and numeric outputs are stored here; no package source or tests were copied.",
+    "command": "Rscript --vanilla conformance/response/causaleffect_transport_subset/reference.R --check --self-test",
+    "execution_note": "Retained independently authored public-API harness, restored through the committed renv lock in an isolated library. Original outputs and historical import notes are preserved; no upstream source or tests are copied into the product.",
     "outputs": {
       "lower": -0.1946,
-      "upper": 0.0054000000000000003,
+      "upper": 0.0054,
       "iv_inequality_satisfied": true
-    }
+    },
+    "generator": "conformance/response/causaleffect_transport_subset/reference.R",
+    "environment_lock": "conformance/response/causaleffect_transport_subset/renv.lock",
+    "generator_retained": true,
+    "environment_prepare": "Rscript --vanilla conformance/response/causaleffect_transport_subset/prepare.R"
   },
   "oracle": {
     "kind": "external_package",
     "project": "bpbounds (R, CRAN)",
     "version": "0.1.8",
+    "source": "Retained public black-box R reference and its complete isolated renv environment; original comparison scope is explicit in reference_review.",
+    "reference_review": {
+      "scope": "Balke-Pearl binary-IV Table 1 conditional law: lower and upper average-effect bounds without monotonicity and the IV-inequality verdict. Both original expected and reference output blocks are reproduced at absolute 1e-12; original atol/rtol declarations are preserved.",
+      "independence_basis": "The repository-authored R harness reads only the frozen input coordinates and calls public causaleffect::transport or bpbounds::bpbounds. It imports no product code or test helper and implements no upstream identification/bounds algorithm. The transport product assertion parses only its two reviewed R formula forms and now rejects corruption of both duplicate expression fields; the bounds assertion executes the separate Rust optimizer against the fixed external values, with no shared runtime or helper code with the external R package; historical authorship exposure remains unresolved.",
+      "historical_exposure": "Original exposure cannot be reconstructed beyond the retained public-API commands and package import notes. This review inspected product consumers, primary CRAN API manuals and package metadata. No upstream algorithm or test source was consulted, copied or translated. The current full renv environment is newly retained; the old complete transitive environment was not recorded and is not claimed reconstructed.",
+      "redistribution": "causaleffect is GPL (>=2); bpbounds is GPL-3. They and all locked transitive R packages remain isolated upstream tooling, outside the product runtime and ordinary CI. The repository retains its independently authored MIT OR Apache-2.0 harness, factual dependency metadata, original mathematical outputs and source links, with no upstream source/test redistribution.",
+      "limitations": "One fixed binary-instrument/binary-treatment/binary-outcome law, conditional on the standard IV model and without a monotonicity restriction. No sampling uncertainty, weak-instrument calibration, weighting/missingness, multi-category instrument support or general numerical robustness is established by this case. Analytic/degenerate unit cases remain separate assertions; calibration remains deferred.",
+      "sources": [
+        "https://cran.r-project.org/web/packages/causaleffect/causaleffect.pdf",
+        "https://cran.r-project.org/web/packages/bpbounds/bpbounds.pdf",
+        "https://rstudio.github.io/renv/reference/restore.html"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/causaleffect_transport_subset/reference.R",
+          "sha256": "c4e8e47d245b5b9e55bf7dded2a17d3e31242ea2df67aa7fb4c60e36e836cfe4"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/causaleffect_transport_subset/renv.lock",
+          "sha256": "4811cbaf623c8474d4677651ab458e03388f63bdbb5c7c8524ce196288f0d4a5"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "conformance/response/causaleffect_transport_subset/prepare.R",
+          "sha256": "36d950966cd9fad1e7e9b3f34e5c232cc90da8b560d396242f12117c89aab624"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-identify/src/bounds.rs",
+          "sha256": "688e600fa78776a81ccac34dc17530d2ef73d8e558bee87ba5a56762329c92e9"
+        }
+      ],
+      "fixture_payload_sha256": "37cceaf4a730ca360e971502c966d4a1ebdfa87fab5b5b925a8049103ab4eefa"
+    }
+  },
+  "historical_reference": {
+    "project": "bpbounds",
+    "version": "0.1.8",
+    "source": "https://cran.r-project.org/src/contrib/bpbounds_0.1.8.tar.gz",
+    "available": true,
+    "command": "Rscript -e 'install.packages(\"https://cran.r-project.org/src/contrib/bpbounds_0.1.8.tar.gz\", repos=NULL, type=\"source\"); library(bpbounds); cp<-c(.0064,0,.9936,0,.0028,.001,.1972,.799); p<-as.table(array(cp,dim=c(2,2,2),dimnames=list(x=c(0,1),y=c(0,1),z=c(0,1)))); r<-bpbounds(p); dput(c(lower=r$bplb,upper=r$bpub,iv_inequality_satisfied=r$inequality))'",
+    "execution_note": "The exact 0.1.8 CRAN tarball was executed unmodified as a black box. Only public-API inputs and numeric outputs are stored here; no package source or tests were copied.",
+    "outputs": {
+      "lower": -0.1946,
+      "upper": 0.0054,
+      "iv_inequality_satisfied": true
+    }
+  },
+  "historical_oracle": {
+    "kind": "external_package",
+    "project": "bpbounds (R, CRAN)",
+    "version": "0.1.8",
     "source": "the `reference` block: the recorded bpbounds() output on Balke and Pearl's Table 1 law"
+  },
+  "generation": {
+    "script": "conformance/response/causaleffect_transport_subset/reference.R",
+    "command": "Rscript --vanilla conformance/response/causaleffect_transport_subset/reference.R --check --self-test",
+    "environment_lock": "conformance/response/causaleffect_transport_subset/renv.lock",
+    "prepare_script": "conformance/response/causaleffect_transport_subset/prepare.R",
+    "generator_retained": true,
+    "inputs": "Original declared graph/regime coordinates or conditional cell law; no expected output enters an upstream call."
   }
 }

@@ -145,7 +145,7 @@ assertions pass; the ten foundations assertions pass. These are fixed-input
 comparisons. Temporal Sobel uncertainty is checked only under explicit iid
 opt-in, and GAM fit outputs remain product regression pins.
 
-Twenty-five retained reference reviews bind generator, transitive comparison
+Twenty-seven retained reference reviews bind generator, transitive comparison
 helper, lock, assertion source and fixture payload by digest. Gates reject
 changed inputs, expected outputs, tolerances, origins, assertions and helpers
 until reviewed again. Reviews record limited independence, redistribution
@@ -356,3 +356,18 @@ scalar Tigramite, DoWhy identification and y0 generators pass again with refresh
 review digests. Later concurrent observation-source edits make the native build
 stale, which the guard correctly reports; this run is not current frozen-source
 verification of those later edits.
+
+A shared retained R harness and renv lock now reproduce both original
+causaleffect transport formulas and the bpbounds binary-IV Table 1 bounds and
+inequality. A fresh isolated library restored all pinned dependencies and passed
+the reference and fault controls; upstream GPL packages remain outside the
+product runtime and ordinary CI. Original values, tolerances and import records
+are preserved. The four selected product assertions pass.
+
+The transport audit repaired a weak comparison: two duplicate frozen expression
+strings could be corrupted together while a locally declared formula-class label
+still passed. The test now requires the actual reviewed R expression class and
+sum variables; mutations cover both invalid and wrongly substituted valid
+formulas. Scope stays structural on the two declared selection DAGs. Literal
+source/target domains, arbitrary experiment catalogs, numeric transport and
+recursive completeness are separate evidence, not silently claimed here.

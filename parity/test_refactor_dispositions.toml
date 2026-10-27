@@ -1058,3 +1058,10 @@ previous = "crates/antecedent-identify/tests/counterfactual_id_y0_parity.rs::the
 replacement = "crates/antecedent-identify/tests/counterfactual_id_y0_parity.rs::the_recorded_output_is_read_not_trusted"
 disposition = "renamed_to_match_audited_reference_normalization"
 reason = "The historical oracle harness used a local observational sentinel and normalized conflict text; these were not verbatim package strings. Preserve every existing mutation and classification assertion under an accurate recorded-output name. The retained generator separately checks all 257 graphs, every returned term and graph-justified rendering equivalences; no original expression, disagreement or tolerance is replaced."
+
+[[case]]
+previous = "crates/antecedent-identify/tests/causaleffect_transport_subset.rs::matches_frozen_causaleffect_supported_sid_subset"
+replacement = "crates/antecedent-identify/tests/causaleffect_transport_subset.rs::matches_frozen_causaleffect_supported_sid_subset"
+additional_replacements = ["crates/antecedent-identify/tests/causaleffect_transport_subset.rs::corrupted_oracle_expressions_cannot_borrow_local_formula_labels"]
+disposition = "external_expression_assertion_strengthened"
+reason = "Preserve both original graphs, certificate-rule/variant/standardizer checks and expression-drift checks. Derive the required formula class and sum variables from the actual reviewed R formula; formerly both frozen string copies could be corrupted together while a local class label still passed. New fault controls reject both invalid expressions and a valid standardization formula substituted for the direct case. Numeric transport and experiment-catalog equivalence remain outside this symbolic comparison."

@@ -31,12 +31,39 @@ fn mean_curve_query(treatment: VariableId, outcome: VariableId) -> TransportQuer
     )
 }
 
-#[test]
-fn matches_frozen_causaleffect_supported_sid_subset() {
-    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+fn fixture() -> serde_json::Value {
+    serde_json::from_str(include_str!(
         "../../../conformance/response/causaleffect_transport_subset/expected.json"
     ))
-    .unwrap();
+    .unwrap()
+}
+
+/// The two actual R formula forms, including the target-domain star and sum.
+/// Other forms require a reviewed comparator rather than a guessed class.
+fn oracle_shape(expression: &str) -> Option<(&'static str, &'static [&'static str])> {
+    match expression {
+        "P^*(Y|X)" => Some(("direct", &[])),
+        "\\sum_{Z}P^*(Y|Z,X)P^*(Z)" => Some(("standardize", &["Z"])),
+        _ => None,
+    }
+}
+
+#[test]
+fn matches_frozen_causaleffect_supported_sid_subset() {
+    assert_frozen_fixture(&fixture());
+}
+
+#[test]
+fn corrupted_oracle_expressions_cannot_borrow_local_formula_labels() {
+    for expression in ["P^*(X|Y)", "\\sum_{Z}P^*(Y|Z,X)P^*(Z)"] {
+        let mut changed = fixture();
+        changed["cases"][0]["oracle"]["expression"] = expression.into();
+        changed["reference"]["outputs"]["direct_irrelevant_selection"] = expression.into();
+        assert!(std::panic::catch_unwind(|| assert_frozen_fixture(&changed)).is_err());
+    }
+}
+
+fn assert_frozen_fixture(fixture: &serde_json::Value) {
     let cases = fixture["cases"].as_array().unwrap();
     let oracle_outputs = &fixture["reference"]["outputs"];
     assert_eq!(cases.len(), 2);
@@ -81,6 +108,11 @@ fn matches_frozen_causaleffect_supported_sid_subset() {
             .unwrap();
 
         let expected = &case["expected"];
+        let expression = case["oracle"]["expression"].as_str().unwrap();
+        let (oracle_kind, oracle_over) =
+            oracle_shape(expression).expect("unreviewed R formula form");
+        assert_eq!(expected["formula_kind"].as_str().unwrap(), oracle_kind, "{id}");
+
         assert_eq!(
             expected["transportable"].as_bool().unwrap(),
             matches!(result, TransportIdentification::Transportable { .. }),
@@ -89,7 +121,7 @@ fn matches_frozen_causaleffect_supported_sid_subset() {
         match result {
             TransportIdentification::Transportable { formula, certificate } => {
                 assert_eq!(certificate.rule.as_ref(), expected["rule"].as_str().unwrap(), "{id}");
-                match (expected["formula_kind"].as_str().unwrap(), formula) {
+                match (oracle_kind, formula) {
                     ("direct", TransportFormula::Direct(_)) => {}
                     ("standardize", TransportFormula::Standardize { over, .. }) => {
                         let expected_over: Vec<_> = expected["over"]
@@ -103,6 +135,11 @@ fn matches_frozen_causaleffect_supported_sid_subset() {
                             .map(|vid| nodes[vid.as_usize()].as_str().unwrap())
                             .collect();
                         assert_eq!(got, expected_over, "{id}");
+                        assert_eq!(
+                            got.as_slice(),
+                            oracle_over,
+                            "{id}: actual R summation variables"
+                        );
                     }
                     (kind, _) => panic!("{id}: unexpected formula variant for kind {kind}"),
                 }

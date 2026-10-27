@@ -6,11 +6,24 @@
     {
       "id": "direct_irrelevant_selection",
       "antecedent": {
-        "nodes": ["X", "Z", "Y"],
-        "directed": [["X", "Y"]],
+        "nodes": [
+          "X",
+          "Z",
+          "Y"
+        ],
+        "directed": [
+          [
+            "X",
+            "Y"
+          ]
+        ],
         "bidirected": [],
-        "selection_targets": ["Z"],
-        "source_experiments": ["X"],
+        "selection_targets": [
+          "Z"
+        ],
+        "source_experiments": [
+          "X"
+        ],
         "treatment": "X",
         "outcome": "Y"
       },
@@ -26,11 +39,28 @@
     {
       "id": "standardize_exogenous_selection",
       "antecedent": {
-        "nodes": ["X", "Z", "Y"],
-        "directed": [["Z", "Y"], ["X", "Y"]],
+        "nodes": [
+          "X",
+          "Z",
+          "Y"
+        ],
+        "directed": [
+          [
+            "Z",
+            "Y"
+          ],
+          [
+            "X",
+            "Y"
+          ]
+        ],
         "bidirected": [],
-        "selection_targets": ["Z"],
-        "source_experiments": ["X"],
+        "selection_targets": [
+          "Z"
+        ],
+        "source_experiments": [
+          "X"
+        ],
         "treatment": "X",
         "outcome": "Y"
       },
@@ -38,7 +68,9 @@
         "transportable": true,
         "rule": "transport.sid.standardize",
         "formula_kind": "standardize",
-        "over": ["Z"]
+        "over": [
+          "Z"
+        ]
       },
       "oracle": {
         "expression": "\\sum_{Z}P^*(Y|Z,X)P^*(Z)"
@@ -50,6 +82,63 @@
     "version": "1.3.15",
     "source": "https://cran.r-project.org/src/contrib/causaleffect_1.3.15.tar.gz",
     "available": true,
+    "command": "Rscript --vanilla conformance/response/causaleffect_transport_subset/reference.R --check --self-test",
+    "execution_note": "Retained independently authored public-API harness, restored through the committed renv lock in an isolated library. Original outputs and historical import notes are preserved; no upstream source or tests are copied into the product.",
+    "outputs": {
+      "direct_irrelevant_selection": "P^*(Y|X)",
+      "standardize_exogenous_selection": "\\sum_{Z}P^*(Y|Z,X)P^*(Z)"
+    },
+    "generator": "conformance/response/causaleffect_transport_subset/reference.R",
+    "environment_lock": "conformance/response/causaleffect_transport_subset/renv.lock",
+    "generator_retained": true,
+    "environment_prepare": "Rscript --vanilla conformance/response/causaleffect_transport_subset/prepare.R"
+  },
+  "oracle": {
+    "kind": "external_package",
+    "project": "causaleffect (R, CRAN)",
+    "version": "1.3.15",
+    "source": "Retained public black-box R reference and its complete isolated renv environment; original comparison scope is explicit in reference_review.",
+    "reference_review": {
+      "scope": "Two explicit selection DAGs: direct and exogenous-Z-standardization formula forms from causaleffect 1.3.15, including the printed target-domain star and the Z sum. The product checks the actual frozen expression class/standardizer, rather than only its duplicate metadata label.",
+      "independence_basis": "The repository-authored R harness reads only the frozen input coordinates and calls public causaleffect::transport or bpbounds::bpbounds. It imports no product code or test helper and implements no upstream identification/bounds algorithm. The transport product assertion parses only its two reviewed R formula forms and now rejects corruption of both duplicate expression fields; the bounds assertion executes the separate Rust optimizer against the fixed external values, with no shared runtime or helper code with the external R package; historical authorship exposure remains unresolved.",
+      "historical_exposure": "Original exposure cannot be reconstructed beyond the retained public-API commands and package import notes. This review inspected product consumers, primary CRAN API manuals and package metadata. No upstream algorithm or test source was consulted, copied or translated. The current full renv environment is newly retained; the old complete transitive environment was not recorded and is not claimed reconstructed.",
+      "redistribution": "causaleffect is GPL (>=2); bpbounds is GPL-3. They and all locked transitive R packages remain isolated upstream tooling, outside the product runtime and ordinary CI. The repository retains its independently authored MIT OR Apache-2.0 harness, factual dependency metadata, original mathematical outputs and source links, with no upstream source/test redistribution.",
+      "limitations": "Structural formula-class/standardizer agreement only on two unconfounded selection DAGs. R transport assumes general source-experiment access and returns target-observational expressions here; the product source-experimental forms agree under these fixed graph invariances, not as literal distribution-domain strings or arbitrary evidence catalogs. No numeric transported-law agreement, general latent-variable transportability, weighting/missingness, uncertainty or calibration is supplied by this fixture. The existing out-of-subset NotCertified control remains software evidence, not an invented R comparison.",
+      "sources": [
+        "https://cran.r-project.org/web/packages/causaleffect/causaleffect.pdf",
+        "https://cran.r-project.org/web/packages/bpbounds/bpbounds.pdf",
+        "https://rstudio.github.io/renv/reference/restore.html"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/causaleffect_transport_subset/reference.R",
+          "sha256": "c4e8e47d245b5b9e55bf7dded2a17d3e31242ea2df67aa7fb4c60e36e836cfe4"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/causaleffect_transport_subset/renv.lock",
+          "sha256": "4811cbaf623c8474d4677651ab458e03388f63bdbb5c7c8524ce196288f0d4a5"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "conformance/response/causaleffect_transport_subset/prepare.R",
+          "sha256": "36d950966cd9fad1e7e9b3f34e5c232cc90da8b560d396242f12117c89aab624"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-identify/tests/causaleffect_transport_subset.rs",
+          "sha256": "f4bd47d32d18398628071bae4e203a604ac8ca6e8c2a59aaee51a232c72fcfb1"
+        }
+      ],
+      "fixture_payload_sha256": "244f4eaa46bcb84937bead2f784bfbf3e1b0e6ead76ffce8be83b88d843a826e"
+    }
+  },
+  "historical_reference": {
+    "project": "causaleffect",
+    "version": "1.3.15",
+    "source": "https://cran.r-project.org/src/contrib/causaleffect_1.3.15.tar.gz",
+    "available": true,
     "command": "Rscript -e 'install.packages(\"https://cran.r-project.org/src/contrib/causaleffect_1.3.15.tar.gz\", repos=NULL, type=\"source\"); library(igraph); library(causaleffect); d <- graph.formula(X -+ Y, S -+ Z, simplify=FALSE); d <- set.vertex.attribute(d, \"description\", which(V(d)$name==\"S\"), \"S\"); cat(\"direct_irrelevant_selection\\t\", as.character(transport(y=\"Y\", x=\"X\", D=d, expr=TRUE, simp=TRUE)), \"\\n\", sep=\"\"); d2 <- graph.formula(Z -+ Y, X -+ Y, S -+ Z, simplify=FALSE); d2 <- set.vertex.attribute(d2, \"description\", which(V(d2)$name==\"S\"), \"S\"); cat(\"standardize_exogenous_selection\\t\", as.character(transport(y=\"Y\", x=\"X\", D=d2, expr=TRUE, simp=TRUE)), \"\\n\", sep=\"\")'",
     "execution_note": "The exact 1.3.15 CRAN tarball was executed unmodified as a black box on 2026-08-15. Only public-API inputs and formula strings are stored; no package source or tests were copied. Antecedent models selection targets on the causal ADMG rather than explicit S nodes; the diagrams above are the corresponding selection-target encoding of S->Z.",
     "outputs": {
@@ -57,10 +146,18 @@
       "standardize_exogenous_selection": "\\sum_{Z}P^*(Y|Z,X)P^*(Z)"
     }
   },
-  "oracle": {
+  "historical_oracle": {
     "kind": "external_package",
     "project": "causaleffect (R, CRAN)",
     "version": "1.3.15",
     "source": "the `reference` block: the recorded transport() formulas for each case"
+  },
+  "generation": {
+    "script": "conformance/response/causaleffect_transport_subset/reference.R",
+    "command": "Rscript --vanilla conformance/response/causaleffect_transport_subset/reference.R --check --self-test",
+    "environment_lock": "conformance/response/causaleffect_transport_subset/renv.lock",
+    "prepare_script": "conformance/response/causaleffect_transport_subset/prepare.R",
+    "generator_retained": true,
+    "inputs": "Original declared graph/regime coordinates or conditional cell law; no expected output enters an upstream call."
   }
 }

@@ -36,6 +36,8 @@ known_truth_fixture = "conformance/response/binary_iv_balke_pearl_table1"
 python_facade = "full"
 notes = "Frozen Balke-Pearl Table 1 black-box fixture generated with the exact public bpbounds 0.1.8 API; consumed by antecedent-identify bounds tests and antecedent.identify.binary_iv_bounds."
 
+limitations = "One fixed binary-IV conditional law without monotonicity: lower/upper bounds and the IV inequality match the retained bpbounds reference at absolute 1e-12. This case supplies no sampling uncertainty, general robustness or calibration claim."
+
 [[capabilities]]
 id = "identify.transport_sid"
 status = "done"
@@ -45,7 +47,7 @@ evidence_assertion = "matches_frozen_causaleffect_supported_sid_subset"
 oracle_components = ["identifier:transport.sid"]
 external_oracle = "causaleffect 1.3.15"
 known_truth_fixture = "conformance/response/causaleffect_transport_subset"
-limitations = "Supported sID subset only (direct + exogenous standardization); outside it the library returns NotCertified rather than claiming parity."
+limitations = "Structural class and standardizer agreement on two declared selection DAGs only. R returns target-observational formulas; product source-experimental forms agree under the fixed graph invariances, not as literal distribution-domain strings or arbitrary experiment catalogs. Numeric transport and recursive completeness are separate evidence; unsupported cases remain NotCertified."
 python_facade = "full"
 notes = "Claimed black-box parity against causaleffect 1.3.15 on the supported subset only (direct + exogenous standardization). Frozen fixture conformance/response/causaleffect_transport_subset. General multi-node c-component cases remain NotCertified and are not part of this claim."
 
