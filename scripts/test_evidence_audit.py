@@ -265,6 +265,27 @@ class Classification(unittest.TestCase):
                 [{**row, "evidence_activity": "calibration_acceptance"}]
             )
 
+    def test_claim_reader_classifies_calibration_for_every_report_consumer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "parity").mkdir()
+            (root / "python/tests").mkdir(parents=True)
+            (root / "parity/example.toml").write_text(
+                '[[claim]]\nevidence_kind = "internal_known_truth"\n'
+                'evidence_test = "python/tests/test_example.py"\n'
+                'evidence_assertion = "test_acceptance"\n', encoding="utf-8"
+            )
+            (root / "python/tests/test_example.py").write_text(
+                'import pytest\n@pytest.mark.requires_calibration\n'
+                'def test_acceptance():\n    assert measured() == expected\n',
+                encoding="utf-8",
+            )
+            row, = audit.claim_rows(root)
+            self.assertEqual(row["evidence_activity"], "calibration_acceptance")
+            self.assertEqual(row["roles"], ["software", "scientific"])
+            with self.assertRaisesRegex(ValueError, "empty"):
+                audit.scientific_rows([row])
+
     def test_calibration_marker_is_explicit_and_never_a_skip(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "test_activity.py"

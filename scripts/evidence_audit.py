@@ -231,12 +231,6 @@ def claim_rows(root: Path) -> list[dict]:
                     ),
                 }
             )
-    return claims
-
-
-def build_report(root: Path) -> dict:
-    root = root.resolve()
-    claims = claim_rows(root)
     calibration_acceptance = {
         (path.relative_to(root).as_posix(), name)
         for path in root.glob("python/tests/test_*.py")
@@ -249,6 +243,19 @@ def build_report(root: Path) -> dict:
             claim.get("evidence_assertion"),
         ) in calibration_acceptance:
             claim["evidence_activity"] = "calibration_acceptance"
+            claim["roles"] = evidence_roles(claim["evidence_kind"], "calibration_acceptance")
+    return claims
+
+
+def build_report(root: Path) -> dict:
+    root = root.resolve()
+    claims = claim_rows(root)
+    calibration_acceptance = {
+        (path.relative_to(root).as_posix(), name)
+        for path in root.glob("python/tests/test_*.py")
+        for name, markers in python_test_markers(path).items()
+        if "requires_calibration" in markers
+    }
     fixture_paths = set(root.glob("conformance/**/expected.json"))
     for claim in claims:
         rel = claim.get("known_truth_fixture")
@@ -517,7 +524,7 @@ def render(report: dict) -> str:
         "",
         "Calibration is pending the frozen candidate. No measurements or replays run.",
         "",
-        "## Demonstrated-proposition labels (registry declarations)",
+        "## Evidence kinds (registry declarations; execution is separate)",
         "",
         "| Evidence kind | Claims |",
         "| --- | ---: |",
@@ -526,6 +533,15 @@ def render(report: dict) -> str:
         Counter(c["evidence_kind"] for c in report["claims"]).items()
     ):
         lines.append(f"| {kind} | {count} |")
+    lines += ["", "| Evidence roles / activity | Claims |", "| --- | ---: |"]
+    for classification, count in sorted(
+        Counter(
+            (", ".join(c["roles"]), c.get("evidence_activity", "ordinary"))
+            for c in report["claims"]
+        ).items()
+    ):
+        roles, activity = classification
+        lines.append(f"| {roles} / {activity} | {count} |")
     software_fixtures = [
         f for f in report["fixtures"] if f.get("evidence_roles") == ["software"]
     ]
