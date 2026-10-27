@@ -855,6 +855,45 @@ impl<T: Serialize + ?Sized> Detail for T {
     }
 }
 
+/// The non-convergence of a fitted source, as the structured fact its columns carry.
+///
+/// A fit that stopped on its iteration or line-search bound still returns its best iterate.
+/// These reports carry no claim, so host status does not apply; the column diagnostics are
+/// where a consumer reads that the fitted values were not stationary points of the score.
+fn fit_convergence(answer: &A) -> Option<serde_json::Value> {
+    let (family, iterations, score_norm, line_search_exhausted) = match answer {
+        A::OdeFit(fit) if !fit.converged => ("ode_fit", fit.iterations, Some(fit.score_norm), None),
+        A::OuFit(fit) if !fit.converged => ("ou_fit", fit.sweeps, None, None),
+        A::OuMechanisms { fit: Some(fit), .. } if !fit.converged => {
+            ("ou_mechanisms", fit.iterations, Some(fit.score_norm), Some(fit.line_search_exhausted))
+        }
+        _ => return None,
+    };
+    Some(serde_json::json!({
+        "family": family,
+        "converged": false,
+        "iterations": iterations,
+        "score_norm": score_norm,
+        "line_search_exhausted": line_search_exhausted,
+        "consequence": "the fitted values did not reach the declared score tolerance; they are the last iterate, not a stationary point",
+    }))
+}
+
+/// Add `fit_convergence` to a column's diagnostics when its source fit did not converge.
+fn attach_fit_convergence(diagnostics: serde_json::Value, answer: &A) -> serde_json::Value {
+    let Some(convergence) = fit_convergence(answer) else {
+        return diagnostics;
+    };
+    match diagnostics {
+        serde_json::Value::Object(mut map) => {
+            map.insert("fit_convergence".into(), convergence);
+            serde_json::Value::Object(map)
+        }
+        serde_json::Value::Null => serde_json::json!({ "fit_convergence": convergence }),
+        other => serde_json::json!({ "detail": other, "fit_convergence": convergence }),
+    }
+}
+
 fn detail<'a, T: Serialize + 'a>(value: T) -> Option<Box<dyn Detail + 'a>> {
     Some(Box::new(value))
 }
@@ -2095,6 +2134,7 @@ impl CyclicEvidence {
                 Some(detail) => detail.to_json().map_err(invalid)?,
                 None => serde_json::Value::Null,
             };
+            let diagnostics = attach_fit_convergence(diagnostics, &source.answer);
             let (world, time) = (p.world.to_string(), p.time.to_string());
             let projection_bytes = cyclic_serialized_size(
                 &(&diagnostics, &p.samples, &p.bounds, &p.masses, &world, &time),
@@ -2877,6 +2917,46 @@ fn enclose_utility(
 mod tests {
     use super::*;
     use crate::analysis::Study;
+    #[test]
+    fn a_non_converged_fit_marks_its_evidence_columns_and_a_converged_fit_leaves_them_alone() {
+        use antecedent_estimate::cyclic_dynamics::{OdeFit, OuFit};
+        use antecedent_model::continuous_cyclic::{OdeSystem, OrnsteinUhlenbeck};
+        let ode = |converged| {
+            A::OdeFit(OdeFit {
+                model: OdeSystem { equations: vec![], decay: vec![] },
+                log_likelihood: -1.0,
+                iterations: 1,
+                score_norm: 0.5,
+                converged,
+            })
+        };
+        let ou = |converged| {
+            A::OuFit(OuFit {
+                model: OrnsteinUhlenbeck { drift: vec![], center: vec![], diffusion: vec![] },
+                log_likelihood: -1.0,
+                sweeps: 1,
+                converged,
+            })
+        };
+        let marked = attach_fit_convergence(serde_json::Value::Null, &ode(false));
+        assert_eq!(marked["fit_convergence"]["family"], "ode_fit");
+        assert_eq!(marked["fit_convergence"]["converged"], false);
+        assert_eq!(marked["fit_convergence"]["iterations"], 1);
+        assert_eq!(marked["fit_convergence"]["score_norm"], 0.5);
+        let merged = attach_fit_convergence(serde_json::json!({ "kept": 1 }), &ou(false));
+        assert_eq!(merged["kept"], 1);
+        assert_eq!(merged["fit_convergence"]["family"], "ou_fit");
+        let wrapped = attach_fit_convergence(serde_json::json!([1]), &ou(false));
+        assert_eq!(wrapped["detail"], serde_json::json!([1]));
+        assert_eq!(
+            attach_fit_convergence(serde_json::Value::Null, &ode(true)),
+            serde_json::Value::Null
+        );
+        assert_eq!(
+            attach_fit_convergence(serde_json::json!({ "kept": 1 }), &ou(true)),
+            serde_json::json!({ "kept": 1 })
+        );
+    }
     #[test]
     fn an_event_over_several_outcomes_projects_a_joint_coordinate_and_one_outcome_stays_scalar() {
         let joint = event_point(

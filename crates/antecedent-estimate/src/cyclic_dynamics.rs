@@ -309,6 +309,20 @@ mod tests {
         )
         .unwrap();
         assert!(fit.converged, "{fit:?}");
+        let bounded = fit_ode_likelihood(
+            &template,
+            &parameters,
+            &data,
+            OdePolicy::default(),
+            OdeFitPolicy { score_tolerance: 1e-9, max_iterations: 1, ..Default::default() },
+            &ctx,
+        )
+        .unwrap();
+        assert!(
+            !bounded.converged,
+            "an iteration-bounded fit reports non-convergence: {bounded:?}"
+        );
+        assert_eq!(bounded.iterations, 1);
         assert!((fit.model.decay[0] - 2.0).abs() < 0.02);
         let (_, score) =
             likelihood_score(&template, &parameters, &data, OdePolicy::default(), &ctx).unwrap();
@@ -445,6 +459,19 @@ mod ou_fit_tests {
         )
         .unwrap();
         assert!(fit.converged);
+        let bounded = fit_ou_likelihood(
+            &template,
+            &[OuParameter::Drift { row: 0, column: 0 }, OuParameter::Center { variable: 0 }],
+            &rows,
+            crate::cyclic_likelihood::CyclicFitOptions {
+                tolerance: 1e-12,
+                max_sweeps: 1,
+                ..Default::default()
+            },
+            &ctx,
+        )
+        .unwrap();
+        assert!(!bounded.converged, "a sweep-bounded fit reports non-convergence: {bounded:?}");
         assert!((fit.model.drift[0] + 2.0).abs() < 0.3);
         assert!((fit.model.center[0] - 0.5).abs() < 0.12);
     }
