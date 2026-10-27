@@ -50,11 +50,13 @@ class PredictiveScoreScopeTest(unittest.TestCase):
         self.assertEqual(scope.audit(), [])
 
     def test_an_unqualified_upward_in_a_release_note_is_found(self) -> None:
-        findings = self.audit_with(
-            "docs/release-notes/v2.4.0.md",
-            "iid 400 to 1,600 cases,",
-            "iid 400 cases upward,",
-        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            mirror(root)
+            note = root / "docs" / "release-notes" / "v0.0.1.md"
+            note.write_text("Scores cover iid 400 cases upward.\n", encoding="utf-8")
+            with patch.object(scope, "ROOT", root):
+                findings = scope.audit()
         self.assertTrue(any(f.startswith("unqualified_upward") for f in findings), findings)
 
     def test_a_widened_shipped_range_is_found(self) -> None:

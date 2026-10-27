@@ -1,4 +1,6 @@
-# Prepared recalculation capability contract
+# Recalculate without refitting
+
+Change a utility, a target population, an action grid or the rows behind a prepared analysis and recompute only what the change affects. Each analysis family declares which changes it can absorb from retained state and which force a refit; the receipt counts the work actually done. The rest of this page is that contract.
 
 `antecedent.recalc_capabilities.capability_matrix()` exposes seventy immutable cells: six required native analysis families, one separately scoped external callback family, and ten operations. Each cell names retained objects, complete identity requirements mapped to the existing shared planner's `Stage` inputs, compatible operations, actual Python/Rust adapter entry points, and a typed refusal. `capability(family, operation)` selects one cell. This inventory does not create an estimator, widen a causal license or certify a cache hit.
 
@@ -170,6 +172,36 @@ out.receipt.totals.as_tuple()      # zero fits; only the law and decision are re
 
 `ScoreResumeSession.retarget` is the one licensed operation: reweight the frozen scores by non-negative row weights in the frozen row order (a `TargetWeights` may name `depends_on` variables inside the adjustment set) and recompute the law and decision. An unchanged request reproduces the first run's `ate`, `std_error` and `net_benefit`. In a fresh process the receipt shows `score_artifact` as `reused` and every other derived stage recomputed (for example `recomputed(fresh_process)`), since a fresh process never reuses a derived stage but the portable scores.
 
-Anything that needs the data or a fit is refused before any work and leaves the session unchanged: a changed outcome, folds, graph, row design, data snapshot or treatment grid, and `execute` over new data. These raise `ScoreResumeUnavailable` (`recalc.unavailable_data`, `missing == "data"`, `reason_code == "score_table_unavailable"`); weights over other row ids or of another length, or a declared derived stage, raise `ScoreResumeRefusal`. Both are structured refusals (see [Refusal and partial knowledge](refusal-and-partial-knowledge.md#structured-refusals-and-their-remedies)). A `ResumeReceipt` is a verified record, not an exportable artifact: the `recalc_receipt_v1` format refuses a derived stage reused in a fresh process, so `ResumeReceipt.export()` raises.
+Anything that needs the data or a fit is refused before any work and leaves the session unchanged: a changed outcome, folds, graph, row design, data snapshot or treatment grid, and `execute` over new data. These raise `ScoreResumeUnavailable` (`recalc.unavailable_data`, `missing == "data"`, `reason_code == "score_table_unavailable"`); weights over other row ids or of another length, or a declared derived stage, raise `ScoreResumeRefusal`. Both are structured refusals (see [Refusal and partial knowledge](reference/refusal-codes.md#structured-refusals-and-their-remedies)). A `ResumeReceipt` is a verified record, not an exportable artifact: the `recalc_receipt_v1` format refuses a derived stage reused in a fresh process, so `ResumeReceipt.export()` raises.
 
-Runnable example: [`recalc_cell_resume.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/recalc_cell_resume.py).
+Runnable example: [`recalc_cell_resume.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/recalc_cell_resume.py).
+
+## Measured intervals and independent replay
+
+The statistical adapters return `inference.MeasuredInference` only when every reported scalar resolves to a current, non-boundary calibration record for its actual native method, prior, sampling declaration, functional, nominal level and sample-size scope. Unsupported or stale coordinates refuse with `cell_not_licensed`; an interval is never synthesized from a point result.
+
+`scalar(name)` exposes a scalar's point, interval, level, record id and calibration basis. The `validated_scope` field reports checked protocol facts and declared model assumptions; observed data do not prove those assumptions. Calibration of named scalar intervals supplies neither simultaneous coverage nor calibration of every parameter, covariance entry, posterior draw or diagnostic.
+
+```python
+from antecedent.inference import MeasuredInference
+
+# measured is returned by a supported statistical producer at its licensed scope.
+question = measured.expected_identity
+artifact = measured.export()
+replayed = MeasuredInference.load(artifact, expected=question)
+assert replayed.inspect() == measured.inspect()
+```
+
+Keep `expected_identity` separately from the artifact. A fresh consumer replays the original source, derives the method-specific bases, resolves current records again and compares the complete receipt; recomputing a checksum or editing a serialized `calibrated` flag cannot supply that authority. `source_artifact()` and `source_report()` expose the underlying model report, whose own standing stays `unmeasured`.
+
+| Family | Public producer | Measured scalars |
+| --- | --- | --- |
+| Joint Gaussian transport | `transport.advanced.joint_bayesian_transport` | `target_effect` |
+| Learned joint Gaussian transport | `transport.advanced.learned_joint_transport` | `target_effect` |
+| Binary nested-Markov Bayesian inference | `transport.advanced.binary_nested_markov` | `mean0`, `mean1`, `contrast` |
+| Binary nested-Markov Fisher inference | `transport.advanced.binary_nested_markov_fisher_interval` | `mean0`, `mean1`, `contrast` |
+| Direct temporal inference | `transport.advanced.temporal_dependent_interval` | `response` |
+| Checked temporal recalculation | `recalc_temporal.TemporalSession.dependent_interval` | `response` or `effect` |
+| Sampled observation recovery | `transport.advanced.sampled_observation_recovery` | `recovered_effect` |
+
+Method bounds, priors, sample-size ranges and protocol refusals are in [population, time and uncertainty](population-time-uncertainty.md), [transport and counterfactuals](transport-counterfactuals.md) and [supported bounds](supported-bounds.md). Unsupported neighbouring protocols refuse; a measured scalar does not supply the aligned outcome law that distributional decisions need.

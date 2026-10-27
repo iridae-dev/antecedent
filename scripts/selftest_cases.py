@@ -209,7 +209,7 @@ def docs_cases() -> list[bool]:
         case(
             g,
             "workflow_sentence_edited",
-            {"docs/python-workflow.md": replace("retains a reusable study", "retains a study")},
+            {"docs/start/first-analysis.md": replace("retains a reusable study", "retains a study")},
             [],
             must_fail=False,
         ),

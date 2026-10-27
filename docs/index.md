@@ -1,64 +1,54 @@
 # Antecedent
 
-Antecedent is a causal inference system for turning causal questions and
-evidence into checked, executable scientific claims. It preserves what an
-answer means—its assumptions, identification status, empirical support,
-uncertainty, provenance, and limits—when the analysis is estimated, reused,
-combined, saved, transported, or consumed by other software.
+Antecedent is a compiler and runtime for causal science.
 
-> Install with `python -m pip install --upgrade antecedent` (Python 3.11+),
-> then begin with the [Python quickstart](python-workflow.md). The
-> [2.4.1 release notes](release-notes/v2.4.1.md) describe these workflows;
-> [2.4.0 notes](release-notes/v2.4.0.md) describe the previous release.
+Model causal systems, evaluate interventions, and connect evidence to decisions, with assumptions, uncertainty and limits made explicit. Declare a question, a model or study design, and the evidence. Antecedent checks what the question needs, compiles an analysis you can inspect, and executes a supported route. The answer carries its assumptions, uncertainty, provenance and limits into the comparison, decision or software that uses it.
 
-Choose [an example](examples.md), use [support lookup](support-lookup.md), or read [the glossary](glossary.md) when a standing label is unfamiliar. For a complete workflow, follow [notebook to system](guides/notebook-to-system.md) and [measurement to decision](tutorials/measurement-to-decision.md).
+Antecedent's development applies high-assurance engineering principles, with explicit evidence governing capability claims. [Assurance](concepts/assurance.md) describes what that covers.
 
-Most causal failures in software are semantic failures at boundaries. Read
-[the system model](system-model.md) first: it explains how Antecedent compiles
-declared knowledge into a causal contract and why a result is more than a
-number.
+## A first answer
 
-## Start with the mental model
+```bash
+python -m pip install --upgrade antecedent
+```
 
-| Question | Read |
+Then prepare, inspect and estimate an effect in simulated data where the true answer is known. [Your first analysis](start/first-analysis.md) runs it in Python and in Rust, branches it onto changed data, and exports it. [Installation](start/installation.md) covers platforms, optional features and source builds.
+
+## Choose your path
+
+**Research and scientific decision-making.** Ask a causal question, inspect the assumptions and evidence it needs, and carry the answer into the next comparison, decision or study. Begin with [how to read a result](start/reading-a-result.md), then the [observational study tutorial](tutorials/observational-study.md).
+
+**Building software and agents.** Embed causal workflows with inspectable plans and machine-readable assumptions, uncertainty and limits. Your application supplies planning, permissions and the policy for using an answer. Begin with the [application component tutorial](tutorials/application-component.md) and [embedding](guides/build/embedding.md).
+
+## Tutorials
+
+Each tutorial follows one scientific task and pairs with a maintained example.
+
+| Task | Tutorial |
 | --- | --- |
-| What is Antecedent trying to preserve? | [System model](system-model.md) |
-| What does an analysis contract contain? | [The causal contract](causal-contract.md) |
-| How should I read a result? | [A result is a claim](result-is-a-claim.md) |
-| Why does Antecedent refuse some requests? | [Refusal and partial knowledge](refusal-and-partial-knowledge.md) |
-| How do I read graph uncertainty and unidentified mass? | [Graph uncertainty](graph_uncertainty.md) |
-| What does “supported” mean? | [Guarantees and support](guarantees.md) |
+| Observe, fix and shock a variable in a feedback system | [One feedback system, three questions](tutorials/feedback-three-questions.md) |
+| Compare a coordinated intervention program with a baseline | [Joint interventions](tutorials/joint-interventions.md) |
+| Update a response from an experiment and choose the next study | [From an experiment to the next study](tutorials/experiment-to-next-study.md) |
+| Change a utility, export a decision, withdraw a source | [Replay and current decisions](tutorials/replay-and-current-decisions.md) |
+| Decide when a result is suggestive but not significant | [Decide under uncertainty](tutorials/decide-under-uncertainty.md) |
+| Analyze a real public dataset end to end | [An observational study](tutorials/observational-study.md) |
+| Use Antecedent as a component of an application | [Application component](tutorials/application-component.md) |
 
-## Then use it
+## Guides
 
-Start an ordinary analysis with the [Python workflow](python-workflow.md) or
-[Rust quickstart](rust-quickstart.md). The same model extends to discovery and
-structural uncertainty, response and temporal questions, Bayesian inference,
-validation, counterfactuals, learner-backed estimation, transport across
-populations, and design-family studies — randomized and factorial
-experiments, held-out policy value, quasi-experimental designs, survival, and
-longitudinal regimes. Those are different causal programs, not disconnected
-products.
+Task guides cover bringing [your own data](guides/your-data.md), [notebook to system](guides/notebook-to-system.md), [estimating effects](supported-analyses.md), [study ranking](design-ranking.md), [sensitivity and robustness](sensitivity-and-robustness.md), [transport and counterfactuals](transport-counterfactuals.md), [decisions](decisions.md), [composition](composition.md) and [staleness and rebinding](guides/staleness.md). The navigation lists the guides by task.
 
-## Decisions, design, and composition
+## Concepts
 
-These pages connect an analysis to a decision. Each page states its claim label and
-what it refuses.
+[How Antecedent works](concepts/how-antecedent-works.md), [results are claims](concepts/results-are-claims.md), [interventions and worlds](concepts/interventions-and-worlds.md), [uncertainty](concepts/uncertainty.md), [refusals](concepts/refusals.md) and [assurance](concepts/assurance.md) explain what a result means and where its limits come from.
 
-| Question | Read |
-| --- | --- |
-| What is the path from analysis to a decision to a study plan? | [The analysis lifecycle](lifecycle.md) |
-| Which study should I run next, and how do I replay the ranking? | [Design ranking](design-ranking.md) |
-| How far could the answer move under an unmeasured assumption? | [Sensitivity and robustness](sensitivity-and-robustness.md) |
-| Can a counterfactual effect be carried to another population? | [Transport and counterfactuals](transport-counterfactuals.md) |
-| How do I recompute a decision without refitting? | [Prepared recalculation](recalculation-capabilities.md) |
-| How do I bind foreign numbers, decide on them and export the whole composition? | [External science](external-science.md), [decisions](decisions.md), [composition](composition.md) |
-| How do refusals expose their cause and remedy? | [Structured refusals](refusal-and-partial-knowledge.md#structured-refusals-and-their-remedies) |
+## Look things up
 
-For exact public boundaries, consult the [support matrix](support-matrix.md).
-An implemented capability is not automatically a licensed analysis, and a
-licensed analysis does not establish that a real-world causal model is true.
+- [Support lookup](support-lookup.md): search whether a question, structure, evidence, inference and estimator combination has executing support evidence, and read the [support matrix](support-matrix.md) behind it.
+- [Python API](python-api.md), [Python options](python-options.md) and the [Rust API](https://docs.rs/antecedent/).
+- [Glossary](concepts/glossary.md): estimand, world, claim, licensed and the other standing labels.
+- [Capability inventory](capabilities.md), [naming dictionary](api_naming.md) and [examples](examples.md).
 
-Read `result.inspect().calibration`: status `calibrated` requires a coverage record that matches the execution and attests the executing code. See the [measured-inference guide](population-time-uncertainty.md).
+## Release and migration
 
-Newer surfaces have their own guides: [cyclic systems](guides/cyclic-systems.md), [joint intervention responses](guides/joint-intervention-responses.md), [design ranking](design-ranking.md), [staleness and rebinding](guides/staleness.md), [retained refresh and state publication](guides/retained-refresh.md), [mixed-evidence decisions](guides/mixed-decisions.md), [structural estimands from a fitted model](guides/gcm-estimands.md), the [readable report](guides/report.md), [embedding](embedding.md) and [large tables](guides/large-tables.md). Moving from the previous release: [Python migration table](migrations/2.4-to-3.0-python.md) and [migration](migration/from_previous_release.md).
+[Release notes for 3.0.0](release-notes/v3.0.0.md) describe what is new. The [migration guide](migration.md) gives the exact old and new forms.

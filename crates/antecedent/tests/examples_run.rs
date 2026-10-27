@@ -17,6 +17,13 @@ mod ate_quickstart;
     dead_code,
     reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
 )]
+#[path = "../../../examples/rust/feedback_three_questions.rs"]
+mod feedback_three_questions;
+
+#[allow(
+    dead_code,
+    reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
+)]
 #[path = "../../../examples/rust/causal_state_workflow.rs"]
 mod causal_state_workflow;
 
@@ -302,4 +309,9 @@ fn example_noise_replay_runs() {
 #[test]
 fn example_intrinsic_influence_runs() {
     intrinsic_influence::run().unwrap();
+}
+
+#[test]
+fn example_feedback_three_questions_runs() {
+    feedback_three_questions::run().unwrap();
 }

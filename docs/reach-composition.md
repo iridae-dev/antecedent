@@ -300,6 +300,6 @@ cell: it has no decision-reliability route.
   one (`paradigm_parity.paradigm_closed`), is the parity table of
   `antecedent_model::discretized_scm::PARITY_TABLE`.
 - The refusals named above, and their remedies, are listed in
-  [refusal and partial knowledge](refusal-and-partial-knowledge.md).
+  [refusal codes](reference/refusal-codes.md).
 - The identities each route freezes are in
   [composition identities](architecture/composition-identities.md).

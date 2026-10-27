@@ -1,4 +1,4 @@
-# Composition-aware uncertainty
+# Combine uncertain quantities with dependence kept
 
 Unrelated posterior or bootstrap draws are never paired by index. A row pairing
 is the statement that the rows are realizations of one joint law, and one rule

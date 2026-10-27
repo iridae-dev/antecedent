@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""3.0 development workflow: fit overlapping nonlinear loops and replay an artifact.
+"""Fit overlapping nonlinear loops and replay an artifact.
 
 The reference generator below is independent of Antecedent's solver. Training
 contains observational and single-target intervention regimes; the queried joint

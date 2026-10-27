@@ -2,7 +2,7 @@
 
 This is a readable inventory of what exists in Antecedent, not the product's
 mental model or a promise that every combination can run. Read
-[what “supported” means](guarantees.md) for the distinction between capability,
+[assurance](concepts/assurance.md#capability-licensed-support-and-scientific-validity) for the distinction between capability,
 licensed execution, and real-world scientific validity. The parity manifests
 are the maintained implementation inventory; the [support matrix](support-matrix.md)
 is the public **license** for analysis cells. Inspect / claim / reuse /
@@ -17,12 +17,12 @@ Where this inventory names a field of the specialized result (`result.survival`,
 read it on the outcome's value (`outcome.value.survival`); `outcome.answer`,
 `outcome.inspect()`, `outcome.uncertainty`, `outcome.support`, `outcome.provenance`,
 `outcome.export()` and `outcome.study` live on the outcome itself.
-The [lifecycle](lifecycle.md) connects native and external claims to
+The [decision contract](decisions.md) connects native and external claims to
 decisions, study ranking and portable bundles; [measured scalar adapters](population-time-uncertainty.md)
 license specified Bayesian, nested-Markov, temporal and recovery intervals under
 separate source-bound contracts, without adding arbitrary analysis-grid cells.
 
-## Python workflow and interoperability in 2.4
+## Python workflow and interoperability
 
 The [notebook-to-system journey](guides/notebook-to-system.md) connects retained
 identification, staged execution and durable consumption. Studies expose
@@ -42,7 +42,7 @@ and preserve point-only standing. `export()` returns a typed `ExportedArtifact` 
 expectations and export metadata, `artifacts.inspect()` reads metadata, and shared
 `load(..., expected=..., context=...)` delegates to existing scientific consumers.
 These conventions add no laws, intervals, calibration evidence or analysis-grid licenses.
-See [the migration guide](migrations/2.4-python-ux.md).
+See [the migration guide](migration.md).
 
 ## How to read capability claims
 
@@ -128,7 +128,7 @@ per arm and 299 valid subject-bootstrap draws produce both pointwise scalar
 intervals for RMST and survival at the fixed horizon. Two 2,000-study
 known-truth checks run at that support boundary. The full-curve band and
 competing-risk or weighted contrasts do not inherit this scalar license. See
-[Survival outcomes](survival-outcomes.md).
+[Survival outcomes](guides/designs/survival-outcomes.md).
 
 ## Licensed coordinates
 
@@ -540,7 +540,7 @@ Implemented identification strategies:
   coverage record measures its interval;
 * noncausal associations, run as the compiled `Association` study
   (`analyze(data, query=descriptive.Association(...))`; see
-  [Noncausal associations](guides/associational-route.md)): a declared selection rule picks a
+  [Noncausal associations](guides/fallback.md#describe-the-observed-data-directly)): a declared selection rule picks a
   stratified mean or probability, linear, logistic or Poisson regression, a Pearson or distance
   correlation, or a predictive model scored on held-out folds, over the rows of a table or the
   points of one series. Identification is not claimed (claim kind `associational`); the
@@ -1118,7 +1118,7 @@ identities and the assumptions. It is never native target data, and none of
 these routes licenses an interval, a posterior coverage statement or a
 calibration claim. Guides: [transported decisions and
 measurement](guides/transported-decisions-and-measurement.md),
-[inverse queries and decisions](guides/inverse-and-decision-reach.md),
+[inverse queries and decisions](guides/inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources),
 [assumption range and revalidation](guides/assumption-range-and-revalidation.md).
 
 * **Transported response and decision** (`antecedent.transported_response`):
@@ -1741,7 +1741,7 @@ parameters, and mechanism families are selected on the same data, so a
 delta-method interval would ignore selection (diagnostic
 `gcm.counterfactual.uncertainty_unavailable`). A pointwise interval for the
 conditional average effect tau(x), a different estimand, is
-[`DrLearner::fit_pointwise_profiles`](dr-pointwise-cate.md) (uncalibrated).
+[`DrLearner::fit_pointwise_profiles`](guides/heterogeneous-effects-and-policies.md#pointwise-cate-at-a-covariate-profile) (uncalibrated).
 The public license is the [support matrix](support-matrix.md).
 
 ## Attribution and diagnostics

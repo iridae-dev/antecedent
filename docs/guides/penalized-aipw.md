@@ -1,4 +1,4 @@
-# Penalized propensity for AIPW
+# Estimate with a penalized propensity (ridge or lasso AIPW)
 
 The tuning grid accepts at most {{bound:estimate.penalized_propensity_aipw.max_grid}} penalty candidates and at most {{bound:estimate.penalized_propensity_aipw.max_inner_folds}} inner folds.
 
@@ -11,8 +11,7 @@ rescued fit is not an MLE). The route publishes the cross-fitted point estimate,
 table, and two interval constructions whose assumptions are stated below: the cross-fitted
 influence-function SE of the out-of-fold scores, and (with `bootstrap > 0`) a refit bootstrap
 that repeats penalty selection and every nuisance fit on each resample. A declared
-GLM-to-penalized fallback runs the same route when the plain GLM propensity fit fails. The
-record is `estimate.penalized_propensity_aipw` in `parity/promotion.toml`; its claim is
+GLM-to-penalized fallback runs the same route when the plain GLM propensity fit fails. The claim is
 `calibrated` at the four measured ridge/lasso 95% analytic and refit-bootstrap coordinates (see "Calibration").
 
 ```python
@@ -250,10 +249,10 @@ cancelled bootstrap reports the stop and publishes no SE.
 ## Calibration
 
 The four 95% ridge/lasso analytic and refit-bootstrap coverage records are measured and
-licensed at their exact calibration coordinates. The tests in
-`crates/antecedent-estimate/src/calibration_coverage.rs` are registered in
-`scripts/gate_calibration.sh`; `crates/antecedent/tests/calibration_binding.rs`
-checks that each record's nuisance label and interval method match the public facade.
+licensed at their exact calibration coordinates. The coverage tests in
+`crates/antecedent-estimate/src/calibration_coverage.rs` and the binding check in
+`crates/antecedent/tests/calibration_binding.rs` confirm that each record's nuisance label
+and interval method match the public facade.
 
 | Propensity grid (3 inner folds) | Analytic interval rows | Refit bootstrap rows |
 | --- | ---: | ---: |

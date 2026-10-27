@@ -13,7 +13,7 @@
 )]
 //! Sales spreadsheet E2E: Bayesian ATE → path → ITE + temporal pulse.
 //!
-//! Mirrors the interactive UX spine (ADR 0011):
+//! The interactive spine:
 //!   accepted DAG → Bayesian ATE → path-specific decompose → unit ITE
 //!   plus a temporal pulse Bayesian block on a held `TemporalDag`.
 //!

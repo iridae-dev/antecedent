@@ -1,6 +1,6 @@
-# Predictive assessment: proper scores, calibration diagnostics and held-out checks
+# Assess a predictive law with proper scores and held-out checks
 
-A predictive law is assessed against realized observations. The assessment
+Score a predictive law against realized observations, compare two laws on the same observations, and check calibration. A predictive law is assessed against realized observations. The assessment
 reports how the law performed on those observations, under a declared
 validation design, and nothing more. It is a model-independent contract, not a
 model zoo and not a forecasting application: laws come from native finite and
@@ -272,7 +272,8 @@ replicates into sample laws for the same scoring surface.
 
 | Route | Reason | What would license it |
 | --- | --- | --- |
-| unscoped interval request, or a scoped one outside a measured design | `cell_not_licensed` | name the predictor, score and level, declare the dependence, and assess a held-out or unfitted predictor inside a design a current coverage record measured || callback law | `route_not_supported` | the law as a native family, or as provider-evaluated values declared through the provider contract |
+| unscoped interval request, or a scoped one outside a measured design | `cell_not_licensed` | name the predictor, score and level, declare the dependence, and assess a held-out or unfitted predictor inside a design a current coverage record measured |
+| callback law | `route_not_supported` | the law as a native family, or as provider-evaluated values declared through the provider contract |
 | score as causal validity or as a probability | `route_not_supported` | an identification argument and refutation; a declared prior and likelihood |
 
 ## References

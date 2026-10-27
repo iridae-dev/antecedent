@@ -1,4 +1,6 @@
-# One decision from mixed evidence
+# Decide from mixed evidence
+
+Combine separately fitted routes into one decision, change one input without refitting the rest, and see decision authority follow the evidence. The tutorial [Replay and current decisions](../tutorials/replay-and-current-decisions.md) tells the same workflow as a story.
 
 `antecedent.mixed_decision` combines three separately fitted routes into one expected-utility
 decision: a cluster-randomized trial (the margin), a checked two-step temporal history (the period

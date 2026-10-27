@@ -1,4 +1,4 @@
-# Target-native validation and sensitivity ranges
+# Refute the quantity a result reports and bound an untestable assumption
 
 A refutation speaks to one quantity. The `Refute` suites (`cheap`, `placebo`,
 `full`) perturb the data and re-estimate a scalar average effect; they say
@@ -271,3 +271,8 @@ conservative analysis and the refit one the one that matches repeated sampling.
 The marginal sensitivity model (`msm_sensitivity`) and the decision
 sensitivity grid are unchanged; they remain the analyses for bounded
 inverse-probability weights and for decisions.
+
+## Related
+
+- [Probe sensitivity to assumptions you cannot test](../sensitivity-and-robustness.md): decision-level assumption ranges, switch points and structural verdicts.
+- [Preflight diagnostics](preflight-diagnostics.md) and [tier diagnostics](tier-diagnostics.md): checks before and after estimation.

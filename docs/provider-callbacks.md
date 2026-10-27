@@ -6,7 +6,7 @@ This page states what such an object may claim, when a stored answer of it may
 be reused, and what stays closed. The declaration is an instance of the one
 interface-contract schema and bridges to the one provider contract
 (`CausalProviderSpec` / `ProviderRegistry` rules in
-[external-science.md](external-science.md)); there is no second format and no
+[connect scientific components](guides/build/scientific-interfaces.md)); there is no second format and no
 second registry. The earlier bounded mean callback (`recalc_external`) is
 unchanged and remains the route for a foreign mean that must follow a changing
 dependency under the shared recalculation planner.

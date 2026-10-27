@@ -1,55 +1,18 @@
-# Cyclic systems and feedback loops
+# Model feedback loops and ask about equilibria
 
-Use `antecedent.cyclic` when variables influence each other in a loop: supply and
-price, a thermostat and a room, interacting populations. A directed acyclic graph
-cannot state these systems. A cyclic model is a set of simultaneous equations whose
-equilibrium is solved, intervened on and, when data are supplied, fitted.
+Ask what an intervention does in a system whose variables influence each other in a loop: supply and price, a thermostat and a room, interacting populations. A directed acyclic graph cannot state these systems. With `antecedent.cyclic` you declare simultaneous equations, solve their equilibrium under named intervention worlds and, when you have clamp experiments, fit the mechanisms from data.
 
-Every answer is conditional on the specified or fitted model. Nothing here
-identifies a causal structure nonparametrically, and the statistical outputs carry
-no nominal coverage claim. The guide shows the parts of the surface you choose
-between; [the development notes](../development/cyclic-systems.md) record the
-mathematical scope of each family.
+If you are new to feedback models, work through [one feedback system, three questions](../tutorials/feedback-three-questions.md) first: it derives by hand why observing, clamping and shocking give different answers and runs the linear model through `LinearCyclicModel`. For what a world is, see [interventions and worlds](../concepts/interventions-and-worlds.md). This page covers the rest of the surface.
 
-## State the system and ask for worlds
+Every answer is conditional on the specified or fitted model. Nothing here identifies a causal structure nonparametrically, and the statistical outputs carry no nominal coverage claim. [The development notes](../development/cyclic-systems.md) record the mathematical scope of each family.
 
-A linear Gaussian equilibrium `x = K x + c + e` is declared by its direct effects.
-`("B", "A"): 0.5` means `B = 0.5 A + ...`. A world is a named set of simultaneous
-interventions; `World(0)` is the system as specified.
+## Read a world's answer
 
-```python
-from antecedent.cyclic import LinearCyclicModel, Set, World
-from antecedent.outcomes import require_success
+`model.worlds([...], component_id=..., source_id=..., certifying_evidence=[...])` prepares the retained program and `prepared.interventions()` executes it. Each world reports its certificate, the route that solved it, and any failed or withheld mass. A clamp that leaves no unique solution is a `no_solution` world with failed mass one, never a dropped world; reading its mean raises `CyclicRefusal` whose `next_attempt` names what to try. `Set` is a hard clamp, `Shift` an additive shock on the disturbance with feedback still active, and `Soft` a named mechanism replacement.
 
-model = LinearCyclicModel.from_direct_effects(
-    ["A", "B"],
-    {("A", "B"): 0.4, ("B", "A"): 0.5},
-    noise_covariance=[1.0, 0.0, 0.0, 1.0],
-)
-prepared = model.worlds(
-    [World(0), World(1, Set("A", 2.0))],
-    component_id="feedback-pair",
-    source_id="specification",
-    certifying_evidence=["bench-derivation"],
-)
-answers = require_success(prepared.interventions())
-print(answers[0].mean("B"), answers[1].mean("B"))
-```
+`source_id` records where the model came from. It does not certify the component: `certifying_evidence` must name other evidence, and `certificate="report_uncertified"` answers a uniquely solvable world while marking it uncertified.
 
-Compilation solves nothing; `interventions()` executes the retained program. Each
-world reports its certificate, the route that solved it, and any failed or withheld
-mass. A clamp that leaves no unique solution is a `no_solution` world with failed
-mass one, never a dropped world; reading its mean raises `CyclicRefusal` whose
-`next_attempt` names what to try. `Set` is a hard clamp, `Shift` an additive shock
-on the disturbance with feedback still active, and `Soft` a named mechanism
-replacement.
-
-`source_id` records where the model came from. It does not certify the component:
-`certifying_evidence` must name other evidence, and
-`certificate="report_uncertified"` answers a uniquely solvable world while marking
-it uncertified.
-
-## Nonlinear systems and shared disturbances
+## Model nonlinear systems and shared disturbances
 
 `EquilibriumModel` takes named `Equation` mechanisms (identity, tanh, sine or ReLU
 activations, or a portable compositional expression) and a row-major joint
@@ -77,7 +40,7 @@ equilibria, the weights over roots must be declared; none are inferred from solv
 behavior. See the family list in the development notes for the polynomial,
 multiple-root, ODE and Ornstein-Uhlenbeck routes.
 
-## Fit from clamp experiments
+## Fit a loop from clamp experiments
 
 Fitting needs independent equilibrium replicates with known hard clamps.
 `EquilibriumModel.prepare` retains aligned intervention worlds together with the
@@ -105,7 +68,7 @@ linear law recovered from clamp experiments, use `prepare_experimental_recovery`
 with an explicit draw origin; `inspect()` reports the rows a clamp design leaves
 unresolved before any fit.
 
-## Reuse, branches and artifacts
+## Reuse, branch and export
 
 - `inspect()` is cheap after execution; it reports preparation work, fits actually
   performed and the SCC schedules.
@@ -132,7 +95,7 @@ replayed = require_success(
 assert replayed.to_dict() == result.to_dict()
 ```
 
-## From a result to a decision
+## Use a result in a decision
 
 `prepared.evidence(schema, selectors)` projects retained execution onto native
 evidence coordinates without refitting; the projection feeds
@@ -142,4 +105,11 @@ boxes stay inside robust utility bounds, and impossible posterior evidence refus
 a decision. See [decisions](../decisions.md) and [composition](../composition.md).
 
 Rust uses `Study::prepare_cyclic` and `Study::prepare_cyclic_family` on the same
-`PreparedStudy` handle; see [prepared cyclic execution](../migrations/prepared-cyclic-3.0.md).
+`PreparedStudy` handle; see [cyclic systems for developers](../development/cyclic-systems.md).
+
+
+## Related
+
+- [One feedback system, three questions](../tutorials/feedback-three-questions.md)
+- [Interventions and worlds](../concepts/interventions-and-worlds.md)
+- [Decision contracts](../decisions.md)

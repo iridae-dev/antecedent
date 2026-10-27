@@ -1,12 +1,6 @@
-# Joint cells and derived treatments
+# Estimate joint binary interventions on cross-sectional data
 
-A *joint cell* is the joint intervention `do(T_1 = a_1, .., T_k = a_k)` on up to {{bound:estimate.factorized_joint_cells.max_components}}
-binary components. This guide covers the two pieces added for it: an explicit
-**derived-treatment declaration** (`antecedent.derived.DerivedTreatment`, Rust
-`DerivedTreatmentDeclaration`) and a **factorized-propensity AIPW** over the cells
-(`factorized_joint_cells`, Rust `fit_factorized_joint_cells`). The claim is `point_only`.
-The record is `estimate.factorized_joint_cells` in `parity/promotion.toml`; no
-calibration is run for it.
+Estimate the outcome under each joint setting of several binary treatments, such as `do(T_1 = a_1, .., T_k = a_k)` for up to {{bound:estimate.factorized_joint_cells.max_components}} components, and contrast the settings (for example the interaction of two treatments). You declare how a derived treatment is built from its source columns (`antecedent.derived.DerivedTreatment`, Rust `DerivedTreatmentDeclaration`), and a factorized-propensity doubly robust estimator evaluates the cells (`factorized_joint_cells`, Rust `fit_factorized_joint_cells`). The claim is `point_only`: you get point estimates for the cells and contrasts, with no interval. For coordinated programs over time, see [fit and compare coordinated intervention programs](joint-intervention-responses.md).
 
 One fit accepts at most {{bound:estimate.factorized_joint_cells.max_folds}} cross-fitting folds and at most {{bound:estimate.factorized_joint_cells.max_orderings}} orderings.
 
@@ -67,11 +61,11 @@ meaning of an intervention, and any exclusions:
 | A numerically rank-deficient adjustment design | `joint_cells.derived_rank_deficient` (`design_rank_deficient`) |
 
 The duplicate, tracking and rank findings are read from the preflight machinery
-(`preflight_design`, see `preflight-diagnostics.md`). That machinery *detects*; it is never
+(`preflight_design`, see [preflight diagnostics](preflight-diagnostics.md)). That machinery *detects*; it is never
 used to choose a column to drop. Fixing a dependency is a declaration: name the column as a
 source and exclude it under a causal rule, or remove it yourself.
 
-## The factorized propensity
+## Estimate the cells with a factorized propensity
 
 For an ordering `o` of the components, the cell propensity is the chain-rule product
 
@@ -105,7 +99,7 @@ learner, with its default hyperparameters. It runs under its own cross-fitting c
 - **Out of fold only.** The same seeded, cell-stratified unit fold plan is used. A learner is
   fit on a fold's training rows (restricted to the prefix stratum for a conditional, to the cell
   for an outcome model) and predicts only that fold's rows, so no row trains and predicts the
-  same fold. A recording learner in the unit tests checks this model by model.
+  same fold.
 - **No silent fallback.** A fit that fails, or a probability outside `[0, 1]`, makes the factor
   unsupported and refuses the cells that need it (`joint_cells.conditional_unsupported` or
   `joint_cells.outcome_model_unsupported`, naming the fold and the learner's error); the other
@@ -129,7 +123,7 @@ default ridge route is unchanged by the option. The tests recover a known effect
 logistic learners and, in a build with the forest provider, a random forest; no coverage or
 calibration of the learner route is claimed.
 
-## Per-cell support and refusals
+## Read per-cell support and refusals
 
 A cell is evaluated or refused individually, with the others kept
 (`joint_cell_unsupported`, or `arm_not_populated` for an empty cell). Under the declared
@@ -173,7 +167,7 @@ not supported is withheld with `joint_cell_unsupported` rather than computed on 
   intercept); it does not show the ridge conditionals fit a law with covariates, which the
   known-law recovery tests assess, and no comparison to the multinomial route is claimed.
 
-## The score table and what is closed
+## Contrasts and why there is no interval
 
 The declared ordering's scores for the supported cells are retained in an aligned
 `ScoreTable` (Rust `FactorizedJointFit::scores`) so a family contrast
@@ -181,10 +175,9 @@ The declared ordering's scores for the supported cells are retained in an aligne
 supported) has per-row scores. Point contrasts are the difference of the cell means. The
 table's provenance carries the ridge tag (or the learner marker, see above), so the
 established rule applies: **no interval or joint covariance is published** for a penalized
-propensity (see `penalized-aipw.md`) or a learner-supplied nuisance. A requested interval
+propensity (see [penalized AIPW](penalized-aipw.md)) or a learner-supplied nuisance. A requested interval
 refuses `penalized_interval_not_licensed` (`joint_cells.interval_withheld`) on the ridge route
-and `ml_nuisance_not_licensed` (`joint_cells.ml_interval_withheld`) with a declared learner. No
-calibration record exists for this route.
+and `ml_nuisance_not_licensed` (`joint_cells.ml_interval_withheld`) with a declared learner. This route has no calibration measurement.
 
 Lasso is closed (`selection_inference_not_licensed`); a machine-learning name that is not a
 declared learner refuses `ml_nuisance_not_licensed`; an unknown provider name is an invalid
@@ -203,6 +196,11 @@ Cancellation is observed once per cell, once per prefix-stratum conditional, onc
 a ridge conditional and once per cell and fold of a declared learner's outcome models. A
 cancelled fit is `cancelled_no_claim` (`joint_cells.cancelled`) with no fit and no score table.
 `estimate_joint_cell_cost` states the planned conditional and outcome fits from the same
-declaration (see the cost section of the preflight guide).
+declaration (see the cost section of [preflight diagnostics](preflight-diagnostics.md)).
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).
+
+## Related
+
+- [Fit and compare coordinated intervention programs](joint-intervention-responses.md)
+- [Joint distributions](../joint-distributions.md)

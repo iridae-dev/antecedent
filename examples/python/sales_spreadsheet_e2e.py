@@ -3,7 +3,13 @@
 
 Discover and accept a graph, estimate an average effect with Bayesian
 inference, and examine effects along particular paths and for individual
-rows. A separate temporal example estimates the effect of a brief intervention.
+rows. A separate temporal block estimates the effect of a brief intervention.
+
+The data are simulated from declared linear mechanisms, so the known targets are
+fixture truths of that model: campaign intensity reaches revenue directly with
+coefficient 1.2 and through the channel with 0.6 x 0.8 = 0.48, a total of 1.68,
+and the lagged promotion pulse has coefficient 0.85. The checks compare each
+answer with those values at tolerances sized for a few hundred rows.
 
 Install with `python -m pip install antecedent`; see examples/README.md."""
 
@@ -75,6 +81,8 @@ def main() -> None:
     )
     assert math.isfinite(bayes.ate), bayes.ate
     assert bayes.posterior is not None
+    # Declared total effect: 1.2 direct + 0.6 * 0.8 through the channel.
+    assert abs(bayes.ate - 1.68) < 0.25, bayes.ate
     print(f"Bayesian ATE={bayes.ate:.4f} (campaign → revenue)")
 
     # Path-specific: direct t→y vs mediated t→m→y
@@ -91,7 +99,15 @@ def main() -> None:
         execution=antecedent.Execution(seed=5),
     )
     assert math.isfinite(path.total_change)
-    print(f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}")
+    mediated = next(
+        (c for p, c in path.path_breakdown if len(p) == 3 and p[1] == "m"), None
+    )
+    assert mediated is not None, path.path_breakdown
+    # Declared channel path: 0.6 * 0.8 = 0.48 (Monte Carlo tolerance).
+    assert abs(mediated - 0.48) < 0.25, mediated
+    print(
+        f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}"
+    )
 
     ite = require_success(
         antecedent.analyze(
@@ -103,12 +119,15 @@ def main() -> None:
     )
     assert len(ite.unit_effects) == len(cols[0])
     assert math.isfinite(ite.mean_ite)
+    assert all(math.isfinite(float(u)) for u in ite.unit_effects)
     print(f"ITE mean={ite.mean_ite:.4f} n={len(ite.unit_effects)}")
 
     # Second estimate click — still no discovery.
     study = bayes.study
     second = require_success(
-        antecedent.estimate(antecedent.reconfigure(study, execution=antecedent.Execution(seed=4)))
+        antecedent.estimate(
+            antecedent.reconfigure(study, execution=antecedent.Execution(seed=4))
+        )
     )
     assert second.data_snapshot_id == bayes.data_snapshot_id
     artifact = bayes.export()

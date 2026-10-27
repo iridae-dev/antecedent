@@ -1,12 +1,8 @@
-# Discovery, attribution and simulation as compiled routes
+# Discover, attribute and simulate as compiled queries
 
-Structure discovery, attribution on a fitted structural model and simulation
-from one are ordinary queries. Each one compiles to a lowered program with a
-stable identity, prepares to a handle and, once estimated, gives a result
-stamped with that identity. The contract and claim can be read off it like any
-other study. None of these routes is licensed. They run and say what they ran,
-but no coverage record stands behind them, so they are not cells of the
-support matrix and have no row in `parity/licensed_routes.toml`.
+Ask a structural question (what graph do these data support, which node explains this change, what would this model generate) and get the answer in the same form as any other study: a program with a stable identity, a prepared handle, and a result stamped with that identity. The contract and claim can be read off it like any other study, and a discovered structure can flow into a downstream study only through the review gate described below.
+
+These routes run and report what they ran. They are not cells of the [support matrix](../support-matrix.md): no coverage measurement stands behind them, so a result states the method and its declared inference and nothing about calibration.
 
 ## The three query kinds
 
@@ -51,7 +47,7 @@ posterior under its declared prior and Gaussian BIC score. The contract's
 `inference` is whatever the method declares. A discovery study refuses
 `StudyBuilder::inference`, refuters, validators, bootstrap and estimator options.
 
-## From a discovered structure to a downstream study
+## Carry a discovered structure into a downstream study
 
 A CPDAG or PAG stays a class. The only way a discovered structure reaches
 another study is the review gate:
@@ -129,7 +125,7 @@ Decoding such a record back into a query, which is what export or replay does, i
 refused with `policy_callback_not_portable`, and the refusal names the next step:
 declare the callback from self-contained source.
 
-## What is not here
+## Related behaviour
 
 - `PreparedPolicy` still compiles and licenses a program once against a fitted model
   (`support`, `rebind`, the compilation counters). Its `value`, `sample` and
@@ -142,3 +138,10 @@ declare the callback from self-contained source.
   attribution, simulation, noise-replay, counterfactual-policy and temporal-policy
   functions are hidden engines (`#[doc(hidden)]`). They are not the public way in, and
   the Python bindings do not call them directly.
+
+## Related
+
+- [Give discovery background knowledge](discovery-background-knowledge.md)
+- [Read graph uncertainty and unidentified mass](../graph_uncertainty.md)
+- [Fit and query a structural causal model](gcm-estimands.md)
+- [Choose and inspect mechanisms](mechanism-selection.md)

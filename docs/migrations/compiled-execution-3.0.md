@@ -37,13 +37,12 @@ identification. Failed refresh leaves the old handle intact.
 
 These are conservative allocation quotes and shared reservations, not process RSS.
 Already resident caller-supplied table buffers are borrowed; their allocation
-predates this execution account. Unknown measurements remain absent. See
-[native execution observations](native-execution-3.0.md).
+predates this execution account. Unknown measurements remain absent.
 
 Public Gaussian and four-way behavioral tests replace demonstration-function-name
 checks in the checked-execution registry. The accompanying dose-grid/cyclic
-integration and verification evidence are recorded in
-[repair acceptance](compiler-integration-acceptance-3.0.md). Library-wide work
+integration and verification evidence are recorded with the repair acceptance
+tests. Library-wide work
 unrelated to this repair remains open; this repair grants no new identification or
 calibration guarantees.
 

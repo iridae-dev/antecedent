@@ -1,10 +1,9 @@
-# Preflight diagnostics, rank-drop plans and estimates, and cost counts
+# Check a table before estimating: preflight, rank drops and cost counts
 
 Before a nuisance fit refuses a table, `antecedent` can say what is wrong with it.
 The diagnostics and the plan add no inferential claim; they are a diagnostic and
 planning layer over existing cells. The one entry point that estimates after a rank
-drop (`estimate_with_rank_drop`) does change what is computed, so it carries its own
-promotion record, `estimate.preflight_rank_drop`, `point_only`. Two kinds
+drop (`estimate_with_rank_drop`) does change what is computed, so its claim is stated separately and is `point_only`. Two kinds
 of check are kept in separate types so one is never read as the other.
 
 | Check | Rust | Python | Fits a model? |
@@ -15,8 +14,7 @@ of check are kept in separate types so one is never read as the other.
 | Estimate after a rank drop | `estimate_with_rank_drop` | `antecedent.preflight.estimate_with_rank_drop(...)` | Yes (the estimator) |
 | Cost counts and, with a benchmark file, seconds | `estimate_cost` | `prepared.estimate_cost()` | No |
 
-`prepared.preflight()` (Python) is the older, structural-only inspection of the plan;
-`diagnose` reads the data.
+`prepared.preflight()` (Python) inspects the structure of the plan only; `diagnose` reads the data.
 
 ## Fit-free preflight
 
@@ -300,11 +298,9 @@ and 16 columns on that machine, which a quadratic term cannot follow. Treat `sec
 order-of-magnitude upper bound for bootstrap plans, not a prediction, and regenerate the file
 on the machine you plan for.
 
-## Current behavior (E0 reproducers)
+## What a refusal looks like on hard tables
 
-Recorded by the synthetic, bounded tests in
-`crates/antecedent/tests/preflight_reproducers.rs` and `python/tests/test_preflight.py`,
-from reading the code paths they exercise.
+The synthetic tests in `crates/antecedent/tests/preflight_reproducers.rs` and `python/tests/test_preflight.py` exercise these cases.
 
 - **Rank 174 of 175, and duplicate columns.** The QR backend refuses a rank-deficient
   design with `StatsError::RankDeficient { rank, ncols }`: the rank and column count, not
@@ -321,8 +317,8 @@ from reading the code paths they exercise.
 - **Retargeted overlap refusal.** A row-weight retarget onto rows the treated arm never
   reaches refuses with `CausalError::Support` (wrapped in `CausalError::Diagnosed`), and its
   fields carry the per-arm ESS and the propensity range under the target.
-- **Configured estimator in a batch.** `BatchStudy::estimator_spec` now takes a configured
-  estimator, so that limit is gone; combining it with an explicit `bootstrap_replicates` is
-  refused when the study is built, with the setting named as the refusal's subject.
+- **Configured estimator in a batch.** `BatchStudy::estimator_spec` takes a configured
+  estimator; combining it with an explicit `bootstrap_replicates` is refused when the study
+  is built, with the setting named as the refusal's subject.
 - **Not reproduced here:** joint-cell instability and repeated-entity or dyad dependence
   (no bounded public workload was added); those stay with their own cells.

@@ -1,11 +1,10 @@
-# Cross-fitted DML scores and their retarget covariance
+# Reuse cross-fitted DML scores to retarget with joint covariance
 
 `DmlAte` (the AIPW score), `DrLearner` and `CausalForest` keep a row-identified, per-arm
 cross-fitted AIPW **score table** of the average effect they report, so a prepared retarget
 and a batch retarget (see [the batch guide](batch-retarget.md)) reweight those scores and
 report the joint plug-in score covariance of the retargeted claims. The claim is
 `point_only`: values and a plug-in score covariance (a standard error is not an interval).
-The record is `estimate.dml_score_covariance` in `parity/promotion.toml`.
 
 ```rust
 let prepared = BatchStudy::new(data, graph)
@@ -38,7 +37,7 @@ scores, and the retargeted claim is a weighted marginal AIPW mean, not a CATE fu
 
 ## Conditions under which a covariance is claimed
 
-The covariance is the E3 plug-in Gram matrix of the weighted influence values of these
+The covariance is the plug-in Gram matrix of the weighted influence values of these
 scores. It is meaningful only when all of these hold; the library checks the first two.
 
 1. The fit is the **untrimmed `AllObserved` AIPW score**. The partially linear (Robinson)

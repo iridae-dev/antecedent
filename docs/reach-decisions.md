@@ -269,7 +269,7 @@ declaration of the source paradigm is the caller's.
   need a measured whole-method coverage record, and every such route is closed
   with a typed refusal until then.
 - The refusals named above, and their remedies, are listed in
-  [refusal and partial knowledge](refusal-and-partial-knowledge.md).
+  [refusal codes](reference/refusal-codes.md).
 - The page for each family: [scientific bridges](scientific-bridges.md),
   [observation queries](observation-queries.md),
   [sequential evaluation](sequential-evaluation.md),

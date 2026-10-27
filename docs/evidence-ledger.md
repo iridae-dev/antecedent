@@ -1,6 +1,6 @@
-# Evidence ledger: overlap, synthesis and revision
+# Bring in external evidence and synthesize studies
 
-Evidence that re-enters an analysis is not new evidence. The ledger records
+Record which evidence each result used, combine studies without counting anything twice, and see what a revision downstream changes. Evidence that re-enters an analysis is not new evidence. The ledger records
 which observations, experiments, priors, fitted models and external claims
 contributed to each result, how they overlap, and what changed afterwards.
 Overlap that is not declared stays unknown; independence is never assumed.
@@ -57,7 +57,7 @@ the whole history.
 
 ## Summary-data numerics
 
-`antecedent_stats::synthesis` computes the numbers the ledger licenses:
+The synthesis numerics compute the numbers the ledger licenses:
 
 - generalized least squares pooling with a full covariance, `1'S^-1 y / 1'S^-1 1`
   with variance `1 / 1'S^-1 1`; a non positive semidefinite covariance is
@@ -78,20 +78,18 @@ numbers computed over it. Each combination (`pool_summaries`,
 `random_effects`, `hierarchical_borrowing`, `dependence_range`,
 `transport_claim`, `reuse_result`, `repeat_observations`) is registered with
 the ledger first, on a staged copy, so shared or unknown overlap and a retired
-source are refused before any number; the numbers are then computed with
-`antecedent_stats::synthesis` and the staged ledger is committed only when
+source are refused before any number; the numbers are then computed and the staged ledger is committed only when
 both succeed. `revise_source` applies add, update, replace, supersede and
 withdraw and returns the downstream classification. `synthesis` refuses a
 result that is no longer valid, so stale numbers are never served, and
 `pooled_interval` reports a 95% interval only when a current attesting record
-covers its exact construction and scope. Fixed-effect Wald and legacy HKSJ
+covers its exact construction and scope. Fixed-effect Wald and HKSJ
 intervals retain separate keys. Current HKSJ publication is restricted to the
 baseline-family measured counts 20, 25 and 30; a passing strong-heterogeneity
 five- or fifteen-study record cannot license an unknown study family.
-The legacy candidate calculations and artifacts remain replayable.
 
 For independent Gaussian study estimates sharing one marginal mean, use the
-improved explicit workflow: Rust `pool_gaussian_studies(...)`, followed by
+equal-study Gaussian workflow: Rust `pool_gaussian_studies(...)`, followed by
 `pooled_interval(result)`. In Python, select
 `random_effects(..., method="equal_study_gaussian")`, then
 `pooled_interval(outcome.result)`. Study variances may be unequal and unknown;
@@ -103,9 +101,8 @@ original declared moderate-heterogeneity designs at 5/10/15/20/25/30 studies and
 homogeneous/strong designs at 5/15/30, at the recorded per-study sizes 75/100/200.
 They do not relabel HKSJ records or change the DL/REML numerical recipes.
 
-This explicitly earns the five-, ten- and fifteen-study moderate-heterogeneity
-Gaussian workflows. Calling DL/REML `random_effects` without the Gaussian option
-still selects the historical construction; there is no automatic fallback.
+Calling DL/REML `random_effects` without the Gaussian option selects the DL/REML
+construction; there is no automatic fallback between constructions.
 Fewer than 5 or more than 30 studies, a result with no numbers, a borrowing posterior,
 an assumption range, or a construction without a current matching record
 refuses `cell_not_licensed`.

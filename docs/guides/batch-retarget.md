@@ -1,12 +1,11 @@
-# Configured batches and batch retarget
+# Answer many effects at once and retarget a family of claims
 
 A batch answers many average-effect questions on one table. Two additions: the batch
 entry points take the same typed estimator configurations as `analyze`, and a completed batch
 can **retarget** a declared family of claims to caller-declared populations and report their
 joint covariance and named contrasts. The points and plug-in covariance are `point_only`;
 the 95% max-t simultaneous band is licensed for complete families at its measured
-coordinate (see [The simultaneous interval](#the-simultaneous-interval)). The record is
-`estimate.batch_retarget_covariance` in `parity/promotion.toml`.
+coordinate (see [The simultaneous interval](#the-simultaneous-interval)).
 
 ## Typed estimator configurations
 
@@ -136,7 +135,7 @@ Selection and weight-estimation uncertainty and the Monte-Carlo error of `c` are
 The 95% iid interval's coverage record has been measured for 800–3200 rows, and the
 complete-family route is licensed at that coordinate:
 `crates/antecedent/tests/batch_retarget_calibration.rs` scores the joint "all four claims
-covered" event, was run through `scripts/gate_calibration.sh`;
+covered" event;
 other levels, smaller samples and cluster or dyadic dependence coordinates are not covered
 by this record, even though the corresponding band can be computed.
 

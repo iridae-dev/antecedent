@@ -1,6 +1,6 @@
-# Design ranking: which study to run next
+# Rank further studies by what they would resolve
 
-`antecedent.design` is one package with one entry point, `rank_designs`, and one
+Choose which study to run next by comparing candidate studies on what each would add: the chance that a query becomes identified, or the value of the information for a decision you declare, net of cost. `antecedent.design` is one package with one entry point, `rank_designs`, and one
 result, `DesignRankingResult`. The result's `basis` says what its order means, and
 different objectives answer different questions and are never mixed in one result.
 
@@ -36,8 +36,7 @@ budget is that planned size. In Rust, `PlanningResult::sampling_candidate`,
 `experiment_candidate` and `future_data` give the `CandidateDesign` for `rank_designs_bound`
 and the future data of a value-of-information evaluation.
 
-The former `design_ranking` module is gone; there is no second ranking surface.
-`rank_structural` remains a compatibility view of `rank_designs` for structural
+`rank_structural` is a compatibility view of `rank_designs` for structural
 declarations (see the end of this page).
 
 ## Ranking plans by identification
@@ -319,7 +318,7 @@ joint law only by its source digest (`source_digests=`).
 | `DesignRankingRefusal` | `evsi.*`, `design_ranking.*` | a changed terminal action set, bound violations, incompatible artifact |
 
 Catch `CausalUnsupportedError` to handle all of them; see
-[refusals](refusal-and-partial-knowledge.md#structured-refusals-and-their-remedies).
+[refusals](reference/refusal-codes.md#structured-refusals-and-their-remedies).
 
 ## Structural declarations through the shared ranker
 
@@ -400,10 +399,10 @@ portable artifact. Bounds use `max_cost` and `max_sample_budget`; unrelated valu
 or gate arguments refuse rather than being silently applied. Calibration remains
 `unmeasured` for every objective.
 
-Runnable examples: [`rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/rank_designs.py)
-(identification basis), [`rank_designs_evsi.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/rank_designs_evsi.py)
-(net value) and [`decision_lifecycle.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/decision_lifecycle.py)
-(contract to ranking).
+Runnable examples: [`rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/rank_designs.py)
+(identification basis), [`rank_designs_evsi.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/rank_designs_evsi.py)
+(net value) and [`experiment_to_next_study.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/experiment_to_next_study.py)
+(experiment to ranked next studies).
 
 ## From a failed identification to a ranked evidence plan
 
@@ -470,7 +469,7 @@ range, or an unevaluated grid point, is refused (`confounder_value.range_surface
 
 ## Where it fits
 
-Study candidates also come from [identification repair](decisions-breadth.md#repair),
+Study candidates also come from [identification repair](decisions.md#repair),
 which names the evidence a failed contract owes; the ranking values the studies
 that would supply it. A failed identification owes evidence per identifier: back-door
 adjustment (a joint law over the adjustment set), front-door adjustment (a mediator
@@ -480,10 +479,11 @@ non-robust sensitivity finding (the unmeasured confounder to measure). Each is a
 repair contract that refuses `not_a_failure` when the observed law already
 identifies the effect, and the obligations it exposes are the unlocks a design
 ranking should value; see
-[evidence that would resolve a not-identified result](refusal-and-partial-knowledge.md#evidence-that-would-resolve-a-not-identified-result). A ranking exported here is a `study_ranking` bundle node (see
-[composition](composition.md)), and the full path from analysis to ranking is the
-[lifecycle](lifecycle.md). The route-by-route scope table is in
-[decisions, design, repair and estimator breadth](decisions-breadth.md#signals-evsi-and-design-ranking).
+[evidence that would resolve a not-identified result](reference/refusal-codes.md#evidence-that-would-resolve-a-not-identified-result). A ranking exported here is a `study_ranking` bundle node (see
+[composition](composition.md)); the full path from analysis to ranking is told in
+[Experiment to next study](tutorials/experiment-to-next-study.md) and
+[Decide under uncertainty](tutorials/decide-under-uncertainty.md). The route-by-route scope table is in
+[decision routes at a glance](decisions.md#signals-evsi-and-design-ranking).
 
 ## Original posterior sources and future studies
 

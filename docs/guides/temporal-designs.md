@@ -1,9 +1,8 @@
-# Sequentially randomized designs and regime survival over time
+# Estimate effects of repeated decisions and whole treatment regimes
 
-`CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design`
-(Python) read one table row per unit and period. The recorded assignment law identifies the
-target by design; regime survival, the observational excursion and the observational regime
-contrast read observational data under declared sequential exchangeability. Every route here executes and is **unlicensed**: no coverage record exists,
+Estimate what a decision at one period did to a later outcome, or what a whole treatment path would have produced, from tables with one row per unit and period. You can analyse micro-randomized or sequentially randomized trials (the excursion effect of one decision), observational decision data (modelling the decision on measured history), static regimes on a continuous outcome, and survival under always-treat versus never-treat.
+
+`CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design` (Python) read the table. Where the experimenter recorded the assignment law, the recorded law identifies the target by design. Regime survival, the observational excursion and the observational regime contrast read observational data under declared sequential exchangeability. Every route here executes and is **unlicensed**: no coverage record exists,
 every interval and posterior carries `calibration = "unmeasured"`, and no support-matrix cell
 is implied.
 
@@ -169,3 +168,10 @@ the positivity floor.
 | A Youden index below 0.1 | `route_not_supported` | A more accurate measurement or a larger validation sample |
 | An observational excursion with no history column, a treatment not coded 0/1, or a history column equal to the outcome or treatment | `invalid_argument` | Name the decision-time covariates, code the treatment 0/1, and keep the columns distinct |
 | A static switchback | n/a | Switchback assignment is a sequence of periods; there is no static switchback. Use the graphless switchback route or this design |
+
+## Related
+
+- [Evaluate a treatment regime over several periods](designs/sequential-regimes.md) when you supply your own conditional predictions and probabilities.
+- [Estimate a treatment effect on time to an event](designs/survival-outcomes.md) for static randomized survival.
+- [Analyze a randomized or factorial experiment](designs/randomized-experiments.md) for single-decision designs.
+- [Plan power and sample size](power-and-sample-size.md) for switchback and sequential plans.

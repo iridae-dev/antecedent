@@ -1,7 +1,7 @@
 # Architecture Decision Records
 
 Accepted decisions. Changing one requires a superseding ADR and migration or
-compatibility analysis where applicable. See [docs/architecture.md](../docs/architecture.md).
+compatibility analysis where applicable. See [how Antecedent works](../docs/concepts/how-antecedent-works.md) and the [architecture overview](../docs/architecture/overview.md).
 
 | ID | Title |
 |----|-------|

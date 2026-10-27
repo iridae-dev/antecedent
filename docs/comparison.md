@@ -85,7 +85,7 @@ exports its result.
 
 Use [supported analyses](supported-analyses.md) to find a starting point and
 [capabilities](capabilities.md) for the methods behind each path. The
-[2.0 release notes](release-notes/v2.0.0.md) describe the release and its calibration boundary.
+[release notes](release-notes/v3.0.0.md) describe what changed in the claims.
 
 <!-- generated:query-inventory:begin -->
 Generated from `parity/support_axes.toml`, `parity/support_licensed.toml`,
@@ -364,7 +364,7 @@ results refuse rather than pretending they are a set. The adapter does not
 wrap EconML learners or absorb an external CATE.
 
 A worked handoff is in
-[`examples/python/econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/econml_cate_handoff.py):
+[`examples/python/econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/econml_cate_handoff.py):
 Antecedent identifies and estimates ATE, then the caller optionally fits
 EconML `LinearDML` on `spec.columns(data)` when `econml` is installed.
 

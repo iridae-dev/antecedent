@@ -1,8 +1,7 @@
-# Falsifying a graph by node permutation
+# Check a graph against data
 
-`antecedent.gcm.evaluate_graph` (Rust: `antecedent::gcm::evaluate_graph`, engine
-`antecedent_model::falsify_graph`) asks whether a DAG is better than random relabellings of
-itself at explaining the conditional independencies in your data. It needs only the graph and
+Check whether a DAG you declared is better than random relabellings of itself at explaining the conditional independencies in your data. `antecedent.gcm.evaluate_graph` (Rust: `antecedent::gcm::evaluate_graph`, engine
+`antecedent_model::falsify_graph`) needs only the graph and
 the data. **No mechanism is fitted and no likelihood is computed.**
 
 ```python
@@ -118,3 +117,9 @@ Where they differ.
   tests refused when their smallest attainable p-value cannot reach `alpha`.
 - Seeds (`permutation_seed`, `execution_seed`), the implications with their statistics, and the
   limitations of the verdict are part of the result.
+
+## Related
+
+- [Fit and query a structural causal model](gcm-estimands.md)
+- [Give discovery background knowledge](discovery-background-knowledge.md)
+- [Read graph uncertainty and unidentified mass](../graph_uncertainty.md)

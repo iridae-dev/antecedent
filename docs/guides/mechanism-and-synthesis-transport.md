@@ -1,9 +1,6 @@
-# Mechanism transport and transported synthesis
+# Transport mechanisms and synthesize evidence
 
-Three routes decide what a source-population fit may contribute to a target
-population's composed model, an evidence synthesis, or a surrogate bridge. Each
-states which estimates may be used; none turns that statement into a calibrated
-claim about the target.
+You can carry a fitted mechanism from a source population into a target population's composed model, pool transported summaries with native evidence, or carry a surrogate relation to another population. Three routes decide what a source-population fit may contribute. Each states which estimates may be used and under which selection premise; none turns that statement into a calibrated claim about the target.
 
 | Route | Rust entry point | Result |
 | --- | --- | --- |
@@ -11,10 +8,9 @@ claim about the target.
 | Native plus transported summaries pooled, borrowed or used as a prior | `antecedent_design::transported_synthesis::synthesize_transported` | `TransportedSynthesis`: point and model variance |
 | Surrogate bridge carried to another population | `antecedent_design::transported_bridge::TransportedSurrogateBridge` | A bridge contract checked against a selection diagram |
 
-Provenance records: `transport.fitted_linear_gaussian_mechanism`,
-`transport.synthesis`, `transport.surrogate_bridge_premise`. A transported
+A transported
 mechanism composition reaches an inverse query as a carried, extrapolative
-claim (see [inverse queries and decisions](inverse-and-decision-reach.md)); a
+claim (see [inverse queries and decisions](inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources)); a
 transported response reaches a decision through
 `antecedent.transported_response`.
 
@@ -74,9 +70,9 @@ it. The module checks the premise against the diagram; it does not discharge it,
 and it stays an unresolved obligation of the derived claim. The bridge remains
 point-only.
 
-## What is refused, and the remedy
+## What is refused, and what to do
 
-| Refused request | Reason code or detail | Remedy |
+| Refused request | Reason code or detail | Next step |
 | --- | --- | --- |
 | Selection node into a mechanism or its latent cause | `mechanism_composition.population_selection_arrow_into_mechanism`, `mechanism_transport.selection_arrow_into_latent` | Refit the mechanism in the target |
 | Diagram not between the stated source and target | `mechanism_transport.diagram_source_mismatch` / `diagram_target_mismatch` | Declare the diagram for these two populations |
@@ -88,3 +84,9 @@ point-only.
 | Source that would be both native target data and a transported claim, or unknown overlap | `joint_law_required` / ledger refusal | Keep the sources disjoint in the ledger |
 | Selection node into the terminal outcome or a modifier | `bridge_assumption_missing` (`scientific_bridge.transport_premise_contradicted_by_selection_diagram`) | Validate the surrogate relation in the target |
 | Interval on a synthesis or bridge | none issued | Use the point and model variance as labelled |
+
+## Related
+
+- [Carry an effect to another population](transport/carry-an-effect.md)
+- [Transport into decisions and measurement models](transported-decisions-and-measurement.md)
+- [Mechanism composition](../composition.md#compose-independently-fitted-mechanisms) and [evidence ledger](../evidence-ledger.md)

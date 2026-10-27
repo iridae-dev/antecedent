@@ -1,15 +1,8 @@
-# Inference from adaptive experiments
+# Analyze an adaptive or sequentially monitored experiment
 
-Data from an experiment whose assignment adapts to outcomes, that is looked at
-before it ends, or that stops on a rule, are not a fixed sample. The final
-sample is never analysed as if the design had been fixed: an analysis that
-presumes a fixed design is refused for such data (`adaptive_design_ignored`).
-Every route below is point-only; the unqualified interval and guarantee request
-stays closed (`cell_not_licensed`). An interval of one named result is offered
-only by `measured_interval`, for the procedure cells listed under Calibration
-whose whole-procedure coverage is measured; it is bound to the coverage record
-and every other procedure, prior, threshold, exploration mass or look schedule
-is refused.
+Analyze data from an experiment whose assignment adapts to outcomes, that is looked at before it ends, or that stops on a rule. You can read a Bayesian posterior, a decision-theoretic stopping rule, an adaptively weighted estimate, a group-sequential boundary or an anytime-valid confidence sequence, each as its own named paradigm.
+
+The final sample of such an experiment is never analysed as if the design had been fixed: an analysis that presumes a fixed design is refused for adaptive data (`adaptive_design_ignored`). Every route below is point-only, and the unqualified interval request stays closed (`cell_not_licensed`). An interval for one named result is offered only by `measured_interval`, for the procedure cells listed under [Intervals that can be offered](#intervals-that-can-be-offered), bound to the coverage record that attests them.
 
 ## The retained analysis contract
 
@@ -79,10 +72,9 @@ classified by `procedure_status`:
 
 A declaration is bounded by what it asks of the routes that derive its
 uncertainty, and each kind of bound is its own refusal with its own detail and
-remedy (`antecedent_stats::adaptive_inference::CapacityError`). A procedure is
-no longer capped at 400 units and 400 policy-update batches under the one detail
-`looks_not_ordered`; that detail now means only that the schedule is empty,
-starts with an empty look or enrols no one.
+remedy (`antecedent_stats::adaptive_inference::CapacityError`). The detail
+`looks_not_ordered` means only that the schedule is empty, starts with an empty
+look or enrols no one.
 
 | Class | Bound | Detail | What to change |
 | --- | --- | --- | --- |
@@ -230,12 +222,9 @@ comparison with the control is built from two arm sequences and spends
 control is one of those contrasts and holds whatever the data selected: the
 simultaneous family over all arms covers the selection, and no further
 correction is applied or needed. The sequence construction is part of the
-procedure: a contract produced under the earlier normal-mixture Hoeffding
-sequence (arms at `alpha / (2 (K - 1))`, tuned by `tuning_samples`) names no
-construction, keeps its identity and replays under that sequence, and a new
-contract records `predictable_plug_in_empirical_bernstein`
-(`ParticipantSpec::sequence_kind`, `SequenceKind`); `tuning_samples` is still
-declared and validated but only the Hoeffding sequence reads it. This is a
+procedure, and a contract records it as `predictable_plug_in_empirical_bernstein`
+(`ParticipantSpec::sequence_kind`, `SequenceKind`); `tuning_samples` is
+declared and validated, and only the Hoeffding sequence reads it. This is a
 finite-time theorem under its
 premise, not a measured coverage of the whole procedure: every number is
 `derived_unmeasured` and the interval routes stay closed until a calibration
@@ -284,79 +273,13 @@ be retained under interim-look monitoring. The posterior routes of the
 one-outcome result artifact refuse a contract whose units have several
 measurements (`adaptive_inference.measurements_invalid`).
 
-Identities: the new futility spec, the floored Thompson rule and the
-procedure section enter the contract, procedure and artifact identities only
-when present, so contracts and artifacts produced earlier derive their original
-identities and replay unchanged. The participant procedure has its own identity
-(`PARTICIPANT_PROCEDURE_VERSION`).
+## Simulate the whole procedure before you run it
 
-## Whole-procedure validation of the participant-level family
+`simulate_participant_procedure` runs the whole participant-level loop in every replicate: recruitment in batches with follow-up delay, Thompson allocation with an exploration floor from the exact posterior of the completed participants, correlated beta-binomial responses, the posterior update, the expected-loss stopping rule, the choice of an arm, and the anytime-valid reading at every look. Each replicate's retained history is read back under the declared procedure, so the scored numbers are the ones a consumer of the sealed contract recomputes.
 
-`crates/antecedent-estimate/tests/adaptive_whole_procedure_calibration.rs` simulates
-the entire loop in every replicate: recruitment in eight batches with one look of
-follow-up delay, Thompson allocation with an exploration floor from the exact
-posterior of the completed participants, correlated beta-binomial responses
-(six per participant, four arms), the posterior update, the expected-loss
-stopping rule, the selection of an arm, and the anytime-valid reading at every
-look. The retained history of each replicate is read back under the declared
-procedure, so the scored numbers are those a consumer of the sealed contract
-recomputes.
+Per replicate it records how the run ended, whether the sequences covered the truth at every look and at the end, the false-superiority rate (a treatment comparison whose lower bound exceeds zero at any look), the selection-error and best-arm rates, regret, the stopping look, and the participants enrolled and completed. Use it to see, under a truth you choose, how early the rule stops on average, how wide the sequences are at the stop, and how sensitive the procedure is to a wrong correlation or a misleading historical prior.
 
-Five scenarios at 600, 1,200 and 2,400 participants (fifteen cases, each its own
-`#[ignore]` test named by the acceptance-manifest case it binds, registered in
-`scripts/gate_calibration.sh`, 2,000 replicates each):
-
-| Scenario | True means (control 0.4) | Correlation | Priors | Case-specific gate |
-| --- | --- | --- | --- | --- |
-| `null_effects` | all equal | 0.3 | uniform | false superiority at most 0.05 |
-| `near_ties` | +0, +0, +0.02, +0.03 | 0.3 | uniform | mean regret at most 0.02 |
-| `separated_effects` | +0, +0.05, +0.1, +0.2 | 0.3 | uniform | best-arm identification at least 0.6, 0.9, 0.99 |
-| `strong_correlation` | +0, +0.05, +0.1, +0.15 | 0.7 | uniform | none |
-| `misleading_priors` | +0, +0.05, +0.1, +0.15 | 0.3 | history 0.15 above each truth, 200 trials at discount 0.5 | none |
-
-Every case gates, at the manifest's frozen targets: a reporting rate of 1;
-simultaneous coverage of 0.93 or more of every arm's sequence at every look up to
-the stop, of the same at the stopping look, and of the selected arm's comparison
-with the control at every look and at the stop; and a median arm half-width at
-the stop of at most the case's frozen target. False superiority is a treatment
-comparison whose lower bound exceeds zero at any look.
-
-**Width targets are stated at the realized stopping size.** The expected-loss rule
-stops early by design (on average 27 to 89 percent of the plan is enrolled,
-depending on the scenario), so the width of the sequences at
-the stop follows the participants actually used, not the planned `N`. The targets
-(`max_median_cs_halfwidth`, between 0.10 and 0.315) were re-derived for the
-plug-in sequence by re-simulating the procedure at the stopping-look counts of
-the pilot runs (the stopping rule and the allocation do not read the sequence, so
-those counts are unchanged), taking the median over replicates of the mean arm
-half-width at the stop, adding a 20 percent margin and rounding up to 0.005; each
-case's `targets.target_change` in `parity/acceptance_manifest.toml` records its
-old and new value and this derivation. Coverage floors, replicate minimums and
-reporting rates are unchanged.
-
-**Coverage records.** Each case also emits two coverage records through the shared
-harness, at a nominal 0.95 and measured over the three-point sample-size grid
-around the case's participants (half, one and two times the case's `N`): every
-arm's mean covered at every look up to the stop, and the selected treatment's
-difference from the control covered at every look up to the stop. Both are
-conservative by construction and are recorded as one-sided floors, under
-`adaptive_measured_interval::participant_sequence_calibration_basis`. The
-coverage floors hold at every grid point; the precision, selection and sample-use
-targets are stated for the case's own participants and are asserted at the base
-point only.
-
-Each case prints one `adaptive_whole_procedure_summary` JSON line with the
-published measurements: the coverages above, the median and 90th-percentile arm
-half-width and the median selected-comparison width at the stop, the false
-superiority rate, the selection-error and best-arm-identification rates, mean
-regret, the stopping-look counts and stopping-reason fractions, and the mean
-participants enrolled and completed and the fraction of the plan used. These are
-measured properties of the simulation under the stated truth; they are not a
-coverage claim for any other design, and the claim stays `derived_unmeasured`
-until a record exists. The default suite checks the harness against scenarios
-with an exact answer (a recruitment cap fixing the stopping look and the sample
-used, an unmistakable best arm, the summary arithmetic, and agreement of the
-thresholds with the manifest).
+These are properties of the simulation under the stated truth. They are not a coverage claim for another design, and the claim stays `derived_unmeasured` until a coverage record exists.
 
 ## Artifacts
 
@@ -368,54 +291,20 @@ thresholds with the manifest).
 * `adaptive_inference_result_v1` embeds the monitoring contract and the
   request, and a consumer recomputes the values from the retained history.
 
-## Calibration
+## Intervals that can be offered
 
-Whole-procedure designs (data-generating process, nominal level, support range
-and boundary probes) are frozen in
-`crates/antecedent-estimate/tests/adaptive_inference_calibration.rs` and in
-`adaptive_procedure_prior_predictive_calibration.rs`, and each is measured over a
-three-point sample-size grid at 400 replicates with a 2,000-replicate recheck.
-Coverage of a fixed-sample interval at the final sample size, or of a component
-estimator, does not substitute.
+Whole-procedure coverage of an adaptive procedure is measured as a whole, over its data-generating process, nominal level, support range and boundary probes. Coverage of a fixed-sample interval at the final sample size, or of a component estimator, does not substitute. Read `result.inspect().calibration` for the status of what you hold.
 
-### Measured interval cells
+`AdaptiveInferenceSession.measured_interval(request)` seals and replays the result, builds the interval from the retained history and resolves it against the current coverage record. It returns an interval only for the cells below, and only while a coverage record currently attests the cell. Any other procedure, prior, threshold, exploration mass or look schedule is refused.
 
-`AdaptiveInferenceSession.measured_interval(request)` seals and replays the
-result, builds the interval from the retained history and resolves it against the
-current coverage record. The cells and what each interval says:
-
-| Cell | Interval | Licensed range | Does not say |
+| Cell | Interval | Planned size | Does not say |
 | --- | --- | --- | --- |
-| Thompson, uniform Beta prior, two arms, posterior-probability stopping at 0.90, 0.95 or 0.99, two looks | equal-tailed credible interval of the second arm's success probability, read at its last look | planned horizon 100 to 400; prior-predictive calibration | pointwise coverage at fixed truths near equal arms; the contrast; another prior; outcome delay |
+| Thompson, uniform Beta prior, two arms, posterior-probability stopping at 0.90, 0.95 or 0.99, two looks | equal-tailed credible interval of the second arm's success probability at its last look | planned horizon 100 to 400; prior-predictive calibration | pointwise coverage at fixed truths near equal arms; the contrast; another prior; outcome delay |
 | Epsilon-greedy (exploration 0.3), repeated measures, final analysis only | Wald interval of the weighted contrast (subject means, variance-stabilizing weights, floor 0.01) | 300 to 1,200 subjects | a stopping look; delay; exploration below 0.3 |
-| Epsilon-greedy, bounded outcomes | time-uniform confidence sequence of the second arm's mean or of the contrast at any look | planned horizon 200 to 800; one-sided floor | tightness |
-| Fixed 1:1 randomization, group sequential (three looks, O'Brien-Fleming-type, two-sided, alpha 0.05) | repeated confidence interval of the effect at the last performed look | 120 to 480 units; one-sided floor | stagewise-adjusted estimates and p-values (closed); adaptive assignment |
+| Epsilon-greedy, bounded outcomes | time-uniform confidence sequence of the second arm's mean or of the contrast at any look | planned horizon 200 to 800 | tightness |
+| Fixed 1:1 randomization, group sequential (three looks, O'Brien-Fleming-type, two-sided, alpha 0.05) | repeated confidence interval of the effect at the last performed look | 120 to 480 units | stagewise-adjusted estimates and p-values (closed); adaptive assignment |
 
-A fixed-level Wald interval read at a data-dependent stopping look is a named
-boundary and is not offered; the confidence sequence is the interval for a
-stopping look.
-
-| Design | Planned units | Coverage at the 95% level | Standing |
-| --- | --- | --- | --- |
-| Thompson posterior, arms 0.3 and 0.5, posterior-probability stopping | 100 to 400 | 0.941 to 0.950 | measured |
-| Thompson posterior under prior-predictive truth, stopping at 0.90, 0.95, 0.99 | 100 to 400 | 0.93 to 0.96 | measured |
-| Thompson posterior, arms 0.05 and 0.95 | 100 to 400 | 0.945 to 0.970 | measured |
-| Thompson posterior at exactly equal arms | 100 to 400 | 0.92 to 0.94 | named boundary |
-| Epsilon-greedy weighted contrast, repeated measures, no stopping | 300 to 1,200 | 0.938 to 0.953 | measured |
-| Epsilon-greedy weighted contrast read at a stopping look, with and without outcome delay | 100 to 400 | 0.90 to 0.95 | named boundary |
-| Epsilon-greedy weighted contrast with 5% exploration | 100 to 400 | 0.73 to 0.91 | named boundary |
-| Anytime-valid confidence sequence at every look | 100 to 400 | at least 0.99 | one-sided floor |
-
-A named boundary records the measured shortfall and is not a claim of nominal
-coverage: a posterior-probability stopping rule selects on the data, so a
-fixed-level interval read at that look has no pointwise guarantee, and an
-exploration mass of a few units leaves the weighted scores too heavy-tailed for a
-normal interval. The Thompson posterior is exact under its prior; the
-prior-predictive rows measure that and are the rows that license the credible
-interval. The fixed-truth rows are keyed apart from them so that the equal-arms
-boundary never governs the licensed interval. The measured cells above use the same
-constructions the records measured; a cell is offered only while its record is
-currently attesting.
+A fixed-level Wald interval read at a data-dependent stopping look is not offered: a posterior-probability stopping rule selects on the data, so a fixed-level interval at that look has no pointwise guarantee. The confidence sequence is the interval for a stopping look. An exploration mass of a few units also leaves the weighted scores too heavy-tailed for a normal interval, and a Thompson posterior at exactly equal arms is a named boundary where a fixed-truth coverage claim is not made. The Thompson posterior is exact under its prior, which is why the prior-predictive calibration is what supports the credible interval.
 
 ## Python
 
@@ -450,3 +339,9 @@ and independent editable exports. `session.export_result(request)` remains the e
 request-selected bytes export, and `session.export_contract(paradigm)` exports the
 monitoring contract. Shared `ant.load(...)` invokes the same native artifact consumers
 and returns the specialized consumed type.
+
+## Related
+
+- [Plan power and sample size](guides/power-and-sample-size.md) for group-sequential plans.
+- [Evaluate a policy that changes with what you observe](sequential-evaluation.md).
+- [Inference from adaptive procedures](guides/composed-uncertainty.md#uncertainty-of-an-adaptive-procedure) and [transported policy and adaptive source](guides/transported-decisions-and-measurement.md).

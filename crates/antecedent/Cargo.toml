@@ -173,6 +173,10 @@ path = "../../examples/rust/noise_replay.rs"
 name = "intrinsic_influence"
 path = "../../examples/rust/intrinsic_influence.rs"
 
+[[example]]
+name = "feedback_three_questions"
+path = "../../examples/rust/feedback_three_questions.rs"
+
 [[bench]]
 name = "staged_handle"
 harness = false

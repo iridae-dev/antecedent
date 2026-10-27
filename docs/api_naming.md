@@ -54,7 +54,7 @@ artifact retain the covariate identities and report point-only HC0 uncertainty.
 The licensed trial-IPW cell is
 `antecedent.transport.advanced.TransportQuery`; the structural transport compiler is
 `antecedent.transport.Transport` and is not a root export.
-See [the Python workflow](python-workflow.md) for lifetime and report semantics.
+See [the Python workflow](start/first-analysis.md) for lifetime and report semantics.
 The set is: the five verbs
 above; the accepted-structure and result types (`AcceptedGraph`, `Identification`,
 `AnalysisResult`); the ten typed queries (`AverageEffect`, `PulseEffect`,
@@ -271,8 +271,8 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Cyclic equilibrium and dynamic systems | `Study::prepare_cyclic(request, ctx)` / `Study::prepare_cyclic_family(&request, ctx)` on the common `PreparedStudy` handle | `antecedent.cyclic`: `LinearCyclicModel`, `EquilibriumModel`, `OdeSystem`, `OrnsteinUhlenbeck`, typed `World` of `Set` / `Shift` / `Soft`; `.worlds(...)` / `.prepare(...)` then `.interventions()` / `.execute()`; `consume_artifact(bytes, expected_identity=)` ([guide](guides/cyclic-systems.md)) |
 | Joint intervention responses | `Study::prepare_joint_panel(data, request, ctx)` then `estimate(ctx)` | `antecedent.joint_panel.prepare(...)`, `.consume(artifact)`; experiment designs through `prepare_native_joint_design(recipe, ...)` ([guide](guides/joint-intervention-responses.md)) |
 | Staleness and drift | `PreparedStudy::{staleness, staleness_baseline, staleness_plan}` with `StalenessPolicy` | `antecedent.drift.staleness(artifact, new_data, policy=StalenessPolicy(...))` → `StalenessReport` with a `reuse` / `refresh` / `reidentify` / `refuse` recommendation ([guide](guides/staleness.md)) |
-| Readable report | `PreparedStudy::report(result, ctx, ReportFormat)` | `prepared.report("markdown")` or `"html"` ([guide](guides/report.md)) |
-| Host integration | `examples/rust/reference_host.rs`; versioned JSON Schema and stable refusal codes | `antecedent.host`: `schema()`, `refusal_codes()`, `claim_status`, `claim_response`, `error_response` ([embedding](embedding.md)) |
+| Readable report | `PreparedStudy::report(result, ctx, ReportFormat)` | `prepared.report("markdown")` or `"html"` ([guide](guides/plan-view.md#read-a-report)) |
+| Host integration | `examples/rust/reference_host.rs`; versioned JSON Schema and stable refusal codes | `antecedent.host`: `schema()`, `refusal_codes()`, `claim_status`, `claim_response`, `error_response` ([embedding](guides/build/embedding.md)) |
 | Stage modules | `antecedent::discovery`, `antecedent::gcm`, `antecedent::io` | `antecedent.discovery`, `antecedent.gcm`, `antecedent.graph` |
 
 ## Identity dictionary

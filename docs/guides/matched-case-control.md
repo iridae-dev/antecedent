@@ -1,12 +1,10 @@
-# Matched case-control odds ratio
+# Estimate a conditional odds ratio from matched case-control sets
 
 `antecedent.matched.matched_case_control_odds_ratio` (Rust:
 `antecedent_estimate::conditional_odds_ratio`) estimates one quantity from matched
 sets sampled on the outcome: the **conditional odds ratio** of a binary exposure,
 by exact conditional likelihood (conditional logistic regression). It is a new
-design row, not a conversion of the AIPW result, and its claim is `point_only`.
-The record is `estimate.matched_case_control_odds_ratio` in
-`parity/promotion.toml`.
+design, not a conversion of the AIPW result, and its claim is `point_only`.
 
 The safeguarded solve takes at most {{bound:estimate.matched_case_control_odds_ratio.max_iterations}} Newton iterations. Artifact replay expands at
 most {{bound:estimate.matched_case_control_odds_ratio.replay_max_rows}} reconstructed rows from the stored sufficient statistics.

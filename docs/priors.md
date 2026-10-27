@@ -1,10 +1,8 @@
-# External prior bank
+# Use earlier posteriors as priors
 
-Transfer previously fit posteriors into a new analysis as power / mixture
-priors — without pretending priors create nonparametric identification.
+Carry what earlier analyses learned into a new Bayesian analysis as power or mixture priors, with the transfer, its conflict handling and its sensitivity recorded. A prior changes the posterior; it does not make an unidentified effect identified.
 
-Surveys are the usual motivating domain (product / context tags), but the
-library speaks in **sources**, **targets**, and **designs**.
+Surveys are the usual motivating domain (product and context tags), but Antecedent speaks in **sources** (earlier posteriors), **targets** (the new analysis) and **designs**.
 
 ## Workflow
 
@@ -41,8 +39,8 @@ catalog.filter(target) → rank(similarity)
    resolution; multi-step Sustained windows and Bayesian mediation refuse
    transfer, so their isotropic per-mechanism prior is the one checked.
 
-Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/prior_bank_surveys.py)
-(Rust: [`examples/rust/prior_bank_surveys.rs`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/rust/prior_bank_surveys.rs)).
+Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/prior_bank_surveys.py)
+(Rust: [`examples/rust/prior_bank_surveys.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/prior_bank_surveys.rs)).
 
 ## Invariants
 
@@ -329,15 +327,7 @@ below `TRANSPORT_MIN_KISH_ESS = 20`, α is forced to 0 and the reason recorded.
 
 Unsupported environment / unidentified shifts are **not claimed**.
 
-## Gates
-
-```bash
-bash scripts/gate_bayesian.sh
-```
-
-Runs `conformance/bayesian/prior_bank_*` plus `python/tests/test_prior_bank.py`.
-
-## From Bayesian evidence to study ranking
+## Rank studies from prior evidence
 
 `design.adapt_prior_to_signal(catalog, ...)` consumes compatible original native
 posterior artifacts and returns a `CheckedPriorSignal` whose `prior` and `signal`
@@ -348,3 +338,9 @@ one scalar state with Gaussian-mean or binomial future-study signals; compatibil
 and convergence are checked before ranking. It does not reconstruct posterior
 draws from a mean and variance or make an unidentified effect identified.
 See [design ranking](design-ranking.md) for the complete source-to-study example.
+
+## Related
+
+- [Uncertainty](concepts/uncertainty.md)
+- [Design ranking](design-ranking.md)
+- [Scientific bridges](scientific-bridges.md)

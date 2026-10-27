@@ -17,7 +17,7 @@ producer and independent `load` consumer. It is not an additional decision
 source: named scalar intervals and posterior parameter draws do not implicitly
 become a scientifically bound outcome law or a `Contract.evaluate` source.
 Its lifecycle and current-record requirements are documented in
-[the lifecycle](lifecycle.md#measured-scalar-inference-and-independent-replay).
+[measured intervals and independent replay](recalculation-capabilities.md#measured-intervals-and-independent-replay).
 
 ## Reading a cell
 

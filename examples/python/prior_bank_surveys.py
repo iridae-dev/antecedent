@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """Combine evidence from earlier surveys for a new survey analysis.
 
-Two simulated surveys provide prior evidence. We rank them using similarity
-scores supplied by the caller, choose their weights, and combine them for
-the target analysis. The library does not infer those similarity judgments.
+Two simulated surveys provide prior evidence. You rank them using similarity
+scores you supply, choose their weights, and combine them for the target
+analysis. Antecedent does not infer those similarity judgments.
+
+The surveys are simulated from declared mechanisms with known average effects:
+2.0 and 1.5 in the two earlier surveys and 1.8 in the target. These are fixture
+truths of the generator, so the example checks that each fitted effect lands near
+its declared value and that the combined prior does not pull the target away from
+it. The tolerances are loose because each survey is small.
 
 Install with `python -m pip install antecedent`; see examples/README.md."""
 
@@ -171,6 +177,12 @@ def main() -> None:
     print("Calibration:", target.calibration.status)
     assert target.posterior is not None
     assert np.isfinite(target.posterior.effect_mean)
+    # Declared truths: the earlier surveys fit their own effects, and the target
+    # posterior stays near its declared effect after the combined prior is applied.
+    assert abs(mean_a - 2.0) < 0.3, mean_a
+    assert abs(mean_b - 1.5) < 0.3, mean_b
+    assert abs(target.posterior.effect_mean - 1.8) < 0.3, target.posterior.effect_mean
+    assert {r.artifact_id for r in accepted} == {"survey_launch", "survey_retention"}
     sens = target.validation.prior_sensitivity
     assert sens is not None and sens.alphas is not None
     assert target.validation.prior_predictive is not None

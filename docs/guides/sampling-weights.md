@@ -1,4 +1,4 @@
-# Sampling weights
+# Estimate with sampling weights
 
 A sampling weight `s_i` says how many population units row `i` stands for (an inverse
 inclusion probability, possibly calibrated). Declaring weights changes **what is estimated**

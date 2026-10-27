@@ -1,6 +1,6 @@
 """Notebook exploration to independently consumed scientific bytes.
 
-Run with an installed Antecedent development wheel. No files are retained after
+Run with an installed Antecedent. No files are retained after
 this example; a real producer stores container bytes and expectations separately.
 """
 

@@ -1,10 +1,8 @@
-# Power, sample size and minimum detectable effect
+# Plan power, sample size and minimum detectable effect
 
-`antecedent.design.planning` (Rust: `antecedent::analysis::planning`) plans a randomized
-experiment before any data exist. You declare the design, the assumptions its operating
-characteristics rest on, a criterion and a goal; the request is compiled to a lowered program
-that retains every assumption in its identity, solved analytically, and, when you ask for it,
-simulated end to end with the estimator the design will be analysed with.
+Plan a randomized experiment before any data exist: how many units you need for a target power, how much power a given size gives, or the smallest effect a given size can detect. You declare the design, the assumptions its operating characteristics rest on, a criterion and a goal. Antecedent solves the plan analytically and, when you ask, simulates it end to end with the estimator you will analyse the data with.
+
+`antecedent.design.planning` (Rust: `antecedent::analysis::planning`) holds the planner. The request is compiled to a lowered program that retains every assumption in its identity, so changing an assumption changes the plan's identity.
 
 ```python
 from antecedent.design import planning
@@ -41,11 +39,7 @@ let request = PlanningRequest::new(
 let planned = plan_experiment(&request, &ctx)?;   // 128 units, 64 per arm
 ```
 
-`compile_planning` returns the plan without solving it (`plan.lowered()` carries the request
-in layer four, `plan.identity()` changes with any assumption); `PlanningPlan::execute` solves
-and simulates. `Study::compile_for_planning` attaches the same request to the lowered program
-of a randomized study whose declared randomization is the planned design, to plan the next
-trial of that analysis.
+`compile_planning` returns the plan without solving it, and `PlanningPlan::execute` solves and simulates. `Study::compile_for_planning` attaches the same request to a randomized study whose declared randomization is the planned design, so you can plan the next trial of that analysis.
 
 ## Three directions
 
@@ -164,3 +158,9 @@ binary outcome, an HC0 ANCOVA variance and a sandwich over few sequences are nor
 large-sample approximations whose finite-sample error the simulation shows. The calibration of
 the simulation procedures has not been measured: every plan reports `calibration =
 "unmeasured"` and carries no coverage claim.
+
+## Related
+
+- [Analyze a randomized or factorial experiment](designs/randomized-experiments.md) for the analysis you are planning for.
+- [Adaptive and group-sequential inference](../adaptive-inference.md) when the plan stops early or adapts.
+- [Design ranking](../design-ranking.md) to compare planned designs by information value and cost.

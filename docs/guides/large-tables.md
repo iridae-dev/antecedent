@@ -1,4 +1,4 @@
-# Parquet, Arrow IPC and tables larger than memory
+# Analyze Parquet, Arrow IPC and tables larger than memory
 
 An analysis can start from a file instead of an in-memory table. Antecedent reads
 Apache Parquet files, directories of Parquet files that share one schema, Arrow IPC

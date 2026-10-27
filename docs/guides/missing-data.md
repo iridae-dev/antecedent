@@ -1,4 +1,4 @@
-# Missing data
+# Decide what happens to missing values
 
 Missing values are never handled by accident. Each route says what it does with them, a
 policy is declared with `missing=` (Rust: `StudyBuilder::missing`), and every result records
@@ -30,10 +30,7 @@ own way and accept no declaration.
 
 ### Route cells
 
-The support is declared once, per route cell (query kind, data modality, inference mode), in
-`parity/missing_policy_support.toml`. The builder reads that file
-(`antecedent::analysis::route_missing_support`), and `scripts/check_missing_policy_support.py`
-keeps this table equal to it. A cell that is not listed executes no policy.
+Support is declared once per route cell (query kind, data modality, inference mode), and this table is checked against that declaration. A cell that is not listed executes no policy.
 
 | Query | Modality | Inference | Without `missing=` | Policies it executes |
 | --- | --- | --- | --- | --- |

@@ -1,14 +1,12 @@
-# Composition verification
+# Check a composition after something changes
 
-A composed analysis rests on many objects: a cohort and its data, a measurement
+Find out which downstream claims survive when an input of a composed analysis changes. A composed analysis rests on many objects: a cohort and its data, a measurement
 model, a mechanism composition, a bridge, a ledger result, a transported result
 and the decision that reads them. When one of them changes, the question is
 which downstream claims survive. Composition verification answers it with one
 claim-level dependency graph, classifies every downstream claim, and reports
-the lineage behind each one. It is built on the stage planner
-(`antecedent_core::recalc`), the invalidation log (`antecedent-state`), the
-evidence ledger's standings and claim freshness; it adds no pipeline stage and
-leaves the fixed `Stage` enum alone.
+the lineage behind each one. It reads the recalculation plan, the invalidation log, the
+evidence ledger's standings and claim freshness, and adds no pipeline stage.
 
 ## The graph
 
@@ -104,20 +102,25 @@ representation versions, unsupported coordinates, the assumptions each boundary
 introduced, and each object's calibration state (inherited, lost, newly
 required).
 
-## Lifecycle
+## What each change keeps, recomputes or refuses
 
-* **refresh with new outcome-only data** keeps the structural derivation,
-  recomputes every node that reads the data, and refuses to carry a fit or an
-  interval across.
-* **a change of target population, source evidence, selection diagram or
-  support** classifies each transported claim as still valid, recompute or
-  withdrawn; transported calibration is never inherited by a different target.
-* **export and load**: `composition_verification_v1` carries both graphs, the
-  effects, the declared shared-data relations, the classification and the
-  lineage identities. A consumer classifies again and compares every stored
-  field; a first verification (no earlier snapshot) reports nothing stale. The
-  declared overlap is checked against a ledger the consumer holds with
-  `verify_ledger`.
+When an upstream object changes, a downstream claim is not refreshed by reusing its
+stage artifact. The classification runs over one claim-level dependency graph, and
+each kind of change has a fixed outcome:
+
+| Change | Keeps | Recomputes | Refuses |
+|---|---|---|---|
+| `refresh` with new outcome-only data | the structural derivation (graph, identification, bridge form), the version labels, the support and provider-trust standings | every node that reads the data: the score artifact, the law, a bridged claim, a transported result, the decision. The earlier fit and uncertainty carry no authority (`structure_reused_fit_not_retained`) | a fit or an interval carried across: `claim_revalidation_required` |
+| change of target population, source evidence, selection diagram or support | the source evidence and fit when the planner reuses them; a calibration record at the coordinate it was established | the transported claim at the new coordinate | a calibration record established at another target, or inherited from an object that no longer holds it: `cell_not_licensed`; coordinates outside the support: `claim_license_withdrawn` |
+| ledger revision (a source withdrawn, replaced, updated) | results the revised source does not reach | results that lose one member of several | a result built on a withdrawn source and what rests on it: `claim_license_withdrawn` |
+| provider replacement or loss of trust | claims that do not rest on the provider | claims rebuilt on a re-verified provider | claims resting on the provider while its trust does not hold |
+| `export` and `load` | the graphs, the observed effects, the declared shared-data relations, every classification and the lineage identity | the classification, on load, from the stored graphs and effects | a stored class, reason, authority, calibration state or lineage identity that does not replay; an identity other than the retained one |
+
+`composition_verification_v1` carries both graphs, the effects, the declared
+shared-data relations, the classification and the lineage identities. A consumer
+classifies again and compares every stored field; a load never revives a claim from a
+snapshot, and a first verification (no earlier snapshot) reports nothing stale. The
+declared overlap is checked against a ledger the consumer holds with `verify_ledger`.
 
 ## Closed
 
@@ -140,13 +143,10 @@ calibration records are declarations.
 | `invalid_argument` | `graph_invalid`, `unknown_claim`, `replay_mismatch`, `ledger_mismatch` | fix the declaration or regenerate |
 | `route_not_supported` | `identity_mismatch` | supply the artifact with the retained identity |
 
-## Where it lives
+## Where to find it
 
-* `antecedent_contract::composition_verification`: graph, classification, lineage.
-* `antecedent_io_core::composition_verification_artifact`: the portable artifact.
-* `antecedent::analysis::composition_verification`: `CompositionVerification`,
-  the effect builders and `consume_composition_verification_artifact`.
-
+* Rust: `antecedent::analysis::composition_verification` (`CompositionVerification`,
+  the effect builders and `consume_composition_verification_artifact`).
 * `antecedent.composition_verification` (Python): `CompositionGraph`, `Node`,
   `Edge`, `Calibration`, `Effect`, `verify_composition`, `ledger_effects`,
   `shared_data_from_ledger`, `CompositionVerification` (`classify`, `keys_of`,

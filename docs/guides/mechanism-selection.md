@@ -1,6 +1,6 @@
-# Choosing causal mechanisms: nonlinear families, constraints and split schemes
+# Choose and inspect mechanisms
 
-A graphical causal model fits one mechanism per node. The registry scores every
+Control which mechanism families a structural causal model may use for each node, how candidates are scored, and read back why each was chosen. A graphical causal model fits one mechanism per node; the registry scores every
 candidate family on the same held-out folds and keeps the best, with the score of
 every candidate, the candidates that failed, and how the choice was made.
 
@@ -56,7 +56,7 @@ the map.
 
 ## Candidate sets
 
-`MechanismRegistry::standard()` is unchanged. `MechanismRegistry::with_nonlinear_families()`
+`MechanismRegistry::standard()` holds the default families. `MechanismRegistry::with_nonlinear_families()`
 adds the cubic-spline expansions and the tree families. In Python,
 `candidates=["linear", "additive_spline", "random_forest", "gradient_boosted_trees"]`
 names families by alias (`linear`, `logistic`, `additive_spline`, `interactions`,
@@ -101,7 +101,7 @@ The scheme applies to every candidate of every node, and to the tree families' i
 residual estimate. State-space candidates keep their prequential score. A scheme the rows
 cannot support is refused with `mechanism_candidates_invalid`.
 
-## Provenance
+## Read the selection record
 
 `FittedGcm.mechanism_selection()` (Rust: `MechanismAssignment`) returns, per node:
 
@@ -162,3 +162,9 @@ Where they differ.
   are cut accordingly; `assign_causal_mechanisms` has no option to declare dependent rows.
 - Roots are fitted by the registry (a Gaussian by default), not resampled from the data; there is
   no empirical-residual noise variant for the additive tree families.
+
+
+## Related
+
+- [Fit and query a structural causal model](gcm-estimands.md)
+- [Discover, attribute and simulate as compiled queries](compiled-structure-routes.md)

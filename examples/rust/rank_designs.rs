@@ -13,7 +13,7 @@
 )]
 //! Rank candidate experimental designs by identification probability.
 //!
-//! See ADR 0016: ranking is advisory — it does not auto-rerun analyses. Ranking runs through a
+//! Ranking is advisory — it does not auto-rerun analyses. Ranking runs through a
 //! prepared study's contract, which refuses an unlicensed study and reports the candidates the
 //! objective cannot score instead of scoring them.
 //!

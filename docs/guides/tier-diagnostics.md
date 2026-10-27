@@ -1,9 +1,8 @@
-# Tier-aware overlap and E-value diagnostics
+# Read overlap and E-value diagnostics after a tiered estimate
 
 `antecedent::tier_diagnostics(&result, &ctx)` reads an executed **tiered** average-effect result
 (`Study::tiered_background(..)`) and states which diagnostics that result's own design
-carries. It refits nothing and builds no graph. The record is `estimate.tier_diagnostics` in
-`parity/promotion.toml`; the claim is `point_only` (an E-value is a sensitivity
+carries. It refits nothing and builds no graph. The claim is `point_only` (an E-value is a sensitivity
 summary, not an inferential interval).
 
 ```rust

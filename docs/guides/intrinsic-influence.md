@@ -1,6 +1,6 @@
-# Intrinsic causal influence: which noise terms drive a target's variance
+# Attribute a target's variance to its noise terms
 
-Intrinsic causal influence splits the variance of a target among the exogenous noise
+Split the spread of a target among the mechanisms that produce it. Intrinsic causal influence splits the variance of a target among the exogenous noise
 terms of its ancestors and its own. It answers "how much of the spread in `y` is
 produced at each mechanism", as opposed to how much of it is passed through from
 upstream. The game is
@@ -12,18 +12,7 @@ over the noise coordinates `U_S` of the sources in `S`. Then `v(∅) = 0` and
 For a linear model with independent noise `v(S)` is the sum over `S` of the squared
 total path coefficient times the noise variance, so each source's share is that term.
 
-Rust surface: `antecedent_attribution::{intrinsic_influence, IntrinsicInfluenceQuery,
-IntrinsicAllocation, NoiseIndependence, IntrinsicInfluenceResult}` and the compiled
-attribution route: `CausalQuery::Attribute` with `AttributeTarget::IntrinsicInfluence`
-on a supplied or accepted `Dag` (see [compiled structure routes](compiled-structure-routes.md));
-`antecedent::gcm::attribute_intrinsic_influence` is the hidden engine it runs. Python: `antecedent.gcm.intrinsic_influence`. On a model already fitted, `antecedent.gcm.fitted_intrinsic_influence(fitted, target, ...)`
-uses its structure, mechanisms and rows without refitting and gives the result `intrinsic_influence`
-gives on the data and edges it was fitted from; the result names its provenance record
-(`gcm.attribution.intrinsic_influence`).
-Provenance record: `gcm.attribution.intrinsic_influence`. Reference: Janzing, Blöbaum,
-Mastakouri, Faller, Minorics and Budhathoki (2024), "Quantifying intrinsic causal
-contributions via structure preserving interventions", AISTATS (the same quantity as
-`gcm.intrinsic_causal_influence` in DoWhy).
+Python: `antecedent.gcm.intrinsic_influence(data, edges, target, ...)` fits and attributes in one call. On a model you already fitted, `antecedent.gcm.fitted_intrinsic_influence(fitted, target, ...)` uses its structure, mechanisms and rows without refitting and gives the result `intrinsic_influence` gives on the data and edges it was fitted from. In Rust, `antecedent_attribution::intrinsic_influence` is the engine and the compiled route is `CausalQuery::Attribute` with `AttributeTarget::IntrinsicInfluence` on a supplied or accepted `Dag` (see [compiled structure routes](compiled-structure-routes.md)). The quantity is that of Janzing, Blöbaum, Mastakouri, Faller, Minorics and Budhathoki (2024), "Quantifying intrinsic causal contributions via structure preserving interventions", AISTATS.
 
 ## What it needs
 
@@ -36,7 +25,7 @@ contributions via structure preserving interventions", AISTATS (the same quantit
   declaration. A state-space mechanism, whose noise is serially dependent across rows, an
   unfitted mechanism and a categorical target are refused too.
 - Exact Shapley is used for up to ten sources (`max_exact_players` in
-  `docs/supported-bounds.md`); above that, permutation sampling. Requesting
+  [supported input bounds](../supported-bounds.md)); above that, permutation sampling. Requesting
   `allocation="exact"` for more sources is refused.
 
 ## How a coalition value is estimated
@@ -111,7 +100,7 @@ selection, and it does not address misspecification or identification. In Rust t
 attribution runs through the compiled route under `InferenceMode::Bayesian`; at most 100
 refits run unless the draw count is set, because every refit is a full nested attribution.
 
-## Example
+## Run it on a chain
 
 ```python
 import numpy as np
@@ -167,3 +156,9 @@ Where they differ.
   independent noise by construction.
 - An attribution of entropy or another property through `attribution_func` is DoWhy only; this
   route attributes variance.
+
+## Related
+
+- [Fit and query a structural causal model](gcm-estimands.md)
+- [Choose and inspect mechanisms](mechanism-selection.md)
+- [Uncertainty](../concepts/uncertainty.md)

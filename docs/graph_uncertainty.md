@@ -1,4 +1,4 @@
-# Interpreting graph uncertainty and unidentified mass
+# Read graph uncertainty and unidentified mass
 
 Discovered structure is evidence, not a finished causal model. Antecedent keeps
 compatible graphs in play, reports when an effect is not identified on part of
@@ -6,8 +6,8 @@ that belief, and refuses to invent orientations the data do not support. This
 page is a practitioner reading guide; the [support matrix](support-matrix.md)
 remains the license for which combinations may run.
 
-Related mental-model pages: [a result is a claim](result-is-a-claim.md),
-[refusal and partial knowledge](refusal-and-partial-knowledge.md), and the
+Related mental-model pages: [results are claims](concepts/results-are-claims.md),
+[refusals](concepts/refusals.md), and the
 discover → [`AcceptedGraph`](artifacts.md) spine.
 
 ## Exact DAG posterior vs PAG / partial graphs
@@ -236,7 +236,7 @@ graph is true.
 ## Worked vignette: marketing channel structural uncertainty
 
 Full walkthrough:
-[`examples/notebooks/marketing_channel_structural_uncertainty.ipynb`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/marketing_channel_structural_uncertainty.ipynb).
+[`examples/notebooks/marketing_channel_structural_uncertainty.ipynb`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb).
 
 Synthetic weekly spend / demand / pipeline data are generated so the true effect
 of paid-search spend on qualified pipeline is **1.5** (£k pipeline per £k
@@ -289,9 +289,9 @@ state.
 
 ## Further reading
 
-- Notebook: [marketing channel structural uncertainty](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/marketing_channel_structural_uncertainty.ipynb)
+- Notebook: [marketing channel structural uncertainty](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb)
 - Conformance: [graph effect envelope](conformance/bayesian__graph_effect_envelope.md),
   [PAG envelope unidentified mass](conformance/pag__envelope_unidentified_mass.md),
   [known-truth mixtures](conformance/bayesian__known_truth_mixtures.md)
 - UX pins: `python/tests/test_review_required_ux.py`
-- Workflow: [Python workflow](python-workflow.md), [artifacts](artifacts.md)
+- Workflow: [Python workflow](start/first-analysis.md), [artifacts](artifacts.md)

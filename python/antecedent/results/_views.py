@@ -1029,7 +1029,7 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: the Bayesian one above (``inference=Bayesian(...)``). For a frequentist
     #: pointwise interval on the conditional average effect ``tau(x)`` rather
     #: than a unit ITE, see the Rust ``DrLearner::fit_pointwise_profiles``
-    #: (uncalibrated; ``docs/dr-pointwise-cate.md``).
+    #: (uncalibrated; ``docs/guides/heterogeneous-effects-and-policies.md``).
     unit_effect_intervals: Sequence[tuple[float, float]] | None = None
     unit_effect_intervals_level: float | None = None
     unit_effect_intervals_method: str | None = None

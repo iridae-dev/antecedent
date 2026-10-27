@@ -5,6 +5,11 @@ We estimate an average effect on batch A, save its posterior, and pass it to
 Bayesian(prior_from=...) for an independent batch B. Both batches use the
 same graph and model design, so their coefficient positions match.
 
+Both batches are simulated from one declared mechanism, y = 2 t + z + noise, so
+the true average effect of t is 2.0. That is a fixture truth of the generator.
+The check is that each posterior mean sits near 2.0 and that the second
+posterior is tighter than the first, because it starts from batch A's evidence.
+
 Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
@@ -56,6 +61,14 @@ def main() -> None:
     assert batch_b.posterior is not None
     assert np.isfinite(batch_b.posterior.effect_mean)
     assert batch_b.identification.assumption_count >= 1
+    # Declared truth: the effect of t is 2.0 in both batches.
+    assert abs(batch_a.posterior.effect_mean - 2.0) < 0.2, batch_a.posterior.effect_mean
+    assert abs(batch_b.posterior.effect_mean - 2.0) < 0.2, batch_b.posterior.effect_mean
+    # Carrying batch A's posterior forward as the prior narrows batch B's.
+    assert batch_b.posterior.effect_sd < batch_a.posterior.effect_sd, (
+        batch_b.posterior.effect_sd,
+        batch_a.posterior.effect_sd,
+    )
     print(
         f"A effect_mean={batch_a.posterior.effect_mean:.4f} "
         f"B effect_mean={batch_b.posterior.effect_mean:.4f} "

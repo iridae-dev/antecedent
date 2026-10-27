@@ -45,7 +45,7 @@ errors. Consumed read models are recursively immutable, and `to_dict()` produces
 independent JSON-safe editable copy.
 
 See [the notebook-to-system journey](guides/notebook-to-system.md) and
-[the Python migration table](migrations/2.4-to-3.0-python.md).
+[the migration guide](migration.md).
 
 <a id="package-15-payloads"></a>
 
@@ -242,7 +242,7 @@ The export retains the compiled execution contract and applicable numerical
 payloads, including posterior draws, response functions and structural mixtures.
 Loading verifies semantic consistency; it does not verify causal assumptions or
 reconstruct a live study. Every reported interval states its calibration on the
-claim. See the [workflow guide](python-workflow.md) for retention boundaries.
+claim. See the [workflow guide](start/first-analysis.md) for retention boundaries.
 
 `loaded.acceptance` reports one of three outcomes:
 

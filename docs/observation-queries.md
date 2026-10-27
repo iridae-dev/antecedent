@@ -1,4 +1,4 @@
-# Observation-conditioned scientific queries
+# Ask what follows from an observation
 
 Conditioning on an observation and intervening are different claims, also when
 both are computed from the same causal model. `P(Y | S = s)` reads the
@@ -311,13 +311,12 @@ coherence checker and replays the query to identical bits. A refused query (an
 unreachable level, a measured value without an applicable model) cannot be
 sealed.
 
-The queries added for continuous evidence, observation after intervention and
-parameter redraw are carried in format version 2 under the feature marker
-`observation_query_general_v1`, with their own identity tag. A version-1
-artifact keeps its bytes and identity (the golden fixture is unchanged), and a
-version-1 reader refuses a version-2 artifact by version before it interprets
-the payload. Real values and draws are IEEE bit patterns. The consumer checks
-that the version, the marker and the query variant agree.
+Queries over continuous evidence, observation after intervention and parameter
+redraw use format version 2 under the feature marker `observation_query_general_v1`,
+with their own identity tag. A reader that does not know the version refuses the
+artifact before it interprets the payload. Real values and draws are IEEE bit
+patterns, and the consumer checks that the version, the marker and the query
+variant agree.
 
 Replay protects against corruption, edits that are not resealed and resealed
 edits that change the answer. It does not protect against a producer that seals
@@ -337,4 +336,4 @@ new composition must be asked again.
 ## Refusals
 
 Details are under `observation_query.*`; the full table with codes and remedies
-is in [refusal-and-partial-knowledge.md](refusal-and-partial-knowledge.md).
+is in [reference/refusal-codes.md](reference/refusal-codes.md).

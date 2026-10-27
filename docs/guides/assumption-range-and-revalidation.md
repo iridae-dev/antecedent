@@ -1,8 +1,6 @@
-# Transport assumption ranges and revalidation
+# Assumption ranges and revalidation
 
-Every transported value rests on a premise the data cannot test. Two routes say
-what happens when the premise fails or the situation changes. Neither measures
-anything.
+You can ask how far a transported value moves if its shared-mechanism premise is wrong, and whether a held transported claim is still valid after the target, the evidence, the diagram or the support changes. Every transported value rests on a premise the data cannot test. These two routes say what follows when the premise fails or the situation changes; neither measures anything.
 
 | Route | Rust surface | Label |
 | --- | --- | --- |
@@ -14,8 +12,6 @@ Python entries: `antecedent.transport.sensitivity.transport_sensitivity`
 `antecedent.transport.revalidation` (`TransportScene.builder`, `revalidate`,
 `TransportClaimState.observe`, `Calibration`, `ObservedEffect`); the range's
 artifact is decided and exported through `antecedent.sensitivity_decision`.
-Provenance records:
-`transport.assumption_range`, `transport.revalidation`.
 
 ## Assumption range
 
@@ -67,14 +63,20 @@ A record held at one target is never read as holding at another: the claim is
 withdrawn for calibration with `CalibrationFromAnotherTarget`, and its point
 value is left as it was.
 
-## What is refused, and the remedy
+## What is refused, and what to do
 
-| Refused request | Remedy |
+| Refused request | Next step |
 | --- | --- |
 | Range for a discovered structure (no scalar family) | Use the structural envelope; declare a graph |
 | Missing shift bound, grid or population/quantity bindings | Declare them; none is chosen for you |
 | Reading the range as an interval or posterior | Not licensed; use as a tipping or sensitivity statement |
 | Calibration carried from another target | Withdrawn; measure at the new target |
 | Reusing an earlier fit after the diagram changed | `recompute`: derive again |
-| A scene that names a claim twice, an unknown claim, a claim about another target or a source with no declared evidence | `transport_revalidation.duplicate_claim`, `unknown_claim`, `claim_target_mismatch`, `source_undeclared` | Correct the scene |
-| A stored revalidation report that no longer re-derives | `transport_revalidation.replay_mismatch`, `identity_mismatch` | Re-seal from the two scenes; the consumer re-derives |
+| A scene that names a claim twice, an unknown claim, a claim about another target or a source with no declared evidence | Correct the scene (`transport_revalidation.duplicate_claim`, `unknown_claim`, `claim_target_mismatch`, `source_undeclared`) |
+| A stored revalidation report that no longer re-derives | Re-seal from the two scenes; the consumer re-derives (`transport_revalidation.replay_mismatch`, `identity_mismatch`) |
+
+## Related
+
+- [Carry an effect to another population](transport/carry-an-effect.md)
+- [Sensitivity and robustness](../sensitivity-and-robustness.md): the source-target mechanism discrepancy diagnostic, which informs a selection node and never certifies invariance
+- [Joint mechanism sensitivity](joint-mechanism-sensitivity.md)

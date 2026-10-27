@@ -1,12 +1,11 @@
-# Clustered cross-fitted AIPW and entity-owned screen splits
+# Account for clusters in estimation and inference
 
 `Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=..., min_clusters=20))` (Rust:
 `AipwAte::with_cluster_ids(..).with_cluster_dml(ClusterDml::new(20)?)`) cross-fits the
 standard AIPW average effect with **whole clusters** owning folds. The route publishes the
 cross-fitted point estimate, the score table and the cluster-sandwich standard error of the
-scores (`se_analytic`, also the named receipt `ClusterDml::receipt`). The record is
-`estimate.clustered_dml_aipw` in `parity/promotion.toml`; the one-way interval's
-95% coverage record is measured and the one-way interval is licensed at its measured coordinate
+scores (`se_analytic`, also the named receipt `ClusterDml::receipt`). The one-way interval's
+95% coverage record is measured, and the interval is licensed at its measured coordinate
 (see [What is published](#what-is-published-and-what-is-not)).
 
 ```python
@@ -183,7 +182,7 @@ loosened to absorb one. It is a test with fixed seeds, not a coverage record.
   `AllObserved` mean ATE and the AIPW score (the partially linear score is refused). Their
   flexible nuisances are fit on other units only, so the dependence the sandwich allows for is
   also respected by the learners. `CausalForest` declares its unit with `cluster=` (see
-  [cluster inference](cluster-inference.md)); a bare `cluster_ids` or `multiway_ids` on
+  [cluster inference](#clusters-for-propensity-weighting-stratification-and-the-causal-forest)); a bare `cluster_ids` or `multiway_ids` on
   these estimators, `cluster_dml` on the forest, and `cluster_dml` on a score-less route are refused with
   `route_not_supported` (`cluster_dml.flexible_learner_closed`) rather than reported as an
   unknown key or ignored; the refusal is raised by `flexible_learner_dependence_refusal`.
@@ -317,18 +316,63 @@ the unit count and the number of units per half. The split is the existing
 This is a data-ownership guarantee about the split only; it does not make the winning
 candidate's interval calibrated, and no family-wise coverage run was made.
 
-## Tests
+## Clusters for propensity weighting, stratification and the causal forest
 
-`crates/antecedent-estimate/tests/cluster_dml_aipw.rs` (fold ownership, row-order
-invariance, cluster-sum oracle, closed form, non-independent folds, few clusters, interval
-and scope refusals, artifact round trip; for the dyadic unit: whole-component folds with no
-endpoint crossing, row-order invariance, the CGM oracle written from endpoint sums, the
-12 by 12 closed form, a negative-variance refusal, a repeated-endpoint chain, reduction to the
-one-way route, giant-component / shared-namespace / few-component / missing-label refusals;
-the flexible-learner refusal),
-`crates/antecedent/src/analysis/candidate_screen_units.rs` (inline tests: entity and dyad
-component ownership, row-order and seed replay, single-component refusal) and
-`python/tests/test_cluster_dml.py` (including the `dml`, `dr.learner` and `causal.forest`
-cluster-option refusal and the dyadic dataclass and analysis).
+`cluster="site"` names a column of cluster labels (strings or whole numbers). The labels belong
+to the original rows: a row dropped as incomplete or outside the target population takes its
+label with it. Propensity weighting, propensity stratification and the causal forest carry the
+declaration with a construction that respects it end to end.
+
+### Propensity weighting
+
+`PropensityWeighting(cluster="site")` (Rust: `with_source_cluster_ids` /
+`with_cluster_ids`) changes the analytic standard error and the bootstrap, not the point.
+
+- **Analytic SE: the cluster sandwich with the propensity-estimation correction.** The Hajek
+  influence value of row `i` includes the logistic nuisance term `B' I⁻¹ x_i s_i (T_i − e_i)`,
+  which is a per-row score, so it sums within a cluster like the rest of the influence. The
+  standard error is `sqrt(G/(G−1) · Σ_g (Σ_{i∈g} ψ_i)²)` over the corrected values. Ignoring
+  the correction, or the clusters, understates the variance of clustered, estimated-propensity
+  weights. The case-weight derivative of the refitted estimator is the independent oracle in the
+  tests.
+- **Bootstrap: whole clusters, variable length.** A replicate draws as many clusters as the data
+  has, with replacement, and presents the union of their rows (clusters in draw order, rows in
+  data order) to the estimator, which refits the propensity on it. A replicate therefore has a
+  *variable* number of rows: a cluster drawn twice contributes twice, one not drawn not at all.
+  No row is ever split from its cluster. Fewer than two clusters refuse.
+
+### Propensity stratification
+
+`PropensityStratification(cluster="site")` has no smooth nuisance correction: the strata are
+quantile cuts of an estimated score. So the **bootstrap of whole clusters** is the construction
+that carries the nuisance fit — each replicate refits the propensity, re-cuts the strata and
+re-pools. The analytic SE is the cluster sandwich of the stratified influence values *given the
+strata and their shares*, and it is reported as such.
+
+### Causal forest
+
+`CausalForest(cluster="site", min_clusters=20)` declares the independence unit:
+
+- every tree is grown on a subsample of **whole clusters** (about half, without replacement);
+- **honesty splits clusters, not rows**: one half of the sampled clusters places splits and the
+  other half estimates leaf effects, so no cluster informs both;
+- the marginal ATE is the whole-cluster cross-fitted AIPW score with its cluster-sandwich
+  standard error (`min_clusters` is the smallest accepted count; fewer refuse
+  `too_few_clusters`).
+
+The per-row leaf dispersion stays a descriptive measure of effect heterogeneity — with
+clusters it is still not a standard error. A dyadic unit has no whole-cluster subsample and
+refuses. Row-aligned `cluster_ids`, `cluster_dml` and `multiway_ids` in an `estimator_config`
+for the forest still refuse `route_not_supported`.
+
+### With sampling weights
+
+Clusters compose with [sampling weights](sampling-weights.md): the corrected influence values
+already carry each row's weight, so the cluster sandwich over them is the design-based
+linearization with clusters as primary sampling units.
+
+## Where it is tested
+
+The cluster-DML tests are `crates/antecedent-estimate/tests/cluster_dml_aipw.rs` (fold ownership, row-order invariance, cluster-sum oracle, closed form, few clusters, refusals, artifact round trip, and the dyadic unit), `crates/antecedent/src/analysis/candidate_screen_units.rs` and `python/tests/test_cluster_dml.py`.
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).

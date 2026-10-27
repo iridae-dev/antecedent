@@ -2,39 +2,13 @@
 
 [![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/antecedent)](https://crates.io/crates/antecedent) [![PyPI](https://img.shields.io/pypi/v/antecedent)](https://pypi.org/project/antecedent/) [![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest) [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21556247-blue)](https://doi.org/10.5281/zenodo.21556247)
 
-**Antecedent is a causal inference compiler: a library for research and for building causally aware software and agents.** It ships no agent; a host supplies planning and tool use. Discover causal structure, estimate intervention effects, validate analyses, answer counterfactual questions and transport evidence across populations.
+**Antecedent is a compiler and runtime for causal science.**
 
-Declare a question, structure or study design, and evidence. Antecedent checks identification and compiles an executable plan with compatible methods, explicit assumptions and evidence requirements. Inspect before execution; reuse with compatible data. Unidentified effects, missing evidence and unsupported methods remain explicit.
+Model causal systems, evaluate interventions, and connect evidence to decisions, with assumptions, uncertainty and limits made explicit. Use causal inference to study what an intervention would change, then carry the answer into further analysis, decisions and software. Antecedent 3.0 extends that workflow to feedback systems, joint intervention programs and connected experimental updates.
 
-Explore results in a notebook or embed causal analysis in applications and agents you build. Readable reports and machine-readable contracts carry assumptions, diagnostics, uncertainty and limits through reuse, decisions and export. A versioned JSON Schema and stable refusal codes let a host distinguish supported claims, partial answers and refusals before using a result; see [embedding Antecedent](docs/embedding.md) and the minimal [reference host](examples/rust/reference_host.rs) ([Python](examples/python/reference_host.py)), which contains no agent logic.
+Declare the question, a model or study design, and the evidence. Inspect the compiled analysis, execute a supported route, and read the answer together with its assumptions, uncertainty, provenance and limits.
 
-## When statistical significance isn't the decision
-
-Example: A retailer runs a geographic experiment with an advertising platform to measure incremental online and in-store purchases. The result suggests **1,000 additional orders per region per day**, a **200% return on advertising spend**, and positive net profit. But the p-value is **0.07**.
-
-Should the retailer stop advertising because the effect isn't significant at 0.05? Continue because the estimated return is positive? Or run the experiment longer?
-
-Antecedent connects these questions through a checked causal result, a decision contract and expected-value-of-information methods. The result carries its assumptions and uncertainty into the decision; the decision provides the objective for evaluating whether another study is worth its cost.
-
-1. **Establish the causal effect.** Antecedent checks the experimental design, assignment units, estimand, assumptions, and available evidence. It estimates the incremental purchases attributable to advertising, with uncertainty appropriate to the supported design. Geographic dependence and interference cannot simply be ignored; unsupported claims are explicitly refused.
-2. **Translate the result into business value.** A decision contract consumes the causal result and defines the available actions—such as continuing or stopping the campaign—and their utilities: incremental contribution margin, advertising costs, and other relevant consequences. Antecedent checks that the result's scientific quantities and uncertainty support the requested comparison of expected net value, losses, or regret. A business decision need not use the same threshold as a hypothesis test.
-3. **Make uncertainty explicit.** A positive point estimate is not a guarantee of profit, and p = 0.07 is not a 7% probability that the campaign has no effect. Where justified uncertainty distributions are available, Antecedent can evaluate downside-risk constraints and probabilities of economically important outcomes. Where they are not, it does not invent them.
-4. **Ask whether more evidence is worth buying.** Antecedent's expected-value-of-information methods compare the potential improvement in the decision with the cost of another study. If monitoring or early stopping is part of the experimental design, the inference must account for that procedure rather than repeatedly testing until a conventional threshold is crossed.
-
-The right answer might be to continue advertising, stop, or invest in another experiment. **It depends on the evidence, the cost of being wrong, and the value of learning more—not whether a p-value happens to cross 0.05.**
-
-Antecedent preserves the assumptions, uncertainty, and limits of each answer as it moves from causal analysis to decision evaluation and study ranking.
-
-## What backs a supported capability
-
-Antecedent‘s own development applies **high-assurance engineering principles**. Machine-readable evidence and enforced limits govern capability claims:
-
-- **Provenance** names source methods, implementation exposure and deviations that limit published guarantees.
-- **Independent checks** use analytic truths, independent fixtures or pinned external implementations. Internal consistency and frozen outputs are labelled separately; component evidence does not establish whole-analysis parity.
-- **Licensed combinations** name the question, structure, evidence, inference and estimator supported by executing tests. “Licensed” means evidenced support; unlicensed combinations refuse. 
-- **Calibration** records coverage, sample sizes and Monte Carlo error within a method's scope. CI requires measurements to match the code through remeasurement or validated replay.
-
-See [provenance](provenance/README.md), [evidence rules](parity/README.md) and the [support matrix](docs/support-matrix.md).
+Antecedent's development applies high-assurance engineering principles, with explicit evidence governing capability claims.
 
 ## Install and use Antecedent
 
@@ -50,9 +24,9 @@ Rust **1.85+**:
 cargo add antecedent
 ```
 
-Python includes NumPy and the CPU-native neural nuisance learner. See [capabilities](docs/capabilities.md) for optional Rust learners and [contributing](CONTRIBUTING.md) for source builds.
+[Installation](docs/start/installation.md) covers optional Rust learners, notebooks and source builds.
 
-Simulate a randomized treatment with an effect of two outcome units:
+The example below simulates a randomized treatment whose effect on the outcome is two units. Because the data are simulated, the true answer is known and you can check the result against it. The same analysis then moves onto changed data and into an exported artifact.
 
 ```python
 import numpy as np
@@ -69,95 +43,74 @@ data = {
 graph = [("treatment", "outcome"), ("z", "outcome")]
 query = ant.AverageEffect("treatment", "outcome")
 
-# Compile and inspect the plan before estimation.
+# Prepare: declare the question and check what it needs. Nothing is fitted yet.
 study = ant.prepare(
     ant.data.table(data), graph=graph, query=query,
     inference=ant.Frequentist(bootstrap=25),
     execution=ant.Execution(seed=19),
 )
+
+# Inspect the compiled analysis before running it.
 print(study.inspect())
+
+# Execute, then read the answer with its uncertainty and identification.
 result = ant.estimate(study)
 print("Answer:", result.answer.kind, result.answer.value)
 print("Uncertainty:", result.uncertainty.summary)
 report = result.inspect().to_dict()
 print("Identification:", report["identification"]["summary"])
-print(study.report("markdown"))  # the prepared contract and plan
+assert abs(result.answer.value - 2) < 0.5  # the simulated truth is 2
 
-# Reuse the analysis with new data.
+# Rebind: a new branch on changed observations. The earlier result is unchanged.
 new_data = {**data, "outcome": data["outcome"] + treatment}
 updated_study = ant.rebind(study, data=new_data)
 updated = ant.estimate(updated_study)
-print("Updated effect:", updated.answer.value)
+print("Updated effect:", updated.answer.value)  # one unit larger
 
-# Export and check artifact acceptance.
+# Export the result and load it with an explicit expectation.
 artifact = result.export()
 loaded = ant.load(artifact, expected=artifact.expectation)
 print("Artifact acceptance:", loaded.acceptance.status)
 ```
 
-Expect an estimate near two; the update adds one. The bootstrap budget is small: check calibration before relying on coverage. Execution checks assumption compatibility, not truth. Loading restores the result and acceptance report, not a live study or dataset.
+The estimate lands near two, and the updated branch adds one. The bootstrap budget is small so the example runs quickly; read `result.inspect().calibration` before relying on interval coverage. A successful run shows that the declared graph and data are compatible with the question, not that the graph is true. Loading restores the result and its acceptance report, not a live study or the dataset.
 
-When the declared structure does not identify a valid question, `analyze` returns an `Outcome` with a typed `refusal`. Invalid arguments and operational failures raise errors. Opt in with `on_refusal="describe"` to retain the refusal beside a separately labelled `associational` outcome and the evidence that would resolve it. See [the fallback guide](docs/guides/fallback.md) and [the Python migration guide](docs/migrations/2.4-to-3.0-python.md).
+A valid question that the declared structure cannot answer returns an `Outcome` carrying a typed `refusal`. That is scientific information: it names what was asked, what is missing and what would resolve it. Invalid arguments and operational failures raise errors instead. Use `ant.reconfigure(study, ...)` to change declarations such as the query or execution settings, and `ant.rebind(study, data=...)` to change observations. Continue with the [first analysis](docs/start/first-analysis.md), which also shows the Rust form, and [how to read a result](docs/start/reading-a-result.md).
 
-For a family of compatible questions, `ant.estimation.prepare_many(...)` prepares one shared-fit batch. `ant.estimate(batch)` returns a structured outcome whose completed family retains its own scores and exposes explicit `member(index)` selection. The same `ant.rebind` and `ant.reconfigure` operations create independent branches. See [shared-fit batch exploration](docs/migrations/2.4-to-3.0-python.md#shared-fit-batch-exploration).
+## Choose your path
 
-Continue with the [Python workflow](docs/python-workflow.md), [Rust quickstart](docs/rust-quickstart.md) or [examples](examples/README.md). 
+**Research and scientific decision-making.** Ask a causal question, inspect the assumptions and evidence it needs, and carry the answer into the next comparison, decision or study. Start with the [observational study tutorial](docs/tutorials/observational-study.md), then the [guides](docs/index.md#guides) for the question you have: estimating effects, experiments and study designs, discovery, transport, decisions and study planning.
 
-### Antecedent capabilities
+**Building software and agents.** Embed causal workflows with inspectable plans and machine-readable assumptions, uncertainty and limits. Antecedent supplies the causal computation and its contracts; your application supplies planning, tool use, permissions and the policy for acting on an answer. The minimal [reference host](examples/rust/reference_host.rs) ([Python](examples/python/reference_host.py)) contains no agent logic. Start with the [application component tutorial](docs/tutorials/application-component.md) and [embedding Antecedent](docs/guides/build/embedding.md).
 
-| Task | Where to start |
-| --- | --- |
-| Identify and estimate causal effects | [Supported analyses](docs/supported-analyses.md), [Python options](docs/python-options.md) |
-| Analyze experiments, policies, survival and longitudinal regimes | [Examples](docs/examples.md), [design-family support](docs/graphless-support-matrix.md) |
-| Estimate effects with cross-fitted nuisance learners | [Capabilities](docs/capabilities.md), [cluster-owned cross-fitting](docs/guides/clustered-dml.md) |
-| Transport effects; answer temporal and counterfactual questions | [Population, time and uncertainty](docs/population-time-uncertainty.md), [transport and counterfactuals](docs/transport-counterfactuals.md) |
-| Carry a transported value into a decision, inverse query or handoff; revalidate it | [Transported decisions](docs/guides/transported-decisions-and-measurement.md), [inverse and decision reach](docs/guides/inverse-and-decision-reach.md), [assumption range and revalidation](docs/guides/assumption-range-and-revalidation.md) |
-| Derive uncertainty of composed, adaptive and decision-reliability results | [Composed uncertainty](docs/guides/composed-uncertainty.md), [adaptive procedures](docs/guides/adaptive-procedure-uncertainty.md), [what these routes do not do](docs/user-facing-limits.md) |
-| Make decisions from causal results or external evidence | [Result lifecycle](docs/lifecycle.md), [decisions](docs/decisions.md), [external evidence](docs/external-science.md) |
-| Rank studies by objective, information value and cost | [Study ranking](docs/design-ranking.md) |
-| Combine a trial, a temporal effect and a cost model into one decision | [Mixed-evidence decisions](docs/guides/mixed-decisions.md) |
-| Keep results current as data change | [Retained refresh and state publication](docs/guides/retained-refresh.md), [staleness and rebinding](docs/guides/staleness.md) |
-| Explore a fitted structural model (edge strengths, `do` contrasts, counterfactual contrasts) | [Structural estimands](docs/guides/gcm-estimands.md) |
-| Recalculate an analysis and inspect reuse | [Selective recalculation](docs/recalculation-capabilities.md) |
-| Explore sensitivity, structural scenarios and composition | [Sensitivity and robustness](docs/sensitivity-and-robustness.md), [composition](docs/composition.md) |
+## Complete workflows
 
-The [support matrix](docs/support-matrix.md) licenses combinations; the [capability inventory](docs/capabilities.md) lists components.
+Each tutorial follows one scientific task from declaration to what the computation established, and pairs with a maintained example.
 
-### Read the claim, not just the number
+- **[One feedback system, three questions.](docs/tutorials/feedback-three-questions.md)** In a model with feedback, observing a variable, fixing it and shocking its disturbance give different answers. Antecedent evaluates each as its own world, and keeps an unsolvable intervention visible as failed mass.
+- **[Compare a coordinated intervention program with a baseline.](docs/tutorials/joint-interventions.md)** The comparison uses uncertainty from the shared fit, and separates a model that can compute a whole program from a design that identifies its effect.
+- **[From a new experiment to the next study.](docs/tutorials/experiment-to-next-study.md)** Map experimental evidence into a retained response law, see the response and the decision change, and rank further studies by information value and cost, without promoting the result to identified status.
+- **[Replay and current decisions.](docs/tutorials/replay-and-current-decisions.md)** Change a utility without refitting, export a decision, then withdraw a source: historical replay remains possible while current decision use refuses.
 
-Identification, empirical support and uncertainty stay separate:
+Other tutorials: [deciding when p = 0.07](docs/tutorials/decide-under-uncertainty.md) (a retailer's experiment, a decision contract and the value of more evidence), [a real public dataset end to end](docs/tutorials/observational-study.md) and [a scientific component inside an application](docs/tutorials/application-component.md).
 
-- **Identification** depends on the graph, design and evidence. More observations cannot repair a missing causal assumption.
-- **Diagnostics** assess data and estimator fit; they do not prove the causal model.
-- **Calibration:** `result.inspect().calibration.status == "calibrated"` means a record matches the execution and scope, and <!-- generated:claim:calibrated_slot_means_a_current_matching_record:begin -->the record still attests the current code.<!-- generated:claim:calibrated_slot_means_a_current_matching_record:end --> Implemented intervals are not automatically calibrated.
-- **Structural and sensitivity ranges** describe variation over assumptions, not sampling confidence intervals. CATE predictions do not imply pointwise confidence intervals.
-- **Artifact acceptance** separates independent verification from declarations and operations that cannot be replayed.
+## What backs a supported capability
 
-The [support matrix](docs/support-matrix.md) separates licenses from coverage measurements. See [guarantees](docs/guarantees.md) and [refusals](docs/refusal-and-partial-knowledge.md) for partial or unavailable answers.
+Antecedent's development applies high-assurance engineering principles. Method records name sources, implementation choices and deviations that limit published guarantees. Capability claims are tied to executing tests, with analytic checks, external comparisons, internal consistency and replay evidence labelled for what each establishes. This describes how capability claims are developed and governed; it is not formal verification of the whole system, and it does not show that your causal model is true.
 
-## What's new in 2.4.1
+- **Provenance** names source methods, implementation exposure and deviations that limit published guarantees, and says which published conclusions transfer.
+- **Independent checks** compare a named proposition with analytic truth, an independently constructed fixture or a pinned external implementation. Internal consistency and frozen outputs are labelled separately, and a component comparison establishes that component's behavior.
+- **Licensed combinations** name the question, structure, evidence, inference and estimator with executing support evidence. "Licensed" means evidenced support and is unrelated to the software license. A route that executes without a license keeps that status on its result: successful execution does not upgrade the scientific claim.
+- **Calibration** records the uncertainty construction, tested setting, sample sizes, coverage and Monte Carlo error. A result is `calibrated` only when a matching record applies; <!-- generated:claim:calibrated_slot_means_a_current_matching_record:begin -->the record still attests the current code.<!-- generated:claim:calibrated_slot_means_a_current_matching_record:end --> Implemented intervals are not automatically calibrated.
 
-More complete workflows for weighted studies, effects after discovery and combining independent evidence:
+Read a result's identification, support, uncertainty and calibration separately. See [assurance](docs/concepts/assurance.md), [results are claims](docs/concepts/results-are-claims.md), [uncertainty](docs/concepts/uncertainty.md) and [refusals](docs/concepts/refusals.md). The [support matrix](docs/support-matrix.md) separates licensed combinations from coverage measurements; [provenance](provenance/README.md) and the [evidence rules](parity/README.md) hold the records.
 
-- **Weighted effects and uncertainty.** Separate population targets, corrected matching and responder variances, finite-cluster references, and explicit arm-linear population interval methods. Each construction keeps its own assumptions and measured scope. See [sampling weights](docs/guides/sampling-weights.md).
-- **Pool studies with unequal, unknown variances.** Equal-study Gaussian pooling uses empirical study-level variation and a Student reference for a common marginal mean. Rust provides `pool_gaussian_studies`; Python selects `random_effects(..., method="equal_study_gaussian")`. Request the measured interval through `pooled_interval`. See [evidence synthesis](docs/evidence-ledger.md).
-- **Estimate an effect after discovering its parents.** A versioned procedure devotes three quarters of rows to discovery and the remaining quarter to independent analysis. Unresolved edges elsewhere need not prevent an effect estimate when the treatment's parent set is invariant. See [selective discovery](docs/selective-discovery.md).
-- **Transport through uncertain structure.** PAG and temporal class transport retain member-level evidence, actual available experiments and replayable proofs. A declared randomized binary trial can refine a static class. With known outcome bounds, Rust also returns a labelled confidence set when the effect remains unidentified; dependent temporal rows use block bootstrap. See [discovered-structure transport](docs/guides/discovered-structure-transport.md).
-- **Program interventions and choose fitted mechanisms.** Typed policies support arithmetic, conditions, clipping and history reads across simulation, counterfactuals and temporal rollouts. Boosted and forest mechanism families support declared candidates and validation splits. See [intervention programs](docs/guides/intervention-programs.md) and [mechanism selection](docs/guides/mechanism-selection.md).
-- **Check models and work at larger scales.** Graph falsification tests local Markov implications; noise replay and intrinsic influence expose mechanism-level variation. Budgeted searches, wider graph posteriors, matching, sensitivity and participant trials extend earlier size limits with explicit completion diagnostics. See [graph falsification](docs/guides/graph-falsification.md), [noise replay](docs/guides/noise-replay.md) and [intrinsic influence](docs/guides/intrinsic-influence.md).
+## Release, migration and contribution
 
-Read the [2.4.1 release notes](docs/release-notes/v2.4.1.md) for method boundaries and compatibility, the [changelog](CHANGELOG.md) for the full delta, or the [roadmap](ROADMAP.md) for future work.
-
-## Documentation and contribution
-
-The [documentation index](docs/index.md) covers concepts, workflows and APIs.
-
-Task guides for the newer surfaces:
-
-- [Cyclic systems and feedback loops](docs/guides/cyclic-systems.md) and [joint intervention responses](docs/guides/joint-intervention-responses.md)
-- [Study ranking and power](docs/design-ranking.md), [staleness and refresh](docs/guides/staleness.md) and the [readable report](docs/guides/report.md)
-- [Embedding in applications and agents](docs/embedding.md), [bringing your own table](docs/guides/your-data.md) and [Parquet, Arrow IPC and large tables](docs/guides/large-tables.md)
-- [Migration from the previous release](docs/migration/from_previous_release.md) and the [Rust/Python naming dictionary](docs/api_naming.md) See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute; commits require Developer Certificate of Origin sign-off.
+- [Release notes for 3.0.0](docs/release-notes/v3.0.0.md) describe what is new and what changed in the claims.
+- The [migration guide](docs/migration.md) gives the exact old and new forms.
+- The [documentation home](docs/index.md) covers tutorials, guides, concepts and reference. The [roadmap](ROADMAP.md) describes future work.
+- See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute; commits require Developer Certificate of Origin sign-off.
 
 ## License
 

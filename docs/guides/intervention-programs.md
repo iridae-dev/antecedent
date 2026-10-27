@@ -1,6 +1,6 @@
-# Programmable interventions
+# Program interventions
 
-An intervention can compute its value. Two interventions carry a typed expression:
+Define an intervention whose value is computed, such as a price floor, a cap or a rule that reads other variables, and evaluate it on a fitted structural model. In Python, write expressions with `antecedent.intervention_programs` (`var`, `minimum`, `maximum`, `generated`, `transform`, `assign`); the Rust names below are the same constructs. Two interventions carry a typed expression:
 
 - `Intervention::transform(variable, expr)` runs after the node's mechanism produced its
   value and replaces that value with `expr`, which may read it as `ValueExpr::generated()`.
@@ -274,3 +274,10 @@ Where they differ.
   (`EmpiricalDistribution`); the default registry here fits a Gaussian. The interventional means
   above agree because the root is set or enters through a linear mechanism.
 
+
+
+## Related
+
+- [Fit and query a structural causal model](gcm-estimands.md)
+- [Fit and compare coordinated intervention programs](joint-intervention-responses.md)
+- [Interventions and worlds](../concepts/interventions-and-worlds.md)

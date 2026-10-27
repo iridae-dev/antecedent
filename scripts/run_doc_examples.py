@@ -28,7 +28,7 @@ def main():
             namespace = contexts.setdefault(context, {"__name__": "__main__"})
             exec(compile(code, str(path), "exec"), namespace)
             executed += 1
-        if path.name == "python-workflow.md":
+        if path.name == "first-analysis.md":
             ns = contexts["quickstart"]
             import numpy as np
 

@@ -1,4 +1,4 @@
-# Treatment levels and multi-level treatments
+# Estimate an effect when treatment has several levels
 
 The propensity estimators (`Aipw`, `PropensityWeighting`, `PropensityMatching`,
 `PropensityStratification`, and the cross-fitted DML AIPW score) contrast two declared levels

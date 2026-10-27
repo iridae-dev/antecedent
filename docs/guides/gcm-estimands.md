@@ -1,8 +1,6 @@
-# Structural estimands from a fitted causal model
+# Fit and query a structural causal model
 
-`antecedent.model.fit_gcm(names, columns, edges)` fits one structural mechanism per node of a
-declared graph and returns a `FittedGcm`. The fitted model answers several different questions,
-each as its own method with its own estimand. Every number is conditional on the declared graph and
+Fit one structural mechanism per node of a declared graph, then ask what an intervention does, what a unit's outcome would have been, and what the noise behind a set of draws looks like. `antecedent.model.fit_gcm(names, columns, edges)` returns a `FittedGcm` that answers several different questions, each as its own method with its own estimand. Use it to explore mechanisms and simulate interventions; for attribution of a change see [attribute a change to its causes](intrinsic-influence.md), and for programs of interventions see [program interventions](intervention-programs.md). Every number is conditional on the declared graph and
 the fitted mechanisms; none is an identified nonparametric effect, and no method here reports a
 coverage claim. Use the lifecycle (`ant.prepare` / `ant.estimate`) when you need identification and
 inference; use a fitted model to explore mechanisms, simulate interventions and attribute change.
@@ -70,6 +68,28 @@ simultaneous hard interventions. `noise_inference` names how the noise was recov
 contrast carries one effect per unit. Overlapping intervention sets in
 `simultaneous_counterfactual` are refused.
 
+## Keep and replay the noise
+
+`FittedGcm.sample_noise(interventions, n)` returns the draws together with the exogenous noise that produced them, a `(n_variables, n)` array in the model's variable order. `FittedGcm.replay_noise(noise, interventions=None)` evaluates caller-held or edited noise again, under interventions, shifts or programs, without refitting or cloning the model. Replaying unedited noise reproduces the draws bit for bit; replaying under `do(a = 2)` gives that intervention's counterfactual for the very same units, because each unit keeps its own noise.
+
+```python
+rng = np.random.default_rng(6)
+a = 1.0 + rng.normal(size=3000)
+b = 0.5 + 2.0 * a + 0.5 * rng.normal(size=3000)
+c = -1.0 + 3.0 * b + 2.0 * rng.normal(size=3000)
+chain = antecedent.model.fit_gcm(["a", "b", "c"], [a, b, c], [("a", "b"), ("b", "c")])
+
+draws, noise = chain.sample_noise({}, 4000, execution=antecedent.Execution(seed=3))
+np.testing.assert_array_equal(chain.replay_noise(noise).draws, draws.draws)
+
+moved = chain.replay_noise(noise, {"a": 2.0}).draws       # do(a = 2), same units
+held = noise.copy()
+held[0] = 0.0                                              # hold a's noise at zero
+conditioned = chain.replay_noise(held).draws
+```
+
+With `a`'s noise held at zero every unit shares one `a`, so `b` varies only through its own noise; the example in `examples/python/noise_replay.py` checks that against its closed form. Noise whose width does not match the model is refused rather than reshaped. In Rust the same steps are `antecedent::gcm::{sample_with_noise, noise_table_from_columns, replay_noise}` over `antecedent_model::{NoiseTable, NoiseReplayer}`: a noise table records where each column came from (sampled, fixed, abduced, assumed or unused), `fix` and `randomize` set or redraw chosen coordinates, and a replay evaluates every node in topological order with the same precedence forward sampling uses, so the two cannot diverge. A categorical node's abduced noise is reported as a posterior, which carries its rank-preservation assumption. Replay observes cancellation once per node, and the memory check runs before allocating.
+
 ## Evaluate the graph
 
 ```python
@@ -80,4 +100,12 @@ print(evaluation.falsified, evaluation.in_sample_loglik)
 `evaluate` tests the graph's local Markov implications against the data and compares the in-sample
 likelihood with a permutation baseline. A graph that omits a strong edge is reported as `falsified`.
 A passing evaluation does not establish the graph; see
-[falsifying a graph by node permutation](graph-falsification.md).
+[check a graph against data](graph-falsification.md).
+
+## Related
+
+- [Check a graph against data](graph-falsification.md)
+- [Choose and inspect mechanisms](mechanism-selection.md)
+- [Attribute a change to its causes](intrinsic-influence.md)
+- [Program interventions](intervention-programs.md)
+- [Interventions and worlds](../concepts/interventions-and-worlds.md)

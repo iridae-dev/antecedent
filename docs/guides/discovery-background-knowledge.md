@@ -1,6 +1,6 @@
-# Background knowledge in discovery
+# Give discovery background knowledge
 
-Background knowledge is what you assert about the graph before the data are consulted:
+State what you already know about the graph so that discovery respects it. Background knowledge is what you assert about the graph before the data are consulted:
 links that must be there, links that cannot be, an ordering of the variables, and a limit
 on how many parents a variable may have. The ordinary discovery classes (`PC`, `FCI`,
 `RFCI`, `GES`, `PCMCI`, `PCMCIPlus`) and the selective-discovery contracts read the same statement, through one
@@ -64,7 +64,7 @@ Two notes on reading the table.
   before the majority collider rule, so a collider that disagrees is reported as an orientation
   conflict instead of overriding them. A pair with only one direction forbidden is kept as an
   edge (the usual both-directions-must-survive rule would otherwise discard it).
-* **LiNGAM and NOTEARS (Rust level, no Python `knowledge=`).** Both return a DAG and enforce
+* **LiNGAM and NOTEARS (Rust only; the Python classes take no `knowledge=`).** Both return a DAG and enforce
   every statement exactly: a forbidden direction (or a later tier) is excluded from the
   candidate edges, a required link is kept, and `max_parents` caps each variable's parents
   (required links exempt in LiNGAM, re-added in NOTEARS). They run the same checks as GES and
@@ -109,3 +109,9 @@ effective sample size `(sum w)^2 / sum w^2` are on the `SampleSplit`
 (`analysis_weights`, `analysis_row_ids`, `analysis_effective_sample_size`) and in the
 receipt. See [Selective discovery](../selective-discovery.md#splitting-rows-filter-then-split)
 for the estimands, normalization and what the receipt verifies.
+
+## Related
+
+- [Rerun discovery without recomputing it](../selective-discovery.md)
+- [Read graph uncertainty and unidentified mass](../graph_uncertainty.md)
+- [Discovery, attribution and simulation as compiled routes](compiled-structure-routes.md)

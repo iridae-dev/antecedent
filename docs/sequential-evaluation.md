@@ -1,10 +1,8 @@
-# Sequential decision evaluation
+# Evaluate a policy that changes with what you observe
 
-A decision is often not one choice but a policy: act now, wait, collect an
-observation and choose differently depending on what it shows. This surface
-*evaluates* a caller-supplied contingent policy over a finite horizon on a
-declared finite model. It is not a planner, a workflow engine or a policy
-learner, and it never searches for a better policy.
+Evaluate a contingent decision policy (act now, wait, collect an observation and choose differently depending on what it shows) over a finite horizon on a model you declare. You supply the policy; Antecedent computes its value, compares named policies, and prices the value of collecting more evidence. It is not a planner, a workflow engine or a policy learner, and it never searches for a better policy.
+
+The value is conditional on the declared model and on three premises the data cannot test: exchangeability, consistency and positivity (below). It is a point value for the model's own population and period, with uncalibrated diagnostics.
 
 ## Boundary
 
@@ -137,7 +135,7 @@ also refuses a consistently resealed artifact of another evaluation.
 
 - **Transported policy evaluation.** A value is for the model's own
   population unless it is carried by the bounded transport route
-  (`antecedent_design::transported_policy`, `docs/guides/transported-policy-and-adaptive-source.md`).
+  (`antecedent_design::transported_policy`, `docs/guides/transported-decisions-and-measurement.md`).
   That route evaluates a fixed policy in a target population under a declared
   selection diagram: transition and observation mechanisms must be invariant,
   the target initial-state law must lie inside the source's support, and the
@@ -152,13 +150,7 @@ also refuses a consistently resealed artifact of another evaluation.
   time-homogeneous within its horizon by construction; carrying them to
   another period is an invariance claim across periods that is not declared
   or checked here.
-- **Calibration design (not measured).** Whole method: model declaration,
-  policy table, importance weighting or rollouts. DGP: an enumerated finite
-  decision tree with delayed outcomes and a stopping boundary, with logged
-  data drawn under a known logging policy. Nominal level: none. Support range:
-  at most 32 states, 16 actions, 12 decision times. Probes: positivity gaps,
-  boundary crossings, outcomes lost to an early commit, censoring by the
-  horizon. No coverage has been measured; the interval route is closed.
+- **Uncertainty.** The value is a point. The off-policy standard error and the rollout standard error are uncalibrated diagnostics; no interval, posterior or coverage statement is offered (`cell_not_licensed`) because no coverage record exists.
 
 ## Facade
 
@@ -188,3 +180,9 @@ Every refusal is a `SequentialEvaluationRefusal` with its registered
 At most 32 latent states, 16 actions, 12 decision times, 65536 policy entries,
 150000 logged trajectories and 10000000 rollouts. A declaration beyond a bound
 is refused, never truncated.
+
+## Related
+
+- [Transported policy evaluation](guides/transported-decisions-and-measurement.md) to carry a fixed policy to a target population.
+- [Value of information and design ranking](design-ranking.md) for the evidence-collection score.
+- [Adaptive and group-sequential inference](adaptive-inference.md) for analysing data from adaptive experiments.

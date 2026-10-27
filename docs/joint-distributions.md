@@ -1,4 +1,4 @@
-# Joint distribution artifact contract
+# Exchange joint distributions with their meaning
 
 Joint distribution artifacts provide checked quantity meaning, aligned joint draws and
 independent artifact replay. Their numerical operations retain the meaning of the

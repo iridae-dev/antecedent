@@ -11,7 +11,7 @@
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
-//! `CausalState` as the primary online append path (ADR 0016).
+//! `CausalState` as the primary online append path.
 //!
 //! 1. Append (or replace) data — state versions and marks registered queries stale.
 //! 2. Call `refresh_results` under the `CacheBudget` — never auto-reruns on append.

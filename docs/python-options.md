@@ -1,6 +1,6 @@
 # Python workflow reference
 
-Start with the [Python quickstart](python-workflow.md) for a complete example.
+Start with the [Python quickstart](start/first-analysis.md) for a complete example.
 Use this page when you need to configure or integrate an analysis.
 
 ## Prepare explicitly when useful
@@ -112,7 +112,7 @@ carries its per-unit output on the result itself, aligned row for row:
 
 A unit ITE is not a conditional average effect. For a pointwise interval on
 the CATE `tau(x)` at prespecified covariate profiles, use the Rust
-[`DrLearner::fit_pointwise_profiles`](dr-pointwise-cate.md).
+[`DrLearner::fit_pointwise_profiles`](guides/heterogeneous-effects-and-policies.md#pointwise-cate-at-a-covariate-profile).
 
 ## Estimate a family of average effects
 
@@ -287,14 +287,14 @@ identity and is part of the calibration key, so it reports
 cross-fit fold's training rows, with the penalty chosen from a fixed grid by seeded inner
 cross-validation on those rows only; `PropensityPenalty(kind="lasso")` fits an L1-penalized
 one and also selects its support on those rows (recorded per fold in
-`estimate.penalized_support`). The route keeps the score table and retargeting (with its
+the `penalized_support` diagnostic). The route keeps the score table and retargeting (with its
 covariance) and publishes the cross-fitted influence-function SE; with `bootstrap > 0` it
 publishes a bootstrap SE whose every replicate repeats penalty selection and nuisance
-fitting (`estimate.penalized_bootstrap` lists the penalties each replicate selected). Both
+fitting (`penalized_bootstrap` lists the penalties each replicate selected). Both
 rest on a stated remainder condition and are calibration-wired and unmeasured, so
 they report `scope_not_assessed`. `nuisance_fallback="ridge_logistic"` / `"lasso"` (or a
 `PropensityPenalty` for its tuning) re-runs the route with that propensity when the plain
-GLM fit fails and records the failed fit in `estimate.penalized_fallback`;
+GLM fit fails and records the failed fit in `penalized_fallback`;
 `nuisance_fallback="ml"` stays closed (`nuisance_fallback_not_licensed`) and a lasso outside
 the cross-fitted untrimmed mean ATE is refused (`selection_inference_not_licensed`). This is
 distinct from `GlmOptions.ridge_on_separation`. See [the guide](guides/penalized-aipw.md).
@@ -313,7 +313,7 @@ endpoint roles or one giant component refuses `dyadic_dependence_not_licensed`, 
 than `min_components_per_fold` components per fold refuse `too_few_clusters`. `DML` and
 `DRLearner` declare dependence through `cluster_dml` only, and `CausalForest` through
 `cluster="site"` (whole-cluster subsampling, honesty and cross-fitting; see
-[the guide](guides/cluster-inference.md)): a row-aligned `cluster_ids`, `cluster_dml` or
+[the guide](guides/clustered-dml.md#clusters-for-propensity-weighting-stratification-and-the-causal-forest)): a row-aligned `cluster_ids`, `cluster_dml` or
 `multiway_ids` key in their `estimator_config` refuses `route_not_supported`.
 `PropensityWeighting` and `PropensityStratification` take `cluster="site"` for a cluster
 sandwich with the propensity-estimation correction and a whole-cluster bootstrap.
@@ -421,12 +421,7 @@ different layers. A prepared inspect has a program and no claim.
 
 ## Current boundaries
 
-**Composition evidence.** Every licensed support-matrix cell has a first-class
-inspect/contract coordinate and completes inspect → preview → execute →
-claim → consume on the Rust compiler path
-(`compiler.e2e_licensed_cells`). That is composition-seam evidence on
-synthetic licensed-coordinate fixtures (`internal_cross_check`). Parent
-estimator evidence is not inherited.
+**Composition evidence.** Every licensed support-matrix cell completes the inspect, preview, execute, claim and consume sequence in the Rust compiler path on synthetic fixtures. That shows the pieces compose; it does not carry over a parent estimator's coverage evidence.
 
 **Reusable studies.** `analyze` performs preparation followed by explicit
 estimation. Completed analysis outcomes retain their applicable immutable study;

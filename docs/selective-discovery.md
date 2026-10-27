@@ -1,4 +1,4 @@
-# Selective discovery
+# Rerun discovery without recomputing it
 
 Discovery is the expensive first stage of many analyses, and it is rerun for reasons
 that leave most of its work unchanged: a different threshold, added background
@@ -8,10 +8,7 @@ coordinates where a later request needs them, and reruns the decisions and the
 orientation on top. It makes one claim: a selective run returns what a full run of the
 same request returns, bit for bit. It makes no claim that the result is the true graph.
 
-Code: `antecedent_discovery::selective` (contracts, stages, store, adapters, portable
-state), `antecedent_io_core::selective_discovery_artifact` (artifact kind
-`selective_discovery_v1`), `antecedent::analysis::selective_discovery` (stage planner,
-claim graph, ledger and transport integration).
+The portable state is exported as the artifact kind `selective_discovery_v1`. The Python surface is `antecedent.selective_discovery`; the Rust implementation is in `antecedent_discovery::selective`.
 
 ## Frozen contracts
 

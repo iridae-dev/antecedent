@@ -1,4 +1,4 @@
-# Composed uncertainty: spread, exceedance and the whole path
+# Carry uncertainty through a composed analysis
 
 ## Run a small example
 
@@ -8,23 +8,19 @@ Compute the product of two columns from one aligned synthetic law; check the han
 
 Continue below for the exact contracts and refused adjacent requests.
 
-
 A quantity computed from several uncertain inputs has the spread of the
 composition, not of its components. Two routes read that spread at the composed
 coordinate. Neither produces an interval without a measured record.
 
-| Route | Rust surface | Label |
-| --- | --- | --- |
-| Composed spread, interval candidate and exceedance decision | `antecedent_stats::joint_law` (`draw_spread`, `normal_interval_candidate`, `composed_exceedance_decision`), `antecedent_contract::check_composed_interval` | `uncalibrated_spread`; candidates `unmeasured` |
-| Whole path of the finite Markovian cross-world row | `antecedent_counterfactual::selective::whole_path_uncertainty::derive_whole_path_uncertainty` | `uncalibrated_spread` |
+| Route | Label |
+| --- | --- |
+| Composed spread, interval candidate and exceedance decision | `uncalibrated_spread`; candidates `unmeasured` |
+| Whole path of the finite Markovian cross-world row | `uncalibrated_spread` |
 
 The whole-path account is a sealed sibling of the cross-world execution:
-`CrossWorldExecution::whole_path_uncertainty(UnitSampling, ctx)` in the facade,
-`CrossWorldExecution.whole_path_uncertainty("fixed_units" |
-"independent_sample")` in Python, each returning a `WholePathAccount` with
-`inspect()` and `verify_against(execution)`. Provenance records:
-`joint_law.composed_spread_and_exceedance`,
-`counterfactual.whole_path_uncertainty`.
+`CrossWorldExecution.whole_path_uncertainty("fixed_units" | "independent_sample")`
+in Python (`CrossWorldExecution::whole_path_uncertainty(UnitSampling, ctx)` in Rust)
+returns a `WholePathAccount` with `inspect()` and `verify_against(execution)`.
 
 ## What each kind of dependence information licenses
 
@@ -81,3 +77,71 @@ cross-world executions have no whole-path derivation and are refused.
 | A sampled-path or transported cross-world path | `cell_not_licensed` (`cross_world_uncertainty.sampled_path_not_licensed`, `transported_path_closed`) | Use exact enumeration in the population the mechanisms were declared for |
 | Fitted or sampled mechanisms in a cross-world row | closed | Use the sampled counterfactual route with its posterior input |
 | Interval or posterior from the whole path | closed | Use the labelled spread |
+
+## Uncertainty of an adaptive procedure
+
+Enumerate the declared two-unit procedure, preserving its undefined contrast mass. The report is conditional on the supplied truths and design.
+
+<!-- example: examples/python/adaptive_procedure.py -->
+
+An adaptive experiment's data are shaped by the assignment policy, outcome delay
+and loss, exposure failure, the stopping rule and the final selection. This
+route derives the uncertainty of the complete declared procedure and keeps
+inferential paradigms apart: a report of one paradigm is never a statement of
+another. Every result is labelled derived and unmeasured: the law is exact under the
+stated model but no coverage of any method has been measured.
+
+In Python, `AdaptiveInferenceSession.derive_procedure(elements)` returns the `AdaptiveProcedure` whose `report` derives the uncertainty (`antecedent.adaptive_inference`). Every premise failure of admission carries the registered code `cell_not_licensed` with its own detail.
+
+### Declaring the procedure
+
+A `ProcedureDeclaration` holds the assignment rule, enrolment schedule,
+outcome observation (lag and loss), exposure model, stopping rule and final
+selection. Nothing is defaulted; a missing element is refused with its own
+detail. The validated `ProcedureSpec` is the only input of the routes. The
+design is batched sequential with Bernoulli outcomes, at most 4 arms, 4
+contexts, 8 cells, 24 looks and 65,535 units. Declaration capacity is separate
+from the cost of deriving the uncertainty: the exact law is bounded by its live
+states (1,000,000) and unit expansions (60,000,000), so a procedure of a few
+hundred units or more is refused there with `exact_law_states_exceeded` or
+`exact_law_work_exceeded` and is derived by the whole-procedure simulation
+instead, which is admitted against a work budget (replications x units x
+measurements, 4,000,000,000) and the memory budget of the execution context
+(`simulation_work_exceeded`, `simulation_memory_exceeded`) and returns a receipt of
+the work done. Only an empty or unordered schedule is `looks_not_ordered`.
+
+A Thompson rule may carry a minimum exploration probability
+(`AssignmentRule.thompson_beta_floored`), and a stopping rule may stop for
+futility (`ProcedureStopping.posterior_futility`): when every other arm has
+posterior probability below a threshold of exceeding the control (arm 0) by a
+margin, deciding for the control. The participant-level family, with
+several binary responses per participant, historical priors and
+decisions at completed-participant batch boundaries, is declared with
+`ParticipantProcedure` and described in
+[inference from adaptive experiments](../adaptive-inference.md).
+
+### Paradigms
+
+| Paradigm | What is computed | Admitted when |
+| --- | --- | --- |
+| Bayesian posterior | Posterior-mean martingale gap under the prior predictive; a nonzero gap witnesses a failed premise | Loss of outcomes does not depend on their values |
+| Decision-theoretic stopping | Stopping time, decision and regret of the declared rule under a hypothesized truth | Posterior expected-loss or futility rule, loss independent of values |
+| Frequentist fixed sample | Sampling law of the design as declared | Fixed assignment, no data-dependent stopping |
+| Frequentist group sequential | Law and stagewise-ordered p-value | Fixed randomization with declared boundaries |
+| Adaptive weighting | Estimator law by whole-procedure simulation; plug-in variance is a diagnostic | Loss independent of values |
+| Anytime-valid | Time-uniform bounds at the stopping time and the exact probability the terminal bound excludes the truth | One context, loss independent of values |
+| Whole-procedure inversion | Confidence set by inverting the stagewise-ordered test | Declared contrast grid |
+
+The exact law is of the declared procedure under a hypothesized truth, nothing
+more: it is not an interval and not a calibration.
+
+### What is refused, and the remedy
+
+| Refused request | Reason code or detail | Remedy |
+| --- | --- | --- |
+| Procedure element missing | `adaptive_contract_incomplete` (for example `adaptive_inference.stopping_rule_missing`) | Declare it |
+| Posterior from value-dependent loss | `cell_not_licensed` (`adaptive_inference.posterior_premise_outcome_dependent_delay`) | Model the loss mechanism or restrict to ignorable loss |
+| Fixed-sample or group-sequential on an adaptive design | `cell_not_licensed` (`adaptive_inference.fixed_sample_design_adaptive`, `group_sequential_assignment_adaptive`) | Use the adaptive-weighting or anytime-valid paradigm |
+| Rule that does not match the paradigm | `cell_not_licensed` (`adaptive_inference.rule_mismatch`) | Declare the matching stopping rule |
+| Anytime-valid with several contexts | `cell_not_licensed` (an `adaptive_inference.*` premise failure) | Run per context |
+| Any interval or coverage claim | not licensed | Treat as derived and unmeasured |

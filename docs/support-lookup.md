@@ -13,4 +13,4 @@ Choose the exact query, graph class, structure source, inference and validation 
 
 No matching row means this view supplies no license for that configuration. Check [the full support matrix and refusal reasons](support-matrix.md), or prepare the actual query and inspect its structured outcome. The [graphless design-family matrix](graphless-support-matrix.md) covers randomized experiments, policy, quasi-experimental, survival and longitudinal designs on their separate axes.
 
-If JavaScript is unavailable, use the complete tables linked above. See [the glossary](glossary.md) for identified, licensed, calibrated and identity-bound, and [supported analyses](supported-analyses.md) to choose a workflow before configuring a cell.
+If JavaScript is unavailable, use the complete tables linked above. See [the glossary](concepts/glossary.md) for identified, licensed, calibrated and identity-bound, and [supported analyses](supported-analyses.md) to choose a workflow before configuring a cell.

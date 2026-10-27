@@ -1,4 +1,4 @@
-# Sensitivity and robustness
+# Probe sensitivity to assumptions you cannot test
 
 A decision often rests on something that cannot be tested from the data: that
 there is no unmeasured confounding, that two populations share a mechanism, that
@@ -15,9 +15,8 @@ Four modules:
 | `antecedent.decision_robust` | Is the choice robust across causal structures, support-robust, graph-dependent or under-claimed? | point-only verdicts over supplied structures |
 | `antecedent.mechanism_discrepancy` | Does the mechanism of one node differ between a source and a target population? | asymptotic Wald diagnostic; calibration unmeasured |
 
-Registry authority is `parity/promotion.toml`; this page restates it. For the
-label vocabulary (point-only, no claim, closed without a measured calibration) see
-[decisions, design, repair and estimator breadth](decisions-breadth.md).
+For the label vocabulary (point-only, no claim, closed without a measured calibration) see
+[decision routes at a glance](decisions.md#routes-at-a-glance).
 
 ## Three quantities that are never merged
 
@@ -285,9 +284,9 @@ calibration unmeasured. It is reported so it can be
 inspected, not as a confidence statement.
 
 Runnable examples:
-[`msm_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/msm_sensitivity.py) and
-[`mechanism_discrepancy.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/mechanism_discrepancy.py).
+[`msm_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/msm_sensitivity.py) and
+[`mechanism_discrepancy.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/mechanism_discrepancy.py).
 
-Related: [the lifecycle](lifecycle.md),
+Related: [target-native validation](guides/target-native-validation.md) (refutations and sensitivity ranges for the quantity a result reports), [evaluating actions with a decision contract](decisions.md),
 [transport and counterfactuals](transport-counterfactuals.md),
 [decisions](decisions.md).
