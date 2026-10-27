@@ -34,7 +34,7 @@
   },
   "coverage_disposition": {
     "ledger": "parity/test_refactor_dispositions.toml",
-    "ledger_sha256": "c087de7ba44be8e0118b18ccd21f8059d4bc54c9ba3f2a212a809e71c3a97795",
+    "ledger_sha256": "5cc25e76de23a1520441ff1907540a333656c5501d2e45a4397493eda1bc9a2c",
     "baseline_identities_absent_after": 773,
     "replacement_or_new_identities": 15,
     "shared_control_occurrences_consolidated": 756,

@@ -145,7 +145,7 @@ assertions pass; the ten foundations assertions pass. These are fixed-input
 comparisons. Temporal Sobel uncertainty is checked only under explicit iid
 opt-in, and GAM fit outputs remain product regression pins.
 
-Twenty-four retained reference reviews bind generator, transitive comparison
+Twenty-five retained reference reviews bind generator, transitive comparison
 helper, lock, assertion source and fixture payload by digest. Gates reject
 changed inputs, expected outputs, tolerances, origins, assertions and helpers
 until reviewed again. Reviews record limited independence, redistribution
@@ -327,3 +327,23 @@ Optional ordinary feature verification passed 95 learner tests with
 `ml-full,ml-neural` and 386 model tests with `gaussian-process,ml-full`, with no
 skips or failures. Their doctest targets contain zero examples. These feature
 runs remain ordinary verification and do not supply calibration evidence.
+
+The y0 0.2.11 generator now regenerates all 257 counterfactual graph/event
+records, including 171 expressions and 328 terms, 66 conflicts and 20 Zero
+results. Original cases and disagreements are unchanged. The audit found that
+historical `observational` sentinels and constructor-style conflict text were
+adapter output, not verbatim package strings. These are disclosed explicitly.
+Rendering also varies with set ordering and graph-implied redundant conditioning;
+the retained comparison preserves all variables and uses separate NetworkX
+d-separation checks on the latent-expanded graph to justify only those changes.
+It passes with Python hash seeds 0, 17 and 42. Controls reject removal of a genuine
+causal parent and the dependence created by conditioning on a collider.
+
+All three existing product y0 assertions pass: verdict/disagreement accounting,
+recorded-output mutations, and evaluation of the original 171 expression cases
+against independently enumerated shared-exogenous models at the original 1e-10
+scaled tolerance. The assertion name and promotion prose now say recorded rather
+than verbatim. The audit discloses that API searches exposed upstream helper
+source excerpts; the fixture also preserves its older source-inferred Zero
+hypothesis as unverified. No algorithm/test code was copied or translated. These fixed
+finite cases do not establish general completeness or calibration.

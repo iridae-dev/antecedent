@@ -1,15 +1,18 @@
 //! Recorded Y0 differential for counterfactual identification of the
 //! effect of treatment on the treated.
 //!
-//! `conformance/identify/counterfactual_id_y0/expected.json` holds, per graph,
-//! the verbatim output of y0 0.2.11's `id_star` on `{Y @ -X: -Y, X: +X}` and
-//! of `identify_outcomes` on every interventional term it returned, produced
-//! once in a deleted environment. This test parses that output, classifies it
-//! and compares the class with Antecedent's decision on the same graph. Every
-//! disagreement must be recorded with its reason, and every recorded
-//! disagreement must still disagree.
+//! `conformance/identify/counterfactual_id_y0/expected.json` holds recorded
+//! y0 0.2.11 `id_star` expressions for `{Y @ -X: -Y, X: +X}` and observational
+//! identification results for their terms. A retained locked generator checks
+//! the original inputs. The historical harness used an `observational` sentinel
+//! for empty interventions and normalized conflict text; those fields were not
+//! recorded API strings. Regeneration also accounts for set ordering and
+//! graph-implied redundant conditioning, as disclosed in the fixture metadata.
+//! This test retains the original expressions, parses and classifies them, and
+//! compares them with Antecedent on the same graph. Every disagreement must be
+//! recorded with its reason, and every recorded disagreement must still disagree.
 //!
-//! Beyond the verdict, y0's recorded expressions are evaluated: the verbatim
+//! Beyond the verdict, y0's recorded expressions are evaluated: the recorded
 //! `id_star` string (a sum over named variables of a product of `P(..)` and
 //! `P[..](..)` factors) and each term's `identify_outcomes` string (a product
 //! of observational conditionals) are parsed and evaluated on the joint of a
@@ -59,9 +62,9 @@ enum Y0Class {
     ExperimentalOnly,
 }
 
-/// Classify one case from its verbatim output alone.
+/// Classify one case from its recorded output alone.
 fn classify(case: &Json) -> Result<Y0Class, String> {
-    let text = case["y0_id_star"].as_str().ok_or("no verbatim output")?;
+    let text = case["y0_id_star"].as_str().ok_or("no recorded output")?;
     let class = if text.starts_with("ConflictUnidentifiable(") {
         Y0Class::Conflict
     } else if text == "Zero()" {
@@ -79,7 +82,7 @@ fn classify(case: &Json) -> Result<Y0Class, String> {
     } else {
         return Err(format!("unparsed y0 output: {text}"));
     };
-    // The recorded status agrees with the verbatim output.
+    // The recorded status agrees with the recorded output.
     let status = case["y0_status"].as_str().unwrap_or_default();
     let expected = match class {
         Y0Class::Conflict => "conflict",
@@ -87,7 +90,7 @@ fn classify(case: &Json) -> Result<Y0Class, String> {
         Y0Class::IdentifiedFromObservational | Y0Class::ExperimentalOnly => "expression",
     };
     if status != expected {
-        return Err(format!("status {status} does not match the verbatim output {text}"));
+        return Err(format!("status {status} does not match the recorded output {text}"));
     }
     Ok(class)
 }
@@ -507,7 +510,7 @@ fn y0_expressions_evaluate_to_our_numerators_on_enumerated_models() {
 }
 
 #[test]
-fn the_verbatim_output_is_read_not_trusted() {
+fn the_recorded_output_is_read_not_trusted() {
     let expected = fixture();
     let cases = expected["cases"].as_array().unwrap().clone();
     let baseline = disagreements(&cases).unwrap();
@@ -526,7 +529,7 @@ fn the_verbatim_output_is_read_not_trusted() {
         disagreements(&refused).unwrap().get("frontdoor").copied(),
         Some("y0_experimental_only")
     );
-    // A status edited away from the verbatim output is caught.
+    // A status edited away from the recorded output is caught.
     let mut edited = cases;
     let mediation = edited.iter_mut().find(|c| c["id"] == "markovian_mediation").unwrap();
     mediation["y0_status"] = Json::from("conflict");

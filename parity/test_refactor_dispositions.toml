@@ -1052,3 +1052,9 @@ replacement = "crates/antecedent/tests/graph_interchange.rs::conformance_gml_net
 additional_replacements = ["crates/antecedent/tests/graph_interchange.rs::interchange_assertion_rejects_missing_reversed_and_extra_edges"]
 disposition = "assertion_strengthened_without_case_removal"
 reason = "Keep both original parsers and both round trips. Node-count-only checks now also require every directed edge and absent edge in the declared three-node chain. This remains software interchange coverage, with no asserted external NetworkX execution or scientific accuracy."
+
+[[case]]
+previous = "crates/antecedent-identify/tests/counterfactual_id_y0_parity.rs::the_verbatim_output_is_read_not_trusted"
+replacement = "crates/antecedent-identify/tests/counterfactual_id_y0_parity.rs::the_recorded_output_is_read_not_trusted"
+disposition = "renamed_to_match_audited_reference_normalization"
+reason = "The historical oracle harness used a local observational sentinel and normalized conflict text; these were not verbatim package strings. Preserve every existing mutation and classification assertion under an accurate recorded-output name. The retained generator separately checks all 257 graphs, every returned term and graph-justified rendering equivalences; no original expression, disagreement or tolerance is replaced."

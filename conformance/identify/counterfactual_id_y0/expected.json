@@ -3,20 +3,19 @@
  "oracle": {
   "kind": "external_package",
   "executed_here": true,
-  "note": "Every case's oracle output below was produced by running the pinned released y0 package on the documented graph and event in a temporary environment that was deleted after import: this version of y0, with these inputs, produced this output. y0's id_star returns a functional of interventional distributions (identification from all experiments); the harness also ran y0's identify_outcomes (ID from the observational law) on every interventional term it returned. The parity test parses each verbatim output, classifies it (conflict, zero, or an expression whose every term ID identifies) and compares it with Antecedent's decision on the same graph; disagreements are recorded with their reason, never bent.",
+  "note": "Retained black-box y0 0.2.11 ID* and observational-ID calls reproduce all 257 graph/event cases under the explicit normalization below. Original records and all 20 disagreements are preserved. Historical temporary-environment and deleted-generator metadata remain under historical_oracle; no current claim of verbatim exception or sentinel output is made.",
   "source": "https://pypi.org/project/y0/0.2.11/",
   "generation": {
-   "script": "<tmp>/b5/y0_harness.py (deleted after the artifact import)",
-   "script_sha256": {
-    "y0_harness.py": "271a09c7b66faae2ce831f3abb2a1dc373d10db8c9bb5bb09bc59939008c87a0"
-   },
+   "script": "conformance/identify/counterfactual_id_y0/reference.py",
+   "command": "uv run --frozen --script conformance/identify/counterfactual_id_y0/reference.py --check --self-test",
+   "environment_lock": "conformance/identify/counterfactual_id_y0/reference.py.lock",
+   "generator_retained": true,
+   "reproducible_from_repo": true,
+   "inputs": "Original fixed graph/event grid, independently hashed by the retained harness; no expected expression or verdict enters an ID*/ID call.",
    "baseline_pin": [
     "parity/baselines/y0.toml"
    ],
-   "env": "uv venv <tmp>/y0env --python 3.11 && VIRTUAL_ENV=<tmp>/y0env uv pip install y0 && <tmp>/y0env/bin/python y0_harness.py",
-   "generator_retained": false,
-   "reproducible_from_repo": false,
-   "script_note": "The harness was deleted after the import, per convention. Its sha256 is provenance only; the parity test reads the recorded verbatim output rather than re-running the oracle."
+   "limitations": "The original Python patch runtime and hash seed were not preserved as a reconstructible environment. Current dependencies are fully locked within Python 3.11 and original package versions; equivalent-rendering controls pass with PYTHONHASHSEED 0, 17 and 42."
   },
   "reference": [
    {
@@ -25,11 +24,57 @@
     "version": "0.2.11",
     "license": "BSD-3-Clause",
     "runtime": "CPython 3.11.5; networkx 3.6.1, numpy 2.4.6, pandas 3.0.6, scipy 1.17.1, statsmodels 0.15.0",
-    "command": "python y0_harness.py (id_star on {Y @ -X: -Y, X: +X}; identify_outcomes on every interventional term)",
-    "note": "black-box execution of y0.algorithm.identify.id_star.id_star and y0.algorithm.identify.identify_outcomes only; source and tests are not copied. Values use y0's star notation: -V is the unstarred level v, +V the starred level v'; the event {Y @ -X: -Y, X: +X} is P(Y_x = y, X = x')."
+    "command": "uv run --frozen --script conformance/identify/counterfactual_id_y0/reference.py --check --self-test",
+    "note": "Retained public black-box API calls; compare the disclosed normalized expression semantics and preserve original recorded strings.",
+    "generator_retained": true,
+    "environment_lock": "conformance/identify/counterfactual_id_y0/reference.py.lock"
    }
   ],
-  "graph_set": "5 named fixtures; every 3-node ADMG under the order V0 < V1 < V2 (8 directed x 8 bidirected edge sets) with each forward (treatment, outcome) pair; 60 seeded (Python random 2208) 4-node ADMGs with the treatment reaching the outcome."
+  "graph_set": "5 named fixtures; every 3-node ADMG under the order V0 < V1 < V2 (8 directed x 8 bidirected edge sets) with each forward (treatment, outcome) pair; 60 seeded (Python random 2208) 4-node ADMGs with the treatment reaching the outcome.",
+  "normalization": {
+   "conflicts": "The actual ConflictUnidentifiable exception includes graph memory addresses. The historical constructor-style text is reproduced from the signed conflicts in its public BaseException.args[2], with type/shape checks; it is not raw repr(error).",
+   "observational": "The historical observational sentinel denotes a returned factor with no interventions. Regeneration still calls identify_outcomes with an empty treatment set and requires a non-None marginal, then emits that disclosed label. No historical marginal-expression string was recorded for this field.",
+   "set_order": "Intervention and summation variable-list order in ID* rendering is normalized; every variable and multiplicity remains present. Original y0_id_star and repr strings remain unchanged.",
+   "conditional_equivalence": "The observational expression parser uses public y0 algebra containers. Products are commutative. A conditioning variable is removed only when NetworkX is_d_separator establishes it redundant in the declared ADMG expanded with one independent latent parent per bidirected edge. This assumes a positive law Markov to that graph; it does not drop genuine causal parents or open collider paths. Dedicated negative controls check both.",
+   "limits": "This comparison is deliberately narrower than general algebraic equivalence. Unsupported containers or other expression differences fail regeneration rather than being accepted or rewriting a frozen result."
+  },
+  "reference_review": {
+   "scope": "All 257 frozen counterfactual numerator queries P(Y_{do(X=0)}=0, X=1) on five named, all ordered three-node and sixty fixed four-node ADMGs. All 171 expression results and their 328 returned terms are regenerated, as are 66 conflict and 20 Zero results. Product verdict, recorded disagreement and original-expression numeric assertions remain separate executing checks.",
+   "independence_basis": "The repository-authored harness imports no product implementation, test parser or SCM enumerator. It constructs public y0 graphs/events from declared inputs, calls ID* and ID, then compares their outputs using the explicit adapter. NetworkX d-separation checks only graph-implied redundant conditioning, independently of y0 identification. The separately authored Rust helper enumerates shared exogenous states and solves structural worlds without calling identification code. Its SplitMix-style generator selects fixed toy models; it is not evidence of RNG quality.",
+   "historical_exposure": "The original disagreement_note already records a source-inferred hypothesis about y0 Zero results; historical source exposure therefore cannot be assumed absent, although its exact author/scope and the deleted harness internals cannot be reconstructed. This audit searched for public API documentation; search results exposed ID* helper-source excerpts before the review switched to API-only pages. No excerpt, upstream implementation or test was copied or translated, and product implementation code was not modified from that exposure. The retained harness uses public ID*/ID calls, documented algebra containers and NetworkX API calls. The historical causal hypothesis remains unverified.",
+   "redistribution": "The retained harness and comparison/SCM helpers are repository-authored MIT OR Apache-2.0 tooling. y0 and NetworkX are external BSD-3-Clause dependencies in the isolated locked environment. Their source/tests are not copied into the product or ordinary CI. Only public symbolic outputs and disclosed normalization are retained.",
+   "limitations": "Finite binary acyclic semi-Markovian scenarios with positive observational laws. Only the declared joint counterfactual numerator is compared, not arbitrary multiworld/conditional queries, sampled uncertainty, weighting, missingness, multicategory variables or calibration. Preserve all 20 y0 Zero disagreements: the product refuses those queries and the existing enumerated counterexamples have positive event mass. A product refusal is not a nonidentifiability theorem; neither agreement nor this bounded comparison proves implementation completeness. Historical sentinels and exception strings are explicitly adapter output. Expression equivalence uses graph Markov assumptions and a separate d-separation dependency, not unrestricted symbolic simplification.",
+   "artifacts": [
+    {
+     "role": "generator",
+     "path": "conformance/identify/counterfactual_id_y0/reference.py",
+     "sha256": "935cd9a478860e5f3e6d3c83d6f09c9e4a0e406ff17e9a3aec1bf4cf4eb1b509"
+    },
+    {
+     "role": "environment_lock",
+     "path": "conformance/identify/counterfactual_id_y0/reference.py.lock",
+     "sha256": "d8454fde08c68c608cfce4016d81034b61e255223eaa48d6395b2b09b52ca804"
+    },
+    {
+     "role": "assertion_source",
+     "path": "crates/antecedent-identify/tests/counterfactual_id_y0_parity.rs",
+     "sha256": "b59691143e0affa8ac8040d72cb5fc21c90a0eab1060eca450933be41dfedcd3"
+    },
+    {
+     "role": "comparison_helper",
+     "path": "crates/antecedent-identify/tests/support/latent_scm.rs",
+     "sha256": "ddef89542263194f126dbf1ef730bba466dcbe50642af91c498ddb6fa2564151"
+    }
+   ],
+   "fixture_payload_sha256": "bb002e99c0506ba79a7052cfb63ca3aea2fdc2945926faa6815f252ef0caf288",
+   "sources": [
+    "https://y0.readthedocs.io/en/stable/identification.html",
+    "https://y0.readthedocs.io/en/stable/dsl.html",
+    "https://y0.readthedocs.io/en/stable/graph.html",
+    "https://y0.readthedocs.io/en/stable/parser.html",
+    "https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.d_separation.is_d_separator.html"
+   ]
+  }
  },
  "disagreement_note": "y0 0.2.11 returns Zero() for these 20 graphs; Antecedent refuses each with a checked conflicting-subscript obstruction (route_not_supported / counterfactual_id.conflicting_subscripts: ID* does not identify the conjunction, which is not a proof of non-identifiability). Zero is wrong: the parity test builds a latent structural model on each graph whose event P(Y_x = y, X = x') has positive probability, and for the instrument graph an explicit two-model witness (tests/counterfactual_id_search.rs) shows the ETT is not identified. The zero is consistent with y0 representing every value by one of two symbols (-V and +V), so a summation variable left free is given the unstarred value and later merged with a starred observation of the same variable as an inconsistency; the cause is inferred from the source, not verified. The other 237 cases agree on the verdict: 171 identified by both (y0's expression, every interventional term identified by identify_outcomes) and 66 refused by both (ConflictUnidentifiable). On the 171, y0's recorded expression is also parsed and evaluated on a random latent model's joint and equals Antecedent's numerator and the enumerated truth (1e-10). Antecedent's binary-treatment consistency complement (tried after an ID* refusal) answers none of these 257 graphs, so it adds no disagreement.",
  "disagreements": {
@@ -10135,5 +10180,36 @@
     }
    ]
   }
- ]
+ ],
+ "historical_oracle": {
+  "kind": "external_package",
+  "executed_here": true,
+  "note": "Every case's oracle output below was produced by running the pinned released y0 package on the documented graph and event in a temporary environment that was deleted after import: this version of y0, with these inputs, produced this output. y0's id_star returns a functional of interventional distributions (identification from all experiments); the harness also ran y0's identify_outcomes (ID from the observational law) on every interventional term it returned. The parity test parses each verbatim output, classifies it (conflict, zero, or an expression whose every term ID identifies) and compares it with Antecedent's decision on the same graph; disagreements are recorded with their reason, never bent.",
+  "source": "https://pypi.org/project/y0/0.2.11/",
+  "generation": {
+   "script": "<tmp>/b5/y0_harness.py (deleted after the artifact import)",
+   "script_sha256": {
+    "y0_harness.py": "271a09c7b66faae2ce831f3abb2a1dc373d10db8c9bb5bb09bc59939008c87a0"
+   },
+   "baseline_pin": [
+    "parity/baselines/y0.toml"
+   ],
+   "env": "uv venv <tmp>/y0env --python 3.11 && VIRTUAL_ENV=<tmp>/y0env uv pip install y0 && <tmp>/y0env/bin/python y0_harness.py",
+   "generator_retained": false,
+   "reproducible_from_repo": false,
+   "script_note": "The harness was deleted after the import, per convention. Its sha256 is provenance only; the parity test reads the recorded verbatim output rather than re-running the oracle."
+  },
+  "reference": [
+   {
+    "project": "y0",
+    "available": true,
+    "version": "0.2.11",
+    "license": "BSD-3-Clause",
+    "runtime": "CPython 3.11.5; networkx 3.6.1, numpy 2.4.6, pandas 3.0.6, scipy 1.17.1, statsmodels 0.15.0",
+    "command": "python y0_harness.py (id_star on {Y @ -X: -Y, X: +X}; identify_outcomes on every interventional term)",
+    "note": "black-box execution of y0.algorithm.identify.id_star.id_star and y0.algorithm.identify.identify_outcomes only; source and tests are not copied. Values use y0's star notation: -V is the unstarred level v, +V the starred level v'; the event {Y @ -X: -Y, X: +X} is P(Y_x = y, X = x')."
+   }
+  ],
+  "graph_set": "5 named fixtures; every 3-node ADMG under the order V0 < V1 < V2 (8 directed x 8 bidirected edge sets) with each forward (treatment, outcome) pair; 60 seeded (Python random 2208) 4-node ADMGs with the treatment reaching the outcome."
+ }
 }
