@@ -275,7 +275,7 @@ impl RepairError {
 }
 
 impl RepairLimits {
-    fn check_bounds(&self, candidates: usize) -> Result<(), RepairError> {
+    fn check_bounds(&self) -> Result<(), RepairError> {
         if self.search.operations > REPAIR_MAX_OPERATIONS
             || self.memory_limit_bytes > REPAIR_MAX_MEMORY_BYTES
         {
@@ -740,7 +740,7 @@ pub fn repair(
     limits: RepairLimits,
     ctx: &ExecutionContext,
 ) -> Result<RepairReport, RepairError> {
-    limits.check_bounds(candidates.len())?;
+    limits.check_bounds()?;
     let obligations = family.unresolved_obligations();
     let (studies, mut outcomes) = prepare(candidates, &obligations);
     if objective == RepairObjective::MinimizeCost

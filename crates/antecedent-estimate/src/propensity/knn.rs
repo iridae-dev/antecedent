@@ -24,6 +24,7 @@ use antecedent_expr::IdentifiedEstimand;
 use super::distance::DistanceMatching;
 use super::prepare::{PreparedPropensityProblem, PropensityEstimationWorkspace};
 use crate::adjustment::EffectEstimate;
+#[cfg(test)]
 use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
 

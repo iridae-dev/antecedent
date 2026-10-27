@@ -126,6 +126,19 @@ mod tests {
     }
 
     #[test]
+    fn pairwise_l1_preserves_invalid_diagonals_in_both_kernels() {
+        let x = [1.0, f64::INFINITY, f64::NEG_INFINITY, f64::NAN];
+        for fill in [scalar::pairwise_l1_fill, portable::pairwise_l1_fill] {
+            let mut out = [0.0; 16];
+            fill(&x, &mut out).unwrap();
+            assert_eq!(out[0].to_bits(), 0.0_f64.to_bits());
+            assert!(out[5].is_nan());
+            assert!(out[10].is_nan());
+            assert!(out[15].is_nan());
+        }
+    }
+
+    #[test]
     fn scalar_and_portable_agree_on_contingency() {
         let x_codes: Vec<u32> = (0u32..64).map(|i| i % 4).collect();
         let y_codes: Vec<u32> = (0u32..64).map(|i| i % 3).collect();

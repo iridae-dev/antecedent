@@ -113,7 +113,7 @@ impl CallbackQuery {
                 }
                 Ok(())
             }
-            Self::PosteriorUpdate { observation, draws } => {
+            Self::PosteriorUpdate { observation, .. } => {
                 if !observation.is_finite() {
                     return Err(query_invalid("observation"));
                 }

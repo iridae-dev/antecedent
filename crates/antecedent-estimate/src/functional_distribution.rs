@@ -50,6 +50,7 @@ use antecedent_prob::{
     InferenceDiagnostics, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema,
 };
 
+#[cfg(test)]
 use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;

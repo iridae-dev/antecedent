@@ -111,12 +111,11 @@ mod checked;
 mod nuisance;
 mod scores;
 
-pub(crate) use bootstrap::{resampled_problem, select_rows_colmajor};
+pub(crate) use bootstrap::select_rows_colmajor;
 pub use checked::{CheckedAipwLowering, CheckedAipwPreparation, CheckedAipwProcedure};
-pub(crate) use nuisance::{fit_outcome_models, fit_outcome_models_weighted, predict_colmajor};
+pub(crate) use nuisance::{fit_outcome_models_weighted, predict_colmajor};
 
 use bootstrap::*;
-use nuisance::*;
 use scores::*;
 
 /// Doubly robust (AIPW) ATE / ATT / ATC estimator.

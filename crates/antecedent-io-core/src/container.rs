@@ -600,7 +600,8 @@ fn encode_on_wire_owned(
 /// For zstd, `uncompressed_size` is a hard cap applied *during* streaming
 /// decompression (not after). Missing / unrepresentable sizes and frames that
 /// expand past the declared size are refused without allocating the expansion.
-pub(crate) fn decode_on_wire(
+#[cfg(test)]
+fn decode_on_wire(
     on_wire: &[u8],
     compression: Option<&str>,
     section: &str,
@@ -609,7 +610,7 @@ pub(crate) fn decode_on_wire(
     decode_on_wire_with(on_wire, compression, section, uncompressed_size, MAX_SECTION_BYTES)
 }
 
-/// [`decode_on_wire`] with the caller's largest section.
+/// Decode on-wire bytes with the caller's largest section.
 pub(crate) fn decode_on_wire_with(
     on_wire: &[u8],
     compression: Option<&str>,

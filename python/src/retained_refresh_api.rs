@@ -155,7 +155,6 @@ const fn outcome_label(outcome: RefreshOutcome) -> &'static str {
     match outcome {
         RefreshOutcome::Updated => "updated",
         RefreshOutcome::Recomputed => "recomputed",
-        _ => "recomputed",
     }
 }
 

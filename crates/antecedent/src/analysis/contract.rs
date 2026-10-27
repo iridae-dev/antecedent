@@ -79,12 +79,12 @@ mod wire;
     clippy::wildcard_imports,
     reason = "the split modules re-export their items under the contract module's one path"
 )]
-pub(crate) use self::calibration::*;
+use self::calibration::*;
 #[allow(
     clippy::wildcard_imports,
     reason = "the split modules re-export their items under the contract module's one path"
 )]
-pub(crate) use self::claim::*;
+use self::claim::*;
 #[allow(
     clippy::wildcard_imports,
     reason = "the split modules re-export their items under the contract module's one path"
@@ -104,7 +104,7 @@ pub(crate) use self::reasoning::*;
     clippy::wildcard_imports,
     reason = "the split modules re-export their items under the contract module's one path"
 )]
-pub(crate) use self::wire::*;
+pub(super) use self::wire::*;
 
 pub(crate) use evidence_needs::evidence_next_actions;
 pub(crate) use failure_inputs::{FailureInputs, failure_inputs, failure_inputs_of};

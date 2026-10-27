@@ -88,7 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         workloads.extend(sweep_workloads());
     }
 
-    let mut backends = vec![Backend {
+    let backends = vec![Backend {
         label: if cfg!(feature = "accelerate") {
             "ndarray_accelerate".into()
         } else {
@@ -97,7 +97,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         run: probe_cpu_workload_fn,
     }];
     #[cfg(feature = "wgpu")]
-    backends.push(Backend { label: "wgpu".into(), run: probe_wgpu_workload_fn });
+    let backends = {
+        let mut backends = backends;
+        backends.push(Backend { label: "wgpu".into(), run: probe_wgpu_workload_fn });
+        backends
+    };
 
     let mut report = String::new();
     writeln!(report, "# accelerator stage timings")?;

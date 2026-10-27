@@ -256,7 +256,6 @@ mod tests {
     use antecedent_expr::{ExprId, IdentifiedEstimand};
 
     use crate::adjustment::{EstimationWorkspace, LinearAdjustmentAte};
-    use crate::estimator::Estimator;
     use crate::se::AnalyticSeKind;
 
     fn noise(i: usize) -> f64 {

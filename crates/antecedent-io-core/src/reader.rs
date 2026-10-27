@@ -16,7 +16,6 @@ use crate::container::{
 };
 use crate::error::IoError;
 use crate::mmap_file::map_file_readonly;
-use crate::wire::SectionDescriptor;
 
 /// Index entry for one section payload inside a seekable/mmap artifact.
 #[derive(Clone, Debug, Eq, PartialEq)]

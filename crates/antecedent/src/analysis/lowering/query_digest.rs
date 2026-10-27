@@ -15,6 +15,7 @@ use antecedent_data::TableView;
 
 use crate::Study;
 use crate::analysis::builder::DataInput;
+#[cfg(test)]
 use crate::analysis::execute::{StudyDeclarations, StudyInference};
 
 const QUERY_DIGEST_TAG: &str = "antecedent.lowered_query";

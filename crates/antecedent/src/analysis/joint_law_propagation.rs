@@ -215,7 +215,7 @@ impl PropagationDraws {
         column: usize,
     ) -> Result<Self, Refusal> {
         let id = id.into();
-        let [rows, width] = artifact.shape();
+        let [_, width] = artifact.shape();
         if column >= width {
             return Err(Refusal::invalid(&id, "name a column of the artifact"));
         }

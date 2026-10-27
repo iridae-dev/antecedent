@@ -38,6 +38,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+#[cfg(test)]
 use antecedent_core::device_reservation::{
     ComputeSelection, CpuAdmissionError, DeviceReservationPool, FoldAdmission, LearnerAdmission,
     admit_fold, nested_thread_request, retain_scientific_f64, scientific_tolerance, select_compute,
@@ -57,6 +58,7 @@ const CODE_TOLERANCE: f64 = 1e-12;
 const POLL_EVERY_ROWS: usize = 4096;
 
 /// Scratch bytes one fold and one learner each draw from the shared admission pool.
+#[cfg(test)]
 const FOLD_SCRATCH_BYTES: u64 = 8;
 
 /// A diagnostic or covariance the route does not carry, with the registered code and the
@@ -500,6 +502,7 @@ pub fn raw_contrast(
 }
 
 /// Accounted width of one `f64` outcome and one `f64` treatment.
+#[cfg(test)]
 const SAMPLE_WIDTH: u64 = 16;
 
 /// A small complete sample on the CPU `f64` path, with its uncertainty.
@@ -519,6 +522,7 @@ const SAMPLE_WIDTH: u64 = 16;
 /// `descriptive_comparison.admission_refused` when scratch or the byte account
 /// is refused. A cancelled `ctx` is `cancelled_no_claim`.
 #[must_use = "a refused contrast is not an estimate"]
+#[cfg(test)]
 pub fn small_cpu_contrast(
     outcome: &[f64],
     treatment: &[f64],
@@ -570,16 +574,19 @@ pub fn small_cpu_contrast(
     Ok(contrast)
 }
 
+#[cfg(test)]
 fn device_is_untouched(device: &DeviceReservationPool) -> bool {
     let available = device.available();
     available.device_bytes() == device.device_budget()
         && available.spill_bytes() == device.spill_budget()
 }
 
+#[cfg(test)]
 fn sample_bytes(rows: usize) -> Option<u64> {
     u64::try_from(rows).ok()?.checked_mul(SAMPLE_WIDTH)
 }
 
+#[cfg(test)]
 fn release_if_cancelled(
     learner: &mut LearnerAdmission,
     fold: &mut FoldAdmission,
@@ -590,6 +597,7 @@ fn release_if_cancelled(
     learner_stopped || fold_stopped
 }
 
+#[cfg(test)]
 fn cpu_admission_error(error: CpuAdmissionError) -> EstimationError {
     match error {
         CpuAdmissionError::Cancelled => cancelled(),

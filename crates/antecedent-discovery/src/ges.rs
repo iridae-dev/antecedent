@@ -665,6 +665,7 @@ fn semi_directed_reaches_avoiding(
     false
 }
 
+#[cfg(test)]
 fn insert_valid(cpdag: &Cpdag, x: DenseNodeId, y: DenseNodeId, t: &[DenseNodeId]) -> bool {
     if cpdag.has_edge(x, y) || x == y {
         return false;
@@ -672,7 +673,7 @@ fn insert_valid(cpdag: &Cpdag, x: DenseNodeId, y: DenseNodeId, t: &[DenseNodeId]
     insert_valid_given(cpdag, x, y, &na_yx(cpdag, y, x), t, None)
 }
 
-/// [`insert_valid`] for an `x`, `y` known to be non-adjacent, with `NA(Y,X)` already computed.
+/// Insert validity for an `x`, `y` known to be non-adjacent, with `NA(Y,X)` already computed.
 fn insert_valid_given(
     cpdag: &Cpdag,
     x: DenseNodeId,

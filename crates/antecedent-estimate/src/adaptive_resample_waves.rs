@@ -28,7 +28,7 @@
 //!
 //! A requested interval runs the whole procedure. The linear adjustment, AIPW, GLM adjustment,
 //! propensity weighting and propensity stratification estimators carry an optional
-//! [`crate::IntervalRequest`]; with it set, their bootstrap is `util::bootstrap_interval_by_design`
+//! [`crate::IntervalRequest`]; with it set, their bootstrap is `util::bootstrap::bootstrap_interval_by_design`
 //! (the same replicate rows, design checks and admission as the fixed-count loop), stopped by
 //! the tolerance rules above and capped by the estimator's replicate count, and the interval,
 //! waves, Monte Carlo errors and stop reason are published in

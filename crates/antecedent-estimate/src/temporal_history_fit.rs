@@ -7,7 +7,6 @@ use crate::temporal_initial_state::{InitialStateLaw, InitialStatePopulation, Sta
 use antecedent_core::{RegimeId, Value, VariableId, reason_code};
 use antecedent_expr::execution_counts::{StaticWork, note_static_work};
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
-use std::sync::Arc;
 
 /// Actual retained sequence-specific covariate/outcome counts from the existing estimator.
 /// No response value is substituted for these mechanisms.

@@ -46,11 +46,13 @@ pub fn surrogate_permute_columns(
                 .map(|(_, &value)| value)
                 .collect();
             shuffle(rng, &mut observed);
-            let mut observed = observed.into_iter();
-            for (index, value) in values.iter_mut().enumerate() {
-                if src.validity.is_valid(index) {
-                    *value = observed.next().expect("one shuffled value per observed row");
-                }
+            for ((_, value), shuffled) in values
+                .iter_mut()
+                .enumerate()
+                .filter(|(index, _)| src.validity.is_valid(*index))
+                .zip(observed)
+            {
+                *value = shuffled;
             }
         }
         cols.push(OwnedColumn::Float64(Float64Column::new(

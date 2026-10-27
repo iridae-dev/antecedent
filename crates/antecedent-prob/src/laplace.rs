@@ -419,6 +419,7 @@ fn gaussian_normal_equations(
 
 /// Posterior mode `A⁻¹ b` through one equilibrated Cholesky factorization (no explicit
 /// inverse).
+#[cfg(test)]
 fn solve_map_from_normal_eq(
     a_beta: &[f64],
     b_beta: &[f64],

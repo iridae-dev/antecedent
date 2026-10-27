@@ -30,7 +30,9 @@ use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_prob::kish_ess;
 
-use crate::adjacency_mask::{AdjacencyMask, LagMask, edge_bits_fit};
+#[cfg(test)]
+use crate::adjacency_mask::LagMask;
+use crate::adjacency_mask::{AdjacencyMask, edge_bits_fit};
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
     GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, accumulate_marginals,

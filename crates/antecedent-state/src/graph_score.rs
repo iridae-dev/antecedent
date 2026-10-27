@@ -470,7 +470,6 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
         design.push(centered_column(data.col(p as usize)));
     }
     let mut weights = vec![1.0; n];
-    let mut beta = vec![0.0; k];
     let mut residuals = vec![0.0; n];
     let mut previous = f64::INFINITY;
     let mut objective = f64::INFINITY;
@@ -490,7 +489,7 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
                 "Laplace BIC local fit: rank-deficient parents".into(),
             ));
         };
-        beta = next;
+        let beta = next;
         for row in 0..n {
             let fitted: f64 = (0..k).map(|c| beta[c] * design[c][row]).sum();
             residuals[row] = y[row] - fitted;

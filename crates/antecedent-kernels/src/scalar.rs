@@ -204,7 +204,12 @@ pub fn pairwise_l1_fill(x: &[f64], out: &mut [f64]) -> Result<(), ViewError> {
     // and mirror it.
     for i in 0..n {
         let xi = x[i];
-        out[i * n + i] = (xi - xi).abs();
+        #[allow(
+            clippy::eq_op,
+            reason = "IEEE self-subtraction preserves NaN for nonfinite inputs; a constant zero would hide an invalid diagonal"
+        )]
+        let diagonal = (xi - xi).abs();
+        out[i * n + i] = diagonal;
         for j in (i + 1)..n {
             let d = (xi - x[j]).abs();
             out[i * n + j] = d;

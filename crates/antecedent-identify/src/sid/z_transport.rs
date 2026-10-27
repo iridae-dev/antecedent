@@ -6,7 +6,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::{IdentificationBudget, IdentificationError};
+#[cfg(test)]
+use super::IdentificationBudget;
+use super::IdentificationError;
 
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog,
@@ -14,9 +16,11 @@ use antecedent_core::{
     VariableId,
 };
 
-use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
+#[cfg(test)]
+use antecedent_expr::ExprNode;
+use antecedent_expr::{CausalExprArena, ExprId};
 
-use antecedent_graph::{BitSet, DenseNodeId, NodeRef, SelectionDiagram};
+use antecedent_graph::{NodeRef, SelectionDiagram};
 
 use std::sync::Arc;
 
@@ -769,17 +773,12 @@ pub use search::bind_z_transport_catalog;
 #[cfg(test)]
 use search::search_trz;
 
-use search::z_search;
-
 pub(crate) use search::{
     TrzCall, TrzDomain, TrzTerminalFailure, bind_recursive_expression, cited_regimes,
     search_trz_call,
 };
 
-use search::{
-    inspect_z_expression, matches_registered_surrogate_graph, pre_search_budget_kind,
-    same_variable_set, surrogate_formula,
-};
+use search::inspect_z_expression;
 
 mod decide;
 mod derive;

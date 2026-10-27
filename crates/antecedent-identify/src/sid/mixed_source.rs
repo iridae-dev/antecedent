@@ -263,12 +263,13 @@ fn size(mask: Mask) -> usize {
 }
 
 /// Non-empty submasks of `pool` with at most `max` members, smallest first.
+#[cfg(test)]
 fn subsets(pool: Mask, max: usize) -> Vec<Mask> {
     subsets_within(pool, max, usize::MAX, |_| true)
 }
 
 /// The first `cap` non-empty submasks of `pool` with at most `max` members that satisfy
-/// `keep`, in the order of [`subsets`] (size, then mask value). They are produced one size
+/// `keep`, ordered by size, then mask value. They are produced one size
 /// at a time (Gosper's hack over the pool's positions, which preserves the numeric order of
 /// the masks), so a caller that can only pay for `cap` of them never builds the rest.
 fn subsets_within(pool: Mask, max: usize, cap: usize, keep: impl Fn(Mask) -> bool) -> Vec<Mask> {

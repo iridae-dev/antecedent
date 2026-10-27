@@ -1,7 +1,6 @@
 //! Tests for the execution context.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
 use super::{admission::*, budget::*, cancel::*, context::*, pipeline::*, request::*, rng::*};
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier, Condvar, Mutex, PoisonError};

@@ -9,7 +9,6 @@ use crate::prepared::AncestorMemo;
 
 use crate::selection_separation::{
     MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset_preferring,
-    independently_separated,
 };
 
 use crate::{IdentificationBudget, IdentificationError, PreparedAdmg};
@@ -19,8 +18,6 @@ use antecedent_core::{
 };
 
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
-
-use antecedent_graph::algo::components_by;
 
 use antecedent_graph::{
     Admg, BitSet, DSeparationWorkspace, DenseNodeId, GraphWorkspace, SelectionDiagram,
@@ -101,7 +98,7 @@ pub use counterfactual_transport::{
     verify_counterfactual_transport_witness,
 };
 
-use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
+use meta::{CLASSICAL_SETTING, META_SETTING};
 
 pub use meta::{
     MetaSource, MetaTransportQuery, identify_meta_catalog, identify_meta_transport,

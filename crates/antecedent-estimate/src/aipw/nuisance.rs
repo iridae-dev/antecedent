@@ -4,47 +4,15 @@
 
 use super::*;
 
-/// Fit separate OLS outcome models on the control (`T=0`) and treated (`T=1`) arms of
-/// `design_matrix` (column-major `[1 | Z…]`), returning `(beta0, beta1)`.
+/// Fit separate outcome models on the control (`T=0`) and treated (`T=1`) arms
+/// of a column-major `[1 | Z…]` design under optional sampling weights.
+/// Weighted least squares is computed as OLS on rows scaled by square-root weights.
 ///
 /// # Errors
-///
 /// Empty treated/control arm, or an OLS backend failure (e.g. rank deficiency within an arm).
 #[allow(
-    dead_code,
-    reason = "the unweighted entry point of fit_outcome_models_weighted, kept for callers without weights"
-)]
-pub(crate) fn fit_outcome_models(
-    design_matrix: &[f64],
-    nrows: usize,
-    ncols: usize,
-    treatment: &[f64],
-    outcome: &[f64],
-    backend: FaerBackend,
-    workspace: &mut AipwWorkspace,
-) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
-    fit_outcome_models_weighted(
-        design_matrix,
-        nrows,
-        ncols,
-        treatment,
-        outcome,
-        None,
-        backend,
-        workspace,
-    )
-}
-
-/// [`fit_outcome_models`] under optional prior (sampling) weights: each arm's model is the
-/// weighted least-squares fit, computed as OLS on rows scaled by the square root of their
-/// weights.
-///
-/// # Errors
-///
-/// As [`fit_outcome_models`].
-#[allow(
     clippy::too_many_arguments,
-    reason = "the unweighted entry point's arguments plus the weights"
+    reason = "the arm-specific fit needs the design, outcomes, treatment, weights, backend and workspace"
 )]
 pub(crate) fn fit_outcome_models_weighted(
     design_matrix: &[f64],

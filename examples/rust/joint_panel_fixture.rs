@@ -2,6 +2,11 @@
 //! Shared parsing/contract declarations for the independent joint-panel workflow example.
 //! No fitting or truth-dependent estimator initialization is hidden in this helper.
 
+#![allow(
+    dead_code,
+    reason = "shared example and integration-test fixture; each consumer uses a subset"
+)]
+
 use antecedent::analysis::joint_panel::{
     JointPanelColumns, JointPanelFunctional, JointPanelRequest, JointPanelWorld, joint_panel_target,
 };

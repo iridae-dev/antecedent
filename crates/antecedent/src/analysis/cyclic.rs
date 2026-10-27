@@ -278,6 +278,9 @@ impl PreparedStudy<CyclicPreparedState> {
         Ok(Self { state: CyclicPreparedState { product, lowered: Arc::new(lowered), contract } })
     }
     /// Branch scientific inputs and share unchanged native fitting inputs.
+    ///
+    /// # Errors
+    /// Malformed requests, fitting or lowering failures, cancellation, or resource refusal.
     pub fn rebind(
         &self,
         request: CyclicExecutionRequest,

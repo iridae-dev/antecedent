@@ -49,7 +49,6 @@ mod variance;
 pub(crate) use family::{FamilyKernel, fisher_weight, mean_derivative, resolve_nb_alpha};
 pub(crate) use variance::{adjustment_glm_covariance, solve_adjustment_glm};
 
-use family::*;
 use variance::*;
 
 /// Prepared GLM adjustment problem (compiled design retained).

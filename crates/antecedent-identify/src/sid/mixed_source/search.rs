@@ -3,31 +3,34 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::{
-    Admg, Arc, CatalogTransportResult, CausalExprArena, ClassicalTransportQuery,
-    DSeparationWorkspace, DenseNodeId, ExecutionContext, ExprId, HashMap, IdentificationError,
-    MzTransportDecision, SearchBudget, SearchCharge, SearchLimits, SearchReceipt, SearchStop,
-    SelectionDiagram, SharedSearch, VariableId, identify_catalog_transport_metered,
+    Admg, Arc, CausalExprArena, DSeparationWorkspace, DenseNodeId, ExprId, HashMap,
+    IdentificationError, SearchCharge, SearchReceipt, SearchStop, SharedSearch, VariableId,
 };
+#[cfg(test)]
+use super::super::{ExecutionContext, SearchBudget, SearchLimits};
 
 use super::{
-    BTreeMap, BTreeSet, BUDGET, EvidenceCatalog, FRONTIER_SHOWN, INVALID_QUERY, LeafBinding,
-    MAX_ALTERNATIVES, MISSING_JOINT, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DO,
-    MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_RULE_SET, Mask, MetaSource, MetaTransportQuery,
-    MixedExclusion, MixedInput, MixedQuantity, MixedRule, MixedSearchSummary,
-    MixedSourceDerivation, MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep,
-    NAMED_ROUTE, NOT_CERTIFIED, RegimeId, ValidatedMixedSourceQuery, ZTransportDecision,
-    ZTransportLimitsReceipt, ZTransportQuery, bit, bounds_exceeded, build_expression,
-    decide_z_transport_reporting, dense_variables, identify_meta_catalog_metered,
-    invalid_derivation, invalid_query, members, render_steps, size, subsets_within,
+    BTreeMap, BTreeSet, BUDGET, EvidenceCatalog, INVALID_QUERY, MAX_ALTERNATIVES, MISSING_JOINT,
+    Mask, MixedExclusion, MixedInput, MixedQuantity, MixedRule, MixedSourceDerivation,
+    MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep, NAMED_ROUTE, NOT_CERTIFIED,
+    RegimeId, bit, bounds_exceeded, build_expression, dense_variables, invalid_derivation,
+    invalid_query, members, render_steps, size, subsets_within,
+};
+#[cfg(test)]
+use super::{
+    MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE,
     validate_mixed_source_query,
 };
 
 mod checker;
 mod decide;
 pub use checker::verify_mixed_source_derivation;
-use checker::{check_steps, check_with_shared_expression_layer, connected, unary_rule_holds};
+use checker::{check_steps, connected};
+#[cfg(test)]
+use checker::{check_with_shared_expression_layer, unary_rule_holds};
 pub use decide::decide_mixed_source;
 pub(crate) use decide::decide_mixed_source_shared;
+#[cfg(test)]
 use decide::rule_search;
 pub(super) use decide::{meta_applies, stage_names};
 
@@ -114,6 +117,7 @@ fn mutilated(graph: &Admg, n: usize, over: Mask, under: Mask) -> Admg {
 }
 
 impl<'g> Engine<'g> {
+    #[cfg(test)]
     fn new(
         graph: &'g Admg,
         variables: Vec<VariableId>,

@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[cfg(test)]
 use std::sync::Arc;
 
 use antecedent_core::recalc::{ChangeKind, Revalidation, Stage, StageIdentities, StageIdentity};
