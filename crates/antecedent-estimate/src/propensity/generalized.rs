@@ -227,7 +227,8 @@ impl MultiLevelAipw {
             return Err(EstimationError::EffectModifiers);
         }
         if query.outcome_functional != OutcomeFunctional::Mean {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "multi-level treatment estimators support the mean functional only",
             ));
         }
@@ -288,7 +289,8 @@ impl MultiLevelAipw {
         )?;
         self.overlap.validate()?;
         if crate::propensity::trim_of(self.overlap).is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
                 "generalized-propensity estimators do not trim: trimming one level's propensity would redefine the common-support population of every contrast",
             ));
         }

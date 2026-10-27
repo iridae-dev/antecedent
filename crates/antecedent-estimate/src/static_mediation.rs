@@ -313,12 +313,14 @@ fn estimate_static_mediation_bayesian_impl(
     crate::bayesian_mediation::require_gaussian_mediation(estimator)?;
     let draws_n = crate::require_bayesian_n_draws(estimator.n_draws)?;
     if estimator.prior.is_some() {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
         ));
     }
     if bridge.is_some() && !outcome_prior_only {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "mapped Bayesian mediation priors require outcome-mechanism scope; use the outcome-prior entry point so shared coefficient names cannot hydrate multiple mechanisms",
         ));
     }

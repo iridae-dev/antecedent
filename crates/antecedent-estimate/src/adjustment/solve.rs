@@ -219,7 +219,10 @@ pub(crate) fn intervention_f64(intervention: &Intervention) -> Result<f64, Estim
         Intervention::Set { value, .. } => value.as_f64().ok_or_else(|| {
             EstimationError::unsupported(" linear adjustment requires numeric treatment levels")
         }),
-        _ => Err(EstimationError::unsupported(" linear adjustment requires Set interventions")),
+        _ => Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            " linear adjustment requires Set interventions",
+        )),
     }
 }
 

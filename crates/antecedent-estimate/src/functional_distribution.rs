@@ -561,7 +561,8 @@ fn conditioning_points(
     let needed_z: Vec<VariableId> = prepared.conditioning.iter().map(|a| a.variable).collect();
     let points: Vec<Vec<(VariableId, Value)>> = if needed_z.is_empty() {
         if !conditioning_values.is_empty() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
                 "conditioning_values supplied for an unconditional distribution query",
             ));
         }
@@ -1563,14 +1564,16 @@ fn set_assignments(
         match iv {
             Intervention::Set { variable, value } => {
                 if value.as_f64().is_some_and(f64::is_nan) {
-                    return Err(EstimationError::unsupported(
+                    return Err(EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("route_not_supported"),
                         "functional.distribution requires concrete Set intervention values",
                     ));
                 }
                 out.push(InterventionAssignment { variable: *variable, value: value.clone() });
             }
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "functional.distribution supports hard Set interventions only",
                 ));
             }
@@ -1825,7 +1828,8 @@ impl EncodedColumns {
         let mut columns = HashMap::with_capacity(ids.len());
         for &id in ids {
             let col = data.discrete_column(id).map_err(|e| match e {
-                DataError::TypeMismatch { .. } => EstimationError::unsupported(
+                DataError::TypeMismatch { .. } => EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "functional.distribution supports float64 / int64 / categorical columns only",
                 ),
                 other => EstimationError::from(other),

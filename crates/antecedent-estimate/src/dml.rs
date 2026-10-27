@@ -228,7 +228,8 @@ impl DmlAte {
             self.sampling_weights.as_ref(),
         )?;
         if self.units.spec.is_some() && !matches!(self.score, DmlScore::Aipw) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "a cluster-DML declaration needs the AIPW score, whose per-arm scores the \
                  cluster sandwich reads",
             ));
@@ -296,13 +297,17 @@ impl DmlAte {
         level: f64,
     ) -> Result<crate::population_aipw::PopulationAipwInterval, EstimationError> {
         if self.units.spec.is_some() || !matches!(self.score, DmlScore::Aipw) {
-            return Err(EstimationError::unsupported("population linear DML requires IID AIPW"));
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "population linear DML requires IID AIPW",
+            ));
         }
         let ridge = match self.outcome {
             LearnerSpec::Linear(_) => 0.0,
             LearnerSpec::Ridge(spec) => spec.lambda,
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "population linear interval requires a linear outcome learner",
                 ));
             }

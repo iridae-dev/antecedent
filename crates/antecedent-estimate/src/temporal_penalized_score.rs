@@ -96,7 +96,8 @@ impl<'a> TemporalPropensityDesignRef<'a> {
     const fn refuse_series(&self) -> Result<(), EstimationError> {
         match self.dependence {
             TrajectoryDependence::IndependentSubjects => Ok(()),
-            TrajectoryDependence::OneDependentSeries => Err(EstimationError::unsupported(
+            TrajectoryDependence::OneDependentSeries => Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "a single dependent series is not an independent-trajectory propensity sample",
             )),
         }

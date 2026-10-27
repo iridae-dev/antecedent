@@ -387,7 +387,7 @@ impl AipwAte {
         }
         if let TargetPopulation::CustomDistribution(id) = query.target_population {
             let depends = self.population_registry.as_ref().and_then(|r| r.distribution_dependencies(id))
-                .ok_or_else(|| EstimationError::unsupported("AIPW custom weights require declared depends_on via insert_distribution_with_dependence"))?;
+                .ok_or_else(|| EstimationError::unsupported_coded(antecedent_core::reason_code!("required_option_missing"), "AIPW custom weights require declared depends_on via insert_distribution_with_dependence"))?;
             if depends.iter().any(|v| *v == query.treatment || !estimand.adjustment_set.contains(v))
             {
                 return Err(EstimationError::unsupported(
@@ -515,7 +515,8 @@ impl AipwAte {
         if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean
             || query.target_population != TargetPopulation::AllObserved
         {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "checked AIPW currently supports the AllObserved mean ATE",
             ));
         }
@@ -715,7 +716,8 @@ impl AipwAte {
             )
             || self.inference.bootstrap_replicates != 0
         {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "population linear AIPW requires independent rows without bootstrap",
             ));
         }
@@ -755,7 +757,8 @@ impl AipwAte {
             )
             || self.inference.bootstrap_replicates != 0
         {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "arm-linear ATC requires independent rows without bootstrap",
             ));
         }
@@ -891,7 +894,8 @@ impl AipwAte {
                 | TargetPopulation::Predicate(_)
                 | TargetPopulation::CustomDistribution(_)
         ) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "AIPW supports AllObserved, Treated, Untreated, Predicate, or CustomDistribution",
             ));
         }
@@ -1060,7 +1064,8 @@ impl AipwAte {
         if trim_of(problem.overlap).is_some()
             || !matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic)
         {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "cross-fitted custom AIPW currently requires iid rows and no data-dependent trimming",
             ));
         }

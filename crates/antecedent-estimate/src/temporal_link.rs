@@ -65,11 +65,13 @@ impl TemporalOutcomeLink {
         match family {
             GlmFamily::BinomialLogit => Ok(Self::BernoulliLogit),
             GlmFamily::BinomialProbit => Ok(Self::BernoulliProbit),
-            GlmFamily::GaussianIdentity => Err(EstimationError::unsupported(
+            GlmFamily::GaussianIdentity => Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "an identity link belongs to temporal linear adjustment",
             )),
             GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => {
-                Err(EstimationError::unsupported(
+                Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "temporal GLM contrast supports Bernoulli logit and Bernoulli probit",
                 ))
             }
@@ -181,7 +183,8 @@ impl TemporalContrastDesign {
     const fn refuse_series(&self) -> Result<(), EstimationError> {
         match self.dependence {
             TrajectoryDependence::IndependentSubjects => Ok(()),
-            TrajectoryDependence::OneDependentSeries => Err(EstimationError::unsupported(
+            TrajectoryDependence::OneDependentSeries => Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "a single dependent series has no independent-trajectory information matrix",
             )),
         }

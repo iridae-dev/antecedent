@@ -144,7 +144,8 @@ fn observations(
             (latent, observed, event, Some((censoring, false)))
         }
         _ => {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "observed temporal posterior needs selection or one-sided censoring",
             ));
         }
@@ -654,7 +655,8 @@ fn validate_request<'q>(
         return Err(EstimationError::data_msg("observed temporal posterior cancelled"));
     }
     if estimator.likelihood != BayesLikelihood::GaussianIdentity || estimator.prior.is_some() {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "observed temporal mechanisms require Gaussian likelihood and independent isotropic mechanism priors",
         ));
     }
@@ -689,7 +691,8 @@ fn response_target(query: &ResponseQuery) -> Result<ResponseTarget, EstimationEr
             (*outcome, interventions[0].target_variables()[0], None)
         }
         _ => {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "observed temporal posterior supports mean curves and intervention levels",
             ));
         }
@@ -812,7 +815,8 @@ fn compile_cells(
                     overlays
                 } else {
                     let TemporalInterventionPlan::Single { treatment, level, shift } = *plan else {
-                        return Err(EstimationError::unsupported(
+                        return Err(EstimationError::unsupported_coded(
+                            antecedent_core::reason_code!("route_not_supported"),
                             "a temporal intervention without mechanism overlays must be a single schedule",
                         ));
                     };

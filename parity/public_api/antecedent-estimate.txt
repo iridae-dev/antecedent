@@ -16849,6 +16849,7 @@ pub fn <antecedent_estimate::EndpointMonteCarloError>::fn note(&self) -> alloc::
 pub fn <antecedent_estimate::EndpointMonteCarloError>::fn route_record(&self, unevaluable_mass: f64) -> core::option::Option<antecedent_core::diagnostic::RouteNativeDiagnostic>
 pub fn <antecedent_estimate::EstimationError>::const fn remedy(&self) -> core::option::Option<&'static str>
 pub fn <antecedent_estimate::EstimationError>::const fn unsupported(message: &'static str) -> Self
+pub fn <antecedent_estimate::EstimationError>::const fn unsupported_coded(code: &'static str, message: &'static str) -> Self
 pub fn <antecedent_estimate::EstimationError>::const fn unsupported_with_remedy(message: &'static str, remedy: &'static str) -> Self
 pub fn <antecedent_estimate::EstimationError>::fn coded_refusal(&self) -> core::option::Option<(&'static str, &antecedent_estimate::RefusalMessage)>
 pub fn <antecedent_estimate::EstimationError>::fn data_msg(message: impl core::convert::Into<alloc::string::String>) -> Self
@@ -20056,6 +20057,7 @@ pub variant antecedent_estimate::EstimationError::TargetPopulation
 pub variant antecedent_estimate::EstimationError::TemporalIndex(antecedent_core::temporal::TemporalIndexError)
 pub variant antecedent_estimate::EstimationError::Tile(crate::tiled_prediction::TileError)
 pub variant antecedent_estimate::EstimationError::Unsupported { message: &'static str }
+pub variant antecedent_estimate::EstimationError::UnsupportedCoded { code: &'static str, message: &'static str }
 pub variant antecedent_estimate::EstimationError::UnsupportedWithFields { message: &'static str, fields: alloc::boxed::Box<antecedent_estimate::RefusalFields> }
 pub variant antecedent_estimate::EstimationError::UnsupportedWithRemedy { message: &'static str, remedy: &'static str }
 pub variant antecedent_estimate::EstimationError::Wave(antecedent_estimate::adaptive_resample_waves::WaveError)

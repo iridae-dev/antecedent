@@ -97,7 +97,8 @@ pub fn estimate_interference_bayesian(
     if !matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
         || query.exposure != antecedent_core::ExposureMapping::NeighborCount
     {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "Bayesian interference is licensed only for Bernoulli assignment with NeighborCount exposure",
         ));
     }
@@ -123,7 +124,8 @@ pub fn estimate_interference_bayesian(
         })
     };
     if !level_supported(from) || !level_supported(to) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "Bayesian interference refuses an exposure level absent from the realized assignment",
         ));
     }
@@ -281,7 +283,8 @@ pub fn estimate_cluster_interference_total_with_inference(
     let antecedent_core::AssignmentDesign::ClusterRandomization { clusters, treated_clusters } =
         &query.assignment
     else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "cluster total-effect estimator requires cluster randomization",
         ));
     };
@@ -290,7 +293,8 @@ pub fn estimate_cluster_interference_total_with_inference(
         return Err(EstimationError::data_msg("assignment/network row count mismatch"));
     }
     if clusters.len() != n || query.exposure != ExposureMapping::NeighborFraction {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "cluster partial interference requires one cluster per unit and NeighborFraction exposure",
         ));
     }
@@ -300,7 +304,8 @@ pub fn estimate_cluster_interference_total_with_inference(
     let forward = from == untreated && to == treated;
     let reverse = from == treated && to == untreated;
     if !forward && !reverse {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "cluster partial interference supports only the total-effect contrast between (0,0) and (1,1)",
         ));
     }
@@ -324,7 +329,8 @@ pub fn estimate_cluster_interference_total_with_inference(
                 .iter()
                 .any(|edge| clusters[usize::try_from(edge.from.get()).expect("row id")] != cluster)
         {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "partial interference requires a nonempty within-cluster neighborhood for every unit and no cross-cluster edges",
             ));
         }
@@ -451,7 +457,8 @@ pub fn estimate_cluster_interference_bayesian_bootstrap(
     let antecedent_core::AssignmentDesign::ClusterRandomization { clusters, .. } =
         &query.assignment
     else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "cluster total-effect posterior requires cluster randomization",
         ));
     };

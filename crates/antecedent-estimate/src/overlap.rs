@@ -236,7 +236,8 @@ impl IpwTarget {
             TargetPopulation::CustomDistribution(_) => Ok(Self::Custom),
             TargetPopulation::Treated => Ok(Self::Att),
             TargetPopulation::Untreated => Ok(Self::Atc),
-            _ => Err(EstimationError::unsupported(
+            _ => Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "propensity weighting supports AllObserved, Treated, Untreated, Predicate, or CustomDistribution",
             )),
         }

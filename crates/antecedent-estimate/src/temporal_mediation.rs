@@ -487,7 +487,8 @@ impl TemporalMediationEstimator {
             MediationContrast::NaturalDirect | MediationContrast::NaturalIndirect
         ) && !self.allow_natural_controlled_alias
         {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "NaturalDirect/NaturalIndirect require allow_natural_controlled_alias; \
                  natural effects alias controlled effects in linear temporal mediation",
             ));
@@ -1296,7 +1297,8 @@ mod tests {
         let err = TemporalMediationEstimator::new()
             .estimate(&data, &estimand, &q, &ExecutionContext::for_tests(1))
             .unwrap_err();
-        assert!(matches!(err, EstimationError::Unsupported { .. }));
+        assert!(matches!(err, EstimationError::UnsupportedCoded { .. }));
+        assert_eq!(err.reason_code(), Some("required_option_missing"));
     }
 
     #[test]

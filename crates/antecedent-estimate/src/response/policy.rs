@@ -173,7 +173,8 @@ fn discrete_intervention_support(
                 .map(|(index, p)| DiscreteAtom::Level { value: index as f64, weight: p / total })
                 .collect())
         }
-        _ => Err(EstimationError::unsupported(
+        _ => Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "exact discrete intervention mixture does not cover this policy",
         )),
     }
@@ -240,7 +241,8 @@ pub(super) fn static_bayesian_policy(
                     probs.iter().enumerate().map(|(i, p)| i as f64 * (p / scale) / total).sum()
                 }
                 _ => {
-                    return Err(EstimationError::unsupported(
+                    return Err(EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("route_not_supported"),
                         "unsupported static Bayesian stochastic policy",
                     ));
                 }
@@ -257,14 +259,16 @@ pub(super) fn static_bayesian_policy(
                 "constant" => (*variable, Some(mechanism.parameters[0]), 0.0),
                 "additive_shift" => (*variable, None, mechanism.parameters[0]),
                 _ => {
-                    return Err(EstimationError::unsupported(
+                    return Err(EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("route_not_supported"),
                         "static Bayesian Soft supports constant and additive_shift",
                     ));
                 }
             }
         }
         _ => {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "unsupported static Bayesian intervention policy",
             ));
         }

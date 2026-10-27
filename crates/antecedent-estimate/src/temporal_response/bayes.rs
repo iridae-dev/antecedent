@@ -269,24 +269,32 @@ impl TemporalResponseEstimator {
         if query.observation != antecedent_core::ObservationSpec::Complete
             || query.target_population != TargetPopulation::AllObserved
         {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "Bayesian temporal response requires complete observations and the AllObserved population",
             ));
         }
         if estimator.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity {
-            return Err(EstimationError::unsupported(ORDINARY_LIKELIHOOD_REFUSAL));
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
+                ORDINARY_LIKELIHOOD_REFUSAL,
+            ));
         }
         if !matches!(
             identification_status,
             IdentificationStatus::NonparametricallyIdentified
                 | IdentificationStatus::IdentifiedUnderParametricRestrictions
         ) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("strategy_incompatible"),
                 "Bayesian temporal response requires point identification at every horizon",
             ));
         }
         let temporal = query.temporal.as_ref().ok_or_else(|| {
-            EstimationError::unsupported("missing temporal response specification")
+            EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
+                "missing temporal response specification",
+            )
         })?;
         if identification_count != temporal.horizons.len() {
             return Err(EstimationError::unsupported("one identification required per horizon"));
@@ -462,13 +470,17 @@ fn bayesian_target(
                     intervention: Some((level, shift)),
                 }),
                 TemporalInterventionPlan::Sequential { .. }
-                | TemporalInterventionPlan::Mechanisms { .. } => Err(EstimationError::unsupported(
-                    "Bayesian multi-step Sequence uses sequential mechanism overlays, \
+                | TemporalInterventionPlan::Mechanisms { .. } => {
+                    Err(EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("route_not_supported"),
+                        "Bayesian multi-step Sequence uses sequential mechanism overlays, \
                          not response.temporal.bayesian / bayesian.gcomp",
-                )),
+                    ))
+                }
             }
         }
-        _ => Err(EstimationError::unsupported(
+        _ => Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "Bayesian temporal response supports only curves and intervention responses",
         )),
     }

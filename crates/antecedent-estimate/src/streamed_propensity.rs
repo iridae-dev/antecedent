@@ -226,7 +226,8 @@ impl PropensityWeighting {
         query: &AverageEffectQuery,
     ) -> Result<StreamedInputs<'a>, EstimationError> {
         if !self.supports_streamed_reduction() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "a streamed reduction needs untrimmed weights, the iid analytic standard error, \
                  and no sampling weights, clustering, calibration or bootstrap",
             ));
@@ -243,12 +244,14 @@ impl PropensityWeighting {
         }
         query.validate()?;
         if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
                 "propensity estimators do not support effect modifiers",
             ));
         }
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "a streamed reduction estimates the all-observed population",
             ));
         }
@@ -269,7 +272,8 @@ impl PropensityWeighting {
         let column = |id| -> Result<&'a [f64], EstimationError> {
             match data.column(id)? {
                 ColumnView::Float64(c) => Ok(c.values.as_slice()),
-                _ => Err(EstimationError::unsupported(
+                _ => Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "a streamed reduction reads float64 design columns",
                 )),
             }

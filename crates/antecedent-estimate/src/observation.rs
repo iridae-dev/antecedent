@@ -209,7 +209,8 @@ pub fn temporal_curve_outcome_regressors(
     identifications: &[(&antecedent_expr::IdentifiedEstimand, &antecedent_data::TemporalIndexer)],
 ) -> Result<Vec<TemporalNodeKey>, EstimationError> {
     let temporal = query.temporal.as_ref().ok_or_else(|| {
-        EstimationError::unsupported(
+        EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "temporal observation correction requires ResponseQuery.temporal",
         )
     })?;
@@ -447,7 +448,8 @@ impl ObservationMechanismEstimator {
         match &query.observation {
             ObservationSpec::Selected { observed, indicator, .. } => {
                 if delayed_entry.is_some() {
-                    return Err(EstimationError::unsupported(
+                    return Err(EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("option_not_applicable"),
                         "delayed entry applies only to right-censoring IPCW",
                     ));
                 }
@@ -466,7 +468,8 @@ impl ObservationMechanismEstimator {
             ),
             ObservationSpec::LeftCensored { observed, censoring, event, .. } => {
                 if delayed_entry.is_some() {
-                    return Err(EstimationError::unsupported(
+                    return Err(EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("option_not_applicable"),
                         "delayed entry is not defined for left-censoring sign reversal",
                     ));
                 }
@@ -486,7 +489,8 @@ impl ObservationMechanismEstimator {
                 "complete outcomes do not require observation-mechanism correction",
             )),
             ObservationSpec::IntervalCensored { .. } | ObservationSpec::Truncated { .. } => {
-                Err(EstimationError::unsupported(
+                Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("required_option_missing"),
                     "interval censoring and truncation require the opt-in Gaussian likelihood",
                 ))
             }
@@ -536,7 +540,8 @@ impl ObservationMechanismEstimator {
         let (outcome, treatment) = match &query.functional {
             ResponseFunctional::MeanCurve { outcome, treatment } => (*outcome, treatment.variable),
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "observation-adjusted response composition currently supports MeanCurve only",
                 ));
             }
@@ -549,7 +554,8 @@ impl ObservationMechanismEstimator {
                     .iter()
                     .any(|variable| !conditioning.contains(variable))
             {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("required_option_missing"),
                     "selected-outcome response correction requires OutcomeIndependentGiven to include the treatment and every causal adjustment variable",
                 ));
             }
@@ -567,7 +573,8 @@ impl ObservationMechanismEstimator {
                     .iter()
                     .any(|variable| !conditioning.contains(variable))
             {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("required_option_missing"),
                     "conditional censoring response requires IndependentGiven to include treatment and every causal adjustment variable",
                 ));
             }
@@ -581,7 +588,8 @@ impl ObservationMechanismEstimator {
             });
         }
         if response_estimator.options.simultaneous_replicates.is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("estimator_inference_mismatch"),
                 "simultaneous bands are unavailable for observation-adjusted response curves",
             ));
         }
@@ -678,13 +686,15 @@ impl ObservationMechanismEstimator {
             ));
         }
         let temporal = query.temporal.as_ref().ok_or_else(|| {
-            EstimationError::unsupported(
+            EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "temporal observation correction requires ResponseQuery.temporal",
             )
         })?;
         let offset = temporal.treatment_offset()?;
         if offset > 0 {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "temporal observation conditioning cannot use a future treatment offset",
             ));
         }
@@ -770,13 +780,15 @@ impl ObservationMechanismEstimator {
             ));
         }
         let temporal = query.temporal.as_ref().ok_or_else(|| {
-            EstimationError::unsupported(
+            EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "temporal observation correction requires ResponseQuery.temporal",
             )
         })?;
         let offset = temporal.treatment_offset()?;
         if offset > 0 {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "temporal observation conditioning cannot use a future treatment offset",
             ));
         }
@@ -846,7 +858,8 @@ impl ObservationMechanismEstimator {
                     )?
                     .values)
             }
-            _ => Err(EstimationError::unsupported(
+            _ => Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "temporal observation correction supports selected and left/right censoring only",
             )),
         }
@@ -872,7 +885,8 @@ impl ObservationMechanismEstimator {
             .temporal
             .as_ref()
             .ok_or_else(|| {
-                EstimationError::unsupported(
+                EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("required_option_missing"),
                     "temporal observation correction requires ResponseQuery.temporal",
                 )
             })?
@@ -981,7 +995,8 @@ impl ObservationMechanismEstimator {
             matches!(assumption, ObservationAssumption::Structural(name) if name.as_ref() == "gaussian_observation_likelihood")
         });
         if !opted_in {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "Gaussian censoring/truncation likelihood requires an explicit structural opt-in",
             ));
         }
@@ -1243,7 +1258,8 @@ impl ObservationMechanismEstimator {
             ));
         }
         if !conditioning.is_empty() && delayed_entry.is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "conditional Cox IPCW does not support delayed entry",
             ));
         }
@@ -1391,7 +1407,10 @@ fn require_unlagged_outcome_regressor(
     outcome_regressors: &[TemporalNodeKey],
 ) -> Result<(), EstimationError> {
     if outcome_regressors.iter().any(|key| key.variable == outcome && key.offset != 0) {
-        return Err(EstimationError::unsupported(LAGGED_OUTCOME_REGRESSOR_REFUSAL));
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            LAGGED_OUTCOME_REGRESSOR_REFUSAL,
+        ));
     }
     Ok(())
 }
@@ -1402,7 +1421,8 @@ fn temporal_conditioning_ids(query: &ResponseQuery) -> Result<&[VariableId], Est
         ObservationSpec::RightCensored { .. } | ObservationSpec::LeftCensored { .. } => {
             censoring_independence(query)
         }
-        _ => Err(EstimationError::unsupported(
+        _ => Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "temporal observation correction supports selected and left/right censoring only",
         )),
     }
@@ -1419,7 +1439,8 @@ pub(crate) fn require_temporal_observation_containment(
             if !conditioning.contains(&treatment)
                 || adjustment.iter().any(|variable| !conditioning.contains(variable))
             {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("required_option_missing"),
                     "selected-outcome response correction requires OutcomeIndependentGiven to include the treatment and every causal adjustment variable",
                 ));
             }
@@ -1430,7 +1451,8 @@ pub(crate) fn require_temporal_observation_containment(
                 && (!conditioning.contains(&treatment)
                     || adjustment.iter().any(|variable| !conditioning.contains(variable)))
             {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("required_option_missing"),
                     "conditional censoring response requires IndependentGiven to include treatment and every causal adjustment variable",
                 ));
             }
@@ -1488,7 +1510,8 @@ fn exact_outcome_independence(query: &ResponseQuery) -> Result<&[VariableId], Es
             _ => None,
         });
     let Some(first) = claims.next() else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "selected-outcome correction requires OutcomeIndependentGiven",
         ));
     };
@@ -1510,9 +1533,10 @@ fn censoring_independence(query: &ResponseQuery) -> Result<&[VariableId], Estima
         ObservationAssumption::IndependentGiven(vars) => Ok(vars),
         // Preserve the previously accepted empty outcome-independence spelling.
         ObservationAssumption::OutcomeIndependentGiven(vars) if vars.is_empty() => Ok(vars),
-        _ => {
-            Err(EstimationError::unsupported("conditional censoring requires IndependentGiven(Z)"))
-        }
+        _ => Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
+            "conditional censoring requires IndependentGiven(Z)",
+        )),
     }
 }
 
@@ -1651,7 +1675,8 @@ fn gaussian_observations(
             ));
         }
         ObservationSpec::Selected { .. } => {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "selected outcomes use logistic IPW/AIPW, not the Gaussian observation likelihood",
             ));
         }

@@ -1071,7 +1071,8 @@ fn match_target(
                 effect_rows: rows,
             })
         }
-        _ => Err(EstimationError::unsupported(
+        _ => Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "matching estimators support AllObserved, Treated, Untreated, Predicate, or CustomDistribution",
         )),
     }
@@ -1201,7 +1202,8 @@ impl MatchedVariance<'_> {
             | AnalyticSeKind::Hc1
             | AnalyticSeKind::Hc2
             | AnalyticSeKind::Hc3 => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("estimator_inference_mismatch"),
                     "matching does not implement HC0–HC3 sandwich SEs; use Homoskedastic (Abadie–Imbens)",
                 ));
             }
@@ -1301,7 +1303,8 @@ pub(crate) fn matching_contrast(
     };
     let retained_fraction = effects.per_unit_effects.len() as f64 / n_eligible.max(1) as f64;
     if matches!(target, TargetPopulation::CustomDistribution(_)) && target_weights.is_none() {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "CustomDistribution requires PopulationRegistry weights on the prepared problem",
         ));
     }

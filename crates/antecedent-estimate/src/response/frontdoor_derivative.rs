@@ -103,7 +103,8 @@ impl ContinuousResponseEstimator {
                 weighting: DerivativeWeighting::Observed,
             } => (*outcome, *treatment),
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "the front-door derivative serves a first-order point derivative or an \
                      observed-law average derivative",
                 ));

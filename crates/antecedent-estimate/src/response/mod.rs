@@ -371,12 +371,14 @@ impl ContinuousResponseEstimator {
     ) -> Result<(), EstimationError> {
         query.validate()?;
         if query.temporal.is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "static continuous-response estimator does not execute temporal response queries; use TemporalResponseEstimator",
             ));
         }
         if query.observation != ObservationSpec::Complete {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "continuous-response estimator currently requires complete observations",
             ));
         }
@@ -399,7 +401,8 @@ impl ContinuousResponseEstimator {
             // Silverman's rule is a level/KDE rate. Using it for m'/m'' oversmooths the
             // derivative toward zero while still publishing Identity-scale sandwich SEs —
             // the same silent-undersmoothing hole simultaneous bands already refuse.
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "point derivatives require an explicit bandwidth; Silverman's rule is not an undersmoothing rule for m' or m''",
             ));
         }

@@ -287,7 +287,8 @@ impl DrLearner {
         level: f64,
     ) -> Result<crate::population_aipw::PopulationAipwInterval, EstimationError> {
         if self.units.spec.is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "population linear DR learner requires IID AIPW",
             ));
         }
@@ -295,7 +296,8 @@ impl DrLearner {
             LearnerSpec::Linear(_) => 0.0,
             LearnerSpec::Ridge(spec) => spec.lambda,
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "population linear interval requires a linear outcome learner",
                 ));
             }

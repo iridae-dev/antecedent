@@ -414,13 +414,15 @@ fn contrast(
         EstimationError::data_msg("front-door functional needs a finite treatment")
     })?;
     if arms.len() > MAX_TREATMENT_LEVELS.max(n / 4) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "frontdoor.functional needs a discrete treatment (its observed values are the arms of the functional); use frontdoor.linear_two_stage for a continuous treatment under its recorded linearity restriction",
         ));
     }
     let (Some(arm_a), Some(arm_c)) = (level_index(&arms, active), level_index(&arms, control))
     else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "frontdoor.functional needs both contrasted treatment levels to be observed: P(M | T=t) is estimated from the rows at that level",
         ));
     };

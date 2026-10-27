@@ -202,7 +202,8 @@ impl ConditionalLinearAdjustment {
             );
         }
         if !matches!(query.inner.outcome_functional, antecedent_core::OutcomeFunctional::Mean) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "conditional arm scores require an already transformed outcome and the Mean functional",
             ));
         }
@@ -253,12 +254,14 @@ impl ConditionalLinearAdjustment {
         query: &AverageEffectQuery,
     ) -> Result<(EffectEstimate, [f64; 2], ConditionalArmScores), EstimationError> {
         if query.outcome_functional.quantile_level().is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "conditional quantiles require CDF-grid inversion through Study; a mean regression cannot estimate a quantile",
             ));
         }
         if query.effect_modifiers.is_empty() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "ConditionalLinearAdjustment requires effect modifiers",
             ));
         }
@@ -655,7 +658,8 @@ fn aipw_conditional_arm_scores(
     EstimationError,
 > {
     if query.effect_modifiers.is_empty() {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "AIPW conditional scores require an effect modifier",
         ));
     }
@@ -697,7 +701,8 @@ fn aipw_conditional_arm_scores(
         FaerBackend,
     )?;
     if !crate::retarget::score_weighted_support(&table, &vec![1.0; table.n_rows]).overlap_ok {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "conditional AIPW arm scores require supported out-of-fold propensity overlap",
         ));
     }

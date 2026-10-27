@@ -354,7 +354,8 @@ impl PropensityWeighting {
             return Err(EstimationError::data_msg("population linear score cancelled"));
         }
         if self.clusters(problem)?.is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "population linear score requires independent rows",
             ));
         }
@@ -435,7 +436,8 @@ impl PropensityWeighting {
     ) -> Result<(EffectEstimate, Vec<f64>, Option<BalancedLinearization>), EstimationError> {
         let target = IpwTarget::from_population(&problem.target_population)?;
         if matches!(target, IpwTarget::Custom) && problem.target_weights.is_none() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "CustomDistribution requires PopulationRegistry weights on the prepared problem",
             ));
         }
@@ -460,7 +462,8 @@ impl PropensityWeighting {
         apply_target_weights(&mut weights, sampling);
         if self.covariate_balance {
             if !matches!(target, IpwTarget::Ate) || trim.is_some() {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "covariate-balanced weighting currently requires an untrimmed ATE",
                 ));
             }

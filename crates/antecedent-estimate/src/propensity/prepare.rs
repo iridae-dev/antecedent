@@ -470,7 +470,8 @@ pub(crate) fn prepare_propensity_problem_with_levels(
     }
     query.validate()?;
     if !query.effect_modifiers.is_empty() {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("option_not_applicable"),
             "propensity estimators do not support effect modifiers",
         ));
     }

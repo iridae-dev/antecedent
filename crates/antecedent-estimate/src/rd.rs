@@ -285,7 +285,10 @@ impl SharpRegressionDiscontinuity {
         }
         query.validate()?;
         if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::unsupported("sharp RD does not support effect modifiers"));
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
+                "sharp RD does not support effect modifiers",
+            ));
         }
         // The jump is the effect for units at the cutoff and for no other population, so
         // the query has to ask for exactly that; it is never relabelled here.
@@ -308,7 +311,8 @@ impl SharpRegressionDiscontinuity {
         let active = intervention_f64(&query.active)?;
         let control = intervention_f64(&query.control)?;
         if (active - 1.0).abs() > 1e-12 || control.abs() > 1e-12 {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "sharp RD requires binary treatment levels coded active=1.0, control=0.0; the                  RD estimand is the raw outcome jump at the cutoff for the 0/1 crossing                  indicator and does not scale with query levels",
             ));
         }
@@ -513,7 +517,8 @@ impl SharpRegressionDiscontinuity {
             )?
             .unwrap_or(f64::NAN),
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("estimator_inference_mismatch"),
                     "sharp RD supports Homoskedastic or HC0-HC3 analytic SEs; cluster, multiway, and HAC kinds need labels the RD problem does not carry",
                 ));
             }
@@ -1118,7 +1123,8 @@ mod tests {
         )
         .with_target_population(TargetPopulation::local_at_cutoff(VariableId::from_raw(2), 0.0));
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::Unsupported { .. }), "err={err:?}");
+        assert!(matches!(err, EstimationError::UnsupportedCoded { .. }), "err={err:?}");
+        assert_eq!(err.reason_code(), Some("route_not_supported"));
     }
 
     #[test]

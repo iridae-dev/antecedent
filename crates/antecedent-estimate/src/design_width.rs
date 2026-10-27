@@ -52,7 +52,8 @@ pub fn quote_adjustment_design(
                 direct = false;
                 let (_, contrast) =
                     contrasts.iter().find(|(variable, _)| *variable == id).ok_or_else(|| {
-                        EstimationError::unsupported(
+                        EstimationError::unsupported_coded(
+                            antecedent_core::reason_code!("required_option_missing"),
                             "categorical adjustment requires explicit contrast coding",
                         )
                     })?;

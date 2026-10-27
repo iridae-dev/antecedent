@@ -270,7 +270,8 @@ pub(crate) fn prepare_frontdoor_checked(
         EstimationError::data_msg("checked front-door requires an average-effect query")
     })?;
     if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "checked front-door currently supports the mean outcome functional",
         ));
     }
@@ -393,7 +394,8 @@ pub(crate) fn prepare_frontdoor_problem(
     }
     query.validate()?;
     if !query.effect_modifiers.is_empty() {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("option_not_applicable"),
             "front-door estimators do not support effect modifiers",
         ));
     }
@@ -930,7 +932,8 @@ fn stacked_theta_cov_and_grad(
 
     let meat = match se_kind {
         AnalyticSeKind::Homoskedastic => {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("estimator_inference_mismatch"),
                 "FrontDoorTwoStage stacked SE does not implement classical Homoskedastic meat; use Hc0",
             ));
         }
@@ -950,7 +953,8 @@ fn stacked_theta_cov_and_grad(
         | AnalyticSeKind::Multiway
         | AnalyticSeKind::NeweyWest { .. }
         | AnalyticSeKind::PanelClusterHac { .. } => {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("estimator_inference_mismatch"),
                 "FrontDoorTwoStage stacked SE supports Hc0/Hc1/Cluster only",
             ));
         }

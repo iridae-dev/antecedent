@@ -122,7 +122,8 @@ impl TwoStageLeastSquares {
         let column = |id| -> Result<&[f64], EstimationError> {
             match data.column(id)? {
                 ColumnView::Float64(c) => Ok(c.values.as_slice()),
-                _ => Err(EstimationError::unsupported(
+                _ => Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "a streamed reduction reads float64 design columns",
                 )),
             }
@@ -194,7 +195,8 @@ impl TwoStageLeastSquares {
         query: &AverageEffectQuery,
     ) -> Result<f64, EstimationError> {
         if !self.supports_streamed_reduction() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "a streamed reduction needs two-stage least squares without clustering, \
                  multiway ids or panel times",
             ));
@@ -215,7 +217,8 @@ impl TwoStageLeastSquares {
         }
         query.validate()?;
         if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
                 "IV estimators do not support effect modifiers",
             ));
         }

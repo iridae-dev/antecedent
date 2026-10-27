@@ -82,7 +82,10 @@ pub fn estimate_saturation_interference(
         realized_saturation,
     } = &query.assignment
     else {
-        return Err(EstimationError::unsupported("two-stage saturation assignment is required"));
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
+            "two-stage saturation assignment is required",
+        ));
     };
     let n = data.units().row_count();
     if n == 0 || assignment.len() != n || clusters.len() != n || realized_saturation.len() != n {
@@ -96,7 +99,8 @@ pub fn estimate_saturation_interference(
             | ExposureMapping::NeighborFraction
             | ExposureMapping::WeightedNeighborExposure
     ) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("option_not_applicable"),
             "saturation effects require a built-in neighbor exposure mapping",
         ));
     }
@@ -122,7 +126,8 @@ pub fn estimate_saturation_interference(
     ids.dedup();
     let k = ids.len();
     if k < 2 || *high_clusters == 0 || *high_clusters >= k {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "exact saturation requires both high and low cluster arms",
         ));
     }
@@ -394,7 +399,8 @@ fn level_probabilities(
     level: ExposureLevel,
 ) -> Result<Vec<f64>, EstimationError> {
     if matches!(mapping, ExposureMapping::OwnTreatment | ExposureMapping::Custom(_)) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("option_not_applicable"),
             "saturation effects require a built-in neighbor exposure mapping",
         ));
     }
@@ -484,7 +490,8 @@ fn weighted_mean(
     for i in 0..outcomes.len() {
         let p = probabilities[i];
         if !p.is_finite() || p <= 0.0 {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("positivity_violated"),
                 "saturation exposure positivity failure for a requested level",
             ));
         }
@@ -500,7 +507,8 @@ fn weighted_mean(
         }
     }
     if units == 0 || weights == 0.0 {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "requested saturation exposure is absent from realized assignments",
         ));
     }

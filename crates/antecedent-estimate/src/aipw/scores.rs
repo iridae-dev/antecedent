@@ -112,7 +112,8 @@ pub(super) fn aipw_psi_counted(
             }
         }
         _ => {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "AIPW unsupported target population for IF construction",
             ));
         }

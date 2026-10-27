@@ -409,7 +409,10 @@ fn prepare_iv_problem(
     }
     query.validate()?;
     if !query.effect_modifiers.is_empty() {
-        return Err(EstimationError::unsupported("IV estimators do not support effect modifiers"));
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("option_not_applicable"),
+            "IV estimators do not support effect modifiers",
+        ));
     }
     if query.target_population != TargetPopulation::AllObserved {
         return Err(EstimationError::refused(

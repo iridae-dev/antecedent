@@ -194,7 +194,8 @@ fn validate(
         return Err(EstimationError::data_msg("invalid Bayesian robust ATE input or options"));
     }
     if !input.treatment.iter().any(|t| *t) || !input.treatment.iter().any(|t| !*t) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "Bayesian robust ATE requires both treatment arms",
         ));
     }

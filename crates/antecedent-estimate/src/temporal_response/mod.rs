@@ -192,7 +192,8 @@ impl TemporalResponseEstimator {
         // or intervention validation and still receive a numerical response.
         query.validate()?;
         if query.observation != ObservationSpec::Complete {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "TemporalResponseEstimator requires complete observations; apply a licensed observation correction first",
             ));
         }
@@ -206,7 +207,8 @@ impl TemporalResponseEstimator {
             });
         }
         let temporal = query.temporal.as_ref().ok_or_else(|| {
-            EstimationError::unsupported(
+            EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "TemporalResponseEstimator requires ResponseQuery.temporal (ADR 0021)",
             )
         })?;
@@ -253,14 +255,16 @@ impl TemporalResponseEstimator {
                         ),
                     TemporalInterventionPlan::Sequential { .. }
                     | TemporalInterventionPlan::Mechanisms { .. } => {
-                        Err(EstimationError::unsupported(
+                        Err(EstimationError::unsupported_coded(
+                            antecedent_core::reason_code!("route_not_supported"),
                             "multi-step and joint Sequence overlays require the unfolded \
                              sequential estimator (Study temporal response path)",
                         ))
                     }
                 }
             }
-            _ => Err(EstimationError::unsupported(
+            _ => Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "temporal response is licensed only for MeanCurve and InterventionResponse",
             )),
         }?;
@@ -535,7 +539,8 @@ impl TemporalResponseEstimator {
     ) -> Result<PreparedTemporalSurface, EstimationError> {
         query.validate()?;
         let temporal = query.temporal.as_ref().ok_or_else(|| {
-            EstimationError::unsupported(
+            EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "temporal surface replicates require ResponseQuery.temporal",
             )
         })?;
@@ -562,14 +567,16 @@ impl TemporalResponseEstimator {
                         (treatment, *outcome, (0..n_h).map(|h| (h, eval)).collect())
                     }
                     _ => {
-                        return Err(EstimationError::unsupported(
+                        return Err(EstimationError::unsupported_coded(
+                            antecedent_core::reason_code!("route_not_supported"),
                             "Sequence overlays have no single-surface tuple replicate",
                         ));
                     }
                 }
             }
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "temporal response is licensed only for MeanCurve and InterventionResponse",
                 ));
             }
@@ -585,7 +592,8 @@ impl TemporalResponseEstimator {
             })
             .collect::<Result<Vec<_>, _>>()?;
         if horizons.iter().any(|fitted| fitted.selection.is_some()) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "the tuple-level replicate refits read consecutive lag-aligned rows; a series with gaps is fit by the joint surface bootstrap only",
             ));
         }

@@ -347,7 +347,8 @@ impl IvBoundsEstimator {
         match self.sampling_design {
             SamplingDeclaration::Undeclared
             | SamplingDeclaration::Declared(Design::IndependentSubjectTrajectories) => Ok(()),
-            SamplingDeclaration::Declared(_) => Err(EstimationError::unsupported(
+            SamplingDeclaration::Declared(_) => Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "the IV bounds table carries one row per subject and no cluster or series labels, \
                  so a row-level draw is allowed only under the independent-subject design; next \
                  attempt: declare independent subjects, or omit the bootstrap for the point bounds",
@@ -457,7 +458,8 @@ fn observed_law(cells: &[[f64; 4]; 2]) -> Result<(BinaryIvLaw, [f64; 2]), Estima
     for z in 0..2 {
         let total: f64 = cells[z].iter().sum();
         if !(total.is_finite() && total > 0.0) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("positivity_violated"),
                 "the instrument takes a single value among the complete rows, so the bounds have \
                  no second arm to compare; next attempt: a table in which the instrument varies",
             ));

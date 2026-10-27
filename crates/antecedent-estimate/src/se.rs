@@ -85,7 +85,8 @@ pub use antecedent_stats::DEFAULT_RIDGE_ON_SEPARATION;
 /// Missing ids or length mismatch.
 pub(crate) fn require_clusters(ids: Option<&[u32]>, n: usize) -> Result<&[u32], EstimationError> {
     let Some(ids) = ids else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "AnalyticSeKind::Cluster/PanelClusterHac requires estimator.cluster_ids",
         ));
     };
@@ -178,7 +179,8 @@ pub(crate) fn require_panel_times(
     n: usize,
 ) -> Result<&[i64], EstimationError> {
     let Some(times) = times else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "AnalyticSeKind::PanelClusterHac requires estimator.panel_times",
         ));
     };
@@ -201,7 +203,8 @@ pub(crate) fn require_multiway(
     n: usize,
 ) -> Result<&[Vec<u32>], EstimationError> {
     let Some(ids) = ids else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "AnalyticSeKind::Multiway requires estimator.multiway_ids",
         ));
     };
@@ -647,7 +650,8 @@ pub(crate) fn influence_se_kind(
             hetero_influence_se(psi) * ((n - 1.0) / n).sqrt()
         }
         AnalyticSeKind::Hc2 | AnalyticSeKind::Hc3 => {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("estimator_inference_mismatch"),
                 "Hc2/Hc3 leverage corrections are not implemented for influence-function SEs; \
                  use Hc0 (√(Σ(ψ−ψ̄)²)/n) or Hc1 (√(Σ(ψ−ψ̄)²/(n(n−1))))",
             ));
@@ -673,7 +677,8 @@ pub(crate) fn influence_se_kind(
                         )));
                     }
                     None => {
-                        return Err(EstimationError::unsupported(
+                        return Err(EstimationError::unsupported_coded(
+                            antecedent_core::reason_code!("required_option_missing"),
                             "AnalyticSeKind::NeweyWest with retained/matched rows requires estimator.panel_times; consecutive IF indices are not calendar time",
                         ));
                     }

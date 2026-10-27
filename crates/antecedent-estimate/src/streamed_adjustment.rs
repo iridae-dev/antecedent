@@ -169,7 +169,8 @@ impl LinearAdjustmentAte {
         ceiling_bytes: u64,
     ) -> Result<StreamedAdjustmentEstimate, EstimationError> {
         if !self.supports_streamed_reduction() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "a streamed reduction needs least squares with unit weights, a homoskedastic or \
                  HC0 standard error, no bootstrap, clustering, panel structure or contrasts",
             ));
@@ -184,7 +185,8 @@ impl LinearAdjustmentAte {
         )?;
         validate_ate_query_with_targets(query)?;
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "a streamed reduction estimates the all-observed population",
             ));
         }
@@ -203,7 +205,8 @@ impl LinearAdjustmentAte {
         let column = |id| -> Result<&[f64], EstimationError> {
             match data.column(id)? {
                 ColumnView::Float64(c) => Ok(c.values.as_slice()),
-                _ => Err(EstimationError::unsupported(
+                _ => Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "a streamed reduction reads float64 design columns",
                 )),
             }

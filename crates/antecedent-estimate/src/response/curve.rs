@@ -257,7 +257,8 @@ impl ContinuousResponseEstimator {
                 ));
             }
             if matches!(intervention, Intervention::Soft { .. } | Intervention::Sequence(_)) {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "soft and sequenced intervention responses require a structural model",
                 ));
             }

@@ -213,7 +213,8 @@ impl GlmAdjustmentAte {
         }
         query.validate()?;
         if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
                 "GLM adjustment does not support effect modifiers",
             ));
         }
@@ -224,7 +225,8 @@ impl GlmAdjustmentAte {
                 | TargetPopulation::Untreated
                 | TargetPopulation::Predicate(_)
         ) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "GLM adjustment supports AllObserved, Treated, Untreated, or Predicate",
             ));
         }

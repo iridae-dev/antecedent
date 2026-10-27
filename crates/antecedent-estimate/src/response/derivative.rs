@@ -199,7 +199,8 @@ impl ContinuousResponseEstimator {
         weighting: &DerivativeWeighting,
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
         if !matches!(weighting, DerivativeWeighting::Observed) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "Gaussian-score Riesz ADE currently supports observed-law weighting only",
             ));
         }

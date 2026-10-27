@@ -221,7 +221,8 @@ impl LinearAdjustmentAte {
     /// Materialize the frame before calling [`Self::prepare`].
     #[must_use = "the refusal is the decision not to read the scan"]
     pub fn reject_stream(_scan: &StreamingScan) -> EstimationError {
-        EstimationError::unsupported(
+        EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "linear adjustment cannot stream; materialize the frame or refuse it",
         )
     }
@@ -318,7 +319,8 @@ impl LinearAdjustmentAte {
                 crate::prepare::materialized_adjustment_design
             }
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "linear adjustment requires retained rows; streamed and lazy preparation are unavailable",
                 ));
             }
@@ -473,12 +475,14 @@ impl LinearAdjustmentAte {
             "adjustment roles must be unique and exclude treatment and outcome",
         )?;
         if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "checked linear adjustment currently supports the mean outcome functional",
             ));
         }
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "checked linear adjustment lowering currently supports AllObserved population averaging",
             ));
         }

@@ -84,7 +84,8 @@ impl ContinuousResponseEstimator {
                 }
                 Ok(Some(ResponseInfluence { columns, row_index: row_ids(&run.keep)? }))
             }
-            _ => Err(EstimationError::unsupported(
+            _ => Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "derivative influence serves the derivative functionals only",
             )),
         }

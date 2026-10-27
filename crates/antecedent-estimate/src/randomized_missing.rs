@@ -237,9 +237,10 @@ fn observation_probabilities(
         observed[i] && fit.probabilities[i] <= OBSERVATION_PROBABILITY_FLOOR * (1.0 + 1e-9)
     });
     if at_floor {
-        return Err(EstimationError::Unsupported {
-            message: "responder weighting has an observation probability at the positivity floor",
-        });
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
+            "responder weighting has an observation probability at the positivity floor",
+        ));
     }
     Ok(fit.probabilities)
 }

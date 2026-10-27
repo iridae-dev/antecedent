@@ -934,13 +934,15 @@ fn refuse_multi_step_schedule(
 ) -> Result<(), EstimationError> {
     match policy {
         antecedent_core::TemporalPolicy::Dynamic { active_at, .. } if active_at.len() != 1 => {
-            Err(EstimationError::unsupported(
+            Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "TemporalPolicy::Dynamic with multiple active steps is not supported by \
                  temporal linear adjustment (use a single-step schedule)",
             ))
         }
         antecedent_core::TemporalPolicy::Sustained { from, until } if until > from => {
-            Err(EstimationError::unsupported(
+            Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "TemporalPolicy::Sustained spanning multiple steps is not supported by \
                  temporal linear adjustment: the identified estimand contrasts every \
                  treatment-time node, and a single-column regression would silently \
@@ -1136,7 +1138,8 @@ fn outcome_sample_anchor(
 
 pub(crate) fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
     if offset > 0 {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "positive offsets (future treatment/outcome) unsupported for temporal adjustment",
         ));
     }

@@ -392,10 +392,14 @@ pub fn require_gaussian_mediation(
     estimator: &BayesianGComputationAte,
 ) -> Result<(), EstimationError> {
     if estimator.likelihood != BayesLikelihood::GaussianIdentity {
-        return Err(EstimationError::unsupported("Bayesian mediation requires GaussianIdentity"));
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "Bayesian mediation requires GaussianIdentity",
+        ));
     }
     if estimator.backend == crate::BayesianBackendKind::Hmc {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
             "composed mediation HMC requires derived-contrast chain diagnostics; use conjugate or Laplace",
         ));
     }

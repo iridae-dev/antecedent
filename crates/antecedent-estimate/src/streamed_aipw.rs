@@ -308,7 +308,8 @@ impl AipwAte {
         fold_seed: u64,
     ) -> Result<AipwInputs<'a>, EstimationError> {
         if !self.supports_streamed_reduction() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "a streamed reduction needs the default logistic propensity, untrimmed weights, \
                  the iid standard error, and no sampling weights, clustering, cluster-DML or \
                  bootstrap",
@@ -326,14 +327,16 @@ impl AipwAte {
         }
         query.validate()?;
         if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
                 "propensity estimators do not support effect modifiers",
             ));
         }
         if query.target_population != TargetPopulation::AllObserved
             || query.outcome_functional != OutcomeFunctional::Mean
         {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "a streamed reduction estimates the all-observed mean effect",
             ));
         }
@@ -355,7 +358,8 @@ impl AipwAte {
         let column = |id| -> Result<&'a [f64], EstimationError> {
             match data.column(id)? {
                 ColumnView::Float64(c) => Ok(c.values.as_slice()),
-                _ => Err(EstimationError::unsupported(
+                _ => Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "a streamed reduction reads float64 design columns",
                 )),
             }
@@ -393,7 +397,8 @@ impl AipwAte {
             return Err(EstimationError::data_msg("no complete-case rows for propensity design"));
         }
         if elsewhere > 0 {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "the treatment has rows at neither declared level; a streamed reduction does \
                  not exclude them",
             ));

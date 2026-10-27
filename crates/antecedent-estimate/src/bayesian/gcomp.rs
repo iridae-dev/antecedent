@@ -212,7 +212,8 @@ impl BayesianGComputationAte {
         }
         query.validate()?;
         if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
                 "Bayesian g-comp does not support effect modifiers",
             ));
         }
@@ -805,7 +806,8 @@ fn temper_likelihood(
         SerialDependence::Iid => None,
         SerialDependence::LongRunTempering(scope) => {
             if problem.unit_ids.is_some() {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("option_not_applicable"),
                     "long-run tempering applies to one time-ordered series, not stacked \
                      panel units",
                 ));
@@ -818,7 +820,8 @@ fn temper_likelihood(
         }
         SerialDependence::SegmentedTempering { scope, segments } => {
             if problem.unit_ids.is_some() {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("option_not_applicable"),
                     "segmented tempering applies to one series with gaps, not stacked panel units",
                 ));
             }

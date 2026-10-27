@@ -109,7 +109,8 @@ pub(crate) fn plan_temporal_intervention(
         ));
     }
     if interventions.len() > 1 {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "temporal InterventionResponse supports one primary intervention \
              (use Sequence for multi-step or joint policies)",
         ));
@@ -262,7 +263,8 @@ pub(super) fn resolve_one(
         },
         Intervention::Sequence(seq) => {
             if depth > 0 {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "Intervention::Sequence nested inside a Sequence is not licensed for \
                      temporal InterventionResponse",
                 ));
@@ -275,7 +277,8 @@ pub(super) fn resolve_one(
             }
             resolve_one(&seq.steps[0].intervention, depth + 1)
         }
-        Intervention::Stochastic { .. } => Err(EstimationError::unsupported(
+        Intervention::Stochastic { .. } => Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "stochastic interventions are not licensed on the temporal InterventionResponse path",
         )),
         other => Err(EstimationError::data_msg(format!(
@@ -293,7 +296,8 @@ fn plan_sequence(
         return Err(EstimationError::unsupported("empty Intervention::Sequence"));
     }
     if depth > 0 {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "Intervention::Sequence nested inside a Sequence is not licensed for \
              temporal InterventionResponse",
         ));
@@ -302,7 +306,8 @@ fn plan_sequence(
     let mut leaves = Vec::with_capacity(seq.steps.len());
     for step in seq.steps.iter() {
         if matches!(step.intervention, Intervention::Sequence(_)) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "Intervention::Sequence nested inside a Sequence is not licensed for \
                  temporal InterventionResponse",
             ));
@@ -365,7 +370,8 @@ fn sequence_overlay_offsets(
     let mut explicit = Vec::with_capacity(leaves.len());
     for (_, _, _, offsets) in leaves {
         let [at] = offsets.as_ref() else {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "each Sequence step must be a Pulse or single-time window",
             ));
         };

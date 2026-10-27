@@ -29,7 +29,10 @@ use super::{
 };
 
 fn non_derivative_functional() -> EstimationError {
-    EstimationError::unsupported("Bayesian derivative estimation requires a derivative functional")
+    EstimationError::unsupported_coded(
+        antecedent_core::reason_code!("route_not_supported"),
+        "Bayesian derivative estimation requires a derivative functional",
+    )
 }
 
 /// One streamed response grid.
@@ -203,7 +206,8 @@ impl ContinuousResponseEstimator {
         }
         self.validate(query, identification_status)?;
         if self.options.export_row_diagnostics {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
                 "Bayesian response does not export frequentist row influence diagnostics",
             ));
         }
@@ -217,7 +221,8 @@ impl ContinuousResponseEstimator {
             }
             ResponseFunctional::InterventionResponse { outcome, interventions } => {
                 if interventions.iter().any(|iv| matches!(iv, Intervention::Sequence(_))) {
-                    return Err(EstimationError::unsupported(
+                    return Err(EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("route_not_supported"),
                         "static Bayesian response does not accept temporal Sequence",
                     ));
                 }
@@ -240,7 +245,8 @@ impl ContinuousResponseEstimator {
                 (*outcome, t, vec![level], true)
             }
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "Bayesian response supports MeanCurve, InterventionResponse, and derivative functionals",
                 ));
             }
@@ -251,7 +257,8 @@ impl ContinuousResponseEstimator {
         let sample = CompleteSample::read(data, outcome, &treatments, &self.adjustment_set)?;
         let family = estimator.glm_family();
         if stochastic && !matches!(family, antecedent_stats::GlmFamily::GaussianIdentity) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "non-Gaussian Bayesian response does not integrate stochastic policies by their mean",
             ));
         }
@@ -551,7 +558,8 @@ impl ContinuousResponseEstimator {
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<CausalResponse, EstimationError> {
         if estimator.prior.is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
                 "coefficient priors require a mapping to the Riesz/local-polynomial/GAM parameterization; a linear response prior cannot be silently ignored",
             ));
         }
@@ -627,7 +635,8 @@ impl ContinuousResponseEstimator {
             return Err(non_derivative_functional());
         };
         if !matches!(weighting, DerivativeWeighting::Observed) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "Bayesian ADE currently supports observed-law weighting only",
             ));
         }

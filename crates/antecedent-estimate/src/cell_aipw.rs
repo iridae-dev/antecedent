@@ -123,7 +123,8 @@ impl CellSaturatedAipw {
         spec: &CellScoreSpec<'_>,
     ) -> Result<ScoreTable, EstimationError> {
         if spec.treatments.is_empty() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "cell-saturated AIPW requires at least one binary treatment",
             ));
         }
@@ -146,12 +147,16 @@ impl CellSaturatedAipw {
         let CellScoreSpec { treatments, outcome, adjustment, functional, continuous } = *spec;
         let SharedCellInputs { fold_ids, design } = shared;
         if treatments.is_empty() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "cell-saturated AIPW requires at least one binary treatment",
             ));
         }
         if continuous.is_some() {
-            return Err(EstimationError::unsupported(POINT_CDE_UNLICENSED));
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                POINT_CDE_UNLICENSED,
+            ));
         }
         let mut prepared = prepare_cells(data, treatments, outcome, adjustment, continuous)?;
         if let Some(ids) = fold_ids {
@@ -249,7 +254,10 @@ fn prepare_cells(
     ids.push(outcome);
     ids.extend_from_slice(adjustment);
     if continuous.is_some() {
-        return Err(EstimationError::unsupported(POINT_CDE_UNLICENSED));
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            POINT_CDE_UNLICENSED,
+        ));
     }
     if let Some(c) = continuous {
         ids.push(c.variable);
@@ -446,7 +454,7 @@ fn crossfit_cell_scores(
                         }
                     }
                     if seen_cells.iter().any(|seen| !seen) {
-                        return Err(EstimationError::unsupported(
+                        return Err(EstimationError::unsupported_coded(antecedent_core::reason_code!("positivity_violated"), 
                             "unsupported cell: cross-fit training fold is missing a joint treatment combination",
                         ));
                     }
@@ -745,7 +753,8 @@ pub fn family_cell_contrast(
             let first = table.columns.first().and_then(|c| c.threshold);
             let n_mean = table.columns.iter().filter(|c| c.threshold == first).count();
             if n_mean < 4 || !n_mean.is_power_of_two() {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "family interaction contrast requires a 2^k cell table with k >= 2 factors",
                 ));
             }
@@ -771,7 +780,8 @@ pub fn cell_minus_control_coefficients(
     requested_arm: u32,
 ) -> Result<Vec<f64>, EstimationError> {
     if table.distinct_threshold_count() > 1 {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "cell_minus_control on an exceedance grid is not licensed; request a single threshold",
         ));
     }
@@ -804,7 +814,8 @@ pub fn cell_minus_control_coefficients(
 /// An exceedance grid, or a mean-column count that is not `2^k` with `k >= 2`.
 pub fn interaction_coefficients(table: &ScoreTable) -> Result<Vec<f64>, EstimationError> {
     if table.distinct_threshold_count() > 1 {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "interaction contrast on an exceedance grid is not licensed; request a single Exceedance threshold or a raw coefficient vector",
         ));
     }
@@ -817,7 +828,8 @@ pub fn interaction_coefficients(table: &ScoreTable) -> Result<Vec<f64>, Estimati
         .map(|(i, _)| i)
         .collect();
     if mean_cols.len() < 4 || !mean_cols.len().is_power_of_two() {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "interaction contrast requires a 2^k cell table with k >= 2 factors",
         ));
     }
@@ -858,7 +870,8 @@ pub(crate) fn contrast_from_summary(
     let coeffs = if spec == "interaction" {
         interaction_coefficients(table)?
     } else if spec == "cell_minus_control" {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "cell_minus_control requires a requested arm; use family_cell_contrast",
         ));
     } else if let Some(raw) = parse_coefficients(spec) {

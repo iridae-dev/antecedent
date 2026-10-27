@@ -76,7 +76,8 @@ pub(crate) fn require_supported_inference(
         || spec.multiway_ids.is_some()
         || spec.panel_times.is_some()
     {
-        return Err(crate::error::EstimationError::unsupported(
+        return Err(crate::error::EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("option_not_applicable"),
             "propensity weighting and stratification publish a fixed analytic standard error; \
              se_kind, multiway_ids and panel_times are not read, so they must stay undeclared",
         ));
@@ -369,13 +370,13 @@ mod tests {
         weighting.inference.se_kind = crate::se::AnalyticSeKind::Hc1;
         assert!(matches!(
             weighting.prepare(&data, &estimand, &query).unwrap_err(),
-            EstimationError::Unsupported { .. }
+            EstimationError::UnsupportedCoded { code: "option_not_applicable", .. }
         ));
         let mut stratification = PropensityStratification::new();
         stratification.inference.panel_times = Some(vec![0; 200]);
         assert!(matches!(
             stratification.prepare(&data, &estimand, &query).unwrap_err(),
-            EstimationError::Unsupported { .. }
+            EstimationError::UnsupportedCoded { code: "option_not_applicable", .. }
         ));
         assert!(!{
             let mut streamed = PropensityWeighting::new().with_bootstrap_replicates(0);

@@ -268,12 +268,14 @@ pub fn estimate_sustained_window_gaps_if(
 {
     let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, inference.status)?;
     if inference.bayesian.is_some_and(|est| est.likelihood != BayesLikelihood::GaussianIdentity) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "sequential Bayesian g-computation requires GaussianIdentity",
         ));
     }
     if inference.bayesian.is_some_and(|est| est.backend == crate::BayesianBackendKind::Hmc) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
             "composed sustained HMC requires derived-contrast chain diagnostics; use conjugate or Laplace",
         ));
     }
@@ -315,12 +317,14 @@ pub fn estimate_sustained_window_with_validation(
     let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, inference.status)?;
     let bayesian = inference.bayesian;
     if bayesian.is_some_and(|est| est.likelihood != BayesLikelihood::GaussianIdentity) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "sequential Bayesian g-computation requires GaussianIdentity",
         ));
     }
     if bayesian.is_some_and(|est| est.backend == crate::BayesianBackendKind::Hmc) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
             "composed sustained HMC requires derived-contrast chain diagnostics; use conjugate or Laplace",
         ));
     }
@@ -348,7 +352,8 @@ fn sustained_contrast_overlays(
 ) -> Result<(Vec<SequentialMechanismOverlay>, f64), EstimationError> {
     query.validate()?;
     let TemporalPolicy::Sustained { from, until } = query.policy else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "sequential estimator requires a sustained window",
         ));
     };
@@ -626,12 +631,14 @@ pub fn estimate_sequence_mechanisms(
         ));
     }
     if bayesian.is_some_and(|est| est.likelihood != BayesLikelihood::GaussianIdentity) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "sequential Bayesian g-computation requires GaussianIdentity",
         ));
     }
     if bayesian.is_some_and(|est| est.backend == crate::BayesianBackendKind::Hmc) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
             "composed sequence HMC requires derived-contrast chain diagnostics; use conjugate or Laplace",
         ));
     }
@@ -1310,7 +1317,8 @@ fn estimate_sequential_with_gaps(
 {
     let SequentialInference { status, assumptions, bootstrap_replicates, bayesian } = inference;
     if gaps && bayesian.is_some() && !matches!(eval, SequentialEval::Contrast { .. }) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "a series with gaps is combined with the composed Bayesian posterior for the sustained contrast only: a level also reads root-mean scores with a consecutive-row standard error",
         ));
     }

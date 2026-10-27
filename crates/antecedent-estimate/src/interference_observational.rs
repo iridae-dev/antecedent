@@ -110,7 +110,8 @@ pub fn estimate_observational_exposure(
             | ExposureMapping::NeighborFraction
             | ExposureMapping::WeightedNeighborExposure
     ) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("option_not_applicable"),
             "observational network exposure requires a built-in neighbor exposure mapping",
         ));
     }
@@ -203,7 +204,8 @@ pub fn estimate_observational_exposure(
             maximum_probability.max(spec.propensity_from[i]).max(spec.propensity_to[i]);
     }
     if from_count == 0 || to_count == 0 || from_weight == 0.0 || to_weight == 0.0 {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "observational network contrast requires observed support at both requested exposure levels",
         ));
     }

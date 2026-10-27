@@ -252,7 +252,8 @@ impl PropensityStratification {
                 | TargetPopulation::Untreated
                 | TargetPopulation::Predicate(_)
         ) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "propensity stratification supports AllObserved, Treated, Untreated, or Predicate",
             ));
         }
@@ -868,7 +869,8 @@ mod tests {
             Ok(_) => panic!("singleton arms must be rejected"),
             Err(err) => err,
         };
-        assert!(matches!(err, EstimationError::Data(_)));
+        assert_eq!(err.reason_code(), Some("stratum_too_sparse"), "{err}");
+        assert!(err.to_string().contains("stratum 0 has 1 treated and 1 control"), "{err}");
     }
 
     #[test]

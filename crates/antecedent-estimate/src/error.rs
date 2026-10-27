@@ -141,6 +141,17 @@ pub enum EstimationError {
         /// What the caller can do instead.
         remedy: &'static str,
     },
+    /// [`Self::Unsupported`] whose raise site declares the registered reason code: a request
+    /// that, as declared, this route cannot answer (an option, inference mode, estimand or
+    /// support it does not provide). The rendered message is byte-identical to the
+    /// [`Self::Unsupported`] it replaces; the code is read with [`Self::reason_code`].
+    #[error("{message}")]
+    UnsupportedCoded {
+        /// Registered reason code (checked with `antecedent_core::reason_code!`).
+        code: &'static str,
+        /// Explanation.
+        message: &'static str,
+    },
     /// [`Self::Unsupported`] that also carries structured diagnostics (see
     /// [`RefusalFields`]). The rendered message is byte-identical to the
     /// [`Self::Unsupported`] with the same message and, as there, no reason code is
@@ -574,6 +585,14 @@ impl EstimationError {
         Self::Unsupported { message }
     }
 
+    /// [`Self::unsupported`] with the registered reason code its raise site declares (see
+    /// [`Self::UnsupportedCoded`]). Pass the code through `antecedent_core::reason_code!` so
+    /// an unregistered code fails to compile.
+    #[must_use]
+    pub const fn unsupported_coded(code: &'static str, message: &'static str) -> Self {
+        Self::UnsupportedCoded { code, message }
+    }
+
     /// Fixed unsupported query option that names a remedy (see
     /// [`Self::UnsupportedWithRemedy`]).
     #[must_use]
@@ -719,10 +738,10 @@ impl EstimationError {
                 reason_code!("required_option_missing")
             }),
             Self::IncompatibleEstimand { .. } => Some(reason_code!("strategy_incompatible")),
-            Self::EffectModifiers => Some(reason_code!("route_not_supported")),
-            // A plain `Unsupported` message mixes scientific limits with malformed input across
-            // hundreds of raise sites; a code inferred from its wording could misname the
-            // refusal, so it carries none until its raise site declares one.
+            Self::EffectModifiers => Some(reason_code!("option_not_applicable")),
+            Self::UnsupportedCoded { code, .. } => Some(code),
+            // A plain `Unsupported` is malformed input or an operational limit, or a refusal
+            // whose raise site has not declared its code; a code is never inferred from wording.
             _ => None,
         }
     }
@@ -978,7 +997,7 @@ mod tests {
             code(EstimationError::IncompatibleEstimand { message: "expects an iv estimand" }),
             Some("strategy_incompatible")
         );
-        assert_eq!(code(EstimationError::EffectModifiers), Some("route_not_supported"));
+        assert_eq!(code(EstimationError::EffectModifiers), Some("option_not_applicable"));
         // A plain `Unsupported` carries no inferred code.
         assert_eq!(
             code(EstimationError::unsupported("sharp RD does not support effect modifiers")),

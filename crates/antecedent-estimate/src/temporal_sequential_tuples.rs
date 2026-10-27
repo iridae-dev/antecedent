@@ -125,7 +125,8 @@ pub fn prepare_sequence_level(
                 | IdentificationStatus::IdentifiedUnderParametricRestrictions
         )
     {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("strategy_incompatible"),
             "sequential overlay requires an identified unfolded design",
         ));
     }

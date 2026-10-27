@@ -91,7 +91,8 @@ impl ContinuousResponseEstimator {
         let (outcomes, treatments, at, direction) = match functional {
             ResponseFunctional::Jacobian { outcomes, treatments, at, scale } => {
                 if *scale != DerivativeScale::Identity {
-                    return Err(EstimationError::unsupported(
+                    return Err(EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("route_not_supported"),
                         "the plug-in gradient interval is constructed on the identity scale only",
                     ));
                 }
@@ -101,7 +102,8 @@ impl ContinuousResponseEstimator {
                 (outcomes, treatments, at, Some(direction))
             }
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "the plug-in gradient interval serves Jacobian and directional derivatives",
                 ));
             }

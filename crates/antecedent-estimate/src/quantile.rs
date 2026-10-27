@@ -206,7 +206,8 @@ fn quantile_arm_at(
     support: &crate::scores::ScoreSupport,
 ) -> Result<QuantileArm, EstimationError> {
     if !support.overlap.overlap_ok {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "quantile inversion requires supported target overlap",
         ));
     }
