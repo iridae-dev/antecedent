@@ -250,7 +250,9 @@ fn inspect_container_metadata(bytes: &[u8], depth: usize) -> PyResult<String> {
             }));
         }
         let (names, inner) =
-            if marker.starts_with("ANTECEDENT-TEMPORAL-") || marker == "ANTECEDENT-LEARNED-TRIAL" {
+            if marker.starts_with("ANTECEDENT-TEMPORAL-")
+                || matches!(marker, "ANTECEDENT-LEARNED-TRIAL" | "ANTECEDENT-SCENARIO-COVARIANCE")
+            {
                 (Vec::<String>::new(), payload.to_vec())
             } else {
                 antecedent_io::convert::from_cbor::<(Vec<String>, Vec<u8>)>(payload)
@@ -265,6 +267,12 @@ fn inspect_container_metadata(bytes: &[u8], depth: usize) -> PyResult<String> {
         }));
     }
     if !bytes.starts_with(antecedent_io::container::MAGIC) {
+        if antecedent_io::array_fit_artifact::inspect_array_fit_header(bytes).map_err(serialization_error)? {
+            return json(&serde_json::json!({
+                "manifest": {"artifact_kind": {"other": "array_fit_replay_v1"}},
+                "metadata": {"encoded_payload_bytes": bytes.len(), "validation": "requires_independent_refit"},
+            }));
+        }
         let metadata: serde_json::Value =
             antecedent_io::convert::from_cbor(bytes).map_err(serialization_error)?;
         let kind = metadata

@@ -138,6 +138,13 @@ impl PreparedStudy {
 
     fn rebind_input(&self, data: DataInput, ctx: &ExecutionContext) -> Result<Self, CausalError> {
         let mut analysis = self.analysis.clone();
+        if let DataInput::Tabular(units) = &data {
+            // The fixed interference network and assignment describe the units of
+            // the retained table; a branch on new observations of the same units
+            // binds them to that table, as a fresh preparation on it would.
+            analysis.interference =
+                analysis.interference.as_ref().map(|spec| spec.bound_to(units)).transpose()?;
+        }
         analysis.data = data;
         // Identification caches are immutable, key-checked scientific products. A new
         // physical plan admits the new row count; preparation retains no old fitted law.

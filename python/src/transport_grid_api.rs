@@ -269,11 +269,8 @@ impl PreparedTransportGridStage {
     }
     fn preview_transform(&self, intent: &str) -> PyResult<BTreeMap<String, String>> {
         let intent = crate::prepared_api::parse_transform_intent(intent)?;
-        let GridPreparation::Ready(value) = &self.inner else {
-            return Err(crate::unsupported_message(
-                "deferred transport grid: use rebind or bind_snapshot",
-            ));
-        };
+        // A deferred grid previews through its retained provider, shared with later estimates.
+        let value = self.inner.materialize(&self.ctx(None))?;
         Ok(crate::prepared_api::transform_report_map(
             &value.preview_transform(intent).map_err(error)?,
         )

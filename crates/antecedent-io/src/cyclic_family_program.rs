@@ -867,7 +867,7 @@ impl<'a> FitDependencies<'a> {
     }
 }
 
-fn fit_dependency_identity(request: &R) -> Result<String, CyclicArtifactError> {
+pub(super) fn fit_dependency_identity(request: &R) -> Result<String, CyclicArtifactError> {
     let digest = super::retained_recovery::json_digest(
         "antecedent.cyclic_family.fit_dependencies",
         &FitDependencies::of(request),

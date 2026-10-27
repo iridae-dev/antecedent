@@ -27,6 +27,37 @@ fn operation_error(error: impl std::error::Error + 'static, ctx: &ExecutionConte
     }
     let mut cause: &(dyn std::error::Error + 'static) = &error;
     loop {
+        if let Some(CyclicArtifactError::RecoveryFit(failure)) =
+            cause.downcast_ref::<CyclicArtifactError>()
+        {
+            use antecedent_estimate::experimental_fit::ExperimentalFitError;
+            return match failure {
+                ExperimentalFitError::BudgetExceeded { .. }
+                | ExperimentalFitError::ResourceOverflow => {
+                    crate::CausalResourceError::new_err(failure.to_string())
+                }
+                _ => crate::value_err(failure.to_string()),
+            };
+        }
+        if let Some(CyclicArtifactError::WorldRefusal(refusal)) =
+            cause.downcast_ref::<CyclicArtifactError>()
+        {
+            return world_refusal_error(refusal);
+        }
+        if let Some(refusal) =
+            cause.downcast_ref::<antecedent_model::cyclic_world::CyclicInterventionRefusal>()
+        {
+            return world_refusal_error(refusal);
+        }
+        if let Some(CyclicArtifactError::ScientificRefusal {
+            code,
+            detail,
+            message,
+            next_attempt,
+        }) = cause.downcast_ref::<CyclicArtifactError>()
+        {
+            return scientific_error(code, detail, message, next_attempt);
+        }
         if matches!(
             cause.downcast_ref::<CyclicArtifactError>(),
             Some(CyclicArtifactError::Cancelled)
@@ -55,6 +86,43 @@ fn operation_error(error: impl std::error::Error + 'static, ctx: &ExecutionConte
             None => return crate::value_err(error.to_string()),
         }
     }
+}
+
+fn world_refusal_error(
+    refusal: &antecedent_model::cyclic_world::CyclicInterventionRefusal,
+) -> PyErr {
+    use antecedent_model::cyclic_world::CyclicRefusalKind;
+    match &refusal.kind {
+        CyclicRefusalKind::Capability { .. } | CyclicRefusalKind::Evidence { .. } => {
+            scientific_error(
+                antecedent_core::reason_code!("route_not_supported"),
+                &format!("cyclic_world.{}", refusal.operation),
+                &refusal.to_string(),
+                refusal.next_attempt.sentence(),
+            )
+        }
+        CyclicRefusalKind::Execution { .. } => {
+            crate::CausalResourceError::new_err(refusal.to_string())
+        }
+        _ => crate::value_err(refusal.to_string()),
+    }
+}
+
+fn scientific_error(code: &str, detail: &str, message: &str, next_attempt: &str) -> PyErr {
+    Python::attach(|py| {
+        let build = || -> PyResult<PyErr> {
+            let fields = pyo3::types::PyDict::new(py);
+            fields.set_item("code", code)?;
+            fields.set_item("detail", detail)?;
+            fields.set_item("message", message)?;
+            fields.set_item("remedy", next_attempt)?;
+            fields.set_item("next_attempt", next_attempt)?;
+            let class = pyo3::types::PyModule::import(py, "antecedent.errors")?
+                .getattr("StructuredRefusal")?;
+            Ok(PyErr::from_value(class.call1((fields,))?))
+        };
+        build().unwrap_or_else(|error| error)
+    })
 }
 
 fn replay_error(error: impl std::error::Error + 'static, ctx: &ExecutionContext) -> PyErr {
@@ -913,10 +981,10 @@ impl PyCyclicExecution {
         if self.world_view_kind().is_some() {
             return Ok(());
         }
-        Err(crate::value_err(format!(
-            "cyclic artifact invalid: family `{}` has no intervention worlds; next attempt: declare the worlds as typed interventions with `linear_worlds`, `equilibrium_worlds`, `ode_worlds`, `recovered_linear` or `experimental_recovery`",
-            self.owner.family_name(),
-        )))
+        Err(scientific_error(antecedent_core::reason_code!("route_not_supported"),
+            "cyclic_family.intervention_worlds_unavailable",
+            &format!("family `{}` has no declared intervention worlds",self.owner.family_name()),
+            "declare the worlds as typed interventions with `linear_worlds`, `equilibrium_worlds`, `ode_worlds`, `recovered_linear` or `experimental_recovery`"))
     }
 
     fn world_view_kind(&self) -> Option<&'static str> {
@@ -1760,7 +1828,7 @@ impl PyCyclicEvidence {
                 })
             })
             .collect::<Vec<_>>();
-        Ok(serde_json::json!({"identity":self.inner.identity(),"source_identity":self.inner.source_identity(),"scope":self.inner.scope(),"source_bridge":self.inner.system_bridge(),"column_count":columns.len(),"offset":offset,"columns":page,"next_offset":(end<columns.len()).then_some(end)}).to_string())
+        Ok(serde_json::json!({"identity":self.inner.identity(),"source_identity":self.inner.source_identity(),"scope":self.inner.scope(),"source_bridge":self.inner.system_bridge(),"recovery_origins":self.inner.report().recovery_origins.as_ref(),"column_count":columns.len(),"offset":offset,"columns":page,"next_offset":(end<columns.len()).then_some(end)}).to_string())
     }
 
     fn report(&self) -> PyResult<String> {
@@ -1778,9 +1846,11 @@ impl PyCyclicEvidence {
         let bytes = py.detach(|| self.inner.export(&ctx)).map_err(|e| operation_error(e, &ctx))?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
-    #[pyo3(signature=(*,max_bytes=None,cancel=None))]
+    #[pyo3(signature=(*,others=None,dependence=None,max_bytes=None,cancel=None))]
     fn joint_law(
         &self,
+        others: Option<Vec<PyRef<'_, PyCyclicEvidence>>>,
+        dependence: Option<&str>,
         max_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<crate::distribution_api::PyJointDistributionArtifact> {
@@ -1788,16 +1858,36 @@ impl PyCyclicEvidence {
         if ctx.cancellation.is_cancelled() {
             return Err(crate::CausalCancelledError::new_err("cancelled"));
         }
-        let samples =
-            self.inner.report().columns.iter().map(|c| c.samples.len() as u64).sum::<u64>();
+        if dependence.is_some_and(|value| !matches!(value, "aligned" | "independent")) {
+            return Err(crate::value_err("dependence must be aligned or independent"));
+        }
+        let others = others.unwrap_or_default();
+        if others.len() > 256 {
+            return Err(crate::value_err("at most 256 additional evidence products"));
+        }
+        let references = others.iter().map(|item| &item.inner).collect::<Vec<_>>();
+        let samples = std::iter::once(&self.inner)
+            .chain(references.iter().copied())
+            .flat_map(|item| item.report().columns.iter())
+            .try_fold(0_u64, |sum, column| sum.checked_add(column.samples.len() as u64))
+            .ok_or_else(|| {
+                crate::CausalResourceError::new_err("joint law sample count overflow")
+            })?;
         let _lease = ctx
-            .acquire_admission(0, samples.saturating_mul(32))
-            .map_err(|e| operation_error(e, &ctx))?;
-        Ok(crate::distribution_api::PyJointDistributionArtifact {
-            artifact: self.inner.joint_law().map_err(|e| operation_error(e, &ctx))?,
-            source_claim: None,
-        })
+            .acquire_admission(
+                0,
+                samples.checked_mul(32).ok_or_else(|| {
+                    crate::CausalResourceError::new_err("joint law allocation overflow")
+                })?,
+            )
+            .map_err(|error| operation_error(error, &ctx))?;
+        let artifact = self
+            .inner
+            .joint_law_with(&references, dependence)
+            .map_err(|error| operation_error(error, &ctx))?;
+        Ok(crate::distribution_api::PyJointDistributionArtifact { artifact, source_claim: None })
     }
+
     #[pyo3(signature=(contract_json, *, max_bytes=None, cancel=None))]
     fn decide_enclosures(
         &self,

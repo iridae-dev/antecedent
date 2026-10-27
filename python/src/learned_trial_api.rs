@@ -6,6 +6,9 @@ use antecedent_core::{
 use antecedent_estimate::{TrialAipwInput, TrialAipwOptions};
 use pyo3::{prelude::*, types::PyBytes};
 use std::sync::Arc;
+
+#[path = "learned_trial_readmodel.rs"]
+mod readmodel;
 fn err(e: impl crate::transport_common::TransportPyErr) -> PyErr {
     crate::transport_common::error(e)
 }
@@ -37,9 +40,9 @@ fn trial_payload(result: &antecedent::LearnedTrialResult, compact: bool) -> PyRe
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PreparedLearnedTrial {
-    inner: Option<antecedent::PreparedStudy<antecedent::LearnedTrialState>>,
-    names: Vec<String>,
-    last: Option<antecedent::LearnedTrialResult>,
+    inner: Option<Arc<antecedent::PreparedStudy<antecedent::LearnedTrialState>>>,
+    names: Arc<[String]>,
+    last: Option<Arc<antecedent::LearnedTrialResult>>,
     seed: u64,
     memory_bytes: Option<u64>,
 }
@@ -61,16 +64,16 @@ impl PreparedLearnedTrial {
         let inner = self.inner.clone().ok_or_else(|| err("loaded claims cannot execute"))?;
         let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(err))?;
         let payload = trial_payload(&result, compact)?;
-        self.last = Some(result);
+        self.last = Some(Arc::new(result));
         Ok(payload)
     }
     /// Native four-slot reasoning: the executed result's own view once estimated, else
     /// the not-yet-executed view of the prepared identification (identification is a
     /// property of the accepted certificate, not of a fitted estimate).
     fn reasoning(&self) -> Option<antecedent_contract::ReasoningView> {
-        self.last.as_ref().map(antecedent::LearnedTrialResult::reasoning).or_else(|| {
+        self.last.as_deref().map(antecedent::LearnedTrialResult::reasoning).or_else(|| {
             self.inner
-                .as_ref()
+                .as_deref()
                 .map(antecedent::PreparedStudy::<antecedent::LearnedTrialState>::inspect)
         })
     }
@@ -108,7 +111,7 @@ impl PreparedLearnedTrial {
             })?
             .with_seed(seed, &ctx)
             .map_err(err)?;
-        Ok(Self { inner: Some(inner), seed, last: None, ..self.clone() })
+        Ok(Self { inner: Some(Arc::new(inner)), seed, last: None, ..self.clone() })
     }
     #[pyo3(signature=(data,cancel=None))]
     fn bind_snapshot(
@@ -123,7 +126,7 @@ impl PreparedLearnedTrial {
             crate::refusal("route_not_supported", "loaded trial claims do not restore preparation")
         })?;
         let inner = crate::detach_catch(py, move || inner.bind_snapshot(input, &ctx).map_err(err))?;
-        Ok(Self { inner: Some(inner), last: None, ..self.clone() })
+        Ok(Self { inner: Some(Arc::new(inner)), last: None, ..self.clone() })
     }
     #[pyo3(signature=(graph, selections, source, target, treatment, outcome, options, *, seed=1, memory_bytes=None, cancel=None))]
     fn reconfigure(
@@ -139,7 +142,7 @@ impl PreparedLearnedTrial {
         memory_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Self> {
-        if graph.names != self.names {
+        if graph.names.as_slice() != self.names.as_ref() {
             return Err(err(
                 "trial reconfiguration requires the retained variable coordinate schema",
             ));
@@ -162,22 +165,22 @@ impl PreparedLearnedTrial {
             })?
             .reconfigure(diagram, query, options, &ctx)
             .map_err(err)?;
-        Ok(Self { inner: Some(inner), seed, memory_bytes, last: None, names: self.names.clone() })
+        Ok(Self { inner: Some(Arc::new(inner)), seed, memory_bytes, last: None, names: self.names.clone() })
     }
     fn last_result_summary(&self) -> PyResult<String> {
-        trial_payload(self.last.as_ref().ok_or_else(|| err("execute before reading result"))?, true)
+        trial_payload(self.last.as_deref().ok_or_else(|| err("execute before reading result"))?, true)
     }
     fn freeze(&self) -> Self {
         self.clone()
     }
     fn export(&self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
-        let result = self.last.as_ref().ok_or_else(|| err("execute before exporting"))?;
+        let result = self.last.as_deref().ok_or_else(|| err("execute before exporting"))?;
         let mut bytes = b"ANTECEDENT-LEARNED-TRIAL\x01".to_vec();
         bytes.extend(result.export().map_err(err)?);
         Ok(PyBytes::new(py, &bytes).unbind())
     }
     fn inspection_json(&self) -> String {
-        let uncertainty = self.last.as_ref().map(antecedent::LearnedTrialResult::estimate);
+        let uncertainty = self.last.as_deref().map(antecedent::LearnedTrialResult::estimate);
         let reasoning = self.reasoning();
         let identification_available =
             reasoning.as_ref().is_some_and(|r| r.identification.is_available());
@@ -190,12 +193,12 @@ impl PreparedLearnedTrial {
             "support":{"available":self.last.is_some(),"summary":"trial_and_target_overlap_required", "payload": {"overlap":uncertainty.map(|r| r.overlap),"slot":reasoning.as_ref().map(|r| crate::transport_common::support_slot_json(&r.support))}},
             "uncertainty":{"available":uncertainty.is_some_and(|r| r.interval.is_some()),"summary":"joint_outer_bootstrap_uncalibrated","reason":uncertainty.and_then(|r| r.uncertainty_reason.as_deref()),"payload":{"calibration_status":"not_bound_to_this_execution"}},
             "assumptions":{"available":reasoning.as_ref().is_some_and(|r| r.assumptions.is_available()),"summary":"declared_randomization_sampling_and_nuisance_models","payload":{"obligations":reasoning.as_ref().map(|r| crate::transport_common::obligation_ids(&r.assumptions))}},
-            "execution_id":self.last.as_ref().map(antecedent::LearnedTrialResult::identity)
+            "execution_id":self.last.as_deref().map(antecedent::LearnedTrialResult::identity)
         }).to_string()
     }
     fn last_result(&self) -> PyResult<String> {
         serde_json::to_string(
-            self.last.as_ref().ok_or_else(|| err("execute before reading result"))?.estimate(),
+            self.last.as_deref().ok_or_else(|| err("execute before reading result"))?.estimate(),
         )
         .map_err(err)
     }
@@ -229,11 +232,8 @@ impl PreparedLearnedTrial {
     ) -> PyResult<()> {
         let input = parse_input(data, &self.names)?;
         let ctx = self.ctx(cancel);
-        self.inner
-            .as_mut()
-            .ok_or_else(|| err("loaded claims cannot refresh"))?
-            .replace_snapshot(input, &ctx)
-            .map_err(err)?;
+        let inner = self.inner.as_mut().ok_or_else(|| err("loaded claims cannot refresh"))?;
+        Arc::make_mut(inner).replace_snapshot(input, &ctx).map_err(err)?;
         self.last = None;
         Ok(())
     }
@@ -294,8 +294,8 @@ fn prepare_learned_trial(
         antecedent::StudyBuilder::learned_trial_transport(diagram, query, input, options, &ctx)
             .map_err(err)?;
     Ok(PreparedLearnedTrial {
-        inner: Some(inner),
-        names: graph.names.clone(),
+        inner: Some(Arc::new(inner)),
+        names: Arc::from(graph.names.clone()),
         last: None,
         seed,
         memory_bytes,
@@ -309,14 +309,15 @@ fn consume_learned_trial(bytes: &[u8]) -> PyResult<PreparedLearnedTrial> {
     let result = antecedent::LearnedTrialResult::consume(payload).map_err(err)?;
     Ok(PreparedLearnedTrial {
         inner: None,
-        names: vec![],
-        last: Some(result),
+        names: Arc::from([]),
+        last: Some(Arc::new(result)),
         seed: 0,
         memory_bytes: None,
     })
 }
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PreparedLearnedTrial>()?;
+    readmodel::register(m)?;
     m.add_function(wrap_pyfunction!(consume_learned_trial, m)?)?;
     m.add_function(wrap_pyfunction!(prepare_learned_trial, m)?)?;
     Ok(())

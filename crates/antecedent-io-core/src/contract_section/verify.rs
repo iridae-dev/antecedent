@@ -72,8 +72,9 @@ pub(in crate::contract_section) fn contract_unresolved(
     note_linear_fit_replay(contract, body, &mut unresolved);
     // This artifact seals one member's recorded family evidence, but does not carry
     // every other query and aligned score table needed to replay family inference.
-    if body.joint_covariance.is_some()
-        || body.simultaneous_interval.is_some()
+    // A covariance alone is the estimator's own summary covariance (an ordinary AIPW
+    // result carries one); only the family-level quantities depend on other queries.
+    if body.simultaneous_interval.is_some()
         || body.adjusted_p_values.is_some()
         || body.family_contrast.is_some()
         || body.family_contrast_interval.is_some()

@@ -123,6 +123,12 @@ impl StudyBuilder {
     }
 }
 impl PreparedStudy<LearnedTrialState> {
+    /// Borrow the exact retained transport proof without identifying or fitting.
+    #[must_use]
+    pub fn identification(&self) -> &TransportIdentification {
+        &self.state.identification
+    }
+
     /// Preview invalidations without fitting or publishing replacement state.
     /// # Errors
     /// Scientific identity encoding failure.
@@ -392,6 +398,22 @@ mod tests {
         assert!((changed.estimate().estimate - 2.0).abs() < 1e-10);
         assert!(changed.estimate().replicates.is_empty());
         assert_eq!(study.estimate(&ctx).unwrap().identity(), baseline.identity());
+    }
+
+    #[test]
+    fn retained_trial_proof_reads_execute_no_scientific_work() {
+        let (diagram, query, input, options) = fixture();
+        let ctx = ExecutionContext::for_tests(8);
+        let study = StudyBuilder::learned_trial_transport(diagram, query, input, options, &ctx).unwrap();
+        let observed = antecedent_core::execution_attempt::observe_execution(|| {
+            let proof = study.identification();
+            assert!(matches!(proof, TransportIdentification::Transportable { .. }));
+            let _ = proof.outcome();
+            let _ = study.inspect();
+            Ok::<_, IoError>(())
+        });
+        assert!(observed.result.is_ok());
+        assert!(observed.report.is_empty());
     }
 
     #[test]

@@ -257,3 +257,34 @@ mod tests {
         assert!(CompiledCyclicFamilyProgram::compile(&retained, &ctx).is_err());
     }
 }
+
+/// Versioned recovery origins, independent of world-only projections.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CyclicRecoveryOrigins {
+    /// Original experimental observations and their regime/population declaration.
+    pub evidence: String,
+    /// Original statistical fit recipe, including its declared inference origin.
+    pub fit: String,
+    /// Exact ordered law, including original weights, origin and failed/unresolved slots.
+    pub law: String,
+    /// Pairing proof for the exact fit recipe and ordered retained law.
+    pub alignment: String,
+    /// Declared prior only, never replaced by a sampling law.
+    pub prior: Option<String>,
+}
+/// Derive origins from native recipe/report parts, never from caller-assigned labels.
+pub fn recovery_origins(request: &R, report: &CyclicFamilyReport) -> Result<Option<CyclicRecoveryOrigins>, CyclicArtifactError> {
+    let R::ExperimentalRecovery { regimes, dropped, samples, .. } = request.recovery_recipe() else { return Ok(None); };
+    let A::ExperimentalRecovery(answer) = &report.answer else { return Err(invalid("experimental recovery source/report mismatch")); };
+    let hex = antecedent_core::to_hex;
+    let evidence = hex(&json_digest("antecedent.cyclic_recovery.evidence.v1", &(regimes,dropped,samples))?);
+    let fit = super::compiled::fit_dependency_identity(request)?;
+    let law = hex(&json_digest("antecedent.cyclic_recovery.ordered_law.v1", answer.law.as_ref())?);
+    let alignment = hex(&json_digest("antecedent.cyclic_recovery.alignment.v1", &(&fit,&law))?);
+    let prior = match &answer.law.origin {
+        super::RecoveredDrawOriginWire::Posterior { prior, .. } => Some(hex(&json_digest("antecedent.cyclic_recovery.prior.v1",prior)?)),
+        _ => None,
+    };
+    Ok(Some(CyclicRecoveryOrigins { evidence,fit,law,alignment,prior }))
+}

@@ -109,6 +109,24 @@ impl CyclicExecutionReport {
 /// Serialization, integrity, identity, scientific or execution failure.
 #[derive(Debug, Error)]
 pub enum CyclicArtifactError {
+    /// Retain recovery failure typing across the native consumer/binding boundary.
+    #[error(transparent)]
+    RecoveryFit(#[from] antecedent_estimate::experimental_fit::ExperimentalFitError),
+    /// Native world resolution retains the scientific/argument/resource distinction.
+    #[error(transparent)]
+    WorldRefusal(#[from] antecedent_model::cyclic_world::CyclicInterventionRefusal),
+    /// A native scientific refusal, distinct from argument, execution and replay failures.
+    #[error("reason={code}: {message}; next attempt: {next_attempt}")]
+    ScientificRefusal {
+        /// Registered native scientific reason.
+        code: &'static str,
+        /// Stable native operation detail.
+        detail: &'static str,
+        /// Scientific limitation/obligation.
+        message: String,
+        /// Concrete applicable next action.
+        next_attempt: String,
+    },
     /// Family size, shape or version limit.
     #[error("cyclic artifact invalid: {0}")]
     Invalid(String),

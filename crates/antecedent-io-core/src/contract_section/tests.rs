@@ -1683,6 +1683,21 @@ fn moment_replay_inverse_is_scale_free_and_refuses_collinear_moments() {
 }
 
 #[test]
+fn an_estimators_own_summary_covariance_is_not_family_evidence() {
+    let (mut body, target, names) = fixture_body();
+    body.joint_covariance = Some(crate::JointCovarianceWire { dim: 1, values: vec![0.04] });
+    let contract = contract_for(target, &body);
+    let encoded = to_bytes(&body, names, Some(&contract));
+    let consumed = consume_analysis_result(&encoded).unwrap();
+    assert_eq!(consumed.body.joint_covariance, body.joint_covariance);
+    assert!(!consumed
+        .acceptance
+        .unresolved
+        .iter()
+        .any(|reason| reason.as_ref() == "dependencies.checked_batch_family_operation"));
+}
+
+#[test]
 fn portable_family_evidence_is_sealed_without_claiming_scalar_replay_verifies_it() {
     let (mut body, target, names) = fixture_body();
     body.joint_covariance = Some(crate::JointCovarianceWire { dim: 1, values: vec![0.04] });

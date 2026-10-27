@@ -207,6 +207,16 @@ impl PreparedStudy {
         spec: &TemporalTreatmentScoreSpec,
         ctx: &ExecutionContext,
     ) -> Result<ArrayFit, CausalError> {
+        self.temporal_treatment_score_owned_with_context(spec.clone(),ctx)
+    }
+
+    /// Transfer owned histories once into the independently replayable nuisance request.
+    ///
+    /// # Errors
+    /// As [`Self::temporal_treatment_score_with_context`].
+    pub fn temporal_treatment_score_owned_with_context(
+        &self, spec: TemporalTreatmentScoreSpec, ctx: &ExecutionContext,
+    ) -> Result<ArrayFit, CausalError> {
         if self.modality == PreparedModality::Series {
             return Err(crate::unsupported_reason!(
                 "route_not_supported",
@@ -226,22 +236,23 @@ impl PreparedStudy {
         let graph = self.plan.temporal_graph().ok_or(CausalError::Compile {
             message: "the prepared panel plan has no resolved temporal graph".into(),
         })?;
-        let subjects = self.analysis.panel_subject_columns(panel, graph, query, ctx)?;
-        let (Some(treatment), true) = (subjects.columns.get(1), subjects.columns.len() > 2) else {
+        let mut subjects = self.analysis.panel_subject_columns(panel, graph, query, ctx)?;
+        if subjects.columns.len() <= 2 {
             return Err(CausalError::Unsupported {
                 message: "a temporal treatment score needs at least one identified adjustment lag \
                           to condition on; the adjustment set of this pulse is empty",
             });
-        };
-        let mut x_colmajor = vec![1.0_f64; subjects.nrows];
-        for column in subjects.columns.iter().skip(2) {
-            x_colmajor.extend_from_slice(column);
         }
+        let treatment=std::mem::take(&mut subjects.columns[1]);
+        let count=subjects.nrows.checked_mul(subjects.columns.len()-1).ok_or_else(||CausalError::Resource { message:"temporal nuisance design size overflow".into() })?;
+        let mut x_colmajor=Vec::with_capacity(count);
+        x_colmajor.resize(subjects.nrows,1.0_f64);
+        for column in subjects.columns.into_iter().skip(2) { x_colmajor.extend(column); }
         let design = PropensityDesignWire {
             x_colmajor,
-            treatment: treatment.clone(),
+            treatment,
             nrows: subjects.nrows,
-            histories: spec.histories.clone(),
+            histories: spec.histories,
         };
         let request = match spec.model {
             TemporalScoreModel::Penalized { penalty } => {

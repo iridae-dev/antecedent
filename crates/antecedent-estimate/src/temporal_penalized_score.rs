@@ -56,15 +56,24 @@ pub struct TemporalPropensityDesign {
     dependence: TrajectoryDependence,
 }
 
-impl TemporalPropensityDesign {
-    /// Assemble a column-major design with an intercept and at least one lag.
+/// A validated immutable propensity design borrowed from a retained native request.
+#[derive(Clone, Copy, Debug)]
+pub struct TemporalPropensityDesignRef<'a> {
+    x_colmajor: &'a [f64],
+    y: &'a [f64],
+    nrows: usize,
+    ncols: usize,
+    dependence: TrajectoryDependence,
+}
+
+impl<'a> TemporalPropensityDesignRef<'a> {
+    /// Validate without copying numerical storage.
     ///
     /// # Errors
-    ///
-    /// A shape mismatch, a non-binary treatment, a missing lag, or a non-finite entry.
+    /// The same shape, finite-value, intercept and binary-treatment conditions as the owned design.
     pub fn try_new(
-        x_colmajor: Vec<f64>,
-        y: Vec<f64>,
+        x_colmajor: &'a [f64],
+        y: &'a [f64],
         nrows: usize,
         dependence: TrajectoryDependence,
     ) -> Result<Self, EstimationError> {
@@ -84,7 +93,6 @@ impl TemporalPropensityDesign {
         finite_column("design", &x_colmajor)?;
         Ok(Self { x_colmajor, y, nrows, ncols, dependence })
     }
-
     const fn refuse_series(&self) -> Result<(), EstimationError> {
         match self.dependence {
             TrajectoryDependence::IndependentSubjects => Ok(()),
@@ -93,6 +101,32 @@ impl TemporalPropensityDesign {
             )),
         }
     }
+}
+
+impl TemporalPropensityDesign {
+    /// Assemble a column-major design with an intercept and at least one lag.
+    ///
+    /// # Errors
+    ///
+    /// A shape mismatch, a non-binary treatment, a missing lag, or a non-finite entry.
+    pub fn try_new(
+        x_colmajor: Vec<f64>,
+        y: Vec<f64>,
+        nrows: usize,
+        dependence: TrajectoryDependence,
+    ) -> Result<Self, EstimationError> {
+        let borrowed = TemporalPropensityDesignRef::try_new(&x_colmajor, &y, nrows, dependence)?;
+        let ncols = borrowed.ncols;
+        Ok(Self { x_colmajor, y, nrows, ncols, dependence })
+    }
+
+
+    /// Borrow the same validated numerical storage without another ownership copy.
+    #[must_use]
+    pub fn as_ref(&self) -> TemporalPropensityDesignRef<'_> {
+        TemporalPropensityDesignRef { x_colmajor: &self.x_colmajor, y: &self.y, nrows: self.nrows, ncols: self.ncols, dependence: self.dependence }
+    }
+
 }
 
 /// Ridge penalty on the temporal propensity. The intercept is unpenalized.
@@ -124,14 +158,25 @@ impl FrequentistTemporalPropensity {
         &self,
         design: &TemporalPropensityDesign,
     ) -> Result<PenalizedPropensityScore, EstimationError> {
+        self.fit_borrowed(&design.as_ref())
+    }
+
+    /// Fit the same scientific model on validated borrowed native storage.
+    ///
+    /// # Errors
+    /// The same fit and resource refusals as the owned design entry point.
+    pub fn fit_borrowed(
+        &self,
+        design: &TemporalPropensityDesignRef<'_>,
+    ) -> Result<PenalizedPropensityScore, EstimationError> {
         design.refuse_series()?;
         let fit = fit_glm_ridge(
             GlmFamily::BinomialLogit,
             GlmDesignRef {
-                x_colmajor: &design.x_colmajor,
+                x_colmajor: design.x_colmajor,
                 nrows: design.nrows,
                 ncols: design.ncols,
-                y: &design.y,
+                y: design.y,
             },
             &FaerBackend,
             &mut LeastSquaresWorkspace::default(),
@@ -214,6 +259,17 @@ impl BayesianTemporalPropensity {
         &self,
         design: &TemporalPropensityDesign,
     ) -> Result<PosteriorPropensity, EstimationError> {
+        self.fit_borrowed(&design.as_ref())
+    }
+
+    /// Fit the same scientific model on validated borrowed native storage.
+    ///
+    /// # Errors
+    /// The same fit and resource refusals as the owned design entry point.
+    pub fn fit_borrowed(
+        &self,
+        design: &TemporalPropensityDesignRef<'_>,
+    ) -> Result<PosteriorPropensity, EstimationError> {
         design.refuse_series()?;
         let mut variance = Vec::with_capacity(design.ncols);
         variance.push(self.intercept_sd * self.intercept_sd);
@@ -233,10 +289,10 @@ impl BayesianTemporalPropensity {
         let fit = fit_laplace_glm_owned(
             BayesLikelihood::BernoulliLogit,
             BayesDesignRef {
-                x_colmajor: &design.x_colmajor,
+                x_colmajor: design.x_colmajor,
                 nrows: design.nrows,
                 ncols: design.ncols,
-                y: &design.y,
+                y: design.y,
                 weights: None,
                 offsets: None,
             },
@@ -478,5 +534,24 @@ mod tests {
         assert_ne!(mean.to_bits(), mode.to_bits());
         assert!((posterior.intercept_sd - 1.0).abs() < 1e-15);
         assert!((posterior.slope_sd - 1.0).abs() < 1e-15);
+    }
+}
+
+#[cfg(test)]
+mod borrowed_design_regression {
+    use super::*;
+    #[test]
+    fn borrowed_temporal_fit_matches_owned_ridge_and_posterior_without_design_copies() {
+        let mut x=vec![1.0;200]; x.extend((0..200).map(|i|if i>=100 {1.0}else{0.0}));
+        let y=(0..200).map(|i|if i<30 || (100..160).contains(&i) {1.0}else{0.0}).collect();
+        let design=TemporalPropensityDesign::try_new(x,y,200,TrajectoryDependence::IndependentSubjects).unwrap();
+        let borrowed=design.as_ref();
+        assert_eq!(borrowed.x_colmajor.as_ptr(),design.x_colmajor.as_ptr());
+        assert_eq!(borrowed.y.as_ptr(),design.y.as_ptr());
+        let ridge=FrequentistTemporalPropensity::new(2.0).unwrap();
+        assert_eq!(ridge.fit(&design).unwrap().coefficients,ridge.fit_borrowed(&borrowed).unwrap().coefficients);
+        let prior=BayesianTemporalPropensity::new(1.0,0.5,8,13).unwrap();
+        let owned=prior.fit(&design).unwrap(); let viewed=prior.fit_borrowed(&borrowed).unwrap();
+        assert_eq!(owned.mode,viewed.mode); assert_eq!(owned.draws,viewed.draws);
     }
 }

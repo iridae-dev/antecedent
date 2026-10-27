@@ -48,16 +48,23 @@ pub struct StaticPropensityDesign {
     ncols: usize,
 }
 
-impl StaticPropensityDesign {
-    /// Assemble a design.
+/// A validated immutable propensity design borrowed from a retained native request.
+#[derive(Clone, Copy, Debug)]
+pub struct StaticPropensityDesignRef<'a> {
+    x_colmajor: &'a [f64],
+    treatment: &'a [f64],
+    nrows: usize,
+    ncols: usize,
+}
+
+impl<'a> StaticPropensityDesignRef<'a> {
+    /// Validate without copying numerical storage.
     ///
     /// # Errors
-    ///
-    /// A shape mismatch, an intercept column that is not identically one, a treatment that is
-    /// not coded 0 or 1, or a non-finite entry.
+    /// The same shape, finite-value, intercept and binary-treatment conditions as the owned design.
     pub fn try_new(
-        x_colmajor: Vec<f64>,
-        treatment: Vec<f64>,
+        x_colmajor: &'a [f64],
+        treatment: &'a [f64],
         nrows: usize,
     ) -> Result<Self, EstimationError> {
         if nrows == 0 || treatment.len() != nrows {
@@ -80,6 +87,30 @@ impl StaticPropensityDesign {
         }
         Ok(Self { x_colmajor, treatment, nrows, ncols })
     }
+}
+
+impl StaticPropensityDesign {
+    /// Assemble a design.
+    ///
+    /// # Errors
+    ///
+    /// A shape mismatch, an intercept column that is not identically one, a treatment that is
+    /// not coded 0 or 1, or a non-finite entry.
+    pub fn try_new(
+        x_colmajor: Vec<f64>,
+        treatment: Vec<f64>,
+        nrows: usize,
+    ) -> Result<Self, EstimationError> {
+        let borrowed = StaticPropensityDesignRef::try_new(&x_colmajor, &treatment, nrows)?;
+        let ncols = borrowed.ncols;
+        Ok(Self { x_colmajor, treatment, nrows, ncols })
+    }
+    /// Borrow the same validated numerical storage without another ownership copy.
+    #[must_use]
+    pub fn as_ref(&self) -> StaticPropensityDesignRef<'_> {
+        StaticPropensityDesignRef { x_colmajor: &self.x_colmajor, treatment: &self.treatment, nrows: self.nrows, ncols: self.ncols }
+    }
+
 }
 
 /// Gaussian prior and draw settings of the propensity posterior.
@@ -115,6 +146,17 @@ impl PropensityCoefficientPrior {
         &self,
         design: &StaticPropensityDesign,
     ) -> Result<PropensityCoefficientPosterior, EstimationError> {
+        self.fit_borrowed(&design.as_ref())
+    }
+
+    /// Fit the same scientific model on validated borrowed native storage.
+    ///
+    /// # Errors
+    /// The same fit and resource refusals as the owned design entry point.
+    pub fn fit_borrowed(
+        &self,
+        design: &StaticPropensityDesignRef<'_>,
+    ) -> Result<PropensityCoefficientPosterior, EstimationError> {
         let prior = PriorSet {
             specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(
                 design.ncols,
@@ -128,10 +170,10 @@ impl PropensityCoefficientPrior {
         let fit = fit_laplace_glm_owned(
             BayesLikelihood::BernoulliLogit,
             BayesDesignRef {
-                x_colmajor: &design.x_colmajor,
+                x_colmajor: design.x_colmajor,
                 nrows: design.nrows,
                 ncols: design.ncols,
-                y: &design.treatment,
+                y: design.treatment,
                 weights: None,
                 offsets: None,
             },
@@ -360,5 +402,24 @@ mod tests {
         let posterior = fit(2.0);
         assert!(posterior.score_at(&[1.0], 0.1).is_err());
         assert!(posterior.score_at(&[1.0, 0.0], 0.5).is_err());
+    }
+}
+
+#[cfg(test)]
+mod borrowed_design_regression {
+    use super::*;
+    #[test]
+    fn borrowed_and_owned_laplace_paths_share_inputs_and_identical_mode_draws() {
+        let mut x=vec![1.0;200]; x.extend((0..200).map(|i|if i>=100 {1.0}else{0.0}));
+        let y=(0..200).map(|i|if i<30 || (100..160).contains(&i) {1.0}else{0.0}).collect();
+        let design=StaticPropensityDesign::try_new(x,y,200).unwrap();
+        let borrowed=design.as_ref();
+        assert_eq!(borrowed.x_colmajor.as_ptr(),design.x_colmajor.as_ptr());
+        assert_eq!(borrowed.treatment.as_ptr(),design.treatment.as_ptr());
+        let prior=PropensityCoefficientPrior::new(2.0,8,13).unwrap();
+        let owned=prior.fit(&design).unwrap();
+        let viewed=prior.fit_borrowed(&borrowed).unwrap();
+        assert_eq!(owned.mode,viewed.mode); assert_eq!(owned.draws,viewed.draws);
+        assert!((viewed.score_at(&[1.0,0.0],0.05).unwrap().at_mode-0.305_098).abs()<1e-4);
     }
 }

@@ -1265,7 +1265,7 @@ pub(crate) mod tests {
         let prep = boot.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = FrontDoorWorkspace::default();
         let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        let point_only = FrontDoorTwoStage { bootstrap_replicates: 0, ..boot.clone() };
+        let point_only = boot.clone().with_bootstrap_replicates(0);
         let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!(point.se_bootstrap().is_none());
         let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();

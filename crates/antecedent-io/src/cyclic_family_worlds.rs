@@ -76,13 +76,8 @@ const MAX_DRAWS: usize = 10_000;
 /// Largest number of observed values over every regime column.
 const MAX_EXPERIMENT_VALUES: usize = 20_000_000;
 
-/// Next attempt named when a recovered law is asked for anything but a hard clamp.
-const RECOVERED_CLAMP_ONLY: &str = "a recovered law is evaluated under hard clamps only; next \
-    attempt: evaluate the shift or mechanism replacement on a specified linear family \
-    (`linear_worlds`) built from the recovered draw it should condition on";
-
-fn refused(refusal: impl std::fmt::Display) -> CyclicArtifactError {
-    CyclicArtifactError::Invalid(refusal.to_string())
+fn refused(refusal: antecedent_model::cyclic_world::CyclicInterventionRefusal) -> CyclicArtifactError {
+    CyclicArtifactError::WorldRefusal(refusal)
 }
 
 // ---------------------------------------------------------------------------
@@ -1286,18 +1281,15 @@ fn check_recovery_design(
     let Some(declared) = options.sampling_design else {
         return Ok(());
     };
-    let prefix = antecedent_core::reason_code::PREFIX;
     let code = antecedent_core::reason_code!("estimator_inference_mismatch");
     let origin = match inference {
         RecoveryInferenceWire::Bootstrap { design, .. } if *design == declared => return Ok(()),
         RecoveryInferenceWire::Bootstrap { design, .. } => {
-            return Err(invalid(format!(
-                "{prefix}{code}: the bootstrap resamples under the `{}` design but the rows \
-                 declare `{}`; next attempt: use a bootstrap under the declared `{}` design",
-                design.label(),
-                declared.label(),
-                declared.label(),
-            )));
+            return Err(CyclicArtifactError::ScientificRefusal {
+                code, detail: "cyclic_recovery.bootstrap_sampling_design_mismatch",
+                message: format!("the bootstrap resamples under the `{}` design but the rows declare `{}`",design.label(),declared.label()),
+                next_attempt: format!("use a bootstrap under the declared `{}` design",declared.label()),
+            });
         }
         RecoveryInferenceWire::AsymptoticNormal { .. } => "asymptotic_normal",
         RecoveryInferenceWire::Posterior { .. } => "posterior",
@@ -1305,14 +1297,11 @@ fn check_recovery_design(
     match declared {
         SamplingDesignWire::IndependentSubjectTrajectories => Ok(()),
         SamplingDesignWire::ClusteredPanel | SamplingDesignWire::DependentTimeSeries => {
-            Err(invalid(format!(
-                "{prefix}{code}: the `{origin}` origin treats rows as independent within each \
-                 regime, which the declared `{}` design does not allow; next attempt: use a \
-                 bootstrap under the declared `{}` design, which resamples the unit the design \
-                 names",
-                declared.label(),
-                declared.label(),
-            )))
+            Err(CyclicArtifactError::ScientificRefusal {
+                code, detail: "cyclic_recovery.row_independence_unlicensed",
+                message: format!("the `{origin}` origin treats rows as independent within each regime, which the declared `{}` design does not allow",declared.label()),
+                next_attempt: format!("use a bootstrap under the declared `{}` design, which resamples the unit the design names",declared.label()),
+            })
         }
     }
 }
@@ -1496,12 +1485,13 @@ fn recovered_clamp(
                 values.push(*level);
             }
             other => {
-                return Err(invalid(format!(
-                    "world {}: `{}` on variable {}: {RECOVERED_CLAMP_ONLY}",
-                    request.world().raw(),
-                    other.kind(),
-                    other.variable().raw()
-                )));
+                return Err(CyclicArtifactError::ScientificRefusal {
+                    code: antecedent_core::reason_code!("route_not_supported"),
+                    detail: "cyclic_recovery.hard_clamp_required",
+                    message: format!("world {}: `{}` on variable {}: a recovered law supports hard clamps only",
+                        request.world().raw(),other.kind(),other.variable().raw()),
+                    next_attempt: "evaluate this action on a separately declared eligible specified model; keep the recovered law and its original uncertainty origin explicit".into(),
+                });
             }
         }
     }
@@ -1509,7 +1499,7 @@ fn recovered_clamp(
 }
 
 fn fit_error(error: &ExperimentalFitError) -> CyclicArtifactError {
-    invalid(format!("experimental recovery refused: {error}"))
+    CyclicArtifactError::RecoveryFit(error.clone())
 }
 
 #[cfg(test)]
@@ -1977,5 +1967,50 @@ pub(super) fn intervention_worlds(
             })
             .collect(),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod preparation_status_tests {
+    use super::*;
+    use super::super::{CompiledCyclicFamilyProgram, CyclicFamilyRequest as R};
+    use antecedent_core::ExecutionContext;
+    use antecedent_model::cyclic_world::CyclicRefusalKind;
+
+    fn request() -> R {
+        serde_json::from_str(include_str!("../../../parity/cyclic/recovered-asymptotic-normal/request.json")).unwrap()
+    }
+    fn with_worlds(mut request: R, selected: Vec<CyclicWorldWire>) -> R {
+        let R::ExperimentalRecovery { worlds, .. } = &mut request else { panic!("recovery fixture") };
+        *worlds = selected;
+        request
+    }
+    fn world(action: CyclicInterventionWire) -> CyclicWorldWire {
+        CyclicWorldWire { world: 7, interventions: vec![action], initial_states: vec![] }
+    }
+    #[test]
+    fn native_preparation_distinguishes_capability_and_invalid_worlds_without_fitting() {
+        let ctx = ExecutionContext::for_tests(19);
+        let fits = recovery_fit_count();
+        let original = request();
+        let scientific = with_worlds(original.clone(), vec![world(CyclicInterventionWire::Shift { variable: 0, delta: 1.0 })]);
+        assert!(matches!(CompiledCyclicFamilyProgram::compile(&scientific,&ctx), Err(CyclicArtifactError::ScientificRefusal { code: "route_not_supported", detail: "cyclic_recovery.hard_clamp_required", .. })));
+        let corrected = with_worlds(scientific, vec![world(CyclicInterventionWire::Set { variable: 0, value: 3.0 })]);
+        assert!(CompiledCyclicFamilyProgram::compile(&corrected,&ctx).is_ok());
+        let duplicate = world(CyclicInterventionWire::Set { variable: 0, value: 3.0 });
+        assert!(matches!(CompiledCyclicFamilyProgram::compile(&with_worlds(original.clone(),vec![duplicate.clone(),duplicate]),&ctx), Err(CyclicArtifactError::Invalid(message)) if message.contains("next attempt")));
+        let malformed = with_worlds(original,vec![world(CyclicInterventionWire::Soft { variable: 0, family: "linear_mechanism".into(), parameters: vec![1.0] })]);
+        assert!(matches!(CompiledCyclicFamilyProgram::compile(&malformed,&ctx), Err(CyclicArtifactError::WorldRefusal(error)) if matches!(error.kind,CyclicRefusalKind::SoftParameterShape { .. })));
+        assert_eq!(recovery_fit_count(),fits);
+    }
+    #[test]
+    fn design_status_is_typed_without_a_fit_or_method_substitution() {
+        let ctx = ExecutionContext::for_tests(19);
+        let fits = recovery_fit_count();
+        let mut request = request();
+        let R::ExperimentalRecovery { options, .. } = &mut request else { panic!("recovery fixture") };
+        options.sampling_design = Some(SamplingDesignWire::DependentTimeSeries);
+        assert!(matches!(CompiledCyclicFamilyProgram::compile(&request,&ctx), Err(CyclicArtifactError::ScientificRefusal { code: "estimator_inference_mismatch", .. })));
+        assert_eq!(recovery_fit_count(),fits);
     }
 }
