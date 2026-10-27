@@ -76,6 +76,18 @@ runtime = "up to 1 min"
 claim = "Randomized reminder effect of 2 sessions in a simulated fixture; the host reads support and acceptance fields and applies its own policy. Loading an artifact does not recreate a live study."
 
 [[example]]
+id = "when_overlap_fails"
+title = "Follow a refusal when the comparison group does not overlap"
+summary = "Ask a job-training effect on the treated from a non-experimental comparison group, read the positivity_violated refusal, follow its trim remedy and see how far the answer moves."
+python = "examples/python/when_overlap_fails.py"
+topic = "Tutorials"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+unreleased = true
+claim = "A propensity model with scores at the boundary refuses as positivity_violated without a declared overlap policy; a declared trim estimates on the common-support treated rows and reports the excluded fraction. Real data are evidence about overlap, never known causal truth; offline runs use a synthetic stand-in."
+
+[[example]]
 id = "observational_study"
 title = "Estimate a training programme's effect from observational data"
 summary = "Estimate a job-training effect on participants from a non-experimental comparison group: see weighting refuse without overlap, restrict to common support, and compare with the experiment."

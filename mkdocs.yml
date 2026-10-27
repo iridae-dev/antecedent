@@ -47,6 +47,7 @@ nav:
   - Stop, continue or run longer: tutorials/decide-under-uncertainty.md
   - Replay and current decisions: tutorials/replay-and-current-decisions.md
   - Estimate an effect from observational data: tutorials/observational-study.md
+  - When the comparison group does not overlap: tutorials/when-overlap-fails.md
   - Use an analysis inside an application: tutorials/application-component.md
 - Guides:
   - Data and inputs:
