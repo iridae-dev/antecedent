@@ -960,3 +960,7 @@ mod tests {
         assert_ne!(a.cohort_digest, b.cohort_digest);
     }
 }
+
+#[cfg(test)]
+#[path = "transported_effect_premise_tests.rs"]
+mod premise_tests;

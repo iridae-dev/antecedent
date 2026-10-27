@@ -25,4 +25,27 @@ test_sources = [
   "crates/antecedent-learn/src/transported_effect.rs (module unit tests: hand-computed weighted cohort means, support-box and declaration refusals)",
   "crates/antecedent-design/tests/decision_transported_source.rs",
   "crates/antecedent-design/tests/inverse_forward_source.rs",
+ "crates/antecedent-learn/src/transported_effect_premise_tests.rs (identity-link refusal, weight validation, row-order invariance, closed support box)",
+ "crates/antecedent/tests/transported_cohort_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "transport_cohort_effect, assess_overlap, TargetCohort::validate and the declaration/model checks in crates/antecedent-learn/src/transported_effect.rs: applying a retained identity-scale conditional-contrast model to a declared target cohort and returning the weight-normalized mean of its row predictions, point only, behind a declared selection-shift premise and a fitted-support box check. Not a review of how the retained model's conditional contrast was identified or fitted in the source population, of the higher-level analysis facade, or of interval/law requests (refused)."
+assumptions = ["The retained model's conditional contrast tau(x) is a valid causal contrast in the source population (identification and fit are outside this module).", "Selection-diagram premise: the selection node points only into the declared effect modifiers, and the modifiers are exactly the model's features, so tau(x) is the same function in the target population; the module checks this structurally and never tests it.", "Overlap is only a necessary condition: every target row must lie inside the per-feature min/max box of the fitted rows; no positivity or density-ratio guarantee follows, and the value stays extrapolative inside the box where the source had no data.", "Target cohort weights are non-negative, finite and sum to one within the declared tolerance; the cohort mean is the weighted sum of row predictions with compensated summation."]
+historical_exposure = "The earlier record listed no observed implementations; historical author exposure cannot be independently established. This review read the product source and its unit tests and wrote additional assertions; no upstream implementation or test source was consulted or copied."
+redistribution = "Repository-authored code and tests under MIT OR Apache-2.0; cited papers are linked by DOI, not redistributed."
+limitations = "The primary papers were not re-read in this review (the copies reachable from this environment were scanned or paywalled); the section citations are inherited from the earlier record, and the implementation was checked against the rules as the reviewer understands them and against an independent enumeration instead. A mistake in how the record states a theorem would therefore not be detected here. The module implements no published algorithm: the two cited papers only state the selection-diagram premise and generalization conditions, and the estimator is a weighted mean of a model's own predictions. No weighting of the source sample (no inverse-odds-of-selection weights) and no variance, interval or law is produced; the support box is a coarse necessary check that cannot detect interior gaps. The hand-computed value is one three-row linear model. The Python and facade layers that call this function are not covered here. Calibration remains deferred."
+sources = ["https://doi.org/10.1214/14-STS486", "https://doi.org/10.1111/j.1467-985X.2010.00673.x"]
+findings_resolved = ["Checked the refusal order and each guard against the code: cohort shape and weight normalization, model validity and identity link, strict named-feature schema, the shift declaration (different populations, selection children inside the modifiers, modifiers equal to the model's features), then overlap (a disjoint feature, then any row outside the box), then prediction.", "Re-derived the unit test's hand value (rows tau = 1, 3, -1 with weights 0.5, 0.25, 0.25 give 1.0) and found the inline tests cover the declaration, overlap and identity cases but not the identity-link refusal, weight validation, row-order invariance or the closed box.", "Added executing assertions in a separate test module: a probability-scale (logistic) predictor is refused as not a treatment contrast while the identity scale is accepted; unnormalized and negative weights are refused; the mean equals the hand-computed weighted contrast and is invariant to row reordering; the support box is closed at its endpoints and a zero-weight row outside it is still refused; a differently named cohort column is a schema mismatch.", "No defect requiring a change to the transport code was found. Code edits: a new unit-test module (crates/antecedent-learn/src/transported_effect_premise_tests.rs, included from transported_effect.rs); no change to the estimator."]
+record_sha256 = "4e1c3d47bb1ed4ed56602f7a929edb683087d5eb011b0c45c57fb12004b9d978"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-learn/src/transported_effect.rs"
+sha256 = "21c0f91e653a14e669ea9d9d9d9a607b2dc49a70af4ff9015e16e03d441e7be1"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-learn/src/transported_effect_premise_tests.rs"
+sha256 = "5d78ce2ab561470264fa37bf80a31a9632130e70aef63d801bea76eb4c844505"

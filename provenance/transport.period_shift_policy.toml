@@ -22,3 +22,29 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-design/tests/transported_evaluation.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "evaluate_temporal_policy and verify_temporal_policy in crates/antecedent-design/src/temporal_policy_transport.rs, with the shared declaration and target-law checks (declared_shifts, check_target_initial, evaluate_under_initial) in transported_policy.rs: the value of a fixed contingent policy in a later period of the same finite sequential model when every dynamic mechanism is declared time-invariant over a fixed horizon and only the initial-state law moves. Point value only; not a review of the enumeration internals beyond their use (see the policy-evaluation record) or of any drift model."
+assumptions = ["Every mechanism of the model is declared invariant or shifted; only the initial-state law may be shifted, and a transition, observation or utility marked shifted is refused as time-varying. Time invariance is a declared scientific premise, never tested here.", "One fixed horizon shared by the model, the declaration and the target period, and an identical history alphabet (the same actions in order and the same observation symbols) so the policy table is valid in the target period without re-keying.", "The target period's initial-state law is supplied and its support lies inside the source period's.", "The sequential identification premises of the underlying enumeration (exchangeability given the information set, consistency, positivity) hold in both periods."]
+historical_exposure = "The earlier record listed no observed implementations; historical author exposure cannot be independently established. This review read the product source and the integration tests with their hand-derived values; no upstream implementation or test source was consulted or copied."
+redistribution = "Repository-authored code and tests under MIT OR Apache-2.0; cited papers are linked by DOI, not redistributed."
+limitations = "The primary papers were not re-read in this review (the copies reachable from this environment were scanned or paywalled); the section citations are inherited from the earlier record, and the implementation was checked against the rules as the reviewer understands them and against an independent enumeration instead. A mistake in how the record states a theorem would therefore not be detected here. Original bounded engineering over the same enumeration as population transport with time as the index; no published algorithm is implemented and no period-drift model exists beyond the supplied initial law. A simultaneous population and period change is not representable. Point value; no uncertainty. The only independent value is the same hand-derived closed form (7.5 - 10p, 1.5 at p = 0.6), so a defect common to the shared enumeration would be caught only by that closed form. Calibration remains deferred."
+sources = ["https://doi.org/10.1214/14-STS486"]
+findings_resolved = ["Checked the refusal chain against the code: missing invariance declaration, missing target law, blank or identical target period, declaration bound to other periods, horizon mismatch among model, declaration and target, and an incompatible history alphabet each refuse with a named detail, before any enumeration.", "Checked that the temporal route calls the shared declaration check with the utility not allowed to shift, so a shifted utility is refused as time-varying, and the shared target-law check (support inside the source, consistency with the declared initial-state status).", "Re-derived the hand value at the target law (0.4, 0.6): 7.5 - 10 * 0.6 = 1.5, against the source value 2.5, and confirmed the integration test asserts both, replays by verify_temporal_policy, and that a different target law changes the identity.", "No defect requiring a change was found and no code was changed."]
+record_sha256 = "44ec71fb97904c11d15b2134524935941e0c6b78cc49b0c0ce13026e9ceb4388"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/temporal_policy_transport.rs"
+sha256 = "168a2aa5852cf75c1f7ace2aa99a06c5518c32b5a2125cfa621eb6cd0151d68e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/transported_policy.rs"
+sha256 = "7ffea30d2c61563e20516ad4744365f6d02559d659ca0072ec217840f933ef3c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/transported_evaluation.rs"
+sha256 = "07d1203a50f0390fddfb81a9aa65586e6116434e6de25edd2fb2436e9bd2598e"

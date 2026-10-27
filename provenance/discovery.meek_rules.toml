@@ -9,7 +9,12 @@ papers = [
  { title = "Causal Inference and Causal Explanation with Background Knowledge", doi = "10.48550/arXiv.1302.4972", sections = ["orientation rules R1-R4"] },
 ]
 
-implementation_deviations = []
+implementation_deviations = [
+ "Rules are applied through a worklist: a rule examines only the nodes in a delta queue (seeded with every node, then the endpoints and neighbours of each change) and the run ends only after a quiet pass has been confirmed by a full scan; the result is the same closure as an exhaustive sweep when the scheduling is complete.",
+ "Triples flagged ambiguous in the orientation state (no separating set or a tied majority vote) are skipped by R1 and by the non-collider test inside R3; Meek's rules have no such state.",
+ "An orientation that would create a directed cycle is not applied: the conflict is counted, the edge is marked as a conflict (x-x) and the run continues, instead of failing; this is repository policy for contradictory inputs.",
+ "R4 uses the form a - b, a - c, c -> d -> b, a adjacent d, c not adjacent b, and is intended for graphs carrying background knowledge; the generic rule bodies serve static graphs, and the temporal CPDAG applies the same bodies under a contemporaneous-slice predicate.",
+]
 
 upstream_implementations_observed = []
 
@@ -17,4 +22,26 @@ test_sources = [
  "crates/antecedent-discovery/src/orientation_tests.rs",
  "crates/antecedent-discovery/src/pc.rs unit tests",
  "crates/antecedent-discovery/src/ges.rs unit tests",
+ "crates/antecedent-discovery/src/orientation_tests.rs::essential_graph_enumeration (R1-R3 against enumerated equivalence classes of all 543 four-node DAGs, with an incompleteness control)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The four Meek orientation rules (MeekR1-MeekR4, apply_meek_r1..r4) and their queue-driven fixed-point driver (drive_to_fixed_point, run_orientation_to_fixed_point) in crates/antecedent-discovery/src/orientation.rs, applied to a partially directed graph on one static slice. Not a review of collider orientation from separating sets, of the contemporaneous/temporal scope predicates used by PCMCI+, of FCI/R1-R10 rules, or of the skeleton search that supplies the input."
+assumptions = ["Input is a PDAG whose directed edges are exactly the v-structure legs of the true DAG's equivalence class (with correct skeleton); the rules are then sound, and R1-R3 complete, for the essential graph (Meek's theorem as the reviewer understands it).", "Faithfulness and causal sufficiency are assumed upstream; the rules encode only graphical closure, no statistical test.", "Triples marked ambiguous by the caller (no separating set or tied vote) are not used as definite non-colliders by R1 and R3; this is a repository policy, not part of Meek's rules.", "R4 is needed only with background knowledge; the implementation's R4 requires a - b, a - c undirected, c -> d -> b, a adjacent to d and c not adjacent to b."]
+historical_exposure = "The earlier record listed no observed implementations; historical author exposure cannot be independently established. This review read the product source and wrote an independent enumeration reference (all DAGs on four labelled nodes, their equivalence classes by direct enumeration); no upstream implementation or test source was consulted or copied."
+redistribution = "The enumeration reference is repository-authored under MIT OR Apache-2.0 and runs in the crate's unit tests. The primary paper is linked by DOI, not redistributed."
+limitations = "The primary papers were not re-read in this review (the copies reachable from this environment were scanned or paywalled); the section citations are inherited from the earlier record, and the implementation was checked against the rules as the reviewer understands them and against an independent enumeration instead. A mistake in how the record states a theorem would therefore not be detected here. Exhaustive comparison covers four-node DAGs only (543 labelled DAGs); R4 is not exercised by it because no background knowledge is supplied there, and its premise is checked only by the existing contemporaneous R4 unit test. Cycle conflicts mark the edge x-x and continue instead of raising, a repository policy outside Meek's rules whose effect on a sound input is nil (no conflict arises) but on a contradictory input is a conflict count. Static and temporal graphs share the generic rule bodies; the temporal scope variants are covered only by their own existing tests. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1302.4972", "https://arxiv.org/abs/1302.4972"]
+findings_resolved = ["Checked each rule body against the rule statement: R1 (a -> b - c, a not adjacent c => b -> c), R2 (a -> b -> c and a - c => a -> c), R3 (a - b, a - c -> b, a - d -> b, c not adjacent d => a -> b) and R4; the premise checks use parents/children/undirected neighbours as stated.", "Checked the queue discipline: an orientation enqueues both endpoints and their neighbours, which includes the focus node of each rule's premise (the middle node for R1, the origin for R2-R4), and a quiescent queue is confirmed by one full scan before the fixed point is declared; no missed application was found by reading.", "Added an executing independent reference: for every labelled DAG on four nodes the equivalence class is enumerated directly (all acyclic orientations of the skeleton with the same v-structures), the essential graph is read off as the edges on which all members agree, and R1-R3 from the v-structure-only pattern must reproduce it edge for edge (543 DAGs). A control asserts that dropping R3 (and R2) is detected as incomplete by the same enumeration.", "Recorded the ambiguous-triple suppression, the cycle-conflict policy and the focus-queue scheduling as deviations. No defect requiring an implementation change was found. Code edits: a new test module appended to crates/antecedent-discovery/src/orientation_tests.rs only."]
+record_sha256 = "0d61213d1eb5751c73a28107ca25b251df3a0da29413489fcdd4a8c582cbc576"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/orientation.rs"
+sha256 = "249ef3a38d0f3fd66d5ee18f3640e40fb4926320e788bb97a144021327f50231"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/src/orientation_tests.rs"
+sha256 = "0f8d7b066088970e40675a4e2501a6a39c53382005c9948a4319c57fef807bf4"

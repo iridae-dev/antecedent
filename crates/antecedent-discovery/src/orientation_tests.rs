@@ -417,3 +417,155 @@ fn context_and_lag_zero_are_contemporaneous() {
     assert!(crate::pcmci_plus::is_contemp_node(&g, ctx));
     assert!(!crate::pcmci_plus::is_contemp_node(&g, past));
 }
+
+/// Independent enumeration reference for the Meek rules. For every labelled DAG on four
+/// nodes, the Markov equivalence class is enumerated directly (every orientation of the
+/// skeleton that is acyclic and has the same v-structures), and an edge of the essential
+/// graph is directed exactly when all members agree on it. The rules under test start from
+/// the skeleton with only the v-structure legs oriented, as a constraint-based search leaves
+/// it.
+mod essential_graph_enumeration {
+    use std::collections::BTreeSet;
+
+    use super::*;
+
+    const N: usize = 4;
+
+    fn acyclic(arcs: &[(usize, usize)]) -> bool {
+        let mut indegree = [0usize; N];
+        for &(_, to) in arcs {
+            indegree[to] += 1;
+        }
+        let mut ready: Vec<usize> = (0..N).filter(|&v| indegree[v] == 0).collect();
+        let mut seen = 0;
+        while let Some(v) = ready.pop() {
+            seen += 1;
+            for &(from, to) in arcs {
+                if from == v {
+                    indegree[to] -= 1;
+                    if indegree[to] == 0 {
+                        ready.push(to);
+                    }
+                }
+            }
+        }
+        seen == N
+    }
+
+    fn v_structures(arcs: &[(usize, usize)]) -> BTreeSet<(usize, usize, usize)> {
+        let adjacent = |x: usize, y: usize| arcs.contains(&(x, y)) || arcs.contains(&(y, x));
+        let mut out = BTreeSet::new();
+        for c in 0..N {
+            for a in 0..N {
+                for b in (a + 1)..N {
+                    if a != c
+                        && b != c
+                        && arcs.contains(&(a, c))
+                        && arcs.contains(&(b, c))
+                        && !adjacent(a, b)
+                    {
+                        out.insert((a, c, b));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Number of (DAG, edge) disagreements between the rules' output and the essential graph.
+    fn disagreements(rules: &[&dyn OrientationRule<TemporalCpdag>]) -> (usize, usize) {
+        let pairs: Vec<(usize, usize)> =
+            (0..N).flat_map(|i| ((i + 1)..N).map(move |j| (i, j))).collect();
+        let (mut dags, mut wrong) = (0, 0);
+        for code in 0..3usize.pow(u32::try_from(pairs.len()).unwrap()) {
+            let (mut arcs, mut rest) = (Vec::new(), code);
+            for &(i, j) in &pairs {
+                match rest % 3 {
+                    1 => arcs.push((i, j)),
+                    2 => arcs.push((j, i)),
+                    _ => {}
+                }
+                rest /= 3;
+            }
+            if !acyclic(&arcs) {
+                continue;
+            }
+            dags += 1;
+            let colliders = v_structures(&arcs);
+            let skeleton: Vec<(usize, usize)> =
+                arcs.iter().map(|&(p, q)| (p.min(q), p.max(q))).collect();
+            let m = skeleton.len();
+            let mut first: Vec<Option<bool>> = vec![None; m];
+            let mut agree = vec![true; m];
+            for bits in 0..(1usize << m) {
+                let member: Vec<(usize, usize)> = skeleton
+                    .iter()
+                    .enumerate()
+                    .map(|(k, &(a, b))| if (bits >> k) & 1 == 1 { (a, b) } else { (b, a) })
+                    .collect();
+                if !acyclic(&member) || v_structures(&member) != colliders {
+                    continue;
+                }
+                for k in 0..m {
+                    let up = (bits >> k) & 1 == 1;
+                    match first[k] {
+                        None => first[k] = Some(up),
+                        Some(f) if f != up => agree[k] = false,
+                        Some(_) => {}
+                    }
+                }
+            }
+            let mut g = TemporalCpdag::empty();
+            let ids: Vec<DenseNodeId> = (0..N)
+                .map(|i| {
+                    g.add_lagged(
+                        VariableId::from_raw(u32::try_from(i).unwrap()),
+                        Lag::CONTEMPORANEOUS,
+                    )
+                    .unwrap()
+                })
+                .collect();
+            let legs: BTreeSet<(usize, usize)> =
+                colliders.iter().flat_map(|&(a, c, b)| [(a, c), (b, c)]).collect();
+            for &(a, b) in &skeleton {
+                if legs.contains(&(a, b)) {
+                    g.insert_directed(ids[a], ids[b]).unwrap();
+                } else if legs.contains(&(b, a)) {
+                    g.insert_directed(ids[b], ids[a]).unwrap();
+                } else {
+                    g.insert_undirected(ids[a], ids[b]).unwrap();
+                }
+            }
+            run_orientation_to_fixed_point(&mut g, rules, &mut OrientationState::default())
+                .unwrap();
+            for (k, &(a, b)) in skeleton.iter().enumerate() {
+                let edge = g.edge_between(ids[a], ids[b]).unwrap();
+                let correct = if agree[k] {
+                    let (p, q) = if first[k] == Some(true) { (a, b) } else { (b, a) };
+                    edge.parent_child() == Some((ids[p], ids[q]))
+                } else {
+                    edge.is_undirected()
+                };
+                wrong += usize::from(!correct);
+            }
+        }
+        (dags, wrong)
+    }
+
+    #[test]
+    fn rules_one_to_three_complete_every_four_node_pattern_to_its_essential_graph() {
+        let rules: [&dyn OrientationRule<TemporalCpdag>; 3] = [&MeekR1, &MeekR2, &MeekR3];
+        let (dags, wrong) = disagreements(&rules);
+        assert_eq!(dags, 543, "labelled DAGs on four nodes");
+        assert_eq!(wrong, 0, "Meek R1-R3 must reproduce every essential graph");
+    }
+
+    #[test]
+    fn dropping_rule_three_leaves_an_orientation_undone() {
+        // The control: the enumeration is able to detect an incomplete rule set.
+        let rules: [&dyn OrientationRule<TemporalCpdag>; 2] = [&MeekR1, &MeekR2];
+        assert!(disagreements(&rules).1 > 0);
+        let rules: [&dyn OrientationRule<TemporalCpdag>; 1] = [&MeekR1];
+        assert!(disagreements(&rules).1 > 0);
+    }
+}

@@ -24,3 +24,29 @@ test_sources = [
   "crates/antecedent-design/tests/transported_evaluation.rs",
   "python/tests/test_transported_constructors.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "evaluate_transported_policy, verify_transported_policy, declared_shifts, check_target_initial and check_target_utility_declaration in crates/antecedent-design/src/transported_policy.rs, together with the exact history enumeration they call (evaluate_policy / Walker in sequential_evaluation/gformula.rs): the value of a fixed contingent policy in a target population of a finite sequential model when only the initial-state law (and optionally the utility, supplied by the target) differs. Point value only. Not a review of how the source model's mechanisms were learned, of belief updating helpers beyond their use in the value tests, or of policy optimization."
+assumptions = ["Selection-diagram premise, declared per mechanism and never assumed: every transition and observation mechanism is invariant between source and target; only the initial-state law may be declared shifted, and the utility only when the target supplies its own with a source label and digest.", "Sequential identification premises of the underlying enumeration: exchangeability of the per-action interventional laws given the information set, consistency, and positivity of the policy's actions on every reachable history; none is testable from the model.", "Overlap: every state with target mass has source mass, so mechanisms are evidenced wherever the target goes.", "The target initial law is supplied by the caller (it cannot come from the source); a target law that differs from the source's while the initial state is declared invariant is refused."]
+historical_exposure = "The earlier record listed no observed implementations; historical author exposure cannot be independently established. This review read the product source and the integration tests with their hand-derived values; no upstream implementation or test source was consulted or copied."
+redistribution = "Repository-authored code and tests under MIT OR Apache-2.0; cited papers are linked by DOI, not redistributed."
+limitations = "The primary papers were not re-read in this review (the copies reachable from this environment were scanned or paywalled); the section citations are inherited from the earlier record, and the implementation was checked against the rules as the reviewer understands them and against an independent enumeration instead. A mistake in how the record states a theorem would therefore not be detected here. The route is original bounded engineering over a standard exact g-formula enumeration, not a published algorithm; the Pearl-Bareinboim citation supplies the invariance premise only and the Robins citation the g-computation formula (its theorem and section numbers were never verified, as the existing record says). Point value; no uncertainty about the model, the target law or the invariance. The enumeration is exact over finite state, action and observation spaces up to the node limit; the evidence is one two-state inspection model with a hand-derived closed form (V = 7.5 - 10p), not an independent second implementation. Calibration remains deferred."
+sources = ["https://doi.org/10.1214/14-STS486", "https://doi.org/10.1016/0270-0255(86)90088-6"]
+findings_resolved = ["Checked that the declaration must cover exactly the model's mechanisms (initial state, each action's transition, each channel's observation, utility): unknown, duplicated and missing mechanisms are refused, and a transition or observation marked shifted is refused with the mechanism named.", "Checked check_target_initial: finite probabilities summing to one, no mass on a state the source never reached, and a target law that differs from the source while the initial state is declared invariant is refused; and that the target value replaces only the initial law in a clone of the model, so every other mechanism stays the source's.", "Re-derived the hand value V = 10 * 0.75 (1 - p) - 10 * 0.25 p = 7.5 - 10 p for the inspect-then-ship-on-quiet policy (alarm sensitivity and specificity 3/4; the alarm branch holds at zero) and confirmed the integration test asserts it at p = 0, 0.2, 0.5, 0.8 and 1, the source value 2.5, the visited-node count 2 x 3, and replay by verify_transported_policy.", "Read the enumeration: a unit-mass accounting identity (reach-weighted realized utilities equal the recursively computed value, residual checked to 1e-9) guards each evaluation. No defect requiring a change was found and no code was changed."]
+record_sha256 = "7e32193bb14249c0e49f0714c0ac7e59b44c7427e25c27c9b7562206ac2edede"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/transported_policy.rs"
+sha256 = "7ffea30d2c61563e20516ad4744365f6d02559d659ca0072ec217840f933ef3c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/sequential_evaluation/gformula.rs"
+sha256 = "ae0048d28968f77adf4e77fb0cc560d1425789139a1f2c580394291d19594892"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/transported_evaluation.rs"
+sha256 = "07d1203a50f0390fddfb81a9aa65586e6116434e6de25edd2fb2436e9bd2598e"
