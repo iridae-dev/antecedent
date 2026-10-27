@@ -82,6 +82,7 @@ impl PreparedStudy {
         };
         if self
             .analysis
+            .declared
             .estimator_spec
             .as_deref()
             .is_some_and(|estimator| estimator.sampling_weights_calibration_label().is_some())
@@ -104,7 +105,8 @@ impl PreparedStudy {
         let mut variables = vec![query.treatment, query.outcome];
         variables.extend_from_slice(&predictors);
         use crate::analysis::missing_data::{MissingRoute, effective_policy};
-        let (policy, _) = effective_policy(MissingRoute::Static, self.analysis.missing.as_ref());
+        let (policy, _) =
+            effective_policy(MissingRoute::Static, self.analysis.declared.missing.as_ref());
         match policy {
             MissingPolicy::CompleteCase => {}
             MissingPolicy::ErrorOnMissing => {
@@ -207,7 +209,7 @@ impl PreparedStudy {
         spec: &TemporalTreatmentScoreSpec,
         ctx: &ExecutionContext,
     ) -> Result<ArrayFit, CausalError> {
-        self.temporal_treatment_score_owned_with_context(spec.clone(),ctx)
+        self.temporal_treatment_score_owned_with_context(spec.clone(), ctx)
     }
 
     /// Transfer owned histories once into the independently replayable nuisance request.
@@ -215,7 +217,9 @@ impl PreparedStudy {
     /// # Errors
     /// As [`Self::temporal_treatment_score_with_context`].
     pub fn temporal_treatment_score_owned_with_context(
-        &self, spec: TemporalTreatmentScoreSpec, ctx: &ExecutionContext,
+        &self,
+        spec: TemporalTreatmentScoreSpec,
+        ctx: &ExecutionContext,
     ) -> Result<ArrayFit, CausalError> {
         if self.modality == PreparedModality::Series {
             return Err(crate::unsupported_reason!(
@@ -243,11 +247,15 @@ impl PreparedStudy {
                           to condition on; the adjustment set of this pulse is empty",
             });
         }
-        let treatment=std::mem::take(&mut subjects.columns[1]);
-        let count=subjects.nrows.checked_mul(subjects.columns.len()-1).ok_or_else(||CausalError::Resource { message:"temporal nuisance design size overflow".into() })?;
-        let mut x_colmajor=Vec::with_capacity(count);
-        x_colmajor.resize(subjects.nrows,1.0_f64);
-        for column in subjects.columns.into_iter().skip(2) { x_colmajor.extend(column); }
+        let treatment = std::mem::take(&mut subjects.columns[1]);
+        let count = subjects.nrows.checked_mul(subjects.columns.len() - 1).ok_or_else(|| {
+            CausalError::Resource { message: "temporal nuisance design size overflow".into() }
+        })?;
+        let mut x_colmajor = Vec::with_capacity(count);
+        x_colmajor.resize(subjects.nrows, 1.0_f64);
+        for column in subjects.columns.into_iter().skip(2) {
+            x_colmajor.extend(column);
+        }
         let design = PropensityDesignWire {
             x_colmajor,
             treatment,

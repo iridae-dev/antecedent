@@ -208,7 +208,7 @@ fn reload_gaussian(cell: GaussianCell, gaussian: &Gaussian) {
     };
     let prepared = finish(builder, cell, gaussian).prepare(&ctx()).unwrap();
     let result = prepared.estimate_retained(&ctx()).unwrap();
-    let effect = result.estimate.as_effect().expect("effect");
+    let effect = result.estimate().as_effect().expect("effect");
     let truth = gaussian.effect;
     let tolerance = cell.tolerance(&result);
     assert_close(effect.ate, truth, tolerance);
@@ -240,7 +240,7 @@ fn assert_interval(result: &StudyResult, bayesian: bool) {
     if bayesian {
         assert_eq!(method, IntervalMethod::PosteriorQuantile);
     } else {
-        let published = PublishedScalarUncertainty::select(result.estimate.as_effect().unwrap());
+        let published = PublishedScalarUncertainty::select(result.estimate().as_effect().unwrap());
         assert_ne!(published.method, IntervalMethod::PosteriorQuantile);
     }
 }

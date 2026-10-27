@@ -238,8 +238,8 @@ fn multiple_imputation_pools_by_rubins_rules_and_recovers_the_effect() {
         let data = table(800, 100 + seed);
         let spec = ImputationSpec::new().with_imputations(10).with_iterations(5).with_seed(seed);
         let result = run(&data, Some(imputation(spec)), None, &ctx).unwrap();
-        let effect = result.estimate.as_effect().unwrap();
-        let report = result.missing_data.as_ref().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
+        let report = result.missing_data().as_ref().unwrap();
         let pooled = report.imputation.as_ref().unwrap();
         assert_eq!(report.policy().name(), "multiple_imputation");
         assert!(report.declared && report.non_default);
@@ -253,7 +253,7 @@ fn multiple_imputation_pools_by_rubins_rules_and_recovers_the_effect() {
         let total = pooled.within + 1.1 * pooled.between;
         assert!((pooled.total - total).abs() < 1e-12);
         assert!((effect.uncertainty.analytic.se - total.sqrt()).abs() < 1e-12);
-        assert!(result.interval.is_none(), "the pooled interval stays closed");
+        assert!(result.interval().is_none(), "the pooled interval stays closed");
         let imputed_y = pooled.imputed_cells.iter().find(|(v, _)| v.as_ref() == "y").unwrap().1;
         assert!(imputed_y > 100, "{imputed_y}");
         points.push(effect.ate);
@@ -268,7 +268,7 @@ fn the_bayesian_counterpart_stacks_the_completed_tables_posteriors() {
     let spec = ImputationSpec::new().with_imputations(5).with_iterations(5).with_seed(3);
     let bayes = InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200));
     let result = run(&data, Some(imputation(spec)), Some(bayes), &ctx()).unwrap();
-    let report = result.missing_data.as_ref().unwrap().imputation.as_ref().unwrap();
+    let report = result.missing_data().as_ref().unwrap().imputation.as_ref().unwrap();
     assert_eq!(report.pooling.as_ref(), "stacked_posterior");
     assert_eq!(report.estimator.as_ref(), "bayesian.gcomp");
     let posterior = result.posterior.as_ref().unwrap();
@@ -287,8 +287,8 @@ fn the_imputed_result_is_deterministic_and_the_specification_enters_the_identity
     let serial = run(&data, Some(imputation(spec)), None, &ExecutionContext::for_tests(9)).unwrap();
     let threaded =
         run(&data, Some(imputation(spec)), None, &ExecutionContext::production(9, 4)).unwrap();
-    let a = serial.estimate.as_effect().unwrap();
-    let b = threaded.estimate.as_effect().unwrap();
+    let a = serial.estimate().as_effect().unwrap();
+    let b = threaded.estimate().as_effect().unwrap();
     assert_eq!(a.ate.to_bits(), b.ate.to_bits());
     assert_eq!(a.uncertainty.analytic.se.to_bits(), b.uncertainty.analytic.se.to_bits());
 

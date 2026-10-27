@@ -67,7 +67,7 @@ impl CheckedHistoryMatchOperation {
             });
         };
         query.validate()?;
-        let bayesian = match &study.inference {
+        let bayesian = match &study.settings.inference {
             InferenceMode::Frequentist => None,
             InferenceMode::Bayesian(config) => {
                 if !physical.binding().names(
@@ -82,11 +82,11 @@ impl CheckedHistoryMatchOperation {
         };
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || study.refute != RefuteSuite::None
-            || study.bootstrap_replicates != 0
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || study.settings.bootstrap_replicates != 0
+            || !study.declared.custom_validators.is_empty()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
+            || study.declared.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
                 message: "the history match reads one row per unit, with no graph, refuter or bootstrap",

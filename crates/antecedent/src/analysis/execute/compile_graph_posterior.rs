@@ -193,14 +193,14 @@ impl super::Study {
                 | antecedent_discovery::GraphPosteriorAtomKind::Pag,
             ) => (
                 IdentifierId::GeneralizedAdjustment,
-                match &self.inference {
+                match &self.settings.inference {
                     InferenceMode::Frequentist => EstimatorId::LinearAdjustmentAte,
                     InferenceMode::Bayesian(_) => EstimatorId::BayesianGcomp,
                 },
             ),
             _ => (
                 IdentifierId::BackdoorAdjustment,
-                match &self.inference {
+                match &self.settings.inference {
                     InferenceMode::Frequentist => EstimatorId::LinearAdjustmentAte,
                     InferenceMode::Bayesian(_) => EstimatorId::BayesianGcomp,
                 },
@@ -244,7 +244,7 @@ impl super::Study {
             ) => (IdentifierId::GeneralId, EstimatorId::FunctionalEffect),
             _ => (
                 IdentifierId::BackdoorAdjustment,
-                match &self.inference {
+                match &self.settings.inference {
                     InferenceMode::Frequentist => EstimatorId::ConditionalLinearAdjustment,
                     InferenceMode::Bayesian(_) => EstimatorId::BayesianConditional,
                 },
@@ -403,7 +403,7 @@ impl super::Study {
             data,
             &TemporalDag::empty(),
             q,
-            self.split,
+            self.declared.split,
             false,
             class,
         )?;
@@ -424,7 +424,7 @@ impl super::Study {
         } else if q.is_multi_step_sustained() {
             logical.record.estimator =
                 Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
-        } else if self.inference.is_bayesian() && q.effect_modifiers.is_empty() {
+        } else if self.settings.inference.is_bayesian() && q.effect_modifiers.is_empty() {
             logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }
         logical.record.validation_suite = self.validation_suite_id();
@@ -474,7 +474,7 @@ impl super::Study {
             logical.record.identifier =
                 Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         }
-        if self.inference.is_bayesian() {
+        if self.settings.inference.is_bayesian() {
             logical.record.estimator =
                 Some(Arc::from(EstimatorId::TemporalResponseBayesian.as_str()));
         }
@@ -500,7 +500,7 @@ impl super::Study {
             data,
             &TemporalDag::empty(),
             &TemporalEffectQuery::pulse(q.treatment, q.outcome, 1.0),
-            self.split,
+            self.declared.split,
             false,
             class,
         )?;
@@ -528,11 +528,12 @@ impl super::Study {
         } else {
             logical.record.plan_id = Arc::from("temporal_mediation");
             logical.record.identifier = Some(Arc::from("temporal.mediation"));
-            logical.record.estimator = Some(Arc::from(if self.inference.is_frequentist() {
-                EstimatorId::TemporalMediation.as_str()
-            } else {
-                EstimatorId::BayesianTemporalMediation.as_str()
-            }));
+            logical.record.estimator =
+                Some(Arc::from(if self.settings.inference.is_frequentist() {
+                    EstimatorId::TemporalMediation.as_str()
+                } else {
+                    EstimatorId::BayesianTemporalMediation.as_str()
+                }));
         }
         logical.record.validation_suite = self.validation_suite_id();
         logical.record.query_variables = Arc::from([q.treatment, q.outcome]);

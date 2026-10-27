@@ -63,7 +63,7 @@ fn bench_dbn_posterior_pulse(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function("dbn_posterior_pulse_n400_boot8", |b| {
-        b.iter(|| black_box(study.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
+        b.iter(|| black_box(study.clone().run(&ctx).unwrap().estimate().as_effect().unwrap().ate));
     });
     let started = Instant::now();
     let _ = study.run(&ctx).unwrap();

@@ -38,10 +38,12 @@ impl super::Study {
         click.query = CausalQuery::TemporalEffect(query.clone());
         click.graph_posterior = Some(operation.posterior().clone());
         operation.frozen().bind_study(&mut click);
-        click.split = operation.split().copied();
+        click.declared.split = operation.split().copied();
         match operation.proof() {
             CheckedTemporalGraphPosteriorProof::Dbn(cache) => {
-                click.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::clone(cache)));
+                click.install_identification(crate::analysis::IdentificationCache::DbnPosterior(
+                    Arc::clone(cache),
+                ));
                 match operation.inference() {
                     InferenceMode::Frequentist => click.execute_dbn_posterior_frequentist(
                         data,
@@ -60,7 +62,9 @@ impl super::Study {
                 }
             }
             CheckedTemporalGraphPosteriorProof::Class(cache) => {
-                click.install_identification(crate::analysis::IdentificationCache::TemporalClassPosterior(Arc::clone(cache)));
+                click.install_identification(
+                    crate::analysis::IdentificationCache::TemporalClassPosterior(Arc::clone(cache)),
+                );
                 click.execute_temporal_class_graph_posterior(
                     data,
                     operation.posterior(),

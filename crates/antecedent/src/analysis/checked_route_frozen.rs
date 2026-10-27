@@ -88,13 +88,13 @@ impl CheckedRouteFrozen {
     /// builder cannot change the procedure after preparation. Caller
     /// validators never run on a frozen route.
     pub(crate) fn bind_study(&self, study: &mut Study) {
-        study.inference = self.inference.clone();
-        study.identifier = Some(self.identifier);
-        study.estimator = Some(self.estimator);
-        study.bootstrap_replicates = self.bootstrap_replicates;
-        study.refute = self.validation;
-        study.custom_validators.clear();
-        study.max_completions = self.max_completions;
+        study.settings.inference = self.inference.clone();
+        study.declared.identifier = Some(self.identifier);
+        study.declared.estimator = Some(self.estimator);
+        study.settings.bootstrap_replicates = self.bootstrap_replicates;
+        study.settings.refute = self.validation;
+        study.declared.custom_validators.clear();
+        study.declared.max_completions = self.max_completions;
     }
 
     /// Add the identifier, estimator, bootstrap budget and validation suite to

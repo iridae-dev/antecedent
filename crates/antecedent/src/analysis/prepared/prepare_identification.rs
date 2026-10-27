@@ -202,7 +202,7 @@ impl Study {
         let CausalQuery::AverageEffect(_) = &self.query else {
             return None;
         };
-        if self.tiered.is_some()
+        if self.declared.tiered.is_some()
             || !matches!(self.graph.class(), GraphClass::Admg | GraphClass::TemporalAdmg)
         {
             return None;
@@ -378,7 +378,7 @@ impl Study {
         };
         let identifier_id = plan.binding().identifier_or(RouteDefaults::CONDITIONAL)?;
         let identification = identify_static(identifier_id, &graph, &query.inner)?;
-        let estimator_id = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        let estimator_id = if matches!(self.settings.inference, InferenceMode::Bayesian(_)) {
             EstimatorId::BayesianConditional
         } else {
             EstimatorId::ConditionalLinearAdjustment
@@ -552,7 +552,7 @@ impl Study {
         use crate::strategy_table::{
             identify_static_query_in_context, select_claim, select_estimand,
         };
-        if let Some(background) = &self.tiered {
+        if let Some(background) = &self.declared.tiered {
             let identification = antecedent_identify::identify_tiered(background, query)?;
             let estimand =
                 identification.estimands.first().cloned().ok_or_else(|| CausalError::Compile {
@@ -618,7 +618,7 @@ impl Study {
         context: Option<&ExecutionContext>,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{identify_static_query_in_context, select_estimand};
-        if let Some(background) = &self.tiered {
+        if let Some(background) = &self.declared.tiered {
             let schema = match &self.data {
                 DataInput::Tabular(data) => data.schema(),
                 _ => {
@@ -819,7 +819,7 @@ impl Study {
                 let schedule = sequence_identification_schedule(query)?;
                 Ok(Some(identify_temporal_response_horizons(
                     graph,
-                    EstimatorId::temporal_response_for(&self.inference),
+                    EstimatorId::temporal_response_for(&self.settings.inference),
                     &TemporalResponseIdentificationRequest {
                         treatment,
                         outcome,
@@ -831,7 +831,7 @@ impl Study {
                 )?))
             }
             CausalQuery::TemporalEffect(query)
-                if self.identifier
+                if self.declared.identifier
                     == Some(crate::strategy_table::IdentifierId::TemporalIvUnfolded) =>
             {
                 let found =
@@ -906,7 +906,7 @@ impl Study {
             }
             _ => return Ok(None),
         };
-        let identifier_id = self.identifier.unwrap_or(RouteDefaults::PAG.identifier);
+        let identifier_id = self.declared.identifier.unwrap_or(RouteDefaults::PAG.identifier);
         let mut bundle = std::sync::Arc::unwrap_or_clone(self.identify_temporal_class(
             identifier_id,
             &query,
@@ -946,7 +946,7 @@ impl Study {
         Ok(Some(identify_temporal_mediation_horizons(
             graph,
             query,
-            if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            if matches!(self.settings.inference, InferenceMode::Bayesian(_)) {
                 EstimatorId::BayesianTemporalMediation
             } else {
                 EstimatorId::TemporalMediation
@@ -982,14 +982,14 @@ impl Study {
             return Ok(None);
         }
         let estimand = &cache.estimand;
-        let spec = self.estimator_spec.as_deref();
-        let table = match self.estimator {
+        let spec = self.declared.estimator_spec.as_deref();
+        let table = match self.declared.estimator {
             Some(EstimatorId::Dml) => {
                 let mut est = match spec {
                     Some(EstimatorSpec::Dml(config)) => (**config).clone(),
                     _ => antecedent_estimate::DmlAte::new(),
                 };
-                if let Some(overlap) = self.overlap_policy {
+                if let Some(overlap) = self.declared.overlap_policy {
                     est.overlap = overlap;
                 }
                 let problem = est.prepare(data, estimand, query)?;
@@ -1000,7 +1000,7 @@ impl Study {
                     Some(EstimatorSpec::DrLearner(config)) => (**config).clone(),
                     _ => antecedent_estimate::DrLearner::new(),
                 };
-                if let Some(overlap) = self.overlap_policy {
+                if let Some(overlap) = self.declared.overlap_policy {
                     est.overlap = overlap;
                 }
                 let problem = est.prepare(data, estimand, query)?;
@@ -1038,17 +1038,18 @@ impl Study {
         // Unknown is two canonical sets / GraphDependent / no single Z.
         // One score table would collapse the envelope; retarget refuses.
         if self
+            .declared
             .tiered
             .as_ref()
             .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::Unknown)
-            || !matches!(self.inference, InferenceMode::Frequentist)
+            || !matches!(self.settings.inference, InferenceMode::Frequentist)
         {
             return Ok(None);
         }
         match &self.query {
             CausalQuery::AverageEffect(query)
                 if matches!(
-                    self.estimator,
+                    self.declared.estimator,
                     Some(EstimatorId::Dml | EstimatorId::DrLearner | EstimatorId::CausalForest)
                 ) =>
             {
@@ -1073,7 +1074,7 @@ impl Study {
     ) -> Result<Option<ScoreTable>, CausalError> {
         // Score artifacts are an explicit AIPW execution contract; do not
         // silently fit a second estimator for linear/IV/matching plans.
-        if self.estimator != Some(crate::strategy_table::EstimatorId::Aipw)
+        if self.declared.estimator != Some(crate::strategy_table::EstimatorId::Aipw)
             || !matches!(query.target_population, TargetPopulation::AllObserved)
         {
             return Ok(None);
@@ -1088,15 +1089,15 @@ impl Study {
         {
             return Ok(None);
         }
-        let mut est = match self.estimator_spec.as_deref() {
+        let mut est = match self.declared.estimator_spec.as_deref() {
             Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => *config.clone(),
             _ => AipwAte::new(),
         };
-        if let Some(design) = self.sampling_design {
+        if let Some(design) = self.declared.sampling_design {
             est.inference.sampling_design =
                 antecedent_estimate::util::SamplingDeclaration::Declared(design);
         }
-        if let Some(overlap) = self.overlap_policy {
+        if let Some(overlap) = self.declared.overlap_policy {
             est.overlap = overlap;
         }
         if matches!(est.overlap, OverlapPolicy::RequireDiagnostics { trim: Some(_), .. })
@@ -1153,7 +1154,7 @@ impl Study {
         query: &antecedent_core::ResponseQuery,
         fold_seed: u64,
     ) -> Result<Option<ScoreTable>, CausalError> {
-        if self.estimator != Some(crate::strategy_table::EstimatorId::CellAipw) {
+        if self.declared.estimator != Some(crate::strategy_table::EstimatorId::CellAipw) {
             return Ok(None);
         }
         let Some(cache) = self.static_cache() else {

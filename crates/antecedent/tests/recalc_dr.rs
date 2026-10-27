@@ -72,7 +72,7 @@ fn original_engine(
     } else {
         builder.estimator(DmlAte::new().with_outcome(learner).with_folds(4)).build().unwrap()
     };
-    study.run(&ctx()).unwrap().estimate.as_effect().unwrap().clone()
+    study.run(&ctx()).unwrap().estimate().as_effect().unwrap().clone()
 }
 
 #[test]

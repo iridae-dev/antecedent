@@ -122,7 +122,7 @@ impl Study {
             ctx,
         )?;
         require_identified(&identification)?;
-        let InferenceMode::Bayesian(config) = &self.inference else {
+        let InferenceMode::Bayesian(config) = &self.settings.inference else {
             return Err(CausalError::unsupported_inference(
                 "iv.bayesian_joint_linear requires Bayesian inference",
             ));
@@ -262,7 +262,7 @@ impl Study {
             let estimand = select_estimand(&identification, EstimatorId::BayesianRdLocalLinear)?;
             (identification, estimand, false)
         };
-        let InferenceMode::Bayesian(config) = &self.inference else {
+        let InferenceMode::Bayesian(config) = &self.settings.inference else {
             return Err(CausalError::unsupported_inference(
                 "rd.bayesian_local_linear requires Bayesian inference",
             ));

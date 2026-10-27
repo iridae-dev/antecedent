@@ -51,7 +51,7 @@ fn study_clone_shares_configuration_graph_spec_and_identification() {
     let prepared = study.prepare(&ExecutionContext::for_tests(5)).unwrap();
     let analysis = prepared.study();
     let cache = analysis.static_cache().expect("prepared static cache");
-    let spec = analysis.estimator_spec.as_ref().expect("configured estimator");
+    let spec = analysis.declared.estimator_spec.as_ref().expect("configured estimator");
     let (cache_refs, spec_refs, config_refs, graph_refs) = (
         Arc::strong_count(cache),
         Arc::strong_count(spec),
@@ -62,7 +62,7 @@ fn study_clone_shares_configuration_graph_spec_and_identification() {
     let copy = analysis.clone();
     assert!(Arc::ptr_eq(&analysis.config, &copy.config));
     assert!(Arc::ptr_eq(&analysis.graph, &copy.graph));
-    assert!(Arc::ptr_eq(spec, copy.estimator_spec.as_ref().unwrap()));
+    assert!(Arc::ptr_eq(spec, copy.declared.estimator_spec.as_ref().unwrap()));
     assert!(Arc::ptr_eq(cache, copy.static_cache().unwrap()));
     assert_eq!(Arc::strong_count(cache), cache_refs + 1);
     assert_eq!(Arc::strong_count(spec), spec_refs + 1);
@@ -76,16 +76,13 @@ fn rebinding_a_click_overlay_leaves_the_shared_configuration_alone() {
     let prepared = study.prepare(&ExecutionContext::for_tests(5)).unwrap();
     let analysis = prepared.study();
     let mut click = analysis.clone();
-    click.refute = RefuteSuite::PlaceboAndRcc;
-    click.estimator = Some(EstimatorId::LinearAdjustmentAte);
-    click.identifier = Some(IdentifierId::BackdoorAdjustment);
-    click.estimator_spec = None;
+    click.settings.refute = RefuteSuite::PlaceboAndRcc;
+    click.declared.estimator = Some(EstimatorId::LinearAdjustmentAte);
+    click.declared.identifier = Some(IdentifierId::BackdoorAdjustment);
+    click.declared.estimator_spec = None;
     assert!(Arc::ptr_eq(&analysis.config, &click.config));
-    assert!(Arc::ptr_eq(
-        analysis.static_cache().unwrap(),
-        click.static_cache().unwrap()
-    ));
-    assert_eq!(analysis.refute, RefuteSuite::None, "the source overlay is untouched");
+    assert!(Arc::ptr_eq(analysis.static_cache().unwrap(), click.static_cache().unwrap()));
+    assert_eq!(analysis.settings.refute, RefuteSuite::None, "the source overlay is untouched");
 }
 
 #[test]
@@ -191,10 +188,14 @@ fn a_prepared_study_holds_one_identification_product() {
     assert!(analysis.temporal_class_posterior_cache().is_none());
     assert!(analysis.transport_cache().is_none());
     let primary = analysis.identification.as_ref().and_then(|product| product.primary());
-    assert!(std::ptr::eq(primary.expect("a static product answers for the whole study"), &cache.identification));
+    assert!(std::ptr::eq(
+        primary.expect("a static product answers for the whole study"),
+        &cache.identification
+    ));
 
     let mut replaced = analysis.clone();
-    replaced.install_identification(crate::analysis::IdentificationCache::Static(Arc::clone(cache)));
+    replaced
+        .install_identification(crate::analysis::IdentificationCache::Static(Arc::clone(cache)));
     assert!(Arc::ptr_eq(cache, replaced.static_cache().unwrap()));
     replaced.clear_identification_where(|product| product.pag_cache().is_some());
     assert!(replaced.static_cache().is_some(), "a product of another kind stays");

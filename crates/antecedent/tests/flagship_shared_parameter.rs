@@ -12,9 +12,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::analysis::{
-    FlagshipDependence, FlagshipError, FlagshipWorkflow, load_decision,
-};
+use antecedent::analysis::{FlagshipDependence, FlagshipError, FlagshipWorkflow, load_decision};
 use antecedent_contract::mixed_module::{
     CutFeedback, GaussianLaw, MixedModulePolicy, SharedParameterModel,
 };
@@ -100,10 +98,8 @@ fn the_cut_dependence_responds_to_the_second_module_precision() {
     let ctx = ExecutionContext::for_tests(0xF1A6);
     let cut = MixedModulePolicy::declared_modular("pooled theta", CutFeedback::Cut).unwrap();
     let base = model(1.0);
-    let noisier = SharedParameterModel {
-        cost_observation: GaussianLaw { mean: 2.1, variance: 4.0 },
-        ..base
-    };
+    let noisier =
+        SharedParameterModel { cost_observation: GaussianLaw { mean: 2.1, variance: 4.0 }, ..base };
     let (_, tight, _) = variance_under(&ctx, base, &cut);
     let (_, loose, _) = variance_under(&ctx, noisier, &cut);
     // The cut posterior of theta ignores the second observation, but phi's

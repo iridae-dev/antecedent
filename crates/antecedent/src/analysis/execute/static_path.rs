@@ -186,6 +186,7 @@ impl<'a> StaticAteExecution<'a> {
             EstimatorSpec::Default(self.estimator_id)
         } else {
             self.study
+                .declared
                 .estimator_spec
                 .as_deref()
                 .cloned()
@@ -200,8 +201,9 @@ impl<'a> StaticAteExecution<'a> {
             match &spec {
                 EstimatorSpec::Default(EstimatorId::FrontDoorTwoStage) => {
                     let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
-                    fitter.inference.sampling_design =
-                        crate::estimator_spec::declared_sampling(self.study.sampling_design);
+                    fitter.inference.sampling_design = crate::estimator_spec::declared_sampling(
+                        self.study.declared.sampling_design,
+                    );
                     Some((fitter.clone(), fitter.prepare_checked(data, identification, 0)?))
                 }
                 EstimatorSpec::FrontDoorTwoStage(cfg) => {
@@ -271,7 +273,7 @@ impl<'a> StaticAteExecution<'a> {
             EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
                 let mut fitter = LinearAdjustmentAte::new();
                 fitter.inference.sampling_design =
-                    crate::estimator_spec::declared_sampling(self.study.sampling_design);
+                    crate::estimator_spec::declared_sampling(self.study.declared.sampling_design);
                 Some(fitter)
             }
             EstimatorSpec::LinearAdjustmentAte(cfg) => Some((**cfg).clone()),
@@ -353,9 +355,9 @@ impl<'a> StaticAteExecution<'a> {
         match spec {
             EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
                 let mut fitter = LinearAdjustmentAte::new()
-                    .with_bootstrap_replicates(self.study.bootstrap_replicates);
+                    .with_bootstrap_replicates(self.study.settings.bootstrap_replicates);
                 fitter.inference.sampling_design =
-                    crate::estimator_spec::declared_sampling(self.study.sampling_design);
+                    crate::estimator_spec::declared_sampling(self.study.declared.sampling_design);
                 Some(fitter)
             }
             EstimatorSpec::LinearAdjustmentAte(config) => Some((**config).clone()),
@@ -382,7 +384,7 @@ impl<'a> StaticAteExecution<'a> {
             streamed.ate,
             streamed.se_analytic,
             self.identification.required_assumptions.clone(),
-            self.study.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+            self.study.declared.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
         )
         .with_n_obs(streamed.n_obs))
     }
@@ -463,9 +465,9 @@ impl<'a> StaticAteExecution<'a> {
                     query: &self.query_est,
                     // Point stage: no bootstrap.
                     bootstrap_replicates: 0,
-                    overlap_policy: self.study.overlap_policy,
-                    population_registry: self.study.population_registry.as_ref(),
-                    sampling_design: self.study.sampling_design,
+                    overlap_policy: self.study.declared.overlap_policy,
+                    population_registry: self.study.declared.population_registry.as_ref(),
+                    sampling_design: self.study.declared.sampling_design,
                 },
                 self.identification.required_assumptions.clone(),
                 ctx,
@@ -507,9 +509,9 @@ impl<'a> StaticAteExecution<'a> {
                         query: &self.query_est,
                         // Point stage: no bootstrap.
                         bootstrap_replicates: 0,
-                        overlap_policy: self.study.overlap_policy,
-                        population_registry: self.study.population_registry.as_ref(),
-                        sampling_design: self.study.sampling_design,
+                        overlap_policy: self.study.declared.overlap_policy,
+                        population_registry: self.study.declared.population_registry.as_ref(),
+                        sampling_design: self.study.declared.sampling_design,
                     },
                     self.identification.required_assumptions.clone(),
                     ctx.rng.master_seed(),
@@ -654,9 +656,10 @@ impl<'a> StaticAteExecution<'a> {
             || prepared_linear.is_some_and(|operation| !operation.default_id)
             || prepared_linear
                 .is_some_and(|operation| operation.fitter.inference.bootstrap_replicates == 0)
-            || (prepared_linear.is_none() && study.bootstrap_replicates == 0)
+            || (prepared_linear.is_none() && study.settings.bootstrap_replicates == 0)
             || (prepared_linear.is_none()
                 && study
+                    .declared
                     .estimator_spec
                     .as_deref()
                     .is_some_and(|spec| !matches!(spec, EstimatorSpec::Default(_))))
@@ -699,8 +702,8 @@ impl<'a> StaticAteExecution<'a> {
         self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
         let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
         fitter.inference.sampling_design =
-            crate::estimator_spec::declared_sampling(self.study.sampling_design);
-        fitter.inference.bootstrap_replicates = self.study.bootstrap_replicates;
+            crate::estimator_spec::declared_sampling(self.study.declared.sampling_design);
+        fitter.inference.bootstrap_replicates = self.study.settings.bootstrap_replicates;
         let filled = fitter
             .attach_bootstrap(receipt.problem(), &mut ws.frontdoor, ctx, point)
             .map_err(CausalError::from)?;
@@ -718,7 +721,7 @@ impl<'a> StaticAteExecution<'a> {
         let ctx = self.run.ctx;
         self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
         let fitter = antecedent_estimate::FrontDoorFunctional::new()
-            .with_bootstrap_replicates(self.study.bootstrap_replicates);
+            .with_bootstrap_replicates(self.study.settings.bootstrap_replicates);
         let filled =
             fitter.attach_bootstrap(receipt.problem(), ctx, point).map_err(CausalError::from)?;
         self.clock.finish(super::super::stage::STAGE_UNCERTAINTY);
@@ -752,8 +755,8 @@ impl<'a> StaticAteExecution<'a> {
             .map_or_else(LinearAdjustmentAte::new, |operation| operation.fitter.clone());
         if prepared_linear.is_none() {
             est.inference.sampling_design =
-                crate::estimator_spec::declared_sampling(study.sampling_design);
-            est.inference.bootstrap_replicates = study.bootstrap_replicates;
+                crate::estimator_spec::declared_sampling(study.declared.sampling_design);
+            est.inference.bootstrap_replicates = study.settings.bootstrap_replicates;
             est.overlap = OverlapPolicy::ExplicitOverride;
         }
         let prep = if let Some((_, receipt)) = &checked.linear {
@@ -794,10 +797,10 @@ impl<'a> StaticAteExecution<'a> {
                 data: &self.data_est,
                 estimand: &self.estimand_est,
                 query: &self.query_est,
-                bootstrap_replicates: study.bootstrap_replicates,
-                overlap_policy: study.overlap_policy,
-                population_registry: study.population_registry.as_ref(),
-                sampling_design: study.sampling_design,
+                bootstrap_replicates: study.settings.bootstrap_replicates,
+                overlap_policy: study.declared.overlap_policy,
+                population_registry: study.declared.population_registry.as_ref(),
+                sampling_design: study.declared.sampling_design,
             },
             point,
             ctx,
@@ -840,9 +843,9 @@ impl<'a> StaticAteExecution<'a> {
             estimand: &self.estimand_est,
             query: &self.query_est,
             estimate,
-            suite: self.study.refute,
+            suite: self.study.settings.refute,
             estimator: self.estimator_id.as_str(),
-            custom: &self.study.custom_validators,
+            custom: &self.study.declared.custom_validators,
             temporal: None,
         }
         .reports(&mut ws.estimate.linear, Some(prop_scratch), ctx)?;
@@ -1004,7 +1007,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if matches!(graph, DistributionGraph::Admg(_)) {
-            ensure_admg_distribution_licensed(query, self.refute)?;
+            ensure_admg_distribution_licensed(query, self.settings.refute)?;
         }
         let started = Instant::now();
         let (identifier_id, estimator_id) =
@@ -1029,7 +1032,7 @@ impl super::Study {
 
         let (row_resampling, sampling_design) = self.functional_row_resampling()?;
         let est = FunctionalDistribution {
-            bootstrap_replicates: self.bootstrap_replicates,
+            bootstrap_replicates: self.settings.bootstrap_replicates,
             ..FunctionalDistribution::new()
         }
         .with_row_resampling(row_resampling, sampling_design);
@@ -1074,7 +1077,7 @@ impl super::Study {
         let early_stopped = estimate.uncertainty.bootstrap.early_stopped;
 
         // An ADMG distribution only reaches here at validation none (gated above).
-        let refutations = if self.refute == RefuteSuite::None {
+        let refutations = if self.settings.refute == RefuteSuite::None {
             Vec::new()
         } else {
             antecedent_validate::functional::refute_distribution(
@@ -1083,7 +1086,7 @@ impl super::Study {
                 &identification,
                 &estimand,
                 &dist,
-                self.refute == RefuteSuite::Full,
+                self.settings.refute == RefuteSuite::Full,
                 ctx,
             )
             .map_err(CausalError::from)?
@@ -1168,7 +1171,7 @@ impl super::Study {
         ),
         CausalError,
     > {
-        if let InferenceMode::Bayesian(cfg) = &self.inference {
+        if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             if cfg.has_transfer() {
                 return Err(CausalError::Unsupported {
                     message: "functional Bayesian prior transfer requires a declared \
@@ -1180,7 +1183,7 @@ impl super::Study {
                 .estimate_bayesian(
                     prepared,
                     &[],
-                    bayesian_draw_count(&self.inference)?,
+                    bayesian_draw_count(&self.settings.inference)?,
                     status,
                     ctx,
                 )
@@ -1233,7 +1236,7 @@ impl super::Study {
         let (estimate, posterior) =
             self.estimate_functional_effect(data, &estimand, &identification, &extra, ctx)?;
 
-        let refutations = if self.refute == RefuteSuite::None {
+        let refutations = if self.settings.refute == RefuteSuite::None {
             Vec::new()
         } else {
             antecedent_validate::functional::refute_path(
@@ -1242,7 +1245,7 @@ impl super::Study {
                 &identification,
                 &estimand,
                 estimate.ate,
-                self.refute == RefuteSuite::Full,
+                self.settings.refute == RefuteSuite::Full,
                 ctx,
             )
             .map_err(CausalError::from)?
@@ -1303,7 +1306,7 @@ impl super::Study {
             &antecedent_estimate::PreparedFunctionalEffect,
         )>,
     ) -> Result<StudyResult, CausalError> {
-        ensure_admg_path_specific_licensed(self.refute)?;
+        ensure_admg_path_specific_licensed(self.settings.refute)?;
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;
         if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
@@ -1336,7 +1339,7 @@ impl super::Study {
             Some((fitter, prepared)) => super::run_functional(
                 fitter,
                 prepared,
-                &self.inference,
+                &self.settings.inference,
                 identification.status,
                 ctx,
             )?,
@@ -1413,9 +1416,9 @@ impl super::Study {
             estimand: &estimand,
             query,
             estimate: &estimate,
-            suite: self.refute,
+            suite: self.settings.refute,
             estimator: estimator_id.as_str(),
-            custom: &self.custom_validators,
+            custom: &self.declared.custom_validators,
             temporal: None,
         }
         .reports(&mut refute_ws, None, ctx)?;
@@ -1495,7 +1498,7 @@ impl super::Study {
 
         let mut est =
             SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
-        est.inference.bootstrap_replicates = self.bootstrap_replicates;
+        est.inference.bootstrap_replicates = self.settings.bootstrap_replicates;
         est.inference.se_kind = rd.se_kind;
         let checked = est.prepare_checked(data, &identification, 0).map_err(CausalError::from)?;
         let mut ws = RdWorkspace::default();
@@ -1507,9 +1510,9 @@ impl super::Study {
             estimand: &estimand,
             query,
             estimate: &estimate,
-            suite: self.refute,
+            suite: self.settings.refute,
             estimator: "rd.sharp",
-            custom: &self.custom_validators,
+            custom: &self.declared.custom_validators,
             temporal: None,
         }
         .reports(&mut refute_ws, None, ctx)?;
@@ -1539,10 +1542,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if self.estimator == Some(EstimatorId::BayesianBasisGcomp) {
+        if self.declared.estimator == Some(EstimatorId::BayesianBasisGcomp) {
             return self.execute_bayesian_basis(data, graph, &query.inner, physical, ctx);
         }
-        if self.inference.is_bayesian() {
+        if self.settings.inference.is_bayesian() {
             return self.execute_bayesian(data, graph, &query.inner, physical, None, ctx);
         }
         let started = Instant::now();
@@ -1598,9 +1601,9 @@ impl super::Study {
             estimand: &estimand,
             query: &query.inner,
             estimate: &estimate,
-            suite: self.refute,
+            suite: self.settings.refute,
             estimator: estimator_name,
-            custom: &self.custom_validators,
+            custom: &self.declared.custom_validators,
             temporal: None,
         }
         .reports(&mut refute_ws, None, ctx)?;
@@ -1757,7 +1760,7 @@ impl super::Study {
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            if self.inference.is_bayesian()
+            if self.settings.inference.is_bayesian()
                 || matches!(estimator_id, EstimatorId::BayesianConditional)
             {
                 return self.execute_pag_nonidentified_prior(
@@ -1775,7 +1778,8 @@ impl super::Study {
                 ),
             ));
         }
-        if self.inference.is_bayesian() || matches!(estimator_id, EstimatorId::BayesianConditional)
+        if self.settings.inference.is_bayesian()
+            || matches!(estimator_id, EstimatorId::BayesianConditional)
         {
             return self.execute_pag_bayesian(data, &query.inner, run, identification, class_tag);
         }
@@ -1838,9 +1842,9 @@ impl super::Study {
         let (refutations, na_diagnostics) = EnvelopeRefutation {
             data,
             query: &query.inner,
-            suite: self.refute,
+            suite: self.settings.refute,
             estimator: estimator_id.as_str(),
-            custom: &self.custom_validators,
+            custom: &self.declared.custom_validators,
             temporal: None,
         }
         .run(&refute_atoms, &mut refute_ws, ctx)?;
@@ -1898,7 +1902,7 @@ impl super::Study {
                 )?;
                 select_claim(identification, EstimatorId::StaticMediationLinear)
             })?;
-        if let InferenceMode::Bayesian(cfg) = &self.inference {
+        if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             if cfg.prior.is_some() || cfg.external_compose.is_some() {
                 return Err(CausalError::Unsupported {
                     message: "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
@@ -1924,7 +1928,7 @@ impl super::Study {
             estimate.uncertainty.bootstrap.cancelled,
             estimate.uncertainty.bootstrap.early_stopped,
         );
-        let refutations = if self.refute == RefuteSuite::None {
+        let refutations = if self.settings.refute == RefuteSuite::None {
             Vec::new()
         } else {
             antecedent_validate::mediation::refute_static_mediation(
@@ -1932,7 +1936,7 @@ impl super::Study {
                 graph,
                 query,
                 &mediation,
-                self.refute == RefuteSuite::Full,
+                self.settings.refute == RefuteSuite::Full,
                 ctx,
             )?
         };
@@ -1982,7 +1986,7 @@ impl super::Study {
         ),
         CausalError,
     > {
-        if let InferenceMode::Bayesian(cfg) = &self.inference {
+        if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             let est = bayesian_gcomp(cfg, ctx);
             let decoded = crate::inference::decode_prior_hydrate_source(cfg)?;
             let bridge = decoded.as_ref().map(|d| antecedent_estimate::MediationPriorBridge {
@@ -2008,7 +2012,7 @@ impl super::Study {
                     graph,
                     query,
                     assumptions,
-                    self.bootstrap_replicates,
+                    self.settings.bootstrap_replicates,
                     &[],
                     ctx,
                 )?,
@@ -2055,18 +2059,22 @@ impl super::Study {
             &query.outcome_functional,
         )?;
         let mut ws = StaticEstimateWorkspaces::default();
-        let spec =
-            self.estimator_spec.as_deref().cloned().unwrap_or(EstimatorSpec::Default(estimator_id));
+        let spec = self
+            .declared
+            .estimator_spec
+            .as_deref()
+            .cloned()
+            .unwrap_or(EstimatorSpec::Default(estimator_id));
         let estimate = estimate_static_effect(
             &spec,
             StaticEstimateInput {
                 data: &data_est,
                 estimand: &estimand,
                 query,
-                bootstrap_replicates: self.bootstrap_replicates,
-                overlap_policy: self.overlap_policy,
-                population_registry: self.population_registry.as_ref(),
-                sampling_design: self.sampling_design,
+                bootstrap_replicates: self.settings.bootstrap_replicates,
+                overlap_policy: self.declared.overlap_policy,
+                population_registry: self.declared.population_registry.as_ref(),
+                sampling_design: self.declared.sampling_design,
             },
             identification.required_assumptions.clone(),
             ctx,
@@ -2087,9 +2095,9 @@ impl super::Study {
             estimand: &estimand,
             query,
             estimate: &estimate,
-            suite: self.refute,
+            suite: self.settings.refute,
             estimator: estimator_id.as_str(),
-            custom: &self.custom_validators,
+            custom: &self.declared.custom_validators,
             temporal: None,
         }
         .reports(&mut refute_ws, None, ctx)?;
@@ -2124,7 +2132,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let CheckedUnknownTiered { background, identification } = retained;
         let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
-        if matches!(self.inference, crate::inference::InferenceMode::Bayesian(_)) {
+        if matches!(self.settings.inference, crate::inference::InferenceMode::Bayesian(_)) {
             // One posterior per canonical scenario, never a collapsed scalar.
             return self.execute_tiered_bayesian_average(data, query, physical, ctx, background);
         }
@@ -2157,8 +2165,12 @@ impl super::Study {
         estimator_id: EstimatorId,
         ctx: &ExecutionContext,
     ) -> Result<TieredScenarios, CausalError> {
-        let spec =
-            self.estimator_spec.as_deref().cloned().unwrap_or(EstimatorSpec::Default(estimator_id));
+        let spec = self
+            .declared
+            .estimator_spec
+            .as_deref()
+            .cloned()
+            .unwrap_or(EstimatorSpec::Default(estimator_id));
         let mut atom_ifs = Vec::new();
         let mut atom_ws = Vec::new();
         let mut scenarios = Vec::new();
@@ -2172,10 +2184,10 @@ impl super::Study {
                     data: data_est,
                     estimand,
                     query,
-                    bootstrap_replicates: self.bootstrap_replicates,
-                    overlap_policy: self.overlap_policy,
-                    population_registry: self.population_registry.as_ref(),
-                    sampling_design: self.sampling_design,
+                    bootstrap_replicates: self.settings.bootstrap_replicates,
+                    overlap_policy: self.declared.overlap_policy,
+                    population_registry: self.declared.population_registry.as_ref(),
+                    sampling_design: self.declared.sampling_design,
                 },
                 identification.required_assumptions.clone(),
                 ctx,

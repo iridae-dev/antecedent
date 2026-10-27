@@ -273,33 +273,34 @@ impl super::Study {
             selection: &selection,
             propensity: &propensity,
         };
-        let (estimate, mut posterior, estimator_id, estimator_diagnostic) = match &self.inference {
-            InferenceMode::Frequentist => {
-                let (estimate, diagnostic) = frequentist_transport_estimate(
-                    &columns,
-                    (transported.ipw, series_block),
-                    assumptions,
-                )?;
-                (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
-            }
-            InferenceMode::Bayesian(config) => {
-                let (estimate, posterior, diagnostic) = bayesian_transport_estimate(
-                    config,
-                    (representative_proof, series_block),
-                    &columns,
-                    assumptions,
-                    representative_case.result.status,
-                    ctx,
-                )?;
-                transported.ipw = estimate.ate;
-                (
-                    estimate,
-                    Some(posterior),
-                    EstimatorId::TransportTrialBayesianBootstrap,
-                    diagnostic,
-                )
-            }
-        };
+        let (estimate, mut posterior, estimator_id, estimator_diagnostic) =
+            match &self.settings.inference {
+                InferenceMode::Frequentist => {
+                    let (estimate, diagnostic) = frequentist_transport_estimate(
+                        &columns,
+                        (transported.ipw, series_block),
+                        assumptions,
+                    )?;
+                    (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
+                }
+                InferenceMode::Bayesian(config) => {
+                    let (estimate, posterior, diagnostic) = bayesian_transport_estimate(
+                        config,
+                        (representative_proof, series_block),
+                        &columns,
+                        assumptions,
+                        representative_case.result.status,
+                        ctx,
+                    )?;
+                    transported.ipw = estimate.ate;
+                    (
+                        estimate,
+                        Some(posterior),
+                        EstimatorId::TransportTrialBayesianBootstrap,
+                        diagnostic,
+                    )
+                }
+            };
 
         let bayesian = posterior.is_some();
         let case_outcomes: Vec<ClassAtomOutcome> = estimates
@@ -341,9 +342,9 @@ impl super::Study {
             propensity: &propensity,
             overlap: transported.overlap,
             published: estimate.ate,
-            suite: self.refute,
+            suite: self.settings.refute,
             series_block,
-            replicates: self.bootstrap_replicates,
+            replicates: self.settings.bootstrap_replicates,
         };
         let mut refutations = refute_transport(&refutation_input, ctx)?;
         // Members that certify a formula with a value of its own are bootstrapped through

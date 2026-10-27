@@ -102,7 +102,7 @@ fn the_default_bayesian_route_is_the_finite_population_posterior_of_the_design_b
         result.logical_plan.estimator.as_deref(),
         Some("bayesian.randomized_finite_population")
     );
-    assert_eq!(result.support_status, None, "the Bayesian randomized route is unlicensed");
+    assert_eq!(result.support_status(), None, "the Bayesian randomized route is unlicensed");
     assert!(result.randomized_effect().is_none());
     // Enumeration of BetaBinomial(6; 4, 2) and BetaBinomial(4; 3, 5) missing counts.
     let (mean, sd, lower, upper) = column(&result, 0);
@@ -348,7 +348,7 @@ fn the_switchback_posterior_matches_the_whitened_least_squares_reference() {
     );
     let (_, result, _) = run(&data, query, bayes(Some(model)), None).unwrap();
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.switchback_effect"));
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
     // Student-t with 20 degrees of freedom: location, scale and quantiles from scipy.stats.t.
     let (mean, sd, lower, upper) = column(&result, 0);
     close(mean, 1.547_248_493, 5e-3, "direct mean");
@@ -451,7 +451,7 @@ fn the_complier_posterior_recovers_the_known_effect_and_is_unlicensed() {
     let (data, query) = encouragement(2_000, false);
     let (prepared, result, ctx) = run(&data, query, bayes(None), None).unwrap();
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.complier_effect"));
-    assert_eq!(result.support_status, None, "the Bayesian complier route is unlicensed");
+    assert_eq!(result.support_status(), None, "the Bayesian complier route is unlicensed");
     assert_eq!(prepared.retained_operation().name(), "randomized");
     let posterior = result.posterior.as_ref().unwrap();
     let column = posterior.effect_column().unwrap();

@@ -141,12 +141,12 @@ pub fn run() -> Result<(), CausalError> {
     assert_eq!(discovery_calls, 1);
 
     assert!(
-        first.estimate.as_effect().unwrap().ate.is_finite()
-            && (first.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.75
+        first.estimate().as_effect().unwrap().ate.is_finite()
+            && (first.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.75
     );
     assert!(
-        second.estimate.as_effect().unwrap().ate.is_finite()
-            && third.estimate.as_effect().unwrap().ate.is_finite()
+        second.estimate().as_effect().unwrap().ate.is_finite()
+            && third.estimate().as_effect().unwrap().ate.is_finite()
     );
 
     // Durable hold for the next session.
@@ -157,7 +157,7 @@ pub fn run() -> Result<(), CausalError> {
 
     println!(
         "ATE={:.4} discovery_calls={discovery_calls} latency={:?}",
-        first.estimate.as_effect().unwrap().ate,
+        first.estimate().as_effect().unwrap().ate,
         first.performance.latency_mode.as_deref(),
     );
     Ok(())

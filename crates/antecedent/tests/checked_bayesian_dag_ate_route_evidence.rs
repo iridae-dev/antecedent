@@ -90,16 +90,16 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                     "one-shot DAG Bayesian path must execute the retained proof"
                 );
                 assert_eq!(
-                    one_shot.estimate.as_effect().unwrap().ate.to_bits(),
-                    result.estimate.as_effect().unwrap().ate.to_bits()
+                    one_shot.estimate().as_effect().unwrap().ate.to_bits(),
+                    result.estimate().as_effect().unwrap().ate.to_bits()
                 );
             }
             // The independent fixture is y = 2*t + z + noise under a complete
             // back-door graph. The posterior must estimate the known effect.
             assert!(
-                (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
+                (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
                 "{coordinate}: {}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 96);
             assert_eq!(
@@ -118,8 +118,8 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
             }
             let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             assert_eq!(
-                refreshed.estimate.as_effect().unwrap().ate.to_bits(),
-                result.estimate.as_effect().unwrap().ate.to_bits()
+                refreshed.estimate().as_effect().unwrap().ate.to_bits(),
+                result.estimate().as_effect().unwrap().ate.to_bits()
             );
             let RetainedOperation::BayesianGcomp { operation, .. } = prepared.retained_operation()
             else {
@@ -190,10 +190,10 @@ fn bayesian_dag_ate_keeps_non_gaussian_likelihood_on_outcome_scale() {
         };
         assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
         let result = prepared.estimate(&data, &ctx).unwrap();
-        assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+        assert!(result.estimate().as_effect().unwrap().ate.is_finite());
         assert!(
-            result.estimate.as_effect().unwrap().ate > 0.1
-                && result.estimate.as_effect().unwrap().ate < 0.5
+            result.estimate().as_effect().unwrap().ate > 0.1
+                && result.estimate().as_effect().unwrap().ate < 0.5
         );
         assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 64);
         assert_eq!(result.posterior.as_ref().unwrap().diagnostics.backend_id.as_ref(), "laplace");
@@ -234,9 +234,9 @@ fn bayesian_dag_ate_poisson_mean_contrast_uses_the_count_scale() {
     assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
     let result = prepared.estimate(&data, &ExecutionContext::for_tests(309)).unwrap();
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 1.0).abs() < 0.1,
+        (result.estimate().as_effect().unwrap().ate - 1.0).abs() < 0.1,
         "{}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     assert_eq!(result.posterior.as_ref().unwrap().diagnostics.backend_id.as_ref(), "laplace");
 }

@@ -1351,7 +1351,8 @@ fn mixture_blocks(plan: &PlanView, blocks: &mut Vec<Block>) {
                                 .map_or_else(|| "none".to_owned(), |flag| yes_no(flag).to_owned()),
                             opt_str(
                                 atom.status().map(antecedent_core::IdentificationStatus::as_str),
-                            ).into_owned(),
+                            )
+                            .into_owned(),
                             atom.completions().to_string(),
                         ]
                     })
@@ -1384,7 +1385,8 @@ fn retained_blocks(plan: &PlanView, names: Names<'_>, blocks: &mut Vec<Block>) {
                         retained.kind().to_owned(),
                         opt_str(
                             retained.status().map(antecedent_core::IdentificationStatus::as_str),
-                        ).into_owned(),
+                        )
+                        .into_owned(),
                         retained
                             .estimands()
                             .iter()
@@ -1652,16 +1654,8 @@ fn plan_section(plan: &PlanView, names: Names<'_>) -> Section {
     let product_facts = facts.get("identification").get("product");
     if let Some(view) = identification.product() {
         fact(&mut product, "Product identity", view.identity().to_hex());
-        fact(
-            &mut product,
-            "Outcome",
-            opt_str(product_facts.get("outcome").as_text()),
-        );
-        fact(
-            &mut product,
-            "Claim class",
-            opt_str(product_facts.get("claim_class").as_text()),
-        );
+        fact(&mut product, "Outcome", opt_str(product_facts.get("outcome").as_text()));
+        fact(&mut product, "Claim class", opt_str(product_facts.get("claim_class").as_text()));
     }
     blocks.push(Block::Facts(product));
     if let Some(view) = identification.product() {

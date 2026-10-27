@@ -89,8 +89,8 @@ fn sequential_contrast_wald_matches_the_pinned_reference_and_round_trips() {
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("sequential.crossfit_contrast.wald"));
-    assert!(matches!(result.estimate, PrimaryEstimate::NotAnEffect));
-    assert_eq!(result.support_status, None);
+    assert!(matches!(result.estimate(), PrimaryEstimate::NotAnEffect));
+    assert_eq!(result.support_status(), None);
     assert!(result.posterior.is_none());
     let fit = result.sequential_contrast().unwrap();
     close(fit.active_mean, 3.577_003_395_896_987_6, 1.0e-4);
@@ -253,7 +253,7 @@ fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("matching.period_history_contrast"));
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
     let fit = result.history_match().unwrap();
     assert_eq!(&*fit.matched_queries, &[0, 3, 6]);
     assert_eq!(&*fit.matched_donors, &[1, 2, 5]);

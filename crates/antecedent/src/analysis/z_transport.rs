@@ -130,7 +130,8 @@ impl ZTransportResult {
             {
                 // Built straight into the shared allocation: the chained slice iterators have an
                 // exact length, so no intermediate vector is grown and copied.
-                atoms.push(left_atom.iter().chain(right_atom.iter()).cloned().collect::<Arc<[_]>>());
+                atoms
+                    .push(left_atom.iter().chain(right_atom.iter()).cloned().collect::<Arc<[_]>>());
                 probabilities.push(left_probability * right_probability);
             }
         }

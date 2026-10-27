@@ -229,6 +229,7 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
 
 pub(super) enum GcmSlot {
     Counterfactual(crate::gcm::IteResult),
+    CounterfactualContrasts(Box<crate::gcm::CounterfactualContrasts>),
     Anomaly(Vec<antecedent_attribution::AnomalyScores>),
     Change(antecedent_attribution::ChangeAttributionResult),
     Mechanism(Vec<antecedent_attribution::MechanismChangeDetection>),
@@ -242,6 +243,9 @@ impl GcmSlot {
         use crate::result::ResultPayload;
         match self {
             Self::Counterfactual(value) => ResultPayload::Counterfactual(value),
+            Self::CounterfactualContrasts(value) => {
+                ResultPayload::CounterfactualContrasts(value)
+            }
             Self::Anomaly(value) => ResultPayload::Anomaly(value),
             Self::Change(value) => ResultPayload::ChangeAttribution(value),
             Self::Mechanism(value) => ResultPayload::MechanismChange(value),

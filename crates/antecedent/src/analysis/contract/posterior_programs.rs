@@ -87,10 +87,8 @@ fn atom_answer(
     }
     // A class is answered per completion: its identification product states which
     // completions identified and how the class weight splits between them.
-    if matches!(
-        posterior.atom_kind(),
-        GraphPosteriorAtomKind::Cpdag | GraphPosteriorAtomKind::Pag
-    ) {
+    if matches!(posterior.atom_kind(), GraphPosteriorAtomKind::Cpdag | GraphPosteriorAtomKind::Pag)
+    {
         crate::analysis::execute::report_identify_compute(ctx);
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
@@ -121,8 +119,8 @@ fn atom_answer(
     atom.graph_posterior = None;
     atom.graph = Arc::new(graph);
     atom.structure_source = StructureSource::Explicit;
-    atom.refute = RefuteSuite::None;
-    atom.custom_validators.clear();
+    atom.settings.refute = RefuteSuite::None;
+    atom.declared.custom_validators.clear();
     // The atom's contract needs its compiled identification, not a sampled-data
     // execution handle. Full preparation would also scan empirical factors and
     // bind their providers, making contract inspection perform hidden execution.

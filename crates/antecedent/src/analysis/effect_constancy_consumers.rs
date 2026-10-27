@@ -127,9 +127,8 @@ fn invalid(detail: &'static str, message: impl Into<String>) -> ConstancyConsume
 const MAX_UTILITY_NESTING: usize = 64;
 
 fn bounded_policy(contract: &DecisionContract) -> Result<(), ConstancyConsumerError> {
-    let refuse = || {
-        invalid("effect_constancy_consumer.limits_exceeded", "bounded affine policy required")
-    };
+    let refuse =
+        || invalid("effect_constancy_consumer.limits_exceeded", "bounded affine policy required");
     if !contract.constraints.is_empty() {
         return Err(refuse());
     }
@@ -257,7 +256,8 @@ impl ConstancyConsumers {
         }
         let target_effect = self.partition(target_partition)?.effect;
         // Index the bindings once so matching is linear in the catalog size.
-        let mut by_artifact = std::collections::BTreeMap::<&str, Vec<&PriorPartitionBinding>>::new();
+        let mut by_artifact =
+            std::collections::BTreeMap::<&str, Vec<&PriorPartitionBinding>>::new();
         for binding in bindings {
             by_artifact.entry(binding.artifact_id.as_str()).or_default().push(binding);
         }
@@ -270,9 +270,8 @@ impl ConstancyConsumers {
                     "duplicate catalog identity",
                 ));
             }
-            let matching = by_artifact
-                .get(source.meta.artifact_id.as_str())
-                .map_or(&[][..], Vec::as_slice);
+            let matching =
+                by_artifact.get(source.meta.artifact_id.as_str()).map_or(&[][..], Vec::as_slice);
             let [binding] = matching else {
                 return Err(invalid(
                     "effect_constancy_consumer.catalog_binding_invalid",

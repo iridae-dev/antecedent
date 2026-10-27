@@ -32,11 +32,7 @@ fn parse_closed<T: Copy>(
     kind: &'static str,
     expected: &'static [&'static str],
 ) -> Result<T, UnknownStrategy> {
-    index.get(s).copied().ok_or_else(|| UnknownStrategy {
-        kind,
-        got: s.to_string(),
-        expected,
-    })
+    index.get(s).copied().ok_or_else(|| UnknownStrategy { kind, got: s.to_string(), expected })
 }
 
 /// Name -> id for every identifier, built once.
@@ -1737,7 +1733,9 @@ fn select_estimand_index(
                 ),
             },
             // `EstimandSelectionError` is non-exhaustive; a later reason is still a refusal.
-            other => CausalError::Compile { message: format!("estimand selection failed: {other:?}") },
+            other => {
+                CausalError::Compile { message: format!("estimand selection failed: {other:?}") }
+            }
         })
 }
 

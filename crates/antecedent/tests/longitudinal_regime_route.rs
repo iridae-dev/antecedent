@@ -184,7 +184,7 @@ fn known_truth_value_is_retained_and_point_only_artifact_round_trips() {
     assert_eq!(regime.effective_sample_size, 1.0);
     assert_eq!(regime.matched_observed_fraction, 0.25);
     assert_eq!(&*regime.uncertainty, "point_only_no_interval");
-    assert!(matches!(first.estimate, PrimaryEstimate::NotAnEffect));
+    assert!(matches!(first.estimate(), PrimaryEstimate::NotAnEffect));
     assert!(first.identification.required_assumptions.entries.iter().any(|record| {
         matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. }
             if id.as_ref() == "sequential_censoring_exchangeability")
@@ -582,7 +582,7 @@ fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() 
     let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let bytes = prepared.encode_contracted_result(&result, "two-period-dr-license", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
@@ -645,7 +645,7 @@ fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_score_conditional_fixed_known_q_95");
     assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let bytes = prepared.encode_contracted_result(&result, "g-formula-license", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
@@ -723,7 +723,7 @@ fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
     assert_eq!(fit.period_intervals_95.as_ref().unwrap().len(), 2);
     assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_clustered_cr1_95");
     assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let bytes = prepared.encode_contracted_result(&result, "msm-license", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(

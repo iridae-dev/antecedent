@@ -507,7 +507,7 @@ fn temporal_pulse_staged_all_structures_and_suites() {
             );
             let ctx = ExecutionContext::for_tests(42);
             let result = study.prepare(&ctx).unwrap().estimate_series(&series, &ctx).unwrap();
-            assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+            assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
             assert!(
                 result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
                 "{label}: the prepared click must reuse identification"
@@ -696,7 +696,7 @@ fn temporal_sustained_multi_step_keeps_earlier_causal_time() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(42)).unwrap();
-    assert!((result.estimate.as_effect().unwrap().ate - 0.7).abs() < 0.1);
+    assert!((result.estimate().as_effect().unwrap().ate - 0.7).abs() < 0.1);
     assert_eq!(result.logical_plan.estimator.as_deref().unwrap(), "temporal.sequential.gcomp");
 }
 
@@ -749,7 +749,7 @@ fn assert_sustained_mean(result: &antecedent::StudyResult) {
         let (meta, _) = decode_causal_posterior_bytes(&bytes).unwrap();
         assert_eq!(meta.n_draws as usize, post.draws.n_draws);
     }
-    assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(result.support_status().unwrap().as_str(), "licensed");
 }
 
 #[test]

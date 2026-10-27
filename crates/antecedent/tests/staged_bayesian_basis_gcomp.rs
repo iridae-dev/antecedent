@@ -80,11 +80,11 @@ fn run(
 fn staged_ate_and_cate_keep_shared_draws_and_round_trip_posterior_artifact() {
     let (_study, prepared, result, data) = run(AverageEffectQuery::binary_ate(v(0), v(1)));
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.basis.gcomp"));
-    assert_eq!(result.support_status, Some(antecedent::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 0.5).abs() < 0.08,
+        (result.estimate().as_effect().unwrap().ate - 0.5).abs() < 0.08,
         "ATE={}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     let posterior = result.posterior.as_ref().expect("posterior");
     assert_eq!(posterior.draws.n_draws, 256);
@@ -113,7 +113,7 @@ fn staged_ate_and_cate_keep_shared_draws_and_round_trip_posterior_artifact() {
     let (_, _, cate, _) = run(cate_query);
     assert_eq!(cate.logical_plan.estimator.as_deref(), Some("bayesian.basis.gcomp"));
     let values =
-        cate.estimate.as_effect().unwrap().heterogeneity.cate.as_ref().expect("row CATE summary");
+        cate.estimate().as_effect().unwrap().heterogeneity.cate.as_ref().expect("row CATE summary");
     assert_eq!(values.len(), data.row_count());
     assert!((values[0] - (0.5 - 0.75)).abs() < 0.12, "low-z CATE={}", values[0]);
     assert!((values[1] - (0.5 + 0.75)).abs() < 0.12, "high-z CATE={}", values[1]);
@@ -161,14 +161,14 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
 
     let result = prepared.estimate(&data, &context).unwrap();
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 0.5).abs() < 0.08,
+        (result.estimate().as_effect().unwrap().ate - 0.5).abs() < 0.08,
         "ATE={}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 192);
     assert!(one_shot.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
     assert!(
-        (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+        (one_shot.estimate().as_effect().unwrap().ate - result.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
@@ -188,7 +188,7 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
         panic!("basis ATE plan survives refresh")
     };
     assert_eq!(rebound, plan);
-    assert!((refreshed.estimate.as_effect().unwrap().ate - 0.5).abs() < 0.08);
+    assert!((refreshed.estimate().as_effect().unwrap().ate - 0.5).abs() < 0.08);
 
     let bytes = prepared
         .encode_contracted_result(&refreshed, "checked-bayesian-basis-ate", &context)
@@ -238,12 +238,12 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
     assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
     let result = prepared.estimate(&data, &context).unwrap();
     assert!(
-        (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+        (one_shot.estimate().as_effect().unwrap().ate - result.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
     let cate =
-        result.estimate.as_effect().unwrap().heterogeneity.cate.as_ref().expect("CATE summary");
+        result.estimate().as_effect().unwrap().heterogeneity.cate.as_ref().expect("CATE summary");
     assert!((cate[0] - (0.5 - 0.75)).abs() < 0.12);
     assert!((cate[1] - (0.5 + 0.75)).abs() < 0.12);
     let posterior = result.posterior.as_ref().expect("posterior");
@@ -273,7 +273,8 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
     .unwrap();
     let refreshed = rebind_estimate(&mut prepared, shifted, &context).unwrap();
     assert!(
-        (refreshed.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+        (refreshed.estimate().as_effect().unwrap().ate
+            - result.estimate().as_effect().unwrap().ate)
             .abs()
             < 0.08
     );

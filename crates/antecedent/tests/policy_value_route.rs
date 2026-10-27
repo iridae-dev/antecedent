@@ -92,7 +92,7 @@ fn retained_finite_class_regret_round_trips_and_rejects_forged_bounds() {
     assert!(regret.regret > 0.0);
     assert!(regret.interval_95[0] <= regret.regret && regret.regret <= regret.interval_95[1]);
     // The finite-class simultaneous regret bound is now an exact graphless row.
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let bytes = prepared.encode_contracted_result(&result, "fixed-class-regret", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.policy_value.as_ref().unwrap().regret.as_ref().unwrap().selected_index, 1);
@@ -155,7 +155,7 @@ fn policy_answer_is_not_an_ate_and_survives_retained_reexecution() {
     assert_eq!(policy_wire.incremental_standard_error, answer.incremental_standard_error);
     assert_eq!(policy_wire.uncertainty, "row_score_standard_error_independent_subjects");
     assert_eq!(body.estimate, None, "policy values must never be serialized as ATEs");
-    assert!(matches!(first.estimate, PrimaryEstimate::NotAnEffect));
+    assert!(matches!(first.estimate(), PrimaryEstimate::NotAnEffect));
     assert_eq!(first.effect().is_nan(), true);
     let refreshed = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert_eq!(first.policy_value(), refreshed.policy_value());
@@ -238,7 +238,7 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
     let artifact = prepared.encode_contracted_result(&result, "ranked-interval", &ctx).unwrap();
     let (_, _, mut body) = antecedent_io::decode_analysis_result_artifact(&artifact).unwrap();
     assert_eq!(body.policy_value.as_ref().unwrap().uplift_bins[0].interval_95, bins[0].interval_95);
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     assert_eq!(
         body.policy_value.as_ref().unwrap().graphless_support_status.as_deref(),
         Some("licensed")
@@ -263,7 +263,7 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
         .prepare(&ctx)
         .unwrap();
     let aipw_result = aipw.estimate(&data, &ctx).unwrap();
-    assert_eq!(aipw_result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(aipw_result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     assert!(
         aipw_result
             .policy_value()
@@ -327,7 +327,7 @@ fn retained_held_out_policy_intervals_round_trip_and_reject_forgery() {
     assert!(
         incremental_ci[0] < value.incremental_value && value.incremental_value < incremental_ci[1]
     );
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let bytes = prepared.encode_contracted_result(&result, "policy-interval", &ctx).unwrap();
     let (_, _, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.policy_value.as_ref().unwrap().policy_interval_95, Some(policy_ci));
@@ -411,7 +411,7 @@ fn retained_crossfit_policy_intervals_round_trip_and_refuse_forgery() {
         value.prediction_ownership.as_ref(),
         "caller_declared_cross_fitted_excluded_fold_ids"
     );
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let bytes = prepared.encode_contracted_result(&result, "crossfit-policy", &ctx).unwrap();
     let (_, _, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
@@ -614,7 +614,7 @@ fn multi_action_intervals_require_nonbinding_global_constraints() {
     let value = result.policy_value().unwrap();
     assert!(value.policy_interval_95.is_some());
     assert!(value.incremental_interval_95.is_some());
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     assert_eq!(value.multi_action_cate.len(), 2);
     for (point, truth) in value.multi_action_cate.iter().zip([1.0, 3.0]) {
         let bounds = point.interval_95.expect("300 randomized subjects and 100 observed per arm");

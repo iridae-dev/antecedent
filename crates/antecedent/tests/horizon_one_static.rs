@@ -130,7 +130,7 @@ fn frequentist(builder: antecedent::StudyBuilder) -> Study {
 }
 
 fn no_crossfit_nuisance(result: &StudyResult) {
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     assert!(effect.crossfit.folds.is_none());
     assert!(effect.crossfit.learner_provenance.is_empty());
     assert!(effect.diagnostics.first_stage.is_none());
@@ -177,7 +177,7 @@ fn horizon_one_pulse_reproduces_the_unadjusted_linear_contrast() {
     ));
 
     for result in [&static_result, &temporal_result] {
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert!(close(effect.ate, contrast), "{}", effect.ate);
         assert_eq!(effect.provenance.n_obs, Some(u64::try_from(treatment.len()).unwrap()));
         assert!(result.estimand.adjustment_set.is_empty());
@@ -201,7 +201,7 @@ fn horizon_one_pulse_reproduces_the_unadjusted_linear_contrast() {
     assert_eq!(static_result.logical_plan.data_classification, DataClassification::Tabular);
     assert_eq!(temporal_result.logical_plan.data_classification, DataClassification::Temporal);
 
-    let static_effect = static_result.estimate.as_effect().unwrap();
+    let static_effect = static_result.estimate().as_effect().unwrap();
     assert!(close(static_effect.se_analytic(), static_se), "{}", static_effect.se_analytic());
     let static_interval = static_result.primary_interval_binding(false);
     assert_eq!(static_interval.method, IntervalMethod::AnalyticSe);
@@ -210,7 +210,7 @@ fn horizon_one_pulse_reproduces_the_unadjusted_linear_contrast() {
 
     // One series does not publish the static iid interval. The point is the
     // same contrast; the sampling object is the withheld analytic SE.
-    let temporal_effect = temporal_result.estimate.as_effect().unwrap();
+    let temporal_effect = temporal_result.estimate().as_effect().unwrap();
     assert!(temporal_effect.se_analytic().is_nan());
     assert_eq!(temporal_result.primary_interval_binding(false).method, IntervalMethod::None);
     assert!(has_diagnostic(&temporal_result, "estimate.temporal.circular_block_se"));
@@ -254,7 +254,7 @@ fn horizon_one_pulse_reproduces_the_confounded_linear_contrast() {
     ));
 
     for result in [&static_result, &temporal_result] {
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert!(close(effect.ate, partial), "{} versus crude {crude}", effect.ate);
         assert!((effect.ate - crude).abs() > 1.0);
         assert_eq!(effect.provenance.n_obs, Some(u64::try_from(treatment.len()).unwrap()));
@@ -274,11 +274,11 @@ fn horizon_one_pulse_reproduces_the_confounded_linear_contrast() {
     // Exact fit: residual rounding leaves a sub-ulp homoskedastic SE, and
     // the static route still publishes that analytic interval. The
     // horizon-one fit withholds it.
-    let static_se = static_result.estimate.as_effect().unwrap().se_analytic();
+    let static_se = static_result.estimate().as_effect().unwrap().se_analytic();
     assert!(static_se.abs() < 1e-12, "{static_se}");
     assert_eq!(static_result.primary_interval_binding(false).method, IntervalMethod::AnalyticSe);
     assert_eq!(static_result.primary_interval_binding(false).dependence, "iid");
-    assert!(temporal_result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert!(temporal_result.estimate().as_effect().unwrap().se_analytic().is_nan());
     assert_eq!(temporal_result.primary_interval_binding(false).method, IntervalMethod::None);
     assert!(has_diagnostic(&temporal_result, "estimate.temporal.circular_block_se"));
     assert!(!has_diagnostic(&static_result, "estimate.temporal.circular_block_se"));
@@ -331,7 +331,7 @@ fn horizon_one_mediation_reproduces_the_static_path_product() {
         assert_eq!(result.treatment, Some(id(0)));
         assert_eq!(result.outcome, id(2));
         assert!(result.estimand.instruments.is_empty());
-        assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+        assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
         assert_eq!(result.primary_interval_binding(false).method, IntervalMethod::None);
         no_crossfit_nuisance(result);
     }
@@ -393,7 +393,7 @@ fn horizon_one_conditional_pulse_reproduces_the_marginal_interaction() {
     ));
 
     for result in [&static_result, &temporal_result] {
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert!(close(effect.ate, marginal), "{}", effect.ate);
         assert!((effect.ate - additive).abs() > 0.01);
         assert_eq!(result.treatment, Some(id(0)));
@@ -414,7 +414,7 @@ fn horizon_one_conditional_pulse_reproduces_the_marginal_interaction() {
     let static_interval = static_result.primary_interval_binding(false);
     assert_eq!(static_interval.method, IntervalMethod::AnalyticSe);
     assert_eq!(static_interval.dependence, "iid");
-    assert!(static_result.estimate.as_effect().unwrap().se_analytic().is_finite());
-    assert!(temporal_result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert!(static_result.estimate().as_effect().unwrap().se_analytic().is_finite());
+    assert!(temporal_result.estimate().as_effect().unwrap().se_analytic().is_nan());
     assert_eq!(temporal_result.primary_interval_binding(false).method, IntervalMethod::None);
 }

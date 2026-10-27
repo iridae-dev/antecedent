@@ -65,8 +65,8 @@ fn synthetic_control_retained_route_recovers_truth_and_preserves_point_only_clai
     assert_eq!(fit.n_pre_periods, 4);
     assert_eq!(fit.n_post_periods, 2);
     assert_eq!(fit.uncertainty.as_ref(), "point_only_with_unlicensed_placebo_rank");
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         format!("{:?}", record.assumption)
             .contains("convex_donor_combination_is_a_valid_counterfactual")
@@ -146,7 +146,7 @@ fn retained_synthetic_did_recovers_additive_truth_and_round_trips_weights() {
     assert_eq!((fit.n_donors, fit.n_pre_periods, fit.n_post_periods), (3, 3, 1));
     assert_eq!(fit.time_weights.len(), 3);
     assert_eq!(fit.uncertainty.as_ref(), "point_only_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
     let bytes = prepared.encode_contracted_result(&result, "synthetic-did", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.synthetic_did.as_ref().unwrap().effect.to_bits(), fit.effect.to_bits());
@@ -182,7 +182,7 @@ fn uniform_unit_randomization_enumerates_sharp_null_and_seals_p_value() {
         fit.uncertainty.as_ref(),
         "point_only_with_exact_unit_randomization_p_value_no_interval"
     );
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         format!("{:?}", record.assumption).contains("uniform_single_treated_unit_assignment")
     }));
@@ -230,7 +230,7 @@ fn nonzero_constant_effect_null_round_trips_and_refuses_missing_assignment() {
         fit.randomization_statistics.iter().find(|(unit, _)| unit.as_ref() == "treated").unwrap().1;
     assert!(observed < 1e-5);
     assert_eq!(fit.randomization_p_value, Some(1.0));
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
     let bytes = prepared.encode_contracted_result(&result, "constant-effect-null", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.synthetic_control.as_ref().unwrap().randomization_p_value, Some(1.0));
@@ -266,7 +266,7 @@ fn augmented_uniform_assignment_tests_the_adjusted_effect_and_seals_artifact() {
     let extreme =
         fit.randomization_statistics.iter().filter(|(_, value)| *value >= observed).count();
     assert_eq!(fit.randomization_p_value, Some(extreme as f64 / 4.0));
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
     let bytes = prepared.encode_contracted_result(&result, "augmented-exact", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
@@ -354,8 +354,8 @@ fn augmented_synthetic_control_recovers_outside_hull_truth_and_seals_artifact() 
     assert!((fit.outcome_model_correction.unwrap() - 4.0).abs() < 1e-4);
     assert!((fit.effect - 5.0).abs() < 1e-4);
     assert_eq!(fit.uncertainty.as_ref(), "point_only_augmented_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         format!("{:?}", record.assumption).contains("donor_ridge_outcome_model_transports")
     }));

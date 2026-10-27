@@ -200,11 +200,7 @@ impl SealedOperation for CheckedBayesianTemporalClassEffectOperation {
         if !self.matches_query(&call.study.query) {
             return Err(call.refusal(QUERY_CHANGED));
         }
-        if !call
-            .study
-            .temporal_class_cache()
-            .is_some_and(|proof| self.matches_class_proof(proof))
-        {
+        if !call.study.temporal_class_cache().is_some_and(|proof| self.matches_class_proof(proof)) {
             return Err(call.refusal(ENVELOPE_DIFFERS));
         }
         call.study

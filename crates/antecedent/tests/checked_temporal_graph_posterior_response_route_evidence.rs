@@ -351,7 +351,7 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                     );
 
                     let result = prepared.estimate_series(&fixture.initial, &ctx).unwrap();
-                    assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
                     assert!(
                         result
                             .diagnostics

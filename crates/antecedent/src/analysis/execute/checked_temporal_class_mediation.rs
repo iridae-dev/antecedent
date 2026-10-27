@@ -95,14 +95,14 @@ impl CheckedTemporalClassMediationOperation {
             return false;
         };
         if !matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_))
-            || study.tiered.is_some()
-            || study.split.is_some()
-            || !study.custom_validators.is_empty()
-            || !study.refute.is_point()
+            || study.declared.tiered.is_some()
+            || study.declared.split.is_some()
+            || !study.declared.custom_validators.is_empty()
+            || !study.settings.refute.is_point()
         {
             return false;
         }
-        if let InferenceMode::Bayesian(config) = &study.inference {
+        if let InferenceMode::Bayesian(config) = &study.settings.inference {
             if config.prior.is_some()
                 || config.prior_artifact.is_some()
                 || config.external_compose.is_some()
@@ -116,19 +116,23 @@ impl CheckedTemporalClassMediationOperation {
                 GraphClass::TemporalCpdag,
                 crate::support::StructureSource::Explicit
                 | crate::support::StructureSource::Accepted,
-            ) => study.identifier.is_none_or(|id| id == IdentifierId::GeneralizedAdjustment),
+            ) => {
+                study.declared.identifier.is_none_or(|id| id == IdentifierId::GeneralizedAdjustment)
+            }
             (
                 Some(posterior),
                 GraphClass::TemporalCpdag,
                 crate::support::StructureSource::GraphPosterior,
-            ) => posterior.atom_kind() == GraphPosteriorAtomKind::Cpdag && query.horizons.len() == 1,
+            ) => {
+                posterior.atom_kind() == GraphPosteriorAtomKind::Cpdag && query.horizons.len() == 1
+            }
             (
                 Some(posterior),
                 GraphClass::TemporalDag,
                 crate::support::StructureSource::GraphPosterior,
             ) => {
                 posterior.atom_kind() == GraphPosteriorAtomKind::Dag
-                    && (matches!(study.inference, InferenceMode::Bayesian(_))
+                    && (matches!(study.settings.inference, InferenceMode::Bayesian(_))
                         || query.horizons.len() == 1)
             }
             _ => false,
@@ -155,7 +159,7 @@ impl CheckedTemporalClassMediationOperation {
                 message: "temporal class mediation structure, target, validation, or plan changed after preparation".into(),
             });
         }
-        let expected_estimator = EstimatorId::temporal_mediation_for(&study.inference);
+        let expected_estimator = EstimatorId::temporal_mediation_for(&study.settings.inference);
         if !physical.binding().estimator.is(expected_estimator) {
             return Err(CausalError::Compile {
                 message:
@@ -171,14 +175,14 @@ impl CheckedTemporalClassMediationOperation {
             Some(posterior) => Self::dbn_posterior_proof(study, physical, posterior)?,
         };
         let target_bindings =
-            retained_mediation_targets(&proof, query, data.schema(), &study.inference)?;
+            retained_mediation_targets(&proof, query, data.schema(), &study.settings.inference)?;
         Ok(Self {
             proof,
             query: query.clone(),
             target_bindings: target_bindings.into(),
-            inference: study.inference.clone(),
-            bootstrap_replicates: study.bootstrap_replicates,
-            validation: study.refute,
+            inference: study.settings.inference.clone(),
+            bootstrap_replicates: study.settings.bootstrap_replicates,
+            validation: study.settings.refute,
             physical: physical.clone(),
             schema: data.schema().clone(),
             structure_source: study.structure_source,
@@ -195,10 +199,8 @@ impl CheckedTemporalClassMediationOperation {
         query: &antecedent_core::MediationQuery,
     ) -> Result<CheckedTemporalMediationProof, CausalError> {
         Self::check_plan_record(physical, "temporal_mediation_class", "generalized.adjustment")?;
-        let cache = study.temporal_class_cache().ok_or_else(|| {
-            CausalError::Compile {
-                message: "temporal class mediation proof was not prepared".into(),
-            }
+        let cache = study.temporal_class_cache().ok_or_else(|| CausalError::Compile {
+            message: "temporal class mediation proof was not prepared".into(),
         })?;
         for &horizon in query.horizons.iter() {
             let cached = cache
@@ -221,8 +223,8 @@ impl CheckedTemporalClassMediationOperation {
         Ok(CheckedTemporalMediationProof::ClassEnvelope {
             graph: (*study.graph).clone(),
             cache: Arc::clone(cache),
-            max_completions: study.max_completions,
-            class_prior: study.class_prior.clone(),
+            max_completions: study.declared.max_completions,
+            class_prior: study.declared.class_prior.clone(),
         })
     }
 
@@ -234,12 +236,9 @@ impl CheckedTemporalClassMediationOperation {
         posterior: &antecedent_discovery::GraphPosterior,
     ) -> Result<CheckedTemporalMediationProof, CausalError> {
         Self::check_plan_record(physical, "temporal_mediation", "temporal.mediation")?;
-        let cache =
-            study.temporal_class_posterior_cache().ok_or_else(|| {
-                CausalError::Compile {
-                    message: "temporal class posterior mediation proof was not prepared".into(),
-                }
-            })?;
+        let cache = study.temporal_class_posterior_cache().ok_or_else(|| CausalError::Compile {
+            message: "temporal class posterior mediation proof was not prepared".into(),
+        })?;
         if cache.graphs.weights.as_ref() != posterior.weights().as_ref()
             || cache.graphs.n_samples != posterior.n_graphs()
         {
@@ -259,7 +258,7 @@ impl CheckedTemporalClassMediationOperation {
         Ok(CheckedTemporalMediationProof::ClassPosterior {
             posterior: posterior.clone(),
             cache: Arc::new(cache),
-            max_completions: study.max_completions,
+            max_completions: study.declared.max_completions,
         })
     }
 
@@ -271,10 +270,8 @@ impl CheckedTemporalClassMediationOperation {
         posterior: &antecedent_discovery::GraphPosterior,
     ) -> Result<CheckedTemporalMediationProof, CausalError> {
         Self::check_plan_record(physical, "temporal_mediation", "temporal.mediation")?;
-        let cache = study.dbn_posterior_cache().ok_or_else(|| {
-            CausalError::Compile {
-                message: "DBN posterior mediation proof was not prepared".into(),
-            }
+        let cache = study.dbn_posterior_cache().ok_or_else(|| CausalError::Compile {
+            message: "DBN posterior mediation proof was not prepared".into(),
         })?;
         if cache.atoms.is_empty() {
             return Err(CausalError::Compile {
@@ -464,12 +461,12 @@ impl CheckedTemporalClassMediationOperation {
         let mut click = base.clone();
         click.data = input.clone();
         click.query = CausalQuery::Mediation(self.query.clone());
-        click.inference = self.inference.clone();
-        click.refute = self.validation;
-        click.bootstrap_replicates = self.bootstrap_replicates;
-        click.custom_validators = Vec::new();
-        click.split = None;
-        click.tiered = None;
+        click.settings.inference = self.inference.clone();
+        click.settings.refute = self.validation;
+        click.settings.bootstrap_replicates = self.bootstrap_replicates;
+        click.declared.custom_validators = Vec::new();
+        click.declared.split = None;
+        click.declared.tiered = None;
         click.clear_identification();
         match &self.proof {
             CheckedTemporalMediationProof::ClassEnvelope {
@@ -480,16 +477,20 @@ impl CheckedTemporalClassMediationOperation {
             } => {
                 click.graph = Arc::new(graph.clone());
                 click.graph_posterior = None;
-                click.identifier = Some(IdentifierId::GeneralizedAdjustment);
-                click.max_completions = *max_completions;
-                click.class_prior.clone_from(class_prior);
-                click.install_identification(crate::analysis::IdentificationCache::TemporalClass(Arc::clone(cache)));
+                click.declared.identifier = Some(IdentifierId::GeneralizedAdjustment);
+                click.declared.max_completions = *max_completions;
+                click.declared.class_prior.clone_from(class_prior);
+                click.install_identification(crate::analysis::IdentificationCache::TemporalClass(
+                    Arc::clone(cache),
+                ));
                 click.execute_temporal_cpdag_mediation(series, &self.query, &self.physical, ctx)
             }
             CheckedTemporalMediationProof::ClassPosterior { posterior, cache, max_completions } => {
                 click.graph_posterior = Some(posterior.clone());
-                click.max_completions = *max_completions;
-                click.install_identification(crate::analysis::IdentificationCache::TemporalClassPosterior(Arc::clone(cache)));
+                click.declared.max_completions = *max_completions;
+                click.install_identification(
+                    crate::analysis::IdentificationCache::TemporalClassPosterior(Arc::clone(cache)),
+                );
                 click.execute_temporal_class_graph_posterior_mediation(
                     series,
                     posterior,
@@ -500,7 +501,9 @@ impl CheckedTemporalClassMediationOperation {
             }
             CheckedTemporalMediationProof::DbnPosterior { posterior, cache } => {
                 click.graph_posterior = Some(posterior.clone());
-                click.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::clone(cache)));
+                click.install_identification(crate::analysis::IdentificationCache::DbnPosterior(
+                    Arc::clone(cache),
+                ));
                 click.execute_dbn_posterior_mediation(
                     series,
                     posterior,

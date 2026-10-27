@@ -115,13 +115,13 @@ fn checked_aipw_click_uses_retained_fitter_after_study_config_changes() {
     // would conflict with the checked receipt and reject the click.
     let mut changed_fitter = AipwAte::new();
     changed_fitter.inference.bootstrap_replicates = 7;
-    prepared.analysis.estimator_spec =
+    prepared.analysis.declared.estimator_spec =
         Some(Arc::new(EstimatorSpec::Aipw(Box::new(changed_fitter))));
     let second = prepared.estimate(&data, &context).unwrap();
     assert!((second.effect() - first.effect()).abs() < 1e-10);
     assert!(second.estimate.as_effect().unwrap().se_bootstrap().is_none());
 
-    prepared.analysis.estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
+    prepared.analysis.declared.estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
         Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
     )));
     let third = prepared.estimate(&data, &context).unwrap();
@@ -164,8 +164,8 @@ fn checked_linear_click_uses_retained_default_uncertainty_after_study_changes() 
     assert!((first.effect() - 2.0).abs() < 0.2);
     assert!(first.estimate.as_effect().unwrap().se_bootstrap().is_none());
 
-    prepared.analysis.bootstrap_replicates = 9;
-    prepared.analysis.estimator_spec =
+    prepared.analysis.settings.bootstrap_replicates = 9;
+    prepared.analysis.declared.estimator_spec =
         Some(Arc::new(EstimatorSpec::Aipw(Box::new(AipwAte::new()))));
     let second = prepared.estimate(&data, &context).unwrap();
     assert!((second.effect() - first.effect()).abs() < 1e-10);
@@ -420,12 +420,12 @@ fn failed_dr_configuration_refresh_preserves_estimator_identity_and_cached_state
             .unwrap();
         let before = prepared.contract().unwrap().identities;
         let config = Arc::clone(&prepared.analysis.config);
-        let estimator = Arc::clone(prepared.analysis.estimator_spec.as_ref().unwrap());
+        let estimator = Arc::clone(prepared.analysis.declared.estimator_spec.as_ref().unwrap());
         let program = Arc::clone(prepared.program_cache.get().unwrap());
         let physical = Arc::clone(&prepared.plan);
         let prior_plan = prepared.plan_view().unwrap();
         assert_eq!(prior_plan.statistical().folds().unwrap().folds, 4);
-        let old_overlap = prepared.analysis.overlap_policy;
+        let old_overlap = prepared.analysis.declared.overlap_policy;
         let baseline = prepared.estimate(&data, &ctx).unwrap().effect();
 
         // Configuration is installed on the candidate before refresh checks
@@ -445,9 +445,12 @@ fn failed_dr_configuration_refresh_preserves_estimator_identity_and_cached_state
         ));
         assert!(Arc::ptr_eq(&physical, &prepared.plan));
         assert!(Arc::ptr_eq(&config, &prepared.analysis.config));
-        assert!(Arc::ptr_eq(&estimator, prepared.analysis.estimator_spec.as_ref().unwrap()));
+        assert!(Arc::ptr_eq(
+            &estimator,
+            prepared.analysis.declared.estimator_spec.as_ref().unwrap()
+        ));
         assert!(Arc::ptr_eq(&program, prepared.program_cache.get().unwrap()));
-        assert_eq!(old_overlap, prepared.analysis.overlap_policy);
+        assert_eq!(old_overlap, prepared.analysis.declared.overlap_policy);
         assert_eq!(before, prepared.contract().unwrap().identities);
         assert_eq!(baseline.to_bits(), prepared.estimate(&data, &ctx).unwrap().effect().to_bits());
 
@@ -485,9 +488,9 @@ fn failed_dr_configuration_refresh_preserves_estimator_identity_and_cached_state
         assert_eq!(view.statistical().models(), expected.statistical().models());
         assert_eq!(view.statistical().resampling(), expected.statistical().resampling());
         assert_eq!(view.to_json()["physical"], expected.to_json()["physical"]);
-        assert_eq!(prepared.analysis.overlap_policy, None);
+        assert_eq!(prepared.analysis.declared.overlap_policy, None);
         assert_eq!(
-            prepared.analysis.estimator_spec.as_ref().unwrap().propensity_overlap(),
+            prepared.analysis.declared.estimator_spec.as_ref().unwrap().propensity_overlap(),
             Some(overlap)
         );
     }
@@ -547,7 +550,7 @@ fn aipw_configuration_refresh_relowers_resampling_and_reseals_its_physical_plan(
     assert_eq!(view.statistical().models(), expected.statistical().models());
     assert_eq!(view.statistical().folds(), expected.statistical().folds());
     assert_eq!(view.statistical().resampling().unwrap().replicates(), 8);
-    assert_eq!(prepared.analysis.bootstrap_replicates, 8);
+    assert_eq!(prepared.analysis.settings.bootstrap_replicates, 8);
     assert_eq!(view.statistical().resampling(), expected.statistical().resampling());
     assert_eq!(view.to_json()["physical"], expected.to_json()["physical"]);
     let PreparedExecution::CheckedAipw(operation) = &prepared.execution else {

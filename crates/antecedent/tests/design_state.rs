@@ -17,12 +17,12 @@ use antecedent::state::{
     RollingMechanismDiagnostics, StateEvent, apply_state_event, full_graph_score,
     new_antecedent_state,
 };
-use antecedent_state::insert_mechanism_diag;
 use antecedent_core::{
     AverageEffectQuery, CacheBudget, CausalQuery, ExecutionContext, QueryId, VariableId,
 };
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 use antecedent_state::DataBatchRef;
+use antecedent_state::insert_mechanism_diag;
 use serde_json::Value;
 
 #[path = "fixtures_common/mod.rs"]

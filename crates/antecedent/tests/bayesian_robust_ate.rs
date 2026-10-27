@@ -70,13 +70,13 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
     drop(builder);
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert!(
-        (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+        (one_shot.estimate().as_effect().unwrap().ate - result.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
     assert!(result.posterior.is_some());
     assert!(
-        (result.estimate.as_effect().unwrap().ate - spec["truth"].as_f64().unwrap()).abs()
+        (result.estimate().as_effect().unwrap().ate - spec["truth"].as_f64().unwrap()).abs()
             < spec["tolerance"].as_f64().unwrap()
     );
     assert!(
@@ -87,8 +87,8 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
     assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "bayesian.robust_ate.modular_bootstrap_pushforward")));
     let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(
-        refreshed.estimate.as_effect().unwrap().ate.to_bits(),
-        result.estimate.as_effect().unwrap().ate.to_bits()
+        refreshed.estimate().as_effect().unwrap().ate.to_bits(),
+        result.estimate().as_effect().unwrap().ate.to_bits()
     );
     let RetainedOperation::BayesianRobustAte(retained) = prepared.retained_operation() else {
         panic!("checked robust ATE plan survives refresh")

@@ -94,7 +94,7 @@ impl super::Study {
             mixed.response.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
-        let estimator_id = if self.inference.is_bayesian() {
+        let estimator_id = if self.settings.inference.is_bayesian() {
             EstimatorId::ResponseBayesian
         } else {
             EstimatorId::default_for_response(&query.functional)
@@ -162,9 +162,7 @@ impl super::Study {
         witness: &AverageEffectQuery,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<CachedGraphPosteriorIdentification>, bool), CausalError> {
-        let (identified, identify_cached) = if let Some(cache) =
-            self.graph_posterior_cache()
-        {
+        let (identified, identify_cached) = if let Some(cache) = self.graph_posterior_cache() {
             (Arc::clone(cache), true)
         } else {
             (
@@ -200,7 +198,7 @@ impl super::Study {
         let data_est = &data_est;
         ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
             let atom = &identified.class_atoms[i];
-            match &self.inference {
+            match &self.settings.inference {
                 InferenceMode::Frequentist => evaluate_class_atom_response_frequentist(
                     self, data_est, query, atom, options, inner,
                 ),
@@ -240,7 +238,7 @@ impl super::Study {
                 "estimate.response.graph_posterior.uncertainty_withheld",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                if self.inference.is_bayesian() {
+                if self.settings.inference.is_bayesian() {
                     "multi-atom Bayesian class-posterior response withholds an aggregate \
                      credible interval: graph-specific dispersion and a frozen-weight aggregate \
                      are different objects"
@@ -297,9 +295,10 @@ impl super::Study {
         let scalar_intervention = plugin_scalar.is_finite()
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         if matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
-            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
+            && (!matches!(self.settings.refute, RefuteSuite::None)
+                || !self.declared.custom_validators.is_empty())
         {
-            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+            if matches!(self.settings.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
                 diagnostics.push(Diagnostic::new(
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
@@ -325,9 +324,9 @@ impl super::Study {
                     estimand: &mixed.estimand,
                     query: &ate_query,
                     estimate: &plugin_estimate,
-                    suite: self.refute,
+                    suite: self.settings.refute,
                     estimator: estimator_id.as_str(),
-                    custom: &self.custom_validators,
+                    custom: &self.declared.custom_validators,
                     temporal: None,
                 }
                 .plugin_level(&mut refute_ws, ctx)
@@ -346,7 +345,7 @@ impl super::Study {
                 )
             }
         } else {
-            if !matches!(self.refute, RefuteSuite::None) {
+            if !matches!(self.settings.refute, RefuteSuite::None) {
                 diagnostics.push(Diagnostic::new(
                     "refute.response.skipped",
                     DiagnosticKind::Scientific,
@@ -480,7 +479,7 @@ fn evaluate_class_atom_response_bayesian(
     options: &antecedent_estimate::ContinuousResponseOptions,
     ctx: &ExecutionContext,
 ) -> Result<ClassAtomResponseEval, CausalError> {
-    let cfg = match &study.inference {
+    let cfg = match &study.settings.inference {
         InferenceMode::Bayesian(c) => c.clone(),
         InferenceMode::Frequentist => {
             return Err(CausalError::unsupported_inference(
@@ -881,8 +880,8 @@ fn plugin_level_on_class_response_atoms(
     refutation: AtomRefutationPolicy<'_>,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
     let AtomRefutationPolicy { aggregation: policy, estimator } = refutation;
-    let suite = study.refute;
-    let custom = &study.custom_validators[..];
+    let suite = study.settings.refute;
+    let custom = &study.declared.custom_validators[..];
     let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
     let mut refute_ws = EstimationWorkspace::default();
     let mut per_atom = Vec::new();

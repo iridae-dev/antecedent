@@ -13,15 +13,15 @@
 use std::sync::Arc;
 
 use antecedent::design::{
-    generate_candidates, rank_studies_bound, DesignEvaluationContext, DesignObjective,
-    DesignRankConfig, DesignRanker, StudyDeclarations, StudyKind,
+    DesignEvaluationContext, DesignObjective, DesignRankConfig, DesignRanker, StudyDeclarations,
+    StudyKind, generate_candidates, rank_studies_bound,
 };
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, QueryId, SearchLimits, VariableId};
 use antecedent_data::TabularData;
 use antecedent_design::{
-    repair, BackdoorRepairFamily, DurableStudyCandidate, RepairFamily, RepairLimits,
-    RepairObjective, StudyCostDeclaration, UnitRules,
+    BackdoorRepairFamily, DurableStudyCandidate, RepairFamily, RepairLimits, RepairObjective,
+    StudyCostDeclaration, UnitRules, repair,
 };
 use antecedent_graph::{Admg, Dag, DenseNodeId};
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};

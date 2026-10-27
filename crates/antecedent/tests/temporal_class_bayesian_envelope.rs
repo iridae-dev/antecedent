@@ -168,7 +168,7 @@ fn temporal_class_bayesian_pulse_without_prior_is_identified_set() {
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
     assert!(result.posterior.is_none());
-    assert!(!result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(!result.estimate().as_effect().unwrap().ate.is_finite());
     let structural = result.structural_response.as_ref().expect("structural envelope");
     assert_eq!(
         structural.weight_basis,
@@ -239,9 +239,9 @@ fn temporal_class_bayesian_pulse_with_class_prior_mixes() {
                 .unwrap();
             assert!(result.posterior.is_some(), "{case}");
             assert!(
-                (result.estimate.as_effect().unwrap().ate - effect).abs() < tol,
+                (result.estimate().as_effect().unwrap().ate - effect).abs() < tol,
                 "{case}: mixed pulse effect {} vs known truth {effect}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             let structural = result.structural_response.as_ref().expect("structural envelope");
             assert_eq!(
@@ -272,9 +272,9 @@ fn temporal_class_bayesian_pulse_with_class_prior_mixes() {
     let click = prepared.estimate_series(&data, &ctx).unwrap();
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert!(
-        (click.estimate.as_effect().unwrap().ate - effect).abs() < tol,
+        (click.estimate().as_effect().unwrap().ate - effect).abs() < tol,
         "prepared click {}",
-        click.estimate.as_effect().unwrap().ate
+        click.estimate().as_effect().unwrap().ate
     );
 }
 
@@ -308,14 +308,14 @@ fn temporal_class_multi_step_is_not_last_step_collapse() {
                 .run(&ExecutionContext::for_tests(3))
                 .unwrap();
             assert!(
-                (result.estimate.as_effect().unwrap().ate - last_step).abs() > 1.0,
+                (result.estimate().as_effect().unwrap().ate - last_step).abs() > 1.0,
                 "{case}: multi-step {} collapsed toward last-step {last_step}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             assert!(
-                (result.estimate.as_effect().unwrap().ate - full).abs() < tol,
+                (result.estimate().as_effect().unwrap().ate - full).abs() < tol,
                 "{case}: multi-step {} vs window {full}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             if suite == RefuteSuite::None {
                 assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
@@ -558,7 +558,7 @@ fn temporal_pag_directed_bayesian_pulse_identifies() {
         .unwrap()
         .run(&ExecutionContext::for_tests(5))
         .unwrap();
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     let structural = result.structural_response.as_ref().expect("pag envelope");
     assert!(structural.unidentified_mass.abs() < 1e-9);
 }
@@ -1002,7 +1002,7 @@ fn validation_without_class_prior_uses_finite_atom_baselines() {
         .unwrap()
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
-    assert!(!result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(!result.estimate().as_effect().unwrap().ate.is_finite());
     assert!(!result.refutations.is_empty());
     assert!(result.refutations.iter().all(|report| report.original_ate.is_finite()));
     assert!(result.refutations.iter().all(|report| report.refuter.starts_with("completion.")));
@@ -1225,12 +1225,12 @@ fn frequentist_multi_step_class_mixture_declares_its_missing_se() {
     let full = pin["multi_step"]["full_window_effect"].as_f64().unwrap();
     let tol = pin["multi_step"]["absolute_tolerance"].as_f64().unwrap();
     assert!(
-        (result.estimate.as_effect().unwrap().ate - full).abs() < tol,
+        (result.estimate().as_effect().unwrap().ate - full).abs() < tol,
         "{}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     assert!(
-        result.estimate.as_effect().unwrap().se_analytic().is_nan(),
+        result.estimate().as_effect().unwrap().se_analytic().is_nan(),
         "two atoms share observations; no mixture SE"
     );
     assert!(
@@ -1240,7 +1240,7 @@ fn frequentist_multi_step_class_mixture_declares_its_missing_se() {
             .any(|d| d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"),
         "the missing mixture SE must be declared, as on the Pulse envelope"
     );
-    assert!(!result.estimate.as_effect().unwrap().provenance.assumptions.entries.is_empty());
+    assert!(!result.estimate().as_effect().unwrap().provenance.assumptions.entries.is_empty());
 }
 
 fn oriented_dag() -> antecedent_graph::TemporalDag {
@@ -1470,7 +1470,7 @@ fn temporal_class_bayesian_pulse_mixes_with_unidentified_mass() {
     assert!(structural.unidentified_mass > 0.0, "{}", structural.unidentified_mass);
     assert!((structural.identified_mass + structural.unidentified_mass - 1.0).abs() < 1e-9);
     assert!(result.posterior.is_some());
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     let mixed = result.posterior.as_ref().unwrap();
     assert!(mixed.unidentified_mass > 0.0, "unidentified mass must not be renormalized away");
     assert_eq!(
@@ -1947,11 +1947,11 @@ fn temporal_pag_bayesian_pulse_and_sustained_all_structures_and_suites() {
                     .run(&ExecutionContext::for_tests(seed))
                     .unwrap();
                 let case = format!("{label} accepted={accepted} {suite:?}");
-                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{case}");
+                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{case}");
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - effect).abs() < tol,
+                    (result.estimate().as_effect().unwrap().ate - effect).abs() < tol,
                     "{case}: effect {} vs known truth {effect}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 let structural = result.structural_response.as_ref().expect("structural envelope");
                 assert!((structural.identified_mass - identified_mass).abs() < 1e-9, "{case}");

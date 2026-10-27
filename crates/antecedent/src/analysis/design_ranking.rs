@@ -620,16 +620,15 @@ impl TryFrom<DesignRankingRequestWire> for Prepared {
         } = wire;
         let Decision { problem, prior, contract_identity, utility_unit, action_ids } =
             Decision::try_from(decision)?;
-        let candidates = candidates
-            .into_iter()
-            .map(EvsiCandidate::try_from)
-            .collect::<Result<Vec<_>, _>>()?;
-        let rank_config = monte_carlo.map_or_else(DesignRankConfig::default, |mc| DesignRankConfig {
-            min_batches: mc.min_batches,
-            max_batches: mc.max_batches,
-            batch_size: mc.batch_size,
-            rank_uncertainty_threshold: mc.rank_uncertainty_threshold,
-        });
+        let candidates =
+            candidates.into_iter().map(EvsiCandidate::try_from).collect::<Result<Vec<_>, _>>()?;
+        let rank_config =
+            monte_carlo.map_or_else(DesignRankConfig::default, |mc| DesignRankConfig {
+                min_batches: mc.min_batches,
+                max_batches: mc.max_batches,
+                batch_size: mc.batch_size,
+                rank_uncertainty_threshold: mc.rank_uncertainty_threshold,
+            });
         let request = EvsiRequest {
             decision_contract_identity: contract_identity,
             utility_unit,

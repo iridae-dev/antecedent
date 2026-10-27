@@ -206,7 +206,7 @@ fn class_derivative_validation_checks_the_finite_difference_against_the_regressi
             let result = class_study(&table, kind, accepted, InferenceMode::Frequentist, suite)
                 .run(&ctx)
                 .unwrap_or_else(|error| panic!("{label}: {error}"));
-            assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
+            assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
             assert!(report(&result, "derivative.support", &label).passed, "{label}");
             let fd = report(&result, "derivative.finite_difference", &label);
             assert!(
@@ -234,7 +234,7 @@ fn bayesian_class_derivative_validation_adds_the_predictive_checks() {
         let result = class_study(&table, kind, false, inference(), RefuteSuite::Cheap)
             .run(&ctx)
             .unwrap_or_else(|error| panic!("{kind}: {error}"));
-        assert_eq!(result.support_status, Some(CellStatus::Refused), "{kind}");
+        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{kind}");
         assert!(has(&result, "derivative.support"), "{kind}");
         assert!(!result.predictive_checks.is_empty(), "{kind}: posterior predictive checks");
     }
@@ -293,7 +293,7 @@ fn a_front_door_derivative_is_checked_by_smoother_sensitivity_and_resampling() {
             .unwrap()
             .run(&ctx)
             .unwrap_or_else(|error| panic!("{label}: {error}"));
-        assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
+        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
         assert!(report(&result, "derivative.support", &label).passed, "{label}");
         let sensitivity = report(&result, "derivative.front_door_smoothness_sensitivity", &label);
         assert!(sensitivity.passed, "{label}: {:?}", sensitivity.failure_condition);
@@ -387,7 +387,7 @@ fn a_temporal_front_door_slope_runs_the_front_door_state_on_its_window() {
             .unwrap()
             .run(&ctx)
             .unwrap_or_else(|error| panic!("{label}: {error}"));
-        assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
+        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
         assert!(report(&result, "derivative.support", &label).passed, "{label}");
         let sensitivity = report(&result, "derivative.front_door_smoothness_sensitivity", &label);
         // The published slope is the front-door product; the report carries the refit that
@@ -462,7 +462,7 @@ fn several_temporal_horizons_are_checked_without_mixing_them() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Refused));
+    assert_eq!(result.support_status(), Some(CellStatus::Refused));
     assert!(has(&result, "derivative.support"));
     // The support report plus the Pulse-native suite of each of the two horizons' witnesses.
     assert!(result.refutations.len() > 2, "{:?}", result.refutations);

@@ -294,7 +294,7 @@ fn intervention_response_conforms_to_known_truth_fixture() {
         let prepared = study.prepare(&ExecutionContext::for_tests(52)).unwrap();
         let via_prepared = prepared.estimate(&data, &ExecutionContext::for_tests(52)).unwrap();
         for (label, result) in [("direct", &direct), ("prepared", &via_prepared)] {
-            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "licensed");
             let response = result.response().unwrap();
             assert_eq!(response.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
             let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
@@ -441,7 +441,7 @@ fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contr
         let fresh = study.clone().run(&ctx).unwrap();
         let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
         for curve in [&fresh, &click] {
-            assert_eq!(curve.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(curve.support_status().unwrap().as_str(), "licensed");
             let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
                 &curve.response().unwrap().estimate
             else {

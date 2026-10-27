@@ -134,8 +134,8 @@ fn sharp_rd_rows() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
 /// is the moving-block bootstrap. The two answer one question with estimators that cannot agree
 /// under curvature.
 #[test]
-fn horizon_one_sharp_rd_uniform_window_fit_is_biased_where_the_temporal_local_ratio_recovers_the_jump(
-) {
+fn horizon_one_sharp_rd_uniform_window_fit_is_biased_where_the_temporal_local_ratio_recovers_the_jump()
+ {
     let (running, treated, outcome) = sharp_rd_rows();
     let bandwidth = 1.0;
     let data = table(&[("t", &treated), ("y", &outcome), ("r", &running)]);
@@ -149,7 +149,7 @@ fn horizon_one_sharp_rd_uniform_window_fit_is_biased_where_the_temporal_local_ra
             .estimator(EstimatorId::RdSharp)
             .rd_config(id(2), 0.0, bandwidth),
     ));
-    let static_effect = static_result.estimate.as_effect().unwrap();
+    let static_effect = static_result.estimate().as_effect().unwrap();
 
     // Closed form: OLS of y on [1, T, R, T R] over the rows inside the window.
     let inside: Vec<usize> = (0..RD_ROWS).filter(|&i| running[i].abs() <= bandwidth).collect();

@@ -180,7 +180,7 @@ fn partially_identified_cpdag_ate_carries_the_completion_identified_set() {
         .into_iter()
         .map(|dag| {
             let one = prepare(&data, dag, ate_query(), InferenceMode::Frequentist, &ctx);
-            one.estimate(&data, &ctx).unwrap().estimate.as_effect().unwrap().ate
+            one.estimate(&data, &ctx).unwrap().estimate().as_effect().unwrap().ate
         })
         .collect();
     let lo = per_completion.iter().copied().fold(f64::INFINITY, f64::min);
@@ -208,8 +208,8 @@ fn partially_identified_cpdag_ate_carries_the_completion_identified_set() {
     assert_eq!(mixture.unevaluable_mass, 0.0);
     assert_eq!(mixture.subsampled_out_mass, 0.0);
     assert!(
-        result.estimate.as_effect().unwrap().ate >= set_lo
-            && result.estimate.as_effect().unwrap().ate <= set_hi,
+        result.estimate().as_effect().unwrap().ate >= set_lo
+            && result.estimate().as_effect().unwrap().ate <= set_hi,
         "the reported mixture must lie inside its identified set"
     );
     round_trip(&prepared, &result, &ctx, "cpdag-ate-partial");
@@ -232,7 +232,7 @@ fn point_identified_cpdag_ate_still_reports_a_point() {
         "a point-identified class answer is not an identified set"
     );
     assert_eq!(claim_kind(&prepared, &result, &ctx), ClaimKind::Point);
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     round_trip(&prepared, &result, &ctx, "cpdag-ate-point");
 }
 

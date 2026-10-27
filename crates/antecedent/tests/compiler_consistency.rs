@@ -48,20 +48,20 @@ fn checked_adjustment_executes_after_builder_discard_and_refresh() {
     let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert!(matches!(prepared.retained_operation(), RetainedOperation::CheckedLinear(..)));
     let second_refresh = rebind_estimate(&mut prepared, data, &ctx).unwrap();
-    assert!((first.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2);
+    assert!((first.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2);
     assert!(
-        (first.estimate.as_effect().unwrap().ate - one_shot.estimate.as_effect().unwrap().ate)
+        (first.estimate().as_effect().unwrap().ate - one_shot.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-9
     );
     assert!(
-        (first.estimate.as_effect().unwrap().ate - refreshed.estimate.as_effect().unwrap().ate)
+        (first.estimate().as_effect().unwrap().ate - refreshed.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-9
     );
     assert!(
-        (first.estimate.as_effect().unwrap().ate
-            - second_refresh.estimate.as_effect().unwrap().ate)
+        (first.estimate().as_effect().unwrap().ate
+            - second_refresh.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-9
     );
@@ -89,10 +89,10 @@ fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
     assert_eq!(lowering.lowering().population, antecedent_core::TargetPopulation::AllObserved);
     assert_eq!(lowering.lowering().rows.len(), 512);
     let first = prepared.estimate(&data, &ctx).unwrap();
-    assert!((first.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.3);
+    assert!((first.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.3);
     let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert!(
-        (refreshed.estimate.as_effect().unwrap().ate - first.estimate.as_effect().unwrap().ate)
+        (refreshed.estimate().as_effect().unwrap().ate - first.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-10
     );
@@ -121,7 +121,7 @@ fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
     };
     assert_eq!(retained.lowering().bootstrap_replicates, 8);
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_some());
+    assert!(result.estimate().as_effect().unwrap().se_bootstrap().is_some());
     let bytes = prepared.encode_contracted_result(&result, "checked-aipw-bootstrap", &ctx).unwrap();
     assert!(
         antecedent_io::consume_analysis_result(&bytes)
@@ -392,7 +392,7 @@ fn sharp_rd_that_identifies_retains_its_design_from_compile() {
         "an identified sharp design retains its identification product"
     );
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.5);
+    assert!((result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.5);
 }
 
 #[test]

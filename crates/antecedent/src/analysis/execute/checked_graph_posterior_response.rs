@@ -187,13 +187,15 @@ impl super::Study {
         bound.data = DataInput::Tabular(data.clone());
         bound.query = CausalQuery::Response(operation.query().clone());
         bound.graph_posterior = Some(operation.posterior().clone());
-        bound.install_identification(crate::analysis::IdentificationCache::GraphPosterior(Arc::clone(operation.identification())));
-        bound.inference = operation.inference().clone();
-        bound.refute = operation.validation();
+        bound.install_identification(crate::analysis::IdentificationCache::GraphPosterior(
+            Arc::clone(operation.identification()),
+        ));
+        bound.settings.inference = operation.inference().clone();
+        bound.settings.refute = operation.validation();
         bound.latency_mode = operation.latency_mode();
-        bound.estimator = Some(operation.procedure().1);
-        bound.identifier = Some(operation.procedure().0);
-        bound.custom_validators = Vec::new();
+        bound.declared.estimator = Some(operation.procedure().1);
+        bound.declared.identifier = Some(operation.procedure().0);
+        bound.declared.custom_validators = Vec::new();
         match operation.posterior().atom_kind() {
             antecedent_discovery::GraphPosteriorAtomKind::Dag => bound
                 .execute_graph_posterior_response(

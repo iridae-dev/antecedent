@@ -443,7 +443,10 @@ impl RetainedRefresh {
     ///
     /// # Errors
     /// As [`Self::apply`].
-    pub fn apply_owned(&mut self, mutation: RefreshMutation) -> Result<RefreshOutcome, CausalError> {
+    pub fn apply_owned(
+        &mut self,
+        mutation: RefreshMutation,
+    ) -> Result<RefreshOutcome, CausalError> {
         self.summary.ops_mut().apply_mutation(mutation)
     }
 
@@ -594,7 +597,11 @@ trait FlatFamily {
     type Row;
 
     fn rows_of(rows: Vec<RefreshObservation>) -> Result<Vec<Self::Row>, CausalError>;
-    fn flat_append(&mut self, source: &str, rows: &[Self::Row]) -> Result<RefreshOutcome, StateError>;
+    fn flat_append(
+        &mut self,
+        source: &str,
+        rows: &[Self::Row],
+    ) -> Result<RefreshOutcome, StateError>;
     fn flat_retain_last(&mut self, max_rows: usize) -> Result<RefreshOutcome, StateError>;
     fn flat_evict(&mut self, id: u64) -> Result<RefreshOutcome, StateError>;
     fn flat_set_weight(&mut self, id: u64, weight: f64) -> Result<RefreshOutcome, CausalError>;
@@ -608,7 +615,11 @@ trait FlatFamily {
     fn flat_fresh_result(&self) -> Result<RefreshResult, StateError>;
     fn flat_check(&self) -> Result<(), StateError>;
     fn flat_frame_bytes(&self) -> u64;
-    fn flat_spill(&self, registry: &Arc<SpillRegistry>, key: &str) -> Result<SpillHandle, StateError>;
+    fn flat_spill(
+        &self,
+        registry: &Arc<SpillRegistry>,
+        key: &str,
+    ) -> Result<SpillHandle, StateError>;
 }
 
 impl<F: FlatFamily> RefreshFamilyOps for F {
@@ -659,7 +670,11 @@ impl FlatFamily for OlsRefresh {
     fn rows_of(rows: Vec<RefreshObservation>) -> Result<Vec<RefreshRow>, CausalError> {
         ols_rows(rows)
     }
-    fn flat_append(&mut self, source: &str, rows: &[RefreshRow]) -> Result<RefreshOutcome, StateError> {
+    fn flat_append(
+        &mut self,
+        source: &str,
+        rows: &[RefreshRow],
+    ) -> Result<RefreshOutcome, StateError> {
         OlsRefresh::append_window(self, source, rows)
     }
     fn flat_retain_last(&mut self, max_rows: usize) -> Result<RefreshOutcome, StateError> {
@@ -693,7 +708,11 @@ impl FlatFamily for OlsRefresh {
     fn flat_frame_bytes(&self) -> u64 {
         ols_frame_bytes(self.rows(), self.source())
     }
-    fn flat_spill(&self, registry: &Arc<SpillRegistry>, key: &str) -> Result<SpillHandle, StateError> {
+    fn flat_spill(
+        &self,
+        registry: &Arc<SpillRegistry>,
+        key: &str,
+    ) -> Result<SpillHandle, StateError> {
         OlsRefresh::spill(self, registry, key)
     }
 }
@@ -704,7 +723,11 @@ impl FlatFamily for WeightedOlsRefresh {
     fn rows_of(rows: Vec<RefreshObservation>) -> Result<Vec<WeightedRow>, CausalError> {
         Ok(weighted_rows(rows))
     }
-    fn flat_append(&mut self, source: &str, rows: &[WeightedRow]) -> Result<RefreshOutcome, StateError> {
+    fn flat_append(
+        &mut self,
+        source: &str,
+        rows: &[WeightedRow],
+    ) -> Result<RefreshOutcome, StateError> {
         WeightedOlsRefresh::append_window(self, source, rows)
     }
     fn flat_retain_last(&mut self, max_rows: usize) -> Result<RefreshOutcome, StateError> {
@@ -740,7 +763,11 @@ impl FlatFamily for WeightedOlsRefresh {
             + self.source().len() as u64
             + 256
     }
-    fn flat_spill(&self, registry: &Arc<SpillRegistry>, key: &str) -> Result<SpillHandle, StateError> {
+    fn flat_spill(
+        &self,
+        registry: &Arc<SpillRegistry>,
+        key: &str,
+    ) -> Result<SpillHandle, StateError> {
         WeightedOlsRefresh::spill(self, registry, key)
     }
 }
@@ -794,7 +821,11 @@ impl FlatFamily for CovarianceRefresh {
             + self.source().len() as u64
             + 256
     }
-    fn flat_spill(&self, registry: &Arc<SpillRegistry>, key: &str) -> Result<SpillHandle, StateError> {
+    fn flat_spill(
+        &self,
+        registry: &Arc<SpillRegistry>,
+        key: &str,
+    ) -> Result<SpillHandle, StateError> {
         CovarianceRefresh::spill(self, registry, key)
     }
 }

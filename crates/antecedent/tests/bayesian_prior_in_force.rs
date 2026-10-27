@@ -430,7 +430,7 @@ fn full_posterior_ppc_flags_serial_dependence_and_pins_a_value() {
     .expect("kappa note");
     assert!(kappa > 1.2, "persistent treatment + AR(1) residual inflates the scale: {kappa}");
     assert!(
-        ar.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|a| matches!(
+        ar.estimate().as_effect().unwrap().provenance.assumptions.entries.iter().any(|a| matches!(
             &a.assumption,
             antecedent_core::Assumption::ParametricRestriction(p)
                 if p.id.as_ref() == antecedent_estimate::DEPENDENCE_ASSUMPTION_ID

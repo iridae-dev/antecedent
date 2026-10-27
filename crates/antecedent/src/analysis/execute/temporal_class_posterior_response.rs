@@ -120,7 +120,7 @@ impl super::Study {
             structural: mixture,
             diagnostics,
             identify_cached: self.class_posterior_cache_retained(gp),
-            bootstrap_replicates: Some(self.bootstrap_replicates),
+            bootstrap_replicates: Some(self.settings.bootstrap_replicates),
             started,
             ctx,
             refutations,
@@ -197,9 +197,10 @@ impl super::Study {
             let mut atom_study = self.clone();
             atom_study.graph_posterior = None;
             atom_study.graph = Arc::new(graph);
-            atom_study.refute = RefuteSuite::None;
-            atom_study.custom_validators.clear();
-            atom_study.identification = retained_atom.map(crate::analysis::IdentificationCache::TemporalClass);
+            atom_study.settings.refute = RefuteSuite::None;
+            atom_study.declared.custom_validators.clear();
+            atom_study.identification =
+                retained_atom.map(crate::analysis::IdentificationCache::TemporalClass);
             match atom_study.execute_temporal_class_response(data, query, physical, inner) {
                 Ok(result) => Ok((key, weight, Some(Ok(result)))),
                 Err(err @ CausalError::Unsupported { .. }) => Err(err),
@@ -351,7 +352,8 @@ impl super::Study {
         let is_intervention =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         let (refutations, refute_diags) = if is_intervention
-            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
+            && (!matches!(self.settings.refute, RefuteSuite::None)
+                || !self.declared.custom_validators.is_empty())
         {
             refute_temporal_class_graph_posterior_intervention(
                 self,
@@ -363,7 +365,7 @@ impl super::Study {
                 ctx,
             )?
         } else {
-            if !matches!(self.refute, RefuteSuite::None) {
+            if !matches!(self.settings.refute, RefuteSuite::None) {
                 diagnostics.push(Diagnostic::new(
                     "refute.temporal_response.skipped",
                     DiagnosticKind::Scientific,
@@ -709,7 +711,7 @@ fn temporal_class_response_pooled_block_se(
     weighted: &[(u64, f64, CausalResponse)],
     ctx: &ExecutionContext,
 ) -> Result<Option<f64>, CausalError> {
-    if !study.inference.is_frequentist() || study.bootstrap_replicates == 0 {
+    if !study.settings.inference.is_frequentist() || study.settings.bootstrap_replicates == 0 {
         return Ok(None);
     }
     if !matches!(query.functional, antecedent_core::ResponseFunctional::InterventionResponse { .. })
@@ -752,7 +754,7 @@ fn temporal_class_response_pooled_block_se(
                 &estimand,
                 &pulse,
                 indexer,
-                study.split.as_ref(),
+                study.declared.split.as_ref(),
                 ctx,
             ) else {
                 continue;
@@ -770,7 +772,7 @@ fn temporal_class_response_pooled_block_se(
         &design_refs,
         &weights,
         temporal_class_block_span(indexers.iter()),
-        study.bootstrap_replicates,
+        study.settings.bootstrap_replicates,
         0x9E3D_7A11,
         ctx,
     );
@@ -928,7 +930,7 @@ fn refute_temporal_class_graph_posterior_intervention(
                 &estimand,
                 &pulse,
                 indexer,
-                study.split.as_ref(),
+                study.declared.split.as_ref(),
                 ctx,
             ) else {
                 continue;
@@ -950,12 +952,12 @@ fn refute_temporal_class_graph_posterior_intervention(
     let (reports, mut notes) = EnvelopeRefutation {
         data: &tabular,
         query: &ate,
-        suite: study.refute,
+        suite: study.settings.refute,
         estimator: EstimatorId::TemporalLinearAdjustment.as_str(),
-        custom: &study.custom_validators,
+        custom: &study.declared.custom_validators,
         temporal: Some(TemporalRefutation {
             query: &pulse,
-            split: study.split.as_ref(),
+            split: study.declared.split.as_ref(),
             time_index: data.time_index(),
             gaps: false,
         }),

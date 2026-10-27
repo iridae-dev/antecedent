@@ -185,7 +185,7 @@ fn study(data: TabularData, pag: Pag, query: CausalQuery) -> StudyBuilder {
 }
 
 fn ate(result: &antecedent::StudyResult) -> f64 {
-    result.estimate.as_effect().expect("an effect estimate").ate
+    result.estimate().as_effect().expect("an effect estimate").ate
 }
 
 #[test]
@@ -215,7 +215,7 @@ fn a_bootstrap_interval_accompanies_the_pag_point() {
         .unwrap()
         .run(&ExecutionContext::for_tests(42))
         .unwrap();
-    let effect = result.estimate.as_effect().expect("an effect estimate");
+    let effect = result.estimate().as_effect().expect("an effect estimate");
     assert!(
         effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0) > 0,
         "{:?}",
@@ -317,7 +317,7 @@ fn a_pag_path_specific_effect_under_cheap_validation_runs_the_unlicensed_refuter
         .build()
         .and_then(|built| built.run(&ExecutionContext::for_tests(47)))
         .unwrap();
-    assert_eq!(result.support_status, Some(antecedent::CellStatus::Refused));
+    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Refused));
     assert!(!result.refutations.is_empty());
     assert!(result.refutations.iter().all(|r| r.refuter.starts_with("target.")));
 }

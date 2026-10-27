@@ -81,8 +81,8 @@ impl CheckedTemporalGraphPosteriorEffect {
                     | GraphPosteriorAtomKind::Cpdag
                     | GraphPosteriorAtomKind::Pag
             )
-            && study.tiered.is_none()
-            && study.custom_validators.is_empty()
+            && study.declared.tiered.is_none()
+            && study.declared.custom_validators.is_empty()
             && study.point_validation()
             && query.policy.is_pulse_or_sustained()
             // A conditional effect over TemporalDag atoms is answered atom by atom with the
@@ -90,8 +90,8 @@ impl CheckedTemporalGraphPosteriorEffect {
             && (posterior.atom_kind() != GraphPosteriorAtomKind::Dag
                 || query.effect_modifiers.is_empty())
             && study
-                .estimator
-                .is_none_or(|id| id == EstimatorId::temporal_effect_for(query, &study.inference))
+                .declared.estimator
+                .is_none_or(|id| id == EstimatorId::temporal_effect_for(query, &study.settings.inference))
     }
 
     pub(crate) fn prepare(
@@ -160,13 +160,7 @@ impl CheckedTemporalGraphPosteriorEffect {
             "temporal graph-posterior physical plan disagrees with its retained procedure",
         )?;
         validate_proof_binding(&posterior, &target, &proof)?;
-        Ok(Self {
-            posterior: Arc::new(posterior),
-            query,
-            proof,
-            split,
-            frozen,
-        })
+        Ok(Self { posterior: Arc::new(posterior), query, proof, split, frozen })
     }
 
     /// The frozen procedure settings sealed with the proof.

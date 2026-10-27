@@ -277,18 +277,18 @@ pub(super) fn refute_pulse_witness_sites(
         let ate_query = AverageEffectQuery::binary_ate(witness.treatment, witness.outcome);
         let frame = || TemporalRefutation {
             query: witness,
-            split: study.split.as_ref(),
+            split: study.declared.split.as_ref(),
             time_index: data.time_index(),
             gaps: false,
         };
-        match &study.inference {
+        match &study.settings.inference {
             InferenceMode::Frequentist => {
                 let design = TemporalAtomDesign::linear(
                     data,
                     &site.estimand,
                     witness,
                     &site.indexer,
-                    study.split.as_ref(),
+                    study.declared.split.as_ref(),
                     ctx,
                 )?;
                 let original = design.effect_estimate(site.assumptions.clone());
@@ -303,7 +303,7 @@ pub(super) fn refute_pulse_witness_sites(
                 let (site_reports, site_notes) = EnvelopeRefutation {
                     data: &tabular,
                     query: &ate_query,
-                    suite: study.refute,
+                    suite: study.settings.refute,
                     estimator: "temporal.linear.adjustment",
                     custom: &[],
                     temporal: Some(frame()),
@@ -322,7 +322,7 @@ pub(super) fn refute_pulse_witness_sites(
                         &site.estimand,
                         witness,
                         &site.indexer,
-                        study.split.as_ref(),
+                        study.declared.split.as_ref(),
                         &ctx.kernel_policy,
                     )
                     .map_err(CausalError::from)?;
@@ -350,7 +350,7 @@ pub(super) fn refute_pulse_witness_sites(
                 let (mut site_reports, mut site_notes) = EnvelopeRefutation {
                     data: &tabular,
                     query: &ate_query,
-                    suite: study.refute,
+                    suite: study.settings.refute,
                     estimator: EstimatorId::BayesianTemporalGcomp.as_str(),
                     custom: &[],
                     temporal: Some(frame()),
@@ -367,7 +367,11 @@ pub(super) fn refute_pulse_witness_sites(
                     .unwrap_or(f64::NAN);
                 effects.push(mean);
                 let site_checks = run_envelope_bayesian_full_validation(
-                    BayesianValidation { suite: study.refute, cfg, estimator: &bayes.inner },
+                    BayesianValidation {
+                        suite: study.settings.refute,
+                        cfg,
+                        estimator: &bayes.inner,
+                    },
                     &fits,
                     &mut mixture,
                     mean,

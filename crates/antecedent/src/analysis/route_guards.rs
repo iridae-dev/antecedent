@@ -31,14 +31,14 @@ impl Study {
     /// or `full`).
     #[must_use]
     pub(crate) fn point_validation(&self) -> bool {
-        matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+        matches!(self.settings.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
     }
 
     /// [`Self::point_validation`] widened to the placebo-and-RCC suite.
     #[must_use]
     pub(crate) fn point_validation_or_placebo(&self) -> bool {
         matches!(
-            self.refute,
+            self.settings.refute,
             RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full
         )
     }

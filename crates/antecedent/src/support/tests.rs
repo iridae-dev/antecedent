@@ -1495,11 +1495,9 @@ fn axis_role(kind: antecedent_core::CausalQueryKind) -> AxisRole {
         ]),
         K::Transport => AxisRole::On(&["TransportQuery"]),
         K::Interference => AxisRole::On(&["InterferenceQuery"]),
-        K::MechanismChange
-        | K::UnitChange
-        | K::Discover
-        | K::Attribute
-        | K::Simulate => AxisRole::OffAxis,
+        K::MechanismChange | K::UnitChange | K::Discover | K::Attribute | K::Simulate => {
+            AxisRole::OffAxis
+        }
         K::RandomizedEffect
         | K::PolicyValue
         | K::ContinuousDoseResponse
@@ -1586,8 +1584,10 @@ fn every_query_kind_has_an_axis_role_and_the_axis_names_match_the_declared_list(
         "the query axis names reachable from the query kinds and the declared list differ"
     );
     // The kinds off the axis are exactly the closed allow-list, and none of them has a name.
-    let off_axis: Vec<_> =
-        ALL_QUERY_KINDS.iter().filter(|kind| matches!(axis_role(**kind), AxisRole::OffAxis)).collect();
+    let off_axis: Vec<_> = ALL_QUERY_KINDS
+        .iter()
+        .filter(|kind| matches!(axis_role(**kind), AxisRole::OffAxis))
+        .collect();
     assert_eq!(off_axis.len(), 5);
     let designs =
         ALL_QUERY_KINDS.iter().filter(|kind| matches!(axis_role(**kind), AxisRole::Design)).count();

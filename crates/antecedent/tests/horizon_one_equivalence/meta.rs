@@ -18,7 +18,7 @@ use antecedent_design::decision_contract::{
     ProgramSearchContract, ProgramSearchSpace, StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_eval::{
-    evaluate_contract_on_means, MeanEstimate, MeanSource, Verdict,
+    MeanEstimate, MeanSource, Verdict, evaluate_contract_on_means,
 };
 use antecedent_design::program_search::{
     FiniteProgramDomain, PreparedFiniteProgramSearch, ProgramCandidate, ProgramControl,
@@ -29,8 +29,8 @@ use antecedent_design::sequential_evaluation::{
     FiniteSequentialModel, HistoryKey,
 };
 use antecedent_design::transported_policy::{
-    evaluate_transported_policy, MechanismStatus, ModelMechanism, SelectionDiagram,
-    TransportedPolicyRequest,
+    MechanismStatus, ModelMechanism, SelectionDiagram, TransportedPolicyRequest,
+    evaluate_transported_policy,
 };
 use antecedent_discovery::{
     DiscoveryConstraints, DiscoveryWorkspace, Pc, Pcmci, TemporalConstraints,
@@ -42,9 +42,9 @@ use antecedent_kernels::{shuffle, standard_normal, unbiased_index};
 use antecedent_state::{ConjugateOlsPrior, OlsRefresh, RefreshRow};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 use antecedent_validate::target_native::{
-    run_target_plan, RefutationTarget, TargetFamily, TargetPerturbation, TargetQuadrant,
-    TargetRefit, TargetRefitError, TargetRefutationConfig, TargetRefutationPlan, TargetRefuterKind,
-    TargetSuite,
+    RefutationTarget, TargetFamily, TargetPerturbation, TargetQuadrant, TargetRefit,
+    TargetRefitError, TargetRefutationConfig, TargetRefutationPlan, TargetRefuterKind, TargetSuite,
+    run_target_plan,
 };
 
 // ---------------------------------------------------------------------------
@@ -393,8 +393,8 @@ fn faulty_share(regime: &str) -> ScientificQuantity {
 /// will not produce that number without the selection diagram that licenses carrying the source
 /// model to the target population; the static mean-source decision takes the share as given.
 #[test]
-fn horizon_one_transported_policy_value_is_the_static_expected_utility_but_needs_a_selection_diagram(
-) {
+fn horizon_one_transported_policy_value_is_the_static_expected_utility_but_needs_a_selection_diagram()
+ {
     let source = one_decision_model([0.5, 0.5]);
     let diagram = SelectionDiagram {
         source_population: "plant_a".into(),

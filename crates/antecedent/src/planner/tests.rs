@@ -214,7 +214,10 @@ fn closed_ids_refuse_unknown_wire_names_before_a_compile_input_exists() {
     // parsed, not inside the compile.
     assert!("not.a.real.estimator".parse::<EstimatorId>().is_err());
     assert!("not.a.real.identifier".parse::<IdentifierId>().is_err());
-    assert_eq!("linear.adjustment.ate".parse::<EstimatorId>(), Ok(EstimatorId::LinearAdjustmentAte));
+    assert_eq!(
+        "linear.adjustment.ate".parse::<EstimatorId>(),
+        Ok(EstimatorId::LinearAdjustmentAte)
+    );
 }
 
 #[test]

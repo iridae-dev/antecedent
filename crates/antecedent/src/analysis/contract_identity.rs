@@ -526,9 +526,9 @@ pub(crate) fn bayesian_binding(
         white_innovation: cfg.white_innovation.map(|gate| {
             format!("ljung_box:max_lag={}:level_bits={:016x}", gate.max_lag, gate.level.to_bits())
         }),
-        predictive_replicates: cfg.predictive_replicates.map(|bounds| {
-            format!("n_sims={}:max_rows={}", bounds.n_sims, bounds.max_rows)
-        }),
+        predictive_replicates: cfg
+            .predictive_replicates
+            .map(|bounds| format!("n_sims={}:max_rows={}", bounds.n_sims, bounds.max_rows)),
     }
 }
 

@@ -39,6 +39,9 @@ use antecedent_model::{
 
 use crate::error::CausalError;
 
+mod counterfactual_contrasts;
+pub use counterfactual_contrasts::{ContrastedOutcome, CounterfactualContrasts};
+
 pub use antecedent_attribution::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
     ComponentStatus, ComponentUncertainty, DifferenceMeasure, DistributionChangeOptions,
@@ -63,12 +66,11 @@ pub use antecedent_model::{
     GraphFalsificationConfig, GraphFalsificationOutcome, GraphFalsificationReport,
     GraphUninformativeReason, InvertibleStructuralCausalModel, KdeDoSampler, MarkovImplicationTest,
     McmcDoSampler, MechanismAssignment, MechanismFamily, MechanismRegistry, MechanismSlot,
-    MechanismTyping, MechanismWorkspace, ModelError, ModelEvaluator,
-    NodeFamilyConstraint, NoiseTable, PolicyRoute, PolicySupport, ProbabilisticCausalModel,
-    RouteDecision, SelectionOptions, SelectionPolicy, SelectionProvenance, SelectionRule,
-    TemporalNoise, TemporalPath, TemporalPlan, ValidationSplits,
-    WeightingDoSampler, interventional_mean, policy_support, sample_interventional,
-    sample_observational,
+    MechanismTyping, MechanismWorkspace, ModelError, ModelEvaluator, NodeFamilyConstraint,
+    NoiseTable, PolicyRoute, PolicySupport, ProbabilisticCausalModel, RouteDecision,
+    SelectionOptions, SelectionPolicy, SelectionProvenance, SelectionRule, TemporalNoise,
+    TemporalPath, TemporalPlan, ValidationSplits, WeightingDoSampler, interventional_mean,
+    policy_support, sample_interventional, sample_observational,
 };
 
 /// Fitted GCM plus per-node assignment records.
@@ -317,9 +319,118 @@ pub fn registry_from_candidates(tokens: &[&str]) -> Result<MechanismRegistry, Ca
     Ok(MechanismRegistry { continuous: Arc::from(continuous), discrete: Arc::from(discrete) })
 }
 
-/// Frozen single-intervention ITE target and mechanism-fitting procedure.
+/// One intervened variable of a contrast set with the level it takes in each world.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct TreatmentLevels {
+    /// The intervened variable.
+    pub variable: VariableId,
+    /// Level in the active world.
+    pub active: f64,
+    /// Level in the control world.
+    pub control: f64,
+}
+
+/// The worlds of a counterfactual the single-ITE form does not state: several outcomes, several
+/// simultaneous interventions or a joint baseline, or nested interventions.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ContrastTarget {
+    /// Outcomes read from both worlds, in the query's order.
+    pub outcomes: Arc<[VariableId]>,
+    /// Interventions of the active world, as the query states them.
+    pub active: Arc<[Intervention]>,
+    /// Interventions of the control world, as the query states them.
+    pub control: Arc<[Intervention]>,
+    /// Whether the query admits nested interventions.
+    pub allow_nested: bool,
+    /// Each intervened variable with its two levels, ordered by variable.
+    pub levels: Arc<[TreatmentLevels]>,
+}
+
+impl ContrastTarget {
+    /// The engine request that replays this target.
+    pub(crate) fn request(&self) -> ContrastRequest<'_> {
+        ContrastRequest {
+            outcomes: &self.outcomes,
+            active: &self.active,
+            control: &self.control,
+            allow_nested: self.allow_nested,
+        }
+    }
+
+    /// The intervened variables, ordered.
+    pub(crate) fn treatments(&self) -> Vec<VariableId> {
+        self.levels.iter().map(|level| level.variable).collect()
+    }
+}
+
+/// The hard levels a world sets, flattened over nested sequences, ordered by variable.
+fn world_levels(
+    world: &[Intervention],
+    allow_nested: bool,
+) -> Result<Vec<(VariableId, f64)>, CausalError> {
+    fn hard(
+        intervention: &Intervention,
+        allow_nested: bool,
+        out: &mut Vec<(VariableId, f64)>,
+    ) -> Result<(), CausalError> {
+        match intervention {
+            Intervention::Set { variable, value } => {
+                let level = value.as_f64().ok_or_else(|| CausalError::Compile {
+                    message: "counterfactual intervention value must be f64".into(),
+                })?;
+                if !level.is_finite() {
+                    return Err(CausalError::Unsupported {
+                        message: "counterfactual treatment levels must be finite",
+                    });
+                }
+                match out.iter().find(|(seen, _)| seen == variable) {
+                    Some((_, previous)) if previous.to_bits() != level.to_bits() => {
+                        Err(CausalError::Compile {
+                            message: format!(
+                                "counterfactual world sets {variable:?} to two different levels"
+                            ),
+                        })
+                    }
+                    Some(_) => Ok(()),
+                    None => {
+                        out.push((*variable, level));
+                        Ok(())
+                    }
+                }
+            }
+            Intervention::Sequence(sequence) if allow_nested => {
+                for step in sequence.steps.iter() {
+                    if !step.temporal.is_active_at(0) {
+                        return Err(CausalError::Unsupported {
+                            message: "a nested counterfactual step is not active at the static time",
+                        });
+                    }
+                    hard(&step.intervention, false, out)?;
+                }
+                Ok(())
+            }
+            Intervention::Sequence(_) => Err(CausalError::Unsupported {
+                message: "a nested intervention needs allow_nested on the counterfactual query",
+            }),
+            _ => Err(CausalError::Unsupported {
+                message: "Study counterfactual path requires hard Set interventions",
+            }),
+        }
+    }
+    let mut out = Vec::new();
+    for intervention in world {
+        hard(intervention, allow_nested, &mut out)?;
+    }
+    out.sort_by_key(|(variable, _)| *variable);
+    Ok(out)
+}
+
+/// Frozen ITE target and mechanism-fitting procedure.
 /// The licensed high-level counterfactual route uses heterogeneity-capable
 /// mechanism selection and shared abducted disturbances for both worlds.
+///
+/// One outcome under one hard `Set` is the single form; several outcomes, several simultaneous
+/// interventions with a joint baseline, or nested interventions freeze a [`ContrastTarget`].
 #[derive(Clone, Debug)]
 pub struct CheckedCounterfactualOperation {
     graph: Arc<Dag>,
@@ -329,16 +440,20 @@ pub struct CheckedCounterfactualOperation {
     outcome: VariableId,
     active: f64,
     control: f64,
+    contrast: Option<Arc<ContrastTarget>>,
 }
 
 impl CheckedCounterfactualOperation {
-    /// Check and freeze the currently licensed one-outcome, one-hard-set ITE.
+    /// Check and freeze the counterfactual: the one-outcome, one-hard-set ITE, or a contrast
+    /// set over several outcomes, simultaneous interventions or nested interventions.
     pub(crate) fn compile(graph: Dag, query: CounterfactualQuery) -> Result<Self, CausalError> {
         query.validate()?;
-        if query.allow_nested || query.outcomes.len() != 1 || query.interventions.len() != 1 {
-            return Err(CausalError::Unsupported {
-                message: "Study counterfactual path currently supports one outcome and a single hard intervention for ITE (use gcm::counterfactual_contrasts for several outcomes or simultaneous interventions)",
-            });
+        if query.allow_nested
+            || query.outcomes.len() != 1
+            || query.interventions.len() != 1
+            || !query.joint_control.is_empty()
+        {
+            return Self::compile_contrasts(graph, query);
         }
         let Intervention::Set { variable: treatment, value } = &query.interventions[0] else {
             return Err(CausalError::Unsupported {
@@ -377,7 +492,77 @@ impl CheckedCounterfactualOperation {
             });
         }
         let edges = crate::graph_identity::FrozenEdges::of(&graph);
-        Ok(Self { graph: Arc::new(graph), edges, query, treatment, outcome, active, control })
+        Ok(Self {
+            graph: Arc::new(graph),
+            edges,
+            query,
+            treatment,
+            outcome,
+            active,
+            control,
+            contrast: None,
+        })
+    }
+
+    /// Freeze a contrast set: every outcome is read from the same two replays, each world a set
+    /// of simultaneous interventions on the same variables.
+    fn compile_contrasts(graph: Dag, query: CounterfactualQuery) -> Result<Self, CausalError> {
+        let active_world = world_levels(&query.interventions, query.allow_nested)?;
+        let control_world = world_levels(&query.control_world(), query.allow_nested)?;
+        if active_world.is_empty()
+            || active_world
+                .iter()
+                .map(|(variable, _)| variable)
+                .ne(control_world.iter().map(|(variable, _)| variable))
+        {
+            return Err(CausalError::Compile {
+                message: "counterfactual control world must intervene on the same variables as \
+                          the active world"
+                    .into(),
+            });
+        }
+        let in_graph = |variable: VariableId| {
+            usize::try_from(variable.raw()).is_ok_and(|id| id < graph.node_count())
+        };
+        if !active_world.iter().all(|(variable, _)| in_graph(*variable))
+            || !query.outcomes.iter().copied().all(in_graph)
+        {
+            return Err(CausalError::Compile {
+                message: "counterfactual target variable is absent from the graph".into(),
+            });
+        }
+        let levels: Vec<TreatmentLevels> = active_world
+            .iter()
+            .zip(&control_world)
+            .map(|(&(variable, active), &(_, control))| TreatmentLevels {
+                variable,
+                active,
+                control,
+            })
+            .collect();
+        let target = ContrastTarget {
+            outcomes: Arc::clone(&query.outcomes),
+            active: Arc::clone(&query.interventions),
+            control: Arc::from(query.control_world()),
+            allow_nested: query.allow_nested,
+            levels: Arc::from(levels.clone()),
+        };
+        let edges = crate::graph_identity::FrozenEdges::of(&graph);
+        Ok(Self {
+            graph: Arc::new(graph),
+            edges,
+            treatment: levels[0].variable,
+            outcome: query.outcomes[0],
+            active: levels[0].active,
+            control: levels[0].control,
+            query,
+            contrast: Some(Arc::new(target)),
+        })
+    }
+
+    /// The frozen contrast set, when the query is not the single one-outcome form.
+    pub(crate) fn contrast_target(&self) -> Option<&ContrastTarget> {
+        self.contrast.as_deref()
     }
 
     /// The frozen semantic target.
@@ -402,6 +587,11 @@ impl CheckedCounterfactualOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<(FittedGcm, IteResult), CausalError> {
+        if self.contrast.is_some() {
+            return Err(CausalError::Compile {
+                message: "a counterfactual contrast set is executed with execute_contrasts".into(),
+            });
+        }
         let FittedGcm { model, assignments } = fit_gcm_counterfactual(&self.graph, data)?;
         // The engine shares the model through an `Arc`; once it is dropped the fitted model
         // is moved back out without a copy.
@@ -419,6 +609,27 @@ impl CheckedCounterfactualOperation {
         drop(engine);
         let model = Arc::try_unwrap(model).unwrap_or_else(|shared| (*shared).clone());
         Ok((FittedGcm { model, assignments }, ite))
+    }
+
+    /// Fit mechanisms under the frozen graph, then abduct once and read every outcome from the
+    /// two worlds of a contrast set.
+    pub(crate) fn execute_contrasts(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<(FittedGcm, ContrastSetResult), CausalError> {
+        let target = self.contrast.as_deref().ok_or_else(|| CausalError::Compile {
+            message: "the single-outcome counterfactual is executed with execute".into(),
+        })?;
+        let FittedGcm { model, assignments } = fit_gcm_counterfactual(&self.graph, data)?;
+        let nodes = contrast_outcome_nodes(&model, &target.outcomes)?;
+        let model = Arc::new(model);
+        let engine = CounterfactualEngine::shared(Arc::clone(&model));
+        let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
+        let set = contrasts_from_abduction(&engine, exo, &target.request(), &nodes, ctx)?;
+        drop(engine);
+        let model = Arc::try_unwrap(model).unwrap_or_else(|shared| (*shared).clone());
+        Ok((FittedGcm { model, assignments }, set))
     }
 }
 
@@ -1211,31 +1422,83 @@ pub fn counterfactual_contrasts(
     ctx: &ExecutionContext,
 ) -> Result<ContrastSetResult, CausalError> {
     let (active, control) = worlds;
-    if outcomes.is_empty() || active.is_empty() || control.is_empty() {
-        return Err(CausalError::Compile {
-            message: "a contrast set needs at least one outcome and a non-empty active and \
-                      control world"
-                .into(),
-        });
+    let request = ContrastRequest { outcomes, active, control, allow_nested: false };
+    request.require_complete()?;
+    let nodes = contrast_outcome_nodes(&model, outcomes)?;
+    let engine = CounterfactualEngine::new(model);
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
+    contrasts_from_abduction(&engine, exo, &request, &nodes, ctx)
+}
+
+/// What a contrast set replays: the outcomes read and the two worlds, each a set of
+/// simultaneous interventions.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ContrastRequest<'a> {
+    /// Outcomes read from both worlds.
+    pub outcomes: &'a [VariableId],
+    /// Interventions of the active world.
+    pub active: &'a [Intervention],
+    /// Interventions of the control world.
+    pub control: &'a [Intervention],
+    /// Whether nested interventions are admitted in either world.
+    pub allow_nested: bool,
+}
+
+impl ContrastRequest<'_> {
+    fn require_complete(&self) -> Result<(), CausalError> {
+        if self.outcomes.is_empty() || self.active.is_empty() || self.control.is_empty() {
+            return Err(CausalError::Compile {
+                message: "a contrast set needs at least one outcome and a non-empty active and \
+                          control world"
+                    .into(),
+            });
+        }
+        Ok(())
     }
-    let dense = outcomes
+}
+
+/// The dense node of each contrast outcome.
+pub(crate) fn contrast_outcome_nodes(
+    model: &CompiledCausalModel,
+    outcomes: &[VariableId],
+) -> Result<Vec<antecedent_graph::DenseNodeId>, CausalError> {
+    outcomes
         .iter()
         .map(|&outcome| {
             model.dense_of(outcome).ok_or_else(|| CausalError::Compile {
                 message: format!("contrast outcome {outcome} is not in the model"),
             })
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    let engine = CounterfactualEngine::new(model);
-    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
+        .collect()
+}
+
+/// Replay one abduced noise state under both worlds of `request` and contrast every outcome.
+///
+/// `nodes` are the outcomes' dense nodes in `model` ([`contrast_outcome_nodes`]); the engine's
+/// model must be the one they were read from or a refit of it.
+pub(crate) fn contrasts_from_abduction(
+    engine: &CounterfactualEngine,
+    exo: ExogenousPosterior,
+    request: &ContrastRequest<'_>,
+    nodes: &[antecedent_graph::DenseNodeId],
+    ctx: &ExecutionContext,
+) -> Result<ContrastSetResult, CausalError> {
+    request.require_complete()?;
     let worlds = [
-        CounterfactualWorld { unit_rows: None, interventions: Arc::from(active) },
-        CounterfactualWorld { unit_rows: None, interventions: Arc::from(control) },
+        CounterfactualWorld { unit_rows: None, interventions: Arc::from(request.active) },
+        CounterfactualWorld { unit_rows: None, interventions: Arc::from(request.control) },
     ];
     let mut ws = MechanismWorkspace::default();
-    let replay = engine.predict_retaining_outcomes(&exo, &worlds, outcomes, false, &mut ws, ctx)?;
-    let mut contrasts = Vec::with_capacity(outcomes.len());
-    for (&outcome, &node) in outcomes.iter().zip(&dense) {
+    let replay = engine.predict_retaining_outcomes(
+        &exo,
+        &worlds,
+        request.outcomes,
+        request.allow_nested,
+        &mut ws,
+        ctx,
+    )?;
+    let mut contrasts = Vec::with_capacity(request.outcomes.len());
+    for (&outcome, &node) in request.outcomes.iter().zip(nodes) {
         let treated = replay.outcome_column(0, node)?;
         let baseline = replay.outcome_column(1, node)?;
         let effects: Vec<f64> = treated.iter().zip(baseline).map(|(a, c)| a - c).collect();
@@ -1243,6 +1506,22 @@ pub fn counterfactual_contrasts(
         contrasts.push(OutcomeContrast { outcome, unit_effects: Arc::from(effects), mean_ite });
     }
     Ok(ContrastSetResult { contrasts, noise_inference: exo.kind, exogenous: exo })
+}
+
+/// [`counterfactual_contrasts`] over a fitted model with the noise of many-to-one (categorical)
+/// nodes drawn from `rng`: one posterior draw of the mechanisms owns one abduction shared by every
+/// outcome, as in [`counterfactual_ite_with_noise`].
+pub(crate) fn counterfactual_contrasts_with_noise(
+    model: CompiledCausalModel,
+    data: &TabularData,
+    request: &ContrastRequest<'_>,
+    nodes: &[antecedent_graph::DenseNodeId],
+    ctx: &ExecutionContext,
+    rng: &mut CausalRng,
+) -> Result<ContrastSetResult, CausalError> {
+    let engine = CounterfactualEngine::new(model);
+    let exo = engine.abduct_with_rng(data, AbductionMissingPolicy::Error, rng)?;
+    contrasts_from_abduction(&engine, exo, request, nodes, ctx)
 }
 
 /// The unit-level contrast of one outcome in a [`ContrastSetResult`].
@@ -1640,8 +1919,8 @@ pub fn rank_root_causes(
 mod tests {
     use super::*;
     use antecedent_core::{
-        AllocationMethod, CausalSchemaBuilder, MeasurementSpec, RoleHint, ShapleyConfig,
-        SmallRoleSet, ValueType,
+        AllocationMethod, CausalSchemaBuilder, InterventionSequence, MeasurementSpec, RoleHint,
+        SequencedIntervention, ShapleyConfig, SmallRoleSet, TemporalPolicy, ValueType,
     };
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage, TableView};
@@ -1695,9 +1974,8 @@ mod tests {
         let (fitted, single) = operation.execute(&data, &ctx).unwrap();
         let active = [Intervention::set(x, Value::f64(1.0))];
         let control = [Intervention::set(x, Value::f64(0.0))];
-        let set =
-            counterfactual_contrasts(fitted.model, &data, &[y, x], (&active, &control), &ctx)
-                .unwrap();
+        let set = counterfactual_contrasts(fitted.model, &data, &[y, x], (&active, &control), &ctx)
+            .unwrap();
         // The outcome shared with the single-contrast route reads the same effects.
         let from_set = set.ite_result(y).unwrap();
         assert_eq!(from_set.unit_effects.as_ref(), single.unit_effects.as_ref());
@@ -1728,6 +2006,126 @@ mod tests {
         assert!(run(&[y], &[]).is_err());
         assert!(run(&[VariableId::from_raw(9)], &active).is_err());
         assert!(run(&[y], &active).is_ok());
+    }
+
+    /// `y = 1 + 2·x1 + 3·x2` exactly, with `x1` and `x2` unrelated: variables `0 = x1`,
+    /// `1 = x2`, `2 = y`.
+    fn two_cause_data(n: usize) -> (TabularData, Dag) {
+        let x1: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+        let x2: Vec<f64> = (0..n).map(|i| ((i * 7) % 11) as f64 * 0.3).collect();
+        let y: Vec<f64> = x1.iter().zip(&x2).map(|(a, b)| 1.0 + 2.0 * a + 3.0 * b).collect();
+        let data = TabularData::from_f64_columns([
+            ("x1", x1.as_slice()),
+            ("x2", x2.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap();
+        let mut graph = Dag::with_variables(3);
+        for source in [0, 1] {
+            graph.insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(2)).unwrap();
+        }
+        (data, graph)
+    }
+
+    fn joint_query(outcomes: &[VariableId]) -> CounterfactualQuery {
+        let (x1, x2) = (VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut query = CounterfactualQuery::new(
+            outcomes[0],
+            vec![Intervention::set(x1, Value::f64(1.0)), Intervention::set(x2, Value::f64(1.0))],
+        )
+        .with_joint_control([
+            Intervention::set(x1, Value::f64(0.0)),
+            Intervention::set(x2, Value::f64(0.0)),
+        ]);
+        query.outcomes = Arc::from(outcomes);
+        query
+    }
+
+    #[test]
+    fn the_single_form_freezes_no_contrast_target_and_a_joint_query_freezes_one() {
+        let (_, graph) = two_cause_data(10);
+        let (x1, x2, y) =
+            (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let single = CounterfactualQuery::new(y, vec![Intervention::set(x1, Value::f64(1.0))]);
+        let operation = CheckedCounterfactualOperation::compile(graph.clone(), single).unwrap();
+        assert!(operation.contrast_target().is_none());
+
+        let operation =
+            CheckedCounterfactualOperation::compile(graph.clone(), joint_query(&[y, x2])).unwrap();
+        let target = operation.contrast_target().expect("two outcomes and two interventions");
+        assert_eq!(target.outcomes.as_ref(), [y, x2]);
+        assert_eq!(target.treatments(), vec![x1, x2]);
+        assert!(target.levels.iter().all(|l| l.active == 1.0 && l.control == 0.0));
+        assert!(!target.allow_nested);
+        // One outcome under one `Set` is the single form unless the query asks for nesting.
+        let nested_flag = CounterfactualQuery::new(y, vec![Intervention::set(x1, Value::f64(1.0))])
+            .with_nested(true);
+        let operation = CheckedCounterfactualOperation::compile(graph, nested_flag).unwrap();
+        assert!(operation.contrast_target().is_some_and(|t| t.allow_nested));
+    }
+
+    #[test]
+    fn a_contrast_set_refuses_worlds_that_do_not_intervene_alike() {
+        let (_, graph) = two_cause_data(10);
+        let (x1, x2, y) =
+            (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        // Two interventions against one baseline control: not a joint baseline.
+        let unmatched = CounterfactualQuery::new(
+            y,
+            vec![Intervention::set(x1, Value::f64(1.0)), Intervention::set(x2, Value::f64(1.0))],
+        );
+        assert!(CheckedCounterfactualOperation::compile(graph.clone(), unmatched).is_err());
+        // A one-element baseline is the single control, not a joint one.
+        let single_control =
+            CounterfactualQuery::new(y, vec![Intervention::set(x1, Value::f64(1.0))])
+                .with_joint_control([Intervention::set(x1, Value::f64(0.0))]);
+        let operation =
+            CheckedCounterfactualOperation::compile(graph.clone(), single_control).unwrap();
+        assert!(operation.contrast_target().is_none());
+        // A shift is not a hard level.
+        let mut soft = joint_query(&[y]);
+        soft.interventions = Arc::from([
+            Intervention::shift(x1, Value::f64(1.0)),
+            Intervention::set(x2, Value::f64(1.0)),
+        ]);
+        assert!(CheckedCounterfactualOperation::compile(graph.clone(), soft).is_err());
+        // A nested step needs the query's `allow_nested`.
+        let sequence = |level: f64| {
+            Intervention::sequence(InterventionSequence::new(vec![
+                SequencedIntervention::new(
+                    Intervention::set(x1, Value::f64(level)),
+                    TemporalPolicy::pulse(0),
+                ),
+                SequencedIntervention::new(
+                    Intervention::set(x2, Value::f64(level)),
+                    TemporalPolicy::pulse(0),
+                ),
+            ]))
+        };
+        let nested = CounterfactualQuery::new(y, vec![sequence(1.0)]).with_control(sequence(0.0));
+        assert!(CheckedCounterfactualOperation::compile(graph.clone(), nested.clone()).is_err());
+        let operation =
+            CheckedCounterfactualOperation::compile(graph, nested.with_nested(true)).unwrap();
+        let target = operation.contrast_target().unwrap();
+        assert_eq!(target.treatments(), vec![x1, x2]);
+    }
+
+    #[test]
+    fn a_contrast_set_executes_both_outcomes_and_both_interventions_against_linear_truth() {
+        let (data, graph) = two_cause_data(60);
+        let (x2, y) = (VariableId::from_raw(1), VariableId::from_raw(2));
+        let operation =
+            CheckedCounterfactualOperation::compile(graph, joint_query(&[y, x2])).unwrap();
+        let ctx = ExecutionContext::for_tests(3);
+        let (_, set) = operation.execute_contrasts(&data, &ctx).unwrap();
+        // Both interventions move `y` by 2 + 3; `x2` moves by exactly its own contrast.
+        let effect = set.contrast(y).unwrap();
+        assert!((effect.mean_ite - 5.0).abs() < 0.05, "mean_ite={}", effect.mean_ite);
+        assert_eq!(effect.unit_effects.len(), data.row_count());
+        let own = set.contrast(x2).unwrap();
+        assert!(own.unit_effects.iter().all(|e| (e - 1.0).abs() < 1e-12));
+        // The single-outcome executor refuses a contrast set rather than answer part of it.
+        assert!(operation.execute(&data, &ctx).is_err());
     }
 
     #[test]

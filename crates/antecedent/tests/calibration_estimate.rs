@@ -135,7 +135,7 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
         // is scored on that execution and keyed by it.
         let (bare_study, bare) = run(data, Some(0), seed)?;
         if rep == 0 {
-            let est = &result.estimate;
+            let est = &result.estimate();
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("glm.adjustment"));
             assert_eq!(
                 est.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
@@ -143,12 +143,12 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
                 "the Study default bootstrap"
             );
             assert_eq!(
-                bare.estimate.as_effect().unwrap().ate,
+                bare.estimate().as_effect().unwrap().ate,
                 est.as_effect().unwrap().ate,
                 "same point without bootstrap"
             );
             assert_eq!(
-                bare.estimate.as_effect().unwrap().se_analytic(),
+                bare.estimate().as_effect().unwrap().se_analytic(),
                 est.as_effect().unwrap().se_analytic(),
                 "same analytic SE"
             );
@@ -161,7 +161,7 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
             skip_pair(&mut analytic);
             continue;
         };
-        let est = &result.estimate;
+        let est = &result.estimate();
         {
             let [reported, gated] = &mut bootstrap;
             bind_all(&mut [reported, gated], study, result);
@@ -181,13 +181,13 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
             &mut analytic,
             [
                 normal_at(
-                    bare.estimate.as_effect().unwrap().ate,
-                    bare.estimate.as_effect().unwrap().se_analytic(),
+                    bare.estimate().as_effect().unwrap().ate,
+                    bare.estimate().as_effect().unwrap().se_analytic(),
                     REPORTED_LEVEL,
                 ),
                 normal_at(
-                    bare.estimate.as_effect().unwrap().ate,
-                    bare.estimate.as_effect().unwrap().se_analytic(),
+                    bare.estimate().as_effect().unwrap().ate,
+                    bare.estimate().as_effect().unwrap().se_analytic(),
                     GATE_LEVEL,
                 ),
             ],
@@ -234,7 +234,7 @@ fn average_effect_dag_frequentist_default_nominal_coverage() {
         if rep == 0 {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("linear.adjustment.ate"));
             assert_eq!(
-                result.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+                result.estimate().as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
                 Some(StudyBuilder::OMITTED_BOOTSTRAP),
                 "the Study default bootstrap"
             );

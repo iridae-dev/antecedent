@@ -35,7 +35,14 @@ fn request(n: usize, seed: u64, functional: TemporalFunctional) -> TemporalReque
                             + 0.2 * f64::from(s0 * l2)
                             + 0.05 * f64::from(a1 + a2)
                             + shock;
-                        histories.push(TemporalHistoryWire::two_step(3 * histories.len() as u64, s0, a1, l2, a2, rng.binary(probability) as f64));
+                        histories.push(TemporalHistoryWire::two_step(
+                            3 * histories.len() as u64,
+                            s0,
+                            a1,
+                            l2,
+                            a2,
+                            rng.binary(probability) as f64,
+                        ));
                     }
                 }
             }
@@ -168,7 +175,14 @@ fn checked_temporal_calibration_oracle_matches_enumerated_scm() {
                                     } else {
                                         0.
                                     };
-                                    histories.push(TemporalHistoryWire::two_step(3 * histories.len() as u64, s0, a1, l2, a2, y));
+                                    histories.push(TemporalHistoryWire::two_step(
+                                        3 * histories.len() as u64,
+                                        s0,
+                                        a1,
+                                        l2,
+                                        a2,
+                                        y,
+                                    ));
                                 }
                             }
                         }

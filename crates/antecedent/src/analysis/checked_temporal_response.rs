@@ -618,10 +618,7 @@ mod tests {
         operation.surface_cells = antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS + 1;
         let bytes = operation.surface_cells as u64 * SURFACE_CELL_BYTES;
         let unbudgeted = ExecutionContext::for_tests(41).with_memory_limit(None);
-        assert!(matches!(
-            operation.admit_surface(&unbudgeted),
-            Err(CausalError::Resource { .. })
-        ));
+        assert!(matches!(operation.admit_surface(&unbudgeted), Err(CausalError::Resource { .. })));
         let roomy = ExecutionContext::for_tests(41).with_memory_limit(Some(bytes));
         assert!(operation.admit_surface(&roomy).is_ok());
         let tight = ExecutionContext::for_tests(41).with_memory_limit(Some(bytes - 1));

@@ -85,8 +85,8 @@ fn sealed_and_one_shot_bayesian_conditional_agree_on_a_wide_table() {
     assert!(projected(&one_shot), "one-shot projects the unused column away");
     assert!(projected(&sealed), "sealed execution projects the unused column away");
     assert_eq!(
-        sealed.estimate.as_effect().unwrap().ate.to_bits(),
-        one_shot.estimate.as_effect().unwrap().ate.to_bits()
+        sealed.estimate().as_effect().unwrap().ate.to_bits(),
+        one_shot.estimate().as_effect().unwrap().ate.to_bits()
     );
 }
 
@@ -190,9 +190,9 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
             // is the empirical-population mean of the conditional contrast.
             // Both modifiers have mean zero and the independent SCM mean is 2.
             assert!(
-                (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
+                (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
                 "{coordinate}: {}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 96);
             assert!(result.posterior.as_ref().unwrap().draws.schema.quantities.len() >= 7);
@@ -207,8 +207,8 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
             }
             let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             assert_eq!(
-                refreshed.estimate.as_effect().unwrap().ate.to_bits(),
-                result.estimate.as_effect().unwrap().ate.to_bits()
+                refreshed.estimate().as_effect().unwrap().ate.to_bits(),
+                result.estimate().as_effect().unwrap().ate.to_bits()
             );
 
             let artifact = prepared

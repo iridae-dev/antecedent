@@ -694,6 +694,10 @@ name = "counterfactual_noise_posterior"
 path = "tests/counterfactual_noise_posterior.rs"
 
 [[test]]
+name = "counterfactual_contrasts"
+path = "tests/counterfactual_contrasts.rs"
+
+[[test]]
 name = "tiered_bayesian"
 path = "tests/tiered_bayesian.rs"
 

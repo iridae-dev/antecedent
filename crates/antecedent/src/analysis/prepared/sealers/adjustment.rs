@@ -5,6 +5,7 @@
 
 use super::{SealContext, SealOutcome};
 use crate::accepted::GraphClass;
+use crate::analysis::CheckedConditionalOperation;
 use crate::analysis::builder::RefuteSuite;
 use crate::analysis::checked_propensity::{
     CheckedPropensityContext, CheckedPropensityEstimator, CheckedPropensityOperation,
@@ -12,13 +13,12 @@ use crate::analysis::checked_propensity::{
 use crate::analysis::execute::CheckedStaticCommon;
 use crate::analysis::execute::RouteInput;
 use crate::analysis::prepared::{
-    checked_aipw_fitter, conditional_class_proof_is_complete, CheckedAipwOperation,
-    CheckedFrontDoorOperation, CheckedGlmAdjustmentOperation, CheckedIvOperation,
-    CheckedLinearOperation, CheckedRdOperation, CheckedUnknownTieredAverageOperation,
-    PreparedExecution,
+    CheckedAipwOperation, CheckedFrontDoorOperation, CheckedGlmAdjustmentOperation,
+    CheckedIvOperation, CheckedLinearOperation, CheckedRdOperation,
+    CheckedUnknownTieredAverageOperation, PreparedExecution, checked_aipw_fitter,
+    conditional_class_proof_is_complete,
 };
 use crate::analysis::proof_support::EstimandClaim;
-use crate::analysis::CheckedConditionalOperation;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::RouteDefaults;
@@ -34,7 +34,7 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
         cx.static_ate_dag(),
         analysis.static_cache(),
         source.graph_posterior.is_none(),
-        source.tiered.is_none(),
+        source.declared.tiered.is_none(),
     ) {
         (Some((data, query)), Some(cache), true, true)
             if crate::analysis::compiled_linear::can_retain(source, query)
@@ -72,22 +72,23 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.static_ate_dag(), analysis.static_cache(), &analysis.inference) {
+    let sealed = match (cx.static_ate_dag(), analysis.static_cache(), &analysis.settings.inference)
+    {
         (Some((data, query)), Some(cache), InferenceMode::Frequentist)
             if matches!(query.outcome_functional, OutcomeFunctional::Mean)
                 && !matches!(query.active, Intervention::Set { variable, .. } if variable != query.treatment)
                 && !matches!(query.control, Intervention::Set { variable, .. } if variable != query.treatment)
                 && cx.binding.estimator.is(EstimatorId::GlmAdjustment)
                 && analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
+                && analysis.declared.tiered.is_none()
                 && matches!(
                     analysis.structure_source,
                     crate::support::StructureSource::Explicit
                         | crate::support::StructureSource::Accepted
                 )
-                && analysis.custom_validators.is_empty()
+                && analysis.declared.custom_validators.is_empty()
                 && matches!(
-                    analysis.refute,
+                    analysis.settings.refute,
                     RefuteSuite::None
                         | RefuteSuite::Cheap
                         | RefuteSuite::PlaceboAndRcc
@@ -96,18 +97,18 @@ pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
         {
             let mut fitter =
                 if let Some(crate::estimator_spec::EstimatorSpec::GlmAdjustment(config)) =
-                    analysis.estimator_spec.as_deref()
+                    analysis.declared.estimator_spec.as_deref()
                 {
                     (**config).clone()
                 } else {
                     let mut fitter = antecedent_estimate::GlmAdjustmentAte::new();
                     fitter.inference.sampling_design =
-                        crate::estimator_spec::declared_sampling(analysis.sampling_design);
-                    fitter.inference.bootstrap_replicates = analysis.bootstrap_replicates;
+                        crate::estimator_spec::declared_sampling(analysis.declared.sampling_design);
+                    fitter.inference.bootstrap_replicates = analysis.settings.bootstrap_replicates;
                     fitter
                 };
             if fitter.population_registry.is_none() {
-                fitter.population_registry.clone_from(&analysis.population_registry);
+                fitter.population_registry.clone_from(&analysis.declared.population_registry);
             }
             let preparation = fitter.prepare(data, &cache.estimand, query)?;
             let (identifier, estimator) = cx.binding.resolve(RouteDefaults::STATIC_ATE)?;
@@ -127,22 +128,22 @@ pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn checked_rd(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.rd, &analysis.inference) {
+    let sealed = match (cx.route, analysis.rd, &analysis.settings.inference) {
         (
             Some(RouteInput::StaticAteDag { data, query, graph }),
             Some(config),
             InferenceMode::Frequentist,
         ) if cx.binding.estimator.is(EstimatorId::RdSharp)
             && analysis.graph_posterior.is_none()
-            && analysis.tiered.is_none()
+            && analysis.declared.tiered.is_none()
             && matches!(
                 analysis.structure_source,
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            && analysis.custom_validators.is_empty()
+            && analysis.declared.custom_validators.is_empty()
             && matches!(
-                analysis.refute,
+                analysis.settings.refute,
                 RefuteSuite::None
                     | RefuteSuite::Cheap
                     | RefuteSuite::PlaceboAndRcc
@@ -196,7 +197,7 @@ pub(super) fn checked_rd(cx: &SealContext<'_>) -> SealOutcome {
                 config.cutoff,
                 config.bandwidth,
             );
-            fitter.inference.bootstrap_replicates = analysis.bootstrap_replicates;
+            fitter.inference.bootstrap_replicates = analysis.settings.bootstrap_replicates;
             fitter.inference.se_kind = config.se_kind;
             // The design is checked against the data (sharp assignment,
             // rows inside the bandwidth window) when it executes, as the
@@ -227,19 +228,19 @@ pub(super) fn checked_rd(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.conditional(), analysis.graph.class(), &analysis.inference) {
+    let sealed = match (cx.conditional(), analysis.graph.class(), &analysis.settings.inference) {
         (Some((data, query)), graph_class, InferenceMode::Frequentist)
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
+                && analysis.declared.tiered.is_none()
                 && !query.inner.effect_modifiers.is_empty()
-                && analysis.custom_validators.is_empty()
+                && analysis.declared.custom_validators.is_empty()
                 && matches!(
                     analysis.structure_source,
                     crate::support::StructureSource::Explicit
                         | crate::support::StructureSource::Accepted
                 )
                 && matches!(
-                    analysis.refute,
+                    analysis.settings.refute,
                     RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
                 )
                 && cx.binding.estimator.is_or(
@@ -387,19 +388,20 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
     if plan.streams_design() {
         return Ok(None);
     }
-    let sealed = match (cx.static_ate_dag(), analysis.static_cache(), &analysis.inference) {
+    let sealed = match (cx.static_ate_dag(), analysis.static_cache(), &analysis.settings.inference)
+    {
         (Some((data, query)), Some(cache), InferenceMode::Frequentist)
             if matches!(query.outcome_functional, OutcomeFunctional::Mean)
                 && analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
+                && analysis.declared.tiered.is_none()
                 && matches!(
                     analysis.structure_source,
                     crate::support::StructureSource::Explicit
                         | crate::support::StructureSource::Accepted
                 )
-                && analysis.custom_validators.is_empty()
+                && analysis.declared.custom_validators.is_empty()
                 && matches!(
-                    analysis.refute,
+                    analysis.settings.refute,
                     RefuteSuite::None
                         | RefuteSuite::Cheap
                         | RefuteSuite::PlaceboAndRcc
@@ -409,7 +411,7 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
                     cx.binding.estimator.named(),
                     Some(EstimatorId::PropensityWeighting | EstimatorId::PropensityMatching)
                 )
-                && !analysis.estimator_spec.as_deref().is_some_and(
+                && !analysis.declared.estimator_spec.as_deref().is_some_and(
                     crate::estimator_spec::EstimatorSpec::excludes_undeclared_levels,
                 ) =>
         {
@@ -427,7 +429,7 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
                         "selected propensity estimand is absent from its identification product"
                             .into(),
                 })?;
-            let fitter = match (analysis.estimator_spec.as_deref(), estimator) {
+            let fitter = match (analysis.declared.estimator_spec.as_deref(), estimator) {
                 (
                     Some(crate::estimator_spec::EstimatorSpec::PropensityWeighting(config)),
                     crate::strategy_table::EstimatorId::PropensityWeighting,
@@ -439,13 +441,13 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
                 (_, crate::strategy_table::EstimatorId::PropensityWeighting) => {
                     let mut fitter = antecedent_estimate::PropensityWeighting::new();
                     fitter.inference.sampling_design =
-                        crate::estimator_spec::declared_sampling(analysis.sampling_design);
-                    fitter.inference.bootstrap_replicates = analysis.bootstrap_replicates;
+                        crate::estimator_spec::declared_sampling(analysis.declared.sampling_design);
+                    fitter.inference.bootstrap_replicates = analysis.settings.bootstrap_replicates;
                     CheckedPropensityEstimator::Weighting(fitter)
                 }
                 (_, crate::strategy_table::EstimatorId::PropensityMatching) => {
                     let mut fitter = antecedent_estimate::PropensityMatching::new();
-                    fitter.inference.bootstrap_replicates = analysis.bootstrap_replicates;
+                    fitter.inference.bootstrap_replicates = analysis.settings.bootstrap_replicates;
                     CheckedPropensityEstimator::Matching(fitter)
                 }
                 _ => unreachable!(),
@@ -470,61 +472,61 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
     if plan.streams_design() {
         return Ok(None);
     }
-    let sealed = match (
-        cx.route,
-        analysis.static_cache(),
-        &analysis.inference,
-        source.graph.class(),
-        source.graph_posterior.is_none(),
-        source.tiered.as_ref(),
-    ) {
-        (
-            Some(
-                RouteInput::StaticAteDag { data, query, .. }
-                | RouteInput::StaticAteMixed { data, query },
-            ),
-            Some(cache),
-            InferenceMode::Frequentist,
-            graph_class,
-            true,
-            tiered_background,
-        ) if matches!(
-            (graph_class, tiered_background),
-            (GraphClass::Dag, None) | (GraphClass::Admg, Some(_))
-        ) && tiered_background.is_none_or(|background| {
-            background.within_tier == antecedent_graph::WithinTier::CoDetermined
-        }) && matches!(query.outcome_functional, OutcomeFunctional::Mean)
-            && matches!(query.target_population, TargetPopulation::AllObserved)
-            && crate::analysis::route_guards::distinct_numeric_arms(query)
-            && !analysis
-                .estimator_spec
-                .as_deref()
-                .is_some_and(crate::estimator_spec::EstimatorSpec::excludes_undeclared_levels)
-            && cx.binding.estimator.is(EstimatorId::Aipw) =>
-        {
-            let fitter = checked_aipw_fitter(analysis);
-            if matches!(fitter.overlap, OverlapPolicy::RequireDiagnostics { .. }) {
-                let preparation = match rebound_checked_aipw(cx, &fitter, data, cache, query) {
-                    Some(rebound) => rebound,
-                    None => fitter.prepare_checked(data, &cache.identification, 0)?,
-                };
-                let (identifier, estimator) = cx.binding.resolve(RouteDefaults::STATIC_ATE)?;
-                Some(CheckedAipwOperation {
-                    fitter,
-                    preparation,
-                    query: query.clone(),
-                    cache: Arc::clone(cache),
-                    common: CheckedStaticCommon::from_analysis(
-                        analysis, plan, identifier, estimator,
-                    ),
-                    tiered_background: tiered_background.cloned(),
-                })
-            } else {
-                None
+    let sealed =
+        match (
+            cx.route,
+            analysis.static_cache(),
+            &analysis.settings.inference,
+            source.graph.class(),
+            source.graph_posterior.is_none(),
+            source.declared.tiered.as_ref(),
+        ) {
+            (
+                Some(
+                    RouteInput::StaticAteDag { data, query, .. }
+                    | RouteInput::StaticAteMixed { data, query },
+                ),
+                Some(cache),
+                InferenceMode::Frequentist,
+                graph_class,
+                true,
+                tiered_background,
+            ) if matches!(
+                (graph_class, tiered_background),
+                (GraphClass::Dag, None) | (GraphClass::Admg, Some(_))
+            ) && tiered_background.is_none_or(|background| {
+                background.within_tier == antecedent_graph::WithinTier::CoDetermined
+            }) && matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.target_population, TargetPopulation::AllObserved)
+                && crate::analysis::route_guards::distinct_numeric_arms(query)
+                && !analysis.declared.estimator_spec.as_deref().is_some_and(
+                    crate::estimator_spec::EstimatorSpec::excludes_undeclared_levels,
+                )
+                && cx.binding.estimator.is(EstimatorId::Aipw) =>
+            {
+                let fitter = checked_aipw_fitter(analysis);
+                if matches!(fitter.overlap, OverlapPolicy::RequireDiagnostics { .. }) {
+                    let preparation = match rebound_checked_aipw(cx, &fitter, data, cache, query) {
+                        Some(rebound) => rebound,
+                        None => fitter.prepare_checked(data, &cache.identification, 0)?,
+                    };
+                    let (identifier, estimator) = cx.binding.resolve(RouteDefaults::STATIC_ATE)?;
+                    Some(CheckedAipwOperation {
+                        fitter,
+                        preparation,
+                        query: query.clone(),
+                        cache: Arc::clone(cache),
+                        common: CheckedStaticCommon::from_analysis(
+                            analysis, plan, identifier, estimator,
+                        ),
+                        tiered_background: tiered_background.cloned(),
+                    })
+                } else {
+                    None
+                }
             }
-        }
-        _ => None,
-    };
+            _ => None,
+        };
     Ok(sealed.map(PreparedExecution::CheckedAipw))
 }
 
@@ -553,7 +555,8 @@ fn rebound_checked_aipw(
 
 pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
-    let sealed = match (cx.static_ate_dag(), analysis.static_cache(), &analysis.inference) {
+    let sealed = match (cx.static_ate_dag(), analysis.static_cache(), &analysis.settings.inference)
+    {
         (Some((data, query)), Some(cache), InferenceMode::Frequentist)
             if matches!(query.outcome_functional, OutcomeFunctional::Mean)
                 && matches!(query.target_population, TargetPopulation::AllObserved)
@@ -561,13 +564,13 @@ pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
         {
             let fitter =
                 if let Some(crate::estimator_spec::EstimatorSpec::FrontDoorTwoStage(config)) =
-                    analysis.estimator_spec.as_deref()
+                    analysis.declared.estimator_spec.as_deref()
                 {
                     (**config).clone()
                 } else {
                     let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
                     fitter.inference.sampling_design =
-                        crate::estimator_spec::declared_sampling(analysis.sampling_design);
+                        crate::estimator_spec::declared_sampling(analysis.declared.sampling_design);
                     fitter
                 };
             let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
@@ -585,9 +588,10 @@ pub(super) fn iv(cx: &SealContext<'_>) -> SealOutcome {
     if plan.streams_design() {
         return Ok(None);
     }
-    let sealed = match (cx.static_ate_dag(), analysis.static_cache(), &analysis.inference) {
+    let sealed = match (cx.static_ate_dag(), analysis.static_cache(), &analysis.settings.inference)
+    {
         (Some((data, _)), Some(cache), InferenceMode::Frequentist) => {
-            match (analysis.estimator_spec.as_deref(), cx.binding.estimator.named()) {
+            match (analysis.declared.estimator_spec.as_deref(), cx.binding.estimator.named()) {
                 (
                     Some(crate::estimator_spec::EstimatorSpec::IvWald(cfg)),
                     Some(EstimatorId::IvWald),
@@ -646,16 +650,16 @@ pub(super) fn unknown_tiered_average(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (
         cx.static_ate(),
-        analysis.tiered.as_ref(),
+        analysis.declared.tiered.as_ref(),
         analysis.static_cache(),
-        &analysis.inference,
+        &analysis.settings.inference,
     ) {
         (Some(query), Some(background), Some(cache), inference)
             if background.within_tier == antecedent_graph::WithinTier::Unknown
                 && analysis.structure_source == crate::support::StructureSource::Explicit
                 && analysis.graph_posterior.is_none()
-                && analysis.custom_validators.is_empty()
-                && matches!(analysis.refute, RefuteSuite::None)
+                && analysis.declared.custom_validators.is_empty()
+                && matches!(analysis.settings.refute, RefuteSuite::None)
                 && cx.binding.resolves_to(
                     RouteDefaults::STATIC_ATE,
                     IdentifierId::GeneralizedAdjustment,

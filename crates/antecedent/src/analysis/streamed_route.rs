@@ -24,11 +24,11 @@ pub(crate) fn streamed_estimator(
     study: &Study,
     plan: &PhysicalExecutionPlan,
 ) -> Option<EstimatorId> {
-    if !study.inference.is_frequentist()
+    if !study.settings.inference.is_frequentist()
         || study.graph_posterior.is_some()
-        || study.tiered.is_some()
-        || !study.custom_validators.is_empty()
-        || !matches!(study.refute, RefuteSuite::None)
+        || study.declared.tiered.is_some()
+        || !study.declared.custom_validators.is_empty()
+        || !matches!(study.settings.refute, RefuteSuite::None)
     {
         return None;
     }
@@ -47,8 +47,12 @@ pub(crate) fn streamed_estimator(
         // The linear adjustment sizes and streams itself when it retains an operation.
         return None;
     }
-    let spec =
-        study.estimator_spec.as_deref().cloned().unwrap_or(EstimatorSpec::Default(estimator));
+    let spec = study
+        .declared
+        .estimator_spec
+        .as_deref()
+        .cloned()
+        .unwrap_or(EstimatorSpec::Default(estimator));
     // Only the defaults of the point stage are read, not the estimand.
     let estimand = antecedent_expr::IdentifiedEstimand::backdoor(
         "backdoor.adjustment",
@@ -59,10 +63,10 @@ pub(crate) fn streamed_estimator(
         data,
         estimand: &estimand,
         query,
-        bootstrap_replicates: study.bootstrap_replicates,
-        overlap_policy: study.overlap_policy,
-        population_registry: study.population_registry.as_ref(),
-        sampling_design: study.sampling_design,
+        bootstrap_replicates: study.settings.bootstrap_replicates,
+        overlap_policy: study.declared.overlap_policy,
+        population_registry: study.declared.population_registry.as_ref(),
+        sampling_design: study.declared.sampling_design,
     };
     if !streams_static_effect(&spec, estimator, &input) {
         return None;

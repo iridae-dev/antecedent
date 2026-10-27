@@ -182,7 +182,7 @@ fn effect_coverage(
         )
     });
     for (study, result) in &runs {
-        let est = &result.estimate;
+        let est = &result.estimate();
         assert_eq!(result.estimand.adjustment_set.len(), 0, "{what}: unexpected adjustment");
         assert!(
             est.as_effect().unwrap().se_analytic().is_nan(),
@@ -349,7 +349,7 @@ fn headline_coverage(
         )
     });
     for (study, result) in &runs {
-        let est = &result.estimate;
+        let est = &result.estimate();
         assert!(
             est.as_effect().unwrap().se_analytic().is_nan(),
             "{what}: no analytic SE is calibrated"
@@ -478,7 +478,7 @@ fn mediation_coverage_on(
             };
             let points = &slice.estimate;
             assert!(
-                result.estimate.as_effect().unwrap().se_analytic().is_nan(),
+                result.estimate().as_effect().unwrap().se_analytic().is_nan(),
                 "iid analytic SE must be withheld"
             );
             if i == 0 {
@@ -912,7 +912,7 @@ fn temporal_dag_pulse_publishes_circular_block_se_only() {
     // 159 lag-aligned rows: ⌈159^(1/3)⌉ = 6 beats the two-slice unfolded window.
     assert!(diag.message.contains("circular-block length 6"), "{}", diag.message);
     assert!(diag.message.contains("n=159 lag-aligned rows"), "{}", diag.message);
-    let est = &result.estimate;
+    let est = &result.estimate();
     assert!(est.as_effect().unwrap().se_bootstrap().is_some_and(|se| se.is_finite() && se > 0.0));
     assert!(
         est.as_effect().unwrap().se_analytic().is_nan(),
@@ -929,9 +929,11 @@ fn temporal_dag_pulse_publishes_circular_block_se_only() {
         0,
         7,
     );
-    assert!(bare.estimate.as_effect().unwrap().se_bootstrap().is_none());
-    assert!(bare.estimate.as_effect().unwrap().se_analytic().is_nan());
-    assert!((bare.estimate.as_effect().unwrap().ate - est.as_effect().unwrap().ate).abs() < 1e-12);
+    assert!(bare.estimate().as_effect().unwrap().se_bootstrap().is_none());
+    assert!(bare.estimate().as_effect().unwrap().se_analytic().is_nan());
+    assert!(
+        (bare.estimate().as_effect().unwrap().ate - est.as_effect().unwrap().ate).abs() < 1e-12
+    );
     let bare_diag = bare
         .diagnostics
         .iter()
@@ -951,7 +953,7 @@ fn temporal_mediation_shares_one_block_replicate_across_contrasts() {
     );
     assert!(has_diagnostic(&result, "estimate.temporal.circular_block_se"));
     assert!(
-        result.estimate.as_effect().unwrap().se_analytic().is_nan(),
+        result.estimate().as_effect().unwrap().se_analytic().is_nan(),
         "iid Total SE must be withheld by default"
     );
     let slice = &result.mediation_grid().unwrap().slices[0];
@@ -961,7 +963,7 @@ fn temporal_mediation_shares_one_block_replicate_across_contrasts() {
         panic!("expected shared circular-block uncertainty, got {:?}", slice.uncertainty);
     };
     assert_eq!(*requested, block.total);
-    assert_eq!(result.estimate.as_effect().unwrap().se_bootstrap(), block.total);
+    assert_eq!(result.estimate().as_effect().unwrap().se_bootstrap(), block.total);
     assert_eq!(block.replicates_attempted, 24);
     for se in [block.total, block.direct, block.mediated] {
         assert!(se.is_some_and(|se| se.is_finite() && se > 0.0));
@@ -975,8 +977,8 @@ fn temporal_mediation_shares_one_block_replicate_across_contrasts() {
         0,
         3,
     );
-    assert!(none.estimate.as_effect().unwrap().se_analytic().is_nan());
-    assert!(none.estimate.as_effect().unwrap().se_bootstrap().is_none());
+    assert!(none.estimate().as_effect().unwrap().se_analytic().is_nan());
+    assert!(none.estimate().as_effect().unwrap().se_bootstrap().is_none());
     assert!(matches!(
         none.mediation_grid().unwrap().slices[0].uncertainty,
         TemporalMediationUncertainty::FrequentistPointwise { standard_error: None }

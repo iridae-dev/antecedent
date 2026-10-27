@@ -655,7 +655,7 @@ impl super::Study {
             message: "dynamic graph posterior has no requested point".into(),
         })?;
         let derivative = matches!(first_point, DbnPoint::Derivative { .. });
-        if self.refute != RefuteSuite::None && !derivative {
+        if self.settings.refute != RefuteSuite::None && !derivative {
             return Err(CausalError::Unsupported {
                 message: "a temporal conditional or cross-world point over a graph posterior is \
                           validated by the functional refuter state of the whole procedure, not \
@@ -663,7 +663,7 @@ impl super::Study {
             });
         }
         let prior_scale = isotropic_prior_scale(
-            &self.inference,
+            &self.settings.inference,
             match first_point {
                 DbnPoint::Conditional(_) => CONDITIONAL_PRIOR_REFUSAL,
                 DbnPoint::Derivative { .. } => DERIVATIVE_PRIOR_REFUSAL,
@@ -705,7 +705,7 @@ impl super::Study {
 
         // Per-atom refuter states, one horizon at a time (horizons are not mixed).
         let mut refuted = (Vec::new(), Vec::new(), Vec::new());
-        if derivative && self.refute != RefuteSuite::None {
+        if derivative && self.settings.refute != RefuteSuite::None {
             for lane in &lanes {
                 let (reports, checks, notes) = self.refute_dbn_lane(data, lane, ctx)?;
                 refuted.0.extend(reports);
@@ -852,7 +852,7 @@ impl super::Study {
         let mut posterior = None;
         let mut replicates_ok = None;
         let mut cancelled = false;
-        let mut estimate = if let InferenceMode::Bayesian(cfg) = &self.inference {
+        let mut estimate = if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             let draws = point_uncertainty::point_posterior_draws(
                 &frozen,
                 point_uncertainty::PointPosteriorPlan {
@@ -924,7 +924,7 @@ impl super::Study {
             let replicates = point_uncertainty::point_block_replicates(
                 &frozen,
                 point_uncertainty::PointBlockPlan {
-                    replicates: self.bootstrap_replicates,
+                    replicates: self.settings.bootstrap_replicates,
                     stream_base: block_stream,
                     structural_span,
                 },
@@ -935,7 +935,7 @@ impl super::Study {
             )?;
             diagnostics.extend(point_uncertainty::block_diagnostics(
                 replicates.as_ref(),
-                self.bootstrap_replicates,
+                self.settings.bootstrap_replicates,
                 antecedent_estimate::CircularBlockFamily::Mixture,
                 "every regression of every contributing atom (at every horizon) is refit on each \
                  replicate and the frozen posterior weights are reapplied to the atoms' values \
@@ -1037,7 +1037,7 @@ impl super::Study {
             mixture.unevaluable_mass,
             mixture.subsampled_out_mass,
         );
-        if self.inference.is_bayesian() && posterior.is_none() {
+        if self.settings.inference.is_bayesian() && posterior.is_none() {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.extend(refuted.2);
@@ -1075,10 +1075,10 @@ impl super::Study {
                 ..Default::default()
             }),
         );
-        if self.inference.is_frequentist() {
+        if self.settings.inference.is_frequentist() {
             result.posterior = None;
         }
-        result.rebind_interval(self.inference.is_bayesian());
+        result.rebind_interval(self.settings.inference.is_bayesian());
         Ok(result)
     }
 }

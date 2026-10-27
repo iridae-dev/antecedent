@@ -49,18 +49,18 @@ impl CheckedContinuousDoseOperation {
         query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || study.refute != RefuteSuite::None
-            || study.bootstrap_replicates != 0
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || study.settings.bootstrap_replicates != 0
+            || !study.declared.custom_validators.is_empty()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
+            || study.declared.tiered.is_some()
             || query.baseline_groups.len() != data.row_count()
         {
             return Err(CausalError::Unsupported {
                 message: "continuous-dose response requires a graphless fixed baseline-group table without refuters, bootstrap or custom validators",
             });
         }
-        let bayesian = match &study.inference {
+        let bayesian = match &study.settings.inference {
             InferenceMode::Frequentist => None,
             InferenceMode::Bayesian(config) => {
                 bayesian::require_scope(query, config)?;

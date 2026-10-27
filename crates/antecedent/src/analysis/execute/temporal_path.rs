@@ -54,7 +54,7 @@ impl super::Study {
             .with_allow_gaps(self.declares_complete_case());
         let inputs = CpdagMediationInputs { data, query, estimator: &estimator, ctx };
         let mut run = CpdagMediationRun::new(query.horizons.len());
-        let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
+        let mut class_weights = TemporalClassWeights::new(self.declared.class_prior.as_ref());
         for (horizon_index, &horizon) in query.horizons.iter().enumerate() {
             let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
             witness.horizon_steps = horizon;
@@ -185,7 +185,7 @@ impl super::Study {
         input: ClassMediationInput<'_>,
         horizon: u32,
     ) -> Result<TemporalMediationEstimate, CausalError> {
-        match &self.inference {
+        match &self.settings.inference {
             InferenceMode::Bayesian(cfg) => {
                 let (composed, conflicts) = fit_class_bayesian_mediation(
                     &mut horizon_state.bayesian_fits,
@@ -230,14 +230,14 @@ impl super::Study {
         (input, estimate): (ClassMediationInput<'_>, &TemporalMediationEstimate),
         (horizon, completion_idx): (u32, usize),
     ) -> Result<(), CausalError> {
-        if self.refute == RefuteSuite::None {
+        if self.settings.refute == RefuteSuite::None {
             return Ok(());
         }
         let mut reports = refute_class_mediation(
             &mut horizon_state.refute_fits,
             input,
             estimate,
-            self.refute == RefuteSuite::Full,
+            self.settings.refute == RefuteSuite::Full,
             inputs.ctx,
         )?;
         for report in &mut reports {
@@ -334,7 +334,7 @@ impl super::Study {
                     && lower.total_cmp(&upper) == std::cmp::Ordering::Equal =>
             {
                 let shared = (shared_estimand, shared_adjustment);
-                match &self.inference {
+                match &self.settings.inference {
                     InferenceMode::Frequentist => self.cpdag_shared_design_frequentist(
                         inputs,
                         run,
@@ -390,7 +390,7 @@ impl super::Study {
                 &qh,
                 shared_adjustment,
                 antecedent_estimate::BlockBootstrap {
-                    replicates: self.bootstrap_replicates,
+                    replicates: self.settings.bootstrap_replicates,
                     stream_base: mediation_block_stream(MediationRoute::Temporal, horizon),
                 },
                 inputs.ctx,
@@ -533,7 +533,7 @@ impl super::Study {
                 scalar_estimate,
                 Strategy::new(
                     IdentifierId::GeneralizedAdjustment,
-                    if self.inference.is_bayesian() {
+                    if self.settings.inference.is_bayesian() {
                         EstimatorId::BayesianTemporalMediation
                     } else {
                         EstimatorId::TemporalMediation
@@ -591,7 +591,7 @@ impl super::Study {
             lower: bounds.iter().map(|&(lower, _)| lower).collect::<Vec<_>>().into(),
             upper: bounds.iter().map(|&(_, upper)| upper).collect::<Vec<_>>().into(),
         };
-        let conditional = self.class_prior.as_ref().and_then(|_| {
+        let conditional = self.declared.class_prior.as_ref().and_then(|_| {
             temporal_class_response_mean(
                 &run.structural_atoms,
                 &response_envelope,
@@ -607,7 +607,7 @@ impl super::Study {
             .sum::<f64>()
             / query.horizons.len() as f64;
         Ok(crate::result::StructuralResponseMixture {
-            weight_basis: if self.class_prior.is_some() {
+            weight_basis: if self.declared.class_prior.is_some() {
                 crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
             } else {
                 crate::result::StructuralWeightBasis::CompletionEnumeration
@@ -668,7 +668,7 @@ impl super::Study {
         checked_bayesian: Option<&crate::analysis::CheckedBayesianTemporalEffectOperation>,
     ) -> Result<StudyResult, CausalError> {
         if matches!(
-            self.estimator,
+            self.declared.estimator,
             Some(
                 EstimatorId::TemporalLaggedInstrument
                     | EstimatorId::BayesianTemporalLaggedInstrument
@@ -728,15 +728,15 @@ impl super::Study {
                 identification: &identification,
                 estimand: &estimand,
                 indexer: &indexer,
-                inference: &self.inference,
+                inference: &self.settings.inference,
                 checked_bayesian,
-                bootstrap_replicates: self.bootstrap_replicates,
-                refute: self.refute,
-                custom_validators: &self.custom_validators,
-                split: self.split.as_ref(),
+                bootstrap_replicates: self.settings.bootstrap_replicates,
+                refute: self.settings.refute,
+                custom_validators: &self.declared.custom_validators,
+                split: self.declared.split.as_ref(),
                 latency_mode: self.latency_mode,
                 completed_to_dag: super::temporal_effect_core::plan_completed_to_dag(physical),
-                missing: self.missing.as_ref(),
+                missing: self.declared.missing.as_ref(),
             },
             ctx,
         )?;
@@ -778,10 +778,10 @@ impl super::Study {
             require_isotropic_mediation_prior,
         };
         let started = Instant::now();
-        let inference = match &self.inference {
-            InferenceMode::Frequentist => {
-                MediationInference::Frequentist { bootstrap_replicates: self.bootstrap_replicates }
-            }
+        let inference = match &self.settings.inference {
+            InferenceMode::Frequentist => MediationInference::Frequentist {
+                bootstrap_replicates: self.settings.bootstrap_replicates,
+            },
             InferenceMode::Bayesian(config) => {
                 require_isotropic_mediation_prior(config)?;
                 MediationInference::Bayesian(config)
@@ -811,8 +811,8 @@ impl super::Study {
                 query,
                 horizons: &clicks,
                 inference,
-                validation: self.refute,
-                missing: self.missing.as_ref(),
+                validation: self.settings.refute,
+                missing: self.declared.missing.as_ref(),
             },
             ctx,
         )?;
@@ -847,10 +847,15 @@ impl super::Study {
                 message: "temporal response route requires TemporalResponseSpec".into(),
             });
         };
-        enforce_temporal_response_memory_budget(query, temporal, self.bootstrap_replicates, ctx)?;
+        enforce_temporal_response_memory_budget(
+            query,
+            temporal,
+            self.settings.bootstrap_replicates,
+            ctx,
+        )?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let observed_bayes =
-            self.inference.is_bayesian() && query.observation != ObservationSpec::Complete;
+            self.settings.inference.is_bayesian() && query.observation != ObservationSpec::Complete;
         let (cache, identify_cached) = self.temporal_response_identification(
             graph,
             query,
@@ -1002,7 +1007,7 @@ impl super::Study {
             (
                 Arc::new(crate::analysis::prepared::identify_temporal_response_horizons(
                     graph,
-                    EstimatorId::temporal_response_for(&self.inference),
+                    EstimatorId::temporal_response_for(&self.settings.inference),
                     &crate::analysis::prepared::TemporalResponseIdentificationRequest {
                         treatment,
                         outcome,
@@ -1035,7 +1040,7 @@ impl super::Study {
                 message: "a temporal derivative is the local slope at one horizon",
             });
         }
-        if let InferenceMode::Bayesian(cfg) = &self.inference {
+        if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             if cfg.has_transfer() {
                 return Err(CausalError::Unsupported {
                     message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
@@ -1057,11 +1062,11 @@ impl super::Study {
                 identification: &identification,
                 offsets: (probe.try_treatment_offset()?, probe.outcome_offset()),
             },
-            (&self.inference, self.bootstrap_replicates),
+            (&self.settings.inference, self.settings.bootstrap_replicates),
             ctx,
         )?;
         let scalar = super::response_path::response_scalar_summary(&response).0;
-        let estimator_id = EstimatorId::temporal_response_for(&self.inference);
+        let estimator_id = EstimatorId::temporal_response_for(&self.settings.inference);
         let estimate = EffectEstimate::new(
             scalar,
             f64::NAN,
@@ -1079,7 +1084,8 @@ impl super::Study {
         diagnostics.extend(response.support.warnings.iter().cloned());
         // A derivative's cheap/full suite is its refuter state on the horizon's Pulse
         // witness (unlicensed).
-        let (refutations, predictive_checks) = if matches!(self.refute, RefuteSuite::None) {
+        let (refutations, predictive_checks) = if matches!(self.settings.refute, RefuteSuite::None)
+        {
             (Vec::new(), Vec::new())
         } else {
             let site = super::temporal_response_refutation::PulseWitnessSite {
@@ -1121,7 +1127,7 @@ impl super::Study {
         result.payload = crate::result::ResultPayload::Response(response);
         result.posterior = None;
         result.predictive_checks = predictive_checks;
-        result.rebind_interval(self.inference.is_bayesian());
+        result.rebind_interval(self.settings.inference.is_bayesian());
         result.diagnostics.extend(diagnostics);
         Ok(result)
     }
@@ -1155,7 +1161,7 @@ impl super::Study {
                 message: "a temporal ADMG derivative requires a supplied TemporalAdmg".into(),
             });
         };
-        if !self.custom_validators.is_empty() {
+        if !self.declared.custom_validators.is_empty() {
             return Err(crate::unsupported_reason!(
                 "validators_not_applicable",
                 "a custom validator refutes one scalar average effect and none applies to a \
@@ -1269,7 +1275,7 @@ impl super::Study {
                 (identification, estimand),
                 ctx,
             )?;
-            let refuted = if self.refute == RefuteSuite::None {
+            let refuted = if self.settings.refute == RefuteSuite::None {
                 (Vec::new(), Vec::new(), Vec::new())
             } else {
                 let (reports, notes) =
@@ -1361,7 +1367,7 @@ impl super::Study {
                     (identification, estimand),
                     ctx,
                 )?;
-                if self.refute != RefuteSuite::None {
+                if self.settings.refute != RefuteSuite::None {
                     let (reports, notes) = self.refute_temporal_admg_front_door(
                         &fit,
                         (identification, estimand),
@@ -1373,7 +1379,7 @@ impl super::Study {
                 }
                 fit.response
             } else {
-                if self.refute != RefuteSuite::None {
+                if self.settings.refute != RefuteSuite::None {
                     witness_sites.push(claim.pulse_witness(input));
                 }
                 let probe = unit_contrast_query(
@@ -1391,7 +1397,7 @@ impl super::Study {
                         identification,
                         offsets: (probe.try_treatment_offset()?, probe.outcome_offset()),
                     },
-                    (&self.inference, self.bootstrap_replicates),
+                    (&self.settings.inference, self.settings.bootstrap_replicates),
                     ctx,
                 )?
             });
@@ -1414,7 +1420,7 @@ impl super::Study {
         // Pulse-native suite on each adjustment horizon's witness; horizons are not mixed
         // (unlicensed).
         let mut refuted = (Vec::new(), Vec::new(), Vec::new());
-        if self.refute != RefuteSuite::None {
+        if self.settings.refute != RefuteSuite::None {
             let value = super::derivative_refutation::derivative_scalar(combined).0;
             refuted.0.push(super::derivative_refutation::support_report(combined, value));
             refuted.0.extend(horizon_reports);
@@ -1580,7 +1586,7 @@ impl super::Study {
                 estimate,
                 Strategy::new(
                     IdentifierId::GeneralizedAdjustment,
-                    EstimatorId::temporal_response_for(&self.inference),
+                    EstimatorId::temporal_response_for(&self.settings.inference),
                 ),
                 treatment,
                 outcome,
@@ -1592,7 +1598,7 @@ impl super::Study {
         result.payload = crate::result::ResultPayload::Response(response);
         result.posterior = None;
         result.predictive_checks = predictive_checks;
-        result.rebind_interval(self.inference.is_bayesian());
+        result.rebind_interval(self.settings.inference.is_bayesian());
         result.diagnostics.extend(diagnostics);
         result
     }
@@ -1682,21 +1688,22 @@ impl super::Study {
         // uncertainty. Replicates = 0 keeps the analytic OLS linear-functional SE.
         let mut estimator =
             TemporalResponseEstimator::new().with_allow_gaps(self.declares_complete_case());
-        if let InferenceMode::Bayesian(cfg) = &self.inference {
+        if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             if let Some(gate) = cfg.white_innovation {
                 estimator = estimator.with_white_innovation(gate);
             }
         }
         estimator.inner.inference.bootstrap_replicates =
-            if observation_adjusted.is_some() { 0 } else { self.bootstrap_replicates };
+            if observation_adjusted.is_some() { 0 } else { self.settings.bootstrap_replicates };
         // Retain the joint replicates of the surface: the bootstrap's under Frequentist
         // inference, the block-weight posterior's draws (which replace the per-horizon
         // conjugate fits) under Bayesian inference.
-        let joint_horizons =
-            self.retain_joint_horizons && observation_adjusted.is_none() && !observed_bayes;
+        let joint_horizons = self.settings.retain_joint_horizons
+            && observation_adjusted.is_none()
+            && !observed_bayes;
         if joint_horizons {
             estimator = estimator.with_joint_replicates(true);
-            if let InferenceMode::Bayesian(cfg) = &self.inference {
+            if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
                 estimator = estimator
                     .with_block_weight_posterior(true)
                     .with_bootstrap_replicates(u32::try_from(cfg.n_draws).unwrap_or(u32::MAX));
@@ -1705,7 +1712,7 @@ impl super::Study {
         let mut conflict_summary = None;
         let mut observed_posterior = None;
         let mut response = if observed_bayes {
-            let InferenceMode::Bayesian(cfg) = &self.inference else {
+            let InferenceMode::Bayesian(cfg) = &self.settings.inference else {
                 return Err(CausalError::unsupported_inference(
                     "an observed Bayesian temporal response requires Bayesian inference",
                 ));
@@ -1716,7 +1723,7 @@ impl super::Study {
             let (response, posterior) = antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(data, graph, antecedent_estimate::TemporalIdentification { horizons: identifications, status: aggregate_status, assumptions: aggregate_assumptions.clone() }, query, &bayesian_gcomp(cfg, ctx), ctx).map_err(CausalError::from)?;
             observed_posterior = Some(posterior);
             Ok(response)
-        } else if let (InferenceMode::Bayesian(cfg), false) = (&self.inference, joint_horizons) {
+        } else if let (InferenceMode::Bayesian(cfg), false) = (&self.settings.inference, joint_horizons) {
             let mut bayes = bayesian_gcomp(cfg, ctx);
             let (resolved, conflict) = resolve_temporal_response_prior(
                 cfg, data, temporal, aligned, treatment, outcome, ctx,
@@ -1737,21 +1744,21 @@ impl super::Study {
         .map_err(CausalError::from)?;
         if let Some(adjusted) = observation_adjusted {
             apply_temporal_observation_result(&mut response, adjusted);
-            if self.bootstrap_replicates > 0 {
+            if self.settings.bootstrap_replicates > 0 {
                 if let Some(bootstrap) = bootstrap_observation_adjusted_temporal_response(
                     source_data,
                     query,
                     aligned,
                     ObservationBootstrap {
                         options: self.observation_options,
-                        replicates: self.bootstrap_replicates,
+                        replicates: self.settings.bootstrap_replicates,
                     },
                     ctx,
                 )? {
                     apply_observation_bootstrap(
                         &mut response,
                         &bootstrap,
-                        self.bootstrap_replicates,
+                        self.settings.bootstrap_replicates,
                     );
                 }
             }
@@ -1800,7 +1807,7 @@ impl super::Study {
         // refuter state (unlicensed); a curve keeps the skipped note.
         let (refutations, predictive_checks) = match &self.query {
             CausalQuery::Response(query)
-                if !matches!(self.refute, RefuteSuite::None)
+                if !matches!(self.settings.refute, RefuteSuite::None)
                     && matches!(
                         query.functional,
                         antecedent_core::ResponseFunctional::InterventionResponse { .. }
@@ -1839,7 +1846,7 @@ impl super::Study {
                 estimate,
                 Strategy::new(
                     IdentifierId::TemporalBackdoorUnfolded,
-                    EstimatorId::temporal_response_for(&self.inference),
+                    EstimatorId::temporal_response_for(&self.settings.inference),
                 ),
                 treatment,
                 outcome,
@@ -1879,12 +1886,12 @@ impl super::Study {
         let IdentificationBasis { status: aggregate_status, assumptions } = basis;
         let mut assumptions = assumptions.clone();
         let ExecuteRun { ctx, .. } = run;
-        if self.split.is_some() {
+        if self.declared.split.is_some() {
             return Err(CausalError::Unsupported {
                 message: "multi-step Sequence overlays require no discovery-estimation split",
             });
         }
-        let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
+        let bayes = if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             if cfg.has_transfer() {
                 return Err(CausalError::Unsupported {
                     message: "multi-step Sequence inference requires isotropic per-mechanism priors",
@@ -1949,7 +1956,7 @@ impl super::Study {
         }
         // Frequentist bands come from one joint tuple bootstrap of the whole Sequence
         // surface (observation nuisance refit per replicate when the query carries one).
-        if bayes.is_none() && self.bootstrap_replicates > 0 {
+        if bayes.is_none() && self.settings.bootstrap_replicates > 0 {
             self.apply_sequence_bootstrap_band(&inputs, outcome, &mut response, ctx)?;
         }
         Ok(self.finish_sequence_response(
@@ -1985,14 +1992,14 @@ impl super::Study {
             inputs.aligned,
             ObservationBootstrap {
                 options: self.observation_options,
-                replicates: self.bootstrap_replicates,
+                replicates: self.settings.bootstrap_replicates,
             },
             ctx,
         )?;
         apply_tuple_bootstrap_band(
             response,
             &band,
-            self.bootstrap_replicates,
+            self.settings.bootstrap_replicates,
             if inputs.observation_adjusted.is_some() {
                 TupleBandSource::Observation
             } else {
@@ -2050,7 +2057,7 @@ impl super::Study {
         for diagnostic in super::passed_route_diagnostics(&horizon_posteriors) {
             push_unique_diagnostic(&mut diagnostics, &mut seen_diagnostic_codes, diagnostic);
         }
-        if !attach_scalar_posterior && self.inference.is_bayesian() {
+        if !attach_scalar_posterior && self.settings.inference.is_bayesian() {
             diagnostics.push(Diagnostic::new(
                 "estimate.temporal.sequence_posterior_not_attached",
                 DiagnosticKind::Scientific,
@@ -2076,7 +2083,7 @@ impl super::Study {
                 estimate,
                 Strategy::new(
                     IdentifierId::TemporalBackdoorUnfolded,
-                    EstimatorId::temporal_response_for(&self.inference),
+                    EstimatorId::temporal_response_for(&self.settings.inference),
                 ),
                 treatment,
                 outcome,
@@ -2135,7 +2142,12 @@ impl super::Study {
         ) {
             return self.execute_temporal_class_sequence_response(data, query, physical, ctx);
         }
-        enforce_temporal_response_memory_budget(query, temporal, self.bootstrap_replicates, ctx)?;
+        enforce_temporal_response_memory_budget(
+            query,
+            temporal,
+            self.settings.bootstrap_replicates,
+            ctx,
+        )?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let sweep = ClassResponseSweep { data, query, temporal, treatment, outcome, ctx };
         let mut run = ClassResponseRun {
@@ -2148,7 +2160,7 @@ impl super::Study {
             observation_atoms: Vec::new(),
             witness_sites: Vec::new(),
         };
-        let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
+        let mut class_weights = TemporalClassWeights::new(self.declared.class_prior.as_ref());
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
             let effect_query =
                 class_horizon_witness(query, temporal, (treatment, outcome), horizon);
@@ -2218,27 +2230,28 @@ impl super::Study {
         qh.temporal = Some(temporal_h);
         let observation_query = qh.clone();
         let adjustment = class_atom_adjustment(&estimand, indexer);
-        let series_owned =
-            if qh.observation == ObservationSpec::Complete || self.inference.is_bayesian() {
-                None
-            } else {
-                if self.observation_delayed_entry.is_some() {
-                    return Err(CausalError::Unsupported {
-                        message: "delayed entry is not licensed for temporal observation",
-                    });
-                }
-                let outcome_regressors = antecedent_estimate::temporal_curve_outcome_regressors(
-                    &qh,
-                    &[(&estimand, indexer)],
-                )
+        let series_owned = if qh.observation == ObservationSpec::Complete
+            || self.settings.inference.is_bayesian()
+        {
+            None
+        } else {
+            if self.observation_delayed_entry.is_some() {
+                return Err(CausalError::Unsupported {
+                    message: "delayed entry is not licensed for temporal observation",
+                });
+            }
+            let outcome_regressors = antecedent_estimate::temporal_curve_outcome_regressors(
+                &qh,
+                &[(&estimand, indexer)],
+            )
+            .map_err(CausalError::from)?;
+            let (series, _) = ObservationMechanismEstimator::new(self.observation_options)
+                .adjust_temporal_series(data, &qh, &adjustment, &outcome_regressors)
                 .map_err(CausalError::from)?;
-                let (series, _) = ObservationMechanismEstimator::new(self.observation_options)
-                    .adjust_temporal_series(data, &qh, &adjustment, &outcome_regressors)
-                    .map_err(CausalError::from)?;
-                qh.observation = ObservationSpec::Complete;
-                qh.observation_assumptions = Arc::from([]);
-                Some(series)
-            };
+            qh.observation = ObservationSpec::Complete;
+            qh.observation_assumptions = Arc::from([]);
+            Some(series)
+        };
         let series = series_owned.as_ref().unwrap_or(data);
         let input = ClassResponseInput { series, query: &qh, estimand: &estimand, indexer };
         let Some(mut response) =
@@ -2265,7 +2278,7 @@ impl super::Study {
             horizon,
             response,
         )?;
-        if !matches!(self.refute, RefuteSuite::None)
+        if !matches!(self.settings.refute, RefuteSuite::None)
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
         {
             run.witness_sites.push(super::temporal_response_refutation::PulseWitnessSite {
@@ -2279,7 +2292,7 @@ impl super::Study {
                 assumptions: case.result.required_assumptions.clone(),
             });
         }
-        if series_owned.is_some() && self.inference.is_frequentist() {
+        if series_owned.is_some() && self.settings.inference.is_frequentist() {
             run.observation_atoms.push(ClassObservationAtom {
                 atom_index,
                 horizon_index,
@@ -2316,7 +2329,7 @@ impl super::Study {
         let ClassResponseSweep { data, query, treatment, outcome, ctx, .. } = *sweep;
         let ClassResponseSite { horizon, case, indexer, .. } = *site;
         let ClassResponseInput { series: _, query: qh, estimand, indexer: _ } = input;
-        Ok(Some(match &self.inference {
+        Ok(Some(match &self.settings.inference {
             InferenceMode::Bayesian(cfg) if query.observation != ObservationSpec::Complete => {
                 let Some(dag) = case.graph.sequential_dag() else {
                     return Ok(None);
@@ -2353,7 +2366,7 @@ impl super::Study {
                 // naive resample would not refit the nuisance mechanism.
                 let mut estimator = TemporalResponseEstimator::new();
                 estimator.inner.inference.bootstrap_replicates =
-                    if series_adjusted { 0 } else { self.bootstrap_replicates };
+                    if series_adjusted { 0 } else { self.settings.bootstrap_replicates };
                 // An observation-adjusted series is built per completion
                 // from its own adjustment, so only the unadjusted series
                 // shares fits.
@@ -2457,8 +2470,8 @@ impl super::Study {
             );
         }
         diagnostics.extend(class_response_identified_set_diagnostics(
-            self.inference.is_bayesian(),
-            self.class_prior.is_some(),
+            self.settings.inference.is_bayesian(),
+            self.declared.class_prior.is_some(),
         ));
         if query.observation != ObservationSpec::Complete {
             diagnostics.push(class_observation_band_note(class_observation_band_applied));
@@ -2484,7 +2497,7 @@ impl super::Study {
             // completion identifies; otherwise requested replicates stay on the atoms and
             // the class band is withheld.
             bootstrap_replicates: class_observation_band_applied
-                .then_some(self.bootstrap_replicates),
+                .then_some(self.settings.bootstrap_replicates),
             started,
             ctx,
             refutations,
@@ -2515,8 +2528,8 @@ impl super::Study {
             ctx,
         } = request;
         if query.observation == ObservationSpec::Complete
-            || !self.inference.is_frequentist()
-            || self.bootstrap_replicates == 0
+            || !self.settings.inference.is_frequentist()
+            || self.settings.bootstrap_replicates == 0
         {
             return Ok(false);
         }
@@ -2537,7 +2550,7 @@ impl super::Study {
             ClassBandLayout { cells_per_horizon, n_horizons, apply_class_band },
             ObservationBootstrap {
                 options: self.observation_options,
-                replicates: self.bootstrap_replicates,
+                replicates: self.settings.bootstrap_replicates,
             },
             ctx,
         )
@@ -2551,7 +2564,7 @@ impl super::Study {
         parts: &ClassResponseParts,
         (n_horizons, full_mass_scope, truncated_atoms): (usize, bool, usize),
     ) -> crate::result::StructuralResponseMixture {
-        let conditional = self.class_prior.as_ref().and_then(|_| {
+        let conditional = self.declared.class_prior.as_ref().and_then(|_| {
             temporal_class_response_mean(
                 &atoms,
                 &parts.response_envelope,
@@ -2560,7 +2573,7 @@ impl super::Study {
             )
         });
         crate::result::StructuralResponseMixture {
-            weight_basis: if self.class_prior.is_some() {
+            weight_basis: if self.declared.class_prior.is_some() {
                 crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
             } else {
                 crate::result::StructuralWeightBasis::CompletionEnumeration
@@ -2587,7 +2600,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if self.split.is_some() {
+        if self.declared.split.is_some() {
             return Err(CausalError::Unsupported {
                 message: "class-aware Sequence overlays require no discovery-estimation split",
             });
@@ -2604,7 +2617,7 @@ impl super::Study {
             message: "class-aware Sequence missing mechanism overlays".into(),
         })?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
+        let bayes = if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             if cfg.has_transfer() {
                 return Err(CausalError::Unsupported {
                     message: "multi-step Sequence transfer stays refused on incomplete classes",
@@ -2625,7 +2638,7 @@ impl super::Study {
             ctx,
         };
         let mut run = ClassSequenceRun::new();
-        let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
+        let mut class_weights = TemporalClassWeights::new(self.declared.class_prior.as_ref());
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
             let effect_query =
                 class_horizon_witness(query, temporal, (treatment, outcome), horizon);
@@ -2991,7 +3004,7 @@ impl super::Study {
             diagnostics,
             identify_cached: self.temporal_class_cache_covers(&temporal.horizons),
             bootstrap_replicates: class_observation_band_applied
-                .then_some(self.bootstrap_replicates),
+                .then_some(self.settings.bootstrap_replicates),
             started,
             ctx,
             refutations: Vec::new(),
@@ -3007,7 +3020,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if self.inference.is_bayesian()
+        if self.settings.inference.is_bayesian()
             && query.effect_modifiers.is_empty()
             && !query.is_multi_step_sustained()
         {
@@ -3037,12 +3050,12 @@ impl super::Study {
                 query,
                 bundle: &bundle,
                 graph_class: self.graph.class(),
-                inference: &self.inference,
-                class_prior: self.class_prior.as_ref(),
-                bootstrap_replicates: self.bootstrap_replicates,
-                split: self.split.as_ref(),
-                refute: self.refute,
-                custom_validators: &self.custom_validators,
+                inference: &self.settings.inference,
+                class_prior: self.declared.class_prior.as_ref(),
+                bootstrap_replicates: self.settings.bootstrap_replicates,
+                split: self.declared.split.as_ref(),
+                refute: self.settings.refute,
+                custom_validators: &self.declared.custom_validators,
                 latency_mode: self.latency_mode,
                 gaps: self.declares_complete_case(),
             },
@@ -3103,7 +3116,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let InferenceMode::Bayesian(cfg) = &self.inference else {
+        let InferenceMode::Bayesian(cfg) = &self.settings.inference else {
             return Err(CausalError::unsupported_inference(
                 "temporal class Bayesian execute requires Bayesian inference",
             ));
@@ -3127,6 +3140,7 @@ impl super::Study {
             ));
         }
         let class_masses = self
+            .declared
             .class_prior
             .as_ref()
             .map(|prior| prior.masses_for_envelope(&bundle.envelope))
@@ -3227,7 +3241,14 @@ impl super::Study {
         let mut ws = BayesianGCompWorkspace::default();
         for (key, estimand, status, indexer, weight) in fit_atoms {
             let prep = estimator
-                .prepare(data, estimand, query, indexer, self.split.as_ref(), &ctx.kernel_policy)
+                .prepare(
+                    data,
+                    estimand,
+                    query,
+                    indexer,
+                    self.declared.split.as_ref(),
+                    &ctx.kernel_policy,
+                )
                 .map_err(CausalError::from)?;
             let names =
                 antecedent_estimate::temporal_coefficient_names(data, estimand, query, indexer)
@@ -3405,12 +3426,12 @@ impl super::Study {
             let (reports, na_diagnostics) = EnvelopeRefutation {
                 data: &tabular,
                 query: &ate_q,
-                suite: self.refute,
+                suite: self.settings.refute,
                 estimator: EstimatorId::BayesianTemporalGcomp.as_str(),
-                custom: &self.custom_validators,
+                custom: &self.declared.custom_validators,
                 temporal: Some(TemporalRefutation {
                     query,
-                    split: self.split.as_ref(),
+                    split: self.declared.split.as_ref(),
                     time_index: data.time_index(),
                     gaps: false,
                 }),
@@ -3425,7 +3446,7 @@ impl super::Study {
                 ..fits.estimator.clone()
             };
             predictive_checks.extend(run_envelope_bayesian_full_validation(
-                BayesianValidation { suite: self.refute, cfg, estimator: &atom_estimator },
+                BayesianValidation { suite: self.settings.refute, cfg, estimator: &atom_estimator },
                 std::slice::from_ref(atom),
                 &mut atom_posterior,
                 atom_ate,
@@ -3515,7 +3536,7 @@ impl super::Study {
             context: Some(ctx.clone()),
             ..Default::default()
         };
-        if let Some(max) = self.max_completions {
+        if let Some(max) = self.declared.max_completions {
             config.max_completions = max;
         }
         let mut envelope = match self.graph.class() {
@@ -3866,7 +3887,10 @@ impl super::Study {
                 identification,
                 estimand,
                 estimate,
-                Strategy::new(identifier_id, EstimatorId::temporal_response_for(&self.inference)),
+                Strategy::new(
+                    identifier_id,
+                    EstimatorId::temporal_response_for(&self.settings.inference),
+                ),
                 treatment,
                 outcome,
             )
@@ -5743,7 +5767,7 @@ impl super::Study {
     /// The isotropic conjugate prior scale a temporal cross-world fit uses
     /// under Bayesian inference; a mapped coefficient prior is refused.
     fn cross_world_prior_scale(&self) -> Result<Option<f64>, CausalError> {
-        match &self.inference {
+        match &self.settings.inference {
             InferenceMode::Bayesian(cfg) => {
                 if cfg.has_transfer() {
                     return Err(CausalError::Unsupported {
@@ -5815,7 +5839,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if self.refute != RefuteSuite::None {
+        if self.settings.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {
                 message: "temporal cross-world effects are point-only; cheap/full refuters are not licensed",
             });
@@ -5891,7 +5915,9 @@ impl super::Study {
             CrossWorldContrast { treatment, outcome, mediator, active, control },
         );
         let estimand = identification.estimands[0].clone();
-        if matches!(&self.query, CausalQuery::Counterfactual(_)) && self.inference.is_bayesian() {
+        if matches!(&self.query, CausalQuery::Counterfactual(_))
+            && self.settings.inference.is_bayesian()
+        {
             let mut contrast_query = probe.clone();
             contrast_query.control =
                 Intervention::set(treatment, antecedent_core::Value::f64(control));
@@ -5930,7 +5956,7 @@ impl super::Study {
             cross_world_point(query, &fit, contrast).map(|value| vec![value])
         };
         let assumptions = identification.required_assumptions.clone();
-        if let InferenceMode::Bayesian(cfg) = &self.inference {
+        if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             let draws = point_uncertainty::point_posterior_draws(
                 &frozen,
                 point_uncertainty::PointPosteriorPlan {
@@ -5988,7 +6014,7 @@ impl super::Study {
         let replicates = point_uncertainty::point_block_replicates(
             &frozen,
             point_uncertainty::PointBlockPlan {
-                replicates: self.bootstrap_replicates,
+                replicates: self.settings.bootstrap_replicates,
                 stream_base: point_uncertainty::CROSS_WORLD_BLOCK_STREAM,
                 structural_span,
             },
@@ -6049,7 +6075,7 @@ impl super::Study {
         )];
         diagnostics.extend(point_uncertainty::block_diagnostics(
             replicates,
-            self.bootstrap_replicates,
+            self.settings.bootstrap_replicates,
             family,
             "every regression of the contrast is refit on each replicate",
         ));
@@ -6105,7 +6131,7 @@ impl super::Study {
         contrast_query: &TemporalEffectQuery,
         ctx: &ExecutionContext,
     ) -> Result<(EffectEstimate, CausalPosterior), CausalError> {
-        let InferenceMode::Bayesian(cfg) = &self.inference else {
+        let InferenceMode::Bayesian(cfg) = &self.settings.inference else {
             return Err(CausalError::unsupported_inference(
                 "a temporal counterfactual posterior requires Bayesian inference",
             ));
@@ -6497,7 +6523,8 @@ fn held_path_mean(
     (child, level): (VariableId, f64),
 ) -> antecedent_expr::ExprId {
     let variables = arena.intern_var_set([child]);
-    let conditioned_on = arena.intern_var_set(std::iter::once(treatment).chain(held.iter().copied()));
+    let conditioned_on =
+        arena.intern_var_set(std::iter::once(treatment).chain(held.iter().copied()));
     let last = held.len().saturating_sub(1);
     let assignments = std::iter::once(antecedent_expr::InterventionAssignment::concrete(
         treatment,

@@ -231,9 +231,9 @@ pub(super) fn contract_payloads(
     let mut data_snapshot = data_snapshot_wire(
         &study.data,
         study.interference.as_ref(),
-        study.participants.as_ref(),
+        study.declared.participants.as_ref(),
         missing_data::policy_wire(study),
-        study.sampling_design,
+        study.declared.sampling_design,
         &program.observation_digest,
     )?;
     if let (Some(prepared), DataInput::Tabular(tabular)) = (prepared, &study.data) {
@@ -267,7 +267,7 @@ pub(super) fn contract_payloads(
             data_snapshot.nested_counterfactual_fit = Some(temporal_nested_fit_wire(
                 series,
                 query,
-                nested_prior_scale(&study.inference),
+                nested_prior_scale(&study.settings.inference),
             )?);
         }
     }
@@ -294,8 +294,11 @@ pub(super) fn program_payloads(
     let mut target = TargetIdentityWire {
         format: IDENTITY_FORMAT,
         schema: schema_to_wire(schema),
-        query: causal_query_to_wire_with_registry(&study.query, study.population_registry.as_ref())
-            .map_err(|err| io_err(&err))?,
+        query: causal_query_to_wire_with_registry(
+            &study.query,
+            study.declared.population_registry.as_ref(),
+        )
+        .map_err(|err| io_err(&err))?,
     };
     let target_digest = digest_wire(IdentityDomain::Target, &target).map_err(|err| io_err(&err))?;
     let question_digest = target.question_digest().map_err(|err| io_err(&err))?;
@@ -343,7 +346,7 @@ pub(super) fn program_payloads(
         target: *target_digest.as_bytes(),
         identification: *identification_digest.as_bytes(),
         identification_product: identification_product_digest.map(|digest| *digest.as_bytes()),
-        completion_budget: study.max_completions.map(|cap| cap as u64),
+        completion_budget: study.declared.max_completions.map(|cap| cap as u64),
         commitments: commitments.clone(),
         functional_program,
         checked_aipw_lowering: lowerings.aipw,
@@ -390,7 +393,7 @@ pub(super) fn identification_identity_wire(
         target_question,
         population_depends_on: population_depends_on(
             &study.query,
-            study.population_registry.as_ref(),
+            study.declared.population_registry.as_ref(),
         ),
         rd_config: study.rd.as_ref().map(|cfg| antecedent_io::RdConfigWire {
             running_variable: cfg.running_variable.raw(),
@@ -398,7 +401,7 @@ pub(super) fn identification_identity_wire(
             bandwidth_bits: cfg.bandwidth.to_bits(),
             se_kind: Some(cfg.se_kind.as_str().into()),
         }),
-        class_prior: study.class_prior.as_ref().map(crate::ClassPrior::identity_wire),
+        class_prior: study.declared.class_prior.as_ref().map(crate::ClassPrior::identity_wire),
         transport: transport_premises(study)?,
         graph_class: study.graph.class().as_str().into(),
         structure_source: study.structure_source.as_str().into(),
@@ -415,15 +418,15 @@ pub(super) fn inference_binding_wire(study: &Study, inference: String) -> Infere
     InferenceBindingWire {
         format: IDENTITY_FORMAT,
         inference,
-        bootstrap_replicates: study.bootstrap_replicates,
-        bayesian: match &study.inference {
+        bootstrap_replicates: study.settings.bootstrap_replicates,
+        bayesian: match &study.settings.inference {
             InferenceMode::Bayesian(cfg) => {
                 Some(crate::analysis::contract_identity::bayesian_binding(cfg, study.draw_controls))
             }
             InferenceMode::Frequentist => None,
         },
-        validation_suite: study.refute.validation_suite_id().map(str::to_string),
-        overlap_policy: study.overlap_policy.map(overlap_policy_tag),
+        validation_suite: study.settings.refute.validation_suite_id().map(str::to_string),
+        overlap_policy: study.declared.overlap_policy.map(overlap_policy_tag),
         estimator_spec: study.estimator_spec_identity.clone(),
         response_options: study
             .response_options
@@ -432,8 +435,8 @@ pub(super) fn inference_binding_wire(study: &Study, inference: String) -> Infere
         observation_options: crate::analysis::contract_identity::observation_options(
             &study.observation_options,
         ),
-        split: study.split.as_ref().map(crate::analysis::contract_identity::split),
-        joint_horizons: study.retain_joint_horizons,
+        split: study.declared.split.as_ref().map(crate::analysis::contract_identity::split),
+        joint_horizons: study.settings.retain_joint_horizons,
     }
 }
 
@@ -495,8 +498,12 @@ pub(super) fn compile_with_payloads(
     }
     let reasoning = reasoning_view(study, prepared, cached, search_capped);
     let lagged = full_temporal_identification(study);
-    let mut body =
-        body_frame(&study.query, lagged.as_deref(), cached, study.population_registry.as_ref())?;
+    let mut body = body_frame(
+        &study.query,
+        lagged.as_deref(),
+        cached,
+        study.declared.population_registry.as_ref(),
+    )?;
     body.window_variables = window_namespace(study);
     let (evidence_obligations, evidence_actions) = evidence_needs::derive(study, cached);
     let functional = contract_functional_label(study, resolved_estimator.as_deref());
@@ -511,7 +518,7 @@ pub(super) fn compile_with_payloads(
             structure_provenance: study.structure_provenance_shared(),
             accepted_variable_names: study.graph.variable_names().map(Arc::from),
             support_status: study.support_status,
-            identifier: study.identifier.map(|id| Arc::from(id.as_str())),
+            identifier: study.declared.identifier.map(|id| Arc::from(id.as_str())),
             estimator: advertised_estimator(study, resolved_estimator.as_deref()).map(Arc::from),
             resolved_estimator,
             row_count: data_row_count(&study.data),
@@ -526,14 +533,14 @@ pub(super) fn compile_with_payloads(
             target_weights: None,
             checked_aipw_rows: None,
             posterior: Arc::from(posterior_label(
-                &study.inference,
+                &study.settings.inference,
                 matches!(study.query, CausalQuery::AverageEffect(_))
                     && study.graph.class() == GraphClass::Dag
                     || matches!(study.query, CausalQuery::TemporalEffect(_))
                         && study.graph.class() == GraphClass::TemporalDag,
             )),
             functional: Arc::from(functional),
-            posterior_draws: match &study.inference {
+            posterior_draws: match &study.settings.inference {
                 InferenceMode::Bayesian(cfg) => u32::try_from(cfg.n_draws).ok(),
                 InferenceMode::Frequentist => None,
             },
@@ -552,7 +559,7 @@ pub(super) fn contract_functional_label(study: &Study, resolved_estimator: Optio
         None => functional_label(&study.query),
     };
     // Calibration labels retain nuisance, stratification and matching choices in order.
-    if let Some(estimator) = study.estimator_spec.as_deref() {
+    if let Some(estimator) = study.declared.estimator_spec.as_deref() {
         for label in [
             estimator.propensity_calibration_label(),
             estimator.stratification_calibration_label().map(str::to_owned),
@@ -574,6 +581,7 @@ pub(super) fn contract_functional_label(study: &Study, resolved_estimator: Optio
     };
     if weighted_table
         || study
+            .declared
             .estimator_spec
             .as_deref()
             .and_then(crate::estimator_spec::EstimatorSpec::sampling_weights_calibration_label)
@@ -800,7 +808,7 @@ pub(super) fn advertised_estimator(
     study
         .caller_selected_estimator()
         .or_else(|| {
-            study.estimator.filter(|placeholder| {
+            study.declared.estimator.filter(|placeholder| {
                 resolved_estimator.is_none_or(|resolved| resolved == placeholder.as_str())
             })
         })
@@ -837,18 +845,18 @@ pub(super) fn inferential_commitments(
         format: IDENTITY_FORMAT,
         estimator: advertised_estimator(study, resolved_estimator).map(str::to_string),
         resolved_estimator: resolved_estimator.map(str::to_string),
-        identifier: study.identifier.map(|id| id.as_str().to_string()),
+        identifier: study.declared.identifier.map(|id| id.as_str().to_string()),
         // The commitments bind the estimator's own inference configuration, which
         // the inference binding replays; a structure posterior's prior and score are
         // in its query and lowered program, not in a Bayesian estimator configuration.
-        inference: match study.inference {
+        inference: match study.settings.inference {
             InferenceMode::Frequentist => "frequentist".into(),
             InferenceMode::Bayesian(_) => "bayesian".into(),
         },
-        validation_suite: study.refute.validation_suite_id().map(str::to_string),
+        validation_suite: study.settings.refute.validation_suite_id().map(str::to_string),
         interval_method: interval_method.as_str().into(),
         se_kind,
-        prior_required: matches!(study.inference, InferenceMode::Bayesian(_)),
+        prior_required: matches!(study.settings.inference, InferenceMode::Bayesian(_)),
     }
 }
 
@@ -859,7 +867,7 @@ pub(super) fn declared_inference(study: &Study) -> &'static str {
     if let CausalQuery::Discover(query) = &study.query {
         return query.inference().as_str();
     }
-    match study.inference {
+    match study.settings.inference {
         InferenceMode::Frequentist => "frequentist",
         InferenceMode::Bayesian(_) => "bayesian",
     }
@@ -879,9 +887,9 @@ pub(super) const fn compiled_off_axis_kind(query: &CausalQuery) -> Option<&'stat
 }
 
 pub(super) fn compiled_interval(study: &Study) -> (IntervalMethod, Option<String>) {
-    match &study.inference {
+    match &study.settings.inference {
         InferenceMode::Bayesian(_) => (IntervalMethod::PosteriorQuantile, None),
-        InferenceMode::Frequentist if study.bootstrap_replicates > 0 => {
+        InferenceMode::Frequentist if study.settings.bootstrap_replicates > 0 => {
             (IntervalMethod::BootstrapSe, None)
         }
         InferenceMode::Frequentist => (

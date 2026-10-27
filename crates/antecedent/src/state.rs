@@ -20,12 +20,12 @@ pub use antecedent_state::{
     StreamingCovariance, SuffStatStore, full_graph_score,
 };
 pub use antecedent_state::{
-    ConjugateOlsPosterior, ConjugateOlsPrior, ConjugateOlsSummary, OlsLedgerState, OlsRefresh,
-    OlsSnapshot, RefreshChange, RefreshDisposition, RefreshOutcome, RefreshRow, route_contract,
-};
-pub use antecedent_state::{
     ConjugateBlockRefresh, CovarianceRefresh, CovarianceRow, CovarianceSnapshot, SpillHandle,
     SpillRegistry, SpillStats, Spillable, WeightedOlsRefresh, WeightedRow, WeightedSnapshot,
+};
+pub use antecedent_state::{
+    ConjugateOlsPosterior, ConjugateOlsPrior, ConjugateOlsSummary, OlsLedgerState, OlsRefresh,
+    OlsSnapshot, RefreshChange, RefreshDisposition, RefreshOutcome, RefreshRow, route_contract,
 };
 
 /// Construct a fresh [`CausalState`] with the given cache budget.

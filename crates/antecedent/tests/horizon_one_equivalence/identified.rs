@@ -108,8 +108,8 @@ fn horizon_one_cpdag_average_effect_has_the_static_estimate_and_envelope_but_not
             .query(query),
     ));
 
-    let temporal_effect = temporal.estimate.as_effect().unwrap();
-    let static_effect = static_result.estimate.as_effect().unwrap();
+    let temporal_effect = temporal.estimate().as_effect().unwrap();
+    let static_effect = static_result.estimate().as_effect().unwrap();
     assert!(close(static_effect.ate, coefficients[1]), "{}", static_effect.ate);
     assert!(close(temporal_effect.ate, coefficients[1]), "{}", temporal_effect.ate);
     // A class envelope publishes the standard error of the mixed influence function, the
@@ -129,8 +129,8 @@ fn horizon_one_cpdag_average_effect_has_the_static_estimate_and_envelope_but_not
         assert!(close(temporal_mix.unidentified_mass, static_mix.unidentified_mass));
     }
     // What differs: the licence and the uncertainty reading.
-    assert_eq!(static_result.support_status, Some(CellStatus::Licensed));
-    assert_eq!(temporal.support_status, Some(CellStatus::Refused));
+    assert_eq!(static_result.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(temporal.support_status(), Some(CellStatus::Refused));
     assert!(has_diagnostic(&temporal, "estimate.temporal_class.lag_zero_average_effect"));
     assert!(!has_diagnostic(&static_result, "estimate.temporal_class.lag_zero_average_effect"));
 }
@@ -166,8 +166,8 @@ fn intervention_response(level: f64) -> ResponseQuery {
 /// a convex mean the temporal route returns the least-squares projection (its closed form from
 /// the rows) and misses the curvature that the static smooth recovers.
 #[test]
-fn horizon_one_intervention_response_is_linear_gcomputation_where_the_static_route_is_additive_smooth(
-) {
+fn horizon_one_intervention_response_is_linear_gcomputation_where_the_static_route_is_additive_smooth()
+ {
     let dose = 1.5;
     for convex in [false, true] {
         let (x, mut y) = super::dose::derivative_series();
@@ -310,14 +310,14 @@ fn horizon_one_change_attribution_reproduces_the_static_decomposition_with_block
         Study::tabular(table(&[("x", &padded_x), ("y", &y)])).graph(dag(2, &[(0, 1)])).query(query),
     );
     assert_eq!(
-        blocked.interval.as_ref().map(|binding| binding.method),
+        blocked.interval().as_ref().map(|binding| binding.method),
         Some(IntervalMethod::CircularBlockSe)
     );
     assert_ne!(
-        rows.interval.as_ref().map(|binding| binding.method),
+        rows.interval().as_ref().map(|binding| binding.method),
         Some(IntervalMethod::CircularBlockSe)
     );
-    assert!(blocked.estimate.as_effect().unwrap().se_bootstrap().is_some_and(|se| se > 0.0));
+    assert!(blocked.estimate().as_effect().unwrap().se_bootstrap().is_some_and(|se| se > 0.0));
 }
 
 // ---------------------------------------------------------------------------
@@ -381,8 +381,8 @@ fn horizon_one_transport_is_the_static_contrast_with_a_long_run_variance() {
 
     let series_result = transport_result(&data, temporal);
     let rows_result = transport_result(&data, admg);
-    let series_effect = series_result.estimate.as_effect().expect("a temporal transport effect");
-    let rows_effect = rows_result.estimate.as_effect().expect("a static transport effect");
+    let series_effect = series_result.estimate().as_effect().expect("a temporal transport effect");
+    let rows_effect = rows_result.estimate().as_effect().expect("a static transport effect");
     assert!((series_effect.ate - rows_effect.ate).abs() < 1e-12);
     assert!(
         (series_result.transport().unwrap().ipw - rows_result.transport().unwrap().ipw).abs()
@@ -471,8 +471,8 @@ fn horizon_one_admg_average_effect_is_the_static_functional_effect() {
     let static_result = functional_effect(&data, admg);
     let temporal_result = functional_effect(&data, temporal);
     let (static_effect, temporal_effect) = (
-        static_result.estimate.as_effect().unwrap(),
-        temporal_result.estimate.as_effect().unwrap(),
+        static_result.estimate().as_effect().unwrap(),
+        temporal_result.estimate().as_effect().unwrap(),
     );
     assert!((static_effect.ate - 0.4).abs() < 1e-9, "{}", static_effect.ate);
     assert!((temporal_effect.ate - static_effect.ate).abs() < 1e-12);
@@ -484,7 +484,7 @@ fn horizon_one_admg_average_effect_is_the_static_functional_effect() {
         temporal_result.logical_plan.estimator.as_deref(),
         static_result.logical_plan.estimator.as_deref()
     );
-    assert_eq!(temporal_result.support_status, static_result.support_status);
+    assert_eq!(temporal_result.support_status(), static_result.support_status());
 }
 
 // ---------------------------------------------------------------------------
@@ -549,8 +549,8 @@ fn horizon_one_conditional_effect_is_the_interaction_regression_marginal_over_th
                 .unwrap(),
             )),
     ));
-    let temporal_effect = temporal.estimate.as_effect().unwrap();
-    let static_effect = static_result.estimate.as_effect().unwrap();
+    let temporal_effect = temporal.estimate().as_effect().unwrap();
+    let static_effect = static_result.estimate().as_effect().unwrap();
     assert!(close(temporal_effect.ate, expected), "{} vs {expected}", temporal_effect.ate);
     assert!(close(static_effect.ate, expected), "{} vs {expected}", static_effect.ate);
     assert!(static_effect.se_analytic().is_finite() && static_effect.se_analytic() > 0.0);

@@ -78,20 +78,20 @@ impl CheckedBayesianSpecialistOperation {
             return Ok(None);
         };
         let (Some(graph), InferenceMode::Bayesian(config), DataInput::Tabular(_)) =
-            (study.graph.as_dag(), &study.inference, &study.data)
+            (study.graph.as_dag(), &study.settings.inference, &study.data)
         else {
             return Ok(None);
         };
         if study.graph_posterior.is_some()
-            || study.tiered.is_some()
-            || study.split.is_some()
+            || study.declared.tiered.is_some()
+            || study.declared.split.is_some()
             || !matches!(
                 study.structure_source,
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || study.refute != RefuteSuite::None
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || !study.declared.custom_validators.is_empty()
             || !(matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
                 || (query.outcome_functional.quantile_level().is_some()
                     && plan.binding().estimator.is(EstimatorId::BayesianRandomizedQuantile)))

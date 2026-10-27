@@ -111,7 +111,7 @@ fn ate(data: TabularData) -> f64 {
         .unwrap()
         .run(&ExecutionContext::for_tests(50))
         .unwrap()
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .ate

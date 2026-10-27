@@ -152,7 +152,7 @@ fn randomized_survival_rmst_is_retained_and_round_trips() {
     assert_eq!(curve.rmst_control, Some(1.5));
     assert_eq!(curve.rmst_treated, Some(2.0));
     assert_eq!(&*curve.uncertainty, "point_only_no_interval");
-    assert!(matches!(first.estimate, PrimaryEstimate::NotAnEffect));
+    assert!(matches!(first.estimate(), PrimaryEstimate::NotAnEffect));
     let bytes = prepared.encode_contracted_result(&first, "survival", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let wire = body.survival.as_ref().unwrap();
@@ -297,7 +297,7 @@ fn licensed_survival_scalar_intervals_round_trip_and_refuse_forgery() {
         &result,
         &ctx,
     );
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [120, 120]);
     assert_eq!(curve.bootstrap_replicates_ok, Some(299));
@@ -348,7 +348,7 @@ fn licensed_survival_scalar_intervals_round_trip_and_refuse_forgery() {
         .prepare(&ctx)
         .unwrap();
     let off_axis = prepared.estimate(&with_entry, &ctx).unwrap();
-    assert!(off_axis.support_status.is_none());
+    assert!(off_axis.support_status().is_none());
     let encoded = prepared.encode_contracted_result(&off_axis, "entry-off-axis", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
     body.survival.as_mut().unwrap().graphless_support_status = Some("licensed".into());
@@ -671,7 +671,7 @@ fn licensed_delayed_entry_survival_intervals_round_trip_and_refuse_forgery() {
         &result,
         &ctx,
     );
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [170, 170]);
     assert!(curve.bootstrap_replicates_ok.unwrap() >= 299);
@@ -758,7 +758,7 @@ fn licensed_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery() {
         &result,
         &ctx,
     );
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [170, 170]);
     assert_eq!(
@@ -864,7 +864,7 @@ fn licensed_delayed_entry_fixed_g_survival_intervals_round_trip_and_refuse_forge
         &result,
         &ctx,
     );
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [210, 210]);
     assert!(curve.rmst_difference_interval.is_some());
@@ -933,7 +933,7 @@ fn licensed_survival_difference_band_round_trips_and_refuses_forgery() {
     );
     // Only 100 subjects per arm: the scalar row needs 120, so the scalar route
     // is off-axis while the band's own 80-per-arm license applies.
-    assert!(result.support_status.is_none());
+    assert!(result.support_status().is_none());
     let curve = result.survival().unwrap();
     let band = curve.difference_band.as_ref().expect("eligible randomized subjects");
     assert_eq!(band.support_status, Some(antecedent::support::CellStatus::Licensed));
@@ -1030,7 +1030,7 @@ fn licensed_competing_incidence_band_round_trips_and_refuses_forgery() {
         &ctx,
     );
     // Cumulative incidence never carries the scalar RMST+horizon license.
-    assert!(result.support_status.is_none());
+    assert!(result.support_status().is_none());
     let curve = result.survival().unwrap();
     assert!(curve.rmst_difference_interval.is_none());
     assert!(curve.difference_at_tau_interval.is_some());
@@ -1113,7 +1113,7 @@ fn competing_incidence_scalar_interval_is_off_axis_and_refuses_forged_license() 
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert!(result.support_status.is_none());
+    assert!(result.support_status().is_none());
     let curve = result.survival().unwrap();
     assert!(curve.difference_at_tau_interval.is_some());
     assert!(curve.rmst_difference_interval.is_none());

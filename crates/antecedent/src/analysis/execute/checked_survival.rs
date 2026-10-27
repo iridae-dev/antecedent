@@ -48,19 +48,19 @@ impl CheckedSurvivalOperation {
         query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || study.refute != RefuteSuite::None
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || !study.declared.custom_validators.is_empty()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
+            || study.declared.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
                 message: "survival requires a graphless randomized trial and an explicit observation assumption, without a graph, refuter or custom validator",
             });
         }
-        let bayesian = match &study.inference {
+        let bayesian = match &study.settings.inference {
             InferenceMode::Frequentist => None,
             InferenceMode::Bayesian(config) => {
-                bayesian::require_scope(query, config, study.bootstrap_replicates)?;
+                bayesian::require_scope(query, config, study.settings.bootstrap_replicates)?;
                 Some(config.clone())
             }
         };
@@ -97,7 +97,7 @@ impl CheckedSurvivalOperation {
             physical,
             identification,
             estimand,
-            (study.bootstrap_replicates, bayesian),
+            (study.settings.bootstrap_replicates, bayesian),
         ))
     }
 

@@ -187,7 +187,7 @@ fn admg_graph_posterior_intervention_response_matches_identified_atom() {
             .unwrap()
             .run(&ExecutionContext::for_tests(3))
             .unwrap();
-        assert_eq!(mixed.support_status.unwrap().as_str(), "licensed");
+        assert_eq!(mixed.support_status().unwrap().as_str(), "licensed");
         assert!(mixed.diagnostics.iter().any(|d| {
             d.code.as_ref() == "identify.response.general_id"
                 || d.code.as_ref() == "estimate.response.admg_graph_posterior"
@@ -230,7 +230,7 @@ fn admg_graph_posterior_response_curve_matches_identified_atom() {
             .unwrap()
             .run(&ExecutionContext::for_tests(3))
             .unwrap();
-        assert_eq!(mixed.support_status.unwrap().as_str(), "licensed");
+        assert_eq!(mixed.support_status().unwrap().as_str(), "licensed");
         let atom = response_values(&explicit);
         let got = response_values(&mixed);
         assert_eq!(got.len(), atom.len());
@@ -277,7 +277,7 @@ fn assert_plugin_level_ir(
     inference: &InferenceMode,
     suite: RefuteSuite,
 ) {
-    assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{inference:?} {suite:?}");
+    assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{inference:?} {suite:?}");
     assert!(
         !result.refutations.is_empty(),
         "{inference:?} {suite:?} must run plugin-level refuters"
@@ -414,7 +414,7 @@ fn admg_graph_posterior_response_inspect_and_execute_agree() {
             SemanticApplicability::Licensed
         );
         let result = builder.build().unwrap().run(&ctx).unwrap();
-        assert_eq!(result.support_status, inspected.support_status);
+        assert_eq!(result.support_status(), inspected.support_status);
     }
 }
 

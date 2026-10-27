@@ -1185,6 +1185,9 @@ pub enum ResultPayload {
     },
     /// Unit-level ITE for a counterfactual query.
     Counterfactual(IteResult),
+    /// Unit-level contrasts of a counterfactual query with several outcomes, a joint baseline
+    /// or nested interventions.
+    CounterfactualContrasts(Box<crate::gcm::CounterfactualContrasts>),
     /// Anomaly scores for an anomaly-attribution query.
     Anomaly(Vec<AnomalyScores>),
     /// Change-attribution result.
@@ -1421,7 +1424,7 @@ pub struct StudyResult {
     /// probability — the bounded per-atom intervals are
     /// [`InterventionalDistributionEstimate::atom_uncertainty`], and a binary outcome's
     /// mean interval is [`InterventionalDistributionEstimate::mean_interval`].
-    pub estimate: PrimaryEstimate,
+    pub(crate) estimate: PrimaryEstimate,
     /// Structural atom/mass result for class-aware or graph-posterior responses.
     pub structural_response: Option<StructuralResponseMixture>,
     /// The typed answer the query family published beside the scalar estimate.
@@ -1430,7 +1433,7 @@ pub struct StudyResult {
     /// accessors, or match on it directly. The Bayesian [`Self::posterior`] and
     /// the atom [`Self::structural_response`] accompany any family and stay
     /// outside it.
-    pub payload: ResultPayload,
+    pub(crate) payload: ResultPayload,
     /// Bayesian posterior when `InferenceMode::Bayesian` was used.
     pub posterior: Option<CausalPosterior>,
     /// Refutation reports (may be empty).
@@ -1439,8 +1442,7 @@ pub struct StudyResult {
     pub predictive_checks: Vec<PredictiveCheckReport>,
     /// Posterior predictive replicates retained at fit time when the study declared bounds
     /// for them; read through [`Self::predictive_replicates`].
-    pub(crate) predictive_replicates:
-        Option<Arc<crate::analysis::RetainedPredictiveReplicates>>,
+    pub(crate) predictive_replicates: Option<Arc<crate::analysis::RetainedPredictiveReplicates>>,
     /// Diagnostics.
     pub diagnostics: Vec<Diagnostic>,
     /// Provenance.
@@ -1451,7 +1453,7 @@ pub struct StudyResult {
     /// Downstream consumers must not treat a number as licensed unless this is
     /// [`crate::support::CellStatus::Licensed`]. `None` when the query is not on
     /// the public axis.
-    pub support_status: Option<crate::support::CellStatus>,
+    pub(crate) support_status: Option<crate::support::CellStatus>,
     /// How the caller supplied structure. Graph-posterior mixtures are never a
     /// single adjustment set, even when every identified atom happens to agree.
     pub structure_source: crate::support::StructureSource,
@@ -1462,15 +1464,15 @@ pub struct StudyResult {
     /// Outcome variable.
     pub outcome: VariableId,
     /// Candidate-selection screen recorded for a prepared batch family.
-    pub candidate_selection: Option<crate::analysis::CandidateSelection>,
+    pub(crate) candidate_selection: Option<crate::analysis::CandidateSelection>,
     /// How this execution formed its reported interval.
-    pub interval: Option<IntervalBinding>,
+    pub(crate) interval: Option<IntervalBinding>,
     /// Row-weight population recorded by a nonconstant retarget.
-    pub row_weights: Option<RowWeightsBinding>,
+    pub(crate) row_weights: Option<RowWeightsBinding>,
     /// Missing-data policy, assumption and row accounting of this execution.
-    pub missing_data: Option<MissingDataReport>,
+    pub(crate) missing_data: Option<MissingDataReport>,
     /// Names of caller-supplied custom validators that ran on this execution.
-    pub custom_validator_names: Vec<std::sync::Arc<str>>,
+    pub(crate) custom_validator_names: Vec<std::sync::Arc<str>>,
     /// Prepared contract this result was executed under, stamped by the
     /// [`crate::PreparedStudy`] entry point that produced it. `None` for
     /// results no prepared handle executed; those cannot be exported as claims.
@@ -1486,6 +1488,60 @@ pub struct StudyResult {
 }
 
 impl StudyResult {
+    /// The primary estimate; it always agrees with [`Self::payload`].
+    #[must_use]
+    pub const fn estimate(&self) -> &PrimaryEstimate {
+        &self.estimate
+    }
+
+    /// Mutable estimate, for tests that deliberately construct a tampered or edge-case result.
+    #[doc(hidden)]
+    pub fn estimate_mut(&mut self) -> &mut PrimaryEstimate {
+        &mut self.estimate
+    }
+
+    /// Candidate-selection record, when the study selected among candidates.
+    #[must_use]
+    pub const fn candidate_selection(&self) -> &Option<crate::analysis::CandidateSelection> {
+        &self.candidate_selection
+    }
+
+    /// How the reported interval was formed, when the execution reported one.
+    #[must_use]
+    pub const fn interval(&self) -> &Option<IntervalBinding> {
+        &self.interval
+    }
+
+    /// Row-weight binding, when the analysis was weighted.
+    #[must_use]
+    pub const fn row_weights(&self) -> &Option<RowWeightsBinding> {
+        &self.row_weights
+    }
+
+    /// Missing-data report, when the analysis handled missing values.
+    #[must_use]
+    pub const fn missing_data(&self) -> &Option<MissingDataReport> {
+        &self.missing_data
+    }
+
+    /// Names of the custom validators that ran.
+    #[must_use]
+    pub fn custom_validator_names(&self) -> &[std::sync::Arc<str>] {
+        &self.custom_validator_names
+    }
+
+    /// The route-specific result payload the estimate was drawn from.
+    #[must_use]
+    pub const fn payload(&self) -> &ResultPayload {
+        &self.payload
+    }
+
+    /// Support standing of the estimand's cell, when the route reports one.
+    #[must_use]
+    pub const fn support_status(&self) -> Option<crate::support::CellStatus> {
+        self.support_status
+    }
+
     pub(crate) fn stamp_lowered_program(
         &mut self,
         program: &crate::planner::lowered::LoweredProgram,
@@ -1623,6 +1679,8 @@ payload_accessors! {
     HistoryMatch => history_match, into_history_match: HistoryMatchEstimate;
     ]
     boxed: [
+    CounterfactualContrasts => counterfactual_contrasts, into_counterfactual_contrasts:
+        crate::gcm::CounterfactualContrasts;
     TemporalDesign => temporal_design, into_temporal_design: TemporalDesignEstimate;
     IvBounds => iv_bounds, into_iv_bounds: antecedent_estimate::IvBoundsEstimate;
     Association => association, into_association:
@@ -2254,7 +2312,10 @@ impl StudyResult {
     /// (`counterfactual.unit_effect_intervals`), when the execution formed them.
     #[must_use]
     pub fn unit_effect_interval_binding(&self) -> Option<IntervalBinding> {
-        let intervals = self.counterfactual()?.unit_effect_intervals.as_ref()?;
+        let intervals = match self.counterfactual() {
+            Some(single) => single.unit_effect_intervals.as_ref()?,
+            None => self.counterfactual_contrasts()?.primary().unit_effect_intervals.as_ref()?,
+        };
         let mut binding = IntervalBinding::new(
             antecedent_core::IntervalMethod::UnitPosteriorQuantile,
             intervals.level,
@@ -2331,6 +2392,9 @@ impl StudyResult {
         }
         if let Some(cf) = self.counterfactual() {
             return cf.mean_ite;
+        }
+        if let Some(set) = self.counterfactual_contrasts() {
+            return set.primary().mean_ite;
         }
         self.estimate.as_effect().map_or(f64::NAN, |estimate| estimate.ate)
     }

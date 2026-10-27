@@ -274,13 +274,14 @@ pub(super) fn functional_label(query: &CausalQuery) -> String {
 pub(super) fn overlap_label(study: &Study, resolved_estimator: Option<&str>) -> Option<String> {
     use antecedent_estimate::OverlapPolicy;
     let configured = study
+        .declared
         .estimator_spec
         .as_deref()
         .and_then(crate::estimator_spec::EstimatorSpec::propensity_overlap);
     let policy = if let Some(policy) = configured {
         policy
     } else {
-        let estimator = study.estimator.map(|id| id.as_str()).or(resolved_estimator)?;
+        let estimator = study.declared.estimator.map(|id| id.as_str()).or(resolved_estimator)?;
         if !matches!(
             estimator,
             "propensity.weighting"
@@ -291,7 +292,7 @@ pub(super) fn overlap_label(study: &Study, resolved_estimator: Option<&str>) -> 
         ) {
             return None;
         }
-        study.overlap_policy?
+        study.declared.overlap_policy?
     };
     if policy == antecedent_estimate::default_propensity_overlap() {
         return None;

@@ -79,7 +79,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
 
 /// The resampling a frequentist association draws under the declared design.
 fn resampling_plan(cx: &LoweringContext<'_>, selection: &AssociationSelection) -> Resampling {
-    let replicates = cx.study.bootstrap_replicates;
+    let replicates = cx.study.settings.bootstrap_replicates;
     if replicates == 0 {
         return Resampling::Off;
     }
@@ -98,7 +98,7 @@ fn realization(
     selection: &AssociationSelection,
 ) -> Result<RealizationChoice, CausalError> {
     let analysis = selection.analysis.as_str();
-    match &cx.study.inference {
+    match &cx.study.settings.inference {
         InferenceMode::Frequentist => Ok(RealizationChoice::Override {
             realization: Realization::Frequentist(ScoreFrequentist::new(
                 ScoreModel::new(format!("association.{analysis}.{}", selection.modality.as_str()))
@@ -145,7 +145,7 @@ fn lower_selected(
         },
         embargo: None,
     });
-    let resampling = match &study.inference {
+    let resampling = match &study.settings.inference {
         InferenceMode::Frequentist => resampling_plan(cx, selection),
         // The posterior carries the uncertainty; no bootstrap is drawn.
         InferenceMode::Bayesian(_) => Resampling::Off,
@@ -168,7 +168,7 @@ fn lower_selected(
             intervenes: false,
             width: ASSOCIATION_WIDTH,
             claim: ClaimDemand {
-                uncertainty: declared_uncertainty(&study.inference),
+                uncertainty: declared_uncertainty(&study.settings.inference),
                 kind: Some(ClaimKind::Associational),
             },
         },

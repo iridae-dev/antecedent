@@ -102,9 +102,10 @@ pub(crate) fn finish_family_result(
     result: &mut crate::result::StudyResult,
 ) -> Result<(), CausalError> {
     let lowered = plan.require_lowered(expected_cell(study))?;
-    super::dispatch::push_gaussian_likelihood_disclosure(result, &study.inference, input);
+    super::dispatch::push_gaussian_likelihood_disclosure(result, &study.settings.inference, input);
     super::dispatch::push_lag_zero_average_effect_disclosure(study, result);
     result.custom_validator_names = study
+        .declared
         .custom_validators
         .iter()
         .map(|validator| Arc::<str>::from(validator.name()))

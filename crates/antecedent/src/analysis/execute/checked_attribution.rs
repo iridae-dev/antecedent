@@ -299,7 +299,7 @@ impl CheckedAttributionOperation {
             });
         }
         let target_query = target.query();
-        if !study.custom_validators.is_empty() {
+        if !study.declared.custom_validators.is_empty() {
             return Err(CausalError::Unsupported {
                 message: "checked attribution does not support custom validators",
             });
@@ -343,7 +343,7 @@ impl CheckedAttributionOperation {
             graph: graph.clone(),
             target,
             cache: Arc::clone(cache),
-            inference: study.inference.clone(),
+            inference: study.settings.inference.clone(),
             procedure,
             estimator,
             physical: physical.clone(),
@@ -1745,7 +1745,7 @@ fn attribution_procedure(
     target: &AttributionTarget,
     study: &Study,
 ) -> Result<(EstimatorId, AttributionProcedure), CausalError> {
-    Ok(match (target, &study.inference) {
+    Ok(match (target, &study.settings.inference) {
         // The posterior over the mechanisms of a fitted-model target: Dirichlet row-weight
         // refits (block weights on a lag-aligned unfolding) of the mechanisms, the families
         // held at the ones selected on the data.
@@ -1760,7 +1760,7 @@ fn attribution_procedure(
                     message: "Bayesian attribution uses its shared-row Bayesian bootstrap and does not accept coefficient priors or external prior composition",
                 });
             }
-            bayesian_draw_count(&study.inference)?;
+            bayesian_draw_count(&study.settings.inference)?;
             let draws = attribute_posterior_draws(query, config);
             (EstimatorId::GcmFitBayesian, AttributionProcedure::SharedDirichletRowWeights { draws })
         }
@@ -1768,16 +1768,18 @@ fn attribution_procedure(
         // independent subjects on a static DAG, circular blocks of consecutive times on a
         // lag-aligned TemporalDag unfolding.
         (AttributionTarget::Model(query), InferenceMode::Frequentist)
-            if study.bootstrap_replicates > 0 && attribute_bootstrap_supported(query) =>
+            if study.settings.bootstrap_replicates > 0 && attribute_bootstrap_supported(query) =>
         {
             if study.graph.as_dag().is_some() {
-                super::gcm_bootstrap::require_subject_resampling(study.sampling_design)?;
+                super::gcm_bootstrap::require_subject_resampling(study.declared.sampling_design)?;
             } else {
-                super::gcm_bootstrap::require_series_resampling(study.sampling_design)?;
+                super::gcm_bootstrap::require_series_resampling(study.declared.sampling_design)?;
             }
             (
                 EstimatorId::GcmFit,
-                AttributionProcedure::RowBootstrap { replicates: study.bootstrap_replicates },
+                AttributionProcedure::RowBootstrap {
+                    replicates: study.settings.bootstrap_replicates,
+                },
             )
         }
         // Every other fitted-model target reports the fitted model's answer.
@@ -1786,19 +1788,23 @@ fn attribution_procedure(
             // A requested replicate count is the mechanism-refit bootstrap: multinomial
             // rows of independent subjects on a static DAG, circular blocks of consecutive
             // times on a lag-aligned TemporalDag unfolding.
-            if study.bootstrap_replicates > 0 && study.graph.as_dag().is_some() {
-                super::gcm_bootstrap::require_subject_resampling(study.sampling_design)?;
+            if study.settings.bootstrap_replicates > 0 && study.graph.as_dag().is_some() {
+                super::gcm_bootstrap::require_subject_resampling(study.declared.sampling_design)?;
                 (
                     EstimatorId::GcmFit,
-                    AttributionProcedure::RowBootstrap { replicates: study.bootstrap_replicates },
+                    AttributionProcedure::RowBootstrap {
+                        replicates: study.settings.bootstrap_replicates,
+                    },
                 )
-            } else if study.bootstrap_replicates > 0
+            } else if study.settings.bootstrap_replicates > 0
                 && matches!(study.graph.class(), crate::accepted::GraphClass::TemporalDag)
             {
-                super::gcm_bootstrap::require_series_resampling(study.sampling_design)?;
+                super::gcm_bootstrap::require_series_resampling(study.declared.sampling_design)?;
                 (
                     EstimatorId::GcmFit,
-                    AttributionProcedure::RowBootstrap { replicates: study.bootstrap_replicates },
+                    AttributionProcedure::RowBootstrap {
+                        replicates: study.settings.bootstrap_replicates,
+                    },
                 )
             } else {
                 (EstimatorId::GcmFit, AttributionProcedure::Point)
@@ -1816,7 +1822,7 @@ fn attribution_procedure(
             (
                 EstimatorId::GcmFitBayesian,
                 AttributionProcedure::SharedDirichletRowWeights {
-                    draws: bayesian_draw_count(&study.inference)?,
+                    draws: bayesian_draw_count(&study.settings.inference)?,
                 },
             )
         }
@@ -1832,7 +1838,7 @@ fn attribution_procedure(
             (
                 EstimatorId::GcmAttributionBayesian,
                 AttributionProcedure::SharedDirichletRowWeights {
-                    draws: bayesian_draw_count(&study.inference)?,
+                    draws: bayesian_draw_count(&study.settings.inference)?,
                 },
             )
         }

@@ -48,22 +48,22 @@ impl CompiledLinearExecution {
             Arc::new(source.prepare_static_identification(plan)?.ok_or_else(|| {
                 CausalError::Compile { message: "linear compilation omitted identification".into() }
             })?);
-        let (mut fitter, default_id) = match source.estimator_spec.as_deref() {
+        let (mut fitter, default_id) = match source.declared.estimator_spec.as_deref() {
             Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(config)) => {
                 ((**config).clone(), false)
             }
             _ => (
                 antecedent_estimate::LinearAdjustmentAte::new()
-                    .with_bootstrap_replicates(source.bootstrap_replicates),
+                    .with_bootstrap_replicates(source.settings.bootstrap_replicates),
                 true,
             ),
         };
         if default_id {
             fitter.inference.sampling_design =
-                crate::estimator_spec::declared_sampling(source.sampling_design);
+                crate::estimator_spec::declared_sampling(source.declared.sampling_design);
         }
         if fitter.population_registry.is_none() {
-            fitter.population_registry.clone_from(&source.population_registry);
+            fitter.population_registry.clone_from(&source.declared.population_registry);
         }
         Self::lower(
             data,
@@ -406,9 +406,9 @@ fn obligation_detail(record: &AssumptionRecord) -> String {
 /// Scientific eligibility shared by public planning and checked preparation.
 pub(crate) fn can_retain(source: &crate::Study, query: &AverageEffectQuery) -> bool {
     source.graph_posterior.is_none()
-        && source.tiered.is_none()
-        && source.inference.is_frequentist()
-        && source.custom_validators.is_empty()
+        && source.declared.tiered.is_none()
+        && source.settings.inference.is_frequentist()
+        && source.declared.custom_validators.is_empty()
         && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
         && matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
 }

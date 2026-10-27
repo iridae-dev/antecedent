@@ -91,9 +91,9 @@ fn bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle() {
 
         let result = prepared.estimate(&data, &context).unwrap();
         assert!(
-            (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.12,
+            (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.12,
             "ATE={}",
-            result.estimate.as_effect().unwrap().ate
+            result.estimate().as_effect().unwrap().ate
         );
         let posterior_result = result.posterior.as_ref().expect("joint posterior retained");
         assert!(posterior_result.draws.n_draws >= 96);
@@ -108,8 +108,8 @@ fn bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle() {
 
         let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
         assert!(
-            (refreshed.estimate.as_effect().unwrap().ate
-                - result.estimate.as_effect().unwrap().ate)
+            (refreshed.estimate().as_effect().unwrap().ate
+                - result.estimate().as_effect().unwrap().ate)
                 .abs()
                 < 1e-10
         );

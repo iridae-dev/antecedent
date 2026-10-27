@@ -123,7 +123,7 @@ fn lower_mediation(
         &query,
         data.schema(),
         &assumptions,
-        inference_selection(&study.inference),
+        inference_selection(&study.settings.inference),
         None,
     )
     .map_or_else(
@@ -152,7 +152,7 @@ fn lower_mediation(
             realization: RealizationChoice::Declared,
             models,
             folds: None,
-            resampling: match study.inference {
+            resampling: match study.settings.inference {
                 // The posterior carries the uncertainty; no bootstrap is drawn.
                 InferenceMode::Bayesian(_) => Resampling::Off,
                 InferenceMode::Frequentist => Resampling::Declared,
@@ -160,7 +160,7 @@ fn lower_mediation(
             intervenes: true,
             width: MEDIATION_WIDTH,
             claim: ClaimDemand {
-                uncertainty: declared_uncertainty(&study.inference),
+                uncertainty: declared_uncertainty(&study.settings.inference),
                 kind: Some(ClaimKind::Point),
             },
         },
@@ -198,7 +198,7 @@ fn lower_structural(
         }
         _ => None,
     };
-    let (realization, posterior, uncertainty) = match (kind, backend, &study.inference) {
+    let (realization, posterior, uncertainty) = match (kind, backend, &study.settings.inference) {
         (_, Some(backend), InferenceMode::Bayesian(config)) => {
             let draws = if matches!(kind, FunctionalKind::Attribution | FunctionalKind::Simulation)
             {

@@ -12,6 +12,7 @@ use super::{
     identify_static_query, map_mechanism_fit, mechanism_change_detection, nan_effect,
     parametric_scm_identification, provenance_ids, shared_identification_from_cache_or,
 };
+mod contrast_set;
 use crate::analysis::proof_support::proof_supplies_full;
 use antecedent_core::StreamDomain;
 
@@ -225,6 +226,9 @@ fn execute_checked_counterfactual_plan(
     let estimand = plan.cache.estimand.clone();
     let identify_cached = plan.identify_cached;
 
+    if let Some(target) = plan.operation.contrast_target() {
+        return contrast_set::execute_contrast_set_plan(plan, target, data, ctx);
+    }
     let query = plan.operation.query();
     let graph = plan.operation.graph();
     let (treatment, active, control) = binary_cf_interventions(query)?;
@@ -628,9 +632,9 @@ impl super::Study {
                 })?;
             Ok((identification, estimand))
         })?;
-        let inference = self.inference.clone();
+        let inference = self.settings.inference.clone();
         let procedure = CounterfactualProcedure::for_inference(&inference)?
-            .with_bootstrap(self.bootstrap_replicates, self.sampling_design)?;
+            .with_bootstrap(self.settings.bootstrap_replicates, self.declared.sampling_design)?;
         let plan = CheckedCounterfactualPlan::new(
             operation.clone(),
             cache,
@@ -683,8 +687,8 @@ impl super::Study {
                 identify_cached,
             },
         );
-        if self.inference.is_bayesian() {
-            let n_draws = bayesian_draw_count(&self.inference)?;
+        if self.settings.inference.is_bayesian() {
+            let n_draws = bayesian_draw_count(&self.settings.inference)?;
             let mut columns: Vec<(String, Vec<f64>)> = scores
                 .iter()
                 .map(|score| {
@@ -804,7 +808,7 @@ impl super::Study {
                 identify_cached,
             },
         );
-        if self.inference.is_bayesian() {
+        if self.settings.inference.is_bayesian() {
             let posterior = self.change_attribution_posterior(data, query, &fitted, ctx)?;
             if let Some(index) = posterior.effect_column() {
                 if let Some(estimate) = result.estimate.as_effect_mut() {
@@ -829,7 +833,7 @@ impl super::Study {
         fitted: &crate::gcm::FittedGcm,
         ctx: &ExecutionContext,
     ) -> Result<CausalPosterior, CausalError> {
-        let n_draws = bayesian_draw_count(&self.inference)?;
+        let n_draws = bayesian_draw_count(&self.settings.inference)?;
         let baseline_n = antecedent_attribution::resolve_rows(data, &query.baseline)
             .map_err(CausalError::rejected)?
             .len();
@@ -964,7 +968,7 @@ impl super::Study {
     ) -> StudyResult {
         let GcmFinish { query, treatment, outcome, estimate, slot, diagnostics, identify_cached } =
             finish;
-        let estimator_id = match (&query, &self.inference) {
+        let estimator_id = match (&query, &self.settings.inference) {
             (CausalQuery::AnomalyAttribution(_), InferenceMode::Bayesian(_)) => {
                 EstimatorId::GcmFitBayesian
             }
@@ -1119,19 +1123,34 @@ fn path_assignments<'a>(
     treatment: VariableId,
     outcome: VariableId,
 ) -> Option<(Vec<&'a crate::gcm::MechanismAssignment>, DenseNodeId, DenseNodeId)> {
+    let (on_path, treatment_nodes, outcome_node) =
+        path_assignments_over(graph, assignments, &[treatment], outcome)?;
+    Some((on_path, treatment_nodes[0], outcome_node))
+}
+
+/// [`path_assignments`] for several simultaneously intervened treatments: the assignments
+/// strictly downstream of at least one treatment and upstream of (or at) the outcome. Also
+/// returns each treatment's node, in the order given.
+fn path_assignments_over<'a>(
+    graph: &Dag,
+    assignments: &'a [crate::gcm::MechanismAssignment],
+    treatments: &[VariableId],
+    outcome: VariableId,
+) -> Option<(Vec<&'a crate::gcm::MechanismAssignment>, Vec<DenseNodeId>, DenseNodeId)> {
     let node_of =
         |variable: VariableId| assignments.iter().find(|a| a.variable == variable).map(|a| a.node);
-    let treatment_node = node_of(treatment)?;
+    let treatment_nodes: Vec<DenseNodeId> =
+        treatments.iter().map(|&treatment| node_of(treatment)).collect::<Option<_>>()?;
     let outcome_node = node_of(outcome)?;
     let on_path = assignments
         .iter()
         .filter(|a| {
-            a.node != treatment_node
-                && graph.reaches(treatment_node, a.node)
+            !treatment_nodes.contains(&a.node)
+                && treatment_nodes.iter().any(|&node| graph.reaches(node, a.node))
                 && graph.reaches(a.node, outcome_node)
         })
         .collect();
-    Some((on_path, treatment_node, outcome_node))
+    Some((on_path, treatment_nodes, outcome_node))
 }
 
 /// Classify the per-unit effects as structurally equal, empirically equal, or
@@ -1155,7 +1174,21 @@ fn homogeneity_verdict(
     treatment: VariableId,
     outcome: VariableId,
 ) -> HomogeneityVerdict {
-    let Some((on_path, _, outcome_node)) = path_assignments(graph, assignments, treatment, outcome)
+    homogeneity_verdict_over(graph, assignments, &[treatment], outcome)
+}
+
+/// [`homogeneity_verdict`] for one outcome under several simultaneous treatments: the
+/// mechanisms on a directed path from *any* treatment to the outcome are the ones that can
+/// modify the effect, so the verdict is structural only when all of them are additively
+/// separable.
+fn homogeneity_verdict_over(
+    graph: &Dag,
+    assignments: &[crate::gcm::MechanismAssignment],
+    treatments: &[VariableId],
+    outcome: VariableId,
+) -> HomogeneityVerdict {
+    let Some((on_path, _, outcome_node)) =
+        path_assignments_over(graph, assignments, treatments, outcome)
     else {
         return HomogeneityVerdict::Heterogeneous;
     };
@@ -1421,6 +1454,16 @@ fn unit_effect_posterior_summary(
 
 fn counterfactual_posterior(
     values: Vec<f64>,
+    assumptions: antecedent_core::AssumptionSet,
+    identification: antecedent_core::IdentificationStatus,
+) -> Result<CausalPosterior, CausalError> {
+    counterfactual_posterior_columns(vec![("ite".into(), values)], assumptions, identification)
+}
+
+/// [`counterfactual_posterior`] with one `Effect` column per contrast, each a named series of the
+/// same number of draws. The first column is the result's primary effect.
+fn counterfactual_posterior_columns(
+    columns: Vec<(String, Vec<f64>)>,
     mut assumptions: antecedent_core::AssumptionSet,
     identification: antecedent_core::IdentificationStatus,
 ) -> Result<CausalPosterior, CausalError> {
@@ -1433,12 +1476,15 @@ fn counterfactual_posterior(
         scope: antecedent_core::AssumptionScope::Estimation,
         status: antecedent_core::AssumptionStatus::Declared,
     });
-    let schema = antecedent_prob::PosteriorSchema {
-        quantities: std::sync::Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
-            name: std::sync::Arc::from("ite"),
-        }]),
-    };
-    let n = values.len();
+    let quantities: Vec<antecedent_prob::PosteriorQuantityKind> = columns
+        .iter()
+        .map(|(name, _)| antecedent_prob::PosteriorQuantityKind::Effect {
+            name: std::sync::Arc::from(name.as_str()),
+        })
+        .collect();
+    let schema = antecedent_prob::PosteriorSchema { quantities: std::sync::Arc::from(quantities) };
+    let n = columns.first().map_or(0, |(_, values)| values.len());
+    let values: Vec<f64> = columns.into_iter().flat_map(|(_, values)| values).collect();
     let draws = antecedent_prob::PosteriorDraws::from_column_major(
         schema,
         n,

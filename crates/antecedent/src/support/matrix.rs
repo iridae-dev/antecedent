@@ -113,7 +113,10 @@ pub(crate) fn executes_unlicensed(cell: SupportCell) -> bool {
     if !matches!(classify(cell), CellStatus::Refused) {
         return false;
     }
-    CLOSED_RULES.iter().find(|rule| rule_matches(rule, cell)).is_some_and(|rule| rule.executes_unlicensed)
+    CLOSED_RULES
+        .iter()
+        .find(|rule| rule_matches(rule, cell))
+        .is_some_and(|rule| rule.executes_unlicensed)
 }
 
 /// The single static message every unmatched `Refused` cell reports. Cell

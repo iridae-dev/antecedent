@@ -63,7 +63,7 @@ fn anomaly_attribution_known_truth() {
     assert_eq!(study.support_status(), Some(CellStatus::Licensed));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     let scores = result.anomaly().expect("anomaly scores");
     let y = scores.iter().find(|s| s.target == VariableId::from_raw(1)).expect("y target");
@@ -97,7 +97,7 @@ fn change_attribution_known_truth() {
     assert_eq!(study.support_status(), Some(CellStatus::Licensed));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     let change = result.change_attribution().expect("change attribution");
     let expected = pin["change"]["total_change"].as_f64().unwrap();
@@ -217,7 +217,7 @@ fn transport_direct_trial_ipw_known_truth() {
     assert_eq!(study.support_status(), Some(CellStatus::Licensed));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
     assert_eq!(result.estimand.method.as_ref(), "transport.sid.direct");
@@ -262,7 +262,7 @@ fn interference_bernoulli_neighbor_count_known_truth() {
     assert_eq!(study.support_status(), Some(CellStatus::Licensed));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&units, &ctx()).unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
     assert_eq!(result.estimand.method.as_ref(), "interference.design");
     let estimated = result.interference().expect("interference estimate");
@@ -329,7 +329,7 @@ fn bayesian_interference_fixed_network_posterior_matches_known_truth() {
     assert_eq!(study.support_status(), Some(CellStatus::Licensed));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&units, &ctx()).unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Licensed));
     assert_eq!(
         result.identification.status,
         IdentificationStatus::IdentifiedUnderParametricRestrictions
@@ -340,7 +340,7 @@ fn bayesian_interference_fixed_network_posterior_matches_known_truth() {
     // to-minus-from contrast is beta-gamma=-1.
     let expected = fixture["expected_contrast"].as_f64().unwrap();
     let tolerance = fixture["tolerance"].as_f64().unwrap();
-    assert!((result.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((result.estimate().as_effect().unwrap().ate - expected).abs() < tolerance);
     assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "interference.fixed_network_gaussian_potential_outcomes")));
 }
 
@@ -611,11 +611,11 @@ fn interference_is_stated_under_every_static_structure_class_with_the_design_ide
         assert_eq!(result.estimand.method.as_ref(), "interference.design", "{class}");
         assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
         if class == "Dag" {
-            assert_eq!(result.support_status, Some(CellStatus::Licensed));
+            assert_eq!(result.support_status(), Some(CellStatus::Licensed));
         } else {
             // No evidence row names the structure class: it executes and stays unlicensed.
             assert_eq!(study.support_status(), Some(CellStatus::Refused), "{class}");
-            assert_eq!(result.support_status, Some(CellStatus::Refused), "{class}");
+            assert_eq!(result.support_status(), Some(CellStatus::Refused), "{class}");
         }
         // The prepared handle seals the checked operation against the structure.
         let prepared = study.prepare(&ctx()).unwrap_or_else(|e| panic!("{class}: {e}"));

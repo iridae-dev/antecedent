@@ -97,9 +97,9 @@ pub mod validate;
 pub use accepted::{AcceptedGraph, GraphClass, GraphRef, IntoAccepted, StructureProvenance};
 pub use analysis::api::*;
 #[doc(hidden)]
-pub use analysis::temporal_dependent_interval_candidate;
-#[doc(hidden)]
 pub use analysis::max_t_critical_value;
+#[doc(hidden)]
+pub use analysis::temporal_dependent_interval_candidate;
 pub use antecedent_estimate::{IvBoundsEstimate, IvBoundsInterval, IvBoundsPosterior};
 pub use class_prior::ClassPrior;
 pub use design_posterior_model::DesignPosteriorModel;

@@ -213,7 +213,8 @@ fn scientific_target(
         // The highest-order interaction of `k` factors: cell `a` carries `(-1)^(k - |a|)`,
         // the same coefficients the estimator reduces the score table with.
         CellFamilyContrast::Interaction => {
-            let factors = u32::try_from(cells.treatments.len()).map_err(|error| error.to_string())?;
+            let factors =
+                u32::try_from(cells.treatments.len()).map_err(|error| error.to_string())?;
             InterventionContrast::linear(
                 worlds,
                 cells.world_arms.iter().map(|&arm| {

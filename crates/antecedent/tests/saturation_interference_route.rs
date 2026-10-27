@@ -96,14 +96,14 @@ fn saturation_direct_spillover_total_retain_truth_without_interval() {
         };
         assert_eq!(info.estimator, EstimatorId::InterferenceSaturationExact);
         let result = prepared.estimate(&data, &ctx).unwrap();
-        assert_eq!(result.support_status, None);
+        assert_eq!(result.support_status(), None);
         assert!((result.interference().unwrap().contrast.hajek - truth).abs() < 1e-12);
         assert!(result.interference().unwrap().contrast.conservative_variance > 0.0);
-        assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+        assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
         let inference = result.interference_inference().unwrap();
         assert!(inference.interval.is_none());
         assert!(inference.interval_unavailable_reason.unwrap().contains("24 independent clusters"));
-        assert!(result.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.two_stage_saturation")));
+        assert!(result.estimate().as_effect().unwrap().provenance.assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.two_stage_saturation")));
         let artifact =
             prepared.encode_contracted_result(&result, "saturation-exact", &ctx).unwrap();
         let consumed = consume_analysis_result(&artifact).unwrap();

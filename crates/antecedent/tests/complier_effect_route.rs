@@ -34,7 +34,7 @@ fn licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery() {
         let [lower, upper] = fit.interval_95.expect("supported complier interval");
         assert_eq!(fit.assignment_design.as_ref(), "bernoulli");
         assert_eq!(fit.estimand.as_ref(), estimand);
-        assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
         assert!(lower <= fit.effect && fit.effect <= upper);
         assert!(fit.standard_error.unwrap() > 0.0);
         // The published interval is exactly point +/- z_{0.975} * SE.
@@ -50,7 +50,7 @@ fn licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery() {
         );
 
         let executed_contract = prepared.contract_for_result(&result).unwrap();
-        assert_eq!(executed_contract.support_status, result.support_status);
+        assert_eq!(executed_contract.support_status, result.support_status());
         let support = executed_contract.reasoning.support.as_ref().unwrap();
         assert_eq!(support.matrix_status.as_ref(), "licensed");
         assert_eq!(support.matrix_coordinate.as_deref(),
@@ -184,5 +184,5 @@ fn complier_interval_withheld_below_support_threshold() {
     let ctx = ExecutionContext::for_tests(0x51CE_1234);
     let result = Study::tabular(data).query(query).build().unwrap().run(&ctx).unwrap();
     assert_eq!(result.randomized_effect().unwrap().interval_95, None);
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
 }

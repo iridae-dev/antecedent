@@ -142,10 +142,10 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
 
         let result = prepared.estimate(&fixture.data, &ctx).unwrap();
         assert!(
-            (result.estimate.as_effect().unwrap().ate - fixture.truth).abs() < fixture.tolerance,
+            (result.estimate().as_effect().unwrap().ate - fixture.truth).abs() < fixture.tolerance,
             "{:?} effect {}",
             fixture.estimator,
-            result.estimate.as_effect().unwrap().ate
+            result.estimate().as_effect().unwrap().ate
         );
         assert!(result.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
         assert_eq!(result.logical_plan.estimator.as_deref(), Some(fixture.estimator.as_str()));
@@ -157,7 +157,8 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
         );
         // The one-shot facade executes the same retained model and seed.
         assert!(
-            (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+            (one_shot.estimate().as_effect().unwrap().ate
+                - result.estimate().as_effect().unwrap().ate)
                 .abs()
                 < 1e-12
         );
@@ -168,8 +169,8 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
 
         let refreshed = rebind_estimate(&mut prepared, fixture.data.clone(), &ctx).unwrap();
         assert!(
-            (refreshed.estimate.as_effect().unwrap().ate
-                - result.estimate.as_effect().unwrap().ate)
+            (refreshed.estimate().as_effect().unwrap().ate
+                - result.estimate().as_effect().unwrap().ate)
                 .abs()
                 < 1e-12
         );

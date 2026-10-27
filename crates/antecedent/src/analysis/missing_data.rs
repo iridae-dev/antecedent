@@ -338,7 +338,7 @@ pub(crate) fn policy_wire(
     study: &super::execute::Study,
 ) -> Option<antecedent_io::MissingPolicyWire> {
     let route = MissingRoute::of(&study.query, &study.data);
-    let declaration = non_default(route, study.missing.as_ref())?;
+    let declaration = non_default(route, study.declared.missing.as_ref())?;
     let names = match &study.data {
         DataInput::Tabular(data) => declaration
             .covariates
@@ -355,8 +355,12 @@ pub(crate) fn policy_wire(
             iterations: spec.iterations,
             seed: spec.seed,
             assumption: spec.assumption.name().to_owned(),
-            unit: if series { "group" } else { imputation_unit_name(study.sampling_design) }
-                .to_owned(),
+            unit: if series {
+                "group"
+            } else {
+                imputation_unit_name(study.declared.sampling_design)
+            }
+            .to_owned(),
             assumptions_digest: super::missing_imputation::declared_assumptions_digest(study),
         });
     Some(antecedent_io::MissingPolicyWire {

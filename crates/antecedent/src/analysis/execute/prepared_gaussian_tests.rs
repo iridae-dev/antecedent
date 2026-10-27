@@ -197,7 +197,7 @@ fn prepared_gaussian_quotes_selected_columns_and_resampling_work() {
     assert_eq!(prepared.plan().logical.row_count_hint, 64);
     assert!((prepared.estimate_retained(&ctx).unwrap().effect() - 2.0).abs() < 1e-12);
     let mut resampled = study;
-    resampled.bootstrap_replicates = 200;
+    resampled.settings.bootstrap_replicates = 200;
     let mut parallel = ExecutionContext::production(1, 4);
     parallel.set_memory_limit(Some(250_000));
     assert!(matches!(resampled.compile(&parallel), Err(crate::CausalError::Resource { .. })));

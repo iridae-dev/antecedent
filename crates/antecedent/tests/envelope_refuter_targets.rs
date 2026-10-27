@@ -114,7 +114,7 @@ fn cpdag_heterogeneous_completions_pass_data_subset_against_own_estimates() {
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
     let pooled = pin["frequentist"]["expected_ate"].as_f64().unwrap();
-    assert!((freq.estimate.as_effect().unwrap().ate - pooled).abs() < 1e-12);
+    assert!((freq.estimate().as_effect().unwrap().ate - pooled).abs() < 1e-12);
     // Equal completion weights: the mixed original is (0.40 + 0.52) / 2.
     assert_atom_targeted_mixture(&freq, "data.subset", 0.5 * (effects[0] + effects[1]), 1e-9);
 
@@ -136,7 +136,7 @@ fn cpdag_heterogeneous_completions_pass_data_subset_against_own_estimates() {
     assert_atom_targeted_mixture(
         &bayes,
         "sensitivity.evalue",
-        bayes.estimate.as_effect().unwrap().ate,
+        bayes.estimate().as_effect().unwrap().ate,
         1e-9,
     );
 }
@@ -192,7 +192,7 @@ fn graph_posterior_heterogeneous_atoms_pass_data_subset_against_own_estimates() 
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
     assert!(
-        !result.estimate.as_effect().unwrap().ate.is_finite(),
+        !result.estimate().as_effect().unwrap().ate.is_finite(),
         "disagreeing atoms must withhold the scalar mixture ATE"
     );
     assert!(

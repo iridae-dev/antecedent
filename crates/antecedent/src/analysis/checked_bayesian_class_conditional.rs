@@ -119,15 +119,15 @@ impl CheckedBayesianClassConditional {
             return Ok(None);
         };
         if analysis.graph_posterior.is_some()
-            || analysis.tiered.is_some()
-            || !matches!(analysis.inference, InferenceMode::Bayesian(_))
+            || analysis.declared.tiered.is_some()
+            || !matches!(analysis.settings.inference, InferenceMode::Bayesian(_))
             || !matches!(
                 analysis.structure_source,
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || !analysis.refute.is_point()
-            || !analysis.custom_validators.is_empty()
+            || !analysis.settings.refute.is_point()
+            || !analysis.declared.custom_validators.is_empty()
             || query.inner.target_population != TargetPopulation::AllObserved
             || !matches!(query.inner.outcome_functional, OutcomeFunctional::Mean)
             || !plan
@@ -144,9 +144,7 @@ impl CheckedBayesianClassConditional {
                 ConditionalClassProof::Cpdag { graph: graph.clone(), cache: cache.clone() }
             }
             crate::GraphRef::Pag(_) => {
-                let (Some(graph), Some(cache)) =
-                    (plan.static_pag(), analysis.pag_cache())
-                else {
+                let (Some(graph), Some(cache)) = (plan.static_pag(), analysis.pag_cache()) else {
                     return Ok(None);
                 };
                 ConditionalClassProof::Pag { graph: graph.clone(), cache: cache.clone() }
@@ -160,8 +158,8 @@ impl CheckedBayesianClassConditional {
             proof,
             query.clone(),
             plan.clone(),
-            analysis.inference.clone(),
-            analysis.refute,
+            analysis.settings.inference.clone(),
+            analysis.settings.refute,
             analysis.latency_mode,
         )
         .map(Some)
@@ -200,12 +198,12 @@ impl CheckedBayesianClassConditional {
         let mut click = analysis.clone();
         click.data = DataInput::Tabular(data.clone());
         click.query = CausalQuery::ConditionalEffect(self.query.clone());
-        click.inference = self.inference.clone();
-        click.identifier = Some(self.identifier);
-        click.estimator = Some(EstimatorId::BayesianConditional);
-        click.estimator_spec =
+        click.settings.inference = self.inference.clone();
+        click.declared.identifier = Some(self.identifier);
+        click.declared.estimator = Some(EstimatorId::BayesianConditional);
+        click.declared.estimator_spec =
             Some(Arc::new(crate::EstimatorSpec::Default(EstimatorId::BayesianConditional)));
-        click.refute = self.validation;
+        click.settings.refute = self.validation;
         click.latency_mode = self.latency_mode;
         click.install_identification(match &self.proof {
             ConditionalClassProof::Cpdag { cache, .. } => {

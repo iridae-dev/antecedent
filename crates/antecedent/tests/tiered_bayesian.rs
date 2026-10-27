@@ -140,7 +140,7 @@ fn unknown_bayesian_keeps_one_posterior_per_scenario_and_no_scalar() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     assert!(effect.ate.is_nan(), "no scenario is the effect");
     let values = effect.scenarios.effects.as_ref().expect("scenario posterior means");
     let intervals = effect.scenarios.intervals.as_ref().expect("scenario credible intervals");
@@ -198,7 +198,7 @@ fn tiered_bayesian_average_effects_execute_from_the_retained_plan() {
     let plan = &prepared.plan().logical.record;
     assert_eq!(plan.estimator.as_deref(), Some("bayesian.gcomp"));
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     assert!(effect.ate.is_nan(), "no scenario is the effect");
     assert_eq!(effect.scenarios.effects.as_ref().expect("scenario posterior means").len(), 2);
     assert!(result.posterior.is_none(), "no cross-scenario posterior exists");

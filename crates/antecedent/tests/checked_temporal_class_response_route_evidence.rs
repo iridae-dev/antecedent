@@ -199,7 +199,7 @@ fn all_temporal_class_response_coordinates_execute_from_retained_source_proofs()
                     assert!(plan.identified_mass > 0.0);
 
                     let result = prepared.estimate_series(&initial, &ctx).unwrap();
-                    assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
                     assert!(
                         result
                             .diagnostics

@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 use antecedent::result::ImputationReport;
 use antecedent::{
-    BayesianConfig, CausalError, DesignPosteriorModel, EstimatorId, IdentifierId, InferenceMode, RandomizedEffectQuery,
-    RefuteSuite, Study, StudyResult,
+    BayesianConfig, CausalError, DesignPosteriorModel, EstimatorId, IdentifierId, InferenceMode,
+    RandomizedEffectQuery, RefuteSuite, Study, StudyResult,
 };
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain,
@@ -285,7 +285,7 @@ impl Columns {
 }
 
 fn report_of(result: &StudyResult) -> &ImputationReport {
-    let missing = result.missing_data.as_ref().expect("a missing-data report");
+    let missing = result.missing_data().as_ref().expect("a missing-data report");
     assert_eq!(missing.policy().name(), "multiple_imputation");
     assert!(missing.declared && missing.non_default);
     missing.imputation.as_ref().expect("an imputation report")
@@ -375,7 +375,7 @@ fn a_conditional_effect_pools_to_the_hand_pooled_reference() {
                 None,
             )
             .unwrap();
-            let effect = reference.estimate.as_effect().unwrap();
+            let effect = reference.estimate().as_effect().unwrap();
             points.push(vec![effect.ate]);
             covs.push(vec![effect.uncertainty.analytic.se.powi(2)]);
         }
@@ -383,10 +383,10 @@ fn a_conditional_effect_pools_to_the_hand_pooled_reference() {
         let vector = report.vector.as_ref().unwrap();
         assert_eq!(vector.covariance_basis.as_ref(), "published_variance");
         // The pooled answer is the result's own estimate.
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert!(close(effect.ate, vector.point[0], 1e-12));
         assert!(close(effect.uncertainty.analytic.se, vector.total[0].sqrt(), 1e-12));
-        assert!(result.interval.is_none(), "the pooled interval stays closed");
+        assert!(result.interval().is_none(), "the pooled interval stays closed");
         // The marginal effect is 2 + 0.5 E[w] = 2; imputation recovers it where the missing
         // outcomes depend on the modifier.
         assert!((effect.ate - 2.0).abs() < 0.3, "pooled conditional effect {}", effect.ate);
@@ -434,7 +434,7 @@ fn a_conditional_grid_pools_its_cells_with_the_joint_influence_covariance() {
             let reference =
                 run_conditional(&completed, functional.clone(), InferenceMode::Frequentist, None)
                     .unwrap();
-            let effect = reference.estimate.as_effect().unwrap();
+            let effect = reference.estimate().as_effect().unwrap();
             let cdf = effect.joint.exceedance_cdf.as_ref().unwrap();
             let joint = effect.joint.covariance.as_ref().unwrap();
             let p = cdf.len();
@@ -449,7 +449,7 @@ fn a_conditional_grid_pools_its_cells_with_the_joint_influence_covariance() {
         // Cross-covariances are retained: the cells share rows, so the covariance is not diagonal.
         assert!(vector.total.iter().enumerate().any(|(k, x)| k % 7 != 0 && x.abs() > 1e-12));
         // The result's own grid carries the pooled cells and total covariance.
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert_all_close(
             "grid cells",
             effect.joint.exceedance_cdf.as_ref().unwrap(),
@@ -488,7 +488,7 @@ fn a_bayesian_conditional_effect_stacks_the_tables_joint_draws() {
             means.push(posterior.summaries.mean[posterior.effect_column().unwrap()]);
         }
         let want = means.iter().sum::<f64>() / means.len() as f64;
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert!(close(effect.ate, want, 1e-9), "stacked mean {} against {want}", effect.ate);
         for (j, mean) in means.iter().enumerate() {
             assert!(close(vector.points[j][0], *mean, 1e-9), "table {j}");
@@ -570,7 +570,7 @@ fn a_response_curve_pools_its_points_jointly() {
             let values = curve(&reference);
             let p = values.len();
             let joint = reference
-                .estimate
+                .estimate()
                 .as_effect()
                 .unwrap()
                 .joint
@@ -599,7 +599,7 @@ fn a_response_curve_pools_its_points_jointly() {
         for i in 0..CURVE.len() {
             assert!(lower[i] < pooled_curve[i] && pooled_curve[i] < upper[i]);
         }
-        assert!(result.interval.is_none());
+        assert!(result.interval().is_none());
     });
 }
 
@@ -784,11 +784,11 @@ fn a_static_mediation_pools_the_contrast_and_its_unvaried_components() {
         for completed in columns.completed(spec(), Vec::new()) {
             let reference =
                 run_mediation(&completed, MediationContrast::Mediated, 60, None).unwrap();
-            let effect = reference.estimate.as_effect().unwrap();
+            let effect = reference.estimate().as_effect().unwrap();
             let se = effect.uncertainty.bootstrap.se.unwrap();
             points.push(vec![effect.ate]);
             covs.push(vec![se * se]);
-            let parts = reference.payload.mediation().unwrap();
+            let parts = reference.payload().mediation().unwrap();
             components.push([parts.total.unwrap(), parts.direct.unwrap(), parts.mediated.unwrap()]);
         }
         assert_vector_matches(report, &points, &covs);
@@ -805,13 +805,13 @@ fn a_static_mediation_pools_the_contrast_and_its_unvaried_components() {
                 / (components.len() as f64 - 1.0);
             assert!(close(extra.between, spread, 1e-8), "{name} between");
         }
-        let parts = result.payload.mediation().unwrap();
+        let parts = result.payload().mediation().unwrap();
         assert!(close(parts.total.unwrap(), vector.extras[0].point, 1e-12));
-        assert!(close(parts.mediated.unwrap(), result.estimate.as_effect().unwrap().ate, 1e-6));
+        assert!(close(parts.mediated.unwrap(), result.estimate().as_effect().unwrap().ate, 1e-6));
         assert!(
-            (result.estimate.as_effect().unwrap().ate - 0.3).abs() < 0.1,
+            (result.estimate().as_effect().unwrap().ate - 0.3).abs() < 0.1,
             "pooled mediated effect {}",
-            result.estimate.as_effect().unwrap().ate
+            result.estimate().as_effect().unwrap().ate
         );
 
         // A mediation fit without bootstrap replicates publishes no variance to pool.
@@ -976,7 +976,7 @@ fn a_bayesian_randomized_trial_stacks_the_arm_contrast_posteriors() {
             means.push(posterior.summaries.mean[posterior.effect_column().unwrap()]);
         }
         let want = means.iter().sum::<f64>() / means.len() as f64;
-        assert!(close(result.estimate.as_effect().unwrap().ate, want, 1e-8));
+        assert!(close(result.estimate().as_effect().unwrap().ate, want, 1e-8));
         assert_eq!(report.vector.as_ref().unwrap().covariance_basis.as_ref(), "posterior_draws");
     });
 }
@@ -1084,7 +1084,7 @@ fn a_temporal_effect_imputes_by_the_lagged_model_and_pools_the_block_bootstrap()
         let mut covs = Vec::new();
         for completed in completed_series(&columns, spec(), 1) {
             let reference = run_series(&completed, InferenceMode::Frequentist, 80, None).unwrap();
-            let effect = reference.estimate.as_effect().unwrap();
+            let effect = reference.estimate().as_effect().unwrap();
             let se = if effect.uncertainty.analytic.se.is_finite() {
                 effect.uncertainty.analytic.se
             } else {
@@ -1094,7 +1094,7 @@ fn a_temporal_effect_imputes_by_the_lagged_model_and_pools_the_block_bootstrap()
             covs.push(vec![se * se]);
         }
         assert_vector_matches(report, &points, &covs);
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert!((effect.ate - 2.0).abs() < 0.25, "pooled temporal effect {}", effect.ate);
         // A different lagged neighbourhood is a different analysis.
         let other = series_columns(500, 71, 0.15);
@@ -1153,7 +1153,7 @@ fn a_bayesian_temporal_effect_stacks_the_completed_series_posteriors() {
             means.push(posterior.summaries.mean[posterior.effect_column().unwrap()]);
         }
         let want = means.iter().sum::<f64>() / means.len() as f64;
-        assert!(close(result.estimate.as_effect().unwrap().ate, want, 1e-8));
+        assert!(close(result.estimate().as_effect().unwrap().ate, want, 1e-8));
         assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 200 * IMPUTATIONS as usize);
     });
 }
@@ -1233,7 +1233,7 @@ fn a_temporal_mediation_pools_total_direct_and_mediated_with_their_block_bootstr
         let mut covs = Vec::new();
         for completed in completed_series(&columns, spec(), 1) {
             let reference = run_mediation_series(&completed, 80, None).unwrap();
-            let slice = &reference.payload.mediation_grid().unwrap().slices[0];
+            let slice = &reference.payload().mediation_grid().unwrap().slices[0];
             let antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
                 block,
                 ..
@@ -1260,11 +1260,11 @@ fn a_temporal_mediation_pools_total_direct_and_mediated_with_their_block_bootstr
             ["total@1", "direct@1", "mediated@1"]
         );
         // The result's decomposition carries the pooled components.
-        let parts = result.payload.mediation().unwrap();
+        let parts = result.payload().mediation().unwrap();
         assert!(close(parts.total.unwrap(), vector.point[0], 1e-12));
         assert!(close(parts.direct.unwrap(), vector.point[1], 1e-12));
         assert!(close(parts.mediated.unwrap(), vector.point[2], 1e-12));
-        let requested = result.estimate.as_effect().unwrap();
+        let requested = result.estimate().as_effect().unwrap();
         assert!(close(requested.ate, vector.point[2], 1e-9), "the requested contrast is mediated");
         assert!(close(requested.uncertainty.analytic.se, vector.total[8].sqrt(), 1e-9));
         // The truth: mediated 0.55 * 0.8 = 0.44, total 0.44 + 0.4.

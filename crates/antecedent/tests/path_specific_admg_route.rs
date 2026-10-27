@@ -245,7 +245,7 @@ fn base(data: TabularData, graph: Admg, query: CausalQuery) -> antecedent::analy
 }
 
 fn ate(result: &antecedent::StudyResult) -> f64 {
-    result.estimate.as_effect().expect("an effect estimate").ate
+    result.estimate().as_effect().expect("an effect estimate").ate
 }
 
 #[test]
@@ -287,7 +287,7 @@ fn a_bootstrap_interval_accompanies_the_frequentist_point() {
         .build()
         .unwrap();
     let result = study.run(&ExecutionContext::for_tests(13)).unwrap();
-    let effect = result.estimate.as_effect().expect("an effect estimate");
+    let effect = result.estimate().as_effect().expect("an effect estimate");
     assert!(
         effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0) > 0,
         "{:?}",

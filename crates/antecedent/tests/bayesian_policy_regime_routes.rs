@@ -69,9 +69,9 @@ fn binary_policy_posterior_runs_through_the_study_flow_and_matches_hand_scores()
     assert_eq!(result.estimand.method.as_ref(), "randomized.policy_value");
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.binary_policy_value"));
     assert_eq!(result.logical_plan.plan_id.as_ref(), "bayesian_policy_value");
-    assert!(matches!(result.estimate, PrimaryEstimate::NotAnEffect));
+    assert!(matches!(result.estimate(), PrimaryEstimate::NotAnEffect));
     // Unlicensed: no support status and no calibration claim.
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
     let policy = result.policy_value().unwrap();
     assert_eq!(policy.policy_value, 4.0);
     assert_eq!(policy.reference_value, 1.5);
@@ -215,8 +215,8 @@ fn sequential_regime_posterior_runs_through_the_study_flow_and_matches_hand_scor
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.sequential_regime_value"));
-    assert!(matches!(result.estimate, PrimaryEstimate::NotAnEffect));
-    assert_eq!(result.support_status, None);
+    assert!(matches!(result.estimate(), PrimaryEstimate::NotAnEffect));
+    assert_eq!(result.support_status(), None);
     let regime = result.longitudinal_regime().unwrap();
     assert_eq!(&*regime.method, "sequential_dr");
     assert!((regime.value - 4.5).abs() < 1e-12);

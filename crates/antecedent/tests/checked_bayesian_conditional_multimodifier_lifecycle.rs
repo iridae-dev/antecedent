@@ -137,9 +137,9 @@ fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_ar
             // Independent SCM truth is 2.0 because all three modifiers have
             // zero population mean and their treatment interactions are centered.
             assert!(
-                (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.3,
+                (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.3,
                 "{coordinate}: {}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 96);
             if suite != RefuteSuite::None {
@@ -169,8 +169,8 @@ fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_ar
             };
             assert_eq!(retained.query(), &query);
             assert!(
-                (refreshed.estimate.as_effect().unwrap().ate
-                    - result.estimate.as_effect().unwrap().ate)
+                (refreshed.estimate().as_effect().unwrap().ate
+                    - result.estimate().as_effect().unwrap().ate)
                     .abs()
                     < 0.3
             );

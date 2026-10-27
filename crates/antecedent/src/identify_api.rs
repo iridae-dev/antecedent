@@ -631,14 +631,12 @@ pub(crate) fn refine_temporal_class_identification(
                     )
                     .map(|identified| (identified.result, identified.indexer))
             }
-            RefineKind::Mediation(mediation) => {
-                antecedent_identify::TemporalMediationIdentifier {
-                    allow_natural_controlled_alias: true,
-                    ..antecedent_identify::TemporalMediationIdentifier::new()
-                }
-                .identify_with_horizon(&dag, mediation, horizon)
-                .map(|(result, temporal)| (result, temporal.indexer))
+            RefineKind::Mediation(mediation) => antecedent_identify::TemporalMediationIdentifier {
+                allow_natural_controlled_alias: true,
+                ..antecedent_identify::TemporalMediationIdentifier::new()
             }
+            .identify_with_horizon(&dag, mediation, horizon)
+            .map(|(result, temporal)| (result, temporal.indexer)),
         };
         match identified {
             Ok((result, coordinates)) => {

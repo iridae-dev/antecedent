@@ -76,7 +76,7 @@ impl super::Study {
         resampling: (RowResampling, SamplingDeclaration),
         ctx: &ExecutionContext,
     ) -> Result<Vec<RefutationReport>, CausalError> {
-        if self.refute == RefuteSuite::None {
+        if self.settings.refute == RefuteSuite::None {
             return Ok(Vec::new());
         }
         let requested = match &self.query {
@@ -110,9 +110,9 @@ impl super::Study {
             window_span,
             resampling: resampling.0,
             design: resampling.1,
-            bootstrap_replicates: self.bootstrap_replicates,
+            bootstrap_replicates: self.settings.bootstrap_replicates,
         };
-        refute_mediation_components(&suite, self.refute == RefuteSuite::Full, ctx)
+        refute_mediation_components(&suite, self.settings.refute == RefuteSuite::Full, ctx)
             .map_err(CausalError::from)
     }
 
@@ -132,7 +132,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<Vec<RefutationReport>, CausalError> {
-        if self.refute == RefuteSuite::None {
+        if self.settings.refute == RefuteSuite::None {
             return Ok(Vec::new());
         }
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;

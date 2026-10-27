@@ -229,7 +229,7 @@ impl PreparedStudy {
         if !notes.defers_contract() {
             result.executed_contract = Some(self.executed_contract(
                 &DataInput::Tabular(data.clone()),
-                self.analysis.refute,
+                self.analysis.settings.refute,
                 None,
             )?);
         }
@@ -263,6 +263,7 @@ impl PreparedStudy {
         // the claim would drop custom-validator evidence from `attested` and from
         // the claim identity.
         result.custom_validator_names = click_analysis
+            .declared
             .custom_validators
             .iter()
             .map(|validator| Arc::from(validator.name()))

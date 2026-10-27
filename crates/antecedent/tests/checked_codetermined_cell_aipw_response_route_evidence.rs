@@ -131,7 +131,7 @@ fn codetermined_joint_cell_aipw_response_body() {
 
     let click = prepared.estimate(&initial, &context).unwrap();
     for result in [&one_shot, &click] {
-        assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+        assert_eq!(result.support_status().unwrap().as_str(), "licensed");
         assert_eq!(result.logical_plan.identifier.as_deref(), Some("generalized.adjustment"));
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("cell.aipw"));
         assert!(result.refutations.is_empty());

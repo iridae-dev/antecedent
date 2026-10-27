@@ -62,9 +62,9 @@ fn supported_switchback_interval_round_trips_and_rejects_forgery() {
     assert!(lower < fit.effect && fit.effect < upper);
     assert!(fit.standard_error.unwrap() > 0.0);
     assert_eq!(fit.uncertainty.as_ref(), "switchback_independent_sequence_student_interval");
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     assert_eq!(
-        result.interval.as_ref().unwrap().method,
+        result.interval().as_ref().unwrap().method,
         antecedent_core::IntervalMethod::AnalyticSe
     );
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
@@ -116,8 +116,11 @@ fn sparse_or_weak_switchback_remains_point_only() {
         let fit = result.randomized_effect().unwrap();
         assert!(fit.effect.is_finite());
         assert_eq!(fit.interval_95, None);
-        assert_eq!(result.support_status, None);
-        assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+        assert_eq!(result.support_status(), None);
+        assert_eq!(
+            result.interval().as_ref().unwrap().method,
+            antecedent_core::IntervalMethod::None
+        );
     }
 }
 
@@ -136,7 +139,7 @@ fn unequal_sequence_period_counts_refuse_interval_and_license() {
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.randomized_effect().unwrap().interval_95, None);
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
     let bytes = prepared.encode_contracted_result(&result, "unbalanced-switchback", &ctx).unwrap();
     let (_, header, mut artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     artifact.randomized_effect.as_mut().unwrap().graphless_support_status = Some("licensed".into());

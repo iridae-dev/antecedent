@@ -64,7 +64,7 @@ pub(super) fn refute_class_intervention_atoms<G>(
             estimand,
             query: &ate_query,
             estimate: &estimate,
-            suite: study.refute,
+            suite: study.settings.refute,
             estimator: estimator.as_str(),
             custom: &[],
             temporal: None,

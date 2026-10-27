@@ -674,16 +674,17 @@ fn assemble(
     let mut statistical = StatisticalProgram::declared(DeclaredProgram {
         identifier,
         estimator,
-        inference: &study.inference,
-        bootstrap_replicates: study.bootstrap_replicates,
-        sampling_design: study.sampling_design,
+        inference: &study.settings.inference,
+        bootstrap_replicates: study.settings.bootstrap_replicates,
+        sampling_design: study.declared.sampling_design,
         design,
         operators: temporal_program_operators()?,
     })?;
     statistical.models = Arc::from(parts.models);
     statistical.folds = fold_plan(study);
     statistical.resampling = resampling_plan(study);
-    if let (true, InferenceMode::Bayesian(config)) = (study.retain_joint_horizons, &study.inference)
+    if let (true, InferenceMode::Bayesian(config)) =
+        (study.settings.retain_joint_horizons, &study.settings.inference)
     {
         // The joint block-weight posterior over the whole surface replaces the per-horizon
         // conjugate fits: one Exp(1) weight per block of consecutive times, shared by every
@@ -702,7 +703,7 @@ fn assemble(
         });
         statistical.resampling = None;
     }
-    let bayesian = matches!(study.inference, InferenceMode::Bayesian(_));
+    let bayesian = matches!(study.settings.inference, InferenceMode::Bayesian(_));
     if parts.envelope && !bayesian {
         statistical.realization = Realization::Envelope(
             PartialIdentificationEnvelope::new(estimator_family(cx))
@@ -963,7 +964,7 @@ fn response_grid(functional: &ResponseFunctional) -> Option<(VariableId, Variabl
 /// of a series, whole units of a panel, whole environments of a multi-environment
 /// study.
 fn resampling_plan(study: &Study) -> Option<ResamplingPlan> {
-    (study.bootstrap_replicates > 0).then(|| {
+    (study.settings.bootstrap_replicates > 0).then(|| {
         let unit = resample_unit(study);
         ResamplingPlan {
             method: if unit == ResampleUnit::CalendarBlock {
@@ -971,15 +972,15 @@ fn resampling_plan(study: &Study) -> Option<ResamplingPlan> {
             } else {
                 ResamplingMethod::Bootstrap
             },
-            replicates: study.bootstrap_replicates,
+            replicates: study.settings.bootstrap_replicates,
             unit,
         }
     })
 }
 
 fn resample_unit(study: &Study) -> ResampleUnit {
-    if study.sampling_design.is_some() {
-        return ResampleUnit::of_design(study.sampling_design);
+    if study.declared.sampling_design.is_some() {
+        return ResampleUnit::of_design(study.declared.sampling_design);
     }
     match &study.data {
         DataInput::Panel(_) => ResampleUnit::Subject,
@@ -993,7 +994,7 @@ fn resample_unit(study: &Study) -> ResampleUnit {
 /// A declared discovery/estimation split: two contiguous windows, the gap between
 /// them the embargo.
 fn fold_plan(study: &Study) -> Option<FoldPlan> {
-    study.split.as_ref().map(|split| FoldPlan {
+    study.declared.split.as_ref().map(|split| FoldPlan {
         folds: SPLIT_WINDOWS,
         unit: ResampleUnit::CalendarBlock,
         embargo: Some(split.gap),
@@ -1028,7 +1029,7 @@ fn estimator_family(cx: &LoweringContext<'_>) -> &'static str {
 }
 
 fn selection(study: &Study) -> InferenceSelection {
-    match study.inference {
+    match study.settings.inference {
         InferenceMode::Frequentist => InferenceSelection::Frequentist,
         InferenceMode::Bayesian(_) => InferenceSelection::Bayesian,
     }

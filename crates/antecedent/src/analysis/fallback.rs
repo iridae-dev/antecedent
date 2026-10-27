@@ -45,13 +45,13 @@ use antecedent_graph::Admg;
 use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
 
 use super::builder::{DataInput, data_schema};
-use crate::inference::InferenceMode;
 use super::contract::evidence_next_actions;
 use super::evidence_plan::{
     EvidencePlanRequest, EvidencePlanResult, STUDY_POPULATION, plan_over_routes, variable_names,
 };
 use super::execute::Study;
 use crate::error::CausalError;
+use crate::inference::InferenceMode;
 use crate::result::StudyResult;
 
 /// What the descriptive part of a fallback is, in one sentence a report repeats.
@@ -541,19 +541,19 @@ impl Study {
         };
         let mut builder = builder
             .query(CausalQuery::Association(query))
-            .inference(self.inference.clone())
+            .inference(self.settings.inference.clone())
             // A posterior is drawn with n_draws: only a resampling spread reads replicates.
-            .bootstrap_replicates(match self.inference {
+            .bootstrap_replicates(match self.settings.inference {
                 InferenceMode::Bayesian(_) => 0,
-                _ => self.bootstrap_replicates,
+                _ => self.settings.bootstrap_replicates,
             });
-        if let Some(design) = self.sampling_design {
+        if let Some(design) = self.declared.sampling_design {
             builder = builder.sampling_design(design);
         }
-        if let Some(missing) = &self.missing {
+        if let Some(missing) = &self.declared.missing {
             builder = builder.missing(missing.clone());
         }
-        if let Some(participants) = &self.participants {
+        if let Some(participants) = &self.declared.participants {
             builder = builder.participants(participants.clone());
         }
         builder.build().map_err(|error| refused_association(&error))

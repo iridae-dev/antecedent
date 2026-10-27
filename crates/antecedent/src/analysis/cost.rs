@@ -178,7 +178,9 @@ fn key_path(text: &str, line: usize) -> Result<Vec<String>, CostModelError> {
             if name.is_empty()
                 || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
             {
-                return Err(CostModelError::new(format!("line {line}: `{text}` is not a valid key")));
+                return Err(CostModelError::new(format!(
+                    "line {line}: `{text}` is not a valid key"
+                )));
             }
             parts.push(name.to_string());
             rest = after.trim_start();
@@ -187,7 +189,9 @@ fn key_path(text: &str, line: usize) -> Result<Vec<String>, CostModelError> {
             Some(next) => rest = next.trim_start(),
             None if rest.is_empty() => return Ok(parts),
             None => {
-                return Err(CostModelError::new(format!("line {line}: `{text}` is not a valid key")));
+                return Err(CostModelError::new(format!(
+                    "line {line}: `{text}` is not a valid key"
+                )));
             }
         }
     }
@@ -824,20 +828,26 @@ fn units_cluster_count(units: &antecedent_estimate::DeclaredUnits) -> Option<usi
 
 fn inputs_of(study: &Study) -> CostInputs {
     let estimator = study
+        .declared
         .estimator_spec
         .as_deref()
         .map(crate::estimator_spec::EstimatorSpec::id)
-        .or(study.estimator)
+        .or(study.declared.estimator)
         .unwrap_or(DEFAULT_ESTIMATOR_ID);
     let rows = match &study.data {
         DataInput::Tabular(data) => Some(data.row_count()),
         _ => None,
     };
     let shared = study.shared_batch_design.as_deref();
-    let default_spec = study.estimator.map(EstimatorSpec::Default);
-    let (shape, declared_folds) =
-        study.estimator_spec.as_deref().or(default_spec.as_ref()).and_then(shape_of).unzip();
-    let cluster_labels = match study.estimator_spec.as_deref() {
+    let default_spec = study.declared.estimator.map(EstimatorSpec::Default);
+    let (shape, declared_folds) = study
+        .declared
+        .estimator_spec
+        .as_deref()
+        .or(default_spec.as_ref())
+        .and_then(shape_of)
+        .unzip();
+    let cluster_labels = match study.declared.estimator_spec.as_deref() {
         Some(EstimatorSpec::Aipw(aipw)) if aipw.cluster_dml.is_some() => aipw
             .inference
             .cluster_ids
@@ -850,12 +860,12 @@ fn inputs_of(study: &Study) -> CostInputs {
     };
     CostInputs {
         estimator,
-        inference_mode: match &study.inference {
+        inference_mode: match &study.settings.inference {
             InferenceMode::Frequentist => "frequentist".to_string(),
             InferenceMode::Bayesian(config) => format!("bayesian(n_draws={})", config.n_draws),
         },
-        bootstrap_replicates: study.bootstrap_replicates,
-        refute_suite: study.refute.diagnostic_label().to_string(),
+        bootstrap_replicates: study.settings.bootstrap_replicates,
+        refute_suite: study.settings.refute.diagnostic_label().to_string(),
         rows,
         design_columns: adjustment_of(study).map(|set| set.len() + 1),
         folds: declared_folds.flatten().unwrap_or_else(|| {

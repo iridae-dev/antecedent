@@ -342,7 +342,7 @@ impl super::Study {
             return Err(CausalError::Cancelled { stage: DISCOVER_STAGE });
         }
         let lease = admit(ctx, discovery_quote(query, data.rows()), "structure search")?;
-        let structure = run_discovery(spec, query, data, self.sampling_design, ctx)?;
+        let structure = run_discovery(spec, query, data, self.declared.sampling_design, ctx)?;
         drop(lease);
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: DISCOVER_STAGE });
@@ -386,7 +386,7 @@ impl super::Study {
             &mut result,
             self.support_status,
             self.structure_source,
-            self.population_registry.as_ref(),
+            self.declared.population_registry.as_ref(),
             &[],
         );
         Ok(result)

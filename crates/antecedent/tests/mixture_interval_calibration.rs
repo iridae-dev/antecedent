@@ -259,8 +259,8 @@ fn run_bayes(
 fn freq_interval_at(result: &StudyResult, level: f64) -> Option<(f64, f64)> {
     let z = if (level - LEVEL).abs() < 1e-12 { Z90 } else { Z95 };
     normal_interval(
-        result.estimate.as_effect().unwrap().ate,
-        result.estimate.as_effect().unwrap().se_bootstrap(),
+        result.estimate().as_effect().unwrap().ate,
+        result.estimate().as_effect().unwrap().se_bootstrap(),
         z,
     )
 }
@@ -392,11 +392,11 @@ impl FreqTally {
         bind_all(&mut [&mut self.tally, &mut self.reported], study, result);
         self.tally.record(freq_interval_at(result, LEVEL), self.truth);
         self.reported.record(freq_interval_at(result, REPORTED_LEVEL), self.truth);
-        if result.estimate.as_effect().unwrap().ate.is_finite() {
-            self.estimates.push(result.estimate.as_effect().unwrap().ate);
+        if result.estimate().as_effect().unwrap().ate.is_finite() {
+            self.estimates.push(result.estimate().as_effect().unwrap().ate);
         }
         if let Some(se) =
-            result.estimate.as_effect().unwrap().se_bootstrap().filter(|se| se.is_finite())
+            result.estimate().as_effect().unwrap().se_bootstrap().filter(|se| se.is_finite())
         {
             self.ses.push(se);
         }
@@ -1485,10 +1485,10 @@ fn bayesian_cpdag_mediation_case(name: &str, kappa: f64, seed: u64) {
         // NaN; its replicate-mean is checked against the analytic truth below, the
         // same bias check `mean` already runs per completion.
         assert!(
-            result.estimate.as_effect().unwrap().ate.is_finite(),
+            result.estimate().as_effect().unwrap().ate.is_finite(),
             "class mediation with agreeing completions must publish a shared-design effect"
         );
-        mean_ate += result.estimate.as_effect().unwrap().ate / f64::from(n_sim());
+        mean_ate += result.estimate().as_effect().unwrap().ate / f64::from(n_sim());
         let atoms = &result.structural_response.as_ref().expect("atoms").atoms;
         assert_eq!(atoms.len(), truths.len());
         for (i, ((atom, truth), tally)) in atoms.iter().zip(&truths).zip(&mut tallies).enumerate() {
@@ -1820,23 +1820,23 @@ fn heterogeneous_dbn_fixture_has_disagreeing_atoms_and_unidentified_mass() {
         let [ta, tb] = fixtures::dbn_pulse_atom_truths(rho);
         let a = run_freq_dbn(data.clone(), pulse_query(), fixtures::dbn_atom_a_only(), 0, 41);
         let b = run_freq_dbn(data.clone(), pulse_query(), fixtures::dbn_atom_b_only(), 0, 41);
-        close("DBN atom A Pulse plim", a.estimate.as_effect().unwrap().ate, ta, 0.03);
-        close("DBN atom B Pulse plim", b.estimate.as_effect().unwrap().ate, tb, 0.03);
+        close("DBN atom A Pulse plim", a.estimate().as_effect().unwrap().ate, ta, 0.03);
+        close("DBN atom B Pulse plim", b.estimate().as_effect().unwrap().ate, tb, 0.03);
         assert!(tb - ta > 0.4, "DBN atoms must disagree materially");
         let mix = run_freq_dbn(data.clone(), pulse_query(), heterogeneous_dbn(), 0, 41);
         close(
             "DBN mixture = frozen-weight mean of atom fits",
-            mix.estimate.as_effect().unwrap().ate,
-            (DBN_WEIGHTS[0] * a.estimate.as_effect().unwrap().ate
-                + DBN_WEIGHTS[1] * b.estimate.as_effect().unwrap().ate)
+            mix.estimate().as_effect().unwrap().ate,
+            (DBN_WEIGHTS[0] * a.estimate().as_effect().unwrap().ate
+                + DBN_WEIGHTS[1] * b.estimate().as_effect().unwrap().ate)
                 / DBN_IDENTIFIED_MASS,
             1e-10,
         );
         let [ma, mb] = fixtures::dbn_multistep_atom_truths(rho);
         let a = run_freq_dbn(data.clone(), multi_sustained(), fixtures::dbn_atom_a_only(), 0, 41);
         let b = run_freq_dbn(data, multi_sustained(), fixtures::dbn_atom_b_only(), 0, 41);
-        close("DBN atom A multi-step plim", a.estimate.as_effect().unwrap().ate, ma, 0.04);
-        close("DBN atom B multi-step plim", b.estimate.as_effect().unwrap().ate, mb, 0.04);
+        close("DBN atom A multi-step plim", a.estimate().as_effect().unwrap().ate, ma, 0.04);
+        close("DBN atom B multi-step plim", b.estimate().as_effect().unwrap().ate, mb, 0.04);
         assert!(mb - ma > 0.3, "DBN multi-step atoms must disagree materially");
     }
 }
@@ -1881,9 +1881,9 @@ fn heterogeneous_dbn_shared_block_se_carries_cross_atom_covariance() {
     let mix = run_freq_dbn(data.clone(), pulse_query(), heterogeneous_dbn(), boot, 41);
     let a = run_freq_dbn(data.clone(), pulse_query(), fixtures::dbn_atom_a_only(), boot, 41);
     let b = run_freq_dbn(data, pulse_query(), fixtures::dbn_atom_b_only(), boot, 41);
-    let se = mix.estimate.as_effect().unwrap().se_bootstrap().expect("shared-block SE");
-    let se_a = a.estimate.as_effect().unwrap().se_bootstrap().expect("atom A SE");
-    let se_b = b.estimate.as_effect().unwrap().se_bootstrap().expect("atom B SE");
+    let se = mix.estimate().as_effect().unwrap().se_bootstrap().expect("shared-block SE");
+    let se_a = a.estimate().as_effect().unwrap().se_bootstrap().expect("atom A SE");
+    let se_b = b.estimate().as_effect().unwrap().se_bootstrap().expect("atom B SE");
     let (wa, wb) = (DBN_WEIGHTS[0] / DBN_IDENTIFIED_MASS, DBN_WEIGHTS[1] / DBN_IDENTIFIED_MASS);
     let independent = ((wa * se_a).powi(2) + (wb * se_b).powi(2)).sqrt();
     eprintln!("DBN shared SE {se:.5}; atoms {se_a:.5}, {se_b:.5}; independent {independent:.5}");
@@ -1914,7 +1914,7 @@ fn heterogeneous_cpdag_fixture_has_disagreeing_completions() {
         assert_eq!(structural.unidentified_mass, 0.0);
         close(
             "CPDAG mixture",
-            result.estimate.as_effect().unwrap().ate,
+            result.estimate().as_effect().unwrap().ate,
             (values[0].unwrap() + values[1].unwrap()) / 2.0,
             1e-10,
         );
@@ -1938,19 +1938,19 @@ fn heterogeneous_cpdag_shared_block_se_carries_cross_atom_covariance() {
     let values = atom_values(&mix);
     close(
         "oriented t->z matches completion 0",
-        a.estimate.as_effect().unwrap().ate,
+        a.estimate().as_effect().unwrap().ate,
         values[0].unwrap(),
         1e-10,
     );
     close(
         "oriented z->t matches completion 1",
-        b.estimate.as_effect().unwrap().ate,
+        b.estimate().as_effect().unwrap().ate,
         values[1].unwrap(),
         1e-10,
     );
-    let se = mix.estimate.as_effect().unwrap().se_bootstrap().expect("shared-block SE");
-    let se_a = a.estimate.as_effect().unwrap().se_bootstrap().expect("completion 0 SE");
-    let se_b = b.estimate.as_effect().unwrap().se_bootstrap().expect("completion 1 SE");
+    let se = mix.estimate().as_effect().unwrap().se_bootstrap().expect("shared-block SE");
+    let se_a = a.estimate().as_effect().unwrap().se_bootstrap().expect("completion 0 SE");
+    let se_b = b.estimate().as_effect().unwrap().se_bootstrap().expect("completion 1 SE");
     let independent = ((0.5 * se_a).powi(2) + (0.5 * se_b).powi(2)).sqrt();
     eprintln!("CPDAG shared SE {se:.5}; atoms {se_a:.5}, {se_b:.5}; independent {independent:.5}");
     assert!(se > 0.5 * se_a && se > 0.5 * se_b);
@@ -1998,7 +1998,7 @@ fn mediation_cpdag_fixture_has_two_completions_with_own_posteriors() {
         // truth each completion's own posterior already does below.
         close(
             &format!("shared-design mediation ate (kappa={kappa})"),
-            result.estimate.as_effect().unwrap().ate,
+            result.estimate().as_effect().unwrap().ate,
             fixtures::mediation_truth(),
             0.02,
         );
@@ -2081,7 +2081,7 @@ fn confounded_mediation_recovers_total_direct_mediated_in_both_modes() {
         for (contrast, truth) in truths {
             let label = format!("{inference:?} {contrast:?}");
             let result = run_confounded_mediation(SANITY_N, contrast, inference.clone(), 0, 13, 41);
-            close(&label, result.estimate.as_effect().unwrap().ate, truth, 0.02);
+            close(&label, result.estimate().as_effect().unwrap().ate, truth, 0.02);
             let slice = &result.mediation_grid().expect("mediation grid").slices[0];
             let adjustment: Vec<(u32, i32)> =
                 slice.adjustment.iter().map(|k| (k.variable.raw(), k.offset)).collect();
@@ -2114,7 +2114,12 @@ fn two_lag_fixture_composes_both_lags() {
     let data = two_lag_series(SANITY_N, 17);
     let result =
         run_freq_class(data, two_lag_dag(), CausalQuery::TemporalEffect(multi_sustained()), 0, 41);
-    close("two-lag multi-step Sustained", result.estimate.as_effect().unwrap().ate, B1 + B2, 0.03);
+    close(
+        "two-lag multi-step Sustained",
+        result.estimate().as_effect().unwrap().ate,
+        B1 + B2,
+        0.03,
+    );
 }
 
 #[test]

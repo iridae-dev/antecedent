@@ -10,9 +10,9 @@
 
 use super::*;
 use antecedent::analysis::joint_panel::{
-    joint_panel_target, JointPanelColumns, JointPanelContinuousSearchRequest, JointPanelFunctional,
-    JointPanelRequest, JointPanelResponseFunctional, JointPanelScientificScope,
-    JointPanelSearchUncertainty, JointPanelWorld,
+    JointPanelColumns, JointPanelContinuousSearchRequest, JointPanelFunctional, JointPanelRequest,
+    JointPanelResponseFunctional, JointPanelScientificScope, JointPanelSearchUncertainty,
+    JointPanelWorld, joint_panel_target,
 };
 use antecedent::{BatchStudy, CellFamilyContrast};
 use antecedent_core::{
@@ -23,7 +23,7 @@ use antecedent_design::decision_contract::{
     ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr,
 };
 use antecedent_design::program_search::{
-    continuous::ContinuousSearchOptions, FiniteProgramDomain, ProgramControl,
+    FiniteProgramDomain, ProgramControl, continuous::ContinuousSearchOptions,
 };
 use antecedent_estimate::joint_panel::{
     PanelChannelHistory, PanelChannelProgram, PanelFitOptions, PanelInference,
@@ -134,11 +134,13 @@ fn panel_request(data: &PanelData, lag_order: usize, steps: usize) -> JointPanel
     let worlds = cell_worlds(steps);
     JointPanelRequest {
         columns: panel_columns(),
-        interactions: vec![PanelInteractionSpec::from_saturated_features(
-            "ab",
-            &ValueExpr::var(id(0)).mul(ValueExpr::var(id(1))),
-        )
-        .unwrap()],
+        interactions: vec![
+            PanelInteractionSpec::from_saturated_features(
+                "ab",
+                &ValueExpr::var(id(0)).mul(ValueExpr::var(id(1))),
+            )
+            .unwrap(),
+        ],
         seasons: 1,
         lag_order,
         options: PanelFitOptions {
@@ -217,7 +219,7 @@ fn horizon_one_joint_interaction_is_the_static_decision_world_contrast_but_not_i
         .unwrap()
         .estimate(&data, &context)
         .unwrap();
-    let static_effect = batch[0].estimate.as_effect().unwrap();
+    let static_effect = batch[0].estimate().as_effect().unwrap();
     let binding = static_effect.family.compiled_contrast.as_ref().expect("a compiled contrast");
     assert!(binding.identification().is_identified_claim());
     let TargetForm::Contrast(static_contrast) = binding.target().form() else {
@@ -347,7 +349,8 @@ fn horizon_one_continuous_program_search_polls_static_decision_worlds_on_one_reu
 /// The raw-row reference of the four cells of [`panel_data`]: the generating mean of the
 /// outcome, with the mean group offset taken from the groups themselves.
 fn panel_cell_reference(a: f64, b: f64) -> f64 {
-    let offsets: f64 = (0..GROUPS).map(|group| 0.3 * f64::from(group)).sum::<f64>() / f64::from(GROUPS);
+    let offsets: f64 =
+        (0..GROUPS).map(|group| 0.3 * f64::from(group)).sum::<f64>() / f64::from(GROUPS);
     1.0 + 0.8 * a + 0.5 * b + offsets
 }
 
@@ -369,11 +372,12 @@ fn fitted_cells(request: JointPanelRequest, panel: &PanelData) -> (Vec<f64>, f64
 /// same programs under a lag order are a temporal frame of horizon one, another target by
 /// construction; neither is an identified claim, because the fitted mechanism is model-conditional.
 #[test]
-fn horizon_one_joint_panel_fit_at_lag_zero_is_the_static_cell_response_and_a_lagged_frame_is_another_target(
-) {
+fn horizon_one_joint_panel_fit_at_lag_zero_is_the_static_cell_response_and_a_lagged_frame_is_another_target()
+ {
     let panel = panel_data();
     let (cells, interaction) = fitted_cells(panel_request(&panel, 0, 1), &panel);
-    for (index, (a, b)) in [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)].into_iter().enumerate() {
+    for (index, (a, b)) in [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)].into_iter().enumerate()
+    {
         let reference = panel_cell_reference(a, b);
         assert!(
             (cells[index] - reference).abs() < 0.08,
@@ -401,8 +405,8 @@ fn horizon_one_joint_panel_fit_at_lag_zero_is_the_static_cell_response_and_a_lag
 /// and null interaction as the reviewed family and leaves the target untouched. Geometric
 /// adstock decays over lags, so it exists only in the lagged frame and is refused at lag zero.
 #[test]
-fn horizon_one_broader_panel_family_at_lag_zero_is_the_static_hill_fit_and_geometric_adstock_needs_the_lag_frame(
-) {
+fn horizon_one_broader_panel_family_at_lag_zero_is_the_static_hill_fit_and_geometric_adstock_needs_the_lag_frame()
+ {
     use antecedent_estimate::joint_panel::{PanelAdstock, PanelFamily, PanelSaturation};
     let panel = panel_data();
     let reviewed = panel_request(&panel, 0, 1);
@@ -415,7 +419,8 @@ fn horizon_one_broader_panel_family_at_lag_zero_is_the_static_hill_fit_and_geome
     };
     assert_eq!(reviewed.target.identity(), broader.target.identity());
     let (cells, interaction) = fitted_cells(broader.clone(), &panel);
-    for (index, (a, b)) in [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)].into_iter().enumerate() {
+    for (index, (a, b)) in [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)].into_iter().enumerate()
+    {
         let reference = panel_cell_reference(a, b);
         assert!(
             (cells[index] - reference).abs() < 0.08,

@@ -1831,28 +1831,34 @@ impl PreparedStudy<StatisticalPreparedState> {
                 .as_ref()
                 .map(UncertaintyRowWire::from_row)
                 .transpose()?,
-            bayesian_posterior: result.bayesian_estimate.as_ref().map(|posterior| {
-                Ok::<_, IoError>(BayesianTransportPosteriorWire {
-                    estimator: posterior.estimator.to_string(),
-                    interval_method: PosteriorIntervalMethodWire::parse(&posterior.interval_method)
+            bayesian_posterior: result
+                .bayesian_estimate
+                .as_ref()
+                .map(|posterior| {
+                    Ok::<_, IoError>(BayesianTransportPosteriorWire {
+                        estimator: posterior.estimator.to_string(),
+                        interval_method: PosteriorIntervalMethodWire::parse(
+                            &posterior.interval_method,
+                        )
                         .ok_or_else(|| err("transport artifact uncertainty mismatch"))?,
-                    draws_requested: posterior.draws_requested,
-                    draws_ok: posterior.draws_ok,
-                    draws_failed: posterior.draws_failed,
-                    interval_reason: posterior.interval_reason,
-                    probabilities: posterior
-                        .distributions
-                        .iter()
-                        .map(|distribution| distribution.probabilities.to_vec())
-                        .collect(),
-                    atom_intervals: posterior.atom_intervals.to_vec(),
-                    mean_intervals: posterior
-                        .mean_intervals
-                        .iter()
-                        .map(|(variable, lower, upper)| (variable.raw(), *lower, *upper))
-                        .collect(),
+                        draws_requested: posterior.draws_requested,
+                        draws_ok: posterior.draws_ok,
+                        draws_failed: posterior.draws_failed,
+                        interval_reason: posterior.interval_reason,
+                        probabilities: posterior
+                            .distributions
+                            .iter()
+                            .map(|distribution| distribution.probabilities.to_vec())
+                            .collect(),
+                        atom_intervals: posterior.atom_intervals.to_vec(),
+                        mean_intervals: posterior
+                            .mean_intervals
+                            .iter()
+                            .map(|(variable, lower, upper)| (variable.raw(), *lower, *upper))
+                            .collect(),
+                    })
                 })
-            }).transpose()?,
+                .transpose()?,
             atom_intervals: result.estimate.atom_intervals.as_ref().map(|rows| rows.to_vec()),
             mean_intervals: result
                 .estimate
@@ -2689,9 +2695,7 @@ impl PosteriorFault {
                 err("Bayesian transport artifact withholds an earned posterior interval")
             }
             Self::InvalidDrawLaw => err("Bayesian transport artifact has invalid draw law"),
-            Self::SummaryMismatch => {
-                err("Bayesian transport artifact posterior summary mismatch")
-            }
+            Self::SummaryMismatch => err("Bayesian transport artifact posterior summary mismatch"),
             Self::Propagated(error) => error,
         }
     }

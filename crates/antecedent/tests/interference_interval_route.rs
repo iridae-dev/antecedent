@@ -419,7 +419,7 @@ fn cluster_bayesian_bootstrap_centres_on_the_design_estimate_with_a_matching_spr
         result.logical_plan.estimator.as_deref(),
         Some("interference.cluster_bayesian_bootstrap")
     );
-    assert_eq!(result.support_status, None, "the Bayesian bootstrap route is unlicensed");
+    assert_eq!(result.support_status(), None, "the Bayesian bootstrap route is unlicensed");
     let posterior = result.posterior.as_ref().unwrap();
     let column = posterior.effect_column().unwrap();
     let design_effect = frequentist.effect();

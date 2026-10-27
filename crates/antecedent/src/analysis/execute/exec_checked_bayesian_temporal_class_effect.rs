@@ -36,14 +36,16 @@ impl super::Study {
         click.data = series_input(&self.data, data.clone());
         click.query = CausalQuery::TemporalEffect(target.query().clone());
         click.graph_posterior = None;
-        click.install_identification(crate::analysis::IdentificationCache::TemporalClass(Arc::clone(target.bundle())));
-        click.inference = InferenceMode::Bayesian(operation.config().clone());
-        click.refute = operation.validation();
-        click.class_prior = operation.class_prior().cloned();
-        click.max_completions = target.max_completions();
-        click.bootstrap_replicates = bootstrap_replicates;
-        click.split = split.copied();
-        click.custom_validators = custom_validators.to_vec();
+        click.install_identification(crate::analysis::IdentificationCache::TemporalClass(
+            Arc::clone(target.bundle()),
+        ));
+        click.settings.inference = InferenceMode::Bayesian(operation.config().clone());
+        click.settings.refute = operation.validation();
+        click.declared.class_prior = operation.class_prior().cloned();
+        click.declared.max_completions = target.max_completions();
+        click.settings.bootstrap_replicates = bootstrap_replicates;
+        click.declared.split = split.copied();
+        click.declared.custom_validators = custom_validators.to_vec();
         if target.query().is_multi_step_sustained() {
             click.execute_temporal_class_frozen_weights(
                 data,

@@ -411,11 +411,11 @@ fn admg_frontdoor_coordinates_publish_the_scored_interval() {
     )
     .expect("the Frequentist coordinate runs");
     assert!(
-        freq.estimate.as_effect().unwrap().se_analytic().is_nan(),
+        freq.estimate().as_effect().unwrap().se_analytic().is_nan(),
         "functional.effect has no analytic SE"
     );
     assert_eq!(
-        freq.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+        freq.estimate().as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
         Some(199),
         "Study default bootstrap"
     );

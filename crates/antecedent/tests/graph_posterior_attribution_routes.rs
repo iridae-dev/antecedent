@@ -166,7 +166,7 @@ fn an_anomaly_is_the_posterior_weighted_mean_of_the_atoms_dag_attributions() {
         let built = posterior_study(&data, graphs, &query);
         assert_eq!(built.support_status(), Some(CellStatus::Refused));
         let result = built.run(&ctx).unwrap();
-        assert_eq!(result.support_status, Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Refused));
         let merged = &result.anomaly().expect("anomaly payload")[0];
 
         let forward = explicit_study(&data, dag_of(&[(0, 1)]), &query).run(&ctx).unwrap();

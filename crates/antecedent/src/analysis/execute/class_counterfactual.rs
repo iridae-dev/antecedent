@@ -527,7 +527,7 @@ impl super::Study {
         physical: &Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        ensure_validation_none(self.refute)?;
+        ensure_validation_none(self.settings.refute)?;
         match self.graph.graph_ref() {
             GraphRef::Cpdag(cpdag) => {
                 self.execute_counterfactual_cpdag(data, cpdag, query, physical, ctx)
@@ -544,7 +544,7 @@ impl super::Study {
 
     /// Completions retained: the study's `max_completions`, else the default bound.
     fn completion_cap(&self) -> usize {
-        self.max_completions.unwrap_or(COMPLETION_CAP)
+        self.declared.max_completions.unwrap_or(COMPLETION_CAP)
     }
 
     /// The completions (or the one ADMG) a latent-confounded structure stands for.
@@ -633,7 +633,7 @@ impl super::Study {
             }
         };
         let cancelled = || CausalError::Cancelled { stage: super::super::stage::STAGE_UNCERTAINTY };
-        match CounterfactualProcedure::for_inference(&self.inference)? {
+        match CounterfactualProcedure::for_inference(&self.settings.inference)? {
             CounterfactualProcedure::DirichletRowWeights { draws } => {
                 let mut rng =
                     ctx.rng.stream_for(antecedent_core::StreamDomain::Attribution, BAYESIAN_STREAM);
@@ -654,12 +654,14 @@ impl super::Study {
                 }
                 Ok(Resampled::Draws { matrix })
             }
-            _ if self.bootstrap_replicates == 0 => Ok(Resampled::None),
+            _ if self.settings.bootstrap_replicates == 0 => Ok(Resampled::None),
             _ => {
                 if block.is_none() {
-                    super::gcm_bootstrap::require_subject_resampling(self.sampling_design)?;
+                    super::gcm_bootstrap::require_subject_resampling(
+                        self.declared.sampling_design,
+                    )?;
                 }
-                let requested = self.bootstrap_replicates;
+                let requested = self.settings.bootstrap_replicates;
                 let _admitted =
                     super::gcm_bootstrap::admit_replicates(ctx, requested, cases.len(), rows)?;
                 let mut matrix = Vec::new();
@@ -980,7 +982,11 @@ impl super::Study {
                      to retain more",
                     completions_retained,
                     self.completion_cap(),
-                    if self.max_completions.is_some() { "set by the study" } else { "the default" },
+                    if self.declared.max_completions.is_some() {
+                        "set by the study"
+                    } else {
+                        "the default"
+                    },
                 ),
             ));
         }
@@ -1086,7 +1092,11 @@ impl super::Study {
             let mut completion = self.clone();
             completion.graph = Arc::new(AcceptedGraph::from(dag.clone()));
             completion.clear_identification_where(|cache| {
-                matches!(cache, crate::analysis::IdentificationCache::Static(_) | crate::analysis::IdentificationCache::Cpdag(_))
+                matches!(
+                    cache,
+                    crate::analysis::IdentificationCache::Static(_)
+                        | crate::analysis::IdentificationCache::Cpdag(_)
+                )
             });
             results.push(completion.execute_counterfactual(data, dag, query, physical, ctx)?);
         }
@@ -1155,7 +1165,7 @@ impl super::Study {
             result.posterior = None;
             result.payload = crate::result::ResultPayload::Scalar;
             result.interval = None;
-            result.rebind_interval(self.inference.is_bayesian());
+            result.rebind_interval(self.settings.inference.is_bayesian());
             diagnostics.extend(super::envelope_se_omission_diagnostic(dags.len(), f64::NAN));
             if let Some(set) = mixture.as_ref().and_then(|mixture| {
                 super::pag_path::static_class_identified_set_diagnostic(mixture, "cpdag")
@@ -1187,7 +1197,11 @@ impl super::Study {
                      class; raise max_completions to retain more",
                     dags.len(),
                     self.completion_cap(),
-                    if self.max_completions.is_some() { "set by the study" } else { "the default" },
+                    if self.declared.max_completions.is_some() {
+                        "set by the study"
+                    } else {
+                        "the default"
+                    },
                 ),
             ));
         }

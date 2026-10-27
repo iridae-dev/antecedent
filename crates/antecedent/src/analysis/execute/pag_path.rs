@@ -302,9 +302,9 @@ impl super::Study {
             estimand: &estimand,
             query,
             estimate: &estimate,
-            suite: self.refute,
+            suite: self.settings.refute,
             estimator: estimator_id.as_str(),
-            custom: &self.custom_validators,
+            custom: &self.declared.custom_validators,
             temporal: None,
         }
         .reports(&mut refute_ws, None, ctx)?;
@@ -360,7 +360,8 @@ impl super::Study {
                 ),
             });
         }
-        if self.refute != RefuteSuite::None || !self.custom_validators.is_empty() {
+        if self.settings.refute != RefuteSuite::None || !self.declared.custom_validators.is_empty()
+        {
             return Err(CausalError::Unsupported {
                 message: "ADMG ConditionalEffect is licensed at validation none; the ATE \
                           refuters and custom validators do not apply to an IDC contrast",
@@ -424,7 +425,7 @@ impl super::Study {
         let started = Instant::now();
         let is_intervention =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
-        if self.refute != RefuteSuite::None && !is_intervention {
+        if self.settings.refute != RefuteSuite::None && !is_intervention {
             return Err(CausalError::Unsupported {
                 message: "Admg ResponseCurve has no native non-ATE refuter suite; \
                           ATE refuters do not apply to a function-valued surface",
@@ -489,7 +490,7 @@ impl super::Study {
             data,
             admg,
             curve,
-            bayesian: self.inference.is_bayesian(),
+            bayesian: self.settings.inference.is_bayesian(),
             identifier_id,
             estimator_id,
             treatment,
@@ -673,7 +674,7 @@ impl super::Study {
                 level_query,
                 level_id,
                 level_est,
-                self.functional_bootstrap(self.bootstrap_replicates)?,
+                self.functional_bootstrap(self.settings.bootstrap_replicates)?,
                 run.ctx,
             )?;
             fits.extra_diagnostics.extend(response.support.warnings.iter().cloned());
@@ -700,11 +701,12 @@ impl super::Study {
     ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
         if !run.curve
             && scalar.is_finite()
-            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
+            && (!matches!(self.settings.refute, RefuteSuite::None)
+                || !self.declared.custom_validators.is_empty())
         {
             let ate_query = AverageEffectQuery::binary_ate(run.treatment, run.outcome);
             let mut refute_ws = EstimationWorkspace::default();
-            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+            if matches!(self.settings.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
                 diagnostics.push(Diagnostic::new(
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
@@ -719,9 +721,9 @@ impl super::Study {
                 estimand,
                 query: &ate_query,
                 estimate,
-                suite: self.refute,
+                suite: self.settings.refute,
                 estimator: run.estimator_id.as_str(),
-                custom: &self.custom_validators,
+                custom: &self.declared.custom_validators,
                 temporal: None,
             }
             .plugin_level(&mut refute_ws, run.ctx)
@@ -837,7 +839,9 @@ impl super::Study {
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            if self.inference.is_bayesian() || matches!(estimator_id, EstimatorId::BayesianGcomp) {
+            if self.settings.inference.is_bayesian()
+                || matches!(estimator_id, EstimatorId::BayesianGcomp)
+            {
                 return self.execute_pag_nonidentified_prior(query, run, identification, tag);
             }
             return Err(CausalError::not_identified(
@@ -876,9 +880,9 @@ impl super::Study {
         let (refutations, na_diagnostics) = EnvelopeRefutation {
             data,
             query,
-            suite: self.refute,
+            suite: self.settings.refute,
             estimator: estimator_id.as_str(),
-            custom: &self.custom_validators,
+            custom: &self.declared.custom_validators,
             temporal: None,
         }
         .run(&atoms.refute_atoms, &mut refute_ws, ctx)?;
@@ -944,6 +948,7 @@ impl super::Study {
             // Honour a caller-configured estimator across every equivalence-class case,
             // falling back to id-only selection when none was supplied.
             let case_spec = self
+                .declared
                 .estimator_spec
                 .as_deref()
                 .cloned()
@@ -954,10 +959,10 @@ impl super::Study {
                     data,
                     estimand: &estimand,
                     query,
-                    bootstrap_replicates: self.bootstrap_replicates,
-                    overlap_policy: self.overlap_policy,
-                    population_registry: self.population_registry.as_ref(),
-                    sampling_design: self.sampling_design,
+                    bootstrap_replicates: self.settings.bootstrap_replicates,
+                    overlap_policy: self.declared.overlap_policy,
+                    population_registry: self.declared.population_registry.as_ref(),
+                    sampling_design: self.declared.sampling_design,
                 },
                 case.result.required_assumptions.clone(),
                 ctx,
@@ -1005,7 +1010,7 @@ impl super::Study {
             envelope,
             envelope_diagnostic,
         } = run;
-        let cfg = match &self.inference {
+        let cfg = match &self.settings.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => BayesianConfig::laplace(),
         };

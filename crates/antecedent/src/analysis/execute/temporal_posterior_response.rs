@@ -117,7 +117,7 @@ impl super::Study {
         let temporal = self.licensed_dbn_posterior_spec(gp, query, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
-        let estimator_id = EstimatorId::temporal_response_for(&self.inference);
+        let estimator_id = EstimatorId::temporal_response_for(&self.settings.inference);
         let (identified, identify_cached) =
             self.dbn_response_posterior_identification(gp, &vars, query, physical, ctx)?;
         let inputs = DbnPosteriorInputs { data, query, temporal, treatment, outcome, ctx };
@@ -232,7 +232,7 @@ impl super::Study {
                         gp,
                         vars,
                         query,
-                        EstimatorId::temporal_response_for(&self.inference),
+                        EstimatorId::temporal_response_for(&self.settings.inference),
                         ctx,
                     )?,
                 ),
@@ -260,7 +260,12 @@ impl super::Study {
         let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "DBN-posterior response requires TemporalResponseSpec".into(),
         })?;
-        enforce_temporal_response_memory_budget(query, temporal, self.bootstrap_replicates, ctx)?;
+        enforce_temporal_response_memory_budget(
+            query,
+            temporal,
+            self.settings.bootstrap_replicates,
+            ctx,
+        )?;
         Ok(temporal)
     }
 
@@ -303,40 +308,41 @@ impl super::Study {
             let identifications: Vec<_> =
                 aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
             let mut estimator = TemporalResponseEstimator::new();
-            estimator.inner.inference.bootstrap_replicates = self.bootstrap_replicates;
-            let (response, conflict) = if let InferenceMode::Bayesian(cfg) = &self.inference {
-                let mut bayes = bayesian_gcomp(cfg, inner);
-                let (resolved, conflict) = resolve_temporal_response_prior(
-                    cfg, data, temporal, &aligned, treatment, outcome, inner,
-                )?;
-                bayes.prior = resolved;
-                (
-                    estimator.estimate_bayesian(
-                        data,
-                        antecedent_estimate::TemporalIdentification {
-                            horizons: &identifications,
-                            status: aggregate_status,
-                            assumptions: aggregate_assumptions,
-                        },
-                        query,
-                        &bayes,
-                        inner,
-                    ),
-                    conflict,
-                )
-            } else {
-                (
-                    estimator.estimate(
-                        data,
-                        &identifications,
-                        query,
-                        aggregate_status,
-                        aggregate_assumptions,
-                        inner,
-                    ),
-                    None,
-                )
-            };
+            estimator.inner.inference.bootstrap_replicates = self.settings.bootstrap_replicates;
+            let (response, conflict) =
+                if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
+                    let mut bayes = bayesian_gcomp(cfg, inner);
+                    let (resolved, conflict) = resolve_temporal_response_prior(
+                        cfg, data, temporal, &aligned, treatment, outcome, inner,
+                    )?;
+                    bayes.prior = resolved;
+                    (
+                        estimator.estimate_bayesian(
+                            data,
+                            antecedent_estimate::TemporalIdentification {
+                                horizons: &identifications,
+                                status: aggregate_status,
+                                assumptions: aggregate_assumptions,
+                            },
+                            query,
+                            &bayes,
+                            inner,
+                        ),
+                        conflict,
+                    )
+                } else {
+                    (
+                        estimator.estimate(
+                            data,
+                            &identifications,
+                            query,
+                            aggregate_status,
+                            aggregate_assumptions,
+                            inner,
+                        ),
+                        None,
+                    )
+                };
             if let Err(err @ antecedent_estimate::EstimationError::Refused { .. }) = response {
                 return Err(err.into());
             }
@@ -423,7 +429,7 @@ impl super::Study {
                 "estimate.response.dbn_posterior.uncertainty_withheld",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                if self.inference.is_bayesian() {
+                if self.settings.inference.is_bayesian() {
                     "multi-atom Bayesian DBN-posterior response withholds an aggregate \
                      credible band: graph-specific dispersion and a frozen-weight aggregate \
                      are different objects"
@@ -473,11 +479,12 @@ impl super::Study {
         let is_intervention =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         let (refutations, predictive_checks, refute_diags) = if is_intervention
-            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
+            && (!matches!(self.settings.refute, RefuteSuite::None)
+                || !self.declared.custom_validators.is_empty())
         {
             self.refute_dbn_posterior_intervention(data, query, identified, weighted, scope, ctx)?
         } else {
-            if !matches!(self.refute, RefuteSuite::None) {
+            if !matches!(self.settings.refute, RefuteSuite::None) {
                 diagnostics.push(Diagnostic::new(
                     "refute.temporal_response.skipped",
                     DiagnosticKind::Scientific,
@@ -521,7 +528,7 @@ impl super::Study {
             tabular: &tabular,
             ctx,
         };
-        match &self.inference {
+        match &self.settings.inference {
             InferenceMode::Frequentist => self.refute_dbn_pulse_frequentist(&witness, notes),
             InferenceMode::Bayesian(cfg) => {
                 let reports = self.refute_dbn_pulse_bayesian(&witness, cfg, notes);
@@ -553,7 +560,7 @@ impl super::Study {
                 estimand,
                 pulse,
                 indexer,
-                self.split.as_ref(),
+                self.declared.split.as_ref(),
                 ctx,
             )?;
             refute_atoms.push(EnvelopeRefuteAtom {
@@ -567,12 +574,12 @@ impl super::Study {
         let (reports, mix_notes) = EnvelopeRefutation {
             data: tabular,
             query: ate_query,
-            suite: self.refute,
+            suite: self.settings.refute,
             estimator: "temporal.linear.adjustment",
-            custom: &self.custom_validators,
+            custom: &self.declared.custom_validators,
             temporal: Some(TemporalRefutation {
                 query: pulse,
-                split: self.split.as_ref(),
+                split: self.declared.split.as_ref(),
                 time_index: data.time_index(),
                 gaps: false,
             }),
@@ -606,7 +613,14 @@ impl super::Study {
             let mut temporal_est = TemporalLinearAdjustment::new();
             temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
             let prep = temporal_est
-                .prepare(data, estimand, pulse, indexer, self.split.as_ref(), &ctx.kernel_policy)
+                .prepare(
+                    data,
+                    estimand,
+                    pulse,
+                    indexer,
+                    self.declared.split.as_ref(),
+                    &ctx.kernel_policy,
+                )
                 .map_err(CausalError::from)?;
             let names =
                 antecedent_estimate::temporal_coefficient_names(data, estimand, pulse, indexer)
@@ -636,12 +650,12 @@ impl super::Study {
         let (reports, mix_notes) = EnvelopeRefutation {
             data: tabular,
             query: ate_query,
-            suite: self.refute,
+            suite: self.settings.refute,
             estimator: EstimatorId::BayesianTemporalGcomp.as_str(),
-            custom: &self.custom_validators,
+            custom: &self.declared.custom_validators,
             temporal: Some(TemporalRefutation {
                 query: pulse,
-                split: self.split.as_ref(),
+                split: self.declared.split.as_ref(),
                 time_index: data.time_index(),
                 gaps: false,
             }),
@@ -670,7 +684,7 @@ impl super::Study {
             .and_then(|eq| posterior.summaries.mean.get(eq).copied())
             .unwrap_or(f64::NAN);
         let predictive = run_envelope_bayesian_full_validation(
-            BayesianValidation { suite: self.refute, cfg, estimator: &bayes.inner },
+            BayesianValidation { suite: self.settings.refute, cfg, estimator: &bayes.inner },
             &fits,
             &mut posterior,
             pulse_mean,

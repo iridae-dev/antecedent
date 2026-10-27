@@ -242,7 +242,7 @@ fn each_mediation_component_is_mixed_over_the_atoms_that_identify_it() {
 
         // The decomposition beside the requested contrast carries the requested value, and the
         // other components are mixed over the atoms that identify them.
-        let components = result.payload.mediation().expect("the decomposition");
+        let components = result.payload().mediation().expect("the decomposition");
         assert!((components.total.unwrap() - result.effect()).abs() < 1e-12);
         let direct = components.direct.expect("the latent-free atom identifies the direct effect");
         let indirect =
@@ -327,7 +327,7 @@ fn a_cpdag_atom_is_answered_by_its_completion_envelope() {
             let mixture = result.structural_response.as_ref().unwrap();
             assert_eq!(mixture.atoms.len(), 1, "one class, however often it was sampled");
             assert!((mixture.identified_mass - 1.0).abs() < 1e-9);
-            let components = result.payload.mediation().unwrap();
+            let components = result.payload().mediation().unwrap();
             assert!((components.total.unwrap() - counted_total()).abs() < 1e-12);
             assert!((components.direct.unwrap() - counted_direct()).abs() < 1e-12);
             assert!((components.mediated.unwrap() - counted_indirect()).abs() < 1e-12);
@@ -367,7 +367,7 @@ fn a_dag_atom_runs_the_dag_cells_own_estimator_and_a_non_member_mask_is_unidenti
             .unwrap();
         assert!((result.effect() - explicit.effect()).abs() < 1e-12);
         let (theirs, ours) =
-            (explicit.payload.mediation().unwrap(), result.payload.mediation().unwrap());
+            (explicit.payload().mediation().unwrap(), result.payload().mediation().unwrap());
         assert!((ours.total.unwrap() - theirs.total.unwrap()).abs() < 1e-12);
         assert!((ours.mediated.unwrap() - theirs.mediated.unwrap()).abs() < 1e-12);
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("mediation.linear"));
@@ -464,7 +464,7 @@ fn an_interventional_distribution_is_the_posterior_weighted_mean_probability_of_
         let free = count(Some(1.0), None, Some(1.0)) / count(Some(1.0), None, None);
         let front = front_door_probability(1.0);
         let expected = (0.5 * free + 0.3 * front) / 0.8;
-        let distribution = result.payload.distribution().expect("a distribution");
+        let distribution = result.payload().distribution().expect("a distribution");
         let probability = |level: f64| {
             distribution
                 .atoms
@@ -517,8 +517,8 @@ fn a_distribution_without_a_mean_is_mixed_level_by_level_with_its_mass_kept_apar
             .run(&ctx)
             .unwrap();
         let (ours, theirs) = (
-            result.payload.distribution().expect("a distribution"),
-            explicit.payload.distribution().expect("a distribution"),
+            result.payload().distribution().expect("a distribution"),
+            explicit.payload().distribution().expect("a distribution"),
         );
         assert!(ours.mean.is_nan() && theirs.mean.is_nan(), "one law per conditioning assignment");
         assert_eq!(ours.atoms.len(), theirs.atoms.len());
@@ -616,7 +616,7 @@ fn a_frequentist_mixture_of_several_atoms_has_the_standard_error_of_its_shared_r
         };
         let mixture =
             run(admg_posterior(&[0.5, 0.5], &[mask_of(&latent_free()), mask_of(&front_door())]));
-        let effect = mixture.estimate.as_effect().unwrap();
+        let effect = mixture.estimate().as_effect().unwrap();
         let se = effect.se_bootstrap().expect("the spread of the shared replicates");
         assert!(se > 0.0 && se < 0.5, "{se}");
         let accounting = &effect.uncertainty.bootstrap;
@@ -629,7 +629,7 @@ fn a_frequentist_mixture_of_several_atoms_has_the_standard_error_of_its_shared_r
         );
         // One atom carries its own bootstrap interval, which the mixture of a single atom keeps.
         let single = run(admg_posterior(&[1.0], &[mask_of(&latent_free())]));
-        let own = single.estimate.as_effect().unwrap().se_bootstrap().expect("a bootstrap SE");
+        let own = single.estimate().as_effect().unwrap().se_bootstrap().expect("a bootstrap SE");
         assert!(own > 0.0 && own < 0.5, "{own}");
     });
 }

@@ -152,7 +152,7 @@ impl super::Study {
                  same query on one structure, executed once; every posterior atom that is a \
                  member of the graph class carries the one design identification; \
                  unidentified_mass={unidentified_mass} is the mass of atoms that are not members",
-                match &self.inference {
+                match &self.settings.inference {
                     InferenceMode::Frequentist => "sampling interval",
                     InferenceMode::Bayesian(_) => "posterior",
                 }
@@ -196,7 +196,7 @@ impl super::Study {
                 crate::analysis::identification_cache::build_interference_graph_posterior_identification_cache(
                     gp,
                     query,
-                    &self.inference,
+                    &self.settings.inference,
                     ctx,
                 )?,
             ),

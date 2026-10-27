@@ -101,7 +101,7 @@ fn penalized_aipw_cost_is_the_grid_times_inner_folds_per_outer_fold() {
     assert!(cost.seconds.is_none() && !cost.seconds_basis.is_empty());
 
     let result = study.run(&ctx).unwrap();
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     assert_eq!(effect.crossfit.folds, cost.crossfit_folds.map(|f| usize::try_from(f).unwrap()));
     assert_eq!(
         effect.crossfit.learner_provenance.len(),
@@ -165,7 +165,7 @@ fn dml_cost_uses_the_declared_folds_and_score() {
 
     let ctx = ExecutionContext::for_tests(5);
     let result = study(&data, &graph, DmlAte::new().with_folds(7)).run(&ctx).unwrap();
-    assert_eq!(result.estimate.as_effect().unwrap().crossfit.folds, Some(7));
+    assert_eq!(result.estimate().as_effect().unwrap().crossfit.folds, Some(7));
 }
 
 /// A retarget fits nothing: the cost is the claim, contrast and row counts the reweighting reads.

@@ -486,9 +486,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Option<(Arc<CachedStaticIdentification>, bool)> {
-        prepared_or_retained(self.static_cache(), || {
-            plan_retained_static(self, plan)
-        })
+        prepared_or_retained(self.static_cache(), || plan_retained_static(self, plan))
     }
 
     /// [`Self::reuse_static_identification`] for an executor whose own identifier,
@@ -509,9 +507,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Option<(Arc<CachedPagIdentification>, bool)> {
-        prepared_or_retained(self.pag_cache(), || {
-            plan_retained_pag(self, plan)
-        })
+        prepared_or_retained(self.pag_cache(), || plan_retained_pag(self, plan))
     }
 
     /// CPDAG envelope to reuse.
@@ -519,9 +515,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Option<(Arc<CachedCpdagIdentification>, bool)> {
-        prepared_or_retained(self.cpdag_cache(), || {
-            plan_retained_cpdag(self, plan)
-        })
+        prepared_or_retained(self.cpdag_cache(), || plan_retained_cpdag(self, plan))
     }
 
     /// Temporal identification by horizon to reuse.
@@ -529,9 +523,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Option<(Arc<CachedTemporalIdentification>, bool)> {
-        prepared_or_retained(self.temporal_cache(), || {
-            plan_retained_temporal(self, plan)
-        })
+        prepared_or_retained(self.temporal_cache(), || plan_retained_temporal(self, plan))
     }
 
     /// Temporal class envelope to reuse.
@@ -562,9 +554,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Option<(Arc<TransportIdentification>, bool)> {
-        prepared_or_retained(self.transport_cache(), || {
-            plan_retained_transport(self, plan)
-        })
+        prepared_or_retained(self.transport_cache(), || plan_retained_transport(self, plan))
     }
 }
 

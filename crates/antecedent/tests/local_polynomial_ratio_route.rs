@@ -102,8 +102,8 @@ fn retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval() {
     assert_eq!(fit.first_stage_standard_error, direct.first_stage_standard_error);
     assert_eq!((fit.cutoff, fit.bandwidth, fit.kink), (query.cutoff, query.bandwidth, query.kink));
     assert_eq!(fit.uncertainty.as_ref(), "rbc_hc0_delta_normal_fixed_bandwidth");
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::AnalyticSe);
-    assert_eq!(result.estimate.as_effect().unwrap().se_analytic(), fit.standard_error);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::AnalyticSe);
+    assert_eq!(result.estimate().as_effect().unwrap().se_analytic(), fit.standard_error);
     assert!(
         result.identification.required_assumptions.entries.iter().any(|record| format!(
             "{:?}",

@@ -62,7 +62,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if !self.custom_validators.is_empty() {
+        if !self.declared.custom_validators.is_empty() {
             return Err(crate::unsupported_reason!(
                 "validators_not_applicable",
                 "a custom validator refutes one scalar average effect and none applies to a \
@@ -91,7 +91,7 @@ impl super::Study {
         let coordinates = window_coordinates(&window, &plan, query);
         let (resampling, design) = self.window_row_resampling(plan.periods)?;
         let fitter = FunctionalEffect {
-            bootstrap_replicates: self.bootstrap_replicates,
+            bootstrap_replicates: self.settings.bootstrap_replicates,
             ..FunctionalEffect::new()
         }
         .with_row_resampling(resampling, design);
@@ -104,11 +104,16 @@ impl super::Study {
                 &coordinates,
             )
             .map_err(CausalError::from)?;
-        let (estimate, posterior) =
-            run_functional(&fitter, &prepared, &self.inference, identification.status, ctx)?;
+        let (estimate, posterior) = run_functional(
+            &fitter,
+            &prepared,
+            &self.settings.inference,
+            identification.status,
+            ctx,
+        )?;
         // The window-native suite refits the same plug-in on stretches of the windows, rotates
         // the treatment as a placebo and (under full validation) compares the two halves.
-        let refutations = if self.refute == RefuteSuite::None {
+        let refutations = if self.settings.refute == RefuteSuite::None {
             Vec::new()
         } else {
             let treatment_columns: Vec<VariableId> = plan
@@ -124,7 +129,7 @@ impl super::Study {
                 &treatment_columns,
                 plan.periods,
                 estimate.ate,
-                self.refute == RefuteSuite::Full,
+                self.settings.refute == RefuteSuite::Full,
                 ctx,
             )
             .map_err(CausalError::from)?

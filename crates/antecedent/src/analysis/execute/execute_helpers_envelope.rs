@@ -36,7 +36,7 @@ impl super::Study {
     ) -> Result<(EffectEstimate, Option<antecedent_estimate::CausalPosterior>), CausalError> {
         let (row_resampling, sampling_design) = resampling;
         let est = FunctionalEffect {
-            bootstrap_replicates: self.bootstrap_replicates,
+            bootstrap_replicates: self.settings.bootstrap_replicates,
             ..FunctionalEffect::new()
         }
         .with_row_resampling(row_resampling, sampling_design);
@@ -49,7 +49,7 @@ impl super::Study {
                 extra,
             )
             .map_err(CausalError::from)?;
-        run_functional(&est, &prepared, &self.inference, identification.status, ctx)
+        run_functional(&est, &prepared, &self.settings.inference, identification.status, ctx)
     }
 }
 
@@ -86,9 +86,9 @@ impl super::Study {
         if !temporal_projection {
             return Ok(rows);
         }
-        let draws = self.inference.is_bayesian() || self.bootstrap_replicates > 0;
-        let declared = crate::estimator_spec::declared_sampling(self.sampling_design);
-        match self.sampling_design {
+        let draws = self.settings.inference.is_bayesian() || self.settings.bootstrap_replicates > 0;
+        let declared = crate::estimator_spec::declared_sampling(self.declared.sampling_design);
+        match self.declared.sampling_design {
             None | Some(Design::DependentTimeSeries) => Ok((RowResampling::SeriesBlocks, declared)),
             Some(Design::IndependentSubjectTrajectories | Design::ClusteredPanel) if draws => {
                 Err(crate::unsupported_reason!(

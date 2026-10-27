@@ -129,8 +129,10 @@ impl CachedDbnPosteriorIdentification {
     pub fn mediation_horizon(&self, horizon: u32) -> Result<Self, CausalError> {
         fn memo(
             projections: &HorizonProjections,
-        ) -> std::sync::MutexGuard<'_, std::collections::HashMap<u32, CachedDbnPosteriorIdentification>>
-        {
+        ) -> std::sync::MutexGuard<
+            '_,
+            std::collections::HashMap<u32, CachedDbnPosteriorIdentification>,
+        > {
             projections.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
         }
         if let Some(found) = memo(&self.projections).get(&horizon) {

@@ -345,8 +345,7 @@ fn dbn_posterior_with_a_static_query_is_refused_rather_than_panicking() {
     let built = Study::series(series)
         .graph_posterior(dbn_posterior(&[treatment_to_outcome], &[1.0]))
         .query(
-            AverageEffectQuery::binary_ate(TREATMENT, OUTCOME)
-                .with_effect_modifiers([CONFOUNDER]),
+            AverageEffectQuery::binary_ate(TREATMENT, OUTCOME).with_effect_modifiers([CONFOUNDER]),
         )
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)))
         .refute(RefuteSuite::None)
@@ -406,7 +405,8 @@ fn repeated_dbn_atoms_contribute_their_combined_mass_once() {
             .unwrap()
             .run(&ctx)
             .unwrap()
-            .estimate
+            .estimate()
+            .clone()
     };
     let only_unadjusted =
         frequentist(dbn_posterior(&[unadjusted], &[1.0])).as_effect().unwrap().ate;

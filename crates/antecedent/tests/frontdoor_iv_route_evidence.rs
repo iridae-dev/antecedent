@@ -241,7 +241,7 @@ fn verify_iv(accepted: bool, validation: &str, wald: bool) {
         "{coordinate} changed result vs fresh route"
     );
     assert_eq!(
-        result.estimate.as_effect().unwrap().uncertainty.analytic.kind,
+        result.estimate().as_effect().unwrap().uncertainty.analytic.kind,
         Some(AnalyticSeKind::Hc1),
         "{coordinate}"
     );

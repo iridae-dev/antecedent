@@ -324,8 +324,9 @@ pub(super) fn seal_execution(cx: &SealContext<'_>) -> Result<PreparedExecution, 
     }
     let estimator = cx
         .source
+        .declared
         .estimator
-        .or_else(|| cx.source.estimator_spec.as_deref().map(crate::EstimatorSpec::id))
+        .or_else(|| cx.source.declared.estimator_spec.as_deref().map(crate::EstimatorSpec::id))
         .or_else(|| cx.binding.estimator.named());
     Err(CausalError::Compile {
         message: format!(

@@ -291,8 +291,7 @@ fn compile_from_an_evsi_request_fills_the_value_of_information_program() {
     assert_eq!(store.total_bytes(), 2 * draws * 8 + draws * 8);
 
     // Declaration order does not change the compiled program.
-    let reordered =
-        compile_for_study(&study, ranking_wire(&["study-a", "study-b"]), &ctx).unwrap();
+    let reordered = compile_for_study(&study, ranking_wire(&["study-a", "study-b"]), &ctx).unwrap();
     assert_eq!(decision_identity(&plan), decision_identity(&reordered));
 
     // The evaluation is bound to that program.
@@ -330,7 +329,8 @@ fn evsi_evaluation_keeps_caller_context_and_exact_ranking_artifact() {
     use antecedent_core::CachePolicy;
     let study = study(true);
     let wire = ranking_wire(&["context-ranking"]);
-    let warm = evaluate_for_study(&study, wire.clone(), &ExecutionContext::production(3, 1)).unwrap();
+    let warm =
+        evaluate_for_study(&study, wire.clone(), &ExecutionContext::production(3, 1)).unwrap();
     let disabled = ExecutionContext::for_tests(999);
     let mut bounded = disabled.clone();
     bounded.cache_policy = CachePolicy::enabled(Some(1024));

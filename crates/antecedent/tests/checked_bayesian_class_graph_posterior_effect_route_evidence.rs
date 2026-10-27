@@ -177,9 +177,9 @@ fn bayesian_class_graph_posterior_effect_body() {
             assert!((mixture.identified_mass - 0.8).abs() < 1e-9, "{coordinate}");
             if graph_class == "Pag" {
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
+                    (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
                     "{coordinate}: {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 // Unidentified sample mass keeps the aggregate posterior
                 // withheld; the retained atom posteriors stay conditional.
@@ -192,7 +192,7 @@ fn bayesian_class_graph_posterior_effect_body() {
                 );
             } else {
                 assert!(
-                    result.estimate.as_effect().unwrap().ate.is_nan(),
+                    result.estimate().as_effect().unwrap().ate.is_nan(),
                     "{coordinate}: atom estimands disagree; scalar must be withheld"
                 );
                 let set = mixture.identified_set.as_ref().expect("identified set retained");
@@ -205,13 +205,13 @@ fn bayesian_class_graph_posterior_effect_body() {
                 "{coordinate}: the click reuses the retained completion envelopes"
             );
             assert_eq!(
-                one_shot.estimate.as_effect().unwrap().ate.is_nan(),
-                result.estimate.as_effect().unwrap().ate.is_nan()
+                one_shot.estimate().as_effect().unwrap().ate.is_nan(),
+                result.estimate().as_effect().unwrap().ate.is_nan()
             );
-            if !one_shot.estimate.as_effect().unwrap().ate.is_nan() {
+            if !one_shot.estimate().as_effect().unwrap().ate.is_nan() {
                 assert!(
-                    (one_shot.estimate.as_effect().unwrap().ate
-                        - result.estimate.as_effect().unwrap().ate)
+                    (one_shot.estimate().as_effect().unwrap().ate
+                        - result.estimate().as_effect().unwrap().ate)
                         .abs()
                         < 0.2,
                     "{coordinate}"
@@ -234,12 +234,12 @@ fn bayesian_class_graph_posterior_effect_body() {
             let refreshed_mix = refreshed.structural_response.as_ref().unwrap();
             assert!((refreshed_mix.unidentified_mass - 0.2).abs() < 1e-9, "{coordinate}");
             assert_eq!(
-                refreshed.estimate.as_effect().unwrap().ate.is_nan(),
-                result.estimate.as_effect().unwrap().ate.is_nan()
+                refreshed.estimate().as_effect().unwrap().ate.is_nan(),
+                result.estimate().as_effect().unwrap().ate.is_nan()
             );
-            if !refreshed.estimate.as_effect().unwrap().ate.is_nan() {
+            if !refreshed.estimate().as_effect().unwrap().ate.is_nan() {
                 assert!(
-                    (refreshed.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
+                    (refreshed.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
                     "{coordinate}"
                 );
             }

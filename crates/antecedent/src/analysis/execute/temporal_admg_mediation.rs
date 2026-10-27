@@ -136,7 +136,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if !self.custom_validators.is_empty() {
+        if !self.declared.custom_validators.is_empty() {
             return Err(crate::unsupported_reason!(
                 "validators_not_applicable",
                 "a custom validator refutes one scalar average effect and none applies to a \

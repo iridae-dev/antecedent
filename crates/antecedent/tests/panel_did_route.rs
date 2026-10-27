@@ -55,8 +55,8 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
     assert_eq!(estimate.comparison_subjects, 4);
     assert_eq!(estimate.clusters, 8);
     assert_eq!(estimate.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == "parallel_trends"
     )));
@@ -68,7 +68,7 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let refreshed = prepared.estimate(&data, &context).unwrap();
     assert_eq!(refreshed.panel_did(), result.panel_did());
-    assert_eq!(refreshed.support_status, None);
+    assert_eq!(refreshed.support_status(), None);
     let bytes = prepared.encode_contracted_result(&refreshed, "thin-panel-did", &context).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     body.panel_did.as_mut().unwrap().graphless_support_status = Some("licensed".into());
@@ -122,11 +122,11 @@ fn supported_panel_did_interval_round_trips_and_rejects_fabrication() {
     let bounds = did.interval_95.unwrap();
     assert!(bounds[0] <= did.effect && did.effect <= bounds[1]);
     assert_eq!(
-        result.interval.as_ref().unwrap().method,
+        result.interval().as_ref().unwrap().method,
         antecedent_core::IntervalMethod::AnalyticSe
     );
-    assert_eq!(result.interval.as_ref().unwrap().dependence, "cluster");
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.interval().as_ref().unwrap().dependence, "cluster");
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let bytes =
         prepared.encode_contracted_result(&result, "supported-panel-did", &context).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
@@ -188,7 +188,7 @@ fn supported_repeated_cross_section_interval_round_trips_and_rejects_fabrication
         &result,
         &context,
     );
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let did = result.panel_did().unwrap();
     assert!((did.effect - 2.0).abs() < 1e-12);
     let interval = did.interval_95.expect("30 independent clusters in every cell");
@@ -272,8 +272,8 @@ fn repeated_cross_section_did_runs_through_study_and_prepared_routes() {
     assert_eq!(estimate.comparison_subjects, 4);
     assert_eq!(estimate.clusters, 8);
     assert_eq!(estimate.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     for required in ["parallel_trends", "repeated_cross_section"] {
         assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
             &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == required
@@ -387,8 +387,8 @@ fn staggered_group_time_runs_as_retained_native_study() {
     assert_eq!(estimate.treated_subjects, 4);
     assert_eq!(estimate.comparison_subjects, 4);
     assert_eq!(estimate.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     for required in
         ["cohort_specific_parallel_untreated_trends", "never_treated_controls_are_valid"]
     {
@@ -459,8 +459,8 @@ fn staggered_event_study_retains_full_curve_and_refuses_missing_controls() {
         vec![0.0, 4.0, 4.0]
     );
     assert_eq!(panel.event_time_effects[1].standard_error, 0.0);
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == "cohort_specific_parallel_untreated_trends"
     )));
@@ -610,7 +610,7 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
         "event_time_pointwise_normal_intervals_independent_clusters"
     );
     let bounds = did.interval_95.expect("published representative post-adoption interval");
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let bytes =
         prepared.encode_contracted_result(&result, "supported-staggered-event", &context).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
@@ -650,7 +650,7 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
         .prepare(&context)
         .unwrap();
     let thin_result = thin_prepared.estimate(&thin_data, &context).unwrap();
-    assert_eq!(thin_result.support_status, None);
+    assert_eq!(thin_result.support_status(), None);
     assert_eq!(thin_result.panel_did().unwrap().interval_95, None);
     let thin_bytes = thin_prepared
         .encode_contracted_result(&thin_result, "thin-staggered-event", &context)
@@ -698,16 +698,16 @@ fn staggered_event_known_truth_fixture_spans_thin_and_supported_clusters() {
                 panel.uncertainty.as_ref(),
                 "event_time_pointwise_normal_intervals_independent_clusters"
             );
-            assert!(result.estimate.as_effect().unwrap().se_analytic() > 0.0);
+            assert!(result.estimate().as_effect().unwrap().se_analytic() > 0.0);
             assert_ne!(
-                result.interval.as_ref().unwrap().method,
+                result.interval().as_ref().unwrap().method,
                 antecedent_core::IntervalMethod::None
             );
         } else {
             assert!(panel.event_time_intervals_95.iter().all(Option::is_none));
             assert_eq!(panel.interval_95, None);
             assert_eq!(panel.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
-            assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+            assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
         }
         let bytes = prepared
             .encode_contracted_result(&result, "staggered-event-interval", &context)
@@ -735,7 +735,7 @@ fn licensed_staggered_event_study_publishes_its_own_matrix_coordinate() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     let contract = prepared.contract_for_result(&result).unwrap();
     match &contract.reasoning.support {
         antecedent_contract::SlotAvailability::Available(slot) => assert_eq!(

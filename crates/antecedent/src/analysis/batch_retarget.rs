@@ -1132,15 +1132,15 @@ fn max_t_critical_value_with_df(
     }
     // The draws' maxima are held to take their empirical quantile: charge them to the
     // context's memory budget instead of capping the count by a literal.
-    let _maxima = ctx.acquire_admission_product(0, u64::from(draws), MAX_T_BYTES_PER_DRAW).map_err(
-        |error| match error {
+    let _maxima = ctx
+        .acquire_admission_product(0, u64::from(draws), MAX_T_BYTES_PER_DRAW)
+        .map_err(|error| match error {
             antecedent_core::execution::AdmissionError::Cancelled => cancelled(),
             other => invalid(
                 "batch_retarget.max_t_draws_out_of_range",
                 format!("{draws} draws exceed the execution context's memory budget: {other}"),
             ),
-        },
-    )?;
+        })?;
     let dim = correlation.dim;
     let well_formed = dim > 0
         && correlation.values.len() == dim * dim

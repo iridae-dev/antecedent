@@ -188,8 +188,7 @@ fn fit_spline_mean(columns: &[Vec<f64>], v: usize, parents: &[usize]) -> Option<
     let mut scales = Vec::with_capacity(p);
     for &j in parents {
         let mean = compensated_sum(columns[j].iter().copied()) / nf;
-        let sd =
-            (compensated_sum(columns[j].iter().map(|x| (x - mean) * (x - mean))) / nf).sqrt();
+        let sd = (compensated_sum(columns[j].iter().map(|x| (x - mean) * (x - mean))) / nf).sqrt();
         centers.push(mean);
         scales.push(if sd.is_finite() && sd > 1e-12 { sd } else { 1.0 });
     }

@@ -89,8 +89,9 @@ pub(super) fn estimator_route(cx: &SealContext<'_>) -> SealOutcome {
         }
     }
     let estimator = source
+        .declared
         .estimator
-        .or_else(|| source.estimator_spec.as_deref().map(crate::EstimatorSpec::id))
+        .or_else(|| source.declared.estimator_spec.as_deref().map(crate::EstimatorSpec::id))
         .or_else(|| binding.estimator.named());
     // A graph posterior no specialised sealer claims is answered atom by atom by the compiled
     // route of its cell, whichever estimator its atoms' explicit cells name.

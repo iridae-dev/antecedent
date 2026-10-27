@@ -128,7 +128,7 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
                     assert!(plan.identified_mass > 0.0);
 
                     let result = prepared.estimate_series(&data, &ctx).unwrap();
-                    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+                    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
                     let true_effect = truth(&graph, multi_step);
                     let mixture = result
                         .structural_response
@@ -153,7 +153,7 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
                         );
                     }
                     let standard_error = result
-                        .estimate
+                        .estimate()
                         .as_effect()
                         .unwrap()
                         .se_bootstrap()

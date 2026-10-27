@@ -139,10 +139,11 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             }
             other => panic!("expected retained checked IV operation, got {other:?}"),
         }
-        let declared_spec = prepared.analysis.estimator_spec.clone();
-        prepared.analysis.estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
-            Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
-        )));
+        let declared_spec = prepared.analysis.declared.estimator_spec.clone();
+        prepared.analysis.declared.estimator_spec =
+            Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(Box::new(
+                antecedent_estimate::LinearAdjustmentAte::new(),
+            ))));
         let result = prepared.estimate(&data(0.0), &context).unwrap();
         assert!(
             (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.15,
@@ -154,7 +155,7 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             Some(AnalyticSeKind::Hc1)
         );
         // A rebound branch is derived from the declared study, which names the selected fitter.
-        prepared.analysis.estimator_spec = declared_spec;
+        prepared.analysis.declared.estimator_spec = declared_spec;
         let refreshed =
             crate::analysis::prepared::rebind_estimate(&mut prepared, data(0.4), &context).unwrap();
         assert!(
@@ -173,7 +174,9 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             PreparedExecution::Iv(CheckedIvOperation::TwoSls { fitter, .. }) if !is_wald => {
                 assert_eq!(fitter.inference.se_kind, AnalyticSeKind::Hc1);
             }
-            other => panic!("rebound branch must keep the selected checked IV fitter, got {other:?}"),
+            other => {
+                panic!("rebound branch must keep the selected checked IV fitter, got {other:?}")
+            }
         }
         prepared.study_mut().unwrap().query =
             crate::CausalQuery::AverageEffect(AverageEffectQuery::with_levels(

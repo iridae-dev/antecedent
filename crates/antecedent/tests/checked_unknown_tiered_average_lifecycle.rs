@@ -83,16 +83,16 @@ fn unknown_tiered_average_lifecycle_body() {
     drop(builder);
 
     let first = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(first.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(first.support_status().unwrap().as_str(), "licensed");
     assert_eq!(format!("{:?}", first.identification.status), "GraphDependent");
     assert!(
-        first.estimate.as_effect().unwrap().ate.is_nan(),
+        first.estimate().as_effect().unwrap().ate.is_nan(),
         "ambiguous scenarios must not be collapsed to a scalar ATE"
     );
     let values =
-        first.estimate.as_effect().unwrap().scenarios.effects.as_ref().expect("scenario values");
+        first.estimate().as_effect().unwrap().scenarios.effects.as_ref().expect("scenario values");
     let covariance = first
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .joint
@@ -100,7 +100,7 @@ fn unknown_tiered_average_lifecycle_body() {
         .as_ref()
         .expect("shared joint covariance");
     let bands = first
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .scenarios
@@ -124,12 +124,12 @@ fn unknown_tiered_average_lifecycle_body() {
 
     let refreshed_data = unknown_data(4_000, 23, 0.7);
     let refreshed = rebind_estimate(&mut prepared, refreshed_data, &ctx).unwrap();
-    assert!(refreshed.estimate.as_effect().unwrap().ate.is_nan());
+    assert!(refreshed.estimate().as_effect().unwrap().ate.is_nan());
     assert_eq!(
-        refreshed.estimate.as_effect().unwrap().scenarios.effects.as_ref().unwrap().len(),
+        refreshed.estimate().as_effect().unwrap().scenarios.effects.as_ref().unwrap().len(),
         2
     );
-    assert!(refreshed.estimate.as_effect().unwrap().joint.covariance.is_some());
+    assert!(refreshed.estimate().as_effect().unwrap().joint.covariance.is_some());
 
     let artifact =
         prepared.encode_contracted_result(&refreshed, "unknown-tiered-average", &ctx).unwrap();

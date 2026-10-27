@@ -170,7 +170,7 @@ impl SealedOperation for CheckedCellAipwResponseOperation {
         notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let rebound =
-            self.refresh(&handle.analysis.graph, handle.analysis.tiered.as_ref(), data)?;
+            self.refresh(&handle.analysis.graph, handle.analysis.declared.tiered.as_ref(), data)?;
         let result = handle.analysis.execute_checked_cell_aipw_response(
             data,
             &handle.plan,

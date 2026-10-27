@@ -589,7 +589,7 @@ fn temporal_coverage(test: &'static str, query: &antecedent_core::TemporalEffect
             .ok()?;
         let result = study.run(&ExecutionContext::for_tests(scenario.seed + rep)).ok()?;
         let contract = study.inspect().ok()?;
-        let effect = result.estimate.as_effect()?;
+        let effect = result.estimate().as_effect()?;
         let (ate, se) = (effect.ate, effect.se_bootstrap());
         Some(Scored {
             reported: constructions(&contract, &result),
@@ -897,7 +897,7 @@ fn the_practitioner_study_is_a_well_posed_design() {
         .unwrap()
         .run(&ExecutionContext::for_tests(17))
         .unwrap();
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     assert!((effect.ate - TRUTH).abs() < 0.15, "ate {}", effect.ate);
     assert!(effect.se_analytic() > 0.0);
 }

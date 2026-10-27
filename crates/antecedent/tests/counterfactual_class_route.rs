@@ -179,7 +179,7 @@ fn the_frequentist_bootstrap_resamples_the_identified_functional() {
         .unwrap();
     assert!((result.effect() - truth).abs() < 5e-4);
     assert_eq!(result.effect(), point.effect(), "the bootstrap does not move the point");
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     let se = effect.se_bootstrap().expect("a bootstrap standard error");
     // The sampling standard deviation of an effect from ~60k rows is of order 1/sqrt(n).
     assert!(se > 1e-4 && se < 0.05, "{se}");
@@ -197,7 +197,7 @@ fn the_bayesian_bootstrap_posterior_centres_on_the_identified_functional() {
     let posterior = result.posterior.as_ref().expect("a posterior");
     assert_eq!(posterior.draws.n_draws, 300);
     assert!((result.effect() - truth).abs() < 0.01, "{} vs {truth}", result.effect());
-    let sd = result.estimate.as_effect().unwrap().uncertainty.analytic.se;
+    let sd = result.estimate().as_effect().unwrap().uncertainty.analytic.se;
     assert!(sd > 1e-4 && sd < 0.05, "{sd}");
     assert!(has(&result, "estimate.counterfactual.bayesian_bootstrap"));
 }
@@ -210,7 +210,7 @@ fn a_temporal_admg_reads_its_contemporaneous_projection_and_resamples_in_blocks(
     let result =
         study(data, temporal, query(2, 0), InferenceMode::Frequentist, 40).run(&ctx()).unwrap();
     assert!((result.effect() - truth).abs() < 5e-4, "{} vs {truth}", result.effect());
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     assert!(effect.se_bootstrap().is_some_and(|se| se.is_finite()));
 }
 
@@ -310,7 +310,7 @@ fn a_cpdag_whose_completions_disagree_publishes_the_mean_and_the_identified_set(
     assert!((set.upper[0] - 2.0).abs() < 0.1, "{:?}", set.upper);
     assert!(has(&result, "estimate.counterfactual.completions_disagree"));
     // No interval pools two completions' values, and no per-unit effect belongs to either.
-    assert!(!result.estimate.as_effect().unwrap().uncertainty.analytic.se.is_finite());
+    assert!(!result.estimate().as_effect().unwrap().uncertainty.analytic.se.is_finite());
     assert!(result.counterfactual().is_none());
     assert!(matches!(
         result.certificate.as_ref().map(|certificate| &certificate.identification),
@@ -370,14 +370,18 @@ fn every_class_counterfactual_publishes_an_artifact_a_consumer_reads() {
     ] {
         let cases = [
             ("admg", study(front.clone(), front_door_admg(), query(2, 0), inference.clone(), 0)),
-            ("temporal-admg", study(front.clone(), temporal.clone(), query(2, 0), inference.clone(), 0)),
+            (
+                "temporal-admg",
+                study(front.clone(), temporal.clone(), query(2, 0), inference.clone(), 0),
+            ),
             ("pag", study(pag_data.clone(), pag.clone(), query(2, 1), inference.clone(), 0)),
             ("cpdag", study(chain_table(), cpdag.clone(), query(1, 0), inference.clone(), 0)),
         ];
         for (class, built) in cases {
             let label = format!("{class} {mode}");
             let prepared = built.prepare(&ctx()).unwrap_or_else(|e| panic!("{label}: {e}"));
-            let result = prepared.estimate_retained(&ctx()).unwrap_or_else(|e| panic!("{label}: {e}"));
+            let result =
+                prepared.estimate_retained(&ctx()).unwrap_or_else(|e| panic!("{label}: {e}"));
             let artifact = prepared
                 .encode_contracted_result(&result, &format!("class-counterfactual-{class}"), &ctx())
                 .unwrap_or_else(|e| panic!("{label}: {e}"));

@@ -57,11 +57,11 @@ impl CheckedStaticClassResponse {
         };
         study.plain_fixed_route()
             && matches!(study.graph.class(), GraphClass::Cpdag | GraphClass::Pag)
-            && study.refute == RefuteSuite::None
+            && study.settings.refute == RefuteSuite::None
             && class_aware_response_supported(query)
             && mean_all_observed(&query.outcome_functional, &query.target_population)
-            && study.estimator.is_none_or(|id| {
-                id == EstimatorId::static_response_for(&query.functional, &study.inference)
+            && study.declared.estimator.is_none_or(|id| {
+                id == EstimatorId::static_response_for(&query.functional, &study.settings.inference)
             })
     }
 
@@ -181,7 +181,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         if self.graph.class() != operation.graph_class()
             || self.graph_posterior.is_some()
-            || self.tiered.is_some()
+            || self.declared.tiered.is_some()
         {
             return Err(CausalError::Compile {
                 message:
@@ -192,14 +192,16 @@ impl super::Study {
         let mut bound = self.clone();
         bound.data = DataInput::Tabular(data.clone());
         bound.query = CausalQuery::Response(operation.query().clone());
-        bound.inference = operation.inference().clone();
-        bound.refute = operation.validation();
-        bound.estimator = Some(operation.procedure().1);
-        bound.identifier = Some(operation.procedure().0);
-        bound.custom_validators = Vec::new();
+        bound.settings.inference = operation.inference().clone();
+        bound.settings.refute = operation.validation();
+        bound.declared.estimator = Some(operation.procedure().1);
+        bound.declared.identifier = Some(operation.procedure().0);
+        bound.declared.custom_validators = Vec::new();
         match operation.identification() {
             StaticClassIdentification::Cpdag(cache) => {
-                bound.install_identification(crate::analysis::IdentificationCache::Cpdag(Arc::clone(cache)));
+                bound.install_identification(crate::analysis::IdentificationCache::Cpdag(
+                    Arc::clone(cache),
+                ));
                 if bound.graph.as_cpdag().is_none() {
                     return Err(CausalError::Compile {
                         message: "checked CPDAG response requires its retained CPDAG".into(),
@@ -207,7 +209,9 @@ impl super::Study {
                 }
             }
             StaticClassIdentification::Pag(cache) => {
-                bound.install_identification(crate::analysis::IdentificationCache::Pag(Arc::clone(cache)));
+                bound.install_identification(crate::analysis::IdentificationCache::Pag(
+                    Arc::clone(cache),
+                ));
                 if operation.physical().static_pag().is_none() {
                     return Err(CausalError::Compile {
                         message: "checked PAG response requires its resolved static PAG".into(),

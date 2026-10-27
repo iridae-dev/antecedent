@@ -340,8 +340,8 @@ fn refresh_same_shape_changes_snapshot_and_expires_preview() {
     let fresh_result = fresh.estimate(&changed, &ctx).unwrap();
     assert!((refreshed.effect() - fresh_result.effect()).abs() < 1e-12);
     assert!(
-        (refreshed.estimate.as_effect().unwrap().se_analytic()
-            - fresh_result.estimate.as_effect().unwrap().se_analytic())
+        (refreshed.estimate().as_effect().unwrap().se_analytic()
+            - fresh_result.estimate().as_effect().unwrap().se_analytic())
         .abs()
             < 1e-12
     );
@@ -443,9 +443,9 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
     assert_eq!(section.target.query, consumed.body.query);
     assert_eq!(section.target.query, consumed.body.identification.query);
     assert_eq!(section.target.schema.variable_names(), names);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_finite());
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_finite());
     assert!(
-        (result.effect() - 2.0).abs() < 1.96 * result.estimate.as_effect().unwrap().se_analytic()
+        (result.effect() - 2.0).abs() < 1.96 * result.estimate().as_effect().unwrap().se_analytic()
     );
     let body = result.analysis_result_wire(prepared.query()).unwrap();
     let mut legacy = Vec::new();
@@ -482,7 +482,7 @@ fn dag_average_effect_vertical_path_binds_functional_after_retarget() {
         prepared.contract().unwrap().identities.identification_product
     );
     assert!(retargeted.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
-    assert!(retargeted.estimate.as_effect().unwrap().se_analytic().is_finite());
+    assert!(retargeted.estimate().as_effect().unwrap().se_analytic().is_finite());
     assert!((retargeted.effect() - 2.0).abs() < 0.35);
     assert!((retargeted.effect() - estimated.effect()).abs() < 1e-10);
     let bytes = prepared.encode_contracted_result(&retargeted, "dag-ate-retarget", &ctx).unwrap();
@@ -1012,10 +1012,10 @@ fn licensed_family_mediation_frequentist_consumes() {
         &ctx,
     );
     assert!(
-        (result.estimate.as_effect().unwrap().ate - pin["direct"].as_f64().unwrap()).abs()
+        (result.estimate().as_effect().unwrap().ate - pin["direct"].as_f64().unwrap()).abs()
             < pin["tolerance"].as_f64().unwrap()
     );
-    assert_eq!(consumed.body.estimate, Some(result.estimate.as_effect().unwrap().ate));
+    assert_eq!(consumed.body.estimate, Some(result.estimate().as_effect().unwrap().ate));
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
         &[std::sync::Arc::<str>::from("dependencies.checked_mediation_operation")]
@@ -2628,10 +2628,10 @@ fn licensed_family_mediation_bayesian_consumes() {
     );
     assert!(result.posterior.is_some());
     assert!(
-        (result.estimate.as_effect().unwrap().ate - pin["direct"].as_f64().unwrap()).abs()
+        (result.estimate().as_effect().unwrap().ate - pin["direct"].as_f64().unwrap()).abs()
             < pin["tolerance"].as_f64().unwrap() + 0.15
     );
-    assert_eq!(consumed.body.estimate, Some(result.estimate.as_effect().unwrap().ate));
+    assert_eq!(consumed.body.estimate, Some(result.estimate().as_effect().unwrap().ate));
 }
 
 #[test]
@@ -5049,8 +5049,8 @@ fn composition_prepared_estimate_matches_fresh() {
         study(data.clone(), dag, query).prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
     assert!((prepared_result.effect() - fresh.effect()).abs() < 1e-12);
     assert!(
-        (prepared_result.estimate.as_effect().unwrap().se_analytic()
-            - fresh.estimate.as_effect().unwrap().se_analytic())
+        (prepared_result.estimate().as_effect().unwrap().se_analytic()
+            - fresh.estimate().as_effect().unwrap().se_analytic())
         .abs()
             < 1e-12
     );
@@ -5195,9 +5195,9 @@ fn missing_row_padding_does_not_upgrade_calibration() {
         assert_eq!(artifact_analysis_n(&prepared, &result, &ctx), 100);
         (
             result.effect(),
-            result.estimate.as_effect().unwrap().se_analytic(),
+            result.estimate().as_effect().unwrap().se_analytic(),
             claim.status.to_string(),
-            result.estimate.as_effect().unwrap().provenance.n_obs,
+            result.estimate().as_effect().unwrap().provenance.n_obs,
         )
     };
     let (e0, se0, status0, n0) = run(0);
@@ -5278,12 +5278,12 @@ fn matching_missing_row_padding_does_not_upgrade_calibration() {
         assert!(basis.scope.row_count < contract.row_count || pad == 0);
         assert_eq!(
             basis.scope.row_count,
-            result.estimate.as_effect().unwrap().provenance.n_obs.unwrap()
+            result.estimate().as_effect().unwrap().provenance.n_obs.unwrap()
         );
         assert_eq!(artifact_analysis_n(&prepared, &result, &ctx), basis.scope.row_count);
         (
             result.effect(),
-            result.estimate.as_effect().unwrap().provenance.n_obs,
+            result.estimate().as_effect().unwrap().provenance.n_obs,
             basis.scope.row_count,
         )
     };
@@ -5315,7 +5315,7 @@ fn temporal_calibration_scope_uses_lag_aligned_n() {
     let result = prepared.estimate_series(&series, &ctx).unwrap();
     let contract = prepared.contract().unwrap();
     let analysis_n = result
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .provenance
@@ -5911,7 +5911,7 @@ fn nonconstant_retarget_exports_with_target_weights_identity() {
     let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
     let weights = z_weights(&data, 3.0);
     let retargeted = prepared.apply_retarget(&preview, &weights, &z, &ctx).unwrap();
-    let binding = retargeted.row_weights.clone().expect("row-weight binding");
+    let binding = retargeted.row_weights().clone().expect("row-weight binding");
     let bytes = prepared.encode_contracted_result(&retargeted, "reweight", &ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
     // The row-weight retarget is a separate composition without a checked
@@ -5962,7 +5962,7 @@ fn nonconstant_retarget_exports_with_target_weights_identity() {
     let estimated = prepared.estimate(&data, &ctx).unwrap();
     let plain = contract_of(&prepared.encode_contracted_result(&estimated, "plain", &ctx).unwrap());
     let constant = prepared.retarget(&vec![7.0; weights.len()], &[], &ctx).unwrap();
-    assert!(constant.row_weights.is_none());
+    assert!(constant.row_weights().is_none());
     let constant =
         contract_of(&prepared.encode_contracted_result(&constant, "constant", &ctx).unwrap());
     assert!(constant.identities.target_weights.is_none());
@@ -6059,7 +6059,7 @@ fn row_weights_retarget_cancellation_never_publishes_a_partial_result() {
     // Cancelled attempts leave the retained scores and exact replay unchanged.
     let again = prepared.reexecute_retarget(&carried, &ctx).unwrap();
     assert_eq!(again.effect().to_bits(), original.effect().to_bits());
-    assert_eq!(again.row_weights, original.row_weights);
+    assert_eq!(again.row_weights(), original.row_weights());
 }
 
 #[test]
@@ -6076,7 +6076,7 @@ fn row_weights_reexecute_only_on_their_own_snapshot() {
 
     let again = prepared.reexecute_retarget(&carried, &ctx).unwrap();
     assert_eq!(again.effect().to_bits(), retargeted.effect().to_bits());
-    assert_eq!(again.row_weights, retargeted.row_weights);
+    assert_eq!(again.row_weights(), retargeted.row_weights());
 
     let mut refreshed = prepared.clone();
     rebind_estimate(&mut refreshed, other_data, &ctx).unwrap();
@@ -6123,7 +6123,7 @@ fn retarget_output_admission_follows_the_shared_native_result_owner() {
     let limit = 1_000_000;
     let ctx = ExecutionContext::for_tests(17).with_memory_limit(Some(limit));
     let result = std::sync::Arc::new(prepared.retarget(&weights, &dependencies, &ctx).unwrap());
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     let inference = effect.scores.inference.as_ref().unwrap();
     let real_buffers =
         [&inference.raw_means, &inference.lower, &inference.upper, &inference.event_n_eff];
@@ -6136,7 +6136,7 @@ fn retarget_output_admission_follows_the_shared_native_result_owner() {
             + inference.support.n_eff_by_arm.capacity() * size_of::<f64>();
     let covariance_bytes =
         effect.joint.covariance.as_ref().unwrap().values.len() * size_of::<f64>();
-    let binding = result.row_weights.as_ref().unwrap();
+    let binding = result.row_weights().as_ref().unwrap();
     let weight_bytes = binding.weights.len() * size_of::<f64>()
         + binding.depends_on.len() * size_of::<VariableId>()
         + binding.identity.depends_on.capacity() * size_of::<u32>();

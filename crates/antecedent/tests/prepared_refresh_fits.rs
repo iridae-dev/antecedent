@@ -44,7 +44,8 @@ fn refresh_counts_and_matches_fresh(functional: Option<OutcomeFunctional>) -> Cr
     // Neither of these runs inside a scope, so every fit is a fresh one.
     let fresh = builder(&second, functional).build().unwrap().prepare(&ctx).unwrap();
     let expected = fresh.estimate_retained(&ctx).unwrap();
-    let (a, b) = (refreshed.estimate.as_effect().unwrap(), expected.estimate.as_effect().unwrap());
+    let (a, b) =
+        (refreshed.estimate().as_effect().unwrap(), expected.estimate().as_effect().unwrap());
     assert_eq!(a.ate.to_bits(), b.ate.to_bits());
     assert_eq!(a.se_analytic().to_bits(), b.se_analytic().to_bits());
     assert_eq!(a.scores.table, b.scores.table);

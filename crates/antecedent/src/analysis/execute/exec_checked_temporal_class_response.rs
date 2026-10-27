@@ -17,13 +17,13 @@ impl super::Study {
         let mut bound = self.clone();
         bound.graph = Arc::new(operation.source_graph().clone());
         bound.graph_posterior = None;
-        bound.tiered = None;
+        bound.declared.tiered = None;
         bound.query = CausalQuery::Response(operation.query().clone());
-        bound.install_identification(crate::analysis::IdentificationCache::TemporalClass(Arc::clone(
-            operation.bundle(),
-        )));
+        bound.install_identification(crate::analysis::IdentificationCache::TemporalClass(
+            Arc::clone(operation.bundle()),
+        ));
         operation.frozen().bind_study(&mut bound);
-        bound.class_prior = operation.class_prior().cloned();
+        bound.declared.class_prior = operation.class_prior().cloned();
         bound.execute_temporal_class_response(data, operation.query(), operation.physical(), ctx)
     }
 }

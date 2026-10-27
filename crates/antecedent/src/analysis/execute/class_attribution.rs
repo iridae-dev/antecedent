@@ -271,7 +271,7 @@ impl super::Study {
     /// The members of a static structure class.
     fn static_class_members(&self, ctx: &ExecutionContext) -> Result<ClassMembers, CausalError> {
         let targets = self.class_attribution_targets()?;
-        let cap = self.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
+        let cap = self.declared.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
         match self.graph.graph_ref() {
             GraphRef::Admg(admg) => Ok(ClassMembers {
                 members: vec![Member { weight: 1.0, kind: mixed_member(admg, &targets)? }],
@@ -346,7 +346,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<ClassMembers, CausalError> {
         let targets = self.class_attribution_targets()?;
-        let cap = self.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
+        let cap = self.declared.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
         match self.graph.graph_ref() {
             GraphRef::TemporalAdmg(template) => Ok(ClassMembers {
                 members: vec![Member {
@@ -821,7 +821,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<ClassMembers, CausalError> {
         let targets = self.class_attribution_targets()?;
-        let cap = self.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
+        let cap = self.declared.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
         let n_vars = gp.n_vars();
         let mut mass: std::collections::HashMap<u64, f64> = std::collections::HashMap::new();
         let mut firsts: Vec<usize> = Vec::new();

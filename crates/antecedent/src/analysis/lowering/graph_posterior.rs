@@ -129,7 +129,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
     };
     let physical = PhysicalLayer { operators: Arc::<[PhysicalOperator]>::from(Vec::new()), design };
     let claim = ClaimDemand {
-        uncertainty: match (&statistical.realization, &study.inference) {
+        uncertainty: match (&statistical.realization, &study.settings.inference) {
             (Realization::Envelope(_), _) => UncertaintyReading::Envelope,
             (_, InferenceMode::Bayesian(_)) => UncertaintyReading::Posterior,
             (_, InferenceMode::Frequentist) => UncertaintyReading::Sampling,
@@ -280,7 +280,7 @@ fn problem_target(
     }
     let Some(schema) = schema(study) else { return functional(fallback) };
     let model = ModelAssumptions::new(family, AssumptionSet::new());
-    let inference = if study.inference.is_bayesian() {
+    let inference = if study.settings.inference.is_bayesian() {
         InferenceSelection::Bayesian
     } else {
         InferenceSelection::Frequentist
@@ -683,9 +683,9 @@ fn statistical_program(inputs: &ProgramInputs<'_>) -> Result<StatisticalProgram,
     let mut program = StatisticalProgram::declared(DeclaredProgram {
         identifier,
         estimator,
-        inference: &study.inference,
-        bootstrap_replicates: study.bootstrap_replicates,
-        sampling_design: study.sampling_design,
+        inference: &study.settings.inference,
+        bootstrap_replicates: study.settings.bootstrap_replicates,
+        sampling_design: study.declared.sampling_design,
         design,
         operators: Vec::new(),
     })?;
@@ -700,7 +700,7 @@ fn statistical_program(inputs: &ProgramInputs<'_>) -> Result<StatisticalProgram,
     // of calendar time, shared across every atom.
     if is_series(cell)
         && !matches!(study.data, DataInput::Tabular(_))
-        && study.sampling_design.is_none()
+        && study.declared.sampling_design.is_none()
     {
         if let Some(plan) = program.resampling.as_mut() {
             plan.method = ResamplingMethod::BlockBootstrap;
@@ -710,7 +710,7 @@ fn statistical_program(inputs: &ProgramInputs<'_>) -> Result<StatisticalProgram,
     let structure = structure_prior_name(posterior);
     let declared = program.posterior.take();
     let per_atom = declared.as_ref().map(|plan| plan.algorithm.as_str());
-    program.posterior = Some(match &study.inference {
+    program.posterior = Some(match &study.settings.inference {
         InferenceMode::Bayesian(config) => PosteriorPlan {
             algorithm: PosteriorAlgorithm::AtomMixture,
             draws: config.n_draws,

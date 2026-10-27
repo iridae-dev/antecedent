@@ -514,18 +514,19 @@ impl<'a> EffectRunConfig<'a> {
                 overlap_policy: Some(operation.overlap()),
                 population_registry: operation
                     .population_registry()
-                    .or(study.population_registry.as_ref()),
+                    .or(study.declared.population_registry.as_ref()),
                 custom_validators: &[],
                 spec: operation.procedure().clone(),
             },
             None => Self {
                 latency_mode: study.latency_mode,
-                refute: study.refute,
-                bootstrap_replicates: study.bootstrap_replicates,
-                overlap_policy: study.overlap_policy,
-                population_registry: study.population_registry.as_ref(),
-                custom_validators: &study.custom_validators,
+                refute: study.settings.refute,
+                bootstrap_replicates: study.settings.bootstrap_replicates,
+                overlap_policy: study.declared.overlap_policy,
+                population_registry: study.declared.population_registry.as_ref(),
+                custom_validators: &study.declared.custom_validators,
                 spec: study
+                    .declared
                     .estimator_spec
                     .as_deref()
                     .cloned()
@@ -1150,7 +1151,8 @@ impl super::Study {
         let (data_est, query_est, estimand_est) = project_for_ate_estimate(data, query, &estimand)?;
         let projected_cols = data_est.schema().len();
 
-        let inference = checked_operation.map_or(&self.inference, |operation| &operation.inference);
+        let inference =
+            checked_operation.map_or(&self.settings.inference, |operation| &operation.inference);
         let cfg = match inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
@@ -1257,7 +1259,7 @@ impl super::Study {
         background: &antecedent_graph::TieredBackground,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let InferenceMode::Bayesian(cfg) = &self.inference else {
+        let InferenceMode::Bayesian(cfg) = &self.settings.inference else {
             return Err(CausalError::unsupported_inference(
                 "tiered Bayesian average requires inference=Bayesian",
             ));
@@ -1380,8 +1382,8 @@ impl super::Study {
         query: &AverageEffectQuery,
         cfg: &crate::inference::BayesianConfig,
     ) -> Result<(), CausalError> {
-        if self.refute != RefuteSuite::None
-            || !self.custom_validators.is_empty()
+        if self.settings.refute != RefuteSuite::None
+            || !self.declared.custom_validators.is_empty()
             || !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
             || !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
         {
@@ -1557,16 +1559,16 @@ impl super::Study {
             estimator_id,
         } = *input;
         let mut refute_ws = EstimationWorkspace::default();
-        let (mut refutations, na_diagnostics) = match self.refute {
+        let (mut refutations, na_diagnostics) = match self.settings.refute {
             RefuteSuite::None => (Vec::new(), Vec::new()),
             RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => RefutationRun {
                 data: data_est,
                 estimand: estimand_est,
                 query: query_est,
                 estimate,
-                suite: self.refute,
+                suite: self.settings.refute,
                 estimator: estimator_id.as_str(),
-                custom: &self.custom_validators,
+                custom: &self.declared.custom_validators,
                 temporal: None,
             }
             .reports(&mut refute_ws, None, ctx)?,
@@ -1574,7 +1576,7 @@ impl super::Study {
         extra_diagnostics.extend(na_diagnostics);
         // Prior + posterior PPC whenever refute is enabled (full PredictiveCheckReport retained).
         let mut predictive_checks = Vec::new();
-        if !matches!(self.refute, RefuteSuite::None) {
+        if !matches!(self.settings.refute, RefuteSuite::None) {
             const PPC_ALPHA: f64 = 0.05;
             let sims = super::super::latency::predictive_check_sims(self.latency_mode);
             let ppc_prior = est.prior_in_force(prep.design.ncols);
@@ -1595,7 +1597,7 @@ impl super::Study {
         // Prior sensitivity / MCMC stay behind the full suite (Shared Bayesian UX).
         // Mode-select: α-multiplier grid when an external composed prior is present;
         // isotropic scale grid otherwise (avoids clearing banked priors).
-        if matches!(self.refute, RefuteSuite::Full) {
+        if matches!(self.settings.refute, RefuteSuite::Full) {
             let (summary, sens) =
                 evaluate_bayesian_prior_sensitivity(cfg, est, prep, status, &posterior, ws, ctx)?;
             refutations.push(sens.to_report(&summary, estimate.ate));
@@ -1625,7 +1627,7 @@ impl super::Study {
             envelope,
             envelope_diagnostic,
         } = run;
-        let cfg = match &self.inference {
+        let cfg = match &self.settings.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
                 return Err(CausalError::unsupported_inference(
@@ -1871,15 +1873,15 @@ impl super::Study {
     {
         let PagEnvelopeValidationInput { data, query, estimate, cfg, est, estimator_id } = *input;
         let mut refute_ws = EstimationWorkspace::default();
-        let mut refutations = match self.refute {
+        let mut refutations = match self.settings.refute {
             RefuteSuite::None => Vec::new(),
             RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
                 let (reports, mix_diagnostics) = EnvelopeRefutation {
                     data,
                     query,
-                    suite: self.refute,
+                    suite: self.settings.refute,
                     estimator: estimator_id.as_str(),
-                    custom: &self.custom_validators,
+                    custom: &self.declared.custom_validators,
                     temporal: None,
                 }
                 .run(&envelope_refute_atoms(atoms)?, &mut refute_ws, ctx)?;
@@ -1888,7 +1890,7 @@ impl super::Study {
             }
         };
         let predictive_checks = run_envelope_bayesian_full_validation(
-            BayesianValidation { suite: self.refute, cfg, estimator: est },
+            BayesianValidation { suite: self.settings.refute, cfg, estimator: est },
             atoms,
             posterior,
             estimate.ate,
@@ -1923,7 +1925,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let cfg = match &self.inference {
+        let cfg = match &self.settings.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
                 return Err(CausalError::unsupported_inference(
@@ -2225,7 +2227,7 @@ impl super::Study {
             graph_dependent,
         } = *input;
         let mut refute_ws = EstimationWorkspace::default();
-        let mut refutations = match self.refute {
+        let mut refutations = match self.settings.refute {
             RefuteSuite::None => Vec::new(),
             RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
                 let refute_atoms = envelope_refute_atoms(atoms)?;
@@ -2239,9 +2241,9 @@ impl super::Study {
                     let (atom_reports, mut notes) = EnvelopeRefutation {
                         data,
                         query,
-                        suite: self.refute,
+                        suite: self.settings.refute,
                         estimator: "bayesian.gcomp",
-                        custom: &self.custom_validators,
+                        custom: &self.declared.custom_validators,
                         temporal: None,
                     }
                     .run(group, &mut refute_ws, ctx)?;
@@ -2268,7 +2270,7 @@ impl super::Study {
                 let mut atom_posterior = atom.posterior.clone();
                 let atom_effect = effect_from_posterior(&atom_posterior)?.ate;
                 checks.extend(run_envelope_bayesian_full_validation(
-                    BayesianValidation { suite: self.refute, cfg, estimator: est },
+                    BayesianValidation { suite: self.settings.refute, cfg, estimator: est },
                     std::slice::from_ref(atom),
                     &mut atom_posterior,
                     atom_effect,
@@ -2280,7 +2282,7 @@ impl super::Study {
             checks
         } else {
             run_envelope_bayesian_full_validation(
-                BayesianValidation { suite: self.refute, cfg, estimator: est },
+                BayesianValidation { suite: self.settings.refute, cfg, estimator: est },
                 atoms,
                 posterior,
                 estimate_ate,
@@ -2341,7 +2343,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if checked.is_none() && !self.inference.is_frequentist() {
+        if checked.is_none() && !self.settings.inference.is_frequentist() {
             return Err(CausalError::unsupported_inference(
                 "execute_graph_posterior_frequentist requires inference=Frequentist",
             ));
@@ -2576,7 +2578,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if query.is_multi_step_sustained() && self.split.is_some() {
+        if query.is_multi_step_sustained() && self.declared.split.is_some() {
             return Err(CausalError::Unsupported {
                 message: "multi-step sustained g-computation currently requires no discovery-estimation split",
             });
@@ -2634,7 +2636,9 @@ impl super::Study {
             .identify_cached(identify_cached)
             .refutations(refutations)
             .wall_time_ns(elapsed_ns(started))
-            .bootstrap_replicates_ok((self.bootstrap_replicates > 0).then_some(block.completed))
+            .bootstrap_replicates_ok(
+                (self.settings.bootstrap_replicates > 0).then_some(block.completed),
+            )
             .cancelled(ctx.cancellation.is_cancelled())
             .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids(
@@ -2775,7 +2779,7 @@ impl super::Study {
             &atoms.designs.iter().collect::<Vec<_>>(),
             &weights,
             gp.max_lag().unwrap_or(1) as usize + 1,
-            self.bootstrap_replicates,
+            self.settings.bootstrap_replicates,
             0xDBF0_0000,
             ctx,
         );
@@ -2796,8 +2800,8 @@ impl super::Study {
             f64::NAN,
             BootstrapAccounting {
                 se: se.is_finite().then_some(se),
-                replicates_ok: (self.bootstrap_replicates > 0).then_some(block.completed),
-                replicates_failed: (self.bootstrap_replicates > 0)
+                replicates_ok: (self.settings.bootstrap_replicates > 0).then_some(block.completed),
+                replicates_failed: (self.settings.bootstrap_replicates > 0)
                     .then_some(block.attempted.saturating_sub(block.completed)),
                 cancelled: ctx.cancellation.is_cancelled(),
                 early_stopped: false,
@@ -2837,61 +2841,62 @@ impl super::Study {
             .collect::<Vec<_>>();
         let tabular = TabularData::new(data.storage().clone());
         let ate_query = temporal_refuter_average(query);
-        let (refutations, diagnostics) =
-            if self.refute == RefuteSuite::None && self.custom_validators.is_empty() {
-                (Vec::new(), Vec::new())
-            } else if query.is_multi_step_sustained() {
-                let validation_atoms = contexts
-                    .iter()
-                    .zip(atom_estimates)
-                    .map(|((atom, weight), original)| {
-                        Ok(SequentialValidationAtom {
-                            weight: *weight,
-                            graph: crate::analysis::prepared::temporal_dag_from_dbn_atom(
-                                gp, atom.key, vars,
-                            )?,
-                            indexer: atom.indexer.clone(),
-                            estimand: atom.estimand.clone(),
-                            status: atom.identification.status,
-                            estimate: original.clone(),
-                            mechanisms: Vec::new(),
-                        })
+        let (refutations, diagnostics) = if self.settings.refute == RefuteSuite::None
+            && self.declared.custom_validators.is_empty()
+        {
+            (Vec::new(), Vec::new())
+        } else if query.is_multi_step_sustained() {
+            let validation_atoms = contexts
+                .iter()
+                .zip(atom_estimates)
+                .map(|((atom, weight), original)| {
+                    Ok(SequentialValidationAtom {
+                        weight: *weight,
+                        graph: crate::analysis::prepared::temporal_dag_from_dbn_atom(
+                            gp, atom.key, vars,
+                        )?,
+                        indexer: atom.indexer.clone(),
+                        estimand: atom.estimand.clone(),
+                        status: atom.identification.status,
+                        estimate: original.clone(),
+                        mechanisms: Vec::new(),
                     })
-                    .collect::<Result<Vec<_>, CausalError>>()?;
-                let (reports, notes, _) = validate_sequential(
-                    SequentialValidation {
-                        data,
-                        query,
-                        suite: self.refute,
-                        custom: &self.custom_validators,
-                        predictive_sims: super::super::latency::predictive_check_sims(
-                            self.latency_mode,
-                        ),
-                        gaps,
-                    },
-                    &validation_atoms,
-                    None,
-                    None,
-                    estimate_ate,
-                    ctx,
-                )?;
-                (reports, notes)
-            } else {
-                EnvelopeRefutation {
-                    data: &tabular,
-                    query: &ate_query,
-                    suite: self.refute,
-                    estimator: "temporal.linear.adjustment",
-                    custom: &self.custom_validators,
-                    temporal: Some(TemporalRefutation {
-                        query,
-                        split: self.split.as_ref(),
-                        time_index: data.time_index(),
-                        gaps,
-                    }),
-                }
-                .run(&refute_atoms, &mut EstimationWorkspace::default(), ctx)?
-            };
+                })
+                .collect::<Result<Vec<_>, CausalError>>()?;
+            let (reports, notes, _) = validate_sequential(
+                SequentialValidation {
+                    data,
+                    query,
+                    suite: self.settings.refute,
+                    custom: &self.declared.custom_validators,
+                    predictive_sims: super::super::latency::predictive_check_sims(
+                        self.latency_mode,
+                    ),
+                    gaps,
+                },
+                &validation_atoms,
+                None,
+                None,
+                estimate_ate,
+                ctx,
+            )?;
+            (reports, notes)
+        } else {
+            EnvelopeRefutation {
+                data: &tabular,
+                query: &ate_query,
+                suite: self.settings.refute,
+                estimator: "temporal.linear.adjustment",
+                custom: &self.declared.custom_validators,
+                temporal: Some(TemporalRefutation {
+                    query,
+                    split: self.declared.split.as_ref(),
+                    time_index: data.time_index(),
+                    gaps,
+                }),
+            }
+            .run(&refute_atoms, &mut EstimationWorkspace::default(), ctx)?
+        };
         Ok((refutations, diagnostics))
     }
 
@@ -2920,7 +2925,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let cfg = match &self.inference {
+        let cfg = match &self.settings.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
                 return Err(CausalError::unsupported_inference(
@@ -3035,7 +3040,7 @@ impl super::Study {
         &self,
         cfg: &crate::inference::BayesianConfig,
     ) -> Result<(), CausalError> {
-        if self.split.is_some() {
+        if self.declared.split.is_some() {
             return Err(CausalError::Unsupported {
                 message: "multi-step sustained g-computation currently requires no discovery-estimation split",
             });
@@ -3124,7 +3129,7 @@ impl super::Study {
                 antecedent_estimate::SequentialInference {
                     status: identification.status,
                     assumptions,
-                    bootstrap_replicates: self.bootstrap_replicates,
+                    bootstrap_replicates: self.settings.bootstrap_replicates,
                     bayesian: sequential_bayes,
                 },
                 ctx,
@@ -3178,7 +3183,14 @@ impl super::Study {
                 .map(|(prep, selection)| (prep, Some(selection)))
         } else {
             temporal_est
-                .prepare(data, &estimand, query, &indexer, self.split.as_ref(), &ctx.kernel_policy)
+                .prepare(
+                    data,
+                    &estimand,
+                    query,
+                    &indexer,
+                    self.declared.split.as_ref(),
+                    &ctx.kernel_policy,
+                )
                 .map(|prep| (prep, None))
         };
         let Ok((prep, selection)) = prepared else {
@@ -3259,8 +3271,8 @@ impl super::Study {
                 SequentialValidation {
                     data,
                     query,
-                    suite: self.refute,
-                    custom: &self.custom_validators,
+                    suite: self.settings.refute,
+                    custom: &self.declared.custom_validators,
                     predictive_sims: super::super::latency::predictive_check_sims(
                         self.latency_mode,
                     ),
@@ -3276,12 +3288,12 @@ impl super::Study {
             let (reports, notes) = EnvelopeRefutation {
                 data: &tabular,
                 query: &ate_query,
-                suite: self.refute,
+                suite: self.settings.refute,
                 estimator: EstimatorId::BayesianTemporalGcomp.as_str(),
-                custom: &self.custom_validators,
+                custom: &self.declared.custom_validators,
                 temporal: Some(TemporalRefutation {
                     query,
-                    split: self.split.as_ref(),
+                    split: self.declared.split.as_ref(),
                     time_index: data.time_index(),
                     gaps,
                 }),
@@ -3298,7 +3310,7 @@ impl super::Study {
             sequential_predictive
         } else {
             run_envelope_bayesian_full_validation(
-                BayesianValidation { suite: self.refute, cfg, estimator },
+                BayesianValidation { suite: self.settings.refute, cfg, estimator },
                 atoms,
                 posterior,
                 estimate_ate,
@@ -3323,7 +3335,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if query.horizons.len() > 1 && self.inference.is_frequentist() {
+        if query.horizons.len() > 1 && self.settings.inference.is_frequentist() {
             return Err(CausalError::Unsupported {
                 message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
                           multi-horizon grids need their own joint uncertainty contract",
@@ -3333,7 +3345,7 @@ impl super::Study {
             return self
                 .execute_dbn_posterior_mediation_multi_horizon(data, gp, query, physical, ctx);
         }
-        if self.inference.is_frequentist() {
+        if self.settings.inference.is_frequentist() {
             return self
                 .execute_dbn_posterior_mediation_frequentist(data, gp, query, physical, ctx);
         }
@@ -3356,7 +3368,9 @@ impl super::Study {
         let (cache, _) =
             self.dbn_posterior_mediation_identification(data, gp, query, physical, ctx)?;
         let mut horizon_study = self.clone();
-        horizon_study.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::clone(&cache)));
+        horizon_study.install_identification(crate::analysis::IdentificationCache::DbnPosterior(
+            Arc::clone(&cache),
+        ));
 
         let mut slices = Vec::with_capacity(query.horizons.len());
         let mut first = None;
@@ -3486,7 +3500,7 @@ impl super::Study {
         use antecedent_estimate::bayesian_mediation::require_gaussian_mediation;
 
         let started = Instant::now();
-        let cfg = match &self.inference {
+        let cfg = match &self.settings.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
                 return Err(CausalError::unsupported_inference(
@@ -3784,18 +3798,18 @@ impl super::Study {
     {
         let DbnMediationRun { data, cfg, estimator, .. } = *run;
         let mut refutations = Vec::new();
-        if self.refute != RefuteSuite::None {
+        if self.settings.refute != RefuteSuite::None {
             let (reports, notes) = mix_dbn_mediation_refuters(
                 data,
                 refute_atoms,
-                self.refute == RefuteSuite::Full,
+                self.settings.refute == RefuteSuite::Full,
                 ctx,
             )?;
             refutations.extend(reports);
             diagnostics.extend(notes);
         }
         let predictive_checks = run_dbn_mediation_bayesian_validation(
-            BayesianValidation { suite: self.refute, cfg, estimator },
+            BayesianValidation { suite: self.settings.refute, cfg, estimator },
             refute_atoms,
             posterior,
             estimate_ate,

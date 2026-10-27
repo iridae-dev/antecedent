@@ -79,8 +79,8 @@ impl CheckedTemporalGraphPosteriorResponse {
                     | GraphPosteriorAtomKind::Cpdag
                     | GraphPosteriorAtomKind::Pag
             )
-            && study.tiered.is_none()
-            && study.custom_validators.is_empty()
+            && study.declared.tiered.is_none()
+            && study.declared.custom_validators.is_empty()
             && study.observation_delayed_entry.is_none()
             && query.is_temporal()
             // A single-horizon derivative over TemporalDag atoms is answered atom by atom with
@@ -90,20 +90,20 @@ impl CheckedTemporalGraphPosteriorResponse {
             && complete_mean_response(query)
             && temporal_response_is_direct(query)
             && matches!(
-                (&query.functional, study.refute),
+                (&query.functional, study.settings.refute),
                 (_, RefuteSuite::None)
                     | (
                         ResponseFunctional::InterventionResponse { .. },
                         RefuteSuite::Cheap | RefuteSuite::Full
                     )
             )
-            && study.identifier.is_none_or(|id| match posterior.atom_kind() {
+            && study.declared.identifier.is_none_or(|id| match posterior.atom_kind() {
                 GraphPosteriorAtomKind::Dag => id == IdentifierId::TemporalBackdoorUnfolded,
                 _ => id == IdentifierId::GeneralizedAdjustment,
             })
             && study
-                .estimator
-                .is_none_or(|id| id == EstimatorId::temporal_response_for(&study.inference))
+                .declared.estimator
+                .is_none_or(|id| id == EstimatorId::temporal_response_for(&study.settings.inference))
     }
 
     pub(crate) fn prepare(
@@ -172,13 +172,7 @@ impl CheckedTemporalGraphPosteriorResponse {
             CacheKeys::CacheLocal,
             "temporal graph-posterior identification cache does not match the frozen atoms and weights",
         )?;
-        Ok(Self {
-            posterior: Arc::new(posterior),
-            query,
-            proof,
-            class_prior,
-            frozen,
-        })
+        Ok(Self { posterior: Arc::new(posterior), query, proof, class_prior, frozen })
     }
 
     /// The frozen procedure settings sealed with the proof.

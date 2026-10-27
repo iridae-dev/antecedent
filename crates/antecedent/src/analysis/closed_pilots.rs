@@ -187,13 +187,11 @@ pub struct NestedMarkovRequest {
 fn from_estimation(error: &EstimationError) -> ClosedPilotRefusal {
     match error {
         EstimationError::Refused { code, message }
-        | EstimationError::RefusedWithFields { code, message, .. } => {
-            ClosedPilotRefusal::new(
-                code,
-                message.detail().unwrap_or("nested_markov.invalid_input"),
-                message.explanation(),
-            )
-        }
+        | EstimationError::RefusedWithFields { code, message, .. } => ClosedPilotRefusal::new(
+            code,
+            message.detail().unwrap_or("nested_markov.invalid_input"),
+            message.explanation(),
+        ),
         other => ClosedPilotRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
             "nested_markov.invalid_input",

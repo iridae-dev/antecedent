@@ -154,7 +154,7 @@ fn rep_from(result: &StudyResult, contrasts: &[(f64, Option<f64>, f64)]) -> Rep 
 }
 
 fn headline(result: &StudyResult, truth: f64) -> Rep {
-    let est = &result.estimate;
+    let est = &result.estimate();
     rep_from(
         result,
         &[(est.as_effect().unwrap().ate, est.as_effect().unwrap().se_bootstrap(), truth)],

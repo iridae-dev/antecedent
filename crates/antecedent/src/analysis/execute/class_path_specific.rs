@@ -69,7 +69,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        super::static_path::ensure_admg_path_specific_licensed(self.settings.refute)?;
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;
         require_functional_estimator(estimator_id)?;
@@ -127,7 +127,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+        super::static_path::ensure_admg_path_specific_licensed(self.settings.refute)?;
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PATH)?;
         require_functional_estimator(estimator_id)?;
@@ -219,13 +219,13 @@ impl super::Study {
             if evaluated.is_empty() {
                 assumptions = estimate.provenance.assumptions.clone();
             }
-            if self.bootstrap_replicates > 0 && !self.inference.is_bayesian() {
+            if self.settings.bootstrap_replicates > 0 && !self.settings.inference.is_bayesian() {
                 let (row_resampling, sampling_design) = match resampling {
                     Some(resampling) => resampling,
                     None => self.functional_row_resampling()?,
                 };
                 let fitter = antecedent_estimate::FunctionalEffect {
-                    bootstrap_replicates: self.bootstrap_replicates,
+                    bootstrap_replicates: self.settings.bootstrap_replicates,
                     ..antecedent_estimate::FunctionalEffect::new()
                 }
                 .with_row_resampling(row_resampling, sampling_design);
@@ -266,7 +266,9 @@ impl super::Study {
         // Completions that disagree: an Imbens-Manski interval for the identified set, from
         // every completion refit on the same resampled rows.
         if let Some(mixture) = mixture.as_mut() {
-            if self.inference.is_bayesian() && evaluated.iter().all(|(_, _, p)| p.is_some()) {
+            if self.settings.inference.is_bayesian()
+                && evaluated.iter().all(|(_, _, p)| p.is_some())
+            {
                 mixture.identified_set_interval = super::posterior_identified_set_interval(
                     evaluated.iter().filter_map(|(_, _, p)| p.as_ref()),
                     rows,

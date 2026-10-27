@@ -18,12 +18,14 @@ impl super::Study {
         let mut bound = self.clone();
         bound.query = CausalQuery::Response(operation.query().clone());
         bound.graph_posterior = Some(operation.posterior().clone());
-        bound.tiered = None;
+        bound.declared.tiered = None;
         operation.frozen().bind_study(&mut bound);
-        bound.class_prior = operation.class_prior().cloned();
+        bound.declared.class_prior = operation.class_prior().cloned();
         match operation.proof() {
             TemporalPosteriorResponseProof::Dbn(cache) => {
-                bound.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::clone(cache)));
+                bound.install_identification(crate::analysis::IdentificationCache::DbnPosterior(
+                    Arc::clone(cache),
+                ));
                 bound.execute_dbn_posterior_response(
                     data,
                     operation.posterior(),
@@ -33,7 +35,9 @@ impl super::Study {
                 )
             }
             TemporalPosteriorResponseProof::Class(cache) => {
-                bound.install_identification(crate::analysis::IdentificationCache::TemporalClassPosterior(Arc::clone(cache)));
+                bound.install_identification(
+                    crate::analysis::IdentificationCache::TemporalClassPosterior(Arc::clone(cache)),
+                );
                 bound.execute_temporal_class_graph_posterior_response(
                     data,
                     operation.posterior(),

@@ -27,12 +27,13 @@ impl Study {
         let CausalQuery::AverageEffect(query) = &analysis.query else {
             return Ok(None);
         };
-        let expected_estimator = CheckedStaticClassEffect::expected_estimator(&analysis.inference);
+        let expected_estimator =
+            CheckedStaticClassEffect::expected_estimator(&analysis.settings.inference);
         if analysis.graph_posterior.is_some()
             || !analysis.fixed_structure()
             || !mean_all_observed(&query.outcome_functional, &query.target_population)
             || !analysis.point_validation_or_placebo()
-            || !analysis.custom_validators.is_empty()
+            || !analysis.declared.custom_validators.is_empty()
             || !plan.binding().names(IdentifierId::GeneralizedAdjustment, expected_estimator)
         {
             return Ok(None);
@@ -48,9 +49,7 @@ impl Study {
                 )
             }
             GraphRef::Pag(_) => {
-                let (Some(graph), Some(cache)) =
-                    (plan.static_pag(), analysis.pag_cache())
-                else {
+                let (Some(graph), Some(cache)) = (plan.static_pag(), analysis.pag_cache()) else {
                     return Ok(None);
                 };
                 (
@@ -61,6 +60,7 @@ impl Study {
             _ => return Ok(None),
         };
         let procedure = analysis
+            .declared
             .estimator_spec
             .as_deref()
             .cloned()
@@ -72,10 +72,13 @@ impl Study {
                 identification,
                 physical: plan.clone(),
                 procedure,
-                inference: analysis.inference.clone(),
-                bootstrap_replicates: analysis.bootstrap_replicates,
-                overlap: analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
-                validation: analysis.refute,
+                inference: analysis.settings.inference.clone(),
+                bootstrap_replicates: analysis.settings.bootstrap_replicates,
+                overlap: analysis
+                    .declared
+                    .overlap_policy
+                    .unwrap_or(OverlapPolicy::ExplicitOverride),
+                validation: analysis.settings.refute,
             },
         )?))
     }
@@ -90,13 +93,13 @@ impl Study {
     ) -> bool {
         mean_all_observed(&query.outcome_functional, &query.target_population)
             && analysis.point_validation()
-            && analysis.custom_validators.is_empty()
+            && analysis.declared.custom_validators.is_empty()
     }
 
     /// Whether the builder's estimator choices resolve to exactly `estimator`.
     pub(crate) fn graph_posterior_procedure_is(analysis: &Study, estimator: EstimatorId) -> bool {
-        analysis.estimator_spec.as_deref().is_none_or(|spec| spec.id() == estimator)
-            && analysis.estimator.is_none_or(|id| id == estimator)
+        analysis.declared.estimator_spec.as_deref().is_none_or(|spec| spec.id() == estimator)
+            && analysis.declared.estimator.is_none_or(|id| id == estimator)
     }
 
     #[inline(never)]
@@ -114,7 +117,7 @@ impl Study {
         if !Self::graph_posterior_target_is_sealable(analysis, target.inner()) {
             return Ok(None);
         }
-        match (posterior.atom_kind(), &analysis.inference) {
+        match (posterior.atom_kind(), &analysis.settings.inference) {
             (antecedent_discovery::GraphPosteriorAtomKind::Dag, InferenceMode::Frequentist) => {
                 let estimator = target.frequentist_estimator();
                 if !Self::graph_posterior_procedure_is(analysis, estimator)
@@ -132,15 +135,19 @@ impl Study {
                         target,
                         identification: identification.clone(),
                         procedure: analysis
+                            .declared
                             .estimator_spec
                             .as_deref()
                             .cloned()
                             .unwrap_or(crate::EstimatorSpec::Default(estimator)),
-                        bootstrap_replicates: analysis.bootstrap_replicates,
-                        overlap: analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
-                        population_registry: analysis.population_registry.clone(),
+                        bootstrap_replicates: analysis.settings.bootstrap_replicates,
+                        overlap: analysis
+                            .declared
+                            .overlap_policy
+                            .unwrap_or(OverlapPolicy::ExplicitOverride),
+                        population_registry: analysis.declared.population_registry.clone(),
                         latency_mode: analysis.latency_mode,
-                        validation: analysis.refute,
+                        validation: analysis.settings.refute,
                     },
                 )?))
             }
@@ -160,16 +167,19 @@ impl Study {
                         posterior: posterior.clone(),
                         target,
                         identification: identification.clone(),
-                        procedure: analysis.estimator_spec.as_deref().cloned().unwrap_or(
+                        procedure: analysis.declared.estimator_spec.as_deref().cloned().unwrap_or(
                             crate::EstimatorSpec::Default(
                                 crate::strategy_table::EstimatorId::FunctionalEffect,
                             ),
                         ),
-                        bootstrap_replicates: analysis.bootstrap_replicates,
-                        overlap: analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
-                        population_registry: analysis.population_registry.clone(),
+                        bootstrap_replicates: analysis.settings.bootstrap_replicates,
+                        overlap: analysis
+                            .declared
+                            .overlap_policy
+                            .unwrap_or(OverlapPolicy::ExplicitOverride),
+                        population_registry: analysis.declared.population_registry.clone(),
                         latency_mode: analysis.latency_mode,
-                        validation: analysis.refute,
+                        validation: analysis.settings.refute,
                     },
                 )?))
             }
@@ -197,7 +207,7 @@ impl Study {
         {
             return Ok(None);
         }
-        let estimator = match &analysis.inference {
+        let estimator = match &analysis.settings.inference {
             InferenceMode::Frequentist => target.frequentist_estimator(),
             InferenceMode::Bayesian(_) => target.bayesian_estimator(),
         };
@@ -213,17 +223,21 @@ impl Study {
                 posterior: posterior.clone(),
                 target,
                 identification: identification.clone(),
-                inference: analysis.inference.clone(),
+                inference: analysis.settings.inference.clone(),
                 procedure: analysis
+                    .declared
                     .estimator_spec
                     .as_deref()
                     .cloned()
                     .unwrap_or(crate::EstimatorSpec::Default(estimator)),
-                bootstrap_replicates: analysis.bootstrap_replicates,
-                overlap: analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
-                population_registry: analysis.population_registry.clone(),
+                bootstrap_replicates: analysis.settings.bootstrap_replicates,
+                overlap: analysis
+                    .declared
+                    .overlap_policy
+                    .unwrap_or(OverlapPolicy::ExplicitOverride),
+                population_registry: analysis.declared.population_registry.clone(),
                 latency_mode: analysis.latency_mode,
-                validation: analysis.refute,
+                validation: analysis.settings.refute,
             },
         )?))
     }
@@ -237,7 +251,7 @@ impl Study {
             analysis.graph_posterior.as_ref(),
             analysis.graph_posterior_cache(),
             crate::analysis::GraphPosteriorEffectTarget::from_query(&analysis.query),
-            &analysis.inference,
+            &analysis.settings.inference,
         ) else {
             return Ok(None);
         };
@@ -254,6 +268,7 @@ impl Study {
             return Ok(None);
         }
         let procedure = analysis
+            .declared
             .estimator_spec
             .as_deref()
             .cloned()
@@ -263,11 +278,14 @@ impl Study {
                 posterior: posterior.clone(),
                 target,
                 identification: identification.clone(),
-                inference: analysis.inference.clone(),
+                inference: analysis.settings.inference.clone(),
                 procedure,
                 physical: plan.clone(),
-                validation: analysis.refute,
-                overlap: analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+                validation: analysis.settings.refute,
+                overlap: analysis
+                    .declared
+                    .overlap_policy
+                    .unwrap_or(OverlapPolicy::ExplicitOverride),
                 latency_mode: analysis.latency_mode,
             },
         )?)))
@@ -277,24 +295,22 @@ impl Study {
         analysis: &Study,
         plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<CheckedAdmgGraphPosteriorResponse>>, CausalError> {
-        let (Some(posterior), CausalQuery::Response(query), Some(identification)) = (
-            analysis.graph_posterior.as_ref(),
-            &analysis.query,
-            analysis.graph_posterior_cache(),
-        ) else {
+        let (Some(posterior), CausalQuery::Response(query), Some(identification)) =
+            (analysis.graph_posterior.as_ref(), &analysis.query, analysis.graph_posterior_cache())
+        else {
             return Ok(None);
         };
         if !matches!(
             posterior.atom_kind(),
             antecedent_discovery::GraphPosteriorAtomKind::Admg
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
-        ) || !analysis.custom_validators.is_empty()
+        ) || !analysis.declared.custom_validators.is_empty()
             || !matches!(
-                analysis.estimator_spec.as_deref().map(crate::EstimatorSpec::id),
+                analysis.declared.estimator_spec.as_deref().map(crate::EstimatorSpec::id),
                 None | Some(crate::strategy_table::EstimatorId::FunctionalEffect)
             )
             || !matches!(
-                analysis.estimator,
+                analysis.declared.estimator,
                 None | Some(crate::strategy_table::EstimatorId::FunctionalEffect)
             )
             || !plan.binding().resolves_to(
@@ -311,8 +327,8 @@ impl Study {
             query.clone(),
             identification.clone(),
             plan.clone(),
-            analysis.inference.clone(),
-            analysis.refute,
+            analysis.settings.inference.clone(),
+            analysis.settings.refute,
         )?)))
     }
 
@@ -338,21 +354,22 @@ impl Study {
             return Ok(None);
         };
         if analysis.graph_posterior.is_some()
-            || analysis.tiered.is_some()
+            || analysis.declared.tiered.is_some()
             || !analysis.fixed_structure()
-            || !analysis.custom_validators.is_empty()
-            || analysis.refute != RefuteSuite::None
+            || !analysis.declared.custom_validators.is_empty()
+            || analysis.settings.refute != RefuteSuite::None
             || analysis.observation_delayed_entry.is_some()
             || !complete_mean_response(query)
             || !crate::analysis::temporal_response_is_direct(query)
             || analysis
+                .declared
                 .identifier
                 .is_some_and(|id| id != crate::strategy_table::IdentifierId::GeneralizedAdjustment)
         {
             return Ok(None);
         }
-        let expected_estimator = EstimatorId::temporal_response_for(&analysis.inference);
-        if analysis.estimator.is_some_and(|id| id != expected_estimator) {
+        let expected_estimator = EstimatorId::temporal_response_for(&analysis.settings.inference);
+        if analysis.declared.estimator.is_some_and(|id| id != expected_estimator) {
             return Ok(None);
         }
         Ok(Some(Box::new(crate::analysis::CheckedTemporalClassResponseOperation::checked(
@@ -360,11 +377,11 @@ impl Study {
                 source_graph: (*analysis.graph).clone(),
                 query,
                 bundle: cache,
-                max_completions: analysis.max_completions,
-                inference: &analysis.inference,
-                bootstrap_replicates: analysis.bootstrap_replicates,
-                class_prior: analysis.class_prior.clone(),
-                validation: analysis.refute,
+                max_completions: analysis.declared.max_completions,
+                inference: &analysis.settings.inference,
+                bootstrap_replicates: analysis.settings.bootstrap_replicates,
+                class_prior: analysis.declared.class_prior.clone(),
+                validation: analysis.settings.refute,
                 physical: plan.clone(),
             },
         )?)))
@@ -397,8 +414,7 @@ impl Study {
             }
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag
             | antecedent_discovery::GraphPosteriorAtomKind::Pag => {
-                let Some(cache) = analysis.temporal_class_posterior_cache()
-                else {
+                let Some(cache) = analysis.temporal_class_posterior_cache() else {
                     return Ok(None);
                 };
                 crate::analysis::TemporalPosteriorResponseProof::Class(Arc::clone(cache))
@@ -411,11 +427,11 @@ impl Study {
                 query: query.clone(),
                 proof,
                 physical: plan.clone(),
-                inference: analysis.inference.clone(),
-                validation: analysis.refute,
-                bootstrap_replicates: analysis.bootstrap_replicates,
-                max_completions: analysis.max_completions,
-                class_prior: analysis.class_prior.clone(),
+                inference: analysis.settings.inference.clone(),
+                validation: analysis.settings.refute,
+                bootstrap_replicates: analysis.settings.bootstrap_replicates,
+                max_completions: analysis.declared.max_completions,
+                class_prior: analysis.declared.class_prior.clone(),
             },
         )?)))
     }
@@ -440,7 +456,7 @@ impl Study {
             &analysis.query,
             analysis.temporal_class_cache(),
             analysis.graph.class(),
-            &analysis.inference,
+            &analysis.settings.inference,
         )
         else {
             return Ok(None);
@@ -452,7 +468,11 @@ impl Study {
         let estimator = EstimatorId::temporal_effect_procedure(query, true);
         let procedure = EstimatorId::temporal_effect_procedure(query, false);
         if !plan.binding().names(identifier, estimator)
-            || !analysis.estimator_spec.as_deref().is_none_or(|spec| spec.id() == estimator)
+            || !analysis
+                .declared
+                .estimator_spec
+                .as_deref()
+                .is_none_or(|spec| spec.id() == estimator)
         {
             return Ok(None);
         }
@@ -462,20 +482,20 @@ impl Study {
                 source_graph: (*analysis.graph).clone(),
                 query,
                 bundle: cache,
-                max_completions: analysis.max_completions,
+                max_completions: analysis.declared.max_completions,
                 identifier,
                 estimator: procedure,
-                bootstrap_replicates: analysis.bootstrap_replicates,
-                split: analysis.split,
-                refute: analysis.refute,
+                bootstrap_replicates: analysis.settings.bootstrap_replicates,
+                split: analysis.declared.split,
+                refute: analysis.settings.refute,
                 custom_validators: Vec::new(),
             },
         )?;
         Ok(Some(Box::new(crate::analysis::CheckedBayesianTemporalClassEffectOperation::checked(
             target,
-            &analysis.inference,
-            analysis.refute,
-            analysis.class_prior.clone(),
+            &analysis.settings.inference,
+            analysis.settings.refute,
+            analysis.declared.class_prior.clone(),
             plan.clone(),
         )?)))
     }
@@ -513,9 +533,13 @@ impl Study {
             return Ok(None);
         };
         let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
-        let estimator = EstimatorId::temporal_effect_for(query, &analysis.inference);
+        let estimator = EstimatorId::temporal_effect_for(query, &analysis.settings.inference);
         if !plan.binding().names(identifier, estimator)
-            || !analysis.estimator_spec.as_deref().is_none_or(|spec| spec.id() == estimator)
+            || !analysis
+                .declared
+                .estimator_spec
+                .as_deref()
+                .is_none_or(|spec| spec.id() == estimator)
         {
             return Ok(None);
         }
@@ -524,12 +548,12 @@ impl Study {
                 posterior: posterior.clone(),
                 query: query.clone(),
                 proof,
-                inference: analysis.inference.clone(),
-                estimator_spec: analysis.estimator_spec.as_deref(),
-                bootstrap_replicates: analysis.bootstrap_replicates,
-                split: analysis.split,
-                max_completions: analysis.max_completions,
-                validation: analysis.refute,
+                inference: analysis.settings.inference.clone(),
+                estimator_spec: analysis.declared.estimator_spec.as_deref(),
+                bootstrap_replicates: analysis.settings.bootstrap_replicates,
+                split: analysis.declared.split,
+                max_completions: analysis.declared.max_completions,
+                validation: analysis.settings.refute,
                 physical: plan.clone(),
             },
         )?)))
@@ -557,9 +581,7 @@ impl Study {
                 )
             }
             GraphRef::Pag(_) => {
-                let (Some(graph), Some(cache)) =
-                    (plan.static_pag(), analysis.pag_cache())
-                else {
+                let (Some(graph), Some(cache)) = (plan.static_pag(), analysis.pag_cache()) else {
                     return Ok(None);
                 };
                 (
@@ -570,14 +592,18 @@ impl Study {
             _ => return Ok(None),
         };
         let expected_estimator =
-            EstimatorId::static_response_for(&query.functional, &analysis.inference);
+            EstimatorId::static_response_for(&query.functional, &analysis.settings.inference);
         let (identifier, estimator) = plan
             .binding()
             .resolve(RouteDefaults { estimator: expected_estimator, ..RouteDefaults::PAG })?;
         if identifier != IdentifierId::GeneralizedAdjustment
             || estimator != expected_estimator
-            || analysis.estimator.is_some_and(|selected| selected != estimator)
-            || analysis.estimator_spec.as_deref().is_some_and(|spec| spec.id() != estimator)
+            || analysis.declared.estimator.is_some_and(|selected| selected != estimator)
+            || analysis
+                .declared
+                .estimator_spec
+                .as_deref()
+                .is_some_and(|spec| spec.id() != estimator)
         {
             return Ok(None);
         }
@@ -589,8 +615,8 @@ impl Study {
                 physical: plan.clone(),
                 identifier,
                 estimator,
-                inference: analysis.inference.clone(),
-                validation: analysis.refute,
+                inference: analysis.settings.inference.clone(),
+                validation: analysis.settings.refute,
             },
         )?)))
     }
@@ -600,11 +626,9 @@ impl Study {
         plan: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<crate::analysis::execute::CheckedGraphPosteriorResponse>>, CausalError>
     {
-        let (Some(posterior), CausalQuery::Response(query), Some(identification)) = (
-            analysis.graph_posterior.as_ref(),
-            &analysis.query,
-            analysis.graph_posterior_cache(),
-        ) else {
+        let (Some(posterior), CausalQuery::Response(query), Some(identification)) =
+            (analysis.graph_posterior.as_ref(), &analysis.query, analysis.graph_posterior_cache())
+        else {
             return Ok(None);
         };
         let class_atoms = match posterior.atom_kind() {
@@ -613,12 +637,12 @@ impl Study {
             | antecedent_discovery::GraphPosteriorAtomKind::Pag => true,
             _ => return Ok(None),
         };
-        if analysis.tiered.is_some()
+        if analysis.declared.tiered.is_some()
             || !matches!(
-                analysis.inference,
+                analysis.settings.inference,
                 InferenceMode::Frequentist | InferenceMode::Bayesian(_)
             )
-            || !analysis.custom_validators.is_empty()
+            || !analysis.declared.custom_validators.is_empty()
             || !analysis.point_validation()
             || query.temporal.is_some()
             || !complete_mean_response(query)
@@ -628,13 +652,13 @@ impl Study {
                     | antecedent_core::ResponseFunctional::InterventionResponse { .. }
             )
             || (matches!(query.functional, antecedent_core::ResponseFunctional::MeanCurve { .. })
-                && analysis.refute != RefuteSuite::None)
+                && analysis.settings.refute != RefuteSuite::None)
         {
             return Ok(None);
         }
         crate::analysis::execute::graph_posterior_response_supported(query)?;
         let expected_estimator =
-            EstimatorId::static_response_for(&query.functional, &analysis.inference);
+            EstimatorId::static_response_for(&query.functional, &analysis.settings.inference);
         let expected_identifier = if class_atoms {
             RouteDefaults::PAG.identifier
         } else {
@@ -646,8 +670,12 @@ impl Study {
         })?;
         if identifier != expected_identifier
             || estimator != expected_estimator
-            || analysis.estimator.is_some_and(|selected| selected != estimator)
-            || analysis.estimator_spec.as_deref().is_some_and(|spec| spec.id() != estimator)
+            || analysis.declared.estimator.is_some_and(|selected| selected != estimator)
+            || analysis
+                .declared
+                .estimator_spec
+                .as_deref()
+                .is_some_and(|spec| spec.id() != estimator)
         {
             return Ok(None);
         }
@@ -659,8 +687,8 @@ impl Study {
                 physical: plan.clone(),
                 identifier,
                 estimator,
-                inference: analysis.inference.clone(),
-                validation: analysis.refute,
+                inference: analysis.settings.inference.clone(),
+                validation: analysis.settings.refute,
                 latency_mode: analysis.latency_mode,
             },
         )?)))

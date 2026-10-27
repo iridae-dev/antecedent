@@ -262,7 +262,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
     if let Some(cache) = static_cache {
         roles.bind(cache);
     }
-    let bayesian = matches!(study.inference, InferenceMode::Bayesian(_));
+    let bayesian = matches!(study.settings.inference, InferenceMode::Bayesian(_));
     let spec = configured_spec(study);
 
     let design = design_shape(cx, linear, estimator, static_cache, spec)?;
@@ -270,7 +270,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
     let mut statistical = StatisticalProgram::declared(DeclaredProgram {
         identifier,
         estimator,
-        inference: &study.inference,
+        inference: &study.settings.inference,
         bootstrap_replicates: if bayesian { 0 } else { replicates },
         sampling_design,
         design,
@@ -325,7 +325,7 @@ fn problem_target(
     schema: &CausalSchema,
 ) -> Result<ProblemTarget, CausalError> {
     let family = graph_family(study);
-    let inference = match study.inference {
+    let inference = match study.settings.inference {
         InferenceMode::Frequentist => InferenceSelection::Frequentist,
         InferenceMode::Bayesian(_) => InferenceSelection::Bayesian,
     };
@@ -427,7 +427,7 @@ fn graph_family(study: &Study) -> GraphFamily {
     let codetermined = |background: &antecedent_graph::TieredBackground| {
         background.within_tier == antecedent_graph::WithinTier::CoDetermined
     };
-    if study.tiered.as_ref().is_some_and(codetermined) {
+    if study.declared.tiered.as_ref().is_some_and(codetermined) {
         return GraphFamily::CoDetermined;
     }
     match study.graph.class() {
@@ -626,7 +626,11 @@ const fn claim_kind(status: IdentificationStatus) -> ClaimKind {
 
 /// The estimator configuration the caller supplied, when it is more than an id.
 fn configured_spec(study: &Study) -> Option<&EstimatorSpec> {
-    study.estimator_spec.as_deref().filter(|spec| !matches!(spec, EstimatorSpec::Default(_)))
+    study
+        .declared
+        .estimator_spec
+        .as_deref()
+        .filter(|spec| !matches!(spec, EstimatorSpec::Default(_)))
 }
 
 /// Replicates and sampling design of the bootstrap the route runs.
@@ -643,7 +647,7 @@ fn resampling_request(
 ) -> (u32, Option<DeclaredSamplingDesign>) {
     let declared = |declaration: SamplingDeclaration| match declaration {
         SamplingDeclaration::Declared(design) => Some(design),
-        SamplingDeclaration::Undeclared => study.sampling_design,
+        SamplingDeclaration::Undeclared => study.declared.sampling_design,
     };
     if let Some(linear) = linear {
         return (
@@ -672,21 +676,21 @@ fn resampling_request(
                 (config.inference.bootstrap_replicates, declared(config.inference.sampling_design))
             }
             EstimatorSpec::PropensityMatching(config) => {
-                (config.inference.bootstrap_replicates, study.sampling_design)
+                (config.inference.bootstrap_replicates, study.declared.sampling_design)
             }
             EstimatorSpec::DistanceMatching(config) => {
-                (config.inference.bootstrap_replicates, study.sampling_design)
+                (config.inference.bootstrap_replicates, study.declared.sampling_design)
             }
             EstimatorSpec::IvWald(config) => {
-                (config.inference.bootstrap_replicates, study.sampling_design)
+                (config.inference.bootstrap_replicates, study.declared.sampling_design)
             }
             EstimatorSpec::Iv2Sls(config) => {
-                (config.inference.bootstrap_replicates, study.sampling_design)
+                (config.inference.bootstrap_replicates, study.declared.sampling_design)
             }
             EstimatorSpec::Dml(_)
             | EstimatorSpec::DrLearner(_)
             | EstimatorSpec::CausalForest(_)
-            | EstimatorSpec::Default(_) => (0, study.sampling_design),
+            | EstimatorSpec::Default(_) => (0, study.declared.sampling_design),
         };
     }
     let unresampled = matches!(
@@ -701,7 +705,10 @@ fn resampling_request(
                 | EstimatorId::CausalForest
         )
     );
-    (if unresampled { 0 } else { study.bootstrap_replicates }, study.sampling_design)
+    (
+        if unresampled { 0 } else { study.settings.bootstrap_replicates },
+        study.declared.sampling_design,
+    )
 }
 
 /// Cross-fitting split of the estimators that fit nuisances out of fold.
@@ -710,7 +717,7 @@ fn fold_plan(
     estimator: Option<EstimatorId>,
     spec: Option<&EstimatorSpec>,
 ) -> Option<FoldPlan> {
-    let unit = ResampleUnit::of_design(study.sampling_design);
+    let unit = ResampleUnit::of_design(study.declared.sampling_design);
     let (folds, unit) = match (estimator?, spec) {
         (EstimatorId::Dml, Some(EstimatorSpec::Dml(config))) => {
             (config.folds, if config.units.spec.is_some() { ResampleUnit::Cluster } else { unit })
@@ -724,6 +731,7 @@ fn fold_plan(
             let overlap = match spec {
                 Some(EstimatorSpec::Aipw(config)) => config.overlap,
                 _ => study
+                    .declared
                     .overlap_policy
                     .unwrap_or_else(|| antecedent_estimate::AipwAte::new().overlap),
             };

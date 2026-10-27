@@ -154,7 +154,7 @@ fn complete_case_averages_responders_and_keeps_every_assignment() {
     assert_eq!(fit.treatment_units, 1_000);
     assert_eq!(fit.control_units, 1_000);
 
-    let report = result.missing_data.as_ref().unwrap();
+    let report = result.missing_data().as_ref().unwrap();
     assert!(report.declared);
     assert_eq!(report.policy(), MissingPolicy::CompleteCase);
     assert!(report.assumption.contains("missing completely at random within arm"));
@@ -189,7 +189,7 @@ fn inverse_probability_weighting_recovers_the_effect_that_complete_case_misses()
     assert!((naive.randomized_effect().unwrap().effect - TRUE_EFFECT).abs() > 0.2);
 
     // Every assigned participant stays in its arm's denominator; the assignment is unchanged.
-    let report = weighted.missing_data.as_ref().unwrap();
+    let report = weighted.missing_data().as_ref().unwrap();
     assert!(report.assumption.contains("missing at random given arm"));
     assert_eq!(&*report.covariates, [Arc::<str>::from("baseline")]);
     let accounting = &report.accounting;
@@ -216,7 +216,7 @@ fn a_complete_trial_is_unchanged_by_the_policy_and_still_reports_zero_dropped() 
         plain.randomized_effect().unwrap().effect,
         declared.randomized_effect().unwrap().effect
     );
-    let report = plain.missing_data.as_ref().unwrap();
+    let report = plain.missing_data().as_ref().unwrap();
     assert!(!report.declared);
     assert_eq!(report.accounting.rows_dropped(), 0);
 }
@@ -304,7 +304,7 @@ fn balanced_panel_drops_whole_units_and_recovers_the_effect() {
     assert!((fit.effect - DID_EFFECT).abs() < 1e-12, "{}", fit.effect);
     assert_eq!(fit.treated_subjects + fit.comparison_subjects, 57);
     assert_eq!(fit.interval_95, None, "a restricted panel publishes no interval");
-    let accounting = &result.missing_data.as_ref().unwrap().accounting;
+    let accounting = &result.missing_data().as_ref().unwrap().accounting;
     assert_eq!((accounting.rows_total, accounting.rows_kept), (120, 114));
     let units = accounting.units.unwrap();
     assert_eq!((units.total, units.dropped), (60, 3));
@@ -365,12 +365,12 @@ fn staggered_available_case_uses_each_contrasts_observed_units_without_relabelli
         .collect();
     assert!(counts.contains(&(3, 88)) && counts.contains(&(2, 88)), "{counts:?}");
     assert!(fit.event_time_intervals_95.iter().all(Option::is_none));
-    let accounting = &result.missing_data.as_ref().unwrap().accounting;
+    let accounting = &result.missing_data().as_ref().unwrap().accounting;
     assert_eq!((accounting.rows_total, accounting.rows_kept), (270, 267));
     assert_eq!(accounting.units.unwrap().dropped, 0, "no unit is relabelled or removed");
     // Balanced restriction removes the three incomplete units instead.
     let balanced = run_panel(&data, query, Some(declare(MissingPolicy::BalancedPanel))).unwrap();
-    assert_eq!(balanced.missing_data.as_ref().unwrap().accounting.units.unwrap().dropped, 3);
+    assert_eq!(balanced.missing_data().as_ref().unwrap().accounting.units.unwrap().dropped, 3);
     assert!((balanced.panel_did().unwrap().effect - DID_EFFECT).abs() < 1e-12);
 }
 
@@ -460,7 +460,7 @@ fn gaps_drop_only_the_windows_that_read_them_and_never_compress_time() {
     );
     let slope = kept.iter().map(|&t| (x[t - 1] - mx) * (y[t] - my)).sum::<f64>()
         / kept.iter().map(|&t| (x[t - 1] - mx).powi(2)).sum::<f64>();
-    let ate = result.estimate.as_effect().unwrap().ate;
+    let ate = result.estimate().as_effect().unwrap().ate;
     assert!((ate - slope).abs() < 1e-9, "ate {ate} vs independent slope {slope}");
 
     // Compressing the series (deleting the missing rows and re-lagging) pairs y_t with the
@@ -475,7 +475,7 @@ fn gaps_drop_only_the_windows_that_read_them_and_never_compress_time() {
         / pairs.iter().map(|p| (p.0 - cx).powi(2)).sum::<f64>();
     assert!((wrong - slope).abs() > 1e-6);
 
-    let report = result.missing_data.as_ref().unwrap();
+    let report = result.missing_data().as_ref().unwrap();
     assert!(report.assumption.contains("original grid"));
     let accounting = &report.accounting;
     assert_eq!(accounting.rows_total, n - 1);
@@ -485,7 +485,10 @@ fn gaps_drop_only_the_windows_that_read_them_and_never_compress_time() {
         accounting.missing_by_variable.iter().map(|(v, c)| (v.to_string(), *c)).collect();
     assert_eq!(by_variable[0], ("x".to_owned(), 3));
     assert!(
-        result.interval.as_ref().is_none_or(|b| b.method == antecedent_core::IntervalMethod::None)
+        result
+            .interval()
+            .as_ref()
+            .is_none_or(|b| b.method == antecedent_core::IntervalMethod::None)
     );
 }
 
@@ -536,11 +539,11 @@ fn average_effect_keeps_complete_case_and_reports_what_it_dropped() {
     let default = run(None).unwrap();
     let explicit = run(Some(declare(MissingPolicy::CompleteCase))).unwrap();
     assert_eq!(
-        default.estimate.as_effect().unwrap().ate,
-        explicit.estimate.as_effect().unwrap().ate
+        default.estimate().as_effect().unwrap().ate,
+        explicit.estimate().as_effect().unwrap().ate
     );
-    let report = default.missing_data.as_ref().unwrap();
-    assert!(!report.declared && explicit.missing_data.as_ref().unwrap().declared);
+    let report = default.missing_data().as_ref().unwrap();
+    assert!(!report.declared && explicit.missing_data().as_ref().unwrap().declared);
     assert_eq!(report.accounting.rows_total, n);
     assert_eq!(report.accounting.rows_dropped(), holes.len());
     let missing_z = report
@@ -595,12 +598,12 @@ fn the_block_bootstrap_on_a_series_with_gaps_runs_on_the_original_time_axis() {
     let (data, _, _) = series(400, &[120, 121, 122, 250]);
     let declaration = declare(MissingPolicy::CompleteCase);
     let result = run_series(&data, Some(declaration), 150).unwrap();
-    let estimate = result.estimate.as_effect().unwrap();
+    let estimate = result.estimate().as_effect().unwrap();
     let se = estimate.se_bootstrap().expect("a bootstrap standard error");
     assert!(se.is_finite() && se > 0.0, "{se}");
     // The point estimate is the one the point-only fit gives; the bootstrap adds uncertainty only.
     let point = run_series(&data, Some(declare(MissingPolicy::CompleteCase)), 0).unwrap();
-    assert_eq!(estimate.ate, point.estimate.as_effect().unwrap().ate);
+    assert_eq!(estimate.ate, point.estimate().as_effect().unwrap().ate);
 }
 
 #[test]
@@ -627,7 +630,7 @@ fn refuters_on_a_series_with_gaps_refit_through_the_intact_windows() {
     );
     let slope = kept.iter().map(|&t| (x[t - 1] - mx) * (y[t] - my)).sum::<f64>()
         / kept.iter().map(|&t| (x[t - 1] - mx).powi(2)).sum::<f64>();
-    assert!((result.estimate.as_effect().unwrap().ate - slope).abs() < 1e-9);
+    assert!((result.estimate().as_effect().unwrap().ate - slope).abs() < 1e-9);
 }
 
 /// `y_t = 2 t_{t-1} + 0.8 t_{t-2} + small deterministic term`, with `t` missing at `gaps`.
@@ -696,12 +699,12 @@ fn sustained_windows_on_a_series_with_gaps_match_the_intact_window_regression() 
     }
     let beta = solve3(gram, moment);
     let expected = beta[1] + beta[2];
-    let ate = result.estimate.as_effect().unwrap().ate;
+    let ate = result.estimate().as_effect().unwrap().ate;
     assert!((ate - expected).abs() < 1e-6, "ate {ate} vs intact-window OLS {expected}");
     assert!((ate - 2.8).abs() < 0.05, "ate {ate}");
 
     // Windows that read a gap are dropped, each by its own time; no window spans one.
-    let accounting = &result.missing_data.as_ref().unwrap().accounting;
+    let accounting = &result.missing_data().as_ref().unwrap().accounting;
     let dropped: Vec<usize> = (2..n).filter(|i| !rows.contains(i)).collect();
     assert_eq!(
         accounting.dropped_rows.iter().map(|r| usize::try_from(*r).unwrap()).collect::<Vec<_>>(),
@@ -709,9 +712,9 @@ fn sustained_windows_on_a_series_with_gaps_match_the_intact_window_regression() 
     );
     // The block bootstrap runs on the original window axis.
     let boot = run(120).unwrap();
-    let se = boot.estimate.as_effect().unwrap().se_bootstrap().expect("bootstrap SE");
+    let se = boot.estimate().as_effect().unwrap().se_bootstrap().expect("bootstrap SE");
     assert!(se.is_finite() && se > 0.0, "{se}");
-    assert_eq!(boot.estimate.as_effect().unwrap().ate, ate);
+    assert_eq!(boot.estimate().as_effect().unwrap().ate, ate);
 }
 
 fn solve3(mut a: [[f64; 3]; 3], mut b: [f64; 3]) -> [f64; 3] {
@@ -779,9 +782,9 @@ fn the_conditional_marginal_effect_on_a_series_with_gaps_uses_the_intact_windows
     // gives slope 1.5 + 0.8 mean(w) with the mean over the windows kept.
     let kept: Vec<usize> = (1..n).filter(|t| t - 1 != gap).collect();
     let wbar = kept.iter().map(|&t| w[t]).sum::<f64>() / kept.len() as f64;
-    let ate = result.estimate.as_effect().unwrap().ate;
+    let ate = result.estimate().as_effect().unwrap().ate;
     assert!((ate - (1.5 + 0.8 * wbar)).abs() < 1e-8, "ate {ate} vs {}", 1.5 + 0.8 * wbar);
-    assert_eq!(result.missing_data.as_ref().unwrap().accounting.dropped_rows.as_ref(), [31]);
+    assert_eq!(result.missing_data().as_ref().unwrap().accounting.dropped_rows.as_ref(), [31]);
 }
 
 #[test]
@@ -821,7 +824,7 @@ fn the_bayesian_single_window_on_a_series_with_gaps_uses_segment_wise_tempering(
     );
     assert!(posterior.summaries.sd[col] > 0.0);
     assert_eq!(
-        result.missing_data.as_ref().unwrap().accounting.dropped_rows.as_ref(),
+        result.missing_data().as_ref().unwrap().accounting.dropped_rows.as_ref(),
         [101, 102, 203, 304]
     );
     // Predictive checks read consecutive rows, so a Bayesian fit with gaps declines them.
@@ -876,10 +879,10 @@ fn the_bayesian_sustained_contrast_on_a_series_with_gaps_recovers_the_known_effe
         .estimate_retained(&ctx())
         .unwrap();
     // The data are nearly deterministic: the sustained contrast is 2 + 0.8.
-    let ate = result.estimate.as_effect().unwrap().ate;
+    let ate = result.estimate().as_effect().unwrap().ate;
     assert!((ate - 2.8).abs() < 0.1, "posterior contrast {ate}");
     assert!(result.posterior.is_some());
-    let accounting = &result.missing_data.as_ref().unwrap().accounting;
+    let accounting = &result.missing_data().as_ref().unwrap().accounting;
     assert!(accounting.dropped_rows.iter().any(|row| *row == 91));
 }
 
@@ -901,7 +904,7 @@ fn sustained_refuters_on_a_series_with_gaps_refit_the_intact_windows() {
     };
     let result = run(InferenceMode::Frequentist).unwrap();
     assert!(!result.refutations.is_empty(), "the sustained refuters ran");
-    assert!((result.estimate.as_effect().unwrap().ate - 2.8).abs() < 0.05);
+    assert!((result.estimate().as_effect().unwrap().ate - 2.8).abs() < 0.05);
     // Predictive checks read consecutive rows, so a Bayesian fit with gaps declines them.
     let refused =
         run(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(50))).unwrap_err();
@@ -980,13 +983,13 @@ fn mediation_on_a_series_with_gaps_recovers_the_known_mediated_effect_under_both
     assert!(run_mediation(&gaps, InferenceMode::Frequentist, RefuteSuite::None, 0, false).is_err());
     let frequentist =
         run_mediation(&gaps, InferenceMode::Frequentist, RefuteSuite::None, 0, true).unwrap();
-    let ate = frequentist.estimate.as_effect().unwrap().ate;
+    let ate = frequentist.estimate().as_effect().unwrap().ate;
     // The mediator equation carries noise 0.15 * (i % 5 - 2), sd 0.15 * sqrt(2) = 0.212; the
     // outcome equation is exact, so the product is 0.55 * a_hat. With about 235 intact windows
     // and a treatment residual sd near 1, SE(a_hat) = 0.212 / sqrt(235) = 0.0138, so
     // SE(mediated) = 0.55 * 0.0138 = 0.0076. The tolerance is 3.3 of those SEs.
     assert!((ate - MEDIATED_TRUTH).abs() < 0.025, "frequentist mediated effect {ate}");
-    let dropped = &frequentist.missing_data.as_ref().unwrap().accounting.dropped_rows;
+    let dropped = &frequentist.missing_data().as_ref().unwrap().accounting.dropped_rows;
     assert!([60, 61, 150].iter().all(|time| dropped.contains(time)), "{dropped:?}");
 
     let bayesian = run_mediation(
@@ -997,7 +1000,7 @@ fn mediation_on_a_series_with_gaps_recovers_the_known_mediated_effect_under_both
         true,
     )
     .unwrap();
-    let ate = bayesian.estimate.as_effect().unwrap().ate;
+    let ate = bayesian.estimate().as_effect().unwrap().ate;
     assert!((ate - MEDIATED_TRUTH).abs() < 0.08, "Bayesian mediated effect {ate}");
     assert!(bayesian.posterior.is_some());
 }
@@ -1142,7 +1145,7 @@ fn the_frequentist_class_mixture_on_a_series_with_gaps_recovers_the_known_effect
     // Undeclared, the gap refuses as it always has.
     assert!(run_class(&data, false, 0).is_err());
     let result = run_class(&data, true, 200).unwrap();
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
 
     // Each completion's effect is the OLS slope on the lag-1 windows that read no gap: the
     // adjusted completion regresses on `z_{s-1}` too. The mixture averages the two.
@@ -1170,7 +1173,7 @@ fn the_frequentist_class_mixture_on_a_series_with_gaps_recovers_the_known_effect
     assert!(effect.uncertainty.bootstrap.replicates_ok.is_some_and(|ok| ok >= 190));
 
     // The windows that read a gap are dropped by their series time and counted once.
-    let accounting = &result.missing_data.as_ref().expect("a missing-data report").accounting;
+    let accounting = &result.missing_data().as_ref().expect("a missing-data report").accounting;
     assert_eq!(accounting.dropped_rows.as_ref(), [101, 102, 251]);
     assert_eq!(accounting.rows_kept + 3, accounting.rows_total);
     assert_eq!(missing_count(accounting, "t"), 3);
@@ -1179,7 +1182,7 @@ fn the_frequentist_class_mixture_on_a_series_with_gaps_recovers_the_known_effect
     // inside the dropped windows leaves the estimate and its SE (same seeds) unchanged.
     let (garbled, _) = class_series(n, &gaps, &[101, 102, 251]);
     let again = run_class(&garbled, true, 200).unwrap();
-    let again = again.estimate.as_effect().unwrap();
+    let again = again.estimate().as_effect().unwrap();
     assert!((again.ate - effect.ate).abs() < 1e-9, "{} vs {}", again.ate, effect.ate);
     assert!((again.se_bootstrap().unwrap() - se).abs() < 1e-9);
 }
@@ -1321,7 +1324,7 @@ fn the_bayesian_class_mixture_on_a_series_with_gaps_recovers_the_known_effect() 
     assert!((mean - POSTERIOR_TRUTH).abs() < 4.0 * sd, "posterior mean {mean} vs truth");
 
     // The dropped windows are reported by series time, and the missing points per variable.
-    let accounting = &result.missing_data.as_ref().expect("a missing-data report").accounting;
+    let accounting = &result.missing_data().as_ref().expect("a missing-data report").accounting;
     assert_eq!(accounting.dropped_rows.as_ref(), [101, 102, 251, 334]);
     assert_eq!(accounting.rows_kept + 4, accounting.rows_total);
     assert_eq!(missing_count(accounting, "t"), 4);
@@ -1351,7 +1354,7 @@ fn the_bayesian_class_mixture_tempers_segment_wise_across_gaps() {
         "posterior sd {sd} vs the untempered OLS SE {se_ols}"
     );
     // Window `g + 1` is lost to the gap at `g`, except past the last window.
-    let dropped = &result.missing_data.as_ref().unwrap().accounting.dropped_rows;
+    let dropped = &result.missing_data().as_ref().unwrap().accounting.dropped_rows;
     assert_eq!(dropped.len(), gaps.iter().filter(|gap| **gap + 1 < n).count());
 }
 
@@ -1361,7 +1364,7 @@ fn the_frequentist_class_posterior_on_a_series_with_gaps_shares_one_gapped_boots
     let n = 420;
     let (data, (t, y, z)) = posterior_series(n, &gaps, false, &[]);
     let result = run_class_posterior(&data, InferenceMode::Frequentist, 200, true).unwrap();
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     let (tl, zl, yl) = intact_triples((&t, &y, &z), &gaps);
     let (slope, se_ols) = slope_and_se(&tl, Some(&zl), &yl);
     // The single identified atom is the adjusted OLS slope on the intact windows (the adjustment
@@ -1372,14 +1375,14 @@ fn the_frequentist_class_posterior_on_a_series_with_gaps_shares_one_gapped_boots
     let se = effect.se_bootstrap().expect("a shared block-bootstrap SE");
     assert!(se > 0.5 * se_ols && se < 2.0 * se_ols, "bootstrap SE {se} vs OLS SE {se_ols}");
     assert!((effect.ate - POSTERIOR_TRUTH).abs() < 4.0 * se, "{} vs truth", effect.ate);
-    let accounting = &result.missing_data.as_ref().unwrap().accounting;
+    let accounting = &result.missing_data().as_ref().unwrap().accounting;
     assert_eq!(accounting.dropped_rows.as_ref(), [101, 102, 251, 334]);
 
     // The dropped windows never reach a block: overwriting the outcome inside them changes
     // neither the estimate nor the SE (same seeds).
     let (garbled, _) = posterior_series(n, &gaps, false, &[101, 102, 251, 334]);
     let again = run_class_posterior(&garbled, InferenceMode::Frequentist, 200, true).unwrap();
-    let again = again.estimate.as_effect().unwrap();
+    let again = again.estimate().as_effect().unwrap();
     assert!((again.ate - effect.ate).abs() < 1e-9);
     assert!((again.se_bootstrap().unwrap() - se).abs() < 1e-9);
 }
@@ -1392,7 +1395,7 @@ fn class_posterior_refuters_on_a_series_with_gaps_refit_the_intact_windows() {
         run_class_posterior_with(&data, InferenceMode::Frequentist, (RefuteSuite::Cheap, 60), true)
             .unwrap();
     assert!(!result.refutations.is_empty(), "the class refuters ran on the intact windows");
-    assert!((result.estimate.as_effect().unwrap().ate - POSTERIOR_TRUTH).abs() < 0.3);
+    assert!((result.estimate().as_effect().unwrap().ate - POSTERIOR_TRUTH).abs() < 0.3);
 }
 
 // ---------------------------------------------------------------- DBN mediation
@@ -1484,7 +1487,7 @@ fn dbn_mediation_on_a_series_with_gaps_recovers_the_known_effect_through_one_gap
     // Undeclared, the gap refuses as it always has.
     assert!(run_dbn_mediation(&data, false, 0).is_err());
     let result = run_dbn_mediation(&data, true, 200).unwrap();
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
 
     // The mediated effect is a * b with a = 0.8 (t_{s-1} -> m_s) and b = 0.55 (m_s -> y_s).
     // On the w = 415 windows that read no gap, SE(a) = 0.4 / sqrt(w) = 0.0196 (sd(t) = 1) and,
@@ -1505,7 +1508,7 @@ fn dbn_mediation_on_a_series_with_gaps_recovers_the_known_effect_through_one_gap
     assert!(effect.uncertainty.bootstrap.replicates_ok.is_some_and(|ok| ok >= 190));
 
     // The windows that read a missing mediator are dropped by series time.
-    let accounting = &result.missing_data.as_ref().expect("a missing-data report").accounting;
+    let accounting = &result.missing_data().as_ref().expect("a missing-data report").accounting;
     assert!(gaps.iter().all(|gap| accounting.dropped_rows.contains(&(*gap as u64))));
     assert_eq!(accounting.rows_kept + accounting.dropped_rows.len(), accounting.rows_total);
     assert_eq!(missing_count(accounting, "m"), gaps.len());
@@ -1514,7 +1517,7 @@ fn dbn_mediation_on_a_series_with_gaps_recovers_the_known_effect_through_one_gap
     // inside them changes neither the estimate nor the SE (same seeds).
     let (garbled, _) = dbn_mediation_series(n, &gaps, &gaps);
     let again = run_dbn_mediation(&garbled, true, 200).unwrap();
-    let again = again.estimate.as_effect().unwrap();
+    let again = again.estimate().as_effect().unwrap();
     assert!((again.ate - effect.ate).abs() < 1e-9, "{} vs {}", again.ate, effect.ate);
     assert!((again.se_bootstrap().unwrap() - se).abs() < 1e-9);
 }

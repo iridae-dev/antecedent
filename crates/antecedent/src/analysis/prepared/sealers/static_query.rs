@@ -14,18 +14,15 @@ use std::sync::Arc;
 
 pub(super) fn bayesian_static_mediation(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (
-        cx.static_mediation_dag(),
-        analysis.static_cache(),
-        &analysis.inference,
-    ) {
-        (Some(data), Some(cache), InferenceMode::Bayesian(_)) => Some(Box::new(
-            crate::analysis::execute::CheckedBayesianStaticMediationOperation::checked(
-                analysis, data, plan, cache, cx.ctx,
-            )?,
-        )),
-        _ => None,
-    };
+    let sealed =
+        match (cx.static_mediation_dag(), analysis.static_cache(), &analysis.settings.inference) {
+            (Some(data), Some(cache), InferenceMode::Bayesian(_)) => Some(Box::new(
+                crate::analysis::execute::CheckedBayesianStaticMediationOperation::checked(
+                    analysis, data, plan, cache, cx.ctx,
+                )?,
+            )),
+            _ => None,
+        };
     Ok(sealed.map(PreparedExecution::BayesianStaticMediation))
 }
 
@@ -33,13 +30,13 @@ pub(super) fn static_mediation(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (cx.static_mediation_dag(), analysis.static_cache()) {
         (Some(data), Some(cache))
-            if matches!(analysis.inference, InferenceMode::Frequentist)
+            if matches!(analysis.settings.inference, InferenceMode::Frequentist)
                 && matches!(
                     analysis.structure_source,
                     crate::support::StructureSource::Explicit
                         | crate::support::StructureSource::Accepted
                 )
-                && analysis.custom_validators.is_empty() =>
+                && analysis.declared.custom_validators.is_empty() =>
         {
             Some(crate::analysis::execute::CheckedStaticMediationOperation::checked(
                 analysis, data, plan, cache,
@@ -57,7 +54,7 @@ pub(super) fn attribution(cx: &SealContext<'_>) -> SealOutcome {
         &source.query,
         analysis.static_cache(),
         analysis.graph.class(),
-        &analysis.inference,
+        &analysis.settings.inference,
     ) {
         (
             DataInput::Tabular(_),
@@ -116,9 +113,12 @@ pub(super) fn counterfactual(cx: &SealContext<'_>) -> SealOutcome {
     let cache = analysis.static_cache().ok_or_else(|| CausalError::Compile {
         message: "counterfactual preparation lost its identification product".into(),
     })?;
-    let inference = analysis.inference.clone();
+    let inference = analysis.settings.inference.clone();
     let procedure = crate::analysis::execute::CounterfactualProcedure::for_inference(&inference)?
-        .with_bootstrap(analysis.bootstrap_replicates, analysis.sampling_design)?;
+        .with_bootstrap(
+        analysis.settings.bootstrap_replicates,
+        analysis.declared.sampling_design,
+    )?;
     Ok(Some(PreparedExecution::Counterfactual(
         crate::analysis::execute::CheckedCounterfactualPlan::new(
             operation.clone(),

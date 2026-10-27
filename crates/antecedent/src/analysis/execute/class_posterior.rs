@@ -49,9 +49,7 @@ impl super::Study {
         let started = Instant::now();
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
         let class_tag = gp.atom_kind().as_str().to_ascii_lowercase();
-        let (identified, identify_cached) = if let Some(cache) =
-            self.graph_posterior_cache()
-        {
+        let (identified, identify_cached) = if let Some(cache) = self.graph_posterior_cache() {
             (Arc::clone(cache), true)
         } else if let Some(cache) =
             crate::analysis::lowering::plan_retained_graph_posterior(self, physical)
@@ -73,7 +71,7 @@ impl super::Study {
 
         let evals = ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
             let atom = &identified.class_atoms[i];
-            match &self.inference {
+            match &self.settings.inference {
                 InferenceMode::Frequentist => {
                     evaluate_class_atom_frequentist(self, data, query, atom, conditional, inner)
                 }
@@ -97,7 +95,7 @@ impl super::Study {
         );
 
         let mut diagnostics = self.class_graph_posterior_diagnostics(&mixed, &evals, &class_tag);
-        let estimator_id = match &self.inference {
+        let estimator_id = match &self.settings.inference {
             InferenceMode::Frequentist => EstimatorId::LinearAdjustmentAte,
             InferenceMode::Bayesian(_) => EstimatorId::BayesianGcomp,
         };
@@ -158,7 +156,7 @@ impl super::Study {
         class_tag: &str,
     ) -> Vec<Diagnostic> {
         let mut diagnostics = mixed.identification.diagnostics.clone();
-        if self.inference.is_bayesian() && mixed.posterior.is_none() {
+        if self.settings.inference.is_bayesian() && mixed.posterior.is_none() {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(Diagnostic::new(
@@ -270,6 +268,7 @@ fn fit_class_case(
     } else {
         let mut case_ws = StaticEstimateWorkspaces::default();
         let case_spec = study
+            .declared
             .estimator_spec
             .as_deref()
             .cloned()
@@ -280,10 +279,10 @@ fn fit_class_case(
                 data,
                 estimand,
                 query,
-                bootstrap_replicates: study.bootstrap_replicates,
-                overlap_policy: study.overlap_policy,
-                population_registry: study.population_registry.as_ref(),
-                sampling_design: study.sampling_design,
+                bootstrap_replicates: study.settings.bootstrap_replicates,
+                overlap_policy: study.declared.overlap_policy,
+                population_registry: study.declared.population_registry.as_ref(),
+                sampling_design: study.declared.sampling_design,
             },
             atom.identification.required_assumptions.clone(),
             ctx,
@@ -384,7 +383,7 @@ fn evaluate_class_atom_bayesian(
     conditional: bool,
     ctx: &ExecutionContext,
 ) -> Result<ClassAtomEval, CausalError> {
-    let cfg = match &study.inference {
+    let cfg = match &study.settings.inference {
         InferenceMode::Bayesian(c) => c.clone(),
         InferenceMode::Frequentist => {
             return Err(CausalError::unsupported_inference(
@@ -559,7 +558,9 @@ fn refute_class_graph_posterior(
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
     let AtomRefutationPolicy { aggregation: policy, estimator } = refutation;
-    if matches!(study.refute, RefuteSuite::None) && study.custom_validators.is_empty() {
+    if matches!(study.settings.refute, RefuteSuite::None)
+        && study.declared.custom_validators.is_empty()
+    {
         return Ok((Vec::new(), Vec::new()));
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
@@ -582,9 +583,9 @@ fn refute_class_graph_posterior(
             let (reports, notes) = EnvelopeRefutation {
                 data,
                 query,
-                suite: study.refute,
+                suite: study.settings.refute,
                 estimator,
-                custom: &study.custom_validators,
+                custom: &study.declared.custom_validators,
                 temporal: None,
             }
             .run(&eval.refute_atoms, &mut refute_ws, ctx)?;

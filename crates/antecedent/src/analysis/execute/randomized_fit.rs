@@ -909,9 +909,8 @@ fn fisher_p_value(outcomes: &[f64], treated: usize, effect: f64) -> (f64, u64) {
     let k = treated;
     let observed = effect.abs();
     let total = outcomes.iter().sum::<f64>();
-    let contrast_of = |treated_sum: f64| {
-        treated_sum / k as f64 - (total - treated_sum) / (n - k) as f64
-    };
+    let contrast_of =
+        |treated_sum: f64| treated_sum / k as f64 - (total - treated_sum) / (n - k) as f64;
     let at_least_observed = |treated_sum: f64| contrast_of(treated_sum).abs() + 1e-12 >= observed;
     if let Some(allocations) = binomial_within(n, k, EXHAUSTIVE_ALLOCATION_LIMIT) {
         // Every k-subset in lexicographic order; the treated sum accumulates in index order.

@@ -236,7 +236,7 @@ fn a_window_of_one_period_reproduces_the_structural_decomposition() {
         let result = built.run(&ctx).unwrap_or_else(|e| panic!("{contrast:?}: {e}"));
         let expected = structural(contrast);
         assert!((result.effect() - expected).abs() < 1e-3, "{contrast:?}: {}", result.effect());
-        let components = result.payload.mediation().expect("the decomposition");
+        let components = result.payload().mediation().expect("the decomposition");
         assert!((components.total.unwrap() - structural_total()).abs() < 1e-3);
         assert!((components.direct.unwrap() - structural_direct()).abs() < 1e-3);
         assert!((components.mediated.unwrap() - structural_indirect()).abs() < 1e-3);
@@ -263,7 +263,7 @@ fn a_lagged_window_matches_the_structural_decomposition_of_the_series() {
         .unwrap_or_else(|e| panic!("{contrast:?}: {e}"));
         let expected = structural(contrast);
         assert!((result.effect() - expected).abs() < 0.02, "{contrast:?}: {}", result.effect());
-        let components = result.payload.mediation().expect("the decomposition");
+        let components = result.payload().mediation().expect("the decomposition");
         assert!((components.total.unwrap() - structural_total()).abs() < 0.02);
         assert!((components.direct.unwrap() - structural_direct()).abs() < 0.02);
         assert!((components.mediated.unwrap() - structural_indirect()).abs() < 0.02);

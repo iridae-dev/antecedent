@@ -39,8 +39,7 @@ pub(crate) use self::graph_posterior::CachedClassPosteriorCase;
 pub(crate) use self::graph_posterior::{
     CachedClassPosteriorAtomIdentification, CachedGraphPosteriorAtomIdentification,
     CachedGraphPosteriorIdentification, build_admg_graph_posterior_response_identification_cache,
-    build_graph_posterior_identification_cache,
-    build_temporal_admg_posterior_identification_cache,
+    build_graph_posterior_identification_cache, build_temporal_admg_posterior_identification_cache,
 };
 pub(crate) use self::temporal_class::{
     CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,

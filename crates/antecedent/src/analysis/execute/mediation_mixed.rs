@@ -254,7 +254,7 @@ impl super::Study {
             extra_diagnostics,
         } = run;
         let fitter = FunctionalEffect {
-            bootstrap_replicates: self.bootstrap_replicates,
+            bootstrap_replicates: self.settings.bootstrap_replicates,
             ..FunctionalEffect::new()
         }
         .with_row_resampling(row_resampling, sampling_design);
@@ -270,7 +270,7 @@ impl super::Study {
 
         // The mediation-native suite refits every identified component together; it reads the
         // proofs before the requested one is taken out below.
-        let refutations = if self.refute == super::RefuteSuite::None {
+        let refutations = if self.settings.refute == super::RefuteSuite::None {
             Vec::new()
         } else {
             let components: [Option<super::mediation_refutation::IdentifiedComponent>; 3] =
@@ -361,7 +361,7 @@ impl super::Study {
                 (Some((identification, _)), Some(prepared)) => Some(run_functional(
                     fitter,
                     prepared,
-                    &self.inference,
+                    &self.settings.inference,
                     identification.status,
                     ctx,
                 )?),
@@ -384,7 +384,7 @@ impl super::Study {
         let mut diagnostics = Vec::new();
         let present: Vec<usize> =
             (0..COMPONENTS.len()).filter(|&i| estimates[i].is_some()).collect();
-        if self.inference.is_bayesian() {
+        if self.settings.inference.is_bayesian() {
             let columns: Vec<(&str, &[f64])> = present
                 .iter()
                 .filter_map(|&i| {
@@ -404,7 +404,7 @@ impl super::Study {
                     ));
                 }
             }
-        } else if self.bootstrap_replicates > 0 {
+        } else if self.settings.bootstrap_replicates > 0 {
             let refs: Vec<&antecedent_estimate::PreparedFunctionalEffect> =
                 present.iter().filter_map(|&i| prepared[i].as_ref()).collect();
             let rows = fitter.shared_replicate_draws(&refs, ctx).map_err(CausalError::from)?;
@@ -446,9 +446,9 @@ impl super::Study {
         query.validate()?;
         // The components run through the path-specific executors, which carry no validation
         // suite; the mediation suite below refits all three together on each class member.
-        let plain = (self.refute != super::RefuteSuite::None).then(|| {
+        let plain = (self.settings.refute != super::RefuteSuite::None).then(|| {
             let mut plain = self.clone();
-            plain.refute = super::RefuteSuite::None;
+            plain.settings.refute = super::RefuteSuite::None;
             plain
         });
         let runner = plain.as_ref().unwrap_or(self);

@@ -72,9 +72,9 @@ impl super::Study {
         let mut shared_block = None;
         let mut shared_block_designs = 0usize;
         let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
-        if self.inference.is_frequentist()
+        if self.settings.inference.is_frequentist()
             && matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-            && self.bootstrap_replicates > 0
+            && self.settings.bootstrap_replicates > 0
         {
             let mut designs = Vec::new();
             let mut weights = Vec::new();
@@ -96,7 +96,7 @@ impl super::Study {
                     &designs,
                     &weights,
                     temporal_class_block_span(indexers.iter().copied()),
-                    self.bootstrap_replicates,
+                    self.settings.bootstrap_replicates,
                     0x7C60_C1A5,
                     ctx,
                 );
@@ -107,8 +107,9 @@ impl super::Study {
                     estimate.se_analytic(),
                     BootstrapAccounting {
                         se: se_bootstrap,
-                        replicates_ok: (self.bootstrap_replicates > 0).then_some(block.completed),
-                        replicates_failed: (self.bootstrap_replicates > 0)
+                        replicates_ok: (self.settings.bootstrap_replicates > 0)
+                            .then_some(block.completed),
+                        replicates_failed: (self.settings.bootstrap_replicates > 0)
                             .then_some(block.attempted.saturating_sub(block.completed)),
                         cancelled: ctx.cancellation.is_cancelled(),
                         early_stopped: false,
@@ -147,7 +148,7 @@ impl super::Study {
             &[TemporalClassAtomEval],
         ),
     ) -> Vec<Diagnostic> {
-        if self.inference.is_bayesian() && posterior_withheld {
+        if self.settings.inference.is_bayesian() && posterior_withheld {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(Diagnostic::new(
@@ -196,8 +197,8 @@ impl super::Study {
             ));
         } else if shared_block_designs > 1
             && matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-            && self.inference.is_frequentist()
-            && self.bootstrap_replicates > 0
+            && self.settings.inference.is_frequentist()
+            && self.settings.bootstrap_replicates > 0
         {
             diagnostics.push(envelope_se_omits_between_atom_variance());
         }
@@ -255,7 +256,7 @@ impl super::Study {
                         gp,
                         vars,
                         query,
-                        self.max_completions,
+                        self.declared.max_completions,
                         ctx,
                     )?,
                 ),
@@ -281,7 +282,7 @@ impl super::Study {
     ) -> Result<Vec<TemporalClassAtomEval>, CausalError> {
         ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
             let atom = &identified.class_atoms[i];
-            match &self.inference {
+            match &self.settings.inference {
                 InferenceMode::Frequentist => {
                     evaluate_temporal_class_atom_frequentist(self, (data, query, gaps), atom, inner)
                 }
@@ -302,7 +303,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if query.is_multi_step_sustained() && self.split.is_some() {
+        if query.is_multi_step_sustained() && self.declared.split.is_some() {
             return Err(CausalError::Unsupported {
                 message: "class-aware multi-step sustained requires no discovery-estimation split",
             });
@@ -340,7 +341,7 @@ impl super::Study {
             (mixed.policy, &mixed.mixture, mixed.posterior.is_none()),
             (&estimate, shared_block.as_ref(), shared_block_designs, &evals),
         );
-        let estimator_id = match (&self.inference, query.is_multi_step_sustained()) {
+        let estimator_id = match (&self.settings.inference, query.is_multi_step_sustained()) {
             (InferenceMode::Frequentist, false) => EstimatorId::TemporalLinearAdjustment,
             (InferenceMode::Frequentist | InferenceMode::Bayesian(_), true) => {
                 EstimatorId::TemporalSequentialGcomp
@@ -427,10 +428,10 @@ impl super::Study {
                 &route.supported()[..1],
             ))
         };
-        if self.split.is_some() {
+        if self.declared.split.is_some() {
             return Err(refuse("gap-aware windows are executed on an unsplit series"));
         }
-        if bayesian_checks && self.refute != RefuteSuite::None {
+        if bayesian_checks && self.settings.refute != RefuteSuite::None {
             return Err(refuse(
                 "the Bayesian predictive checks and prior sensitivity read consecutive rows; request no refuters on a series with gaps",
             ));
@@ -519,7 +520,7 @@ fn fit_temporal_class_case(
             &estimand,
             query,
             indexer,
-            study.split.as_ref(),
+            study.declared.split.as_ref(),
             gaps,
             ctx,
         )?;
@@ -626,7 +627,7 @@ fn evaluate_temporal_class_atom_bayesian(
     atom: &CachedTemporalClassPosteriorAtomIdentification,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassAtomEval, CausalError> {
-    let cfg = match &study.inference {
+    let cfg = match &study.settings.inference {
         InferenceMode::Bayesian(c) => c.clone(),
         InferenceMode::Frequentist => {
             return Err(CausalError::unsupported_inference(
@@ -672,7 +673,14 @@ fn evaluate_temporal_class_atom_bayesian(
             (prep, Some(selection))
         } else {
             let prep = estimator
-                .prepare(data, &estimand, query, indexer, study.split.as_ref(), &ctx.kernel_policy)
+                .prepare(
+                    data,
+                    &estimand,
+                    query,
+                    indexer,
+                    study.declared.split.as_ref(),
+                    &ctx.kernel_policy,
+                )
                 .map_err(CausalError::from)?;
             (prep, None)
         };
@@ -743,7 +751,7 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
     atom: &CachedTemporalClassPosteriorAtomIdentification,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassAtomEval, CausalError> {
-    let cfg = match &study.inference {
+    let cfg = match &study.settings.inference {
         InferenceMode::Bayesian(c) => c,
         InferenceMode::Frequentist => {
             return Err(CausalError::unsupported_inference(
@@ -942,7 +950,9 @@ fn refute_temporal_class_graph_posterior(
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
     let AtomRefutationPolicy { aggregation: policy, estimator } = refutation;
-    if matches!(study.refute, RefuteSuite::None) && study.custom_validators.is_empty() {
+    if matches!(study.settings.refute, RefuteSuite::None)
+        && study.declared.custom_validators.is_empty()
+    {
         return Ok((Vec::new(), Vec::new()));
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
@@ -972,8 +982,8 @@ fn refute_temporal_class_graph_posterior(
                     SequentialValidation {
                         data,
                         query,
-                        suite: study.refute,
-                        custom: &study.custom_validators,
+                        suite: study.settings.refute,
+                        custom: &study.declared.custom_validators,
                         predictive_sims: super::super::latency::predictive_check_sims(
                             study.latency_mode,
                         ),
@@ -993,12 +1003,12 @@ fn refute_temporal_class_graph_posterior(
                 EnvelopeRefutation {
                     data: &tabular,
                     query: &ate_q,
-                    suite: study.refute,
+                    suite: study.settings.refute,
                     estimator,
-                    custom: &study.custom_validators,
+                    custom: &study.declared.custom_validators,
                     temporal: Some(TemporalRefutation {
                         query,
-                        split: study.split.as_ref(),
+                        split: study.declared.split.as_ref(),
                         time_index: data.time_index(),
                         gaps,
                     }),

@@ -135,7 +135,7 @@ fn an_admg_decomposition_is_the_counted_total_direct_and_indirect_effect() {
         assert_eq!(built.support_status(), Some(CellStatus::Refused));
         let result = built.run(&ctx).unwrap_or_else(|e| panic!("{contrast:?}: {e}"));
         assert!((result.effect() - expected).abs() < 1e-12, "{contrast:?}: {}", result.effect());
-        let components = result.payload.mediation().expect("the decomposition");
+        let components = result.payload().mediation().expect("the decomposition");
         assert!((components.total.unwrap() - total).abs() < 1e-12);
         assert!((components.direct.unwrap() - direct).abs() < 1e-12);
         assert!((components.mediated.unwrap() - indirect).abs() < 1e-12);
@@ -147,7 +147,7 @@ fn an_admg_decomposition_is_the_counted_total_direct_and_indirect_effect() {
         let correlation = field(diagnostic, "corr_direct_indirect");
         assert!((-1.0..=1.0).contains(&correlation), "{correlation}");
         // The requested contrast carries its own standard error.
-        let se = result.estimate.as_effect().unwrap().se_bootstrap().expect("a bootstrap SE");
+        let se = result.estimate().as_effect().unwrap().se_bootstrap().expect("a bootstrap SE");
         let reported = field(
             diagnostic,
             match contrast {
@@ -203,7 +203,7 @@ fn the_contemporaneous_projection_and_a_fully_oriented_cpdag_give_the_same_decom
             .run(&ctx)
             .unwrap_or_else(|e| panic!("cpdag {contrast:?}: {e}"));
         assert!((class.effect() - expected).abs() < 1e-12, "{contrast:?}: {}", class.effect());
-        let components = class.payload.mediation().expect("class decomposition");
+        let components = class.payload().mediation().expect("class decomposition");
         assert!((components.total.unwrap() - counted_total()).abs() < 1e-12);
         assert!((components.direct.unwrap() - counted_direct()).abs() < 1e-12);
     }
@@ -284,15 +284,14 @@ fn a_temporal_admg_window_with_one_period_reproduces_the_counted_decomposition()
             .unwrap_or_else(|e| panic!("{contrast:?}: {e}"));
         let result = built.run(&ctx).unwrap_or_else(|e| panic!("{contrast:?}: {e}"));
         assert!((result.effect() - expected).abs() < 1e-12, "{contrast:?}: {}", result.effect());
-        let components = result.payload.mediation().expect("the decomposition");
+        let components = result.payload().mediation().expect("the decomposition");
         assert!((components.total.unwrap() - counted_total()).abs() < 1e-12);
         assert!((components.direct.unwrap() - counted_direct()).abs() < 1e-12);
         assert!((components.mediated.unwrap() - counted_indirect()).abs() < 1e-12);
         assert!(joint(&result).is_some());
-        assert!(result
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "estimate.temporal_admg.window"));
+        assert!(
+            result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.temporal_admg.window")
+        );
     }
 }
 
@@ -311,7 +310,7 @@ fn distribution_study(graph: impl antecedent::IntoGraphInput) -> Study {
 
 fn probability_of_one(result: &antecedent::StudyResult) -> f64 {
     result
-        .payload
+        .payload()
         .distribution()
         .expect("a distribution")
         .atoms
@@ -335,7 +334,10 @@ fn a_cpdag_whose_completions_agree_gives_the_counted_interventional_distribution
     let expected: f64 = [0.0, 1.0].into_iter().map(|m| p_m(m, 1.0) * e_y(1.0, m)).sum();
     assert!((probability_of_one(&result) - expected).abs() < 1e-12);
     assert!(
-        result.diagnostics.iter().all(|d| d.code.as_ref() != "estimate.distribution.class_envelope")
+        result
+            .diagnostics
+            .iter()
+            .all(|d| d.code.as_ref() != "estimate.distribution.class_envelope")
     );
 }
 

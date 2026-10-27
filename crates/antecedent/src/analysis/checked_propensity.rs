@@ -261,7 +261,9 @@ impl CheckedPropensityOperation {
             ),
             CheckedPropensityFit::Matching { fitter, .. } => (
                 CheckedPropensityProcedure::AbadieImbensMatching,
-                CheckedPropensityUncertainty::AbadieImbensAnalytic { se_kind: fitter.inference.se_kind },
+                CheckedPropensityUncertainty::AbadieImbensAnalytic {
+                    se_kind: fitter.inference.se_kind,
+                },
             ),
         };
         let lowering = CheckedPropensityLowering {

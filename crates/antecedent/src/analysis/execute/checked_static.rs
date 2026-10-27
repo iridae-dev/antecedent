@@ -48,16 +48,17 @@ impl CheckedStaticCommon {
             identifier,
             estimator,
             physical: physical.clone(),
-            inference: analysis.inference.clone(),
-            refute: analysis.refute,
+            inference: analysis.settings.inference.clone(),
+            refute: analysis.settings.refute,
             graph_class: analysis.graph.class(),
             graph_version: analysis.graph.version(),
             support_status: analysis.support_status,
             structure_source: analysis.structure_source,
-            population_registry: analysis.population_registry.clone(),
+            population_registry: analysis.declared.population_registry.clone(),
             latency_mode: analysis.latency_mode,
             custom_validator_names: Arc::from(
                 analysis
+                    .declared
                     .custom_validators
                     .iter()
                     .map(|validator| Arc::from(validator.name()))

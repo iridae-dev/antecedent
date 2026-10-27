@@ -555,7 +555,7 @@ fn mechanism_and_unit_change_run_on_the_retained_path() {
         assert_eq!(
             format!(
                 "{:?}",
-                unit_execution.result().payload.unit_change().unwrap().mean_contributions
+                unit_execution.result().payload().unit_change().unwrap().mean_contributions
             ),
             format!("{:?}", direct_unit.mean_contributions)
         );

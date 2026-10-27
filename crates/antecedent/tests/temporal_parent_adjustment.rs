@@ -76,9 +76,9 @@ fn autoregressive_pulse_was_refused_and_is_now_identified_by_parent_adjustment()
         // pa(t[-1]) = {t[-2], z[-2]}.
         assert_eq!(result.estimand.adjustment_set.len(), 2);
         assert!(
-            (result.estimate.as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
+            (result.estimate().as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
             "accepted={accepted}: ate={} truth={AR_BETA}",
-            result.estimate.as_effect().unwrap().ate
+            result.estimate().as_effect().unwrap().ate
         );
     }
 }
@@ -135,7 +135,7 @@ fn every_fixed_structure_pulse_coordinate_uses_parent_adjustment() {
                     let posterior = result.posterior.as_ref().expect("posterior");
                     posterior.summaries.mean[posterior.effect_column().unwrap()]
                 } else {
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 };
                 assert!((value - AR_BETA).abs() < 0.08, "{what}: {value}");
             }
@@ -164,9 +164,9 @@ fn pooled_panel_pulse_uses_parent_adjustment() {
         .unwrap();
     assert!(rules(&result).iter().any(|rule| rule == PARENT_ADJUSTMENT_RULE));
     assert!(
-        (result.estimate.as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
+        (result.estimate().as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
         "ate={}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
 }
 
@@ -184,14 +184,14 @@ fn parent_adjustment_removes_the_confounding_the_naive_regression_keeps() {
     let adjusted =
         study(data, autoregressive_pulse_dag(true, false).into(), pulse()).run(&ctx).unwrap();
     assert!(
-        (biased.estimate.as_effect().unwrap().ate - AR_BETA).abs() > 0.2,
+        (biased.estimate().as_effect().unwrap().ate - AR_BETA).abs() > 0.2,
         "naive ate={}",
-        biased.estimate.as_effect().unwrap().ate
+        biased.estimate().as_effect().unwrap().ate
     );
     assert!(
-        (adjusted.estimate.as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
+        (adjusted.estimate().as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
         "ate={}",
-        adjusted.estimate.as_effect().unwrap().ate
+        adjusted.estimate().as_effect().unwrap().ate
     );
 }
 

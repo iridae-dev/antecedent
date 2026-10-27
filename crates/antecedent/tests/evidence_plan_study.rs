@@ -425,10 +425,8 @@ fn a_refused_study_reports_its_evidence_needs_through_the_capability_report_and_
     );
     // Every obligation that a study could meet is an unrun check carrying its proof step.
     assert!(report.unmet_obligations.iter().any(|o| o.kind.as_str() == "check_not_run"));
-    assert!(
-        report.neighbors.iter().any(|n| n.coordinate.as_ref() == "identified_by:instrument"
-            && n.required_action.as_ref() == "find_instrument")
-    );
+    assert!(report.neighbors.iter().any(|n| n.coordinate.as_ref() == "identified_by:instrument"
+        && n.required_action.as_ref() == "find_instrument"));
 
     let record = antecedent::host::operation_record(&report);
     let recorded: Vec<&str> = record["next_actions"]
@@ -452,10 +450,7 @@ fn a_refused_study_reports_its_evidence_needs_through_the_capability_report_and_
 
     // An identified study has no failure to report.
     let identified = study(zxy(), admg(3, &[(0, 1), (1, 2)], &[]), 1, 2);
-    assert!(matches!(
-        identified.failure_capability(&ctx),
-        Err(EvidencePlanFacadeError::NoFailure)
-    ));
+    assert!(matches!(identified.failure_capability(&ctx), Err(EvidencePlanFacadeError::NoFailure)));
 }
 
 #[test]

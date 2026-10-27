@@ -156,7 +156,7 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
                 }
             }
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(query))
-                if matches!(analysis.inference, InferenceMode::Frequentist)
+                if matches!(analysis.settings.inference, InferenceMode::Frequentist)
                     && query.horizons.len() != 1 =>
             {
                 return Err(CausalError::Unsupported {
@@ -218,9 +218,9 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
         crate::analysis::builder::refuse_unlicensed_panel_route(
             &analysis.query,
             analysis.graph.class(),
-            &analysis.inference,
+            &analysis.settings.inference,
             panel,
-            analysis.split.as_ref(),
+            analysis.declared.split.as_ref(),
         )?;
     }
     Ok(())

@@ -256,7 +256,7 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
         vec![(0, 0), (3, 0)]
     );
     assert!(
-        multi.estimate.as_effect().unwrap().ate.is_nan(),
+        multi.estimate().as_effect().unwrap().ate.is_nan(),
         "multi-horizon results have no scalar representative"
     );
     assert!(multi.mediation().is_none());
@@ -286,14 +286,16 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
         match inference {
             InferenceMode::Frequentist => {
                 assert!(
-                    (click.estimate.as_effect().unwrap().ate - structural_mediated()).abs() < 1e-6
+                    (click.estimate().as_effect().unwrap().ate - structural_mediated()).abs()
+                        < 1e-6
                 );
             }
             InferenceMode::Bayesian(_) => {
                 assert!(
-                    (click.estimate.as_effect().unwrap().ate - structural_mediated()).abs() < 0.08,
+                    (click.estimate().as_effect().unwrap().ate - structural_mediated()).abs()
+                        < 0.08,
                     "Bayesian I(1) ate {} vs structural {}",
-                    click.estimate.as_effect().unwrap().ate,
+                    click.estimate().as_effect().unwrap().ate,
                     structural_mediated()
                 );
             }
@@ -415,7 +417,7 @@ fn temporal_cpdag_mediation_returns_per_horizon_identified_sets() {
         assert_horizon_one_mediated(&result, 1e-6, &case);
         assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
         assert!(result.mediation().is_none());
-        assert!(result.estimate.as_effect().unwrap().ate.is_nan());
+        assert!(result.estimate().as_effect().unwrap().ate.is_nan());
     }
 }
 
@@ -449,16 +451,16 @@ fn temporal_cpdag_mediation_cheap_and_full_run_per_completion() {
             // scalar estimate beside the set.
             assert_horizon_one_mediated(&result, 1e-6, &case);
             assert!(
-                (result.estimate.as_effect().unwrap().ate - structural_mediated()).abs() < 1e-6,
+                (result.estimate().as_effect().unwrap().ate - structural_mediated()).abs() < 1e-6,
                 "{case}: estimate {} vs structural {}",
-                result.estimate.as_effect().unwrap().ate,
+                result.estimate().as_effect().unwrap().ate,
                 structural_mediated()
             );
             assert!(result.mediation().is_some(), "{case}");
             assert!(result.mediation_grid().is_some_and(|grid| {
                 grid.slices[0].identified_set.is_some_and(|set| {
-                    set.lower == result.estimate.as_effect().unwrap().ate
-                        && set.upper == result.estimate.as_effect().unwrap().ate
+                    set.lower == result.estimate().as_effect().unwrap().ate
+                        && set.upper == result.estimate().as_effect().unwrap().ate
                 })
             }));
         }
@@ -487,7 +489,7 @@ fn temporal_class_bayesian_mediation_returns_identified_sets() {
         // Same tolerance as the Bayesian I(1) pin on the oriented TemporalDag.
         assert_horizon_one_mediated(&result, 0.08, &case);
         assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
-        assert!(result.estimate.as_effect().unwrap().ate.is_nan());
+        assert!(result.estimate().as_effect().unwrap().ate.is_nan());
     }
 }
 

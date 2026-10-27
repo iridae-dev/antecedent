@@ -25,9 +25,8 @@ use antecedent::{
     RandomizedEffectQuery, RefuteSuite, Study, StudyResult,
 };
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, HistoryMatchQuery, Lag,
-    OutcomeFunctional, RandomizationDesign, SequentialContrastQuery, TemporalEffectQuery,
-    TemporalPolicy, VariableId,
+    AverageEffectQuery, CausalQuery, HistoryMatchQuery, Lag, OutcomeFunctional,
+    RandomizationDesign, SequentialContrastQuery, TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_estimate::switchback_posterior::{
@@ -118,8 +117,8 @@ fn white_series() -> (Vec<f64>, Vec<f64>) {
 #[test]
 fn the_white_innovation_posterior_replays_and_matches_least_squares() {
     let (x, y) = white_series();
-    let data = TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1)
-        .unwrap();
+    let data =
+        TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1).unwrap();
     let mut graph = TemporalDag::empty();
     let x1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
     let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
@@ -334,7 +333,8 @@ fn the_quantile_posterior_replays_and_matches_a_dirichlet_simulation() {
             .unwrap();
     let concentration = 0.5;
     let thresholds = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
-    let mut query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let mut query =
+        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     query.outcome_functional = OutcomeFunctional::quantile(0.5);
     let mut dag = Dag::with_variables(2);
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();

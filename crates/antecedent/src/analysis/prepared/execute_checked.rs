@@ -101,10 +101,10 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
-            &self.analysis.inference,
+            &self.analysis.settings.inference,
             data,
         );
-        self.bind_executed_contract(data, self.analysis.refute, defer, &mut result)?;
+        self.bind_executed_contract(data, self.analysis.settings.refute, defer, &mut result)?;
         Ok(result)
     }
 
@@ -162,7 +162,7 @@ impl PreparedStudy {
                 .binding()
                 .estimator
                 .is(crate::strategy_table::EstimatorId::FrontDoorTwoStage)
-            || !matches!(self.analysis.inference, InferenceMode::Frequentist)
+            || !matches!(self.analysis.settings.inference, InferenceMode::Frequentist)
         {
             return Err(CausalError::Compile {
                 message:
@@ -214,7 +214,7 @@ impl PreparedStudy {
             || !matches!(query.active, Intervention::Set { variable, ref value } if variable == query.treatment && value.as_f64() == Some(lowering.active))
             || !matches!(query.control, Intervention::Set { variable, ref value } if variable == query.treatment && value.as_f64() == Some(lowering.control))
             || !self.plan.binding().estimator.is(estimator)
-            || !matches!(self.analysis.inference, InferenceMode::Frequentist)
+            || !matches!(self.analysis.settings.inference, InferenceMode::Frequentist)
         {
             return Err(CausalError::Compile {
                 message: "retained checked IV operation no longer matches its query or target"
@@ -270,7 +270,7 @@ impl PreparedStudy {
             || operation.preparation.adjustment_set != operation.cache.estimand.adjustment_set
             || !matches!(operation.query.outcome_functional, OutcomeFunctional::Mean)
             || self.analysis.query != CausalQuery::AverageEffect(operation.query.clone())
-            || self.analysis.refute != operation.refute
+            || self.analysis.settings.refute != operation.refute
         {
             return Err(CausalError::Compile {
                 message: "retained GLM operation no longer matches its checked target or estimator"
@@ -330,7 +330,7 @@ impl PreparedStudy {
             || operation.preparation.target().functional != operation.cache.estimand.functional
             || !matches!(operation.query.outcome_functional, OutcomeFunctional::Mean)
             || self.analysis.query != CausalQuery::AverageEffect(operation.source_query.clone())
-            || self.analysis.refute != operation.refute
+            || self.analysis.settings.refute != operation.refute
         {
             return Err(CausalError::Compile {
                 message:
@@ -531,7 +531,7 @@ impl PreparedStudy {
         let CheckedStaticEffectRun { estimator_id, estimate, bootstrap_requested, started } = run;
         let cancelled = estimate.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
         let (refutations, mut extra_diagnostics) =
-            if cancelled || self.analysis.refute == RefuteSuite::None {
+            if cancelled || self.analysis.settings.refute == RefuteSuite::None {
                 (Vec::new(), Vec::new())
             } else {
                 let mut workspace = EstimationWorkspace::default();
@@ -541,9 +541,9 @@ impl PreparedStudy {
                     estimand: &estimand,
                     query,
                     estimate: &estimate,
-                    suite: self.analysis.refute,
+                    suite: self.analysis.settings.refute,
                     estimator: estimator_id.as_str(),
-                    custom: &self.analysis.custom_validators,
+                    custom: &self.analysis.declared.custom_validators,
                     temporal: None,
                 }
                 .reports(&mut workspace, Some(&mut propensity), ctx)?;
@@ -604,6 +604,7 @@ impl PreparedStudy {
         });
         let custom_validator_names = self
             .analysis
+            .declared
             .custom_validators
             .iter()
             .map(|validator| Arc::from(validator.name()))
@@ -612,7 +613,7 @@ impl PreparedStudy {
             &mut result,
             self.analysis.support_status,
             self.analysis.structure_source,
-            self.analysis.population_registry.as_ref(),
+            self.analysis.declared.population_registry.as_ref(),
             &custom_validator_names,
         );
         crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);

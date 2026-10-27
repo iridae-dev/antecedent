@@ -102,7 +102,7 @@ fn the_bayesian_temporal_counterfactual_is_the_posterior_of_the_slope_times_the_
 
     let frequentist = run(&x, &y, 0.0, 1.0, false);
     assert!(
-        (frequentist.estimate.as_effect().unwrap().ate - slope).abs() < 1e-8,
+        (frequentist.estimate().as_effect().unwrap().ate - slope).abs() < 1e-8,
         "frequentist point is the least squares slope"
     );
     assert!(frequentist.posterior.is_none());

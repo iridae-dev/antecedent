@@ -71,7 +71,7 @@ fn panel_pulse_cluster_se_ar09_nominal_95_coverage() {
         panel_pulse_study(PERSISTENT, UNITS, u32::try_from(rep).unwrap(), 0, 610_000)
     });
     for (study, result) in &runs {
-        let est = &result.estimate;
+        let est = &result.estimate();
         bind(&mut analytic, study, result);
         analytic.record(
             normal_interval(
@@ -100,7 +100,7 @@ fn panel_pulse_unit_bootstrap_ar09_nominal_95_coverage() {
         panel_pulse_study(PERSISTENT, UNITS, u32::try_from(rep).unwrap(), 99, 620_000)
     });
     for (study, result) in &runs {
-        let est = &result.estimate;
+        let est = &result.estimate();
         assert_eq!(est.as_effect().unwrap().uncertainty.bootstrap.replicates_failed, Some(0));
         bind(&mut boot, study, result);
         boot.record(

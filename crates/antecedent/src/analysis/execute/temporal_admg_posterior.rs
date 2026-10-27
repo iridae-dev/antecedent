@@ -296,7 +296,7 @@ fn window_disclosure(
 impl super::Study {
     /// Refusals every window route over lagged temporal-ADMG atoms shares.
     fn ensure_admg_posterior_window_licensed(&self) -> Result<(), CausalError> {
-        if !self.custom_validators.is_empty() {
+        if !self.declared.custom_validators.is_empty() {
             return Err(crate::unsupported_reason!(
                 "validators_not_applicable",
                 "a custom validator refutes one scalar average effect and none applies to a \
@@ -314,7 +314,7 @@ impl super::Study {
         input: &WindowMix<'_>,
         ctx: &ExecutionContext,
     ) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
-        if self.refute == RefuteSuite::None {
+        if self.settings.refute == RefuteSuite::None {
             return Ok(Vec::new());
         }
         let key_weights = IdentifiedKeyWeights::new(input.graphs);
@@ -338,7 +338,7 @@ impl super::Study {
                 &window.treated,
                 window.periods,
                 original,
-                self.refute == RefuteSuite::Full,
+                self.settings.refute == RefuteSuite::Full,
                 ctx,
             )
             .map_err(CausalError::from)?;
@@ -365,7 +365,7 @@ impl super::Study {
             let table = input.tables.get(window.periods)?;
             let (resampling, design) = self.window_row_resampling(window.periods)?;
             let fitter = FunctionalEffect {
-                bootstrap_replicates: self.bootstrap_replicates,
+                bootstrap_replicates: self.settings.bootstrap_replicates,
                 ..FunctionalEffect::new()
             }
             .with_row_resampling(resampling, design);
@@ -381,7 +381,7 @@ impl super::Study {
             let (estimate, posterior) = run_functional(
                 &fitter,
                 &prepared,
-                &self.inference,
+                &self.settings.inference,
                 proof.identification.status,
                 ctx,
             )?;
@@ -427,7 +427,7 @@ impl super::Study {
     /// same resampled window table; `None` when the atoms read tables of different lengths (no
     /// common resampled table), no replicates were requested, or the inference is Bayesian.
     fn window_mixture_se(&self, fits: &[AtomFit], ctx: &ExecutionContext) -> Option<MixtureSe> {
-        if self.inference.is_bayesian() || self.bootstrap_replicates == 0 {
+        if self.settings.inference.is_bayesian() || self.settings.bootstrap_replicates == 0 {
             return None;
         }
         let periods = fits.first()?.periods;
@@ -478,7 +478,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
         let mut refutations = Vec::new();
-        if self.refute != RefuteSuite::None {
+        if self.settings.refute != RefuteSuite::None {
             let mut per_atom = Vec::new();
             for (position, atom) in found.iter().enumerate() {
                 let Some(atom) = atom else { continue };
@@ -530,7 +530,7 @@ impl super::Study {
             *lengths.entry(window.periods).or_insert(0usize) += 1;
         }
         let mut diagnostics = mixed.identification.diagnostics.clone();
-        if self.inference.is_bayesian() && mixed.posterior.is_none() {
+        if self.settings.inference.is_bayesian() && mixed.posterior.is_none() {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(window_disclosure(atoms, &lengths, unidentified_mass));

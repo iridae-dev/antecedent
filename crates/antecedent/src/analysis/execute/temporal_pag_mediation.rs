@@ -119,7 +119,7 @@ impl super::Study {
     ) -> Result<TemporalClassEnvelope, CausalError> {
         let mut config =
             GeneralizedAdjustmentConfig { context: Some(ctx.clone()), ..Default::default() };
-        if let Some(max) = self.max_completions {
+        if let Some(max) = self.declared.max_completions {
             config.max_completions = max;
         }
         GeneralizedAdjustmentIdentifier { config }
@@ -232,7 +232,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if !self.custom_validators.is_empty() {
+        if !self.declared.custom_validators.is_empty() {
             return Err(crate::unsupported_reason!(
                 "validators_not_applicable",
                 "a custom validator refutes one scalar average effect and none applies to a \

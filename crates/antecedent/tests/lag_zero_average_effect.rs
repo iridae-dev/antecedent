@@ -140,7 +140,7 @@ fn build_on(
 }
 
 fn summary(result: &StudyResult) -> String {
-    let effect = result.estimate.as_effect().map(|effect| effect.ate.to_bits());
+    let effect = result.estimate().as_effect().map(|effect| effect.ate.to_bits());
     let envelope = result.structural_response.as_ref().map(|mixture| {
         format!("{:?} {:?}", mixture.identified_set, mixture.identified_set_interval)
     });
@@ -173,7 +173,7 @@ fn the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed() {
             let aliased = alias.run(&ctx).unwrap();
             let direct = explicit.run(&ctx).unwrap();
             assert_eq!(summary(&aliased), summary(&direct), "{label}");
-            assert_eq!(aliased.support_status, Some(CellStatus::Refused), "{label}");
+            assert_eq!(aliased.support_status(), Some(CellStatus::Refused), "{label}");
             assert!(discloses(&aliased), "{label}");
             assert!(!discloses(&direct), "{label}");
         }
@@ -197,7 +197,7 @@ fn the_point_identified_graphs_recover_the_contemporaneous_effect() {
         )
         .run(&ctx)
         .unwrap();
-        let ate = result.estimate.as_effect().unwrap().ate;
+        let ate = result.estimate().as_effect().unwrap().ate;
         assert!((ate - BETA).abs() < 0.1, "{name}: ate={ate}");
     }
 }
@@ -210,7 +210,7 @@ fn the_prepared_path_keeps_the_refused_status_and_the_disclosure() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate_series(&series(), &ctx).unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Refused));
+    assert_eq!(result.support_status(), Some(CellStatus::Refused));
     assert!(discloses(&result));
 }
 
@@ -256,7 +256,7 @@ fn over_a_graph_posterior_the_alias_is_the_explicit_pulse_over_the_posterior() {
         // The compiled program is the pulse's, so the answer and the mixture over the
         // posterior's atoms are identical; only the support status and the disclosure differ.
         assert_eq!(summary(&aliased), summary(&direct), "{label}");
-        assert_eq!(aliased.support_status, Some(CellStatus::Refused), "{label}");
+        assert_eq!(aliased.support_status(), Some(CellStatus::Refused), "{label}");
         assert!(discloses(&aliased), "{label}");
         assert!(!discloses(&direct), "{label}");
         assert_eq!(
@@ -277,7 +277,7 @@ fn every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads() {
                 .prepare(&ctx)
                 .unwrap();
             let result = prepared.estimate_series(&series(), &ctx).unwrap();
-            assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
+            assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
             let artifact = prepared
                 .encode_contracted_result(&result, "lag-zero-average-effect", &ctx)
                 .unwrap_or_else(|error| panic!("{label}: {error}"));
@@ -287,7 +287,7 @@ fn every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads() {
             // A scalar the artifact carries is the one the route published; a graph that
             // identifies a set of effects publishes the set, not a scalar.
             if let Some(scalar) = consumed.body.estimate {
-                let published = result.estimate.as_effect().map(|effect| effect.ate);
+                let published = result.estimate().as_effect().map(|effect| effect.ate);
                 assert_eq!(Some(scalar), published, "{label}: the artifact's scalar");
             }
         }

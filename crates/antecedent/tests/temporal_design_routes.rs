@@ -143,8 +143,8 @@ fn the_two_arm_excursion_recovers_the_effect_under_carryover_in_both_modes() {
         &ctx,
     );
     assert_eq!(frequentist.logical_plan.estimator.as_deref(), Some("temporal_design.excursion"));
-    assert!(matches!(frequentist.estimate, PrimaryEstimate::NotAnEffect));
-    assert_eq!(frequentist.support_status, None);
+    assert!(matches!(frequentist.estimate(), PrimaryEstimate::NotAnEffect));
+    assert_eq!(frequentist.support_status(), None);
     let fit = section(&frequentist);
     assert_eq!(&*fit.design, "two_arm");
     assert!(!fit.licensed && &*fit.calibration == "unmeasured");
@@ -828,9 +828,7 @@ fn regime_panel(
         } else if !a0 && !a1 {
             never = [never[0] + y, never[1] + 1.0];
         }
-        for (t, (value, action, level)) in
-            [(0.0, a0, l0), (y, a1, l1)].into_iter().enumerate()
-        {
+        for (t, (value, action, level)) in [(0.0, a0, l0), (y, a1, l1)].into_iter().enumerate() {
             labels_of_rows.push(format!("u{i}"));
             periods.push(i64::try_from(t).unwrap());
             outcome.push(value);

@@ -74,7 +74,7 @@ fn replicate(groups: usize, seed: u64) -> Option<((f64, f64), u64)> {
         .ok()?
         .run(&ExecutionContext::for_tests(seed))
         .ok()?;
-    let estimate = result.estimate.as_effect()?;
+    let estimate = result.estimate().as_effect()?;
     let published = PublishedScalarUncertainty::select(estimate);
     Some((published.interval(estimate)?, n as u64))
 }

@@ -35,9 +35,9 @@ impl super::Study {
         super::super::builder::refuse_unlicensed_panel_route(
             &self.query,
             self.graph.class(),
-            &self.inference,
+            &self.settings.inference,
             panel,
-            self.split.as_ref(),
+            self.declared.split.as_ref(),
         )
     }
 
@@ -73,7 +73,7 @@ impl super::Study {
             &estimand,
             query,
             &indexer,
-            self.split.as_ref(),
+            self.declared.split.as_ref(),
             ctx,
             1.0,
         )?;
@@ -92,7 +92,7 @@ impl super::Study {
         let temporal_ctx = TemporalRefitContext {
             indexer: &indexer,
             temporal_query: query,
-            split: self.split.as_ref(),
+            split: self.declared.split.as_ref(),
             kernel_policy: &ctx.kernel_policy,
             time_index: None,
             panel: Some(panel),
@@ -174,7 +174,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<(EffectEstimate, Option<CausalPosterior>, &'static str, &'static str), CausalError>
     {
-        Ok(match &self.inference {
+        Ok(match &self.settings.inference {
             InferenceMode::Bayesian(cfg) => {
                 let (estimate, posterior) = fit_pooled_panel_bayesian(
                     cfg,
@@ -220,8 +220,10 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<Option<CausalPosterior>, CausalError> {
         // Panel Bayesian: α-grid under Full when external compose is present (mirror temporal).
-        if matches!(self.refute, RefuteSuite::Full) {
-            if let (InferenceMode::Bayesian(cfg), Some(post)) = (&self.inference, &posterior) {
+        if matches!(self.settings.refute, RefuteSuite::Full) {
+            if let (InferenceMode::Bayesian(cfg), Some(post)) =
+                (&self.settings.inference, &posterior)
+            {
                 let mut bprep = BayesianGComputationAte::from_prepared_estimation(design.prep);
                 bprep.unit_ids = Some(design.cluster_ids.to_vec());
                 return Ok(Some(apply_temporal_prior_sensitivity(
@@ -288,10 +290,14 @@ impl super::Study {
     ) -> Result<EffectEstimate, CausalError> {
         let mut estimate = atom.fit(unit_ids, ctx, identification.required_assumptions.clone())?;
         estimate.provenance.assumptions.push(panel_estimand_assumption(clusters, unit_ids.len()));
-        let boot = panel_unit_bootstrap(std::slice::from_ref(atom), self.bootstrap_replicates, ctx);
-        boot.attach(&mut estimate, self.bootstrap_replicates);
+        let boot = panel_unit_bootstrap(
+            std::slice::from_ref(atom),
+            self.settings.bootstrap_replicates,
+            ctx,
+        );
+        boot.attach(&mut estimate, self.settings.bootstrap_replicates);
         diagnostics.push(panel_cluster_se_diagnostic(clusters, unit_ids.len()));
-        diagnostics.extend(boot.diagnostic(clusters, self.bootstrap_replicates));
+        diagnostics.extend(boot.diagnostic(clusters, self.settings.bootstrap_replicates));
         Ok(estimate)
     }
 
@@ -313,9 +319,9 @@ impl super::Study {
             estimand,
             query: &ate_q,
             estimate,
-            suite: self.refute,
+            suite: self.settings.refute,
             estimator,
-            custom: &self.custom_validators,
+            custom: &self.declared.custom_validators,
             temporal: Some(temporal),
         }
         .reports(&mut refute_ws, None, ctx)
@@ -364,7 +370,7 @@ impl super::Study {
         if query.is_multi_step_sustained() {
             return self.execute_panel_class_sequential(panel, query, physical, ctx);
         }
-        if self.inference.is_bayesian() {
+        if self.settings.inference.is_bayesian() {
             return self.execute_panel_class_bayesian(panel, query, physical, ctx);
         }
         let started = Instant::now();
@@ -387,7 +393,7 @@ impl super::Study {
         } = self
             .fit_panel_class_atoms(panel, query, &bundle.envelope, &unit_ids, ctx)?
             .into_mixture()?;
-        let boot = panel_unit_bootstrap(&fitted, self.bootstrap_replicates, ctx);
+        let boot = panel_unit_bootstrap(&fitted, self.settings.bootstrap_replicates, ctx);
         self.push_panel_class_disclosures(
             &mut diagnostics,
             &boot,
@@ -414,7 +420,7 @@ impl super::Study {
             None,
             None,
         );
-        boot.attach(&mut estimate, self.bootstrap_replicates);
+        boot.attach(&mut estimate, self.settings.bootstrap_replicates);
         let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
         let cancelled = estimate.uncertainty.bootstrap.cancelled;
         let identification = envelope_to_identification_result_for(
@@ -450,8 +456,8 @@ impl super::Study {
                 }),
                 structural_response: Some(structural),
                 diagnostics: Some(diagnostics),
-                bootstrap_replicates_requested: (self.bootstrap_replicates > 0)
-                    .then_some(Some(self.bootstrap_replicates)),
+                bootstrap_replicates_requested: (self.settings.bootstrap_replicates > 0)
+                    .then_some(Some(self.settings.bootstrap_replicates)),
                 ..Default::default()
             }),
         ))
@@ -490,7 +496,7 @@ impl super::Study {
                 &estimand,
                 query,
                 indexer,
-                self.split.as_ref(),
+                self.declared.split.as_ref(),
                 ctx,
                 w,
             )?;
@@ -541,7 +547,8 @@ impl super::Study {
         if fitted == 1 {
             diagnostics.push(panel_cluster_se_diagnostic(PanelClusters::Units, units));
         }
-        diagnostics.extend(boot.diagnostic(PanelClusters::Units, self.bootstrap_replicates));
+        diagnostics
+            .extend(boot.diagnostic(PanelClusters::Units, self.settings.bootstrap_replicates));
         diagnostics.push(Diagnostic::new(
             "estimate.temporal_effect.panel.class.cluster_units",
             DiagnosticKind::Scientific,
@@ -593,7 +600,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let InferenceMode::Bayesian(cfg) = &self.inference else {
+        let InferenceMode::Bayesian(cfg) = &self.settings.inference else {
             return Err(CausalError::unsupported_inference(
                 "panel class Bayesian execute requires Bayesian inference",
             ));
@@ -603,6 +610,7 @@ impl super::Study {
             self.panel_class_bundle(physical, query, ctx)?;
         let envelope = &bundle.envelope.envelope;
         let class_masses = self
+            .declared
             .class_prior
             .as_ref()
             .map(|prior| prior.masses_for_envelope(&bundle.envelope))
@@ -617,7 +625,7 @@ impl super::Study {
             panel,
             query,
             ctx,
-            self.split.as_ref(),
+            self.declared.split.as_ref(),
             envelope.cases.len(),
         );
         state.fit_cases(&bundle.envelope, class_masses.as_deref(), &mut diagnostics)?;
@@ -625,7 +633,7 @@ impl super::Study {
             state.mix(
                 envelope,
                 class_masses.as_deref(),
-                self.bootstrap_replicates,
+                self.settings.bootstrap_replicates,
                 panel.total_rows(),
                 &mut diagnostics,
             )?;
@@ -690,7 +698,9 @@ impl super::Study {
     ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
         let mut reports = Vec::new();
         let mut diagnostics = Vec::new();
-        if matches!(self.refute, RefuteSuite::None) && self.custom_validators.is_empty() {
+        if matches!(self.settings.refute, RefuteSuite::None)
+            && self.declared.custom_validators.is_empty()
+        {
             return Ok((reports, diagnostics));
         }
         let stacked = stack_panel_tabular(panel).map_err(CausalError::from)?;
@@ -700,7 +710,7 @@ impl super::Study {
             let temporal_ctx = TemporalRefitContext {
                 indexer: &atom.indexer,
                 temporal_query: query,
-                split: self.split.as_ref(),
+                split: self.declared.split.as_ref(),
                 kernel_policy: &ctx.kernel_policy,
                 time_index: None,
                 panel: Some(panel),
@@ -711,9 +721,9 @@ impl super::Study {
                 estimand: &atom.estimand,
                 query: &ate_q,
                 estimate: &atom.estimate,
-                suite: self.refute,
+                suite: self.settings.refute,
                 estimator,
-                custom: &self.custom_validators,
+                custom: &self.declared.custom_validators,
                 temporal: Some(temporal_ctx),
             }
             .reports(&mut workspace, None, ctx)?;
@@ -809,8 +819,8 @@ impl super::Study {
             units,
         ));
         diagnostics.push(panel_between_unit_band_diagnostic(units));
-        diagnostics.extend(panel_unit_average_bootstrap_note(self.bootstrap_replicates));
-        if self.inference.is_bayesian() {
+        diagnostics.extend(panel_unit_average_bootstrap_note(self.settings.bootstrap_replicates));
+        if self.settings.inference.is_bayesian() {
             diagnostics.push(Diagnostic::new(
                 "estimate.temporal_response.panel.bayesian_cluster_band",
                 DiagnosticKind::Scientific,
@@ -879,12 +889,12 @@ impl super::Study {
             &aligned,
             query,
             IdentificationBasis { status: aggregate_status, assumptions: &aggregate_assumptions },
-            &self.inference,
+            &self.settings.inference,
             ctx,
             &mut diagnostics,
         )?;
         let mut response =
-            average_unit_panel_responses(&unit_responses, self.inference.is_bayesian())?;
+            average_unit_panel_responses(&unit_responses, self.settings.inference.is_bayesian())?;
         if let Some(per_horizon) = response.horizon_identification.as_mut() {
             for (record, entry) in Arc::make_mut(per_horizon).iter_mut().zip(&aligned) {
                 record.status = entry.identification.status;
@@ -914,7 +924,7 @@ impl super::Study {
                 estimate,
                 Strategy::new(
                     IdentifierId::TemporalBackdoorUnfolded,
-                    EstimatorId::temporal_response_for(&self.inference),
+                    EstimatorId::temporal_response_for(&self.settings.inference),
                 ),
                 treatment,
                 outcome,
@@ -965,7 +975,7 @@ impl super::Study {
         };
         let mut state = PanelClassResponseState::new(
             super::temporal_path::ClassResponseAssembly::new(query, temporal)?,
-            super::temporal_path::TemporalClassWeights::new(self.class_prior.as_ref()),
+            super::temporal_path::TemporalClassWeights::new(self.declared.class_prior.as_ref()),
         );
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
             self.fit_panel_class_response_horizon(&run, &mut state, horizon_index, horizon)?;
@@ -1164,15 +1174,17 @@ impl super::Study {
                         status: case.result.status,
                         assumptions: &case.result.required_assumptions,
                     },
-                    &self.inference,
+                    &self.settings.inference,
                     run.ctx,
                     &mut state.diagnostics,
                 )?;
                 unit_fits.insert(fit_key, fitted.clone());
                 fitted
             };
-            let response =
-                average_unit_panel_responses(&unit_responses, self.inference.is_bayesian())?;
+            let response = average_unit_panel_responses(
+                &unit_responses,
+                self.settings.inference.is_bayesian(),
+            )?;
             let atom_assumptions = response.assumptions.clone();
             state.assembly.push_atom(
                 horizon_index,
@@ -1214,8 +1226,8 @@ impl super::Study {
             ),
         ));
         diagnostics.extend(super::temporal_path::class_response_identified_set_diagnostics(
-            self.inference.is_bayesian(),
-            self.class_prior.is_some(),
+            self.settings.inference.is_bayesian(),
+            self.declared.class_prior.is_some(),
         ));
         diagnostics.push(Diagnostic::new(
             "response.simultaneous_band_withheld",
@@ -1229,7 +1241,7 @@ impl super::Study {
             panel_units,
         ));
         diagnostics.push(panel_between_unit_band_diagnostic(panel_units));
-        diagnostics.extend(panel_unit_average_bootstrap_note(self.bootstrap_replicates));
+        diagnostics.extend(panel_unit_average_bootstrap_note(self.settings.bootstrap_replicates));
         diagnostics.extend(response.support.warnings.iter().cloned());
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
@@ -1245,7 +1257,7 @@ impl super::Study {
         masses: [f64; 3],
     ) -> crate::result::StructuralResponseMixture {
         let [identified_mass, unidentified_mass, unevaluable_mass] = masses;
-        let conditional = self.class_prior.as_ref().and_then(|_| {
+        let conditional = self.declared.class_prior.as_ref().and_then(|_| {
             super::temporal_path::temporal_class_response_mean(
                 &assembly.structural_atoms,
                 &response_envelope,
@@ -1254,7 +1266,7 @@ impl super::Study {
             )
         });
         crate::result::StructuralResponseMixture {
-            weight_basis: if self.class_prior.is_some() {
+            weight_basis: if self.declared.class_prior.is_some() {
                 crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
             } else {
                 crate::result::StructuralWeightBasis::CompletionEnumeration
@@ -1483,13 +1495,14 @@ impl super::Study {
             self.panel_class_bundle(physical, query, ctx)?;
         let envelope = &bundle.envelope.envelope;
         let class_masses = self
+            .declared
             .class_prior
             .as_ref()
             .map(|prior| prior.masses_for_envelope(&bundle.envelope))
             .transpose()?;
         // The panel license refuses caller priors here; the per-unit fits use the
         // default prior.
-        let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
+        let bayes = if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             Some(bayesian_gcomp(cfg, ctx))
         } else {
             None
@@ -1527,8 +1540,9 @@ impl super::Study {
         let (refutations, validation_diagnostics, predictive_checks) =
             self.panel_sequential_validation(panel, query, &atoms, bayes.as_ref(), ctx)?;
         diagnostics.extend(validation_diagnostics);
-        if self.bootstrap_replicates > 0 {
-            diagnostics.extend(panel_unit_average_bootstrap_note(self.bootstrap_replicates));
+        if self.settings.bootstrap_replicates > 0 {
+            diagnostics
+                .extend(panel_unit_average_bootstrap_note(self.settings.bootstrap_replicates));
         }
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
@@ -1614,8 +1628,8 @@ impl super::Study {
                         SequentialValidation {
                             data: &unit.series,
                             query,
-                            suite: self.refute,
-                            custom: &self.custom_validators,
+                            suite: self.settings.refute,
+                            custom: &self.declared.custom_validators,
                             predictive_sims: super::super::latency::predictive_check_sims(
                                 self.latency_mode,
                             ),

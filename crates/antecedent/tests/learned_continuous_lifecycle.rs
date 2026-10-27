@@ -195,13 +195,9 @@ fn declared_bounds_and_designs_refuse_with_their_details() {
     // a larger fold count runs when the strata can hold it, and a larger replicate request is
     // only recorded because the public route runs no replicates.
     let more_folds = LearnedContinuousOptions { folds: 21, ..options() };
-    assert!(
-        prepare(Design::IndependentSamples, Scenario::Good, (400, 300), more_folds, 1).is_ok()
-    );
+    assert!(prepare(Design::IndependentSamples, Scenario::Good, (400, 300), more_folds, 1).is_ok());
     let more_replicates = LearnedContinuousOptions { bootstrap: 2001, ..options() };
-    assert!(
-        prepare(Design::NestedCohort, Scenario::Good, (400, 300), more_replicates, 1).is_ok()
-    );
+    assert!(prepare(Design::NestedCohort, Scenario::Good, (400, 300), more_replicates, 1).is_ok());
     // Clustered or undeclared sampling and heterogeneous targets are refused by name.
     let error = antecedent_estimate::parse_learned_continuous_sampling("clustered").unwrap_err();
     assert!(

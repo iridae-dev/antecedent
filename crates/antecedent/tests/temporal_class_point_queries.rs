@@ -287,9 +287,9 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
                         };
                         let result = run(bayes(builder, bayesian));
                         assert!(
-                            (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.05,
+                            (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.05,
                             "sustained={sustained} pag={pag} posterior={posterior} accepted={accepted} bayesian={bayesian} ate={}",
-                            result.estimate.as_effect().unwrap().ate
+                            result.estimate().as_effect().unwrap().ate
                         );
                         assert!(result.diagnostics.iter().any(|d| {
                             d.code.as_ref() == "estimate.temporal.conditional_marginal"
@@ -307,7 +307,7 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
                         if !bayesian {
                             assert!(result.posterior.is_none());
                         }
-                        assert!(result.interval.is_some());
+                        assert!(result.interval().is_some());
                         assert_eq!(
                             result.logical_plan.estimator.as_deref(),
                             Some("temporal.linear.adjustment")
@@ -567,9 +567,9 @@ fn temporal_class_cross_world_points_match_the_linear_mechanism() {
                         };
                         let result = run(bayes(builder, bayesian));
                         assert!(
-                            (result.estimate.as_effect().unwrap().ate - truth).abs() < tolerance,
+                            (result.estimate().as_effect().unwrap().ate - truth).abs() < tolerance,
                             "{key} pag={pag} posterior={posterior} accepted={accepted} bayesian={bayesian} ate={}",
-                            result.estimate.as_effect().unwrap().ate
+                            result.estimate().as_effect().unwrap().ate
                         );
                         assert!(
                             result

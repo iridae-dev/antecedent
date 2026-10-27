@@ -58,7 +58,7 @@ impl super::Study {
             &estimand,
             query,
             &indexer,
-            self.split.as_ref(),
+            self.declared.split.as_ref(),
             ctx,
             1.0,
         )?;
@@ -67,7 +67,7 @@ impl super::Study {
             independent_subject_design(&subject_columns(&prep, &cluster_ids, &panel_times)?)?;
         let mut assumptions = identification.required_assumptions.clone();
         assumptions.push(link_assumption(design_note(&design)));
-        let (estimate, posterior, estimator_id, notes) = match &self.inference {
+        let (estimate, posterior, estimator_id, notes) = match &self.settings.inference {
             InferenceMode::Frequentist => {
                 let fit = FrequentistTemporalLink::new()
                     .fit(&design, TemporalOutcomeLink::BernoulliLogit)
@@ -253,7 +253,7 @@ impl super::Study {
             &estimand,
             query,
             &indexer,
-            self.split.as_ref(),
+            self.declared.split.as_ref(),
             ctx,
             1.0,
         )?;

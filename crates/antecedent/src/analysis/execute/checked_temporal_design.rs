@@ -124,24 +124,24 @@ impl CheckedTemporalDesignOperation {
         if query.rows() != data.row_count()
             || study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || study.refute != RefuteSuite::None
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || !study.declared.custom_validators.is_empty()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
+            || study.declared.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
                 message: "a temporal design reads one row per unit and period, with no graph, \
                           refuter or custom validator",
             });
         }
-        let bayesian = match &study.inference {
+        let bayesian = match &study.settings.inference {
             InferenceMode::Frequentist => None,
             InferenceMode::Bayesian(config) => {
                 require_built_in_model(config, "the Bayesian temporal design")?;
                 Some(config.clone())
             }
         };
-        let replicates = study.bootstrap_replicates;
+        let replicates = study.settings.bootstrap_replicates;
         if replicates != 0 && (bayesian.is_some() || !reads_replicates(query)) {
             return Err(crate::compile_reason!(
                 "option_not_applicable",

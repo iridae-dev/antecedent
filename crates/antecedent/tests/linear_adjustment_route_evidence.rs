@@ -73,19 +73,19 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
     // The fixture is generated from y = 2*t + z + noise and the graph supplies
     // the complete back-door adjustment set {z}; this is an independent truth.
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
+        (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
         "{coordinate}: ate={}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert!(
-        (refreshed.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
+        (refreshed.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.2,
         "{coordinate}: refreshed ate={}",
-        refreshed.estimate.as_effect().unwrap().ate
+        refreshed.estimate().as_effect().unwrap().ate
     );
     assert_eq!(
-        result.estimate.as_effect().unwrap().ate.to_bits(),
-        refreshed.estimate.as_effect().unwrap().ate.to_bits()
+        result.estimate().as_effect().unwrap().ate.to_bits(),
+        refreshed.estimate().as_effect().unwrap().ate.to_bits()
     );
     assert!(
         matches!(prepared.retained_operation(), RetainedOperation::CheckedLinear(..)),

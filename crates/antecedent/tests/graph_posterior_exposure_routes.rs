@@ -212,11 +212,11 @@ fn frequentist_transport_mixes_certified_atoms_and_states_the_lost_mass() {
         let result = study.run(&ctx).unwrap();
 
         // The pinned closed-form contrast and its delta-method interval.
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert!((effect.ate - 2.0).abs() < 1e-12, "{}", effect.ate);
         assert!((effect.se_analytic() - reference_se()).abs() < 1e-12);
         assert!((result.transport().unwrap().ipw - 2.0).abs() < 1e-12);
-        assert_eq!(result.support_status, Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Refused));
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("transport.trial_ipw"));
 
         // The posterior mass splits as sID decided each atom.
@@ -261,7 +261,7 @@ fn frequentist_transport_mixes_certified_atoms_and_states_the_lost_mass() {
         let prepared = study.prepare(&ctx).unwrap();
         assert!(matches!(prepared.retained_operation(), RetainedOperation::EstimatorRoute));
         let again = prepared.estimate(&transport_data(), &ctx).unwrap();
-        assert!((again.estimate.as_effect().unwrap().ate - effect.ate).abs() < 1e-12);
+        assert!((again.estimate().as_effect().unwrap().ate - effect.ate).abs() < 1e-12);
         assert!(again.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
         assert!((again.structural_response.as_ref().unwrap().unevaluable_mass - 0.2).abs() < 1e-9);
     });
@@ -283,7 +283,7 @@ fn the_selection_targets_decide_how_much_posterior_mass_identifies() {
         assert!(mixture.unidentified_mass.abs() < 1e-12);
         assert!(mixture.unevaluable_mass.abs() < 1e-12);
         assert_eq!(open.identification.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!((open.estimate.as_effect().unwrap().ate - 2.0).abs() < 1e-12);
+        assert!((open.estimate().as_effect().unwrap().ate - 2.0).abs() < 1e-12);
 
         // The mass the diagram does not certify follows the posterior weights.
         let shifted = transport_study(
@@ -298,7 +298,7 @@ fn the_selection_targets_decide_how_much_posterior_mass_identifies() {
         assert!((mixture.identified_mass - 0.2).abs() < 1e-9);
         assert!((mixture.unidentified_mass - 0.7).abs() < 1e-9);
         assert!((mixture.unevaluable_mass - 0.1).abs() < 1e-9);
-        assert!((shifted.estimate.as_effect().unwrap().ate - 2.0).abs() < 1e-12);
+        assert!((shifted.estimate().as_effect().unwrap().ate - 2.0).abs() < 1e-12);
     });
 }
 
@@ -336,7 +336,8 @@ fn bayesian_transport_mixes_the_trial_row_posterior_over_certified_atoms() {
         );
         assert!((posterior.unevaluable_mass - 0.2).abs() < 1e-9, "{}", posterior.unevaluable_mass);
         assert!(
-            (result.estimate.as_effect().unwrap().ate - posterior.summaries.mean[0]).abs() < 1e-12
+            (result.estimate().as_effect().unwrap().ate - posterior.summaries.mean[0]).abs()
+                < 1e-12
         );
         assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
         assert_eq!(
@@ -517,12 +518,13 @@ fn the_bernoulli_contrast_is_the_enumerated_design_value_whatever_the_posterior(
         assert!((estimated.contrast.hajek + 3.0).abs() < 1e-12);
         assert!((estimated.contrast.conservative_variance - 204.0).abs() < 1e-9);
         assert!(
-            (result.estimate.as_effect().unwrap().ate - explicit.estimate.as_effect().unwrap().ate)
+            (result.estimate().as_effect().unwrap().ate
+                - explicit.estimate().as_effect().unwrap().ate)
                 .abs()
                 < 1e-12,
             "the posterior does not change the contrast"
         );
-        assert_eq!(result.support_status, Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Refused));
 
         // The cyclic mask is not a DAG: its weight is the unidentified mass.
         let mixture = result.structural_response.as_ref().expect("a structural mixture");
@@ -556,8 +558,8 @@ fn the_bernoulli_contrast_is_the_enumerated_design_value_whatever_the_posterior(
         assert!(mixture.unidentified_mass.abs() < 1e-12);
         assert_eq!(over_admgs.identification.status, explicit.identification.status);
         assert_eq!(
-            over_admgs.estimate.as_effect().unwrap().ate.to_bits(),
-            result.estimate.as_effect().unwrap().ate.to_bits()
+            over_admgs.estimate().as_effect().unwrap().ate.to_bits(),
+            result.estimate().as_effect().unwrap().ate.to_bits()
         );
     });
 }
@@ -590,7 +592,7 @@ fn the_cluster_total_effect_runs_the_checked_design_over_a_posterior() {
         // Cluster totals 8 and 12 (treated) against 2 and 6 (control): a difference of means of 6
         // over two units per cluster is a total effect of 3, and the two arms' variances of 8
         // over two clusters each give a Neyman standard error of sqrt(8) / 2 = sqrt(2).
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert!((effect.ate - 3.0).abs() < 1e-12);
         assert!((effect.se_analytic() - 2.0_f64.sqrt()).abs() < 1e-12);
         let mixture = result.structural_response.as_ref().unwrap();
@@ -609,7 +611,7 @@ fn the_cluster_total_effect_runs_the_checked_design_over_a_posterior() {
         .unwrap();
         assert!(matches!(prepared.retained_operation(), RetainedOperation::EstimatorRoute));
         let again = prepared.estimate(&data, &ctx).unwrap();
-        assert!((again.estimate.as_effect().unwrap().ate - 3.0).abs() < 1e-12);
+        assert!((again.estimate().as_effect().unwrap().ate - 3.0).abs() < 1e-12);
     });
 }
 
@@ -656,7 +658,7 @@ fn the_gaussian_exposure_posterior_is_conditional_on_the_design_and_carries_the_
         // y = 2 + 3 own + 4 treated neighbors: (own 0, 1 neighbor) -> (own 1, 0 neighbors) is -1.
         let truth = fixture["expected_contrast"].as_f64().unwrap();
         let tolerance = fixture["tolerance"].as_f64().unwrap();
-        assert!((result.estimate.as_effect().unwrap().ate - truth).abs() < tolerance);
+        assert!((result.estimate().as_effect().unwrap().ate - truth).abs() < tolerance);
         let posterior = result.posterior.as_ref().expect("a contrast posterior");
         assert_eq!(posterior.draws.n_draws, 20_000);
         assert!((posterior.unidentified_mass - 0.2).abs() < 1e-9);
@@ -742,7 +744,7 @@ fn a_cpdag_whose_members_certify_different_formulas_is_partially_identified() {
         assert_eq!(result.identification.status, IdentificationStatus::PartiallyIdentified);
         // The weighting reads a certified formula only through its certificate: the identified
         // set over the three cases is the pinned contrast.
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert!((effect.ate - 2.0).abs() < 1e-12);
         assert!((effect.se_analytic() - reference_se()).abs() < 1e-12);
         let mixture = result.structural_response.as_ref().expect("an identified-set mixture");
@@ -758,7 +760,7 @@ fn a_cpdag_whose_members_certify_different_formulas_is_partially_identified() {
             .expect("the case rules are disclosed");
         assert!(rules.message.contains("transport.sid.direct=2"), "{}", rules.message);
         assert!(rules.message.contains("transport.sid.standardize=1"), "{}", rules.message);
-        assert_eq!(result.support_status, Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Refused));
     });
 }
 
@@ -772,14 +774,14 @@ fn a_cpdag_whose_members_agree_is_a_point() {
             .unwrap();
         assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(result.structural_response.is_none(), "a point, not an identified set");
-        assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 1e-12);
+        assert!((result.estimate().as_effect().unwrap().ate - 2.0).abs() < 1e-12);
         let prepared =
             class_study(ClassGraph::Cpdag(open_chain()), &[], InferenceMode::Frequentist)
                 .prepare(&ctx)
                 .unwrap();
         assert!(matches!(prepared.retained_operation(), RetainedOperation::EstimatorRoute));
         let again = prepared.estimate(&transport_data(), &ctx).unwrap();
-        assert!((again.estimate.as_effect().unwrap().ate - 2.0).abs() < 1e-12);
+        assert!((again.estimate().as_effect().unwrap().ate - 2.0).abs() < 1e-12);
         assert!(again.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
     });
 }
@@ -818,7 +820,7 @@ fn a_pag_is_read_through_the_graphs_its_completions_stand_for() {
         let result =
             class_study(ClassGraph::Pag(pag), &[Z], InferenceMode::Frequentist).run(&ctx).unwrap();
         assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 1e-12);
+        assert!((result.estimate().as_effect().unwrap().ate - 2.0).abs() < 1e-12);
         assert!(result.structural_response.is_none());
         assert!(
             result
@@ -923,10 +925,10 @@ fn a_posterior_of_cpdag_atoms_mixes_the_class_envelope_of_sid_outcomes() {
         let result = study.run(&ctx).unwrap();
 
         // The pinned closed-form contrast, with the delta-method interval of the weighting.
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert!((effect.ate - 2.0).abs() < 1e-12, "{}", effect.ate);
         assert!((effect.se_analytic() - reference_se()).abs() < 1e-12);
-        assert_eq!(result.support_status, Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Refused));
 
         // Every atom identifies and evaluates: no lost mass, and the value of each atom equals
         // the explicit class route on the same data.
@@ -941,7 +943,7 @@ fn a_posterior_of_cpdag_atoms_mixes_the_class_envelope_of_sid_outcomes() {
                 .unwrap();
         for key in graphs.graph_keys().iter() {
             let value = value_of(&result, *key).expect("an identified atom has a value");
-            assert!((value - explicit.estimate.as_effect().unwrap().ate).abs() < 1e-12);
+            assert!((value - explicit.estimate().as_effect().unwrap().ate).abs() < 1e-12);
         }
         // The open chain's members certify different formulas, so it is partially identified
         // and so is the mixture that contains it.
@@ -964,7 +966,7 @@ fn a_posterior_of_cpdag_atoms_mixes_the_class_envelope_of_sid_outcomes() {
         // The prepared handle retains the per-atom class proofs and returns the same answer.
         let prepared = study.prepare(&ctx).unwrap();
         let again = prepared.estimate(&transport_data(), &ctx).unwrap();
-        assert!((again.estimate.as_effect().unwrap().ate - effect.ate).abs() < 1e-12);
+        assert!((again.estimate().as_effect().unwrap().ate - effect.ate).abs() < 1e-12);
         assert!(again.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
     });
 }
@@ -1010,7 +1012,7 @@ fn a_posterior_of_pag_atoms_states_the_mass_sid_does_not_certify() {
         let study =
             transport_study(graphs.clone(), &[Z], InferenceMode::Frequentist, RefuteSuite::None);
         let result = study.run(&ctx).unwrap();
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert!((effect.ate - 2.0).abs() < 1e-12, "{}", effect.ate);
         let mixture = result.structural_response.as_ref().expect("a structural mixture");
         assert!((mixture.identified_mass - 0.75).abs() < 1e-9, "{}", mixture.identified_mass);
@@ -1036,7 +1038,7 @@ fn a_posterior_of_pag_atoms_states_the_mass_sid_does_not_certify() {
         let mixture = shifted.structural_response.as_ref().unwrap();
         assert!((mixture.unidentified_mass - 0.8).abs() < 1e-9);
         assert!((mixture.identified_mass - 0.2).abs() < 1e-9);
-        assert!((shifted.estimate.as_effect().unwrap().ate - 2.0).abs() < 1e-12);
+        assert!((shifted.estimate().as_effect().unwrap().ate - 2.0).abs() < 1e-12);
     });
 }
 

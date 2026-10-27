@@ -70,7 +70,7 @@ fn conditional_effect_placebo_and_rcc_run_on_interaction_scalar() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
     assert!(
         names.iter().any(|n| n.contains("placebo")),

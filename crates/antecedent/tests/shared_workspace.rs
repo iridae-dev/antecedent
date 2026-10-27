@@ -30,7 +30,7 @@ fn execute_static_refute_reuses_estimate_workspace() {
         .unwrap()
         .run(&ExecutionContext::for_tests(9))
         .unwrap();
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     assert!(!result.refutations.is_empty());
     // Placebo and RCC are OLS-powerless sampling-stability diagnostics, not
     // claim falsifiers, and report informative: false under linear adjustment
@@ -53,7 +53,7 @@ fn shared_workspace_placebo_parity_and_capacity() {
         .unwrap();
 
     let estimand = id_run.estimand.clone();
-    let estimate = id_run.estimate.clone();
+    let estimate = id_run.estimate().clone();
     let problem = RefutationProblem::new(
         &data,
         &estimand,

@@ -1238,91 +1238,90 @@ impl EvidenceLedgerSession {
             variant,
             dependence,
         } = match value {
-                SynthesisValue::EqualStudyGaussian(p) => {
-                    #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
-                    let t = antecedent_stats::special::student_t_ppf(
-                        0.5 + level / 2.0,
-                        p.degrees_of_freedom as f64,
-                    );
-                    IntervalConstruction {
-                        estimate: p.estimate,
-                        half: t * p.variance.sqrt(),
-                        studies: p.degrees_of_freedom + 1,
-                        estimator: "evidence.synthesis.equal_study_gaussian",
-                        interval_method: "independent_gaussian_study_t",
-                        se_kind: "empirical_study_variance",
-                        variant: "equal_study_gaussian",
-                        dependence: "independent",
-                    }
+            SynthesisValue::EqualStudyGaussian(p) => {
+                #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
+                let t = antecedent_stats::special::student_t_ppf(
+                    0.5 + level / 2.0,
+                    p.degrees_of_freedom as f64,
+                );
+                IntervalConstruction {
+                    estimate: p.estimate,
+                    half: t * p.variance.sqrt(),
+                    studies: p.degrees_of_freedom + 1,
+                    estimator: "evidence.synthesis.equal_study_gaussian",
+                    interval_method: "independent_gaussian_study_t",
+                    se_kind: "empirical_study_variance",
+                    variant: "equal_study_gaussian",
+                    dependence: "independent",
                 }
-                SynthesisValue::FixedEffect(p) => {
-                    let z = antecedent_stats::special::normal_ppf(0.5 + level / 2.0);
-                    IntervalConstruction {
-                        estimate: p.estimate,
-                        half: z * p.variance.sqrt(),
-                        studies: p.degrees_of_freedom + 1,
-                        estimator: "evidence.synthesis.fixed_effect_gls",
-                        interval_method: "wald_z",
-                        se_kind: "model_variance",
-                        variant: "fixed_effect",
-                        dependence,
-                    }
+            }
+            SynthesisValue::FixedEffect(p) => {
+                let z = antecedent_stats::special::normal_ppf(0.5 + level / 2.0);
+                IntervalConstruction {
+                    estimate: p.estimate,
+                    half: z * p.variance.sqrt(),
+                    studies: p.degrees_of_freedom + 1,
+                    estimator: "evidence.synthesis.fixed_effect_gls",
+                    interval_method: "wald_z",
+                    se_kind: "model_variance",
+                    variant: "fixed_effect",
+                    dependence,
                 }
-                SynthesisValue::RandomEffects(r) => {
-                    let (estimates, variances, variant) = match self.records.get(&result) {
-                        Some(SynthesisRecord {
-                            method:
-                                SynthesisMethod::RandomEffectsDerSimonianLaird { estimates, variances },
-                            ..
-                        }) => (estimates, variances, "random_effects_dl"),
-                        Some(SynthesisRecord {
-                            method: SynthesisMethod::RandomEffectsReml { estimates, variances },
-                            ..
-                        }) => (estimates, variances, "random_effects_reml"),
-                        _ => {
-                            return Err(unmeasured(
-                                "a random-effects result whose study summaries are not carried",
-                            ));
-                        }
-                    };
-                    let k = estimates.len();
-                    if variances.len() != k {
+            }
+            SynthesisValue::RandomEffects(r) => {
+                let (estimates, variances, variant) = match self.records.get(&result) {
+                    Some(SynthesisRecord {
+                        method:
+                            SynthesisMethod::RandomEffectsDerSimonianLaird { estimates, variances },
+                        ..
+                    }) => (estimates, variances, "random_effects_dl"),
+                    Some(SynthesisRecord {
+                        method: SynthesisMethod::RandomEffectsReml { estimates, variances },
+                        ..
+                    }) => (estimates, variances, "random_effects_reml"),
+                    _ => {
                         return Err(unmeasured(
-                            "a random-effects result whose study summaries are inconsistent",
+                            "a random-effects result whose study summaries are not carried",
                         ));
                     }
-                    let precision: Vec<f64> =
-                        variances.iter().map(|v| 1.0 / (v + r.tau_squared)).collect();
-                    let total: f64 = precision.iter().sum();
-                    let spread: f64 = precision
-                        .iter()
-                        .zip(estimates)
-                        .map(|(w, y)| w * (y - r.estimate) * (y - r.estimate))
-                        .sum();
-                    #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
-                    let q = spread / (k - 1) as f64;
-                    let variance = q.max(1.0) / total;
-                    #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
-                    let t =
-                        antecedent_stats::special::student_t_ppf(0.5 + level / 2.0, (k - 1) as f64);
-                    IntervalConstruction {
-                        estimate: r.estimate,
-                        half: t * variance.sqrt(),
-                        studies: k,
-                        estimator: "evidence.synthesis.random_effects",
-                        interval_method: "hksj_t",
-                        se_kind: "hartung_knapp",
-                        variant,
-                        dependence: "independent",
-                    }
+                };
+                let k = estimates.len();
+                if variances.len() != k {
+                    return Err(unmeasured(
+                        "a random-effects result whose study summaries are inconsistent",
+                    ));
                 }
-                SynthesisValue::Hierarchical(_) => {
-                    return Err(unmeasured("a hierarchical borrowing posterior"));
+                let precision: Vec<f64> =
+                    variances.iter().map(|v| 1.0 / (v + r.tau_squared)).collect();
+                let total: f64 = precision.iter().sum();
+                let spread: f64 = precision
+                    .iter()
+                    .zip(estimates)
+                    .map(|(w, y)| w * (y - r.estimate) * (y - r.estimate))
+                    .sum();
+                #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
+                let q = spread / (k - 1) as f64;
+                let variance = q.max(1.0) / total;
+                #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
+                let t = antecedent_stats::special::student_t_ppf(0.5 + level / 2.0, (k - 1) as f64);
+                IntervalConstruction {
+                    estimate: r.estimate,
+                    half: t * variance.sqrt(),
+                    studies: k,
+                    estimator: "evidence.synthesis.random_effects",
+                    interval_method: "hksj_t",
+                    se_kind: "hartung_knapp",
+                    variant,
+                    dependence: "independent",
                 }
-                SynthesisValue::DependenceEnvelope(_) => {
-                    return Err(unmeasured("an assumption range over a declared dependence"));
-                }
-            };
+            }
+            SynthesisValue::Hierarchical(_) => {
+                return Err(unmeasured("a hierarchical borrowing posterior"));
+            }
+            SynthesisValue::DependenceEnvelope(_) => {
+                return Err(unmeasured("an assumption range over a declared dependence"));
+            }
+        };
         if !(half.is_finite() && estimate.is_finite()) {
             return Err(unmeasured("a non-finite pooled value"));
         }

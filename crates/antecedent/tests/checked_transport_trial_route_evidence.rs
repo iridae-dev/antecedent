@@ -135,7 +135,7 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
                     < bayesian_pin["variance_tolerance"].as_f64().unwrap()
             );
             assert!(
-                (result.estimate.as_effect().unwrap().ate - posterior.summaries.mean[0]).abs()
+                (result.estimate().as_effect().unwrap().ate - posterior.summaries.mean[0]).abs()
                     < 1e-12
             );
             // The one-shot facade executes the same retained row-law bootstrap and seed.
@@ -145,10 +145,11 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
             );
         } else {
             assert!((transported.ipw - ipw).abs() <= ipw_tolerance);
-            assert!((result.estimate.as_effect().unwrap().ate - ipw).abs() <= ipw_tolerance);
+            assert!((result.estimate().as_effect().unwrap().ate - ipw).abs() <= ipw_tolerance);
         }
         assert!(
-            (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+            (one_shot.estimate().as_effect().unwrap().ate
+                - result.estimate().as_effect().unwrap().ate)
                 .abs()
                 < 1e-12
         );
@@ -242,11 +243,11 @@ fn a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query() {
                 // No evidence row names the cell: it executes and stays unlicensed.
                 assert_eq!(built.support_status(), Some(CellStatus::Refused));
                 let result = built.run(&ctx).unwrap();
-                assert_eq!(result.support_status, Some(CellStatus::Refused));
+                assert_eq!(result.support_status(), Some(CellStatus::Refused));
                 let reference = build(&data, bayesian).run(&ctx).unwrap();
                 let (got, want) = (
-                    result.estimate.as_effect().unwrap().ate,
-                    reference.estimate.as_effect().unwrap().ate,
+                    result.estimate().as_effect().unwrap().ate,
+                    reference.estimate().as_effect().unwrap().ate,
                 );
                 if bayesian {
                     // The same seeded Dirichlet draws on the same rows.
@@ -270,7 +271,7 @@ fn a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query() {
                         .iter()
                         .any(|item| item.code.as_ref() == "exec.identify.cached")
                 );
-                assert!((again.estimate.as_effect().unwrap().ate - got).abs() < 1e-12);
+                assert!((again.estimate().as_effect().unwrap().ate - got).abs() < 1e-12);
             }
         }
         // A CPDAG or PAG stands for several selection diagrams and still refuses.
@@ -388,7 +389,7 @@ fn cheap_and_full_validation_test_the_supplied_probabilities_against_the_rows() 
                     ],
                 };
                 assert_eq!(names, expected, "dag={graph_is_dag} bayesian={bayesian} {suite:?}");
-                let effect = result.estimate.as_effect().unwrap().ate;
+                let effect = result.estimate().as_effect().unwrap().ate;
                 if bayesian {
                     assert!((effect - counted).abs() < 0.15, "{effect} vs {counted}");
                 } else {

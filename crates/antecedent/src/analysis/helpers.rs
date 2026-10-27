@@ -585,15 +585,15 @@ pub(crate) fn attach_average_functional_grid(
         }
         return Ok(estimate);
     }
-    let mut config = match study.estimator_spec.as_deref() {
+    let mut config = match study.declared.estimator_spec.as_deref() {
         Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => *config.clone(),
         _ => AipwAte::new(),
     };
-    if let Some(design) = study.sampling_design {
+    if let Some(design) = study.declared.sampling_design {
         config.inference.sampling_design =
             antecedent_estimate::util::SamplingDeclaration::Declared(design);
     }
-    if let Some(overlap) = study.overlap_policy {
+    if let Some(overlap) = study.declared.overlap_policy {
         config.overlap = overlap;
     }
     if !matches!(query.outcome_functional, OutcomeFunctional::Mean)

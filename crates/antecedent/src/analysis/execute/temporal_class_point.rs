@@ -733,8 +733,8 @@ impl super::Study {
         (block_stream, posterior_stream): (u64, u64),
     ) -> ClassPointUncertainty<'_> {
         ClassPointUncertainty {
-            inference: &self.inference,
-            bootstrap_replicates: self.bootstrap_replicates,
+            inference: &self.settings.inference,
+            bootstrap_replicates: self.settings.bootstrap_replicates,
             structural_span,
             block_stream,
             posterior_stream,
@@ -762,7 +762,8 @@ impl super::Study {
                 message: "a temporal derivative is the local slope at one horizon",
             });
         }
-        let prior_scale = isotropic_prior_scale(&self.inference, DERIVATIVE_PRIOR_REFUSAL)?;
+        let prior_scale =
+            isotropic_prior_scale(&self.settings.inference, DERIVATIVE_PRIOR_REFUSAL)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let probe = super::temporal_path::unit_contrast_query(
             temporal,
@@ -805,7 +806,7 @@ impl super::Study {
         diagnostics.extend(uncertainty_diagnostics);
         // A derivative's cheap/full suite is its refuter state on every identified
         // completion's Pulse witness at the one horizon (unlicensed).
-        let (refutations, predictive_checks) = if self.refute == RefuteSuite::None {
+        let (refutations, predictive_checks) = if self.settings.refute == RefuteSuite::None {
             (Vec::new(), Vec::new())
         } else {
             let mut sites = Vec::new();
@@ -846,7 +847,7 @@ impl super::Study {
         );
         let identification =
             envelope_to_identification_result_for(envelope, CausalQuery::Response(query.clone()));
-        let estimator_id = EstimatorId::temporal_response_for(&self.inference);
+        let estimator_id = EstimatorId::temporal_response_for(&self.settings.inference);
         let structural = super::temporal_path::temporal_class_structural_mixture(
             envelope,
             crate::result::StructuralWeightBasis::CompletionEnumeration,
@@ -883,7 +884,7 @@ impl super::Study {
             }),
         );
         result.posterior = None;
-        result.rebind_interval(self.inference.is_bayesian());
+        result.rebind_interval(self.settings.inference.is_bayesian());
         Ok(result)
     }
 
@@ -898,12 +899,13 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if self.refute != RefuteSuite::None {
+        if self.settings.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {
                 message: "temporal cross-world effects are point-only; cheap/full refuters are not licensed",
             });
         }
-        let prior_scale = isotropic_prior_scale(&self.inference, CROSS_WORLD_PRIOR_REFUSAL)?;
+        let prior_scale =
+            isotropic_prior_scale(&self.settings.inference, CROSS_WORLD_PRIOR_REFUSAL)?;
         let (treatment, outcome, mediator, active, control) = cross_world_endpoints(&self.query)?;
         let contrast = CrossWorldContrast { treatment, outcome, mediator, active, control };
         let probe = cross_world_probe(treatment, outcome);
@@ -1048,12 +1050,13 @@ impl super::Study {
                 message: "temporal conditional effect fits a modifier set on a single-step pulse or sustained policy",
             });
         }
-        if self.refute != RefuteSuite::None {
+        if self.settings.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {
                 message: "temporal conditional effect is point-only; cheap/full refuters are not licensed",
             });
         }
-        let prior_scale = isotropic_prior_scale(&self.inference, CONDITIONAL_PRIOR_REFUSAL)?;
+        let prior_scale =
+            isotropic_prior_scale(&self.settings.inference, CONDITIONAL_PRIOR_REFUSAL)?;
         let (cache, identify_cached) = load_class_posterior_cache(self, gp, data, query, ctx)?;
         let mut pairs = Vec::new();
         let mut pooled = PooledAtoms::default();
@@ -1156,7 +1159,8 @@ impl super::Study {
         }
         let probe = derivative_probe(query)?;
         let (cache, identify_cached) = load_class_posterior_cache(self, gp, data, &probe, ctx)?;
-        let prior_scale = isotropic_prior_scale(&self.inference, DERIVATIVE_PRIOR_REFUSAL)?;
+        let prior_scale =
+            isotropic_prior_scale(&self.settings.inference, DERIVATIVE_PRIOR_REFUSAL)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let offsets = (probe.try_treatment_offset()?, probe.outcome_offset());
         let mut pairs = Vec::new();
@@ -1185,7 +1189,7 @@ impl super::Study {
             }
             pairs.push((weight, scalar));
             responses.push((weight, derived.response.clone()));
-            if self.refute != RefuteSuite::None {
+            if self.settings.refute != RefuteSuite::None {
                 // Each atom's derivative is refuted on its own identified completions' Pulse
                 // witnesses against its own response, then the reports mix by posterior weight.
                 let sites = super::posterior_witness_state::class_completion_sites(
@@ -1248,7 +1252,7 @@ impl super::Study {
             chosen,
             (treatment, outcome),
             (
-                EstimatorId::temporal_response_for(&self.inference),
+                EstimatorId::temporal_response_for(&self.settings.inference),
                 (
                     point_uncertainty::DERIVATIVE_BLOCK_STREAM,
                     point_uncertainty::DERIVATIVE_POSTERIOR_STREAM,
@@ -1263,13 +1267,13 @@ impl super::Study {
         if let Some(structural) = result.structural_response.as_mut() {
             structural.identified_set_interval = None;
         }
-        if self.refute != RefuteSuite::None {
+        if self.settings.refute != RefuteSuite::None {
             let (reports, checks, notes) = witness_states.finish();
             result.refutations = reports;
             result.predictive_checks = checks;
             result.diagnostics.extend(notes);
         }
-        result.rebind_interval(self.inference.is_bayesian());
+        result.rebind_interval(self.settings.inference.is_bayesian());
         Ok(result)
     }
 
@@ -1281,7 +1285,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if self.refute != RefuteSuite::None {
+        if self.settings.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {
                 message: "temporal cross-world effects are point-only; cheap/full refuters are not licensed",
             });
@@ -1290,7 +1294,8 @@ impl super::Study {
         let contrast = CrossWorldContrast { treatment, outcome, mediator, active, control };
         let probe = cross_world_probe(treatment, outcome);
         let (cache, identify_cached) = load_class_posterior_cache(self, gp, data, &probe, ctx)?;
-        let prior_scale = isotropic_prior_scale(&self.inference, CROSS_WORLD_PRIOR_REFUSAL)?;
+        let prior_scale =
+            isotropic_prior_scale(&self.settings.inference, CROSS_WORLD_PRIOR_REFUSAL)?;
         let offsets = (probe.try_treatment_offset()?, probe.outcome_offset());
         let mut pairs = Vec::new();
         let mut pooled = PooledAtoms::default();
@@ -1759,7 +1764,7 @@ fn load_class_posterior_cache(
         gp,
         &variables,
         probe,
-        study.max_completions,
+        study.declared.max_completions,
         ctx,
     )?;
     Ok((Arc::new(cache), false))

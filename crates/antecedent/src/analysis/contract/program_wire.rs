@@ -249,7 +249,7 @@ fn linear_lowering_licensed(study: &Study, resolved_estimator: Option<&str>) -> 
     resolved_estimator == Some("linear.adjustment.ate")
         && study.graph.class() == GraphClass::Dag
         && matches!(study.structure_source, StructureSource::Explicit | StructureSource::Accepted)
-        && matches!(study.inference, InferenceMode::Frequentist)
+        && matches!(study.settings.inference, InferenceMode::Frequentist)
 }
 
 fn linear_adjustment_lowering(

@@ -162,7 +162,7 @@ fn temporal_dag_derivatives_publish_the_linear_slope() {
                 // Bayesian: the credible band of the joint slope-posterior draws.
                 // Frequentist: the shared circular-block band, withheld when this
                 // exact-fit fixture leaves the replicates without spread.
-                let method = result.interval.as_ref().map(|binding| binding.method);
+                let method = result.interval().as_ref().map(|binding| binding.method);
                 if bayesian {
                     assert_eq!(
                         method,

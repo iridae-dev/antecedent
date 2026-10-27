@@ -58,14 +58,14 @@ impl CheckedStaticMediationOperation {
             message: "checked static mediation requires a supplied DAG",
         })?;
         query.validate()?;
-        if !matches!(study.inference, InferenceMode::Frequentist)
+        if !matches!(study.settings.inference, InferenceMode::Frequentist)
             || !matches!(
                 study.structure_source,
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || !study.refute.is_point_or_placebo()
-            || !study.custom_validators.is_empty()
+            || !study.settings.refute.is_point_or_placebo()
+            || !study.declared.custom_validators.is_empty()
             || cache.identification.query != study.query
             || !matches!(
                 cache.identification.status,
@@ -117,8 +117,8 @@ impl CheckedStaticMediationOperation {
             schema: data.schema().clone(),
             design_roles: roles.into(),
             source_rows,
-            bootstrap_replicates: study.bootstrap_replicates,
-            refute: study.refute,
+            bootstrap_replicates: study.settings.bootstrap_replicates,
+            refute: study.settings.refute,
             result_context: IdentifiedResultContext::from_study(study),
         })
     }

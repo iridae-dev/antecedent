@@ -94,7 +94,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         query,
         family,
         assumptions,
-        inference_selection(&study.inference),
+        inference_selection(&study.settings.inference),
         key,
     )
     .unwrap_or_else(|_| ProblemTarget::QueryFunctional {
@@ -124,7 +124,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
                 uncertainty: if class {
                     UncertaintyReading::Envelope
                 } else {
-                    declared_uncertainty(&study.inference)
+                    declared_uncertainty(&study.settings.inference)
                 },
                 kind: Some(ClaimKind::Response),
             },
@@ -145,7 +145,7 @@ fn response_sampling(
     query: &ResponseQuery,
 ) -> (Option<FoldPlan>, Resampling) {
     let options = cx.study.response_options.clone().unwrap_or_default();
-    let frequentist = matches!(cx.study.inference, InferenceMode::Frequentist);
+    let frequentist = matches!(cx.study.settings.inference, InferenceMode::Frequentist);
     let folds = match estimator {
         Some(EstimatorId::ResponseKennedyDr | EstimatorId::ResponseRieszAde) if frequentist => {
             Some(FoldPlan { folds: options.folds, unit: ResampleUnit::Row, embargo: None })
@@ -395,9 +395,9 @@ pub(super) fn assemble(
     let mut statistical = StatisticalProgram::declared(DeclaredProgram {
         identifier,
         estimator,
-        inference: &study.inference,
-        bootstrap_replicates: study.bootstrap_replicates,
-        sampling_design: study.sampling_design,
+        inference: &study.settings.inference,
+        bootstrap_replicates: study.settings.bootstrap_replicates,
+        sampling_design: study.declared.sampling_design,
         design,
         operators: program_operators(cell.intervenes)?,
     })?;

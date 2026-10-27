@@ -210,7 +210,7 @@ fn natural_direct_effect_regression_against_the_existing_cell() {
         .build()
         .unwrap();
     let existing =
-        study.run(&ExecutionContext::for_tests(417)).unwrap().estimate.as_effect().unwrap().ate;
+        study.run(&ExecutionContext::for_tests(417)).unwrap().estimate().as_effect().unwrap().ate;
     let direct = CrossWorldQuery::natural_direct(v(X), v(M), v(Y), control, active).unwrap();
     let mine = effect(&direct, &data, CrossWorldOptions::default());
     assert!((mine - existing).abs() < 1e-12, "cross-world NDE {mine} vs existing {existing}");
@@ -481,7 +481,7 @@ fn natural_direct_effect_regression_on_noisy_and_non_separable_fixtures() {
             .unwrap()
             .run(&ExecutionContext::for_tests(417))
             .unwrap()
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .ate

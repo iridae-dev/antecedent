@@ -1252,9 +1252,8 @@ fn exercise_temporal_reference_worlds(
     assert!((split.specifications.iter().map(|s| s.mass).sum::<f64>() - 1.0).abs() < 1e-12);
     // This design earns no proof of the mechanism block: the finer claim is executed as
     // model-conditional and names the next design instead of calling any step identified.
-    let adaptive = result
-        .attempt_design_adaptive_reference(&request(0, 3), &changed, None, ctx)
-        .unwrap();
+    let adaptive =
+        result.attempt_design_adaptive_reference(&request(0, 3), &changed, None, ctx).unwrap();
     assert!(!adaptive.is_complete() && adaptive.identified_steps.is_empty());
     assert!(adaptive.next_designs.iter().any(|step| {
         step.obligation

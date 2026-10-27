@@ -101,7 +101,7 @@ impl super::Study {
         };
         let mut assumptions = identification.required_assumptions.clone();
         assumptions.push(dependence_assumption());
-        let (estimate, posterior, estimator_id, note, n_draws) = match &self.inference {
+        let (estimate, posterior, estimator_id, note, n_draws) = match &self.settings.inference {
             InferenceMode::Frequentist => {
                 let fit =
                     fit_lagged_instrument(&sample, WEAK_F_THRESHOLD).map_err(CausalError::from)?;

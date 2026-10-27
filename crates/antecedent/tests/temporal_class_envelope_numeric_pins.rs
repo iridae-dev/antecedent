@@ -214,9 +214,9 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
                     result.diagnostics
                 );
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - expected).abs() < tol,
+                    (result.estimate().as_effect().unwrap().ate - expected).abs() < tol,
                     "{class} ate {} vs {expected}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
             }
             assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
@@ -239,7 +239,7 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
             .run(&ExecutionContext::for_tests(1))
             .unwrap();
             let se = bootstrapped
-                .estimate
+                .estimate()
                 .as_effect()
                 .unwrap()
                 .se_bootstrap()
@@ -257,7 +257,7 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
                 }),
                 "{class} must not omit between-atom variance when atoms align"
             );
-            assert!((bootstrapped.estimate.as_effect().unwrap().ate - expected).abs() < tol);
+            assert!((bootstrapped.estimate().as_effect().unwrap().ate - expected).abs() < tol);
         }
         let cheap = match &graph {
             ClassGraph::Cpdag(g) => Study::series(data.clone()).graph(g.clone()),
@@ -275,7 +275,7 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
             cheap.diagnostics.iter().any(|d| d.code.as_ref() == "refute.envelope.effect_mixture"),
             "{class} cheap must mix refuters across temporal completions"
         );
-        assert!((cheap.estimate.as_effect().unwrap().ate - expected).abs() < tol);
+        assert!((cheap.estimate().as_effect().unwrap().ate - expected).abs() < tol);
     }
 }
 
@@ -589,14 +589,14 @@ fn temporal_class_single_step_sustained_matches_pulse() {
         let pulse = build(&data, &graph, false, pulse_query(&pin))
             .run(&ExecutionContext::for_tests(1))
             .unwrap()
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .ate;
         let sustained = build(&data, &graph, false, sustained_query(&pin))
             .run(&ExecutionContext::for_tests(1))
             .unwrap()
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .ate;
@@ -734,7 +734,7 @@ fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
                 );
                 for result in [&fresh, &click] {
                     let tag = format!("{label} accepted={accepted} {suite:?} boot={boot}");
-                    assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{tag}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{tag}");
                     assert_eq!(
                         format!("{:?}", result.identification.status),
                         id["status"].as_str().unwrap(),
@@ -749,9 +749,9 @@ fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
                         result.diagnostics
                     );
                     assert!(
-                        (result.estimate.as_effect().unwrap().ate - expected).abs() < tol,
+                        (result.estimate().as_effect().unwrap().ate - expected).abs() < tol,
                         "{tag}: mixture {} vs numpy reference {expected}",
-                        result.estimate.as_effect().unwrap().ate
+                        result.estimate().as_effect().unwrap().ate
                     );
                     let shared_block = result.diagnostics.iter().any(|d| {
                         d.code.as_ref() == "estimate.temporal_class.frequentist.shared_block"
@@ -761,7 +761,7 @@ fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
                     });
                     if boot > 0 {
                         let se = result
-                            .estimate
+                            .estimate()
                             .as_effect()
                             .unwrap()
                             .se_bootstrap()
@@ -786,8 +786,8 @@ fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
                     }
                 }
                 assert!(
-                    (fresh.estimate.as_effect().unwrap().ate
-                        - click.estimate.as_effect().unwrap().ate)
+                    (fresh.estimate().as_effect().unwrap().ate
+                        - click.estimate().as_effect().unwrap().ate)
                         .abs()
                         < 1e-12
                 );
@@ -826,11 +826,11 @@ fn temporal_cpdag_frequentist_pulse_and_sustained_all_structures_and_suites() {
                     .run(&ExecutionContext::for_tests(1))
                     .unwrap();
                 let case = format!("{label} accepted={accepted} {suite:?}");
-                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{case}");
+                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{case}");
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - expected).abs() < tol,
+                    (result.estimate().as_effect().unwrap().ate - expected).abs() < tol,
                     "{case}: ate {} vs {expected}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 if suite == RefuteSuite::None {
                     assert!(result.refutations.is_empty(), "{case}: none runs no refuter");

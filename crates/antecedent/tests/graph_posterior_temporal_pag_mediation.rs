@@ -110,9 +110,9 @@ fn query(contrast: MediationContrast) -> MediationQuery {
 }
 
 fn contemporaneous(edges: &[(u32, u32)]) -> u64 {
-    edges.iter().fold(0_u64, |mask, &(from, to)| {
-        set_edge(mask, N_VARS, from as usize, to as usize, true)
-    })
+    edges
+        .iter()
+        .fold(0_u64, |mask, &(from, to)| set_edge(mask, N_VARS, from as usize, to as usize, true))
 }
 
 /// `(contemporaneous mask, lag mask)` of the lagged template.
@@ -201,7 +201,7 @@ fn a_posterior_of_temporal_pags_mixes_each_atoms_window_decomposition() {
         assert_eq!(mixture.atoms.len(), 2);
         assert!((mixture.identified_mass - 1.0).abs() < 1e-9);
         assert!(mixture.unidentified_mass.abs() < 1e-12);
-        let components = result.payload.mediation().expect("the decomposition");
+        let components = result.payload().mediation().expect("the decomposition");
         for (component, contrast) in [
             (components.total, MediationContrast::Total),
             (components.direct, MediationContrast::NaturalDirect),
@@ -266,7 +266,7 @@ fn a_frequentist_mixture_of_templates_has_the_standard_error_of_its_shared_serie
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     let se = effect.se_bootstrap().expect("the spread of the shared replicates");
     assert!(se > 0.0 && se < 0.5, "{se}");
     assert!(effect.uncertainty.bootstrap.replicates_ok.unwrap() >= 40);

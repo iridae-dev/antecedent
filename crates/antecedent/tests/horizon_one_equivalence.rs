@@ -321,9 +321,9 @@ fn linear_pulse_warm_up_drops_a_row_and_the_matched_static_cohort_reproduces_it(
     let matched = run(frequentist(static_pulse_study(aligned_t, aligned_y)));
     let raw = run(frequentist(static_pulse_study(&t, &y)));
 
-    let temporal_effect = temporal.estimate.as_effect().unwrap();
-    let matched_effect = matched.estimate.as_effect().unwrap();
-    let raw_effect = raw.estimate.as_effect().unwrap();
+    let temporal_effect = temporal.estimate().as_effect().unwrap();
+    let matched_effect = matched.estimate().as_effect().unwrap();
+    let raw_effect = raw.estimate().as_effect().unwrap();
     // Same functional on the same cohort.
     assert!(close(temporal_effect.ate, contrast), "{}", temporal_effect.ate);
     assert!(close(matched_effect.ate, contrast), "{}", matched_effect.ate);
@@ -358,7 +358,7 @@ fn linear_pulse_warm_up_drops_a_row_and_the_matched_static_cohort_reproduces_it(
     let blocked_interval = blocked.primary_interval_binding(false);
     assert_eq!(blocked_interval.method, IntervalMethod::CircularBlockSe);
     assert_ne!(blocked_interval.dependence, "iid");
-    let blocked_effect = blocked.estimate.as_effect().unwrap();
+    let blocked_effect = blocked.estimate().as_effect().unwrap();
     assert!(close(blocked_effect.ate, contrast));
     assert!(blocked_effect.se_bootstrap().is_some_and(|se| se.is_finite() && se > 0.0));
     assert!(blocked_effect.se_analytic().is_nan());
@@ -537,7 +537,7 @@ fn horizon_one_response_curve_reproduces_the_least_squares_mean_and_the_static_c
     assert_eq!(mean.len(), 2);
     assert!(close(mean[0], intercept), "{} vs {intercept}", mean[0]);
     assert!(close(mean[1], intercept + slope), "{} vs {}", mean[1], intercept + slope);
-    let static_effect = static_contrast.estimate.as_effect().unwrap().ate;
+    let static_effect = static_contrast.estimate().as_effect().unwrap().ate;
     assert!(close(static_effect, slope), "{static_effect} vs {slope}");
     assert!(close(mean[1] - mean[0], static_effect));
 }
@@ -615,7 +615,7 @@ fn temporal_counterfactual_is_a_population_average_without_unit_effects_or_poste
         // The Bayesian twin publishes the posterior mean of the slope times the contrast
         // from eight draws, so it agrees with the fitted slope to Monte Carlo error only.
         let tolerance = if bayes { 0.2 } else { TOLERANCE };
-        let ate = result.estimate.as_effect().unwrap().ate;
+        let ate = result.estimate().as_effect().unwrap().ate;
         assert!((ate - slope).abs() <= tolerance, "bayes={bayes}: {ate} vs {slope}");
         assert!(has_diagnostic(&result, "estimate.temporal.cross_world"));
         assert!(result.counterfactual().is_none(), "bayes={bayes}: no unit-level payload");
@@ -623,7 +623,7 @@ fn temporal_counterfactual_is_a_population_average_without_unit_effects_or_poste
         // A frequentist counterfactual resamples only when replicates are requested, so
         // with the omitted default it is point only and carries no interval binding; the
         // Bayesian twin carries its credible interval.
-        let method = result.interval.as_ref().map(|binding| binding.method);
+        let method = result.interval().as_ref().map(|binding| binding.method);
         assert_eq!(
             method,
             if bayes { Some(IntervalMethod::PosteriorQuantile) } else { None },
@@ -728,8 +728,8 @@ fn one_period_switchback_reproduces_the_bernoulli_horvitz_thompson_contrast() {
     assert!((s.variance_upper_bound - sandwich).abs() < 1e-12);
     assert!((b.variance_upper_bound - s.variance_upper_bound).abs() > 0.01);
     for result in [&bernoulli, &switchback] {
-        assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::AnalyticSe);
-        assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+        assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::AnalyticSe);
+        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     }
 }
 
@@ -823,7 +823,7 @@ fn one_period_regime_values_difference_to_the_static_randomized_contrast() {
         .unwrap());
     let fit = contrast.randomized_effect().unwrap();
     assert!((fit.effect - (a.value - z.value)).abs() < 1e-12);
-    assert_eq!(contrast.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(contrast.support_status(), Some(antecedent::support::CellStatus::Licensed));
 
     // The contrast variance includes the covariance of the two arm scores.
     let contrast_variance = fit.standard_error.unwrap().powi(2);
@@ -1039,7 +1039,9 @@ fn repeated_measures_refuses_one_measurement_and_reduces_to_independence_at_zero
 /// A serially independent uniform draw for row `i` on the stream `salt` (splitmix64). Unlike a
 /// low-discrepancy sequence it populates every joint cell of several assignments at once.
 fn independent_unit(i: usize, salt: u64) -> f64 {
-    let mut z = (i as u64).wrapping_add(salt.wrapping_mul(0x1000_0000_0001)).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    let mut z = (i as u64)
+        .wrapping_add(salt.wrapping_mul(0x1000_0000_0001))
+        .wrapping_mul(0x9E37_79B9_7F4A_7C15);
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
@@ -1175,7 +1177,7 @@ fn temporal_link_contrast_on_independent_subjects_reproduces_the_static_glm_rout
             .bootstrap_replicates(0)
             .build()
             .unwrap());
-    let static_effect = static_result.estimate.as_effect().unwrap();
+    let static_effect = static_result.estimate().as_effect().unwrap();
     assert_eq!(static_result.logical_plan.estimator.as_deref(), Some("glm.adjustment"));
 
     assert!((temporal.estimate - contrast).abs() < 1e-6, "{} vs {contrast}", temporal.estimate);
@@ -1542,11 +1544,7 @@ fn one_decision_observational_excursion_reproduces_the_fitted_propensity_contras
     let scores: Vec<f64> =
         (0..n)
             .map(|i| {
-                if assigned[i] {
-                    outcomes[i] / fitted[i]
-                } else {
-                    -outcomes[i] / (1.0 - fitted[i])
-                }
+                if assigned[i] { outcomes[i] / fitted[i] } else { -outcomes[i] / (1.0 - fitted[i]) }
             })
             .collect();
     let effect = scores.iter().sum::<f64>() / nf;
@@ -1672,9 +1670,7 @@ fn one_decision_interference_reproduces_the_partial_interference_exposure_contra
     let n = clusters * 3;
     let nf = n as f64;
     let probability: Vec<f64> = (0..n).map(|i| 0.35 + 0.3 * fractional(i as f64 * 0.382)).collect();
-    let assigned: Vec<bool> = (0..n)
-        .map(|i| independent_unit(i, 11) < probability[i])
-        .collect();
+    let assigned: Vec<bool> = (0..n).map(|i| independent_unit(i, 11) < probability[i]).collect();
     let outcomes: Vec<f64> = (0..n)
         .map(|i| {
             let peers_treated =
@@ -1854,17 +1850,24 @@ const ESTABLISHED: &[(&str, &[&str])] = &[
     (
         "P16",
         &["one_decision_misclassification_correction_divides_the_contrast_by_the_youden_index"],
-    ),    (
+    ),
+    (
         "P01.iv",
-        &["horizon_one_lagged_instrument_reproduces_the_static_two_stage_ratio_with_a_different_uncertainty_product"],
+        &[
+            "horizon_one_lagged_instrument_reproduces_the_static_two_stage_ratio_with_a_different_uncertainty_product",
+        ],
     ),
     (
         "P03.aipw",
-        &["a_sequential_contrast_has_no_one_decision_member_and_differs_from_the_static_aipw_of_the_first_action"],
+        &[
+            "a_sequential_contrast_has_no_one_decision_member_and_differs_from_the_static_aipw_of_the_first_action",
+        ],
     ),
     (
         "P04",
-        &["horizon_one_history_match_is_the_unadjusted_matched_difference_of_the_static_distance_matching"],
+        &[
+            "horizon_one_history_match_is_the_unadjusted_matched_difference_of_the_static_distance_matching",
+        ],
     ),
     (
         "P05",
@@ -1872,15 +1875,21 @@ const ESTABLISHED: &[(&str, &[&str])] = &[
     ),
     (
         "P06",
-        &["horizon_one_cpdag_average_effect_has_the_static_estimate_and_envelope_but_not_its_licence"],
+        &[
+            "horizon_one_cpdag_average_effect_has_the_static_estimate_and_envelope_but_not_its_licence",
+        ],
     ),
     (
         "P07.continuous_dose",
-        &["horizon_one_smoothed_dose_contrast_is_gaussian_horvitz_thompson_while_the_static_policy_value_is_epanechnikov_hajek"],
+        &[
+            "horizon_one_smoothed_dose_contrast_is_gaussian_horvitz_thompson_while_the_static_policy_value_is_epanechnikov_hajek",
+        ],
     ),
     (
         "P07.derivative",
-        &["horizon_one_average_derivative_is_the_least_squares_slope_where_the_static_route_is_semiparametric"],
+        &[
+            "horizon_one_average_derivative_is_the_least_squares_slope_where_the_static_route_is_semiparametric",
+        ],
     ),
     (
         "P07.dose_grid",
@@ -1888,68 +1897,80 @@ const ESTABLISHED: &[(&str, &[&str])] = &[
     ),
     (
         "P07.smoothed_dose",
-        &["horizon_one_smoothed_curve_is_gaussian_and_the_static_transport_target_fixes_the_epanechnikov_kernel"],
+        &[
+            "horizon_one_smoothed_curve_is_gaussian_and_the_static_transport_target_fixes_the_epanechnikov_kernel",
+        ],
     ),
-    (
-        "P10",
-        &["horizon_one_regime_survival_is_the_arm_event_share_of_the_static_two_arm_survival"],
-    ),
+    ("P10", &["horizon_one_regime_survival_is_the_arm_event_share_of_the_static_two_arm_survival"]),
     (
         "P11.local_ratio",
-        &["horizon_one_time_discontinuity_local_ratio_matches_the_static_fit_with_block_uncertainty"],
+        &[
+            "horizon_one_time_discontinuity_local_ratio_matches_the_static_fit_with_block_uncertainty",
+        ],
     ),
     (
         "P11.rd",
-        &["horizon_one_sharp_rd_uniform_window_fit_is_biased_where_the_temporal_local_ratio_recovers_the_jump"],
+        &[
+            "horizon_one_sharp_rd_uniform_window_fit_is_biased_where_the_temporal_local_ratio_recovers_the_jump",
+        ],
     ),
     (
         "P12.intervention",
-        &["horizon_one_intervention_response_is_linear_gcomputation_where_the_static_route_is_additive_smooth"],
+        &[
+            "horizon_one_intervention_response_is_linear_gcomputation_where_the_static_route_is_additive_smooth",
+        ],
     ),
     (
         "P13.attribution",
-        &["horizon_one_change_attribution_reproduces_the_static_decomposition_with_block_uncertainty"],
+        &[
+            "horizon_one_change_attribution_reproduces_the_static_decomposition_with_block_uncertainty",
+        ],
     ),
     (
         "P13.refuter",
-        &["horizon_one_refutation_gives_identical_reports_in_both_quadrants_and_refuses_the_pre_trend"],
+        &[
+            "horizon_one_refutation_gives_identical_reports_in_both_quadrants_and_refuses_the_pre_trend",
+        ],
     ),
-    (
-        "P14",
-        &["horizon_one_transport_is_the_static_contrast_with_a_long_run_variance"],
-    ),
+    ("P14", &["horizon_one_transport_is_the_static_contrast_with_a_long_run_variance"]),
     (
         "P15.conditional",
-        &["horizon_one_conditional_effect_is_the_interaction_regression_marginal_over_the_modifier"],
+        &[
+            "horizon_one_conditional_effect_is_the_interaction_regression_marginal_over_the_modifier",
+        ],
     ),
-    (
-        "P15.projection",
-        &["horizon_one_admg_average_effect_is_the_static_functional_effect"],
-    ),
+    ("P15.projection", &["horizon_one_admg_average_effect_is_the_static_functional_effect"]),
     (
         "P17",
-        &["horizon_one_transported_policy_value_is_the_static_expected_utility_but_needs_a_selection_diagram"],
+        &[
+            "horizon_one_transported_policy_value_is_the_static_expected_utility_but_needs_a_selection_diagram",
+        ],
     ),
     (
         "P18",
-        &["horizon_one_period_refresh_is_the_static_least_squares_refresh_with_a_standing_declaration"],
+        &[
+            "horizon_one_period_refresh_is_the_static_least_squares_refresh_with_a_standing_declaration",
+        ],
     ),
     (
         "X01",
-        &["horizon_one_joint_interaction_is_the_static_decision_world_contrast_but_not_its_licence"],
+        &[
+            "horizon_one_joint_interaction_is_the_static_decision_world_contrast_but_not_its_licence",
+        ],
     ),
     (
         "X02",
-        &["horizon_one_joint_panel_fit_at_lag_zero_is_the_static_cell_response_and_a_lagged_frame_is_another_target"],
+        &[
+            "horizon_one_joint_panel_fit_at_lag_zero_is_the_static_cell_response_and_a_lagged_frame_is_another_target",
+        ],
     ),
     (
         "X02.broader",
-        &["horizon_one_broader_panel_family_at_lag_zero_is_the_static_hill_fit_and_geometric_adstock_needs_the_lag_frame"],
+        &[
+            "horizon_one_broader_panel_family_at_lag_zero_is_the_static_hill_fit_and_geometric_adstock_needs_the_lag_frame",
+        ],
     ),
-    (
-        "X04.1",
-        &["horizon_one_finite_program_search_ranks_exactly_as_the_static_search"],
-    ),
+    ("X04.1", &["horizon_one_finite_program_search_ranks_exactly_as_the_static_search"]),
     (
         "X04.2",
         &["horizon_one_continuous_program_search_polls_static_decision_worlds_on_one_reused_fit"],

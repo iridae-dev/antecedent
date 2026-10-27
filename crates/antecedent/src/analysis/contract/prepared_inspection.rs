@@ -53,7 +53,7 @@ impl PreparedStudy {
             graph_class: study.graph.class(),
             structure_source: study.structure_source,
             accepted_version: study.graph.version(),
-            identifier: study.identifier.map(|id| Arc::from(id.as_str())),
+            identifier: study.declared.identifier.map(|id| Arc::from(id.as_str())),
             estimator: advertised_estimator(study, resolved).map(Arc::from),
             modality: Arc::from(snapshot_modality(&study.data)),
             inference: Arc::from(declared_inference(study)),

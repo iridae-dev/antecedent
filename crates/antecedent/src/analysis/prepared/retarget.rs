@@ -191,7 +191,7 @@ impl PreparedStudy {
     /// Declared independence units of a cluster-DML plan (labels aligned with the rows of its
     /// score table), or `None` for any other plan.
     pub(crate) fn cluster_units(&self, table: &ScoreTable) -> Option<ClusterUnits> {
-        match self.analysis.estimator_spec.as_deref() {
+        match self.analysis.declared.estimator_spec.as_deref() {
             Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => {
                 let (first, second) = config.unit_labels(&table.row_index).ok()?;
                 Some(ClusterUnits { spec: config.cluster_dml?, first: first?, second })
@@ -420,7 +420,7 @@ impl PreparedStudy {
 
     /// Publish the cluster-summed standard error with its few-cluster t reference.
     fn publish_cluster_reference(&self, estimate: &mut EffectEstimate, se: f64, df: usize) {
-        let dyadic = match self.analysis.estimator_spec.as_deref() {
+        let dyadic = match self.analysis.declared.estimator_spec.as_deref() {
             Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => config.has_second_units(),
             Some(crate::estimator_spec::EstimatorSpec::Dml(config)) => config.units.has_second(),
             Some(crate::estimator_spec::EstimatorSpec::DrLearner(config)) => {
@@ -534,7 +534,7 @@ impl PreparedStudy {
                 n_draws: None,
                 cancelled: false,
                 early_stopped: false,
-                bayesian: matches!(self.analysis.inference, InferenceMode::Bayesian(_)),
+                bayesian: matches!(self.analysis.settings.inference, InferenceMode::Bayesian(_)),
             });
         result.certificate = Some(self.retarget_certificate(cache));
         if antecedent_estimate::changes_target(weights) {
@@ -551,13 +551,16 @@ impl PreparedStudy {
                 Self::retarget_response_payload(q, cache, &result),
             );
         }
-        result.rebind_interval(matches!(self.analysis.inference, InferenceMode::Bayesian(_)));
+        result.rebind_interval(matches!(
+            self.analysis.settings.inference,
+            InferenceMode::Bayesian(_)
+        ));
         result.support_status = self.analysis.support_status;
         result.structure_source = self.analysis.structure_source;
         let retargeted = result.retarget_population();
         result.executed_contract = Some(self.executed_contract(
             &self.analysis.data,
-            self.analysis.refute,
+            self.analysis.settings.refute,
             retargeted.as_ref(),
         )?);
         Ok(result)

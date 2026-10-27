@@ -938,7 +938,10 @@ mod tests {
         assert_eq!(capped.violated_constraints, vec!["regulatory_cap"]);
         // Dose 1.5 meets the target (1 + 3 = 4) but costs 1.5 > the 1.2 budget.
         let costly = report.outcomes.iter().find(|o| o.label == "dose_1.5").unwrap();
-        assert_eq!((costly.status, costly.reason), (ActionStatus::Infeasible, ActionReason::OverBudget));
+        assert_eq!(
+            (costly.status, costly.reason),
+            (ActionStatus::Infeasible, ActionReason::OverBudget)
+        );
         assert_eq!(report.feasible, vec!["dose_1"]);
     }
 
@@ -1141,7 +1144,8 @@ mod tests {
     #[test]
     fn a_large_grid_is_classified_without_a_count_cap_and_cancellation_is_never_a_verdict() {
         let forward = linear_forward(&GRID);
-        let many: Vec<ActionSpec> = (0..10_000).map(|i| action(&format!("a{i}"), 0.0, 0.0)).collect();
+        let many: Vec<ActionSpec> =
+            (0..10_000).map(|i| action(&format!("a{i}"), 0.0, 0.0)).collect();
         let report = run(&at_least(1.0), &forward, &many).unwrap();
         assert_eq!(report.outcomes.len(), 10_000);
         let token = CancellationToken::cancel_after_checks(2);

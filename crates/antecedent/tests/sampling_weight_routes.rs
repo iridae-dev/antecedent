@@ -140,7 +140,7 @@ fn a_weighted_bernoulli_trial_is_the_hajek_contrast_with_its_linearized_variance
     assert_eq!(fit.uncertainty.as_ref(), "sampling_weighted_hajek_linearized_variance_no_interval");
 
     let record = result
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .diagnostics
@@ -167,7 +167,7 @@ fn a_weighted_bernoulli_trial_is_the_hajek_contrast_with_its_linearized_variance
             .unwrap();
         prepared.estimate(&data, &ctx()).unwrap()
     };
-    assert!(plain.estimate.as_effect().unwrap().diagnostics.sampling_weights.is_none());
+    assert!(plain.estimate().as_effect().unwrap().diagnostics.sampling_weights.is_none());
 }
 
 #[test]
@@ -204,7 +204,7 @@ fn weights_rescale_and_zero_weight_rows_are_counted_for_a_trial() {
     let zero_fit = zero.randomized_effect().unwrap();
     close(zero_fit.effect, base_fit.effect, 1e-10, "effect with zero-weight rows");
     close(zero_fit.variance_upper_bound, base_fit.variance_upper_bound, 1e-10, "variance");
-    let record = zero.estimate.as_effect().unwrap().diagnostics.sampling_weights.unwrap();
+    let record = zero.estimate().as_effect().unwrap().diagnostics.sampling_weights.unwrap();
     assert_eq!((record.rows_used, record.zero_weight_rows), (200, 6));
 }
 
@@ -416,7 +416,7 @@ fn a_weighted_panel_did_is_the_weighted_change_contrast_with_a_weighted_cluster_
         fit.uncertainty.as_ref(),
         "sampling_weighted_cluster_robust_standard_error_no_interval"
     );
-    let record = result.estimate.as_effect().unwrap().diagnostics.sampling_weights.unwrap();
+    let record = result.estimate().as_effect().unwrap().diagnostics.sampling_weights.unwrap();
     assert_eq!(record.rows_used, 200);
     let per_subject: Vec<f64> = (0..200).map(|j| panel.weight[2 * j]).collect();
     close(record.effective_sample_size, kish_ess(&per_subject), 1e-12, "Kish size");
@@ -454,7 +454,7 @@ fn panel_weights_rescale_and_zero_weight_subjects_are_counted() {
     let zero = run_panel(&padded, &padded.weight);
     close(zero.panel_did().unwrap().effect, base_fit.effect, 1e-10, "effect with zero weights");
     close(zero.panel_did().unwrap().standard_error, base_fit.standard_error, 1e-10, "SE");
-    let record = zero.estimate.as_effect().unwrap().diagnostics.sampling_weights.unwrap();
+    let record = zero.estimate().as_effect().unwrap().diagnostics.sampling_weights.unwrap();
     assert_eq!((record.rows_used, record.zero_weight_rows), (200, 2));
 }
 
@@ -589,7 +589,7 @@ fn a_weighted_temporal_window_is_weighted_least_squares_on_lag_windows() {
     let mut rng = ExecutionContext::for_tests(22).rng.stream_for(StreamDomain::Test, 0x7104);
     let weights: Vec<f64> = (0..n).map(|_| 0.3 + 3.0 * rng.next_f64()).collect();
     let result = run_series(&t, &y, &weights).unwrap();
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     close(effect.ate, temporal_oracle(&t, &y, &weights), 1e-9, "weighted window coefficient");
     let record = effect.diagnostics.sampling_weights.expect("record");
     assert_eq!(record.rows_used, (n - 1) as u64);
@@ -598,7 +598,7 @@ fn a_weighted_temporal_window_is_weighted_least_squares_on_lag_windows() {
     // Rescaling the weights changes nothing.
     let scaled: Vec<f64> = weights.iter().map(|w| w * 40.0).collect();
     let again = run_series(&t, &y, &scaled).unwrap();
-    close(again.estimate.as_effect().unwrap().ate, effect.ate, 1e-9, "rescaled coefficient");
+    close(again.estimate().as_effect().unwrap().ate, effect.ate, 1e-9, "rescaled coefficient");
 }
 
 #[test]
@@ -611,7 +611,7 @@ fn temporal_windows_of_weight_zero_stay_in_sequence_and_are_counted() {
     }
     let zeros = weights[1..].iter().filter(|w| **w == 0.0).count() as u64;
     let result = run_series(&t, &y, &weights).unwrap();
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     close(effect.ate, temporal_oracle(&t, &y, &weights), 1e-9, "coefficient with zero weights");
     let record = effect.diagnostics.sampling_weights.unwrap();
     assert_eq!(record.zero_weight_rows, zeros);

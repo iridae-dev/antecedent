@@ -134,7 +134,7 @@ fn latent_temporal_effect_preserves_query_and_prepared_estimation() {
                     assert_eq!(envelope.indexers[0].key_of(z.raw()).unwrap().offset, -1);
 
                     assert!(
-                        (result.estimate.as_effect().unwrap().ate
+                        (result.estimate().as_effect().unwrap().ate
                             - pin["effect"].as_f64().unwrap())
                         .abs()
                             < pin["absolute_tolerance"].as_f64().unwrap()

@@ -13,9 +13,9 @@ use antecedent_prob::WeightedGraphSamples;
 use serde_json::{Value, json};
 use std::sync::Arc;
 
-mod borrowed_summary;
-mod borrowed_graph;
 mod admitted_materialization;
+mod borrowed_graph;
+mod borrowed_summary;
 
 /// A bounded borrowed node in the complete retained identification hierarchy.
 ///
@@ -88,7 +88,7 @@ impl<'a> PreparedIdentificationView<'a> {
                 value["cache_kind"] = json!(
                     self.study.study().identification.as_ref().map(IdentificationCache::kind)
                 );
-                value["max_completions"] = json!(self.study.study().max_completions);
+                value["max_completions"] = json!(self.study.study().declared.max_completions);
                 value["method"] = json!(
                     self.study
                         .plan()
@@ -1074,12 +1074,20 @@ mod tests {
         let owner = named_prepared();
         let view = owner.identification_view();
         let mut expected = view.materialize().unwrap();
-        expected["names"] = json!(owner.schema().variables().iter()
-            .map(|variable| variable.name.as_ref()).collect::<Vec<_>>());
+        expected["names"] = json!(
+            owner
+                .schema()
+                .variables()
+                .iter()
+                .map(|variable| variable.name.as_ref())
+                .collect::<Vec<_>>()
+        );
         let budget = 16_000_000;
         let pool = AdmissionPool::fixed(1, budget);
         let context = ExecutionContext::for_tests(17).with_admission(pool.clone());
-        let observed = antecedent_core::execution_attempt::observe_execution(|| view.materialize_admitted(&context));
+        let observed = antecedent_core::execution_attempt::observe_execution(|| {
+            view.materialize_admitted(&context)
+        });
         assert!(observed.report.is_empty());
         let encoded = std::sync::Arc::new(observed.result.unwrap());
         assert_eq!(serde_json::from_slice::<Value>(encoded.as_bytes()).unwrap(), expected);
@@ -1094,7 +1102,10 @@ mod tests {
         assert_eq!(pool.available().bytes(), budget);
         let short = AdmissionPool::fixed(1, bytes - 1);
         let context = ExecutionContext::for_tests(17).with_admission(short.clone());
-        assert!(matches!(view.materialize_admitted(&context), Err(crate::CausalError::Resource { .. })));
+        assert!(matches!(
+            view.materialize_admitted(&context),
+            Err(crate::CausalError::Resource { .. })
+        ));
         assert_eq!(short.available().bytes(), bytes - 1);
         assert_eq!(view.materialize().unwrap()["summary"], expected["summary"]);
     }
@@ -1103,8 +1114,13 @@ mod tests {
     fn borrowed_summary_matches_existing_headers_without_copying_a_value_tree() {
         fn compare(view: &PreparedIdentificationView<'_>) {
             let borrowed = super::borrowed_summary::BorrowedSummary::new(view);
-            assert_eq!(serde_json::to_vec(&borrowed).unwrap(), serde_json::to_vec(&view.summary()).unwrap());
-            for index in 0..view.child_count() { compare(&view.child(index).unwrap()); }
+            assert_eq!(
+                serde_json::to_vec(&borrowed).unwrap(),
+                serde_json::to_vec(&view.summary()).unwrap()
+            );
+            for index in 0..view.child_count() {
+                compare(&view.child(index).unwrap());
+            }
         }
         let owner = named_prepared();
         compare(&owner.identification_view());

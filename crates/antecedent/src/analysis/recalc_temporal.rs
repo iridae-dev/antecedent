@@ -263,7 +263,11 @@ fn spec(r: &TemporalRequest) -> Result<TemporalSequenceSpec, TemporalRunError> {
             baseline: vec![v(0)],
             covariates: (0..r.horizon)
                 .map(|step| {
-                    if step == 0 { vec![] } else { vec![v(u32::try_from(2 * step).unwrap_or(u32::MAX))] }
+                    if step == 0 {
+                        vec![]
+                    } else {
+                        vec![v(u32::try_from(2 * step).unwrap_or(u32::MAX))]
+                    }
                 })
                 .collect(),
             actions: (0..r.horizon).map(action_variable).collect(),

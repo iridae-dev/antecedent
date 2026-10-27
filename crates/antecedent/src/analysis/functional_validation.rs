@@ -61,7 +61,7 @@ const FULL_REPLICATES: u32 = 60;
 /// own query-native suites; a conditional effect on a Dag, Cpdag or Pag keeps the scalar
 /// suites. Every other cell of these queries is validated here.
 pub(crate) fn requested(study: &Study) -> bool {
-    if study.refute == RefuteSuite::None {
+    if study.settings.refute == RefuteSuite::None {
         return false;
     }
     let class = study.graph.class();
@@ -161,7 +161,7 @@ pub(crate) fn validate_data(
     ctx: &ExecutionContext,
 ) -> Result<StudyResult, CausalError> {
     let mut base = study.clone();
-    base.refute = RefuteSuite::None;
+    base.settings.refute = RefuteSuite::None;
     base.data = data;
     validate_over(study, &base, ctx)
 }
@@ -178,7 +178,7 @@ pub(crate) fn run_validated(
     ctx: &ExecutionContext,
 ) -> Result<StudyResult, CausalError> {
     let mut base = study.clone();
-    base.refute = RefuteSuite::None;
+    base.settings.refute = RefuteSuite::None;
     validate_over(study, &base, ctx)
 }
 
@@ -217,7 +217,7 @@ fn validate(
     data: PreparedTargetData<'_>,
     ctx: &ExecutionContext,
 ) -> Result<StudyResult, CausalError> {
-    let suite = target_suite(study.refute);
+    let suite = target_suite(study.settings.refute);
     let (_, _, values) = result_target_values(&result)?;
     let config = TargetRefutationConfig {
         replicates: replicates(suite, values.len()),

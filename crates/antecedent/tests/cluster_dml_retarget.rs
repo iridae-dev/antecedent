@@ -132,7 +132,7 @@ fn the_published_interval_uses_the_few_cluster_t_reference() {
         antecedent_io::calibration::calibration_slot_in(&basis, &[measured]).record_id.as_deref(),
         Some(measured.id),
     );
-    let estimate = result.estimate.as_effect().unwrap();
+    let estimate = result.estimate().as_effect().unwrap();
     assert_eq!(estimate.uncertainty.analytic.reference_df, Some(39.0));
     let published = PublishedScalarUncertainty::select(estimate);
     let t = student_t_ppf(0.975, 39.0);
@@ -151,7 +151,7 @@ fn the_published_interval_uses_the_few_cluster_t_reference() {
         .unwrap()
         .run(&ExecutionContext::for_tests(5))
         .unwrap();
-    let plain = plain.estimate.as_effect().unwrap();
+    let plain = plain.estimate().as_effect().unwrap();
     assert_eq!(plain.uncertainty.analytic.reference_df, None);
     let published = PublishedScalarUncertainty::select(plain);
     close(published.critical_value(plain), antecedent::result::reported_se_interval_z(), "normal");
@@ -190,7 +190,7 @@ fn unweighted_normal_cluster_never_borrows_student_calibration() {
             .build()
             .unwrap();
         let result = study.run(&ExecutionContext::for_tests(5)).unwrap();
-        assert!(result.estimate.as_effect().unwrap().uncertainty.analytic.reference_df.is_none());
+        assert!(result.estimate().as_effect().unwrap().uncertainty.analytic.reference_df.is_none());
         let basis = result.calibration_bases(&study.inspect().unwrap()).unwrap().remove(0);
         assert_eq!(basis.key.interval_method, "analytic_se");
         assert_eq!(basis.key.se_kind, "cluster");
@@ -249,7 +249,7 @@ fn weighted_cluster_student_calibration_matches_its_actual_reference() {
             basis.key,
             result.logical_plan.estimator,
             result.primary_interval_binding(false),
-            result.estimate.as_effect().unwrap().uncertainty.analytic,
+            result.estimate().as_effect().unwrap().uncertainty.analytic,
             contract.functional,
         );
         assert_eq!(basis.key.functional, "all_observed.mean+reference=cluster_df+weights=sampling");
@@ -290,7 +290,7 @@ fn weighted_cluster_student_calibration_matches_its_actual_reference() {
     let basis = result.calibration_bases(&ordinary.inspect().unwrap()).unwrap().remove(0);
     assert_eq!(basis.key.interval_method, "analytic_se");
     assert_eq!(basis.key.functional, "all_observed.mean+weights=sampling");
-    assert_eq!(result.estimate.as_effect().unwrap().uncertainty.analytic.reference_df, None);
+    assert_eq!(result.estimate().as_effect().unwrap().uncertainty.analytic.reference_df, None);
     assert_eq!(basis.key.se_kind, "cluster");
     assert_eq!(basis.key.dependence, "cluster");
     let mut normal = template;
@@ -312,15 +312,15 @@ fn a_single_retarget_reports_the_cluster_summed_se_with_its_reference() {
     let n = table.n_rows;
 
     let uniform = prepared.retarget(&vec![1.0; n], &[], &ctx).unwrap();
-    let estimate = uniform.estimate.as_effect().unwrap();
-    close(estimate.ate, fit.estimate.as_effect().unwrap().ate, "uniform point");
-    close(estimate.se_analytic(), fit.estimate.as_effect().unwrap().se_analytic(), "uniform se");
+    let estimate = uniform.estimate().as_effect().unwrap();
+    close(estimate.ate, fit.estimate().as_effect().unwrap().ate, "uniform point");
+    close(estimate.se_analytic(), fit.estimate().as_effect().unwrap().se_analytic(), "uniform se");
     assert_eq!(estimate.uncertainty.analytic.reference_df, Some(39.0));
     assert!(estimate.joint.covariance.is_some() && estimate.scores.inference.is_none());
 
     let weights = tilt(&fx, 1.0);
     let result = prepared.retarget(&weights, &[VariableId::from_raw(Z0)], &ctx).unwrap();
-    let estimate = result.estimate.as_effect().unwrap();
+    let estimate = result.estimate().as_effect().unwrap();
     let (theta, sums) = cluster_sums(&table, &fx.cluster, &weights);
     close(estimate.ate, theta, "tilted point");
     close(estimate.se_analytic(), cov(&sums, &sums).sqrt(), "cluster se");
@@ -351,7 +351,7 @@ fn a_batch_family_reports_the_cluster_summed_joint_covariance() {
         .prepare(&[query()], &ctx)
         .unwrap();
     let (results, scores) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
-    let table = results[0].estimate.as_effect().unwrap().scores.table.as_ref().unwrap().clone();
+    let table = results[0].estimate().as_effect().unwrap().scores.table.as_ref().unwrap().clone();
     assert_eq!(scores.table(0), Some(&table));
     let (plus, minus) = (tilt(&fx, 1.0), tilt(&fx, -1.0));
     let claim = |name: &str, weights: &[f64]| RetargetClaim {

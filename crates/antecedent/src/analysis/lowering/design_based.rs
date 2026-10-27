@@ -212,12 +212,12 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
     };
     // An identified set is read as an envelope under frequentist inference: the sampling
     // interval is about the set, not a replacement for it.
-    let envelope = cell.claim == ClaimKind::Bounds && !study.inference.is_bayesian();
+    let envelope = cell.claim == ClaimKind::Bounds && !study.settings.inference.is_bayesian();
     let claim = ClaimDemand {
         uncertainty: if envelope {
             UncertaintyReading::Envelope
         } else {
-            uncertainty(&study.inference)
+            uncertainty(&study.settings.inference)
         },
         kind: Some(cell.claim),
     };
@@ -276,7 +276,7 @@ struct DesignEnv<'a> {
 
 impl<'a> DesignEnv<'a> {
     fn new(study: &'a Study, data: &'a TabularData, caches: &'a [IdentificationCache]) -> Self {
-        Self { study, data, inference: inference_selection(&study.inference), caches }
+        Self { study, data, inference: inference_selection(&study.settings.inference), caches }
     }
 }
 
@@ -434,9 +434,15 @@ impl DesignLowering for InterferenceQuery {
         // Dispatch runs the checked operation for these assignments and the
         // one-shot exposure route for the others; record the identification it runs.
         let (identification, _) = if partial {
-            CheckedInterferenceOperation::design_identification(query, &env.study.inference)
+            CheckedInterferenceOperation::design_identification(
+                query,
+                &env.study.settings.inference,
+            )
         } else {
-            Study::interference_route_identification(query, env.study.inference.is_bayesian())
+            Study::interference_route_identification(
+                query,
+                env.study.settings.inference.is_bayesian(),
+            )
         };
         let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
             query.functional;
@@ -561,7 +567,7 @@ impl DesignLowering for PanelDidQuery {
                 Some(augmented.untreated_change_prediction),
             ));
         }
-        let unit = if env.study.sampling_design
+        let unit = if env.study.declared.sampling_design
             == Some(antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories)
         {
             ResampleUnit::Subject
@@ -686,12 +692,7 @@ impl DesignLowering for ContinuousDoseResponseQuery {
                     &[query.dose],
                     Some(query.dose_density),
                 ),
-                slot(
-                    ModelRole::Outcome,
-                    "epanechnikov_kernel",
-                    &[query.dose],
-                    Some(query.outcome),
-                ),
+                slot(ModelRole::Outcome, "epanechnikov_kernel", &[query.dose], Some(query.outcome)),
             ],
             WidthSource::NotDesignBased(
                 "a local kernel average per baseline group fits no design matrix",
@@ -882,7 +883,7 @@ impl DesignLowering for HistoryMatchQuery {
         // A Bayesian request is the outcome-model estimator: one Gaussian regression of the
         // outcome on period effects, the history-mean score and the treated-centred
         // interaction. The matching estimator has no posterior.
-        let bayesian = env.study.inference.is_bayesian();
+        let bayesian = env.study.settings.inference.is_bayesian();
         let mut model_inputs = match_inputs.clone();
         model_inputs.extend(query.history.iter().copied());
         let models = if bayesian {
@@ -1089,9 +1090,9 @@ fn statistical_program(
     let mut statistical = StatisticalProgram::declared(DeclaredProgram {
         identifier,
         estimator,
-        inference: &study.inference,
-        bootstrap_replicates: study.bootstrap_replicates,
-        sampling_design: study.sampling_design,
+        inference: &study.settings.inference,
+        bootstrap_replicates: study.settings.bootstrap_replicates,
+        sampling_design: study.declared.sampling_design,
         design,
         operators: Vec::new(),
     })?;

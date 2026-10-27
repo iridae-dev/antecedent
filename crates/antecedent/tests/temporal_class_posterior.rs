@@ -351,7 +351,7 @@ fn temporal_pag_graph_posterior_licensed_pulse_runs() {
         "licensed pulse(-1) TemporalPag GP must identify"
     );
     assert!(
-        result.estimate.as_effect().unwrap().ate.is_finite()
+        result.estimate().as_effect().unwrap().ate.is_finite()
             || result.identification.status != antecedent_core::IdentificationStatus::NotIdentified
     );
 }
@@ -378,7 +378,7 @@ fn temporal_class_graph_posterior_pulse_and_sustained_run() {
                     query.policy
                 );
                 assert!(
-                    result.estimate.as_effect().unwrap().ate.is_finite()
+                    result.estimate().as_effect().unwrap().ate.is_finite()
                         || result
                             .diagnostics
                             .iter()
@@ -462,7 +462,7 @@ fn assert_disagreeing_estimands_withhold_scalar() {
                 query.policy
             );
             assert!(
-                !result.estimate.as_effect().unwrap().ate.is_finite(),
+                !result.estimate().as_effect().unwrap().ate.is_finite(),
                 "{kind:?} {:?}: scalar ate must be withheld",
                 query.policy
             );
@@ -503,7 +503,7 @@ fn assert_same_estimand_scalar() {
                 query.policy
             );
             assert!(
-                result.estimate.as_effect().unwrap().ate.is_finite(),
+                result.estimate().as_effect().unwrap().ate.is_finite(),
                 "{kind:?} {:?}: scalar ate required",
                 query.policy
             );
@@ -512,7 +512,7 @@ fn assert_same_estimand_scalar() {
                 Some(antecedent_core::ResponseValue::Scalar(value)) => *value,
                 _ => panic!("{kind:?} {:?}: conditional_on_identified", query.policy),
             };
-            assert!((conditional - result.estimate.as_effect().unwrap().ate).abs() < 1e-12);
+            assert!((conditional - result.estimate().as_effect().unwrap().ate).abs() < 1e-12);
             assert!(
                 result.diagnostics.iter().any(|d| {
                     d.code.as_ref() == "estimate.graph_posterior.structural_aggregation"
@@ -576,13 +576,14 @@ fn temporal_class_graph_posterior_numeric_pins() {
                     RefuteSuite::None,
                     0,
                 );
-                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{kind:?}");
+                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{kind:?}");
                 if pin_numeric {
                     assert!(
-                        (result.estimate.as_effect().unwrap().ate - effect_truth).abs() < tolerance,
+                        (result.estimate().as_effect().unwrap().ate - effect_truth).abs()
+                            < tolerance,
                         "{kind:?} {:?}: effect {} vs {effect_truth}",
                         query.policy,
-                        result.estimate.as_effect().unwrap().ate
+                        result.estimate().as_effect().unwrap().ate
                     );
                     let mixture = result.structural_response.as_ref().expect("mixture");
                     assert!(
@@ -625,14 +626,14 @@ fn temporal_class_graph_posterior_shared_block_se_when_mixable() {
                 "{kind:?} {:?}: must publish shared circular-block SE",
                 query.policy
             );
-            let se = result.estimate.as_effect().unwrap().se_bootstrap().expect("se_bootstrap");
+            let se = result.estimate().as_effect().unwrap().se_bootstrap().expect("se_bootstrap");
             assert!(se.is_finite() && se > 0.0, "{kind:?} {:?}: positive block SE", query.policy);
             assert!(
                 result
                     .diagnostics
                     .iter()
                     .all(|d| d.code.as_ref() != "estimate.graph_posterior.joint_if_se")
-                    || result.estimate.as_effect().unwrap().scores.influence.is_some(),
+                    || result.estimate().as_effect().unwrap().scores.influence.is_some(),
                 "joint-IF diagnostic only when influence is published"
             );
         }
@@ -652,9 +653,9 @@ fn temporal_class_graph_posterior_shared_block_withheld_when_graph_dependent() {
         32,
     );
     assert!(has_policy(&result, StructuralAggregationPolicy::GraphDependentAtoms));
-    assert!(!result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(!result.estimate().as_effect().unwrap().ate.is_finite());
     assert!(!has_diagnostic(&result, SHARED_BLOCK));
-    assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_none());
+    assert!(result.estimate().as_effect().unwrap().se_bootstrap().is_none());
 }
 
 fn mediation_series(n: usize) -> TimeSeriesData {
@@ -763,11 +764,11 @@ fn temporal_class_graph_posterior_mediation_envelope() {
         RefuteSuite::None,
         40,
     );
-    assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(result.support_status().unwrap().as_str(), "licensed");
     assert!(
-        (result.estimate.as_effect().unwrap().ate - effect_truth).abs() < tolerance,
+        (result.estimate().as_effect().unwrap().ate - effect_truth).abs() < tolerance,
         "mediated {} vs truth {effect_truth}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
     assert!(has_policy(&result, StructuralAggregationPolicy::SameEstimandWeightedMean));
@@ -775,7 +776,7 @@ fn temporal_class_graph_posterior_mediation_envelope() {
     assert!((structural.unidentified_mass - unidentified_truth).abs() < 1e-12);
     assert!(
         result
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .se_bootstrap()
@@ -801,7 +802,7 @@ fn temporal_class_graph_posterior_mediation_cheap_and_full_run() {
         for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
             let result =
                 run_mediation(&series, gp.clone(), mediation_query(), inference.clone(), suite, 0);
-            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "licensed");
             assert!(
                 result.diagnostics.iter().any(|d| {
                     d.code.as_ref() == "refute.envelope.temporal_class_mediation_posterior"
@@ -834,7 +835,7 @@ fn bayesian_temporal_mediation_keeps_partial_mass_posterior_conditional() {
         RefuteSuite::None,
         0,
     );
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     assert!(result.posterior.is_none());
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
     assert!(
@@ -978,7 +979,7 @@ fn temporal_class_graph_posterior_response_mixes() {
                 [(InferenceMode::Frequentist, None), (flat_bayesian(400), Some(400))]
             {
                 let result = run_response(gp.clone(), query.clone(), inference, RefuteSuite::None);
-                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{kind:?}");
+                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{kind:?}");
                 assert_atoms_match_structural_truth(
                     &result,
                     query_kind,
@@ -1018,7 +1019,7 @@ fn temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_
             for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
                 let result =
                     run_response(gp.clone(), intervention_response(), inference.clone(), suite);
-                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{kind:?}");
+                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{kind:?}");
                 assert_atoms_match_structural_truth(
                     &result,
                     "set",

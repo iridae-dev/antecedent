@@ -105,9 +105,9 @@ fn wide_table_projection_matches_full_column_ate() {
         .unwrap();
 
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.35,
+        (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.35,
         "ate={}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     assert!(
         result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.project.columns"),

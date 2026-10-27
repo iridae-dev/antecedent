@@ -352,9 +352,9 @@ impl super::Study {
                 status: claim.status,
                 assumptions: &claim.assumptions,
                 response,
-                suite: self.refute,
+                suite: self.settings.refute,
                 block,
-                replicates: self.bootstrap_replicates,
+                replicates: self.settings.bootstrap_replicates,
             },
             ctx,
         )

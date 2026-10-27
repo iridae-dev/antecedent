@@ -31,8 +31,8 @@ pub use antecedent_io::categorical_treatment_artifact::{
     CategoricalResultWire, CategoricalSpecWire, CategoricalTreatmentArtifact,
     CategoricalTreatmentArtifactError, CategoricalTreatmentIdentity,
     CategoricalTreatmentReportWire, CategoricalTreatmentRequest, CovarianceKindWire,
-    LevelContrastWire, LevelCountWire, LevelScaleWire, MonotonicityDirectionWire,
-    MonotonicityWire, PairContrastWire, PosteriorContrastWire, PosteriorMonotonicityWire,
+    LevelContrastWire, LevelCountWire, LevelScaleWire, MonotonicityDirectionWire, MonotonicityWire,
+    PairContrastWire, PosteriorContrastWire, PosteriorMonotonicityWire,
 };
 
 use antecedent_core::ExecutionContext;

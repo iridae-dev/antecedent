@@ -35,15 +35,15 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported randomized design interval");
         assert_eq!(fit.assignment_design.as_ref(), design);
-        assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
         assert!(lower <= fit.effect && fit.effect <= upper);
         assert!(fit.standard_error.unwrap() > 0.0);
         assert_eq!(
-            result.interval.as_ref().unwrap().method,
+            result.interval().as_ref().unwrap().method,
             antecedent_core::IntervalMethod::AnalyticSe
         );
         let executed_contract = prepared.contract_for_result(&result).unwrap();
-        assert_eq!(executed_contract.support_status, result.support_status);
+        assert_eq!(executed_contract.support_status, result.support_status());
         let support = executed_contract.reasoning.support.as_ref().unwrap();
         assert_eq!(support.matrix_status.as_ref(), "licensed");
         assert!(support.matrix_coordinate.is_some());
@@ -306,7 +306,7 @@ fn graphless_interval_license_refuses_zero_variance_despite_assignment_support()
         let ctx = ExecutionContext::for_tests(0xD364_E123);
         let result = Study::tabular(data).query(query).build().unwrap().run(&ctx).unwrap();
         assert_eq!(result.randomized_effect().unwrap().interval_95, None);
-        assert_eq!(result.support_status, None);
+        assert_eq!(result.support_status(), None);
     }
 }
 
@@ -350,8 +350,8 @@ fn multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support() 
         fit.multi_arm_values.iter().map(|(_, _, _, support)| *support).collect::<Vec<_>>(),
         [2, 2, 2]
     );
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.support_status(), None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "known_random_assignment"
     )));
@@ -422,7 +422,7 @@ fn graphless_bernoulli_itt_runs_and_retains_design_units() {
     let estimate = result.randomized_effect().unwrap();
     assert_eq!(estimate.effect, 3.0);
     assert_eq!(estimate.variance_upper_bound, 3.25);
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert_eq!(
         estimate.assignment_units.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
         ["a", "b", "c", "d"]
@@ -432,7 +432,7 @@ fn graphless_bernoulli_itt_runs_and_retains_design_units() {
         ["r0", "r1", "r2", "r3"]
     );
     assert_eq!(result.treatment, None);
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
 
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
@@ -470,7 +470,7 @@ fn fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution() {
         adjusted.uncertainty.as_ref(),
         "bernoulli_fixed_cuped_ht_conservative_variance_no_interval"
     );
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "fixed_pre_assignment_cuped"
@@ -507,7 +507,7 @@ fn multi_covariate_ancova_runs_in_retained_study_and_artifact() {
     assert!((adjusted.effect - 2.).abs() < 1e-10);
     assert!(adjusted.variance_upper_bound < 1e-20);
     assert_eq!(adjusted.uncertainty.as_ref(), "bernoulli_ancova_hc0_variance_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "ancova_pre_assignment_covariates"
@@ -568,7 +568,7 @@ fn bernoulli_encouragement_retains_wald_cace_and_refuses_fabricated_interval() {
     assert!((effect.variance_upper_bound - 16.0 / 7.0).abs() < 1e-12);
     assert_eq!(effect.estimand.as_ref(), "cace_late");
     assert_eq!(effect.uncertainty.as_ref(), "bernoulli_wald_cace_influence_variance_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "exclusion_restriction"
@@ -673,7 +673,7 @@ fn complete_randomization_enumerates_fisher_sharp_null_without_interval() {
             .randomization_p_value,
         effect.randomization_p_value
     );
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "fisher_sharp_null_two_sided"
@@ -734,8 +734,8 @@ fn fixed_cell_factorial_reports_both_main_effects_and_interaction_without_interv
     assert_eq!(factorial.second_factor_variance, Some(1.0));
     assert_eq!(factorial.factorial_interaction_variance, Some(4.0));
     assert_eq!(factorial.estimand.as_ref(), "factorial_primary_main_effect");
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.support_status(), None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "known_random_assignment"
@@ -797,7 +797,7 @@ fn switchback_itt_retains_periods_and_sequence_variance() {
         estimate.uncertainty.as_ref(),
         "switchback_independent_sequence_sandwich_variance_no_interval"
     );
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "switchback_no_carryover"
@@ -914,7 +914,7 @@ fn cluster_randomized_itt_uses_cluster_totals_and_assignment_units() {
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "no_between_cluster_interference"
     )));
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     assert_eq!(
@@ -988,5 +988,5 @@ fn complete_randomization_keeps_its_own_neyman_construction_at_300_rows() {
     assert_eq!(fit.uncertainty.as_ref(), "complete_neyman_normal_interval");
     let [lower, upper] = fit.interval_95.expect("complete randomization publishes its interval");
     assert!(lower < fit.effect && fit.effect < upper);
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
 }

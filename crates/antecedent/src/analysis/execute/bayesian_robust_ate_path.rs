@@ -22,7 +22,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        Self::ensure_bayesian_robust_ate_admitted(&self.inference, query)?;
+        Self::ensure_bayesian_robust_ate_admitted(&self.settings.inference, query)?;
         let identifier = physical.binding().identifier_or(RouteDefaults::STATIC_ATE)?;
         let estimator = EstimatorId::BayesianRobustAte;
         let reused = self.reuse_static_identification_if(physical, |_| {
@@ -42,7 +42,7 @@ impl super::Study {
             })?;
         let (data_est, query_est, estimand_est) = project_for_ate_estimate(data, query, &estimand)?;
         let input = robust_ate_input(&data_est, &query_est)?;
-        let InferenceMode::Bayesian(cfg) = &self.inference else {
+        let InferenceMode::Bayesian(cfg) = &self.settings.inference else {
             return Err(CausalError::unsupported_inference(
                 "bayesian.robust_ate requires Bayesian inference",
             ));

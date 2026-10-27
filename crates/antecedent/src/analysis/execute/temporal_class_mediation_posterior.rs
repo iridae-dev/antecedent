@@ -66,7 +66,7 @@ impl super::Study {
                         gp,
                         &vars,
                         &witness,
-                        self.max_completions,
+                        self.declared.max_completions,
                         ctx,
                     )?,
                 ),
@@ -91,7 +91,7 @@ impl super::Study {
                           contract",
             });
         }
-        if self.inference.is_bayesian() {
+        if self.settings.inference.is_bayesian() {
             return self.execute_temporal_class_graph_posterior_mediation_bayesian(
                 data, gp, query, physical, ctx,
             );
@@ -240,12 +240,12 @@ impl super::Study {
             &refs,
             &weights,
             query.contrast,
-            self.bootstrap_replicates,
+            self.settings.bootstrap_replicates,
             mediation_block_stream(MediationRoute::TemporalClass, horizon),
             ctx,
         );
         let requested_se = shared.as_ref().and_then(|s| s.requested).filter(|s| s.is_finite());
-        let replicates_requested = self.bootstrap_replicates > 0;
+        let replicates_requested = self.settings.bootstrap_replicates > 0;
         let (replicates_ok, replicates_attempted) = shared
             .as_ref()
             .map_or((0, 0), |s| (s.block.replicates_ok, s.block.replicates_attempted));
@@ -276,7 +276,7 @@ impl super::Study {
         ),
         block: &ClassMediationBlock,
     ) -> Vec<Diagnostic> {
-        if self.inference.is_bayesian() && posterior_withheld {
+        if self.settings.inference.is_bayesian() && posterior_withheld {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(Diagnostic::new(
@@ -334,7 +334,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         use antecedent_estimate::bayesian_mediation::require_gaussian_mediation;
-        let InferenceMode::Bayesian(cfg) = &self.inference else {
+        let InferenceMode::Bayesian(cfg) = &self.settings.inference else {
             return Err(CausalError::unsupported_inference(
                 "Bayesian TemporalCpdag/Pag graph-posterior mediation requires Bayesian inference",
             ));
@@ -366,7 +366,7 @@ impl super::Study {
             horizon,
         )?;
         let mut diagnostics = mixed.identification.diagnostics.clone();
-        if self.inference.is_bayesian() && mixed.posterior.is_none() {
+        if self.settings.inference.is_bayesian() && mixed.posterior.is_none() {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(Diagnostic::new(
@@ -892,11 +892,11 @@ fn refute_temporal_class_mediation_posterior(
     policy: StructuralAggregationPolicy,
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
-    if study.refute == RefuteSuite::None {
+    if study.settings.refute == RefuteSuite::None {
         return Ok((Vec::new(), Vec::new()));
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
-    let plan = QueryRefutationPlan::temporal_mediation(study.refute == RefuteSuite::Full);
+    let plan = QueryRefutationPlan::temporal_mediation(study.settings.refute == RefuteSuite::Full);
     let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
     drive_posterior_refuters(
         evals,

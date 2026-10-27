@@ -427,11 +427,11 @@ fn a_retained_identification_is_reused_only_by_a_study_with_the_same_identificat
         (
             "tier background",
             edited(&|study| {
-                study.tiered =
+                study.declared.tiered =
                     Some(TieredBackground::new([vec![t], vec![y]], WithinTier::Unknown).unwrap());
             }),
         ),
-        ("completion cap", edited(&|study| study.max_completions = Some(3))),
+        ("completion cap", edited(&|study| study.declared.max_completions = Some(3))),
         (
             "lag-zero average effect",
             edited(&|study| {
@@ -440,7 +440,9 @@ fn a_retained_identification_is_reused_only_by_a_study_with_the_same_identificat
         ),
         (
             "class prior",
-            edited(&|study| study.class_prior = Some(ClassPrior::from_ordered(vec![1.0]).unwrap())),
+            edited(&|study| {
+                study.declared.class_prior = Some(ClassPrior::from_ordered(vec![1.0]).unwrap())
+            }),
         ),
         (
             "selection diagram",
@@ -470,12 +472,12 @@ fn a_retained_identification_is_reused_only_by_a_study_with_the_same_identificat
                 });
             }),
         ),
-        ("identifier", edited(&|study| study.identifier = Some(IdentifierId::GeneralId))),
-        ("estimator", edited(&|study| study.estimator = Some(EstimatorId::Aipw))),
+        ("identifier", edited(&|study| study.declared.identifier = Some(IdentifierId::GeneralId))),
+        ("estimator", edited(&|study| study.declared.estimator = Some(EstimatorId::Aipw))),
         (
             "inference",
             edited(&|study| {
-                study.inference = InferenceMode::Bayesian(BayesianConfig::conjugate());
+                study.settings.inference = InferenceMode::Bayesian(BayesianConfig::conjugate());
             }),
         ),
         (

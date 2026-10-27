@@ -206,7 +206,9 @@ fn validate(
         + policy
             .branches
             .iter()
-            .map(|b| b.action.len() + b.candidates.iter().map(|c| c.semantic_id.len()).sum::<usize>())
+            .map(|b| {
+                b.action.len() + b.candidates.iter().map(|c| c.semantic_id.len()).sum::<usize>()
+            })
             .sum::<usize>();
     if identifier_bytes > limits.max_bytes {
         return Err(refuse("conditional_study_ranking.resource_limit"));
@@ -554,7 +556,10 @@ mod tests {
         let branches = |count: usize, width: usize| {
             actions
                 .iter()
-                .map(|a| ConditionalBranch { action: a.clone(), candidates: candidates(a, count, width) })
+                .map(|a| ConditionalBranch {
+                    action: a.clone(),
+                    candidates: candidates(a, count, width),
+                })
                 .collect::<Vec<_>>()
         };
         // 100 actions and 20_000 candidates: far past the former count caps, well inside the budget.
@@ -563,7 +568,8 @@ mod tests {
         assert!(validate(&wide, &source, limits).is_ok());
         // The same shape with 250-byte identifiers (a 10-byte prefix and 240 digits, inside the
         // 256-byte name limit) cannot fit the artifact budget.
-        let heavy = ConditionalStudyPolicy { policy_id: "rule".into(), branches: branches(200, 240) };
+        let heavy =
+            ConditionalStudyPolicy { policy_id: "rule".into(), branches: branches(200, 240) };
         assert_eq!(
             validate(&heavy, &source, limits).unwrap_err().detail,
             "conditional_study_ranking.resource_limit"

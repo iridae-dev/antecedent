@@ -107,8 +107,8 @@ fn bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth() {
     let ctx = ExecutionContext::for_tests(81);
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(result.support_status, Some(antecedent::CellStatus::Licensed));
-    assert!((result.estimate.as_effect().unwrap().ate - truth).abs() < 0.2);
+    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert!((result.estimate().as_effect().unwrap().ate - truth).abs() < 0.2);
     let posterior = result.posterior.as_ref().unwrap();
     assert_eq!(posterior.draws.n_draws, 512);
     assert!(posterior.summaries.q025[0] < truth && posterior.summaries.q975[0] > truth);
@@ -153,9 +153,9 @@ fn bayesian_rd_executes_staged_and_checks_bandwidth_conditioning() {
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert!(
-        (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.08,
+        (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.08,
         "{}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     let post = result.posterior.as_ref().unwrap();
     assert_eq!(post.draws.n_draws, 512);

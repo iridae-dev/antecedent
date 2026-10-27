@@ -403,7 +403,7 @@ fn adjusted_scalar_paths_match_existing_study_engines_without_bootstrap() {
                 .unwrap()
         };
         let original = study.run(&ctx()).unwrap();
-        let original = original.estimate.as_effect().unwrap();
+        let original = original.estimate().as_effect().unwrap();
         let retained = full(&request);
         close(retained.law.ate, original.ate);
         close(retained.law.std_error, original.se_analytic());

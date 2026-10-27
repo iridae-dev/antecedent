@@ -170,7 +170,7 @@ fn bayesian_level_cheap_and_full_execute_unlicensed_on_every_dag_structure() {
             let result =
                 study(table.clone(), structure, Some(suite)).run(&ExecutionContext::for_tests(5));
             let result = result.unwrap_or_else(|error| panic!("{label}: {error}"));
-            assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
+            assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
             let level = published_level(&result);
             assert!((level - truth).abs() < 0.12, "{label}: level {level} vs truth {truth}");
             assert!(has_refuter(&result, "overlap"), "{label}: plugin-level overlap runs");
@@ -210,7 +210,7 @@ fn the_default_suite_keeps_the_licensed_validation_none() {
     for structure in [Structure::Explicit, Structure::GraphPosterior] {
         let result = study(table.clone(), structure, None).run(&ExecutionContext::for_tests(6));
         let result = result.unwrap();
-        assert_eq!(result.support_status, Some(CellStatus::Licensed), "{structure:?}");
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{structure:?}");
         assert!(result.refutations.is_empty(), "{structure:?}");
         assert!(result.predictive_checks.is_empty(), "{structure:?}");
     }
@@ -264,7 +264,7 @@ fn derivative_refuter_state_executes_unlicensed_and_checks_the_finite_difference
             .unwrap_or_else(|error| panic!("{label}: {error}"))
             .run(&ExecutionContext::for_tests(9))
             .unwrap_or_else(|error| panic!("{label}: {error}"));
-        assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
+        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
         assert!(has_refuter(&result, "derivative.support"), "{label}");
         let fd = result
             .refutations

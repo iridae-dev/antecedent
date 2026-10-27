@@ -431,13 +431,8 @@ fn distribution_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
             }
         })?;
     let replicates = input.replicates.max(required);
-    let rows = distribution_placebo_replicates(
-        input,
-        &treatments,
-        &treatment_columns,
-        kept,
-        replicates,
-    )?;
+    let rows =
+        distribution_placebo_replicates(input, &treatments, &treatment_columns, kept, replicates)?;
     let statistic = match joint_mahalanobis(&expected, &rows, kept) {
         Ok(statistic) => statistic,
         Err(error) => {
@@ -858,8 +853,7 @@ fn distribution_placebo_replicates(
     replicates: u32,
 ) -> Result<Vec<f64>, CausalError> {
     let mut rows = Vec::with_capacity(replicates as usize * kept);
-    let mut scratch: Vec<Vec<f64>> =
-        columns.iter().map(|column| vec![0.0; column.len()]).collect();
+    let mut scratch: Vec<Vec<f64>> = columns.iter().map(|column| vec![0.0; column.len()]).collect();
     for replicate in 0..replicates {
         if input.ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE });

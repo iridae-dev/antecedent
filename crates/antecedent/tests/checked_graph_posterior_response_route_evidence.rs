@@ -253,7 +253,11 @@ fn graph_posterior_responses_body() {
 
                     let click = prepared.estimate(&initial, &context).unwrap();
                     for result in [&one_shot, &click] {
-                        assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                        assert_eq!(
+                            result.support_status().unwrap().as_str(),
+                            "licensed",
+                            "{label}"
+                        );
                         assert_eq!(
                             result.logical_plan.estimator.as_deref(),
                             Some(expected_estimator.as_str()),

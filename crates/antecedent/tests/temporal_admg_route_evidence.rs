@@ -250,9 +250,9 @@ fn temporal_admg_average_effect_graph_posterior() {
                 .unwrap_or_else(|error| panic!("{coordinate}: {error}"));
             let tolerance = if bayesian { 0.05 } else { 1e-9 };
             assert!(
-                (result.estimate.as_effect().unwrap().ate - expected).abs() < tolerance,
+                (result.estimate().as_effect().unwrap().ate - expected).abs() < tolerance,
                 "{coordinate}: {} vs {expected}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             let mixture = result.structural_response.as_ref().expect("mixture");
             assert!((mixture.identified_mass - 0.8).abs() < 1e-12, "{coordinate}");
@@ -264,8 +264,8 @@ fn temporal_admg_average_effect_graph_posterior() {
             }
             let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             assert!(
-                (refreshed.estimate.as_effect().unwrap().ate
-                    - result.estimate.as_effect().unwrap().ate)
+                (refreshed.estimate().as_effect().unwrap().ate
+                    - result.estimate().as_effect().unwrap().ate)
                     .abs()
                     < 1e-9
             );
@@ -777,8 +777,8 @@ fn temporal_admg_transport_reports_a_serial_dependence_aware_interval() {
 
     let series = transport_study(&data, temporal.clone(), false);
     let rows = transport_study(&data, admg.clone(), false);
-    let series_effect = series.estimate.as_effect().expect("a temporal transport effect");
-    let rows_effect = rows.estimate.as_effect().expect("a static transport effect");
+    let series_effect = series.estimate().as_effect().expect("a temporal transport effect");
+    let rows_effect = rows.estimate().as_effect().expect("a static transport effect");
     assert!(matches!(
         series_effect.uncertainty.analytic.kind,
         Some(antecedent_estimate::AnalyticSeKind::NeweyWest { lag: 10 })
@@ -1005,10 +1005,10 @@ fn temporal_admg_projection_resamples_blocks_of_the_series() {
     // Frequentist: the whole plug-in is refit on circular blocks of consecutive rows.
     let frequentist = projected_ate(&data, &temporal, (false, 199), None, &ctx).unwrap();
     assert!((frequentist.effect() - expected).abs() < 1e-9);
-    let binding = frequentist.interval.as_ref().expect("an interval binding");
+    let binding = frequentist.interval().as_ref().expect("an interval binding");
     assert_eq!(binding.method, antecedent_core::IntervalMethod::CircularBlockSe);
     assert_eq!(binding.dependence, "circular_block:row_block");
-    let se = frequentist.estimate.as_effect().unwrap().se_bootstrap().expect("a block SE");
+    let se = frequentist.estimate().as_effect().unwrap().se_bootstrap().expect("a block SE");
     assert!(se.is_finite() && se > 0.0 && se < 0.2, "se {se}");
     // The same replicates for any thread budget.
     let mut parallel = ExecutionContext::for_tests(17);
@@ -1016,7 +1016,7 @@ fn temporal_admg_projection_resamples_blocks_of_the_series() {
         antecedent_core::Parallelism::bounded(antecedent_core::NonZeroThreadCount::new(4).unwrap());
     let threaded = projected_ate(&data, &temporal, (false, 199), None, &parallel).unwrap();
     assert_eq!(
-        threaded.estimate.as_effect().unwrap().se_bootstrap().map(f64::to_bits),
+        threaded.estimate().as_effect().unwrap().se_bootstrap().map(f64::to_bits),
         Some(se.to_bits())
     );
     // Bayesian: one Dirichlet weight per block of consecutive rows.
@@ -1192,7 +1192,7 @@ mod window_contrast {
         assert_eq!(plan.lowered().unwrap().route(), "TemporalEffectAdmg");
         let result = built.run(&ctx).unwrap();
         assert!((result.effect() - counted).abs() < 1e-12, "{} vs {counted}", result.effect());
-        assert_eq!(result.support_status, Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Refused));
         assert!(discloses(&result));
         assert_eq!(result.lowered_program_identity(), plan.lowered_program_identity());
         // The prepared handle freezes the identification and reproduces the point; the artifact
@@ -1240,7 +1240,7 @@ mod window_contrast {
             .run(&ctx)
             .unwrap();
         assert!((result.effect() - counted).abs() < 1e-12);
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert_eq!(
             effect.uncertainty.block.family,
             Some(antecedent_estimate::CircularBlockFamily::RowBlock)
@@ -1292,7 +1292,7 @@ mod window_contrast {
         assert!((posterior.summaries.mean[column] - counted).abs() < 0.1);
         assert!(posterior.summaries.sd[column] > 0.0);
         assert!(discloses(&result));
-        assert_eq!(result.support_status, Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Refused));
     }
 
     #[test]

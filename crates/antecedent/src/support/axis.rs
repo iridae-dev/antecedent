@@ -37,7 +37,9 @@ pub fn query_axis(query: &CausalQuery, graph_class: GraphClass) -> Option<Suppor
             GraphClass::RandomizedTrial => None,
         },
         CausalQuery::TemporalEffect(q) => match &q.policy {
-            TemporalPolicy::Pulse { .. } if q.effect_modifiers.is_empty() => Some(SupportQuery::PulseEffect),
+            TemporalPolicy::Pulse { .. } if q.effect_modifiers.is_empty() => {
+                Some(SupportQuery::PulseEffect)
+            }
             TemporalPolicy::Sustained { .. } if q.effect_modifiers.is_empty() => {
                 Some(SupportQuery::SustainedEffect)
             }
@@ -77,7 +79,9 @@ pub fn query_axis(query: &CausalQuery, graph_class: GraphClass) -> Option<Suppor
             }
             match &q.functional {
                 ResponseFunctional::MeanCurve { .. } => Some(SupportQuery::ResponseCurve),
-                ResponseFunctional::AverageDerivative { .. } => Some(SupportQuery::AverageDerivative),
+                ResponseFunctional::AverageDerivative { .. } => {
+                    Some(SupportQuery::AverageDerivative)
+                }
                 ResponseFunctional::PointDerivative { scale, .. } => match scale {
                     DerivativeScale::Identity => Some(SupportQuery::PointDerivative),
                     DerivativeScale::LogTreatment | DerivativeScale::LogOutcome => {
@@ -85,9 +89,13 @@ pub fn query_axis(query: &CausalQuery, graph_class: GraphClass) -> Option<Suppor
                     }
                     DerivativeScale::LogLog => Some(SupportQuery::Elasticity),
                 },
-                ResponseFunctional::DirectionalDerivative { .. } => Some(SupportQuery::DirectionalDerivative),
+                ResponseFunctional::DirectionalDerivative { .. } => {
+                    Some(SupportQuery::DirectionalDerivative)
+                }
                 ResponseFunctional::Jacobian { .. } => Some(SupportQuery::ResponseJacobian),
-                ResponseFunctional::InterventionResponse { .. } => Some(SupportQuery::InterventionResponse),
+                ResponseFunctional::InterventionResponse { .. } => {
+                    Some(SupportQuery::InterventionResponse)
+                }
             }
         }
         CausalQuery::Transport(_) => Some(SupportQuery::TransportQuery),

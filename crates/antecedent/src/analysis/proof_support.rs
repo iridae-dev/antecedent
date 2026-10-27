@@ -247,8 +247,8 @@ impl Study {
     #[must_use]
     pub(crate) fn plain_fixed_route(&self) -> bool {
         self.graph_posterior.is_none()
-            && self.tiered.is_none()
-            && self.custom_validators.is_empty()
+            && self.declared.tiered.is_none()
+            && self.declared.custom_validators.is_empty()
             && self.fixed_structure()
     }
 }

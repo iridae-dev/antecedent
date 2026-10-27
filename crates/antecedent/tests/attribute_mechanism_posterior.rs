@@ -193,7 +193,7 @@ fn a_change_attribution_has_a_bootstrap_beside_its_posterior() {
                 .unwrap();
         let result = frequentist.result();
         assert!(result.posterior.is_none(), "a frequentist answer carries no posterior");
-        let estimate = result.estimate.as_effect().expect("the total change");
+        let estimate = result.estimate().as_effect().expect("the total change");
         let accounting = estimate.uncertainty.bootstrap;
         assert_eq!(
             accounting.replicates_ok.unwrap_or(0) + accounting.replicates_failed.unwrap_or(0),
@@ -472,7 +472,7 @@ fn a_temporal_dag_attribution_resamples_blocks_in_both_inference_modes() {
         // Frequentist: circular-block counts, a row-block interval.
         let study = temporal_study(target, InferenceMode::Frequentist, 49);
         let result = study.prepare(&ctx).unwrap().estimate_series(&shifted_series(), &ctx).unwrap();
-        let estimate = result.estimate.as_effect().unwrap();
+        let estimate = result.estimate().as_effect().unwrap();
         let se = estimate.se_bootstrap().expect("a block-bootstrap standard error");
         assert!(se > 0.0 && se < 2.0, "se {se}");
         assert!((estimate.ate - 5.0).abs() < 5.0 * se + 0.5, "total {}", estimate.ate);

@@ -242,7 +242,7 @@ impl super::Study {
         CausalError,
     > {
         let (representative_transport, series_block) = proof;
-        Ok(match &self.inference {
+        Ok(match &self.settings.inference {
             InferenceMode::Frequentist => {
                 let (estimate, diagnostic) = frequentist_transport_estimate(
                     columns,
@@ -289,9 +289,9 @@ impl super::Study {
                 propensity: columns.propensity,
                 overlap,
                 published,
-                suite: self.refute,
+                suite: self.settings.refute,
                 series_block,
-                replicates: self.bootstrap_replicates,
+                replicates: self.settings.bootstrap_replicates,
             },
             ctx,
         )

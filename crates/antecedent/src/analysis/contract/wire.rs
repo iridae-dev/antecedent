@@ -132,6 +132,7 @@ pub(super) fn body_for(
         mediation_grid: None,
         structural_response: None,
         unit_effects: None,
+        counterfactual_contrasts: None,
         cate: effect.and_then(|v| v.heterogeneity.cate.clone()),
         fitted_effect: effect.and_then(|v| v.heterogeneity.fitted_effect.clone()),
         cate_se: effect.and_then(|v| v.heterogeneity.cate_se.clone()),
@@ -176,6 +177,7 @@ pub(super) fn reports_calibrated_effect_interval(payload: &ResultPayload) -> boo
         | ResultPayload::Distribution(_)
         | ResultPayload::Mediation { .. }
         | ResultPayload::Counterfactual(_)
+        | ResultPayload::CounterfactualContrasts(_)
         | ResultPayload::Anomaly(_)
         | ResultPayload::ChangeAttribution(_)
         | ResultPayload::MechanismChange(_)
@@ -231,6 +233,7 @@ pub(super) fn fill_family_section(
         | ResultPayload::Response(_)
         | ResultPayload::Mediation { .. }
         | ResultPayload::Counterfactual(_)
+        | ResultPayload::CounterfactualContrasts(_)
         | ResultPayload::Anomaly(_)
         | ResultPayload::ChangeAttribution(_)
         | ResultPayload::MechanismChange(_)

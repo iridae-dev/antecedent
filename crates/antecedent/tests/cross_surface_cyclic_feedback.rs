@@ -117,7 +117,7 @@ fn a_chain_uses_the_dag_and_a_cycle_is_refused() {
         .prepare(&ctx())
         .unwrap();
     let result = prepared.estimate_retained(&ctx()).unwrap();
-    let effect = result.estimate.as_effect().unwrap().ate;
+    let effect = result.estimate().as_effect().unwrap().ate;
     assert!((effect - gaussian.effect).abs() < 1e-9);
 
     let cycle = Dag::from_named_edges(&schema, &[("t", "y"), ("y", "t")]).unwrap_err();

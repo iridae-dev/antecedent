@@ -142,8 +142,7 @@ impl TemporalInitialState {
         premises.validate()?;
         let query = MarginalizedQuery::new(sequence, spec)?;
         let marginalized = query.effect(&panel)?;
-        let fixed_query =
-            fixed_state.map(|s0| FixedStateQuery { sequence: sequence.to_vec(), s0 });
+        let fixed_query = fixed_state.map(|s0| FixedStateQuery { sequence: sequence.to_vec(), s0 });
         let fixed = fixed_query.as_ref().map(|q| q.effect(&panel)).transpose()?;
         let identity = match window {
             Some(w) => {

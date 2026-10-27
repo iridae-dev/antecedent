@@ -356,7 +356,7 @@ fn supplied_exposure_probabilities_are_checked_against_the_realized_exposures_on
             // The smallest supplied probability is the overlap statistic.
             let overlap = report(&result, "interference.exposure_overlap");
             assert!((overlap.comparison - 0.5).abs() < 1e-12, "{class}");
-            assert_eq!(result.support_status, Some(CellStatus::Refused), "{class}");
+            assert_eq!(result.support_status(), Some(CellStatus::Refused), "{class}");
         }
     }
 }
@@ -470,8 +470,9 @@ fn every_class_interference_route_publishes_an_artifact_a_consumer_reads() {
                 .build()
                 .unwrap_or_else(|e| panic!("{class} {design}: {e}"));
             let prepared = built.prepare(&ctx).unwrap_or_else(|e| panic!("{class} {design}: {e}"));
-            let result =
-                prepared.estimate_retained(&ctx).unwrap_or_else(|e| panic!("{class} {design}: {e}"));
+            let result = prepared
+                .estimate_retained(&ctx)
+                .unwrap_or_else(|e| panic!("{class} {design}: {e}"));
             let artifact = prepared
                 .encode_contracted_result(&result, &format!("interference-{class}-{design}"), &ctx)
                 .unwrap_or_else(|e| panic!("{class} {design}: {e}"));

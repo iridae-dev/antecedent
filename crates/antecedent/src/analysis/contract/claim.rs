@@ -188,6 +188,8 @@ impl StudyResult {
             }),
             extrapolative: ite.unit_extrapolative.as_ref().map(|flags| flags.to_vec()),
         });
+        wire.counterfactual_contrasts =
+            self.counterfactual_contrasts().map(counterfactual_contrasts_wire);
         Ok(())
     }
 
@@ -257,6 +259,12 @@ impl StudyResult {
             }
             _ => (None, None),
         };
+        if self.counterfactual_contrasts().is_some() {
+            return Err(compile(
+                "the portable static result states one counterfactual contrast; a result over \
+                 several outcomes or a joint baseline is carried by the analysis result body",
+            ));
+        }
         if self.mediation().is_none() && self.counterfactual().is_none() {
             return Err(compile("static result requires a mediation or counterfactual payload"));
         }
@@ -348,6 +356,38 @@ pub(super) fn claim_section(claim: &ClaimEnvelope) -> ClaimSectionWire {
                 reverifiable: item.reverifiable,
                 config_digest: item.config_digest.as_ref().map(std::string::ToString::to_string),
                 payload_digest: item.payload_digest.as_ref().map(std::string::ToString::to_string),
+            })
+            .collect(),
+    }
+}
+
+/// The wire section of a counterfactual contrast set: one entry per outcome, in the query's
+/// order, each with its per-unit effects, intervals and extrapolation flags.
+fn counterfactual_contrasts_wire(
+    set: &crate::gcm::CounterfactualContrasts,
+) -> antecedent_io::CounterfactualContrastsWire {
+    antecedent_io::CounterfactualContrastsWire {
+        noise_inference: format!("{:?}", set.noise_inference),
+        contrasts: set
+            .contrasts
+            .iter()
+            .map(|contrast| antecedent_io::OutcomeContrastWire {
+                outcome: contrast.outcome.raw(),
+                mean: contrast.mean_ite,
+                standard_error: contrast.standard_error,
+                unit_effects: antecedent_io::UnitEffectsWire {
+                    effects: contrast.unit_effects.to_vec(),
+                    homogeneous: contrast.unit_effects_homogeneous,
+                    intervals: contrast.unit_effect_intervals.as_ref().map(|intervals| {
+                        antecedent_io::UnitEffectIntervalsWire {
+                            lower: intervals.lower.to_vec(),
+                            upper: intervals.upper.to_vec(),
+                            level: intervals.level,
+                            method: intervals.method.to_string(),
+                        }
+                    }),
+                    extrapolative: contrast.unit_extrapolative.as_ref().map(|flags| flags.to_vec()),
+                },
             })
             .collect(),
     }

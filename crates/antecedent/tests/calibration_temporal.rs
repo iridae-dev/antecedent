@@ -306,10 +306,10 @@ fn pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage()
         Some((study, result))
     };
     let interval_pair = |result: &StudyResult| {
-        result.estimate.as_effect().unwrap().se_bootstrap().map_or([None, None], |se| {
+        result.estimate().as_effect().unwrap().se_bootstrap().map_or([None, None], |se| {
             [
-                normal_at(result.estimate.as_effect().unwrap().ate, se, REPORTED_LEVEL),
-                normal_at(result.estimate.as_effect().unwrap().ate, se, GATE_LEVEL),
+                normal_at(result.estimate().as_effect().unwrap().ate, se, REPORTED_LEVEL),
+                normal_at(result.estimate().as_effect().unwrap().ate, se, GATE_LEVEL),
             ]
         })
     };
@@ -365,10 +365,10 @@ fn temporal_cpdag_mediation_slice_interval_is_the_shared_design_interval() {
         .unwrap()
         .run(&ExecutionContext::for_tests(3))
         .unwrap();
-    assert_eq!(effect, dag.estimate.as_effect().unwrap().ate, "same contrast");
+    assert_eq!(effect, dag.estimate().as_effect().unwrap().ate, "same contrast");
     assert_eq!(
         Some(se),
-        dag.estimate.as_effect().unwrap().se_bootstrap(),
+        dag.estimate().as_effect().unwrap().se_bootstrap(),
         "same circular-block SE"
     );
 }
@@ -383,17 +383,17 @@ fn temporal_cpdag_mediation_class_reports_the_circular_block_interval() {
     let (study, result) = run(data.clone(), false, RefuteSuite::None, 3).unwrap();
     let (effect, se) = slice_effect(&result).expect("block interval on the class slice");
     assert_eq!(
-        result.estimate.as_effect().unwrap().ate,
+        result.estimate().as_effect().unwrap().ate,
         effect,
         "the shared contrast is the result's estimate"
     );
     assert_eq!(
-        result.estimate.as_effect().unwrap().se_bootstrap(),
+        result.estimate().as_effect().unwrap().se_bootstrap(),
         Some(se),
         "under the shared circular-block SE"
     );
     assert_eq!(
-        result.estimate.as_effect().unwrap().uncertainty.block.family,
+        result.estimate().as_effect().unwrap().uncertainty.block.family,
         Some(CircularBlockFamily::Mediation),
         "keyed to the mediation block family"
     );
@@ -419,7 +419,7 @@ fn temporal_cpdag_mediation_class_reports_the_circular_block_interval() {
         .unwrap();
     let capped = capped_study.run(&ExecutionContext::for_tests(3)).unwrap();
     assert!(
-        capped.estimate.as_effect().unwrap().ate.is_nan(),
+        capped.estimate().as_effect().unwrap().ate.is_nan(),
         "a capped class publishes no scalar"
     );
     assert!(capped.mediation().is_none());

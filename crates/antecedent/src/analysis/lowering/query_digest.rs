@@ -15,6 +15,7 @@ use antecedent_data::TableView;
 
 use crate::Study;
 use crate::analysis::builder::DataInput;
+use crate::analysis::execute::{StudyDeclarations, StudyInference};
 
 const QUERY_DIGEST_TAG: &str = "antecedent.lowered_query";
 const RETENTION_KEY_TAG: &str = "antecedent.retained_identification_key";
@@ -70,7 +71,7 @@ pub(crate) fn retention_key(study: &Study) -> Option<[u8; 32]> {
             writer.word(0);
         }
     }
-    match study.tiered.as_ref() {
+    match study.declared.tiered.as_ref() {
         Some(background) => {
             writer.word(1);
             background.encode(&mut writer);
@@ -79,8 +80,8 @@ pub(crate) fn retention_key(study: &Study) -> Option<[u8; 32]> {
             writer.word(0);
         }
     }
-    writer.opt_word(study.max_completions.map(|cap| cap as u64));
-    match study.class_prior.as_ref() {
+    writer.opt_word(study.declared.max_completions.map(|cap| cap as u64));
+    match study.declared.class_prior.as_ref() {
         Some(prior) => {
             writer.word(1).bytes(&antecedent_io::to_cbor(&prior.identity_wire()).ok()?);
         }
@@ -131,10 +132,10 @@ pub(crate) fn retention_key(study: &Study) -> Option<[u8; 32]> {
         }
     }
     writer
-        .opt_text(study.identifier.as_ref().map(crate::IdentifierId::as_str))
-        .opt_text(study.estimator.as_ref().map(crate::EstimatorId::as_str))
-        .opt_text(study.estimator_spec.as_deref().map(|spec| spec.id().as_str()))
-        .word(u64::from(study.inference.is_bayesian()));
+        .opt_text(study.declared.identifier.as_ref().map(crate::IdentifierId::as_str))
+        .opt_text(study.declared.estimator.as_ref().map(crate::EstimatorId::as_str))
+        .opt_text(study.declared.estimator_spec.as_deref().map(|spec| spec.id().as_str()))
+        .word(u64::from(study.settings.inference.is_bayesian()));
     Some(writer.finish())
 }
 
@@ -205,36 +206,45 @@ fn audit_identification_inputs(study: &Study) {
         data: _,
         graph: _,
         graph_posterior: _,
-        class_prior: _,
-        max_completions: _,
         query: _,
-        identifier: _,
-        estimator: _,
-        estimator_spec: _,
-        inference: _,
-        tiered: _,
         // Shared configuration, destructured above.
         config: _,
         // Derived from the query and graph at build.
         structure_source: _,
         support_status: _,
-        // Refutation, resampling, validation and presentation choices run after identification.
-        refute: _,
-        bootstrap_replicates: _,
-        retain_joint_horizons: _,
-        split: _,
-        custom_validators: _,
+        declared,
+        settings,
         latency_mode: _,
-        // Estimation-stage declarations: overlap, population, row binding, missing values,
-        // sampling design, interference network and the batch's shared design.
-        overlap_policy: _,
-        population_registry: _,
-        participants: _,
-        missing: _,
-        sampling_design: _,
         interference: _,
         shared_batch_design: _,
         // The product of identification, not an input to it.
         identification: _,
     } = study;
+    let StudyDeclarations {
+        // Written by `retention_key`.
+        class_prior: _,
+        max_completions: _,
+        identifier: _,
+        estimator: _,
+        estimator_spec: _,
+        tiered: _,
+        // Refutation, validation and presentation choices run after identification.
+        split: _,
+        custom_validators: _,
+        // Estimation-stage declarations: overlap, population, row binding, missing values and
+        // sampling design.
+        overlap_policy: _,
+        population_registry: _,
+        participants: _,
+        missing: _,
+        sampling_design: _,
+    } = declared;
+    let StudyInference {
+        // Written by `retention_key`.
+        inference: _,
+        // Refutation and resampling choices run after identification.
+        refute: _,
+        bootstrap_replicates: _,
+        retain_joint_horizons: _,
+    } = settings;
 }

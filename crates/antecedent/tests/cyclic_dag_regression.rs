@@ -389,3 +389,83 @@ fn recovered_evidence_on_acyclic_support_equals_the_cyclic_case_except_the_solve
         assert_eq!(right["draw"]["outcome"]["solved_by"]["algorithm"], "cyclic");
     }
 }
+
+/// A Gaussian observational functional over `outcomes`, identified from the chain
+/// `0 -> 1 -> 2` by the graph procedure, evaluated at one full assignment.
+fn gaussian_functional(outcomes: Vec<usize>) -> CyclicFamilyRequest {
+    use antecedent_io::cyclic_graph::{CyclicGraphReport, CyclicGraphRequest, CyclicGraphSpec};
+    let source = CyclicGraphRequest::Identify {
+        graph: CyclicGraphSpec { nodes: 3, directed: vec![(0, 1), (1, 2)], bidirected: vec![] },
+        outcomes,
+        treatments: vec![0],
+        continuous: true,
+        max_steps: 1000,
+        io_scm: true,
+        scc_product_density: true,
+    };
+    let identified =
+        CyclicFamilyRequest::Graph { request: source.clone() }.execute(&ctx()).unwrap();
+    let CyclicFamilyAnswer::Graph(CyclicGraphReport::Identify { program: Some(program), .. }) =
+        identified.answer
+    else {
+        panic!("chain identification")
+    };
+    CyclicFamilyRequest::GaussianFunctional {
+        source,
+        source_identity: identified.identity,
+        program,
+        law: antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw::Specified {
+            mean: vec![0.; 3],
+            covariance: vec![2., 1., 1.5, 1., 1.5, 1.55, 1.5, 1.55, 3.01],
+        },
+        assignments: vec![vec![(0, 1.), (1, 0.), (2, 0.)]],
+    }
+}
+
+fn functional_schema() -> CyclicEvidenceSchema {
+    CyclicEvidenceSchema {
+        id: "chain".into(),
+        population: "bench".into(),
+        variables: vec![
+            ("x".into(), "volt".into()),
+            ("m".into(), "amp".into()),
+            ("y".into(), "ohm".into()),
+        ],
+    }
+}
+
+#[test]
+fn a_multi_outcome_functional_projects_a_joint_event_coordinate_and_round_trips() {
+    use antecedent::analysis::cyclic_evidence::CyclicEvidence;
+    use antecedent_contract::{JointEventKind, JointEventQuantity, ScientificQuantity};
+    let selectors = vec![S::Functional { assignment: 0 }];
+    let joint = Study::prepare_cyclic_family(&gaussian_functional(vec![1, 2]), &ctx())
+        .unwrap()
+        .cyclic_evidence(functional_schema(), selectors.clone(), &ctx())
+        .unwrap();
+    let wire = &joint.columns()[0].quantity;
+    assert_eq!(wire.functional_id, "joint_density");
+    assert_eq!(wire.units, "1/((amp)*(ohm))");
+    let quantity = ScientificQuantity::try_from(wire.clone()).unwrap();
+    let schema = functional_schema();
+    let event = JointEventQuantity::from_coordinate(&quantity, &schema.id, &schema.variables)
+        .expect("a joint event coordinate");
+    assert_eq!(event.kind, JointEventKind::Density);
+    assert_eq!(event.variables.iter().map(|v| v.name.as_str()).collect::<Vec<_>>(), vec!["m", "y"]);
+    // The coordinate survives the artifact encoding.
+    let bytes = joint.export(&ctx()).unwrap();
+    let loaded = CyclicEvidence::consume(&bytes, joint.identity(), &ctx()).unwrap();
+    assert_eq!(loaded.columns()[0].quantity, *wire);
+
+    // A single outcome keeps its scalar coordinate.
+    let single = Study::prepare_cyclic_family(&gaussian_functional(vec![2]), &ctx())
+        .unwrap()
+        .cyclic_evidence(functional_schema(), selectors, &ctx())
+        .unwrap();
+    let scalar = &single.columns()[0].quantity;
+    assert_eq!(scalar.variable_id, "chain:y");
+    assert_eq!(scalar.functional_id, "identified_density");
+    assert_eq!(scalar.units, "1/(ohm)");
+    let scalar = ScientificQuantity::try_from(scalar.clone()).unwrap();
+    assert!(JointEventQuantity::from_coordinate(&scalar, &schema.id, &schema.variables).is_none());
+}

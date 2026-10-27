@@ -1417,7 +1417,7 @@ fn randomized_design(
     let assigned: Vec<f64> =
         query.realized_assignment.iter().map(|&arm| f64::from(u8::from(arm))).collect();
     let column = ImputationColumn::new(label(ASSIGNMENT_COLUMN), assigned);
-    let groups = match study.sampling_design {
+    let groups = match study.declared.sampling_design {
         Some(antecedent_core::DeclaredSamplingDesign::ClusteredPanel) => {
             if query.outcome_units.len() != rows {
                 return Err(refused(
@@ -1453,11 +1453,11 @@ where
 {
     let (declaration, spec) =
         declared_imputation(study).ok_or_else(|| refused("no imputation is declared"))?;
-    let cell = missing_data::route_cell(&study.query, &study.data, &study.inference);
+    let cell = missing_data::route_cell(&study.query, &study.data, &study.settings.inference);
     let row = route_missing_support(cell)
         .filter(|row| row.supports(declaration.policy))
         .ok_or_else(|| refused("this route cell does not execute multiple imputation"))?;
-    let bayesian = study.inference.is_bayesian();
+    let bayesian = study.settings.inference.is_bayesian();
     let RandomizedImputationDesign { columns: extra, groups } =
         randomized_design(study, data.row_count())?;
     let (imputer, ids) = build_imputer_with(study, declaration, spec, data, extra, groups)?;
@@ -1486,7 +1486,7 @@ where
     })
     .map_err(failure)?;
     let mut assumptions = run.assumptions.clone();
-    assumptions.design = study.sampling_design;
+    assumptions.design = study.declared.sampling_design;
     let estimator: Arc<str> = Arc::from(
         collected
             .base
@@ -1647,7 +1647,7 @@ fn series_imputer(
     }
     let rows = series.row_count();
     let units = multiple_imputation::bind_series_units(
-        study.sampling_design,
+        study.declared.sampling_design,
         rows,
         series_block(rows, lags),
     )
@@ -1673,7 +1673,7 @@ pub(crate) fn declared_assumptions_digest(study: &Study) -> Option<String> {
         DataInput::Temporal(series) => series_imputer(study, declaration, spec, series).ok()?.0,
         _ => return None,
     };
-    Some(ImputationAssumptions::of(&imputer, study.sampling_design).digest())
+    Some(ImputationAssumptions::of(&imputer, study.declared.sampling_design).digest())
 }
 
 /// Impute a series by a lagged model, fit with `click` on every completed series, and pool.
@@ -1697,11 +1697,11 @@ where
 {
     let (declaration, spec) =
         declared_imputation(study).ok_or_else(|| refused("no imputation is declared"))?;
-    let cell = missing_data::route_cell(&study.query, &study.data, &study.inference);
+    let cell = missing_data::route_cell(&study.query, &study.data, &study.settings.inference);
     let row = route_missing_support(cell)
         .filter(|row| row.supports(declaration.policy))
         .ok_or_else(|| refused("this route cell does not execute multiple imputation"))?;
-    let bayesian = study.inference.is_bayesian();
+    let bayesian = study.settings.inference.is_bayesian();
     let (imputer, ids, lags) = series_imputer(study, declaration, spec, series)?;
     let imputed: Vec<usize> = imputer
         .variables()
@@ -1728,7 +1728,7 @@ where
     })
     .map_err(failure)?;
     let mut assumptions = run.assumptions.clone();
-    assumptions.design = study.sampling_design;
+    assumptions.design = study.declared.sampling_design;
     let estimator: Arc<str> = Arc::from(
         collected
             .base

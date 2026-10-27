@@ -65,13 +65,13 @@ pub fn run() -> Result<(), CausalError> {
             .run(&ctx)?;
         println!(
             "{label}={:.4} estimator={}",
-            result.estimate.as_effect().unwrap().ate,
+            result.estimate().as_effect().unwrap().ate,
             result.logical_plan.estimator.as_deref().unwrap_or("?")
         );
         assert!(
-            (result.estimate.as_effect().unwrap().ate - expected).abs() < 0.03,
+            (result.estimate().as_effect().unwrap().ate - expected).abs() < 0.03,
             "{label}={}",
-            result.estimate.as_effect().unwrap().ate
+            result.estimate().as_effect().unwrap().ate
         );
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("mediation.linear"));
     }

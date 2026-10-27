@@ -34,15 +34,15 @@ impl IdentifiedResultContext {
                 && (study.graph.as_dag().is_some() || study.graph.as_admg().is_some()),
             refute_default_downgrade: study.refute_default_downgrade,
             latency_bootstrap_not_applied: study.latency_bootstrap_not_applied,
-            bootstrap_replicates: study.bootstrap_replicates,
-            inference: study.inference.clone(),
-            population_registry: study.population_registry.clone(),
+            bootstrap_replicates: study.settings.bootstrap_replicates,
+            inference: study.settings.inference.clone(),
+            population_registry: study.declared.population_registry.clone(),
             latency_mode: study.latency_mode,
             support_status: study.support_status,
             structure_source: study.structure_source,
-            tiered: study.tiered.clone(),
-            custom_validators: !study.custom_validators.is_empty(),
-            missing: study.missing.clone(),
+            tiered: study.declared.tiered.clone(),
+            custom_validators: !study.declared.custom_validators.is_empty(),
+            missing: study.declared.missing.clone(),
         }
     }
 }

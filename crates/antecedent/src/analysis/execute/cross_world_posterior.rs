@@ -395,7 +395,7 @@ impl super::Study {
             (&self.query, gp.atom_kind() == GraphPosteriorAtomKind::Dag)
         {
             // A mixed graph or a class reads an unconditional finite-discrete table.
-            super::static_path::ensure_admg_distribution_licensed(query, self.refute)?;
+            super::static_path::ensure_admg_distribution_licensed(query, self.settings.refute)?;
         }
         Ok(())
     }
@@ -822,7 +822,7 @@ impl super::Study {
         let (atoms, unidentified_mass, component_report) = accounting;
         let (refute_notes, uncertainty_notes) = notes;
         let mut diagnostics = mixed.identification.diagnostics.clone();
-        if self.inference.is_bayesian() && mixed.posterior.is_none() {
+        if self.settings.inference.is_bayesian() && mixed.posterior.is_none() {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.extend(refute_notes);
@@ -881,7 +881,7 @@ impl super::Study {
         // Each atom ran the suite its own structure has, against its own estimate; the
         // reports of one refuter mix by the posterior weight of the atoms that produced them,
         // and a mixed verdict passes only if every contributing atom passes.
-        if self.refute == RefuteSuite::None {
+        if self.settings.refute == RefuteSuite::None {
             (Vec::new(), Vec::new())
         } else {
             let per_atom: Vec<(f64, Vec<antecedent_validate::RefutationReport>)> = mixed
@@ -1122,7 +1122,7 @@ impl super::Study {
         atoms: &[(u64, f64)],
     ) -> Result<ReplicateSe, CausalError> {
         let (gp, lag_masks, max_lag) = posterior;
-        let requested = self.bootstrap_replicates;
+        let requested = self.settings.bootstrap_replicates;
         let unavailable =
             |note: &str| ReplicateSe { se: None, ok: 0, failed: 0, note: note.to_owned() };
         if requested < 2 {
@@ -1132,7 +1132,7 @@ impl super::Study {
             ));
         }
         if matches!(
-            self.sampling_design,
+            self.declared.sampling_design,
             Some(
                 antecedent_core::DeclaredSamplingDesign::ClusteredPanel
                     | antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories
@@ -1245,8 +1245,8 @@ impl super::Study {
                 return Err("a contributing atom no longer builds its template");
             };
             let mut member = self.clone();
-            member.bootstrap_replicates = 0;
-            member.refute = RefuteSuite::None;
+            member.settings.bootstrap_replicates = 0;
+            member.settings.refute = RefuteSuite::None;
             member.graph = Arc::new(AcceptedGraph::temporal_pag(template));
             members.push((*weight, member));
         }
@@ -1285,7 +1285,7 @@ impl super::Study {
         if contributing.is_empty() {
             return Ok(notes);
         }
-        if self.inference.is_bayesian() {
+        if self.settings.inference.is_bayesian() {
             let items: Vec<(f64, &CausalPosterior)> = contributing
                 .iter()
                 .filter_map(|(_, weight, result)| result.posterior.as_ref().map(|p| (*weight, p)))
@@ -1373,7 +1373,7 @@ impl super::Study {
         ctx: &ExecutionContext,
         atoms: &[(u64, f64)],
     ) -> Result<ReplicateSe, CausalError> {
-        let requested = self.bootstrap_replicates;
+        let requested = self.settings.bootstrap_replicates;
         let unavailable =
             |note: &str| ReplicateSe { se: None, ok: 0, failed: 0, note: note.to_owned() };
         if requested < 2 {
@@ -1383,7 +1383,7 @@ impl super::Study {
             ));
         }
         let n = data.row_count();
-        let block = match self.sampling_design {
+        let block = match self.declared.sampling_design {
             Some(antecedent_core::DeclaredSamplingDesign::ClusteredPanel) => {
                 return Ok(unavailable(
                     "the declared clustered design needs whole clusters, and the table carries \
@@ -1415,8 +1415,8 @@ impl super::Study {
             first_index.entry(gp.graph_keys()[index]).or_insert(index);
         }
         let mut quiet = self.clone();
-        quiet.bootstrap_replicates = 0;
-        quiet.refute = RefuteSuite::None;
+        quiet.settings.bootstrap_replicates = 0;
+        quiet.settings.refute = RefuteSuite::None;
         let slot = kind.requested();
         let mut values: Vec<f64> = Vec::new();
         let mut failed = 0_u32;

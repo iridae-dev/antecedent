@@ -101,7 +101,7 @@ fn panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared() {
     assert!((got_sd - sd).abs() < 0.03 * sd, "{got_sd} vs {sd}");
     assert!(lower < mean && mean < upper);
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.panel_did"));
-    assert_eq!(result.support_status, None, "the Bayesian design route is unlicensed");
+    assert_eq!(result.support_status(), None, "the Bayesian design route is unlicensed");
     assert!(result.panel_did().is_none());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == "parallel_trends"
@@ -204,7 +204,7 @@ fn local_ratio_recovers_the_known_ratio_and_withholds_the_interval_when_weak() {
     assert!((result.effect() - 2.0).abs() < 0.2, "{}", result.effect());
     assert!((median - 2.0).abs() < 0.3);
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.local_ratio"));
-    assert!(result.interval.is_some());
+    assert!(result.interval().is_some());
     assert!(!result.diagnostics.iter().any(|d| d.code.as_ref().ends_with("weak_first_stage")));
     let bytes = prepared.encode_contracted_result(&result, "bayes-ratio", &ctx).unwrap();
     let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
@@ -219,7 +219,7 @@ fn local_ratio_recovers_the_known_ratio_and_withholds_the_interval_when_weak() {
             .any(|d| d.code.as_ref() == "estimate.quasi.bayesian_local_ratio.weak_first_stage"
                 && d.message.contains("Next attempt"))
     );
-    assert!(result.interval.is_none(), "a weak first stage publishes no interval");
+    assert!(result.interval().is_none(), "a weak first stage publishes no interval");
     let posterior = result.posterior.as_ref().unwrap();
     assert!(posterior.effect_column().is_none(), "no ratio draws are published");
 }
@@ -252,7 +252,7 @@ fn regression_kink_posterior_recovers_the_slope_ratio_through_the_retained_progr
     );
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.local_ratio"));
     assert!((result.effect() - 2.0).abs() < 0.3, "{}", result.effect());
-    assert_eq!(result.support_status, None, "the Bayesian design route is unlicensed");
+    assert_eq!(result.support_status(), None, "the Bayesian design route is unlicensed");
 }
 
 fn synthetic_fixture() -> (TabularData, SyntheticControlQuery) {

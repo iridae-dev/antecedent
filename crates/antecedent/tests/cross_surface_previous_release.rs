@@ -19,11 +19,11 @@ use antecedent_core::{
     WorldBinding,
 };
 use antecedent_io::recalc_receipt_artifact::{
-    encode_parts, CountsWire, RecalcReceiptArtifact, RecalcReceiptArtifactError,
+    CountsWire, RecalcReceiptArtifact, RecalcReceiptArtifactError, encode_parts,
 };
 use antecedent_io::release_migration::{
-    consume_previous_release_artifact, current_score_row_digest, narrow_score_row_digest,
-    AdoptedRelease, MigrationError, PreviousReleaseError,
+    AdoptedRelease, MigrationError, PreviousReleaseError, consume_previous_release_artifact,
+    current_score_row_digest, narrow_score_row_digest,
 };
 
 const ROW_IDS: [u64; 3] = [7, 11, 13];

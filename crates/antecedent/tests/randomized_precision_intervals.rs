@@ -59,11 +59,11 @@ fn supported_ancova_and_fixed_cuped_intervals_round_trip_and_refuse_forgery() {
         );
         let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported precision interval");
-        assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
         assert!(lower < fit.effect && fit.effect < upper);
         assert!(fit.standard_error.unwrap() > 0.0);
         assert_eq!(
-            result.interval.as_ref().unwrap().method,
+            result.interval().as_ref().unwrap().method,
             antecedent_core::IntervalMethod::AnalyticSe
         );
         let bytes = prepared.encode_contracted_result(&result, label, &ctx).unwrap();
@@ -130,7 +130,7 @@ fn an_ancova_beyond_the_measured_covariates_publishes_the_flagged_student_interv
     let [lower, upper] = fit.interval_95.expect("flagged interval beyond two covariates");
     assert!(lower < fit.effect && fit.effect < upper);
     assert_eq!(fit.uncertainty.as_ref(), "bernoulli_ancova_hc2_bell_mccaffrey_student_interval");
-    assert!(result.support_status.is_none());
+    assert!(result.support_status().is_none());
 }
 
 #[test]
@@ -156,8 +156,11 @@ fn sparse_ancova_and_fixed_cuped_remain_point_only() {
         let fit = result.randomized_effect().unwrap();
         assert!(fit.interval_95.is_none());
         assert!(fit.standard_error.is_none());
-        assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-        assert!(result.support_status.is_none());
+        assert_eq!(
+            result.interval().as_ref().unwrap().method,
+            antecedent_core::IntervalMethod::None
+        );
+        assert!(result.support_status().is_none());
     }
 }
 
@@ -228,7 +231,7 @@ fn three_hundred_row_trials_publish_intervals_from_their_own_arm_support() {
                 .unwrap_or_else(|| panic!("{name} {label}: 300 rows must publish an interval"));
             assert!(lower < fit.effect && fit.effect < upper, "{name} {label}");
             assert_eq!(
-                result.support_status,
+                result.support_status(),
                 Some(antecedent::support::CellStatus::Licensed),
                 "{name} {label}"
             );
@@ -251,7 +254,7 @@ fn weak_arm_support_withholds_the_interval_and_names_the_arm_rule() {
             let result =
                 Study::tabular(data.clone()).query(query).build().unwrap().run(&ctx).unwrap();
             let fit = result.randomized_effect().unwrap();
-            assert!(result.support_status.is_none(), "{name} {label}");
+            assert!(result.support_status().is_none(), "{name} {label}");
             if label == "ancova" {
                 // The ANCOVA has a small-arm construction of its own, never licensed.
                 assert!(fit.interval_95.is_some(), "{name} {label}");

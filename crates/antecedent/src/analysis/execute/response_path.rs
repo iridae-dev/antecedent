@@ -175,9 +175,7 @@ impl super::Study {
         graph_posterior_response_supported(query)?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let identification_query = AverageEffectQuery::binary_ate(treatment, outcome);
-        let (identified, identify_cached) = if let Some(cache) =
-            self.graph_posterior_cache()
-        {
+        let (identified, identify_cached) = if let Some(cache) = self.graph_posterior_cache() {
             (Arc::clone(cache), true)
         } else {
             (
@@ -197,7 +195,7 @@ impl super::Study {
         let primary_status = identification.status;
         let primary_assumptions = identification.required_assumptions.clone();
         let pooled = self.pool_graph_posterior_response(&run, &fits, identification)?;
-        let estimator_id = if self.inference.is_bayesian() {
+        let estimator_id = if self.settings.inference.is_bayesian() {
             EstimatorId::ResponseBayesian
         } else {
             EstimatorId::default_for_response(&query.functional)
@@ -289,10 +287,10 @@ impl super::Study {
         primary: (IdentificationStatus, &antecedent_core::AssumptionSet),
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<PosteriorLevelChecks, CausalError> {
-        let InferenceMode::Bayesian(config) = &self.inference else {
+        let InferenceMode::Bayesian(config) = &self.settings.inference else {
             return Ok((Vec::new(), Vec::new()));
         };
-        if !matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full)
+        if !matches!(self.settings.refute, RefuteSuite::Cheap | RefuteSuite::Full)
             || !matches!(run.query.functional, ResponseFunctional::InterventionResponse { .. })
         {
             return Ok((Vec::new(), Vec::new()));
@@ -320,7 +318,7 @@ impl super::Study {
                 level_sd,
                 treatment: run.treatment,
                 outcome: run.outcome,
-                suite: self.refute,
+                suite: self.settings.refute,
                 latency: self.latency_mode,
                 // The plugin-level suite already ran on the pooled level; only the
                 // posterior checks are added here.
@@ -375,7 +373,7 @@ impl super::Study {
             let mut estimator =
                 ContinuousResponseEstimator::new(Arc::clone(&atom.estimand.adjustment_set));
             estimator.options = options.clone();
-            let scored = if let InferenceMode::Bayesian(cfg) = &self.inference {
+            let scored = if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
                 let mut bayes = bayesian_gcomp(cfg, inner);
                 bayes.prior.clone_from(&cfg.prior);
                 estimator
@@ -499,7 +497,7 @@ impl super::Study {
         // Only a scalar aggregate takes the joint-IF SE: for a curve the first
         // score column is the influence of the first grid point alone.
         let mixed_if_se = (weighted.len() > 1
-            && self.inference.is_frequentist()
+            && self.settings.inference.is_frequentist()
             && matches!(conditional, ResponseValue::Scalar(_))
             && atom_scores.len() == weighted.len())
         .then(|| mixed_response_scalar_se(atom_scores, data.row_count()))
@@ -603,7 +601,7 @@ impl super::Study {
                 "estimate.response.graph_posterior.uncertainty_withheld",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                if self.inference.is_bayesian() {
+                if self.settings.inference.is_bayesian() {
                     "multi-atom Bayesian graph-posterior response withholds an aggregate \
                      credible interval: graph-specific dispersion and uncertainty of a \
                      frozen-weight aggregate are different objects"
@@ -652,8 +650,9 @@ impl super::Study {
         // it exactly as it reads the Frequentist level; the posterior checks are added by
         // `bayesian_graph_posterior_level_state`.
         let (refutations, refute_diags) = if scalar_intervention
-            && (!matches!(self.refute, RefuteSuite::None)
-                || (!self.custom_validators.is_empty() && self.inference.is_frequentist()))
+            && (!matches!(self.settings.refute, RefuteSuite::None)
+                || (!self.declared.custom_validators.is_empty()
+                    && self.settings.inference.is_frequentist()))
         {
             let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
             let mut refute_ws = EstimationWorkspace::default();
@@ -663,7 +662,7 @@ impl super::Study {
                 response.assumptions.clone(),
                 OverlapPolicy::ExplicitOverride,
             );
-            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+            if matches!(self.settings.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
                 diagnostics.push(Diagnostic::new(
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
@@ -678,14 +677,14 @@ impl super::Study {
                 estimand,
                 query: &ate_query,
                 estimate: &plugin_estimate,
-                suite: self.refute,
+                suite: self.settings.refute,
                 estimator: estimator_id.as_str(),
-                custom: &self.custom_validators,
+                custom: &self.declared.custom_validators,
                 temporal: None,
             }
             .plugin_level(&mut refute_ws, ctx)?
         } else {
-            if !matches!(self.refute, RefuteSuite::None) {
+            if !matches!(self.settings.refute, RefuteSuite::None) {
                 diagnostics.push(Diagnostic::new(
                     "refute.response.skipped",
                     DiagnosticKind::Scientific,
@@ -738,7 +737,10 @@ impl super::Study {
         let started = Instant::now();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults {
             identifier: IdentifierId::GeneralizedAdjustment,
-            estimator: EstimatorId::static_response_for(&query.functional, &self.inference),
+            estimator: EstimatorId::static_response_for(
+                &query.functional,
+                &self.settings.inference,
+            ),
         })?;
         report_identify_compute(ctx);
         let identification = crate::strategy_table::identify_admg_derivative(admg, query)?;
@@ -785,10 +787,10 @@ impl super::Study {
         if let Some(options) = &self.response_options {
             estimator.options = options.clone();
         }
-        let inference = match &self.inference {
+        let inference = match &self.settings.inference {
             InferenceMode::Frequentist => {
                 antecedent_estimate::FrontDoorDerivativeInference::Frequentist {
-                    replicates: self.bootstrap_replicates,
+                    replicates: self.settings.bootstrap_replicates,
                     block,
                 }
             }
@@ -965,10 +967,10 @@ impl super::Study {
             diagnostics.push(identify_cached_diagnostic());
         }
         let mut predictive_checks = Vec::new();
-        let (refutations, refute_diags) = match &self.inference {
+        let (refutations, refute_diags) = match &self.settings.inference {
             inference
                 if super::derivative_refutation::is_derivative(&query.functional)
-                    && !matches!(self.refute, RefuteSuite::None) =>
+                    && !matches!(self.settings.refute, RefuteSuite::None) =>
             {
                 let mut fitter =
                     ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
@@ -994,9 +996,9 @@ impl super::Study {
                         status: identification.status,
                         assumptions: &identification.required_assumptions,
                         response: &response,
-                        suite: self.refute,
+                        suite: self.settings.refute,
                         latency: self.latency_mode,
-                        replicates: self.bootstrap_replicates,
+                        replicates: self.settings.bootstrap_replicates,
                     },
                     ctx,
                 )?;
@@ -1009,7 +1011,7 @@ impl super::Study {
                         query.functional,
                         ResponseFunctional::InterventionResponse { .. }
                     )
-                    && !matches!(self.refute, RefuteSuite::None) =>
+                    && !matches!(self.settings.refute, RefuteSuite::None) =>
             {
                 let mut fitter =
                     ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
@@ -1033,7 +1035,7 @@ impl super::Study {
                         level_sd: standard_error,
                         treatment,
                         outcome,
-                        suite: self.refute,
+                        suite: self.settings.refute,
                         latency: self.latency_mode,
                         plugin_level: true,
                         summarize: response_scalar_summary,
@@ -1248,7 +1250,7 @@ impl super::Study {
             response_estimator.options = options.clone();
         }
         let mut response_scores = None;
-        let response = if let InferenceMode::Bayesian(cfg) = &self.inference {
+        let response = if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             if cfg.has_transferred_source() && cfg.prior_mapping.is_none() && cfg.prior.is_none() {
                 return Err(CausalError::Unsupported {
                     message: "Bayesian response prior transfer requires a response-specific \
@@ -1322,11 +1324,12 @@ impl super::Study {
         let scalar_intervention = scalar.is_finite()
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         let (refutations, refute_diags) = if scalar_intervention
-            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
+            && (!matches!(self.settings.refute, RefuteSuite::None)
+                || !self.declared.custom_validators.is_empty())
         {
             let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
             let mut refute_ws = EstimationWorkspace::default();
-            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+            if matches!(self.settings.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
                 diagnostics.push(Diagnostic::new(
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
@@ -1339,14 +1342,14 @@ impl super::Study {
                 estimand,
                 query: &ate_query,
                 estimate,
-                suite: self.refute,
+                suite: self.settings.refute,
                 estimator: estimator_id.as_str(),
-                custom: &self.custom_validators,
+                custom: &self.declared.custom_validators,
                 temporal: None,
             }
             .plugin_level(&mut refute_ws, ctx)?
         } else {
-            if !matches!(self.refute, RefuteSuite::None) || !scalar_intervention {
+            if !matches!(self.settings.refute, RefuteSuite::None) || !scalar_intervention {
                 diagnostics.push(Diagnostic::new(
                     "refute.response.skipped",
                     DiagnosticKind::Scientific,
@@ -1367,10 +1370,10 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let background = self.tiered.as_ref().ok_or_else(|| CausalError::Compile {
+        let background = self.declared.tiered.as_ref().ok_or_else(|| CausalError::Compile {
             message: "CoDetermined joint execute requires a tiered background".into(),
         })?;
-        let bayesian = self.inference.is_bayesian();
+        let bayesian = self.settings.inference.is_bayesian();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults {
             identifier: IdentifierId::GeneralizedAdjustment,
             estimator: if bayesian { EstimatorId::ResponseBayesian } else { EstimatorId::CellAipw },
@@ -1434,7 +1437,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let ExecuteRun { physical, ctx, started, identify_cached } = run;
         let IdentifiedClaim { identification, estimand } = claim;
-        let InferenceMode::Bayesian(config) = &self.inference else {
+        let InferenceMode::Bayesian(config) = &self.settings.inference else {
             return Err(CausalError::unsupported_inference(
                 "the CoDetermined Bayesian joint level requires inference=Bayesian",
             ));
@@ -1729,7 +1732,8 @@ impl super::Study {
         }
         let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
         let refute_estimate = cell_contrast_for_refute(&estimate, requested_arm);
-        if !matches!(self.refute, RefuteSuite::None) && refute_estimate.ate != estimate.ate {
+        if !matches!(self.settings.refute, RefuteSuite::None) && refute_estimate.ate != estimate.ate
+        {
             diagnostics.push(Diagnostic::new(
                 "refute.cell_aipw.contrast",
                 DiagnosticKind::Scientific,
@@ -1743,9 +1747,9 @@ impl super::Study {
             estimand: &estimand,
             query: &ate_query,
             estimate: &refute_estimate,
-            suite: self.refute,
+            suite: self.settings.refute,
             estimator: "cell.aipw",
-            custom: &self.custom_validators,
+            custom: &self.declared.custom_validators,
             temporal: None,
         }
         .reports(&mut refute_ws, None, ctx)?;
@@ -2008,7 +2012,7 @@ impl super::Study {
         // (unlicensed); a curve keeps the skipped note.
         let mut refutations = Vec::new();
         let mut predictive_checks = Vec::new();
-        if !matches!(self.refute, RefuteSuite::None)
+        if !matches!(self.settings.refute, RefuteSuite::None)
             && response_functional_is_derivative(&query.functional)
         {
             let (reports, checks, notes) = self.refute_class_derivative_atoms(
@@ -2022,7 +2026,7 @@ impl super::Study {
             predictive_checks = checks;
             diagnostics.retain(|diagnostic| diagnostic.code.as_ref() != "refute.response.skipped");
             diagnostics.extend(notes);
-        } else if !matches!(self.refute, RefuteSuite::None)
+        } else if !matches!(self.settings.refute, RefuteSuite::None)
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
         {
             let (reports, notes) =
@@ -2192,7 +2196,7 @@ impl super::Study {
         if let Some(options) = &self.response_options {
             response_estimator.options = options.clone();
         }
-        let (response, scores) = if let InferenceMode::Bayesian(cfg) = &self.inference {
+        let (response, scores) = if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             if cfg.has_transferred_source() && cfg.prior_mapping.is_none() && cfg.prior.is_none() {
                 return Err(CausalError::Unsupported {
                     message: "Bayesian class-aware response prior transfer requires a \
@@ -2297,7 +2301,7 @@ impl super::Study {
         // completion is identified and each returns the same response (they
         // share the adjustment set, so their posteriors are one posterior),
         // any mixture of them is that posterior: its band is the class band.
-        if self.inference.is_bayesian()
+        if self.settings.inference.is_bayesian()
             && envelope.unidentified_weight.0 <= 1e-12
             && unestimated_id_mass <= 1e-12
         {
@@ -2522,7 +2526,7 @@ impl super::Study {
         // band and nothing is omitted.
         let atom_uncertainty_dropped = matches!(mixed.uncertainty, ResponseUncertainty::None)
             && weighted.iter().any(|(_, _, r)| !matches!(r.uncertainty, ResponseUncertainty::None));
-        if self.inference.is_bayesian() && atom_uncertainty_dropped {
+        if self.settings.inference.is_bayesian() && atom_uncertainty_dropped {
             diagnostics.push(Diagnostic::new(
                 "estimate.envelope.response_posterior_not_mixed",
                 DiagnosticKind::Scientific,

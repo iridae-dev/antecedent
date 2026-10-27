@@ -202,15 +202,14 @@ pub fn whole_path_interval(
         reason = "an undeclared sampling carries no interval"
     )]
     let (variance, scalar) = match uncertainty.unit_sampling {
-        UnitSampling::FixedUnits => {
-            (uncertainty.realized_mean_predictive_variance, IntervalScalar::RealizedCounterfactualMean)
-        }
-        UnitSampling::IndependentSample => {
-            (
-                uncertainty.unit_mean_sampling_variance?,
-                IntervalScalar::PopulationMeanCounterfactualProbability,
-            )
-        }
+        UnitSampling::FixedUnits => (
+            uncertainty.realized_mean_predictive_variance,
+            IntervalScalar::RealizedCounterfactualMean,
+        ),
+        UnitSampling::IndependentSample => (
+            uncertainty.unit_mean_sampling_variance?,
+            IntervalScalar::PopulationMeanCounterfactualProbability,
+        ),
         _ => return None,
     };
     if !(variance.is_finite() && variance >= 0.0 && uncertainty.value.is_finite()) {

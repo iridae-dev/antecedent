@@ -66,7 +66,7 @@ impl PreparedStudy {
             .static_cache()
             .map(|cache| cache.estimand.adjustment_set.iter().filter_map(|id| name(*id)).collect())
             .unwrap_or_default();
-        let bayesian = matches!(study.inference, InferenceMode::Bayesian(_));
+        let bayesian = matches!(study.settings.inference, InferenceMode::Bayesian(_));
         let plan_identity =
             self.contract().ok().and_then(|contract| contract.identities.program).map_or_else(
                 || {
@@ -111,7 +111,7 @@ impl PreparedStudy {
     ) -> Result<StalenessBaseline, CausalError> {
         // Estimator sampling weights are a population declaration, separate from
         // storage weights. The unweighted profile cannot certify that population.
-        if self.study().estimator_spec.as_deref().is_some_and(|spec| {
+        if self.study().declared.estimator_spec.as_deref().is_some_and(|spec| {
             use crate::estimator_spec::EstimatorSpec;
             match spec {
                 EstimatorSpec::LinearAdjustmentAte(cfg) => cfg.sampling_weights.is_some(),

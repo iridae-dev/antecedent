@@ -15,7 +15,7 @@ use crate::inference::InferenceMode;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 use crate::support::{CellStatus, StructureSource};
 
-use super::super::execute::{Study, StudyConfig};
+use super::super::execute::{Study, StudyConfig, StudyDeclarations, StudyInference};
 use super::super::latency::{ResolvedLatencyBudget, refuse_non_report_hmc};
 use super::super::prepared::{CachedStaticIdentification, IdentificationCache};
 use super::super::query_license::is_graphless_design;
@@ -1925,28 +1925,32 @@ fn into_study(exposure: BoundExposure) -> Study {
         data,
         graph: Arc::new(graph),
         graph_posterior,
-        class_prior: declared.class_prior,
-        max_completions: declared.max_completions,
         structure_source: structure,
         support_status,
         query,
-        refute: settings.refute,
-        bootstrap_replicates: settings.bootstrap_replicates,
-        retain_joint_horizons: settings.retain_joint_horizons,
-        split: declared.split,
-        identifier: declared.identifier,
-        estimator: declared.estimator,
-        estimator_spec: declared.estimator_spec.map(Arc::new),
-        inference: settings.inference,
-        overlap_policy: declared.overlap_policy,
-        population_registry: declared.population_registry,
-        participants: declared.participants,
-        missing: declared.missing,
-        sampling_design: declared.sampling_design,
-        custom_validators: declared.custom_validators,
+        declared: StudyDeclarations {
+            class_prior: declared.class_prior,
+            max_completions: declared.max_completions,
+            split: declared.split,
+            identifier: declared.identifier,
+            estimator: declared.estimator,
+            estimator_spec: declared.estimator_spec.map(Arc::new),
+            overlap_policy: declared.overlap_policy,
+            population_registry: declared.population_registry,
+            participants: declared.participants,
+            missing: declared.missing,
+            sampling_design: declared.sampling_design,
+            custom_validators: declared.custom_validators,
+            tiered: declared.tiered,
+        },
+        settings: StudyInference {
+            inference: settings.inference,
+            refute: settings.refute,
+            bootstrap_replicates: settings.bootstrap_replicates,
+            retain_joint_horizons: settings.retain_joint_horizons,
+        },
         latency_mode: execution.latency_mode,
         identification: identification_cache.map(IdentificationCache::Static),
-        tiered: declared.tiered,
         shared_batch_design: None,
         interference,
     }

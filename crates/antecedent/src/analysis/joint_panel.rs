@@ -40,13 +40,13 @@ mod streamed;
 pub use experiment::{
     HistoricalJointLawExperiment, HistoricalNativeJointExperiment, JointExperimentAcceptanceMatrix,
     JointExperimentAcceptanceRow, JointLawExperimentRequest, JointLawExperimentResult,
-    LawExperimentLimits,
-    LocalRatioGaussianRegularization, NativeExperimentBinding, NativeExperimentDecision,
-    NativeJointExperimentResult, PanelExperimentDecisionSource, PanelExperimentDecisionState,
-    PanelExperimentEvidence, PanelExperimentMapping, PanelExperimentModularPolicy,
-    PanelExperimentResult, PanelExperimentState, PanelExperimentUpdate, PanelFutureRegime,
-    PanelFutureSample, PanelFutureSampleValue, PanelFutureStudy, PanelFutureStudyUpdate,
-    PanelFutureStudyValue, joint_experiment_acceptance_matrix,
+    LawExperimentLimits, LocalRatioGaussianRegularization, NativeExperimentBinding,
+    NativeExperimentDecision, NativeJointExperimentResult, PanelExperimentDecisionSource,
+    PanelExperimentDecisionState, PanelExperimentEvidence, PanelExperimentMapping,
+    PanelExperimentModularPolicy, PanelExperimentResult, PanelExperimentState,
+    PanelExperimentUpdate, PanelFutureRegime, PanelFutureSample, PanelFutureSampleValue,
+    PanelFutureStudy, PanelFutureStudyUpdate, PanelFutureStudyValue,
+    joint_experiment_acceptance_matrix,
 };
 pub use streamed::{DEFAULT_TILE_DRAWS, JointPanelProjectedLaw};
 #[cfg(test)]

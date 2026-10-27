@@ -57,10 +57,11 @@ impl CheckedBayesianTemporalClassEffectOperation {
         matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_))
             && study.plain_fixed_route()
             && matches!(study.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
-            && matches!(study.inference, InferenceMode::Bayesian(_))
+            && matches!(study.settings.inference, InferenceMode::Bayesian(_))
             && study.point_validation()
             && query.policy.is_pulse_or_sustained()
             && study
+                .declared
                 .estimator
                 .is_none_or(|id| id == EstimatorId::temporal_effect_procedure(query, true))
     }

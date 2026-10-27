@@ -89,9 +89,9 @@ fn supplied_oriented_cpdag_runs_ate() {
         .unwrap();
     // y = 0.5 z + 1.5 t with no noise: adjusting for z gives exactly 1.5; the crude contrast is 2.5.
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 1.5).abs() < 1e-6,
+        (result.estimate().as_effect().unwrap().ate - 1.5).abs() < 1e-6,
         "ATE {}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
 }
 
@@ -112,9 +112,9 @@ fn supplied_admg_without_bidirected_coerces_to_dag() {
         .unwrap();
     // y = 0.5 z + 1.5 t with no noise: adjusting for z gives exactly 1.5; the crude contrast is 2.5.
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 1.5).abs() < 1e-6,
+        (result.estimate().as_effect().unwrap().ate - 1.5).abs() < 1e-6,
         "ATE {}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
 }
 

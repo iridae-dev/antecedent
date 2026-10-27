@@ -152,7 +152,7 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
 
         let result = prepared.estimate(&base, &ctx).unwrap();
         assert!(
-            result.estimate.as_effect().unwrap().ate.is_nan(),
+            result.estimate().as_effect().unwrap().ate.is_nan(),
             "atom estimands disagree; scalar must be withheld"
         );
         let mixture = result.structural_response.as_ref().expect("structural graph mixture");
@@ -161,7 +161,7 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
         assert!((set.upper[0] - 3.0).abs() < 0.06);
         assert!((mixture.identified_mass - 0.8).abs() < 1e-12);
         assert!((mixture.unidentified_mass - 0.2).abs() < 1e-12);
-        assert!(one_shot.estimate.as_effect().unwrap().ate.is_nan());
+        assert!(one_shot.estimate().as_effect().unwrap().ate.is_nan());
         assert!(
             one_shot
                 .diagnostics
@@ -171,7 +171,7 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
         );
 
         let shifted = rebind_estimate(&mut prepared, data(4.0), &ctx).unwrap();
-        assert!(shifted.estimate.as_effect().unwrap().ate.is_nan());
+        assert!(shifted.estimate().as_effect().unwrap().ate.is_nan());
         let RetainedOperation::ClassGraphPosteriorEffect(refreshed_plan) =
             prepared.retained_operation()
         else {
@@ -242,14 +242,14 @@ fn frequentist_pag_graph_posterior_effect_body() {
         assert_eq!(plan.class_atom_count, 1);
 
         let result = prepared.estimate(&base, &ctx).unwrap();
-        assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06);
+        assert!((result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.06);
         let mixture = result.structural_response.as_ref().unwrap();
         assert!((mixture.identified_mass - 0.8).abs() < 1e-12);
         assert!((mixture.unidentified_mass - 0.2).abs() < 1e-12);
-        assert!((one_shot.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06);
+        assert!((one_shot.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.06);
 
         let shifted = rebind_estimate(&mut prepared, pag_data(4.0), &ctx).unwrap();
-        assert!((shifted.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06);
+        assert!((shifted.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.06);
         let RetainedOperation::ClassGraphPosteriorEffect(refreshed) = prepared.retained_operation()
         else {
             panic!("checked class graph-posterior plan remains after refresh")

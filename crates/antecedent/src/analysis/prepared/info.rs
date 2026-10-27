@@ -487,7 +487,7 @@ impl PreparedStudy {
         let mut next = self.clone();
         next.execution = execution;
         let mut analysis = next.analysis.clone();
-        analysis.inference = InferenceMode::Bayesian(config);
+        analysis.settings.inference = InferenceMode::Bayesian(config);
         next.replace_study(analysis);
         next.seal_inspection_metadata()?;
         Ok(next)
@@ -718,7 +718,7 @@ impl PreparedStudy {
         validators: Vec<std::sync::Arc<dyn antecedent_validate::CustomEffectValidator>>,
     ) -> Result<(), CausalError> {
         let expected: std::collections::BTreeSet<&str> =
-            self.analysis.custom_validators.iter().map(|v| v.name()).collect();
+            self.analysis.declared.custom_validators.iter().map(|v| v.name()).collect();
         let incoming: std::collections::BTreeSet<&str> =
             validators.iter().map(|v| v.name()).collect();
         if expected != incoming {
@@ -728,7 +728,7 @@ impl PreparedStudy {
             ));
         }
         self.execution.set_custom_validators(&validators);
-        self.analysis.custom_validators = validators;
+        self.analysis.declared.custom_validators = validators;
         Ok(())
     }
 
@@ -736,7 +736,7 @@ impl PreparedStudy {
     /// or a custom target distribution.
     #[must_use]
     pub fn population_registry(&self) -> Option<&antecedent_core::PopulationRegistry> {
-        self.analysis.population_registry.as_ref()
+        self.analysis.declared.population_registry.as_ref()
     }
 
     /// Borrow the caller validators frozen at preparation.
@@ -748,7 +748,7 @@ impl PreparedStudy {
     pub fn custom_validators(
         &self,
     ) -> &[std::sync::Arc<dyn antecedent_validate::CustomEffectValidator>] {
-        &self.analysis.custom_validators
+        &self.analysis.declared.custom_validators
     }
 
     /// Names of the caller custom validators frozen at prepare, in order.
@@ -757,7 +757,7 @@ impl PreparedStudy {
     /// [`Self::rebind_custom_validators`] requires.
     #[must_use]
     pub fn custom_validator_names(&self) -> Vec<&str> {
-        self.analysis.custom_validators.iter().map(|validator| validator.name()).collect()
+        self.analysis.declared.custom_validators.iter().map(|validator| validator.name()).collect()
     }
 
     /// Stream progressive stages from later estimates of this handle.
@@ -783,7 +783,7 @@ impl PreparedStudy {
     pub fn streams_stages(&self) -> bool {
         let analysis = &self.analysis;
         if analysis.graph_posterior.is_some()
-            || analysis.tiered.is_some()
+            || analysis.declared.tiered.is_some()
             || !matches!(analysis.data, DataInput::Tabular(_))
         {
             return false;
@@ -807,7 +807,7 @@ impl PreparedStudy {
             }
             CausalQuery::ConditionalEffect(_) => {
                 analysis.graph.class() == GraphClass::Dag
-                    && matches!(analysis.inference, InferenceMode::Bayesian(_))
+                    && matches!(analysis.settings.inference, InferenceMode::Bayesian(_))
             }
             _ => false,
         }

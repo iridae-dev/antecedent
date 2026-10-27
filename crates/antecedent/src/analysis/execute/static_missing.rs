@@ -13,7 +13,8 @@ impl Study {
     /// Whether the caller declared complete-case handling, which lets gap-aware estimators
     /// fit the intact lag windows of a series with missing time points.
     pub(super) fn declares_complete_case(&self) -> bool {
-        self.missing
+        self.declared
+            .missing
             .as_ref()
             .is_some_and(|declaration| declaration.policy == MissingPolicy::CompleteCase)
     }
@@ -63,7 +64,7 @@ impl Study {
             }
         }
         let (policy, declared) =
-            missing_data::effective_policy(MissingRoute::Static, self.missing.as_ref());
+            missing_data::effective_policy(MissingRoute::Static, self.declared.missing.as_ref());
         if policy == MissingPolicy::ErrorOnMissing {
             if let Some(cell) = first_missing_cell(data, &variables)? {
                 return Err(CausalError::Estimate(

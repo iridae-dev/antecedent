@@ -537,7 +537,7 @@ fn static_adjustment_route_input<'a>(
             cpdag,
         },
         (AnalysisRoute::Response, GraphRef::Admg(admg))
-            if study.tiered.as_ref().is_some_and(|background| {
+            if study.declared.tiered.as_ref().is_some_and(|background| {
                 background.within_tier == antecedent_graph::WithinTier::CoDetermined
             }) =>
         {

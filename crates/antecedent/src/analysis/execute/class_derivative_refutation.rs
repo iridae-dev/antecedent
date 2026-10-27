@@ -105,7 +105,7 @@ impl super::Study {
                     if let Some(options) = &self.response_options {
                         fitter.options = options.clone();
                     }
-                    let bayesian = match &self.inference {
+                    let bayesian = match &self.settings.inference {
                         InferenceMode::Bayesian(config) => Some(
                             super::bayesian_level_refutation::bayesian_response_estimator_in_force(
                                 &fitter, data, query, config, ctx,
@@ -119,14 +119,14 @@ impl super::Study {
                             query,
                             estimand,
                             fitter: &fitter,
-                            inference: &self.inference,
+                            inference: &self.settings.inference,
                             bayesian: bayesian.as_ref(),
                             status: case.result.status,
                             assumptions: &case.result.required_assumptions,
                             response,
-                            suite: self.refute,
+                            suite: self.settings.refute,
                             latency: self.latency_mode,
-                            replicates: self.bootstrap_replicates,
+                            replicates: self.settings.bootstrap_replicates,
                         },
                         ctx,
                     )?;

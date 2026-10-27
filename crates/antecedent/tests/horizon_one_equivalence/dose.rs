@@ -10,14 +10,14 @@
 
 use super::*;
 use antecedent_core::{DerivativeWeighting, TemporalDoseTarget};
+use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_estimate::continuous_dose::{
-    fixed_dose_policy_value, DoseRows, DoseRules, DoseWindow,
+    DoseRows, DoseRules, DoseWindow, fixed_dose_policy_value,
 };
 use antecedent_estimate::dose_grid_functional::{
-    estimate_dose_grid_bias_aware, estimate_dose_grid_functional, ClaimSet, DoseDesign,
-    DoseFunctional, DoseGridRequest, IntervalCalibration,
+    ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, IntervalCalibration,
+    estimate_dose_grid_bias_aware, estimate_dose_grid_functional,
 };
-use antecedent_estimate::ContinuousResponseOptions;
 
 const DOSE_UNITS: usize = 1200;
 const DOSE_BANDWIDTH: f64 = 0.3;
@@ -194,11 +194,7 @@ fn gaussian_kernel(at: f64) -> impl Fn(f64) -> f64 {
 fn epanechnikov_kernel(at: f64) -> impl Fn(f64) -> f64 {
     move |u| {
         let z = (u - at) / DOSE_BANDWIDTH;
-        if z.abs() < 1.0 {
-            0.75 * (1.0 - z * z)
-        } else {
-            0.0
-        }
+        if z.abs() < 1.0 { 0.75 * (1.0 - z * z) } else { 0.0 }
     }
 }
 
@@ -229,8 +225,8 @@ fn cubic_dose_fixture() -> (Vec<f64>, Vec<f64>) {
 /// own closed form, and the point-only static answer carries no interval where the temporal one
 /// carries a cluster sandwich.
 #[test]
-fn horizon_one_smoothed_dose_contrast_is_gaussian_horvitz_thompson_while_the_static_policy_value_is_epanechnikov_hajek(
-) {
+fn horizon_one_smoothed_dose_contrast_is_gaussian_horvitz_thompson_while_the_static_policy_value_is_epanechnikov_hajek()
+ {
     let (dose, outcome) = cubic_dose_fixture();
     let (active, control) = (1.0, 0.6);
     let m = |d: f64| d.powi(3);
@@ -283,8 +279,8 @@ fn horizon_one_smoothed_dose_contrast_is_gaussian_horvitz_thompson_while_the_sta
 /// trial doses alone. On `m(d) = d^3` the Gaussian target exceeds the Epanechnikov one by
 /// `0.8 * 3 a h^2`, and the temporal curve reproduces the Gaussian value at every grid dose.
 #[test]
-fn horizon_one_smoothed_curve_is_gaussian_and_the_static_transport_target_fixes_the_epanechnikov_kernel(
-) {
+fn horizon_one_smoothed_curve_is_gaussian_and_the_static_transport_target_fixes_the_epanechnikov_kernel()
+ {
     use antecedent_core::SmoothingKernel;
     use antecedent_estimate::smoothed_dose::parse_smoothing_kernel;
 
@@ -360,8 +356,8 @@ fn scalar_response(result: &StudyResult) -> f64 {
 /// evidence (0.15) but not to the least-squares closed form. The temporal route discloses the
 /// linear-mechanism premise it rests on.
 #[test]
-fn horizon_one_average_derivative_is_the_least_squares_slope_where_the_static_route_is_semiparametric(
-) {
+fn horizon_one_average_derivative_is_the_least_squares_slope_where_the_static_route_is_semiparametric()
+ {
     let (x, y) = derivative_series();
     let (aligned_x, aligned_y) = (&x[..N - 1], &y[1..]);
     let slope = ols(&[aligned_x], aligned_y)[1];

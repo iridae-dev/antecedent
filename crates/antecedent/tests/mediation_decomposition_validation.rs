@@ -275,7 +275,7 @@ fn an_admg_decomposition_runs_the_mediation_suite_on_both_inferences() {
             assert_suite(&result, suite);
             // Validation observes the estimate, it does not move it.
             assert!((result.effect() - none.effect()).abs() < 1e-12);
-            let components = result.payload.mediation().expect("the decomposition");
+            let components = result.payload().mediation().expect("the decomposition");
             assert!((components.total.unwrap() - counted_total(&CELLS)).abs() < 0.05);
             // The components are refitted together on the same perturbed tables.
             assert!(report(&result, "mediation.subset_total").replicates >= 18);
@@ -420,7 +420,7 @@ fn a_cpdag_whose_completions_agree_is_refuted_on_its_one_member() {
         let sensitivity = report(&result, "mediation.sequential_ignorability");
         assert!((sensitivity.comparison - reference.rho_tilde).abs() < 1e-9);
         // The components still carry their own decomposition and no refutation was lost.
-        let components = result.payload.mediation().expect("class decomposition");
+        let components = result.payload().mediation().expect("class decomposition");
         assert!((components.mediated.unwrap() - counted_indirect(&CELLS)).abs() < 1e-12);
     }
 }
@@ -725,7 +725,9 @@ fn atom_posterior(weights: &[f64], atoms: &[TemporalAdmgAtom], n_vars: usize) ->
     .unwrap()
     .with_lag_masks(atoms.iter().map(|atom| atom.lagged_directed.clone()).collect::<Vec<_>>())
     .unwrap()
-    .with_lag_bidirected_masks(atoms.iter().map(|atom| atom.lagged_bidirected.clone()).collect::<Vec<_>>())
+    .with_lag_bidirected_masks(
+        atoms.iter().map(|atom| atom.lagged_bidirected.clone()).collect::<Vec<_>>(),
+    )
     .unwrap()
 }
 
@@ -941,8 +943,7 @@ fn a_pag_decomposition_publishes_an_artifact_a_consumer_reads() {
             .unwrap();
         let prepared = built.prepare(&ctx).unwrap();
         let result = prepared.estimate_retained(&ctx).unwrap();
-        let artifact =
-            prepared.encode_contracted_result(&result, "pag-mediation", &ctx).unwrap();
+        let artifact = prepared.encode_contracted_result(&result, "pag-mediation", &ctx).unwrap();
         let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(result.effect()));
     }
@@ -966,7 +967,7 @@ fn a_pag_interventional_distribution_publishes_an_artifact_a_consumer_reads() {
         .unwrap();
     let prepared = built.prepare(&ctx).unwrap();
     let result = prepared.estimate_retained(&ctx).unwrap();
-    assert!(result.payload.distribution().is_some());
+    assert!(result.payload().distribution().is_some());
     let artifact = prepared.encode_contracted_result(&result, "pag-distribution", &ctx).unwrap();
     let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
     assert!(consumed.body.interventional_distribution.is_some());

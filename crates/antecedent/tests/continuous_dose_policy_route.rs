@@ -74,7 +74,7 @@ fn retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering() {
     assert!(value.policy_interval_95.is_some());
     assert!(value.reference_interval_95.is_some());
     assert!(value.incremental_interval_95.is_some());
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     assert_eq!(
         response.uncertainty.as_ref(),
         "fixed_group_kernel_smoothed_paired_pointwise_95_normal_intervals"
@@ -84,7 +84,7 @@ fn retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering() {
         if id.as_ref() == "fixed_group_dose_policy"
     )));
     let executed_contract = prepared.contract_for_result(&result).unwrap();
-    assert_eq!(executed_contract.support_status, result.support_status);
+    assert_eq!(executed_contract.support_status, result.support_status());
     let support = executed_contract.reasoning.support.as_ref().unwrap();
     assert_eq!(support.matrix_status.as_ref(), "licensed");
     assert_eq!(
@@ -201,7 +201,7 @@ fn externally_estimated_density_keeps_fixed_dose_value_point_only() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
     let value = result.continuous_dose_response().unwrap().fixed_policy.as_ref().unwrap();
     assert!(value.incremental_interval_95.is_none());
     assert!(value.policy_interval_95.is_none());

@@ -153,7 +153,7 @@ impl FreqTally {
     }
 
     fn record(&mut self, study: &Study, result: &StudyResult) {
-        let est = &result.estimate;
+        let est = &result.estimate();
         let interval = normal_interval(
             est.as_effect().unwrap().ate,
             est.as_effect().unwrap().se_bootstrap(),
@@ -967,7 +967,7 @@ fn bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage() {
                 u64::from(s),
             );
             assert!(
-                result.estimate.as_effect().unwrap().ate.is_nan(),
+                result.estimate().as_effect().unwrap().ate.is_nan(),
                 "no blended posterior without a class prior"
             );
             (study, result)
@@ -1157,7 +1157,7 @@ fn chain_pag_fixture_identifies_six_completions_at_two_effects() {
             }
             close(
                 "chain mixture",
-                result.estimate.as_effect().unwrap().ate,
+                result.estimate().as_effect().unwrap().ate,
                 chain_mixture_truth(&query),
                 0.03,
             );

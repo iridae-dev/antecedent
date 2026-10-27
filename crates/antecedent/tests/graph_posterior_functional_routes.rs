@@ -73,7 +73,7 @@ fn has(result: &antecedent::StudyResult, code: &str) -> bool {
 }
 
 fn ate(result: &antecedent::StudyResult) -> f64 {
-    result.estimate.as_effect().unwrap().ate
+    result.estimate().as_effect().unwrap().ate
 }
 
 fn value_of(result: &antecedent::StudyResult, key: u64) -> Option<ResponseValue> {
@@ -219,7 +219,8 @@ fn explicit_conditional(graph: Admg, inference: InferenceMode, replicates: u32) 
 fn the_admg_conditional_mixture_weights_the_atoms_and_states_the_lost_mass() {
     on_large_stack(|| {
         let weights = [0.5, 0.3, 0.2];
-        let graphs = [mask_of(&confounded_modifier()), mask_of(&modifier_outside()), refused_mask()];
+        let graphs =
+            [mask_of(&confounded_modifier()), mask_of(&modifier_outside()), refused_mask()];
         let posterior = admg_posterior(&graphs, &weights);
         let keys = posterior.graph_keys().clone();
         // The conditional contrast of an identified atom is the modifier-stratified difference
@@ -234,9 +235,9 @@ fn the_admg_conditional_mixture_weights_the_atoms_and_states_the_lost_mass() {
         assert_eq!(study.support_status(), Some(CellStatus::Refused));
         let ctx = ExecutionContext::for_tests(8_101);
         let result = study.run(&ctx).unwrap();
-        let effect = result.estimate.as_effect().unwrap();
+        let effect = result.estimate().as_effect().unwrap();
         assert!((effect.ate - expected).abs() < 1e-9, "{} vs {expected}", effect.ate);
-        assert_eq!(result.support_status, Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Refused));
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
         assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
 
@@ -286,8 +287,8 @@ fn one_identified_admg_atom_is_the_explicit_conditional_cell() {
         assert!(mixture.unidentified_mass.abs() < 1e-12 && mixture.unevaluable_mass.abs() < 1e-12);
         // The atom's own sampling uncertainty is the mixture's.
         assert_eq!(
-            mixed.estimate.as_effect().unwrap().se_bootstrap().is_some(),
-            explicit.estimate.as_effect().unwrap().se_bootstrap().is_some()
+            mixed.estimate().as_effect().unwrap().se_bootstrap().is_some(),
+            explicit.estimate().as_effect().unwrap().se_bootstrap().is_some()
         );
     });
 }
@@ -309,7 +310,10 @@ fn a_posterior_no_atom_of_which_identifies_the_contrast_refuses_with_the_identif
 fn the_bayesian_conditional_mixture_pools_the_atoms_draw_by_draw() {
     on_large_stack(|| {
         let weights = [0.6, 0.4];
-        let posterior = admg_posterior(&[mask_of(&confounded_modifier()), mask_of(&modifier_outside())], &weights);
+        let posterior = admg_posterior(
+            &[mask_of(&confounded_modifier()), mask_of(&modifier_outside())],
+            &weights,
+        );
         let study = conditional_study(
             posterior,
             InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(256).prior_scale(1_000.0)),
@@ -323,7 +327,7 @@ fn the_bayesian_conditional_mixture_pools_the_atoms_draw_by_draw() {
         // centres on the weighted plug-in contrast.
         let mixed_plug_in = stratified_difference();
         assert!((ate(&result) - mixed_plug_in).abs() < 0.03, "{} vs {mixed_plug_in}", ate(&result));
-        assert!(result.estimate.as_effect().unwrap().uncertainty.analytic.se > 0.0);
+        assert!(result.estimate().as_effect().unwrap().uncertainty.analytic.se > 0.0);
         assert!(has(&result, "estimate.graph_posterior.atom_route"));
     });
 }
@@ -347,7 +351,8 @@ fn temporal_admg_posterior(masks: &[u64], weights: &[f64]) -> GraphPosterior {
 #[test]
 fn the_temporal_admg_conditional_mixture_is_the_counted_contrast_with_the_lost_mass() {
     on_large_stack(|| {
-        let graphs = [mask_of(&confounded_modifier()), mask_of(&modifier_outside()), refused_mask()];
+        let graphs =
+            [mask_of(&confounded_modifier()), mask_of(&modifier_outside()), refused_mask()];
         let weights = [0.5, 0.3, 0.2];
         let posterior = temporal_admg_posterior(&graphs, &weights);
         let keys = posterior.graph_keys().clone();
@@ -358,7 +363,7 @@ fn the_temporal_admg_conditional_mixture_is_the_counted_contrast_with_the_lost_m
         // The contrast is the modifier-stratified difference counted from the contingency table.
         let counted = stratified_difference();
         assert!((ate(&result) - counted).abs() < 1e-9, "{} vs {counted}", ate(&result));
-        assert_eq!(result.support_status, Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Refused));
         assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
         let mixture = result.structural_response.as_ref().expect("a structural mixture");
         assert!((mixture.identified_mass - 0.8).abs() < 1e-9, "{}", mixture.identified_mass);
@@ -372,11 +377,12 @@ fn the_temporal_admg_conditional_mixture_is_the_counted_contrast_with_the_lost_m
         assert!(value_of(&result, keys[2]).is_none());
         assert!(has(&result, "estimate.graph_posterior.atom_route"));
         // The same posterior over Admg atoms answers identically: the projection is the atom.
-        let admg = conditional_study(admg_posterior(&graphs, &weights), InferenceMode::Frequentist, 80)
-            .run(&ExecutionContext::for_tests(8_901))
-            .unwrap();
+        let admg =
+            conditional_study(admg_posterior(&graphs, &weights), InferenceMode::Frequentist, 80)
+                .run(&ExecutionContext::for_tests(8_901))
+                .unwrap();
         assert!((ate(&admg) - ate(&result)).abs() < 1e-12);
-        let se = result.estimate.as_effect().unwrap().se_analytic();
+        let se = result.estimate().as_effect().unwrap().se_analytic();
         assert!(se.is_finite() && se > 0.01 && se < 0.2, "{se}");
         // No atom identifies: the identifier's refusal.
         let none = conditional_study(
@@ -426,7 +432,7 @@ fn a_temporal_admg_conditional_mixture_mixes_the_atoms_refuter_reports() {
                 .unwrap()
                 .run(&ExecutionContext::for_tests(8_904))
                 .unwrap();
-            assert_eq!(result.support_status, Some(CellStatus::Refused));
+            assert_eq!(result.support_status(), Some(CellStatus::Refused));
             assert!(!result.refutations.is_empty());
             let mut ids: Vec<&str> =
                 result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
@@ -840,11 +846,7 @@ fn a_counterfactual_mixture_weights_the_enumerated_atoms_and_states_the_lost_mas
             .effect();
         let expected = (0.5 * truth_front_door + 0.3 * counted) / 0.8;
 
-        let masks: Vec<u64> = vec![
-            mask_of(&front_door),
-            mask_of(&unconfounded),
-            refused_mask(),
-        ];
+        let masks: Vec<u64> = vec![mask_of(&front_door), mask_of(&unconfounded), refused_mask()];
         let posterior = GraphPosterior::new(
             3,
             vec![0.5, 0.3, 0.2],
@@ -1021,7 +1023,7 @@ fn the_dynamic_conditional_mixture_states_the_lost_mass_and_publishes_a_shared_i
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("temporal.linear.adjustment"));
         assert!(has(&result, "estimate.graph_posterior.dbn_route"));
         assert!(result.posterior.is_none(), "a Frequentist point carries no posterior");
-        assert!(result.interval.is_some());
+        assert!(result.interval().is_some());
     });
 }
 
@@ -1247,7 +1249,7 @@ fn a_mixed_response_curve_is_refuted_by_refitting_the_whole_procedure() {
         let plain = run(RefuteSuite::None);
         for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
             let result = run(suite);
-            assert_eq!(result.support_status, Some(CellStatus::Refused));
+            assert_eq!(result.support_status(), Some(CellStatus::Refused));
             // The refuted curve is the curve the study publishes.
             let (a, b) = (result.response().unwrap(), plain.response().unwrap());
             assert_eq!(a.estimate, b.estimate);
@@ -1276,7 +1278,7 @@ fn a_static_derivative_mixture_mixes_the_atoms_refuter_reports_by_weight() {
             .unwrap()
             .run(&ExecutionContext::for_tests(8_502))
             .unwrap();
-        assert_eq!(result.support_status, Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Refused));
         assert!(has(&result, "refute.graph_posterior.per_atom"));
         assert!(!result.refutations.is_empty());
         // One report per refuter, not one per atom and refuter.
@@ -1320,7 +1322,7 @@ fn a_dynamic_derivative_is_refuted_atom_by_atom_and_mixed() {
                 .unwrap()
                 .run(&ExecutionContext::for_tests(8_503))
                 .unwrap();
-            assert_eq!(result.support_status, Some(CellStatus::Refused), "{suite:?}");
+            assert_eq!(result.support_status(), Some(CellStatus::Refused), "{suite:?}");
             assert!(has(&result, "refute.graph_posterior.per_atom"), "{suite:?}");
             assert!(!result.refutations.is_empty(), "{suite:?}");
             let mut ids: Vec<&str> =

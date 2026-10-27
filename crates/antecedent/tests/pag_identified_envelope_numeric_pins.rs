@@ -161,7 +161,8 @@ fn run_prepared(
     assert_eq!(cached_count(&fresh), usize::from(one_shot_sealed));
     assert_eq!(cached_count(&click), 1);
     assert!(
-        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+        (click.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
+            .abs()
             < 1e-12
     );
     let mut out = vec![fresh, click];
@@ -189,7 +190,7 @@ fn assert_envelope(result: &antecedent::StudyResult, pin: &serde_json::Value) {
             .any(|d| d.code.as_ref() == "identify.pag.envelope" && d.message.contains(&expected)),
         "PAG envelope diagnostic must report the pinned completion masses ({expected})"
     );
-    assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(result.support_status().unwrap().as_str(), "licensed");
     assert_eq!(format!("{:?}", result.identification.status), id["status"].as_str().unwrap());
 }
 
@@ -302,7 +303,7 @@ fn pag_effect_executes_from_retained_plan_after_builder_is_dropped() {
     drop(builder);
 
     let result = prepared.estimate(&data, &context).unwrap();
-    assert!((result.estimate.as_effect().unwrap().ate - expected).abs() < 1e-10);
+    assert!((result.estimate().as_effect().unwrap().ate - expected).abs() < 1e-10);
     assert!(result.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
     let artifact = prepared
         .encode_contracted_result(&result, "checked-static-class-effect", &context)
@@ -336,20 +337,20 @@ fn pag_identified_envelope_average_effect_pins() {
                 assert_validation(result, suite, false);
                 assert_eq!(result.logical_plan.estimator.as_deref(), freq["estimator"].as_str());
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate
+                    (result.estimate().as_effect().unwrap().ate
                         - freq["expected_ate"].as_f64().unwrap())
                     .abs()
                         < tol,
                     "PAG envelope ATE {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 assert!(
-                    (result.estimate.as_effect().unwrap().se_analytic()
+                    (result.estimate().as_effect().unwrap().se_analytic()
                         - freq["expected_se"].as_f64().unwrap())
                     .abs()
                         < tol,
                     "PAG envelope joint-IF SE {} vs numpy reference",
-                    result.estimate.as_effect().unwrap().se_analytic()
+                    result.estimate().as_effect().unwrap().se_analytic()
                 );
                 assert!(
                     !result
@@ -391,13 +392,13 @@ fn pag_identified_envelope_average_effect_pins() {
                 // coupling even though neither completion's own moments move. That reproduces
                 // deterministically under the fixture's frozen seed, so this re-pins to the
                 // current, verified output rather than the fixture's stale mean/SD.
-                let sd = result.estimate.as_effect().unwrap().se_analytic();
+                let sd = result.estimate().as_effect().unwrap().se_analytic();
                 let expected_mean = 0.376_238_176_353_573;
                 let expected_sd = 0.023_106_965_314_873_36;
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - expected_mean).abs() < 1e-9,
+                    (result.estimate().as_effect().unwrap().ate - expected_mean).abs() < 1e-9,
                     "Bayesian PAG envelope mean {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 assert!((sd - expected_sd).abs() < 1e-9, "Bayesian PAG envelope SD {sd}");
                 if suite == RefuteSuite::Full {
@@ -428,20 +429,20 @@ fn pag_identified_envelope_conditional_effect_pins() {
                 assert_validation(result, suite, false);
                 assert_eq!(result.logical_plan.estimator.as_deref(), freq["estimator"].as_str());
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate
+                    (result.estimate().as_effect().unwrap().ate
                         - freq["expected_ate"].as_f64().unwrap())
                     .abs()
                         < tol,
                     "PAG envelope CATE {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 assert!(
-                    (result.estimate.as_effect().unwrap().se_analytic()
+                    (result.estimate().as_effect().unwrap().se_analytic()
                         - freq["expected_se"].as_f64().unwrap())
                     .abs()
                         < tol,
                     "PAG envelope CATE joint-IF SE {} vs numpy reference",
-                    result.estimate.as_effect().unwrap().se_analytic()
+                    result.estimate().as_effect().unwrap().se_analytic()
                 );
             }
 
@@ -462,14 +463,15 @@ fn pag_identified_envelope_conditional_effect_pins() {
                 let expected_mean = 0.372_057_989_220_976_1;
                 let expected_sd = 0.021_957_536_176_990_86;
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - expected_mean).abs() < 1e-9,
+                    (result.estimate().as_effect().unwrap().ate - expected_mean).abs() < 1e-9,
                     "Bayesian PAG CATE envelope mean {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 assert!(
-                    (result.estimate.as_effect().unwrap().se_analytic() - expected_sd).abs() < 1e-9,
+                    (result.estimate().as_effect().unwrap().se_analytic() - expected_sd).abs()
+                        < 1e-9,
                     "Bayesian PAG CATE envelope SD {}",
-                    result.estimate.as_effect().unwrap().se_analytic()
+                    result.estimate().as_effect().unwrap().se_analytic()
                 );
             }
         }
@@ -595,7 +597,7 @@ fn pag_identified_envelope_intervention_response_matches_completion_effects() {
             let low = run(0.0);
             for (hi, lo) in high.iter().zip(&low) {
                 for result in [hi, lo] {
-                    assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
                     assert_eq!(result.logical_plan.estimator.as_deref(), Some(estimator));
                     assert_eq!(format!("{:?}", result.identification.status), "GraphDependent");
                     assert!(
@@ -745,14 +747,14 @@ fn pag_identified_envelope_response_curve_pins_structural_contrast() {
             )
             .run(&ExecutionContext::for_tests(1))
             .unwrap()
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .ate;
             let study =
                 build(&data, &pag, accepted, curve.clone(), inference.clone(), RefuteSuite::None);
             for result in fresh_and_click(&study, &data, 1) {
-                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
                 assert_eq!(
                     result.logical_plan.estimator.as_deref(),
                     block["estimator"].as_str(),

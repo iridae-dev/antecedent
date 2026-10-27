@@ -60,7 +60,7 @@ impl CheckedBayesianStaticMediationOperation {
             message: "checked Bayesian static mediation requires a supplied DAG",
         })?;
         query.validate()?;
-        let InferenceMode::Bayesian(config) = &study.inference else {
+        let InferenceMode::Bayesian(config) = &study.settings.inference else {
             return Err(CausalError::Compile {
                 message: "checked Bayesian mediation requires a Bayesian configuration".into(),
             });
@@ -107,7 +107,7 @@ impl CheckedBayesianStaticMediationOperation {
             design_roles: roles.into(),
             source_rows,
             config: config.clone(),
-            validation: study.refute,
+            validation: study.settings.refute,
             result_context: IdentifiedResultContext::from_study(study),
         })
     }
@@ -272,8 +272,8 @@ fn verify_mediation_proof(
     if !matches!(
         study.structure_source,
         crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
-    ) || !study.refute.is_point_or_placebo()
-        || !study.custom_validators.is_empty()
+    ) || !study.settings.refute.is_point_or_placebo()
+        || !study.declared.custom_validators.is_empty()
         || cache.identification.query != study.query
         || !matches!(
             cache.identification.status,

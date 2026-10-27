@@ -1956,7 +1956,7 @@ fn observe(setup: CellSetup) -> Result<Observed, String> {
     }
     .map_err(|e| format!("{expected}: execute {e}"))?;
     let (analytic_se, se_kind) = result
-        .estimate
+        .estimate()
         .as_effect()
         .map_or((f64::NAN, None), |e| (e.uncertainty.analytic.se, e.uncertainty.analytic.kind));
     Ok(Observed {
@@ -1965,12 +1965,12 @@ fn observe(setup: CellSetup) -> Result<Observed, String> {
         se_kind,
         estimator: result.logical_plan.estimator.as_deref().unwrap_or("-").to_owned(),
         first_stage_f: result
-            .estimate
+            .estimate()
             .as_effect()
             .and_then(|e| e.diagnostics.first_stage.as_ref())
             .map(|d| d.f_statistic),
         anderson_rubin: result
-            .estimate
+            .estimate()
             .as_effect()
             .and_then(|e| e.diagnostics.first_stage.as_ref())
             .and_then(|d| d.anderson_rubin),
@@ -2298,7 +2298,7 @@ fn replay_cell(cell: antecedent::SupportCell) -> Result<Replayed, String> {
     Ok(Replayed {
         effect: result.effect(),
         wire_estimate: consumed.body.estimate,
-        scalar_effect: result.estimate.as_effect().is_some(),
+        scalar_effect: result.estimate().as_effect().is_some(),
         lowered: result.lowered_program_identity(),
     })
 }

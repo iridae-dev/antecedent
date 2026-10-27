@@ -1191,7 +1191,7 @@ fn run_unknown(n: usize, seed: u64) -> Option<(Study, StudyResult)> {
 /// Joint coverage as one interval of the summed band width: truth `0` lies
 /// inside exactly when both scenario truths lie in their max-t bands.
 fn joint_band_interval(result: &StudyResult) -> Option<(f64, f64)> {
-    let bands = result.estimate.as_effect().unwrap().scenarios.intervals.as_ref()?;
+    let bands = result.estimate().as_effect().unwrap().scenarios.intervals.as_ref()?;
     if bands.len() != UNKNOWN_TRUTH.len() {
         return None;
     }

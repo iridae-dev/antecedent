@@ -181,18 +181,18 @@ impl CheckedPanelDidOperation {
         query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || study.refute != RefuteSuite::None
-            || study.bootstrap_replicates != 0
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || study.settings.bootstrap_replicates != 0
+            || !study.declared.custom_validators.is_empty()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
+            || study.declared.tiered.is_some()
             || query.treated.len() != data.row_count()
         {
             return Err(CausalError::Unsupported {
                 message: "panel DiD currently accepts only the graphless two-period panel query with point estimate and cluster standard error, or its Bayesian posterior",
             });
         }
-        let bayesian = match &study.inference {
+        let bayesian = match &study.settings.inference {
             InferenceMode::Frequentist => None,
             InferenceMode::Bayesian(config) => {
                 super::bayesian_quasi_common::require_built_in_model(config, "Bayesian panel DiD")?;
@@ -213,7 +213,11 @@ impl CheckedPanelDidOperation {
             for variable in robust.covariates.iter() {
                 data.schema().get(*variable).map_err(CausalError::rejected)?;
             }
-            rollout::resampling_units(study.sampling_design, &query.subjects, &query.clusters)?;
+            rollout::resampling_units(
+                study.declared.sampling_design,
+                &query.subjects,
+                &query.clusters,
+            )?;
         }
         if let Some(nuisance) = &query.augmented {
             for variable in
@@ -237,15 +241,15 @@ impl CheckedPanelDidOperation {
         }
         let (identification, estimand) =
             study.design_identification_or(physical, || panel_did_identification(query));
-        if let Some(declaration) = &study.missing {
+        if let Some(declaration) = &study.declared.missing {
             if let Some(reason) = design_refusal(query.design, declaration.policy) {
                 return Err(panel_policy_refusal(declaration.policy, reason));
             }
         }
         let extra = PanelMissing {
-            declaration: study.missing.clone(),
+            declaration: study.declared.missing.clone(),
             bayesian,
-            sampling: study.sampling_design,
+            sampling: study.declared.sampling_design,
             ..PanelMissing::default()
         };
         Ok(Self::freeze(study, query, data, physical, identification, estimand, extra))

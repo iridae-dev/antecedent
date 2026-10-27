@@ -181,19 +181,20 @@ fn assert_prepared_reuse(
     expected: f64,
     tolerance: f64,
 ) {
-    assert!((click.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
-    assert!((fresh.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
-    assert!((refreshed.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((click.estimate().as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((fresh.estimate().as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((refreshed.estimate().as_effect().unwrap().ate - expected).abs() < tolerance);
     assert!(
-        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
-            < 1e-12
-    );
-    assert!(
-        (refreshed.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+        (click.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
-    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    assert!(
+        (refreshed.estimate().as_effect().unwrap().ate - click.estimate().as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
+    assert_eq!(click.support_status().unwrap().as_str(), "licensed");
     assert_eq!(cached_count(fresh), 0);
     assert_eq!(cached_count(click), 1);
     assert_eq!(cached_count(refreshed), 1, "same-schema refresh must reuse identification");
@@ -330,7 +331,7 @@ fn admg_frontdoor_response_pins_against_distribution() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!((ate.estimate.as_effect().unwrap().ate - expected_ate).abs() < tolerance);
+    assert!((ate.estimate().as_effect().unwrap().ate - expected_ate).abs() < tolerance);
 
     let mut dist_means = Vec::new();
     let mut ir_means = Vec::new();
@@ -520,15 +521,15 @@ fn napkin_effect_with_a_free_variable_is_the_enumerated_effect() {
         if bayesian {
             // Posterior mean of a Bayesian bootstrap over 2048 rows.
             assert!(
-                (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.05,
+                (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.05,
                 "ate={}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
         } else {
             assert!(
-                (result.estimate.as_effect().unwrap().ate - truth).abs() < 1e-12,
+                (result.estimate().as_effect().unwrap().ate - truth).abs() < 1e-12,
                 "ate={}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
         }
         let diagnostic = free_variable_diagnostic(&result);

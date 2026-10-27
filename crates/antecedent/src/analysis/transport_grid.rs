@@ -16,14 +16,14 @@ use antecedent_io::transport_grid_wire::{
     GridPointWire, GridWire, SampleSummary, StatisticalOptionsWire,
 };
 use antecedent_io::{
-    exact_law_wire::ExactLawWire, query_wire::ValueWire,
-    transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire, IoError,
+    IoError, exact_law_wire::ExactLawWire, query_wire::ValueWire,
+    transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire,
 };
 use serde::Deserialize;
 use std::sync::Arc;
 
 use super::transport_common::{
-    assignments, digest, err, rebind_snapshots, rebuild_checked_proof, GraphFields,
+    GraphFields, assignments, digest, err, rebind_snapshots, rebuild_checked_proof,
 };
 fn request(values: &[(u32, ValueWire)]) -> Assignment {
     Assignment::from_pairs(values.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())))
@@ -1942,12 +1942,14 @@ mod tests {
         let support = wire.reasoning.support.value.as_mut().expect("support slot");
         support.empirical = "2 executable; 0 unavailable; population positivity assumed".into();
         let id = antecedent_io::transport_grid_wire::grid_identity(&wire).unwrap();
-        assert!(PreparedStudy::<TransportGridState>::consume(
-            &wire.export(&id).unwrap(),
-            ExactEvaluationLimits::default(),
-            &ctx
-        )
-        .is_err());
+        assert!(
+            PreparedStudy::<TransportGridState>::consume(
+                &wire.export(&id).unwrap(),
+                ExactEvaluationLimits::default(),
+                &ctx
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -2001,12 +2003,14 @@ mod tests {
         assert_eq!(legacy_result.export().unwrap(), legacy_bytes);
         let reject = |mutated: GridWire| {
             let id = antecedent_io::transport_grid_wire::grid_identity(&mutated).unwrap();
-            assert!(PreparedStudy::<TransportGridState>::consume(
-                &mutated.export(&id).unwrap(),
-                ExactEvaluationLimits::default(),
-                &ctx
-            )
-            .is_err());
+            assert!(
+                PreparedStudy::<TransportGridState>::consume(
+                    &mutated.export(&id).unwrap(),
+                    ExactEvaluationLimits::default(),
+                    &ctx
+                )
+                .is_err()
+            );
         };
         let mut wire = encoded.clone();
         wire.required_features.push("future_required_feature".into());

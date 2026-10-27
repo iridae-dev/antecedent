@@ -31,7 +31,7 @@ impl Study {
         let started = Instant::now();
         let cfg = self.ensure_bayesian_basis_admitted(query)?;
         let (control, active) = binary_levels(query)?;
-        let identifier = self.identifier.unwrap_or(IdentifierId::BackdoorAdjustment);
+        let identifier = self.declared.identifier.unwrap_or(IdentifierId::BackdoorAdjustment);
         let reused = self.reuse_static_identification_if(physical, |_| {
             self.rd.is_none()
                 && matches!(self.query, CausalQuery::AverageEffect(_))
@@ -72,7 +72,7 @@ impl Study {
             BasisTargetPopulation::AllObserved,
             BayesianBasisSpec {
                 prior_sd: cfg.prior_scale,
-                n_draws: bayesian_draw_count(&self.inference)?,
+                n_draws: bayesian_draw_count(&self.settings.inference)?,
                 seed: ctx.rng.master_seed(),
             },
             ctx,
@@ -131,7 +131,7 @@ impl Study {
                 message: "bayesian.basis.gcomp supports target_population=AllObserved only",
             });
         }
-        let cfg = match &self.inference {
+        let cfg = match &self.settings.inference {
             InferenceMode::Bayesian(cfg) => cfg,
             InferenceMode::Frequentist => {
                 return Err(CausalError::unsupported_inference(

@@ -341,7 +341,7 @@ fn graph_posterior_conditional_effect_body() {
 
                 let result = prepared.estimate(&fixture.base, &ctx).unwrap();
                 assert_eq!(result.logical_plan.estimator.as_deref(), Some(estimator));
-                assert_eq!(result.support_status.map(CellStatus::as_str), Some("licensed"));
+                assert_eq!(result.support_status().map(CellStatus::as_str), Some("licensed"));
                 let mixture = result.structural_response.as_ref().expect("graph mixture");
                 assert!((mixture.unidentified_mass - 0.2).abs() < 1e-9, "{coordinate}");
                 assert!((mixture.identified_mass - 0.8).abs() < 1e-9, "{coordinate}");
@@ -352,13 +352,13 @@ fn graph_posterior_conditional_effect_body() {
                 }
                 if fixture.scalar_mixable {
                     assert!(
-                        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < tolerance,
+                        (result.estimate().as_effect().unwrap().ate - 2.0).abs() < tolerance,
                         "{coordinate}: {}",
-                        result.estimate.as_effect().unwrap().ate
+                        result.estimate().as_effect().unwrap().ate
                     );
                 } else {
                     assert!(
-                        result.estimate.as_effect().unwrap().ate.is_nan(),
+                        result.estimate().as_effect().unwrap().ate.is_nan(),
                         "{coordinate}: distinct adjustment certificates withhold the scalar"
                     );
                 }
@@ -371,13 +371,13 @@ fn graph_posterior_conditional_effect_body() {
                 // The one-shot facade executes the same retained operation.
                 assert_eq!(one_shot.logical_plan.estimator.as_deref(), Some(estimator));
                 assert_eq!(
-                    one_shot.estimate.as_effect().unwrap().ate.is_nan(),
-                    result.estimate.as_effect().unwrap().ate.is_nan()
+                    one_shot.estimate().as_effect().unwrap().ate.is_nan(),
+                    result.estimate().as_effect().unwrap().ate.is_nan()
                 );
-                if !one_shot.estimate.as_effect().unwrap().ate.is_nan() {
+                if !one_shot.estimate().as_effect().unwrap().ate.is_nan() {
                     assert!(
-                        (one_shot.estimate.as_effect().unwrap().ate
-                            - result.estimate.as_effect().unwrap().ate)
+                        (one_shot.estimate().as_effect().unwrap().ate
+                            - result.estimate().as_effect().unwrap().ate)
                             .abs()
                             < tolerance
                     );
@@ -402,8 +402,8 @@ fn graph_posterior_conditional_effect_body() {
                     assert!((value - 2.0).abs() < tolerance, "{coordinate}: refreshed {value}");
                 }
                 assert_eq!(
-                    refreshed.estimate.as_effect().unwrap().ate.is_nan(),
-                    result.estimate.as_effect().unwrap().ate.is_nan()
+                    refreshed.estimate().as_effect().unwrap().ate.is_nan(),
+                    result.estimate().as_effect().unwrap().ate.is_nan()
                 );
 
                 // A different semantic schema is refused by refresh.

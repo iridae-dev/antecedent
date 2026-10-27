@@ -145,9 +145,9 @@ fn check_frequentist(pin: &serde_json::Value) {
                 let label = format!("accepted={accepted} suite={suite:?} {path}");
                 assert_edge_g_formula_identification(result, &label);
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - truth).abs() < tol,
+                    (result.estimate().as_effect().unwrap().ate - truth).abs() < tol,
                     "{label}: effect {} vs edge g-formula {truth} (total effect {total})",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 match suite {
                     RefuteSuite::None => assert!(result.refutations.is_empty(), "{label}"),
@@ -159,8 +159,8 @@ fn check_frequentist(pin: &serde_json::Value) {
                 "prepared click must reuse identification"
             );
             assert_eq!(
-                fresh.estimate.as_effect().unwrap().ate.to_bits(),
-                click.estimate.as_effect().unwrap().ate.to_bits()
+                fresh.estimate().as_effect().unwrap().ate.to_bits(),
+                click.estimate().as_effect().unwrap().ate.to_bits()
             );
         }
     }
@@ -188,9 +188,9 @@ fn check_bayesian(pin: &serde_json::Value) {
                 let posterior = result.posterior.as_ref().expect("functional posterior");
                 assert_eq!(posterior.diagnostics.backend_id.as_ref(), "functional.dirichlet");
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - truth).abs() < tol,
+                    (result.estimate().as_effect().unwrap().ate - truth).abs() < tol,
                     "{label}: posterior mean {} vs edge g-formula {truth} (total effect {total})",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 let col = posterior.effect_column().expect("effect draws");
                 let mut draws = posterior.draws.column(col).unwrap().to_vec();
@@ -203,7 +203,8 @@ fn check_bayesian(pin: &serde_json::Value) {
                 );
             }
             assert!(
-                (fresh.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+                (fresh.estimate().as_effect().unwrap().ate
+                    - click.estimate().as_effect().unwrap().ate)
                     .abs()
                     < 1e-12
             );

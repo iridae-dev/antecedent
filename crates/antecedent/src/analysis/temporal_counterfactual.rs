@@ -42,8 +42,8 @@ pub use antecedent_counterfactual::temporal_cross_world::general::{
 pub use antecedent_io::temporal_counterfactual_general_artifact::{
     GENERAL_TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION, GeneralFactualUnitWire, GeneralFitWire,
     GeneralMechanismWire, GeneralTemporalCounterfactualArtifact,
-    GeneralTemporalCounterfactualArtifactError, GeneralTemporalIdentity,
-    GeneralTemporalReportWire, GeneralTemporalRequestWire, GeneralWorldWire,
+    GeneralTemporalCounterfactualArtifactError, GeneralTemporalIdentity, GeneralTemporalReportWire,
+    GeneralTemporalRequestWire, GeneralWorldWire,
 };
 
 use crate::error::CausalError;
@@ -163,7 +163,9 @@ impl GeneralTemporalCounterfactual {
         expected: Option<&GeneralTemporalIdentity>,
         ctx: &ExecutionContext,
     ) -> Result<Self, GeneralTemporalCounterfactualArtifactError> {
-        Ok(Self { artifact: GeneralTemporalCounterfactualArtifact::from_bytes(bytes, expected, ctx)? })
+        Ok(Self {
+            artifact: GeneralTemporalCounterfactualArtifact::from_bytes(bytes, expected, ctx)?,
+        })
     }
 
     /// Export the checksummed artifact.

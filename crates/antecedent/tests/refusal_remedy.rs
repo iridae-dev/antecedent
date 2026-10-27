@@ -74,9 +74,9 @@ fn three_treatment_derivatives_are_answered_through_the_prepared_workflow() {
             ResponseIdentification::PointIdentified(ResponseValue::Vector(values)) => {
                 values.to_vec()
             }
-            ResponseIdentification::PointIdentified(ResponseValue::Jacobian {
-                values, ..
-            }) => values.to_vec(),
+            ResponseIdentification::PointIdentified(ResponseValue::Jacobian { values, .. }) => {
+                values.to_vec()
+            }
             other => panic!("unexpected response identification {other:?}"),
         };
         assert_eq!(got.len(), expected.len());
@@ -131,7 +131,7 @@ fn multi_modifier_frequentist_conditional_effect_fits_the_vector_interaction_mod
             .and_then(|prepared| prepared.estimate(&data, &ctx))
             .expect("a prepared modifier set is fitted");
         for result in [one_shot, prepared] {
-            let effect = result.estimate.as_effect().expect("an effect payload");
+            let effect = result.estimate().as_effect().expect("an effect payload");
             assert!((effect.ate - 3.0).abs() < 1e-8, "{}", effect.ate);
         }
     }

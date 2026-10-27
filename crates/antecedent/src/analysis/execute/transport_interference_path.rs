@@ -109,7 +109,7 @@ impl super::Study {
                 transport: &transport_id,
                 identification: &identification,
                 estimand: &estimand,
-                inference: &self.inference,
+                inference: &self.settings.inference,
                 identify_cached,
             },
             ctx,
@@ -234,9 +234,9 @@ impl super::Study {
                 propensity: &propensity,
                 overlap: transported.overlap,
                 published: estimate.ate,
-                suite: self.refute,
+                suite: self.settings.refute,
                 series_block,
-                replicates: self.bootstrap_replicates,
+                replicates: self.settings.bootstrap_replicates,
             },
             ctx,
         )?;
@@ -280,7 +280,7 @@ impl super::Study {
             .bound_to(data)?;
         let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
             query.functional;
-        let bayesian_model = self.inference.is_bayesian();
+        let bayesian_model = self.settings.inference.is_bayesian();
         let estimated = if bayesian_model {
             None
         } else {
@@ -292,7 +292,7 @@ impl super::Study {
         };
         let (identification, estimand) =
             Self::interference_route_identification(query, bayesian_model);
-        let (estimate, posterior, estimator_id, diagnostic) = match &self.inference {
+        let (estimate, posterior, estimator_id, diagnostic) = match &self.settings.inference {
             InferenceMode::Frequentist => {
                 let estimated = estimated.as_ref().expect("frequentist interference estimate");
                 let se = estimated.contrast.conservative_variance.sqrt();
@@ -325,8 +325,8 @@ impl super::Study {
                 network: &spec.network,
                 assignment: &spec.assignment,
                 estimated: estimated.as_ref(),
-                suite: self.refute,
-                replicates: self.bootstrap_replicates,
+                suite: self.settings.refute,
+                replicates: self.settings.bootstrap_replicates,
             },
             ctx,
         )?;

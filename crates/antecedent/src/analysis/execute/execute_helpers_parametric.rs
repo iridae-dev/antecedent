@@ -19,9 +19,27 @@ pub(crate) fn parametric_scm_identification(
     treatment: VariableId,
     outcome: VariableId,
 ) -> (IdentificationResult, IdentifiedEstimand) {
+    parametric_scm_identification_over(query, &[treatment], &[outcome])
+}
+
+/// [`parametric_scm_identification`] for a counterfactual over several simultaneously intervened
+/// `treatments` and several `outcomes`: the estimand's variable and intervention sets name all of
+/// them, and its functional is the mean of the first outcome (the one the result's scalar
+/// estimate describes). With one treatment and one outcome it is exactly the single-pair
+/// estimand.
+pub(crate) fn parametric_scm_identification_over(
+    query: CausalQuery,
+    treatments: &[VariableId],
+    outcomes: &[VariableId],
+) -> (IdentificationResult, IdentifiedEstimand) {
+    let outcome = outcomes[0];
+    let description = match (treatments, outcomes) {
+        ([treatment], [outcome]) => format!("treatment={treatment:?} outcome={outcome:?}"),
+        _ => format!("treatments={treatments:?} outcomes={outcomes:?}"),
+    };
     let mut arena = CausalExprArena::new();
-    let y = arena.intern_var_set([outcome]);
-    let do_t = arena.intern_intervention_set([treatment]);
+    let y = arena.intern_var_set(outcomes.iter().copied());
+    let do_t = arena.intern_intervention_set(treatments.iter().copied());
     let empty = arena.empty_var_set();
     let distribution = arena.intern_distribution(y, empty, do_t, DomainRef::Interventional);
     let functional = arena
@@ -31,7 +49,7 @@ pub(crate) fn parametric_scm_identification(
         DerivationMeta::rule(
             "gcm.parametric",
             Some(Arc::from(format!(
-                "parametric SCM: treatment={treatment:?} outcome={outcome:?}; no adjustment \
+                "parametric SCM: {description}; no adjustment \
                  set (GCM does not identify via backdoor covariates)"
             ))),
         ),
@@ -73,9 +91,9 @@ pub(super) fn binary_cf_interventions(
 ) -> Result<(VariableId, f64, f64), CausalError> {
     if query.allow_nested || query.outcomes.len() != 1 || query.interventions.len() != 1 {
         return Err(CausalError::Unsupported {
-            message: "Study counterfactual path currently supports one outcome and a \
-                 single hard intervention for ITE (use gcm::counterfactual_contrasts for \
-                 several outcomes or simultaneous interventions)",
+            message: "this counterfactual route supports one outcome and a single hard \
+                 intervention; a Dag with observed variables answers several outcomes, \
+                 simultaneous interventions and nested interventions",
         });
     }
     let Intervention::Set { variable, value } = &query.interventions[0] else {

@@ -76,7 +76,7 @@ impl CheckedStaticCrossWorldOperation {
                 };
                 let (_, _, _, roles) = super::static_path::path_specific_source_parts(source);
                 let mut fitter = antecedent_estimate::FunctionalEffect::new();
-                fitter.bootstrap_replicates = study.bootstrap_replicates;
+                fitter.bootstrap_replicates = study.settings.bootstrap_replicates;
                 (fitter.row_resampling, fitter.sampling_design) =
                     study.functional_row_resampling()?;
                 let prepared = fitter.prepare(

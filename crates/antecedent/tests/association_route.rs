@@ -103,7 +103,7 @@ fn a_static_association_executes_only_from_its_retained_program_and_is_noncausal
     assert!((payload.estimate.terms[1].estimate - slope).abs() < 1e-8);
     assert!(payload.estimate.terms[1].standard_error.unwrap() > 0.0);
     assert!(payload.refused_after.is_none() && payload.scores.is_none());
-    assert!(result.estimate.as_effect().is_none(), "an association is no effect estimate");
+    assert!(result.estimate().as_effect().is_none(), "an association is no effect estimate");
 
     // The claim is associational, never a point, with identification not claimed.
     let contract = prepared.contract().unwrap();

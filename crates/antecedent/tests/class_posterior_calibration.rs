@@ -146,16 +146,16 @@ fn class_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
         bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(
             normal_interval(
-                result.estimate.as_effect().unwrap().ate,
-                Some(result.estimate.as_effect().unwrap().se_analytic()),
+                result.estimate().as_effect().unwrap().ate,
+                Some(result.estimate().as_effect().unwrap().se_analytic()),
                 Z90,
             ),
             TRUTH,
         );
         reported.record(
             normal_interval(
-                result.estimate.as_effect().unwrap().ate,
-                Some(result.estimate.as_effect().unwrap().se_analytic()),
+                result.estimate().as_effect().unwrap().ate,
+                Some(result.estimate().as_effect().unwrap().se_analytic()),
                 Z95,
             ),
             TRUTH,

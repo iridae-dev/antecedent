@@ -37,11 +37,11 @@ use std::collections::HashMap;
 
 use antecedent_core::{ConditionalEffectQuery, CounterfactualQuery, ResponseQuery};
 use antecedent_data::TableView;
+use antecedent_discovery::GraphPosteriorAtomKind;
 use antecedent_discovery::adjacency_mask::{
     admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask,
     pag_from_adjacency_mask,
 };
-use antecedent_discovery::GraphPosteriorAtomKind;
 
 use super::atom_mix::{AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals, mix_atom_evals};
 use super::response_path::{
@@ -301,8 +301,8 @@ fn atom_identified_bounds(result: &StudyResult) -> Option<(f64, f64)> {
 /// Shared replicates refit each atom without recursively resampling or validating it.
 fn quiet_bootstrap_study(study: &super::Study) -> super::Study {
     let mut quiet = study.clone();
-    quiet.bootstrap_replicates = 0;
-    quiet.refute = RefuteSuite::None;
+    quiet.settings.bootstrap_replicates = 0;
+    quiet.settings.refute = RefuteSuite::None;
     quiet
 }
 
@@ -520,7 +520,7 @@ impl super::Study {
                           posterior carries DBN lag structure",
             });
         }
-        if self.refute != RefuteSuite::None && !kind.validates_per_atom() {
+        if self.settings.refute != RefuteSuite::None && !kind.validates_per_atom() {
             return Err(CausalError::Unsupported {
                 message: "a counterfactual or ADMG conditional effect over a graph posterior is \
                           validated by the functional refuter state of the whole procedure, not \
@@ -537,8 +537,8 @@ impl super::Study {
         let mut atom = self.clone();
         atom.graph_posterior = None;
         atom.graph = Arc::new(accepted);
-        atom.refute = if keep_refute { self.refute } else { RefuteSuite::None };
-        atom.custom_validators.clear();
+        atom.settings.refute = if keep_refute { self.settings.refute } else { RefuteSuite::None };
+        atom.declared.custom_validators.clear();
         atom.clear_identification_where(|cache| {
             matches!(
                 cache,
@@ -621,7 +621,7 @@ impl super::Study {
         physical: &Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<SharedReplicates, CausalError> {
-        let requested = self.bootstrap_replicates;
+        let requested = self.settings.bootstrap_replicates;
         let unavailable =
             |note: &str| SharedReplicates { se: None, ok: 0, failed: 0, note: note.to_owned() };
         if requested < 2 {
@@ -631,7 +631,7 @@ impl super::Study {
             ));
         }
         let n = data.row_count();
-        let block = match self.sampling_design {
+        let block = match self.declared.sampling_design {
             Some(antecedent_core::DeclaredSamplingDesign::ClusteredPanel) => {
                 return Ok(unavailable(
                     "the declared clustered design needs whole clusters, and the table carries \
@@ -808,10 +808,11 @@ impl super::Study {
                 _ => GraphIdentFlag::Unidentified,
             })
             .collect();
-        let graphs = WeightedGraphSamples::new(gp.weights().to_vec(), flags, gp.graph_keys().to_vec())?;
+        let graphs =
+            WeightedGraphSamples::new(gp.weights().to_vec(), flags, gp.graph_keys().to_vec())?;
         let unidentified_mass = graphs.unidentified_mass();
         let key_weights = IdentifiedKeyWeights::new(&graphs);
-        let frequentist = self.inference.is_frequentist();
+        let frequentist = self.settings.inference.is_frequentist();
         let rows = data.row_count();
 
         let mut evals: Vec<AtomEval> = Vec::with_capacity(records.len());
@@ -925,7 +926,7 @@ impl super::Study {
                 posterior.unidentified_mass = mixture.unidentified_mass;
                 posterior.unevaluable_mass = mixture.unevaluable_mass;
             }
-        } else if self.inference.is_bayesian() {
+        } else if self.settings.inference.is_bayesian() {
             let items: Vec<(f64, &CausalPosterior)> = fits
                 .iter()
                 .filter_map(|(_, result, weight)| result.posterior.as_ref().map(|p| (*weight, p)))
@@ -1077,7 +1078,7 @@ impl super::Study {
                                     level,
                                     lower: point - z * se,
                                     upper: point + z * se,
-                                    interpretation: if self.inference.is_bayesian() {
+                                    interpretation: if self.settings.inference.is_bayesian() {
                                         antecedent_core::IntervalInterpretation::Credible
                                     } else {
                                         antecedent_core::IntervalInterpretation::Confidence
@@ -1087,7 +1088,7 @@ impl super::Study {
                             }
                             _ => ResponseUncertainty::None,
                         };
-                        if self.inference.is_bayesian() {
+                        if self.settings.inference.is_bayesian() {
                             if let Some(ResponseValue::Scalar(point)) = &value {
                                 if let Some(draws) = pooled_credible_draws(&fits) {
                                     super::temporal_point_uncertainty::attach_posterior_response_band(
@@ -1239,7 +1240,7 @@ impl super::Study {
         result.diagnostics.extend(coverage_notes);
         result.predictive_checks =
             fits.iter().flat_map(|(_, each, _)| each.predictive_checks.iter().cloned()).collect();
-        if kind.validates_per_atom() && self.refute != RefuteSuite::None {
+        if kind.validates_per_atom() && self.settings.refute != RefuteSuite::None {
             let listed = fits
                 .iter()
                 .map(|(record, each, weight)| {
@@ -1262,7 +1263,7 @@ impl super::Study {
         result.payload = payload;
         result.treatment = Some(treatment);
         result.outcome = outcome;
-        result.rebind_interval(self.inference.is_bayesian());
+        result.rebind_interval(self.settings.inference.is_bayesian());
         Ok(result)
     }
 }

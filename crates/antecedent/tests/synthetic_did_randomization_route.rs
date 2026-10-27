@@ -43,7 +43,7 @@ fn exact_synthetic_did_assignment_round_trips_and_rejects_tampering() {
     let extreme =
         fit.randomization_statistics.iter().filter(|(_, statistic)| *statistic >= observed).count();
     assert_eq!(fit.randomization_p_value, Some(extreme as f64 / 4.0));
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         format!("{:?}", record.assumption).contains("uniform_single_treated_unit_assignment")
     }));
@@ -93,7 +93,7 @@ fn nonzero_synthetic_did_sharp_null_carries_tested_effect() {
     let fit = result.synthetic_did().unwrap();
     assert_eq!(fit.randomization_null_effect, Some(5.0));
     assert_eq!(fit.randomization_p_value, Some(1.0));
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
     let bytes =
         prepared.encode_contracted_result(&result, "synthetic-did-nonzero-null", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();

@@ -190,9 +190,9 @@ fn codetermined_average_effect_known_truth() {
         drop(builder);
         let click = prepared.estimate(&data, &ctx).unwrap();
         for result in [&fresh, &click] {
-            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "licensed");
             assert_eq!(result.logical_plan.identifier.as_deref(), Some("generalized.adjustment"));
-            let est = &result.estimate;
+            let est = &result.estimate();
             assert!(
                 est.as_effect().unwrap().se_analytic().is_finite()
                     && est.as_effect().unwrap().se_analytic() > 0.0,
@@ -208,12 +208,12 @@ fn codetermined_average_effect_known_truth() {
             );
         }
         assert!(
-            (fresh.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+            (fresh.estimate().as_effect().unwrap().ate - click.estimate().as_effect().unwrap().ate)
                 .abs()
                 < 1e-12
         );
         let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
-        assert!((refreshed.estimate.as_effect().unwrap().ate - CODETERMINED_TRUTH).abs() < 0.12);
+        assert!((refreshed.estimate().as_effect().unwrap().ate - CODETERMINED_TRUTH).abs() < 0.12);
         let artifact =
             prepared.encode_contracted_result(&refreshed, "codetermined-aipw", &ctx).unwrap();
         let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
@@ -251,14 +251,14 @@ fn unknown_scenarios_known_truth() {
     let fresh = study.clone().run(&ctx).unwrap();
     let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
     for result in [&fresh, &click] {
-        assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+        assert_eq!(result.support_status().unwrap().as_str(), "licensed");
         assert_eq!(format!("{:?}", result.identification.status), "GraphDependent");
         assert!(
-            result.estimate.as_effect().unwrap().ate.is_nan(),
+            result.estimate().as_effect().unwrap().ate.is_nan(),
             "Unknown scenarios never collapse to one ATE"
         );
         let effects = result
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .scenarios
@@ -266,15 +266,21 @@ fn unknown_scenarios_known_truth() {
             .as_ref()
             .expect("scenario effects");
         let cov = result
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .joint
             .covariance
             .as_ref()
             .expect("joint IF covariance");
-        let bands =
-            result.estimate.as_effect().unwrap().scenarios.intervals.as_ref().expect("joint band");
+        let bands = result
+            .estimate()
+            .as_effect()
+            .unwrap()
+            .scenarios
+            .intervals
+            .as_ref()
+            .expect("joint band");
         assert_eq!(effects.len(), 2);
         for (j, truth) in UNKNOWN_TRUTH.iter().enumerate() {
             let se = cov.se(j);

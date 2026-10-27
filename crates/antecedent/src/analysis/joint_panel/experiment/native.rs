@@ -542,12 +542,11 @@ impl NativeJointExperimentResult {
         if wire.version != 1 {
             return Err(JointPanelError::compile("unknown native experiment artifact version"));
         }
-        let original =
-            super::super::designs::replay_native_joint_design_execution(
-                &wire.native,
-                ctx,
-                super::super::designs::DesignArtifactLimits { max_bytes: limits.max_bytes },
-            )?;
+        let original = super::super::designs::replay_native_joint_design_execution(
+            &wire.native,
+            ctx,
+            super::super::designs::DesignArtifactLimits { max_bytes: limits.max_bytes },
+        )?;
         let history = antecedent_io::evidence_ledger_artifact::EvidenceLedgerArtifact::from_meta(
             &wire.ledger,
             None,
@@ -598,7 +597,12 @@ impl NativeJointExperimentResult {
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<(), JointPanelError> {
-        self.consume_current_with_limits(bytes, ledger, ctx, super::law::LawExperimentLimits::default())
+        self.consume_current_with_limits(
+            bytes,
+            ledger,
+            ctx,
+            super::law::LawExperimentLimits::default(),
+        )
     }
     /// [`Self::consume_current`] under a caller-declared byte limit.
     /// # Errors

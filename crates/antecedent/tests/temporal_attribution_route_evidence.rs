@@ -110,7 +110,7 @@ fn frequentist_body() {
     );
     assert!(anomaly_result.posterior.is_none());
     assert_eq!(
-        anomaly_result.interval.as_ref().map(|binding| binding.method),
+        anomaly_result.interval().as_ref().map(|binding| binding.method),
         Some(IntervalMethod::None)
     );
     let scores = anomaly_result.anomaly().expect("anomaly result");
@@ -166,7 +166,10 @@ fn frequentist_body() {
         "known population mean shift: {initial_change}"
     );
     assert!(initial.posterior.is_none());
-    assert_eq!(initial.interval.as_ref().map(|binding| binding.method), Some(IntervalMethod::None));
+    assert_eq!(
+        initial.interval().as_ref().map(|binding| binding.method),
+        Some(IntervalMethod::None)
+    );
     let refreshed = change_prepared.refresh_series(change_series(0.5), &ctx).unwrap();
     let refreshed_change = refreshed.change_attribution().unwrap().total_change;
     assert!(
@@ -290,7 +293,7 @@ fn bayesian_body() {
     assert!(anomaly_result.posterior.is_some());
     assert!(anomaly_result.effect().is_finite());
     assert_eq!(
-        anomaly_result.interval.as_ref().map(|binding| binding.method),
+        anomaly_result.interval().as_ref().map(|binding| binding.method),
         Some(IntervalMethod::PosteriorQuantile)
     );
     assert!(
@@ -347,7 +350,7 @@ fn bayesian_body() {
     assert!(result.effect().is_finite());
     assert!((result.effect() - expected).abs() < 2.0, "posterior mean stays near the shift");
     assert_eq!(
-        result.interval.as_ref().map(|binding| binding.method),
+        result.interval().as_ref().map(|binding| binding.method),
         Some(IntervalMethod::PosteriorQuantile)
     );
     assert!(

@@ -109,7 +109,7 @@ fn stratified_difference(cells: &[(Vec<f64>, usize)]) -> f64 {
 }
 
 fn ate(result: &antecedent::StudyResult) -> f64 {
-    result.estimate.as_effect().unwrap().ate
+    result.estimate().as_effect().unwrap().ate
 }
 
 #[test]
@@ -350,7 +350,7 @@ fn a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast() {
         let result = study.run(&ctx).unwrap();
         let tolerance = if bayesian { 0.05 } else { 1e-12 };
         assert!((ate(&result) - expected).abs() < tolerance, "{} vs {expected}", ate(&result));
-        assert_eq!(result.support_status, Some(antecedent::CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(antecedent::CellStatus::Refused));
         let prepared = study.prepare(&ctx).unwrap();
         let again = prepared.estimate(&data, &ctx).unwrap();
         assert!((ate(&again) - ate(&result)).abs() < 1e-9);

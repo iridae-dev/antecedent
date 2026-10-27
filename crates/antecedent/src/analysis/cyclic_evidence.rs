@@ -9,7 +9,8 @@ use super::{
 };
 use antecedent_contract::{
     EvidenceBinding, EvidenceCalibration, EvidenceEnvelope, EvidenceOrigins, EvidencePort,
-    EvidenceSupport, QuantityRole, ScientificQuantity, UncertaintyAxes, WorldTime,
+    EvidenceSupport, JointEventKind, JointEventQuantity, JointEventVariable, QuantityRole,
+    ScientificQuantity, UncertaintyAxes, WorldTime,
 };
 use antecedent_core::{CanonicalWriter, ExecutionContext, SupportStatus};
 use antecedent_io::{
@@ -965,6 +966,8 @@ struct Projection<'a> {
     variable: usize,
     /// Second coordinate of a covariance quantity.
     other: Option<usize>,
+    /// The ordered outcomes of a joint event; `variable` is then its first outcome.
+    joint: Option<Vec<usize>>,
     /// Source details retained beside the numbers; `None` serializes as JSON null.
     diagnostics: Option<Box<dyn Detail + 'a>>,
 }
@@ -987,6 +990,7 @@ fn point<'a>(
         functional,
         variable,
         other: None,
+        joint: None,
         diagnostics: None,
     }
 }
@@ -1616,21 +1620,38 @@ fn polynomial_solutions<'a>(
     }
 }
 
-/// The single outcome a scalar functional projection reads.
-fn single_outcome(
+/// The outcomes of the event a functional projection reads: one for a scalar coordinate,
+/// several for a joint event.
+fn event_outcomes(
     source: &antecedent_io::cyclic_graph::CyclicGraphRequest,
     message: &'static str,
-) -> Result<usize, CyclicArtifactError> {
+) -> Result<Vec<usize>, CyclicArtifactError> {
     use antecedent_io::cyclic_graph::CyclicGraphRequest as G;
     let outcomes = match source {
         G::Identify { outcomes, .. } | G::Adjust { outcomes, .. } => outcomes,
         G::Calculus { y, .. } => y,
         _ => return Err(selector_mismatch()),
     };
-    if outcomes.len() != 1 {
+    if outcomes.is_empty() {
         return Err(invalid(message));
     }
-    Ok(outcomes[0])
+    Ok(outcomes.clone())
+}
+
+/// A projection of `value` over `outcomes`: a scalar coordinate for one outcome, a joint
+/// event coordinate for several.
+fn event_point<'a>(
+    value: Option<f64>,
+    outcomes: &[usize],
+    world: World,
+    functional: Functional,
+    port: EvidencePort,
+) -> Projection<'a> {
+    let mut p = point(value, outcomes[0], world, Time::Static, functional, port);
+    if outcomes.len() > 1 {
+        p.joint = Some(outcomes.to_vec());
+    }
+    p
 }
 
 /// One typed world of a specified model, by scientific world id.
@@ -1679,16 +1700,13 @@ impl EvidenceSource for A {
                 else {
                     return Err(selector_mismatch());
                 };
-                let outcome = single_outcome(
-                    source,
-                    "scalar evidence projection requires a single outcome; joint events retain the full functional report",
-                )?;
+                let outcomes =
+                    event_outcomes(source, "functional evidence projection requires an outcome")?;
                 let value = report.values.get(*assignment).ok_or_else(selector_mismatch)?;
-                let mut p = point(
+                let mut p = event_point(
                     value.value,
-                    outcome,
+                    &outcomes,
                     World::Assignment(*assignment),
-                    Time::Static,
                     Functional::IdentifiedProbability,
                     EvidencePort::Mean,
                 );
@@ -1701,16 +1719,13 @@ impl EvidenceSource for A {
                 else {
                     return Err(selector_mismatch());
                 };
-                let outcome = single_outcome(
-                    source,
-                    "scalar Gaussian density evidence requires one outcome",
-                )?;
+                let outcomes =
+                    event_outcomes(source, "Gaussian density evidence requires an outcome")?;
                 let value = report.values.get(*assignment).ok_or_else(selector_mismatch)?;
-                let mut p = point(
+                let mut p = event_point(
                     value.value,
-                    outcome,
+                    &outcomes,
                     World::Assignment(*assignment),
-                    Time::Static,
                     Functional::IdentifiedDensity,
                     EvidencePort::Likelihood,
                 );
@@ -2057,10 +2072,17 @@ impl CyclicEvidence {
             vec![ctx.acquire_admission(0, reserve).map_err(CyclicArtifactError::Admission)?];
         let recovery_origins = if version == 3 {
             antecedent_io::cyclic_family_artifact::recovery_origins(request, source)?
-        } else { None };
-        if version == 3 && recovery_origins.is_none() { return Err(invalid("version-three evidence needs retained recovery origins")); }
+        } else {
+            None
+        };
+        if version == 3 && recovery_origins.is_none() {
+            return Err(invalid("version-three evidence needs retained recovery origins"));
+        }
         let identity = if version == 3 {
-            digest("antecedent.cyclic_evidence.v2", &(&source.identity, &schema, &selectors, &recovery_origins))?
+            digest(
+                "antecedent.cyclic_evidence.v2",
+                &(&source.identity, &schema, &selectors, &recovery_origins),
+            )?
         } else {
             digest("antecedent.cyclic_evidence.v1", &(&source.identity, &schema, &selectors))?
         };
@@ -2088,40 +2110,82 @@ impl CyclicEvidence {
                 .ok_or_else(|| invalid("evidence variable outside declared schema"))?;
             let regime =
                 digest("antecedent.cyclic_evidence.regime.v1", &(&source.identity, &world, &time))?;
-            let quantity = ScientificQuantity {
-                variable_id: format!("{}:{name}", schema.id),
-                variable_name: name.clone(),
-                role: QuantityRole::Outcome,
-                units: if p.functional == Functional::IdentifiedDensity {
-                    format!("1/({units})")
-                } else if matches!(
-                    p.functional,
-                    Functional::LogLikelihood | Functional::IdentifiedProbability
-                ) {
-                    "dimensionless".into()
-                } else if let Some(other) = p.other {
-                    let second = schema
-                        .variables
-                        .get(other)
-                        .ok_or_else(|| invalid("covariance variable outside schema"))?;
-                    format!("({units})*({})", second.1)
-                } else if let CyclicEvidenceSelector::OuCovariance { other, .. }
-                | CyclicEvidenceSelector::OuRegime { other: Some(other), .. } = selector
-                {
-                    let second = schema
-                        .variables
-                        .get(*other)
-                        .ok_or_else(|| invalid("covariance variable outside schema"))?;
-                    format!("({units})*({})", second.1)
-                } else {
-                    units.clone()
-                },
-                population_id: schema.population.clone(),
-                regime_id: regime,
-                horizon: 0,
-                functional_id: p.functional.as_str().into(),
-                conditioning: vec![],
-                transform_id: "identity".into(),
+            let joint_quantity = p
+                .joint
+                .as_ref()
+                .map(|outcomes| {
+                    let variables = outcomes
+                        .iter()
+                        .map(|index| {
+                            schema
+                                .variables
+                                .get(*index)
+                                .map(|(name, units)| JointEventVariable {
+                                    name: name.clone(),
+                                    units: units.clone(),
+                                })
+                                .ok_or_else(|| invalid("joint event variable outside schema"))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let event = JointEventQuantity {
+                        schema_id: schema.id.clone(),
+                        variables,
+                        kind: if p.functional == Functional::IdentifiedDensity {
+                            JointEventKind::Density
+                        } else {
+                            JointEventKind::Probability
+                        },
+                        population_id: schema.population.clone(),
+                        regime_id: regime.clone(),
+                        horizon: 0,
+                        conditioning: vec![],
+                        transform_id: "identity".into(),
+                    };
+                    event
+                        .validate_in_schema(&schema.variables)
+                        .map_err(|e| invalid(format!("joint event: {e:?}")))?;
+                    event.to_coordinate().map_err(|e| invalid(format!("joint event: {e:?}")))
+                })
+                .transpose()?;
+            let quantity = if let Some(joint_quantity) = joint_quantity {
+                joint_quantity
+            } else {
+                ScientificQuantity {
+                    variable_id: format!("{}:{name}", schema.id),
+                    variable_name: name.clone(),
+                    role: QuantityRole::Outcome,
+                    units: if p.functional == Functional::IdentifiedDensity {
+                        format!("1/({units})")
+                    } else if matches!(
+                        p.functional,
+                        Functional::LogLikelihood | Functional::IdentifiedProbability
+                    ) {
+                        "dimensionless".into()
+                    } else if let Some(other) = p.other {
+                        let second = schema
+                            .variables
+                            .get(other)
+                            .ok_or_else(|| invalid("covariance variable outside schema"))?;
+                        format!("({units})*({})", second.1)
+                    } else if let CyclicEvidenceSelector::OuCovariance { other, .. }
+                    | CyclicEvidenceSelector::OuRegime { other: Some(other), .. } =
+                        selector
+                    {
+                        let second = schema
+                            .variables
+                            .get(*other)
+                            .ok_or_else(|| invalid("covariance variable outside schema"))?;
+                        format!("({units})*({})", second.1)
+                    } else {
+                        units.clone()
+                    },
+                    population_id: schema.population.clone(),
+                    regime_id: regime,
+                    horizon: 0,
+                    functional_id: p.functional.as_str().into(),
+                    conditioning: vec![],
+                    transform_id: "identity".into(),
+                }
             };
             let premises: Arc<[Arc<str>]> = vec![
                 Arc::from("conditional_on_declared_source_semantics_and_assumptions"),
@@ -2225,7 +2289,8 @@ impl CyclicEvidence {
             schema,
             selectors,
             envelopes,
-            version, original_encoding: None,
+            version,
+            original_encoding: None,
             _retention: Arc::new(retention),
         })
     }
@@ -2287,8 +2352,10 @@ impl CyclicEvidence {
         if ctx.cancellation.is_cancelled() {
             return Err(CyclicArtifactError::Cancelled);
         }
-        if let Some((original,_owner)) = &self.original_encoding {
-            let _output = ctx.acquire_admission(0, original.len() as u64).map_err(CyclicArtifactError::Admission)?;
+        if let Some((original, _owner)) = &self.original_encoding {
+            let _output = ctx
+                .acquire_admission(0, original.len() as u64)
+                .map_err(CyclicArtifactError::Admission)?;
             return Ok(original.to_vec());
         }
         let source = self.source.encoding(ctx)?;
@@ -2364,10 +2431,25 @@ impl CyclicEvidence {
         if !matches!(record.version, 2 | 3)
             || record.report.identity != expected_identity
             || (if record.version == 3 {
-                digest("antecedent.cyclic_evidence.v2", &(&record.source_identity, &record.schema, &record.selectors, &record.report.recovery_origins))?
+                digest(
+                    "antecedent.cyclic_evidence.v2",
+                    &(
+                        &record.source_identity,
+                        &record.schema,
+                        &record.selectors,
+                        &record.report.recovery_origins,
+                    ),
+                )?
             } else {
-                if record.report.recovery_origins.is_some() { return Err(invalid("historical evidence has no version-three origin standing")); }
-                digest("antecedent.cyclic_evidence.v1", &(&record.source_identity, &record.schema, &record.selectors))?
+                if record.report.recovery_origins.is_some() {
+                    return Err(invalid(
+                        "historical evidence has no version-three origin standing",
+                    ));
+                }
+                digest(
+                    "antecedent.cyclic_evidence.v1",
+                    &(&record.source_identity, &record.schema, &record.selectors),
+                )?
             }) != expected_identity
         {
             return Err(invalid("cyclic evidence identity mismatch"));
@@ -2386,8 +2468,10 @@ impl CyclicEvidence {
         if evidence.report != record.report {
             return Err(invalid("cyclic evidence differs from original source replay"));
         }
-        let owner = Arc::new(ctx.acquire_admission(0,bytes.len() as u64).map_err(CyclicArtifactError::Admission)?);
-        evidence.original_encoding = Some((Arc::from(bytes),owner));
+        let owner = Arc::new(
+            ctx.acquire_admission(0, bytes.len() as u64).map_err(CyclicArtifactError::Admission)?,
+        );
+        evidence.original_encoding = Some((Arc::from(bytes), owner));
         Ok(evidence)
     }
     /// Existing decision engine's affine-mean route, conditional on the reported source.
@@ -2542,7 +2626,7 @@ impl CyclicEvidence {
                 causal_contract_id: self.report.identity.clone(),
             }
         };
-        cyclic_joint_columns(&columns,provenance,self.version == 3)
+        cyclic_joint_columns(&columns, provenance, self.version == 3)
     }
 
     /// Compose explicit native evidence objects only under an established draw pairing.
@@ -2550,27 +2634,43 @@ impl CyclicEvidence {
     /// # Errors
     /// Shared evidence declared independent, unknown/mismatched pairing, failed slots,
     /// incompatible quantity declarations or an uncertainty port without an outcome law.
-    pub fn joint_law_with(&self, others: &[&Self], dependence: Option<&str>) -> Result<DistributionArtifact,CyclicArtifactError> {
-        if others.len() > 256 { return Err(invalid("at most 256 additional evidence products")); }
-        if others.is_empty() && dependence.is_none() { return self.joint_law(); }
+    pub fn joint_law_with(
+        &self,
+        others: &[&Self],
+        dependence: Option<&str>,
+    ) -> Result<DistributionArtifact, CyclicArtifactError> {
+        if others.len() > 256 {
+            return Err(invalid("at most 256 additional evidence products"));
+        }
+        if others.is_empty() && dependence.is_none() {
+            return self.joint_law();
+        }
         let sources = std::iter::once(self).chain(others.iter().copied()).collect::<Vec<_>>();
         if dependence == Some("independent") {
-            for (i,first) in sources.iter().enumerate() {
-                for second in &sources[i+1..] {
-                    if let (Some(a),Some(b)) = (&first.report.recovery_origins,&second.report.recovery_origins) {
+            for (i, first) in sources.iter().enumerate() {
+                for second in &sources[i + 1..] {
+                    if let (Some(a), Some(b)) =
+                        (&first.report.recovery_origins, &second.report.recovery_origins)
+                    {
                         if a.evidence == b.evidence {
-                            return Err(joint_refusal(antecedent_core::reason_code!("evidence_double_counted"),
-                                "cyclic_evidence.shared_training_declared_independent: these products read the same experiment evidence; supply their verified aligned joint law"));
+                            return Err(joint_refusal(
+                                antecedent_core::reason_code!("evidence_double_counted"),
+                                "cyclic_evidence.shared_training_declared_independent: these products read the same experiment evidence; supply their verified aligned joint law",
+                            ));
                         }
                     }
                 }
             }
-            return Err(joint_refusal(antecedent_core::reason_code!("evidence_overlap_unknown"),
-                "cyclic_evidence.independence_not_established: different labels do not prove disjoint observations or independent laws; supply an explicit joint law"));
+            return Err(joint_refusal(
+                antecedent_core::reason_code!("evidence_overlap_unknown"),
+                "cyclic_evidence.independence_not_established: different labels do not prove disjoint observations or independent laws; supply an explicit joint law",
+            ));
         }
         if dependence != Some("aligned") {
-            return Err(joint_refusal(antecedent_core::reason_code!("joint_law_required"),
-                "cyclic_evidence.alignment_declaration_required: select aligned only for native products carrying the same ordered-law pairing proof"));
+            return Err(joint_refusal(
+                antecedent_core::reason_code!("joint_law_required"),
+                "cyclic_evidence.alignment_declaration_required: select aligned only for native products carrying the same ordered-law pairing proof",
+            ));
         }
         let origin = self.report.recovery_origins.as_ref().ok_or_else(|| joint_refusal(
             antecedent_core::reason_code!("joint_law_required"),
@@ -2579,15 +2679,19 @@ impl CyclicEvidence {
         for source in sources {
             let found = source.report.recovery_origins.as_ref().ok_or_else(|| joint_refusal(
                 antecedent_core::reason_code!("joint_law_required"), "cyclic_evidence.alignment_unavailable: independently project version-three evidence from its verified source"))?;
-            if found.alignment != origin.alignment || found.fit != origin.fit || found.law != origin.law {
-                return Err(joint_refusal(antecedent_core::reason_code!("joint_law_required"),
-                    "cyclic_evidence.draw_alignment_mismatch: equal draw counts are insufficient; provide the actual shared ordered law or an explicit coupling"));
+            if found.alignment != origin.alignment
+                || found.fit != origin.fit
+                || found.law != origin.law
+            {
+                return Err(joint_refusal(
+                    antecedent_core::reason_code!("joint_law_required"),
+                    "cyclic_evidence.draw_alignment_mismatch: equal draw counts are insufficient; provide the actual shared ordered law or an explicit coupling",
+                ));
             }
             columns.extend(source.report.columns.iter());
         }
-        cyclic_joint_columns(&columns,recovery_distribution_provenance(origin),true)
+        cyclic_joint_columns(&columns, recovery_distribution_provenance(origin), true)
     }
-
 }
 
 fn joint_refusal(code: &'static str, message: &str) -> CyclicArtifactError {
@@ -2596,88 +2700,146 @@ fn joint_refusal(code: &'static str, message: &str) -> CyclicArtifactError {
         next_attempt:"declare an eligible shared joint law with compatible quantities, units, populations and uncertainty ports".into(),
     }
 }
-fn recovery_distribution_provenance(origin: &antecedent_io::cyclic_family_artifact::CyclicRecoveryOrigins) -> DistributionProvenance {
+fn recovery_distribution_provenance(
+    origin: &antecedent_io::cyclic_family_artifact::CyclicRecoveryOrigins,
+) -> DistributionProvenance {
     DistributionProvenance {
-        source_id: origin.evidence.clone(), provider_id: "native:cyclic_model_conditional".into(),
-        rng_id: origin.alignment.clone(), snapshot_id: origin.law.clone(),
+        source_id: origin.evidence.clone(),
+        provider_id: "native:cyclic_model_conditional".into(),
+        rng_id: origin.alignment.clone(),
+        snapshot_id: origin.law.clone(),
         // The fitting contract is shared; each target remains in its quantity/regime identity.
         causal_contract_id: origin.fit.clone(),
     }
 }
-fn cyclic_joint_columns(columns: &[&CyclicEvidenceColumn], provenance: DistributionProvenance,
+fn cyclic_joint_columns(
+    columns: &[&CyclicEvidenceColumn],
+    provenance: DistributionProvenance,
     exact_recovery_weights: bool,
-) -> Result<DistributionArtifact,CyclicArtifactError> {
-    let first = columns.first().ok_or_else(||invalid("empty evidence"))?;
-    if !matches!(first.port.as_str(),"parameter_posterior"|"interventional_law") {
-        return Err(joint_refusal(antecedent_core::reason_code!("joint_law_required"),
-            "cyclic_evidence.uncertainty_port: sampling laws and means cannot become posterior or outcome distributions"));
+) -> Result<DistributionArtifact, CyclicArtifactError> {
+    let first = columns.first().ok_or_else(|| invalid("empty evidence"))?;
+    if !matches!(first.port.as_str(), "parameter_posterior" | "interventional_law") {
+        return Err(joint_refusal(
+            antecedent_core::reason_code!("joint_law_required"),
+            "cyclic_evidence.uncertainty_port: sampling laws and means cannot become posterior or outcome distributions",
+        ));
     }
     let count = first.samples.len();
-    if count == 0 { return Err(invalid("empty law")); }
-    use antecedent_io::distribution_artifact::{MAX_DISTRIBUTION_COORDINATES,MAX_DISTRIBUTION_DRAWS,MAX_DISTRIBUTION_ARTIFACT_BYTES};
-    if columns.len() > MAX_DISTRIBUTION_COORDINATES || count > MAX_DISTRIBUTION_DRAWS
-        || count.checked_mul(columns.len()).and_then(|cells|cells.checked_mul(std::mem::size_of::<f64>()))
-            .is_none_or(|bytes|bytes > MAX_DISTRIBUTION_ARTIFACT_BYTES) {
+    if count == 0 {
+        return Err(invalid("empty law"));
+    }
+    use antecedent_io::distribution_artifact::{
+        MAX_DISTRIBUTION_ARTIFACT_BYTES, MAX_DISTRIBUTION_COORDINATES, MAX_DISTRIBUTION_DRAWS,
+    };
+    if columns.len() > MAX_DISTRIBUTION_COORDINATES
+        || count > MAX_DISTRIBUTION_DRAWS
+        || count
+            .checked_mul(columns.len())
+            .and_then(|cells| cells.checked_mul(std::mem::size_of::<f64>()))
+            .is_none_or(|bytes| bytes > MAX_DISTRIBUTION_ARTIFACT_BYTES)
+    {
         return Err(invalid("joint law output exceeds native distribution limits"));
     }
-    let weights_of = |column: &CyclicEvidenceColumn| -> Result<Option<Vec<f64>>,CyclicArtifactError> {
-        let Some(bounds) = &column.mass_bounds else { return Ok(None); };
-        // Only an actual posterior of recovered functional draws is licensed
-        // here. A Gaussian mean with variance in diagnostics is not an outcome draw.
-        if !exact_recovery_weights || column.port != "parameter_posterior" || bounds.len() != count {
-            return Err(joint_refusal(antecedent_core::reason_code!("joint_law_required"),
-                "cyclic_evidence.mass_or_mean_not_a_law: numerical sets, uncertain mass and projected Gaussian means require their scientific law adapter"));
-        }
-        let mut weights = Vec::with_capacity(count);
-        for mass in bounds {
-            if mass.lower != mass.upper || !mass.lower.is_finite() || mass.lower < 0.0 {
-                return Err(joint_refusal(antecedent_core::reason_code!("joint_law_required"),
-                    "cyclic_evidence.nonexact_mass: preserve mass bounds and provide a complete weighted law"));
+    let weights_of =
+        |column: &CyclicEvidenceColumn| -> Result<Option<Vec<f64>>, CyclicArtifactError> {
+            let Some(bounds) = &column.mass_bounds else {
+                return Ok(None);
+            };
+            // Only an actual posterior of recovered functional draws is licensed
+            // here. A Gaussian mean with variance in diagnostics is not an outcome draw.
+            if !exact_recovery_weights
+                || column.port != "parameter_posterior"
+                || bounds.len() != count
+            {
+                return Err(joint_refusal(
+                    antecedent_core::reason_code!("joint_law_required"),
+                    "cyclic_evidence.mass_or_mean_not_a_law: numerical sets, uncertain mass and projected Gaussian means require their scientific law adapter",
+                ));
             }
-            weights.push(mass.lower);
-        }
-        if (weights.iter().sum::<f64>() - 1.0).abs() > 1e-9 {
-            return Err(joint_refusal(antecedent_core::reason_code!("joint_law_required"),
-                "cyclic_evidence.incomplete_mass: failed or withheld mass cannot be discarded"));
-        }
-        Ok(Some(weights))
-    };
+            let mut weights = Vec::with_capacity(count);
+            for mass in bounds {
+                if mass.lower != mass.upper || !mass.lower.is_finite() || mass.lower < 0.0 {
+                    return Err(joint_refusal(
+                        antecedent_core::reason_code!("joint_law_required"),
+                        "cyclic_evidence.nonexact_mass: preserve mass bounds and provide a complete weighted law",
+                    ));
+                }
+                weights.push(mass.lower);
+            }
+            if (weights.iter().sum::<f64>() - 1.0).abs() > 1e-9 {
+                return Err(joint_refusal(
+                    antecedent_core::reason_code!("joint_law_required"),
+                    "cyclic_evidence.incomplete_mass: failed or withheld mass cannot be discarded",
+                ));
+            }
+            Ok(Some(weights))
+        };
     let weights = weights_of(first)?;
     let population = &first.quantity.population_id;
     let mut quantities = Vec::with_capacity(columns.len());
     for column in columns {
-        if column.port != first.port || column.uncertainty_axes != first.uncertainty_axes
-            || column.samples.len() != count || column.samples.iter().any(Option::is_none)
-            || weights_of(column)? != weights {
-            return Err(joint_refusal(antecedent_core::reason_code!("joint_law_required"),
-                "cyclic_evidence.incomplete_or_misaligned_law: retain every original draw/weight, failed slot and uncertainty meaning"));
+        if column.port != first.port
+            || column.uncertainty_axes != first.uncertainty_axes
+            || column.samples.len() != count
+            || column.samples.iter().any(Option::is_none)
+            || weights_of(column)? != weights
+        {
+            return Err(joint_refusal(
+                antecedent_core::reason_code!("joint_law_required"),
+                "cyclic_evidence.incomplete_or_misaligned_law: retain every original draw/weight, failed slot and uncertainty meaning",
+            ));
         }
         if &column.quantity.population_id != population {
-            return Err(joint_refusal(antecedent_core::reason_code!("joint_law_required"),
-                "cyclic_evidence.population_bridge_required: declare a scientific population bridge before composing these quantities"));
+            return Err(joint_refusal(
+                antecedent_core::reason_code!("joint_law_required"),
+                "cyclic_evidence.population_bridge_required: declare a scientific population bridge before composing these quantities",
+            ));
         }
         for previous in &quantities {
             let previous: &ScientificQuantity = previous;
-            if previous.variable_name == column.quantity.variable_name && previous.units != column.quantity.units {
-                return Err(joint_refusal(antecedent_core::reason_code!("joint_law_required"),
-                    "cyclic_evidence.units_bridge_required: declare a unit conversion before composing the same variable under incompatible units"));
+            if previous.variable_name == column.quantity.variable_name
+                && previous.units != column.quantity.units
+            {
+                return Err(joint_refusal(
+                    antecedent_core::reason_code!("joint_law_required"),
+                    "cyclic_evidence.units_bridge_required: declare a unit conversion before composing the same variable under incompatible units",
+                ));
             }
         }
         quantities.push(ScientificQuantity::try_from(column.quantity.clone()).map_err(invalid)?);
     }
-    let mut rows = Vec::with_capacity(count.checked_mul(columns.len()).ok_or_else(||invalid("joint law shape overflow"))?);
+    let mut rows = Vec::with_capacity(
+        count.checked_mul(columns.len()).ok_or_else(|| invalid("joint law shape overflow"))?,
+    );
     for row in 0..count {
-        for column in columns { rows.push(column.samples[row].ok_or_else(||invalid("missing draw"))?); }
+        for column in columns {
+            rows.push(column.samples[row].ok_or_else(|| invalid("missing draw"))?);
+        }
     }
     let meaning = if first.port == "parameter_posterior" {
         DistributionMeaningWire::CausalFunctionalPosterior
-    } else { DistributionMeaningWire::InterventionalPredictive };
-    let identity = DistributionIdentity::new(meaning,&quantities,DrawAlignment::Joint,provenance).map_err(invalid)?;
-    DistributionArtifact::new(DistributionMetadata {
-        version:1,identity,axes:["draw".into(),"quantity".into()],shape:[count,quantities.len()],
-        weights,supported:None,calibration:DistributionCalibration::Unmeasured,
-        trust:DistributionTrust::Unverified,legacy_posterior:None,legacy_bindings:None,
-    },rows).map_err(invalid)
+    } else {
+        DistributionMeaningWire::InterventionalPredictive
+    };
+    let identity =
+        DistributionIdentity::new(meaning, &quantities, DrawAlignment::Joint, provenance)
+            .map_err(invalid)?;
+    DistributionArtifact::new(
+        DistributionMetadata {
+            version: 1,
+            identity,
+            axes: ["draw".into(), "quantity".into()],
+            shape: [count, quantities.len()],
+            weights,
+            supported: None,
+            calibration: DistributionCalibration::Unmeasured,
+            trust: DistributionTrust::Unverified,
+            legacy_posterior: None,
+            legacy_bindings: None,
+        },
+        rows,
+    )
+    .map_err(invalid)
 }
 
 fn enclose_utility(
@@ -2715,6 +2877,27 @@ fn enclose_utility(
 mod tests {
     use super::*;
     use crate::analysis::Study;
+    #[test]
+    fn an_event_over_several_outcomes_projects_a_joint_coordinate_and_one_outcome_stays_scalar() {
+        let joint = event_point(
+            Some(0.5),
+            &[2, 1],
+            World::Assignment(0),
+            Functional::IdentifiedProbability,
+            EvidencePort::Mean,
+        );
+        assert_eq!(joint.joint, Some(vec![2, 1]));
+        assert_eq!(joint.variable, 2);
+        let scalar = event_point(
+            Some(0.5),
+            &[2],
+            World::Assignment(0),
+            Functional::IdentifiedProbability,
+            EvidencePort::Mean,
+        );
+        assert_eq!(scalar.joint, None);
+        assert_eq!(scalar.variable, 2);
+    }
     #[test]
     fn system_evidence_bridge_preserves_original_source_and_loaded_ownership() {
         use antecedent_model::nonlinear_equilibrium::{
@@ -2832,7 +3015,8 @@ mod tests {
         // Export now writes the contract-bearing record, so the historical record is the
         // golden the previous-version encoder wrote (see `antecedent-io`'s previous-version
         // tests); its identity is that of the request the golden pins.
-        let v1: &[u8] = include_bytes!("../../../antecedent-io/tests/fixtures/cyclic_family_v1.bin");
+        let v1: &[u8] =
+            include_bytes!("../../../antecedent-io/tests/fixtures/cyclic_family_v1.bin");
         let v1_identity = "4ee65847b277589a4dae5e547f4b6999fee7ae504965c5c4be71aa0e5037cde7";
         let old = ConsumedCyclicFamily::consume(v1, v1_identity, &ctx).unwrap();
         assert!(old.contract_metadata().is_none());
@@ -2985,85 +3169,183 @@ mod tests {
 mod recovery_origin_tests {
     use super::*;
     use crate::Study;
-    use antecedent_io::cyclic_family_artifact::{CyclicWorldWire,CyclicInterventionWire,RecoveryInferenceWire,RecoveryPriorWire,CoefficientPriorWire,DisturbancePriorWire};
+    use antecedent_io::cyclic_family_artifact::{
+        CoefficientPriorWire, CyclicInterventionWire, CyclicWorldWire, DisturbancePriorWire,
+        RecoveryInferenceWire, RecoveryPriorWire,
+    };
 
     fn request(seed: u64) -> R {
-        let mut request: R = serde_json::from_str(include_str!("../../../../parity/cyclic/recovered-asymptotic-normal/request.json")).unwrap();
-        let R::ExperimentalRecovery { inference, .. } = &mut request else { panic!("experimental fixture") };
-        *inference = RecoveryInferenceWire::Posterior { prior: RecoveryPriorWire {
-            coefficients: CoefficientPriorWire::Flat,
-            disturbance: DisturbancePriorWire::Known { variances: vec![1.0,1.0] },
-        }, draws: 8, burn_in: 0, seed };
+        let mut request: R = serde_json::from_str(include_str!(
+            "../../../../parity/cyclic/recovered-asymptotic-normal/request.json"
+        ))
+        .unwrap();
+        let R::ExperimentalRecovery { inference, .. } = &mut request else {
+            panic!("experimental fixture")
+        };
+        *inference = RecoveryInferenceWire::Posterior {
+            prior: RecoveryPriorWire {
+                coefficients: CoefficientPriorWire::Flat,
+                disturbance: DisturbancePriorWire::Known { variances: vec![1.0, 1.0] },
+            },
+            draws: 8,
+            burn_in: 0,
+            seed,
+        };
         request
     }
     fn schema(id: &str) -> CyclicEvidenceSchema {
-        CyclicEvidenceSchema { id:id.into(),population:"original population".into(),variables:vec![("A".into(),"meter".into()),("B".into(),"meter".into())] }
+        CyclicEvidenceSchema {
+            id: id.into(),
+            population: "original population".into(),
+            variables: vec![("A".into(), "meter".into()), ("B".into(), "meter".into())],
+        }
     }
     fn selector() -> Vec<CyclicEvidenceSelector> {
-        vec![CyclicEvidenceSelector::Response { world:0,noise_row:0,variable:1 }]
+        vec![CyclicEvidenceSelector::Response { world: 0, noise_row: 0, variable: 1 }]
     }
-    fn branch(source: &ExecutedCyclicFamily, level: f64, ctx: &ExecutionContext) -> ExecutedCyclicFamily {
-        source.prepare_recovered_worlds(vec![CyclicWorldWire { world:47,
-            interventions:vec![CyclicInterventionWire::Set { variable:0,value:level }],initial_states:vec![],
-        }],1,ctx).unwrap().execute_retained(ctx).unwrap()
+    fn branch(
+        source: &ExecutedCyclicFamily,
+        level: f64,
+        ctx: &ExecutionContext,
+    ) -> ExecutedCyclicFamily {
+        source
+            .prepare_recovered_worlds(
+                vec![CyclicWorldWire {
+                    world: 47,
+                    interventions: vec![CyclicInterventionWire::Set { variable: 0, value: level }],
+                    initial_states: vec![],
+                }],
+                1,
+                ctx,
+            )
+            .unwrap()
+            .execute_retained(ctx)
+            .unwrap()
     }
     #[test]
     fn world_branches_share_actual_evidence_and_draw_alignment_but_keep_targets_distinct() {
         let ctx = ExecutionContext::for_tests(19);
-        let source = Study::prepare_cyclic_family(&request(19),&ctx).unwrap().execute_retained(&ctx).unwrap();
-        let left = branch(&source,3.0,&ctx).evidence(schema("A3"),selector(),&ctx).unwrap();
-        let right = branch(&source,4.0,&ctx).evidence(schema("A4"),selector(),&ctx).unwrap();
-        assert_ne!(left.source_identity(),right.source_identity());
-        assert_ne!(left.identity(),right.identity());
-        let a=left.report.recovery_origins.as_ref().unwrap();
-        let b=right.report.recovery_origins.as_ref().unwrap();
-        assert_eq!(a,b);
-        assert_ne!(a.evidence,left.source_identity());
-        assert_eq!(left.envelopes()[0].binding().origins.training.as_deref(),Some(a.fit.as_str()));
-        let error=left.joint_law_with(&[&right],Some("independent")).unwrap_err().to_string();
+        let source = Study::prepare_cyclic_family(&request(19), &ctx)
+            .unwrap()
+            .execute_retained(&ctx)
+            .unwrap();
+        let left = branch(&source, 3.0, &ctx).evidence(schema("A3"), selector(), &ctx).unwrap();
+        let right = branch(&source, 4.0, &ctx).evidence(schema("A4"), selector(), &ctx).unwrap();
+        assert_ne!(left.source_identity(), right.source_identity());
+        assert_ne!(left.identity(), right.identity());
+        let a = left.report.recovery_origins.as_ref().unwrap();
+        let b = right.report.recovery_origins.as_ref().unwrap();
+        assert_eq!(a, b);
+        assert_ne!(a.evidence, left.source_identity());
+        assert_eq!(left.envelopes()[0].binding().origins.training.as_deref(), Some(a.fit.as_str()));
+        let error = left.joint_law_with(&[&right], Some("independent")).unwrap_err().to_string();
         assert!(error.contains("reason=evidence_double_counted"));
-        let joint=left.joint_law_with(&[&right],Some("aligned")).unwrap();
-        assert_eq!(joint.shape(),[8,2]);
-        for (row,values) in joint.draws().chunks_exact(2).enumerate() {
-            assert_eq!(values[0],left.report.columns[0].samples[row].unwrap());
-            assert_eq!(values[1],right.report.columns[0].samples[row].unwrap());
+        let joint = left.joint_law_with(&[&right], Some("aligned")).unwrap();
+        assert_eq!(joint.shape(), [8, 2]);
+        for (row, values) in joint.draws().chunks_exact(2).enumerate() {
+            assert_eq!(values[0], left.report.columns[0].samples[row].unwrap());
+            assert_eq!(values[1], right.report.columns[0].samples[row].unwrap());
         }
         assert!(joint.metadata().weights.is_some());
-        let encoded=right.export(&ctx).unwrap();
-        let loaded=CyclicEvidence::consume(&encoded,right.identity(),&ctx).unwrap();
-        assert_eq!(loaded.report.recovery_origins,right.report.recovery_origins);
-        assert_eq!(loaded.export(&ctx).unwrap(),encoded);
-        let mut tampered=right.clone();
-        tampered.report.recovery_origins.as_mut().unwrap().fit="0".repeat(64);
-        tampered.report.identity=digest("antecedent.cyclic_evidence.v2",&(&tampered.report.source_identity,&tampered.schema,&tampered.selectors,&tampered.report.recovery_origins)).unwrap();
-        let resealed=tampered.export(&ctx).unwrap();
-        assert!(CyclicEvidence::consume(&resealed,tampered.identity(),&ctx).is_err());
-        assert_eq!(left.joint_law_with(&[&loaded],Some("aligned")).unwrap(),joint);
-        let different=Study::prepare_cyclic_family(&request(20),&ctx).unwrap().execute_retained(&ctx).unwrap();
-        let misaligned=branch(&different,4.0,&ctx).evidence(schema("other-seed"),selector(),&ctx).unwrap();
-        assert_eq!(misaligned.report.recovery_origins.as_ref().unwrap().evidence,a.evidence);
-        assert!(left.joint_law_with(&[&misaligned],Some("aligned")).unwrap_err().to_string().contains("draw_alignment_mismatch"));
-        assert!(left.joint_law_with(&[&misaligned],Some("independent")).unwrap_err().to_string().contains("evidence_double_counted"));
+        let encoded = right.export(&ctx).unwrap();
+        let loaded = CyclicEvidence::consume(&encoded, right.identity(), &ctx).unwrap();
+        assert_eq!(loaded.report.recovery_origins, right.report.recovery_origins);
+        assert_eq!(loaded.export(&ctx).unwrap(), encoded);
+        let mut tampered = right.clone();
+        tampered.report.recovery_origins.as_mut().unwrap().fit = "0".repeat(64);
+        tampered.report.identity = digest(
+            "antecedent.cyclic_evidence.v2",
+            &(
+                &tampered.report.source_identity,
+                &tampered.schema,
+                &tampered.selectors,
+                &tampered.report.recovery_origins,
+            ),
+        )
+        .unwrap();
+        let resealed = tampered.export(&ctx).unwrap();
+        assert!(CyclicEvidence::consume(&resealed, tampered.identity(), &ctx).is_err());
+        assert_eq!(left.joint_law_with(&[&loaded], Some("aligned")).unwrap(), joint);
+        let different = Study::prepare_cyclic_family(&request(20), &ctx)
+            .unwrap()
+            .execute_retained(&ctx)
+            .unwrap();
+        let misaligned =
+            branch(&different, 4.0, &ctx).evidence(schema("other-seed"), selector(), &ctx).unwrap();
+        assert_eq!(misaligned.report.recovery_origins.as_ref().unwrap().evidence, a.evidence);
+        assert!(
+            left.joint_law_with(&[&misaligned], Some("aligned"))
+                .unwrap_err()
+                .to_string()
+                .contains("draw_alignment_mismatch")
+        );
+        assert!(
+            left.joint_law_with(&[&misaligned], Some("independent"))
+                .unwrap_err()
+                .to_string()
+                .contains("evidence_double_counted")
+        );
     }
     #[test]
     fn historical_v2_envelope_bytes_identity_and_origin_standing_are_preserved() {
-        let ctx=ExecutionContext::for_tests(19);
-        let executed=Study::prepare_cyclic_family(&request(19),&ctx).unwrap().execute_retained(&ctx).unwrap();
-        let legacy=CyclicEvidence::build_version(executed.request(),executed.shared_report(),
-            CyclicEvidenceSource::Live(Arc::new(executed.clone())),schema("historical"),selector(),2,&ctx).unwrap();
+        let ctx = ExecutionContext::for_tests(19);
+        let executed = Study::prepare_cyclic_family(&request(19), &ctx)
+            .unwrap()
+            .execute_retained(&ctx)
+            .unwrap();
+        let legacy = CyclicEvidence::build_version(
+            executed.request(),
+            executed.shared_report(),
+            CyclicEvidenceSource::Live(Arc::new(executed.clone())),
+            schema("historical"),
+            selector(),
+            2,
+            &ctx,
+        )
+        .unwrap();
         #[derive(Serialize)]
-        struct HistoricalReport<'a> { identity:&'a str,source_identity:&'a str,scope:&'a str,columns:&'a [CyclicEvidenceColumn],source:&'a CyclicFamilyReport }
-        let report=&legacy.report;
-        let historical=HistoricalReport { identity:&report.identity,source_identity:&report.source_identity,
-            scope:&report.scope,columns:&report.columns,source:&report.source };
-        assert_eq!(antecedent_io::to_cbor(&historical).unwrap(),antecedent_io::to_cbor(report).unwrap());
+        struct HistoricalReport<'a> {
+            identity: &'a str,
+            source_identity: &'a str,
+            scope: &'a str,
+            columns: &'a [CyclicEvidenceColumn],
+            source: &'a CyclicFamilyReport,
+        }
+        let report = &legacy.report;
+        let historical = HistoricalReport {
+            identity: &report.identity,
+            source_identity: &report.source_identity,
+            scope: &report.scope,
+            columns: &report.columns,
+            source: &report.source,
+        };
+        assert_eq!(
+            antecedent_io::to_cbor(&historical).unwrap(),
+            antecedent_io::to_cbor(report).unwrap()
+        );
         assert!(legacy.report.recovery_origins.is_none());
-        assert_eq!(legacy.identity(),digest("antecedent.cyclic_evidence.v1",&(&report.source_identity,&legacy.schema,&legacy.selectors)).unwrap());
-        assert_eq!(legacy.envelopes()[0].binding().origins.training.as_deref(),Some(legacy.source_identity()));
-        let bytes=legacy.export(&ctx).unwrap();
-        let consumed=CyclicEvidence::consume(&bytes,legacy.identity(),&ctx).unwrap();
-        assert_eq!(consumed.report,legacy.report);
-        assert_eq!(consumed.export(&ctx).unwrap(),bytes);
-        assert!(consumed.joint_law_with(&[&legacy],Some("aligned")).unwrap_err().to_string().contains("legacy_alignment_unavailable"));
+        assert_eq!(
+            legacy.identity(),
+            digest(
+                "antecedent.cyclic_evidence.v1",
+                &(&report.source_identity, &legacy.schema, &legacy.selectors)
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            legacy.envelopes()[0].binding().origins.training.as_deref(),
+            Some(legacy.source_identity())
+        );
+        let bytes = legacy.export(&ctx).unwrap();
+        let consumed = CyclicEvidence::consume(&bytes, legacy.identity(), &ctx).unwrap();
+        assert_eq!(consumed.report, legacy.report);
+        assert_eq!(consumed.export(&ctx).unwrap(), bytes);
+        assert!(
+            consumed
+                .joint_law_with(&[&legacy], Some("aligned"))
+                .unwrap_err()
+                .to_string()
+                .contains("legacy_alignment_unavailable")
+        );
     }
 }

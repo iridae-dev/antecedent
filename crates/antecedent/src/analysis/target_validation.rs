@@ -331,6 +331,20 @@ pub fn result_target_values(
                 .ok_or_else(|| refuse("no counterfactual payload to refute"))?;
             labelled("unit", &ite.unit_effects)
         }
+        _ if result.counterfactual_contrasts().is_some() => {
+            let set = result
+                .counterfactual_contrasts()
+                .ok_or_else(|| refuse("no counterfactual payload to refute"))?;
+            (
+                set.contrasts
+                    .iter()
+                    .map(|contrast| {
+                        Arc::<str>::from(format!("mean_ite[{}]", contrast.outcome.raw()))
+                    })
+                    .collect(),
+                set.contrasts.iter().map(|contrast| contrast.mean_ite).collect(),
+            )
+        }
         _ if result.counterfactual().is_some() => {
             let ite = result
                 .counterfactual()
@@ -1297,7 +1311,7 @@ impl PreparedRefit<'_> {
         data: &Modal,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        study.refute = crate::analysis::builder::RefuteSuite::None;
+        study.settings.refute = crate::analysis::builder::RefuteSuite::None;
         study.data = match data {
             Modal::Tabular(d) => DataInput::Tabular(d.clone()),
             Modal::Series(d) => match &study.data {
@@ -2525,7 +2539,7 @@ impl PreparedRefit<'_> {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<TargetRefutationReport, TargetRefitError> {
-        let InferenceMode::Bayesian(config) = &self.study().inference else {
+        let InferenceMode::Bayesian(config) = &self.study().settings.inference else {
             return Err(unsupported(
                 "prior sensitivity reads a posterior; the study is frequentist",
                 "prepare the study with Bayesian inference",
@@ -2557,7 +2571,7 @@ impl PreparedRefit<'_> {
                 }
                 None => alternative.prior_scale *= factor,
             }
-            study.inference = InferenceMode::Bayesian(alternative);
+            study.settings.inference = InferenceMode::Bayesian(alternative);
             let refitted =
                 Self::compile_and_run(study, &self.modal_data(), ctx).map_err(|error| {
                     unsupported(
@@ -3038,8 +3052,8 @@ impl PreparedRefit<'_> {
                 } else {
                     // The derivative's own estimator may not serve a mean curve; let the
                     // compiler choose the curve estimator of the same data and graph.
-                    study.estimator = None;
-                    study.estimator_spec = None;
+                    study.declared.estimator = None;
+                    study.declared.estimator_spec = None;
                     Self::compile_and_run(study, &self.modal_data(), ctx).map_err(|error| {
                         unsupported(
                             format!("the study's mean curve did not run: {error}"),
@@ -3290,8 +3304,8 @@ impl PreparedRefit<'_> {
             let result = if let Ok(result) = run(study.clone()) {
                 result
             } else {
-                study.estimator = None;
-                study.estimator_spec = None;
+                study.declared.estimator = None;
+                study.declared.estimator_spec = None;
                 run(study).map_err(|error| {
                     ValidationError::estimation_msg(format!(
                         "the interventional mean did not run: {error}"

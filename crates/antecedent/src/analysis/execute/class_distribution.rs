@@ -141,7 +141,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        super::static_path::ensure_admg_distribution_licensed(query, self.refute)?;
+        super::static_path::ensure_admg_distribution_licensed(query, self.settings.refute)?;
         let started = Instant::now();
         let (identifier_id, estimator_id) =
             physical.binding().resolve(RouteDefaults::DISTRIBUTION)?;
@@ -236,7 +236,7 @@ impl super::Study {
 
         let (row_resampling, sampling_design) = self.functional_row_resampling()?;
         let fitter = FunctionalDistribution {
-            bootstrap_replicates: self.bootstrap_replicates,
+            bootstrap_replicates: self.settings.bootstrap_replicates,
             ..FunctionalDistribution::new()
         }
         .with_row_resampling(row_resampling, sampling_design);

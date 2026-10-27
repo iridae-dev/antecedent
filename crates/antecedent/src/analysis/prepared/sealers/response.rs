@@ -19,11 +19,11 @@ pub(super) fn derivative_response(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match (cx.static_response_dag(), analysis.static_cache()) {
         (Some((query, graph)), Some(cache))
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.refute == RefuteSuite::None
-                && analysis.custom_validators.is_empty()
+                && analysis.declared.tiered.is_none()
+                && analysis.settings.refute == RefuteSuite::None
+                && analysis.declared.custom_validators.is_empty()
                 && matches!(
-                    analysis.inference,
+                    analysis.settings.inference,
                     InferenceMode::Frequentist | InferenceMode::Bayesian(_)
                 )
                 && query.temporal.is_none()
@@ -45,7 +45,7 @@ pub(super) fn derivative_response(cx: &SealContext<'_>) -> SealOutcome {
                 cache,
                 identifier,
                 estimator,
-                analysis.inference.clone(),
+                analysis.settings.inference.clone(),
                 analysis.response_options.clone().unwrap_or_default(),
             )?)
         }
@@ -59,15 +59,15 @@ pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match (cx.static_response_dag(), analysis.static_cache()) {
         (Some((query, graph)), Some(cache))
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
+                && analysis.declared.tiered.is_none()
                 && matches!(
                     analysis.structure_source,
                     crate::support::StructureSource::Explicit
                         | crate::support::StructureSource::Accepted
                 )
-                && analysis.custom_validators.is_empty()
+                && analysis.declared.custom_validators.is_empty()
                 && matches!(
-                    analysis.inference,
+                    analysis.settings.inference,
                     InferenceMode::Frequentist | InferenceMode::Bayesian(_)
                 )
                 && query.temporal.is_none()
@@ -77,18 +77,20 @@ pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
                 && (matches!(
                     query.functional,
                     antecedent_core::ResponseFunctional::MeanCurve { .. }
-                ) && analysis.refute == RefuteSuite::None
+                ) && analysis.settings.refute == RefuteSuite::None
                     || matches!(
                         query.functional,
                         antecedent_core::ResponseFunctional::InterventionResponse { .. }
-                    ) && (matches!(analysis.inference, InferenceMode::Frequentist)
-                        || matches!(
-                            analysis.refute,
-                            RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
-                        ))) =>
+                    ) && (matches!(
+                        analysis.settings.inference,
+                        InferenceMode::Frequentist
+                    ) || matches!(
+                        analysis.settings.refute,
+                        RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                    ))) =>
         {
             let (identifier, estimator) = cx.binding.resolve(RouteDefaults::RESPONSE)?;
-            let bayesian = matches!(analysis.inference, InferenceMode::Bayesian(_));
+            let bayesian = matches!(analysis.settings.inference, InferenceMode::Bayesian(_));
             if bayesian && estimator == crate::strategy_table::EstimatorId::ResponseBayesian
                 || !bayesian
                     && estimator == crate::strategy_table::EstimatorId::ResponseKennedyDr
@@ -111,8 +113,8 @@ pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
                         identifier,
                         estimator,
                         options: analysis.response_options.clone().unwrap_or_default(),
-                        inference: analysis.inference.clone(),
-                        refute: analysis.refute,
+                        inference: analysis.settings.inference.clone(),
+                        refute: analysis.settings.refute,
                     },
                 )?)
             } else {
@@ -129,7 +131,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match (cx.route, analysis.static_cache()) {
         (Some(RouteInput::StaticResponseDag { query, graph, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
+                && analysis.declared.tiered.is_none()
                 && matches!(
                     analysis.structure_source,
                     crate::support::StructureSource::Explicit
@@ -138,10 +140,10 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
         {
             let (identifier, estimator) = cx.binding.resolve(RouteDefaults::RESPONSE)?;
             if estimator == crate::strategy_table::EstimatorId::CellAipw
-                && analysis.custom_validators.is_empty()
+                && analysis.declared.custom_validators.is_empty()
                 && analysis.shared_batch_design.is_none()
                 && analysis.continuous_cell.is_none()
-                && matches!(analysis.inference, InferenceMode::Frequentist)
+                && matches!(analysis.settings.inference, InferenceMode::Frequentist)
             {
                 Some(crate::analysis::execute::CheckedCellAipwResponseOperation::checked(
                     crate::analysis::execute::CheckedCellAipwResponseOperationPremises {
@@ -152,7 +154,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
                         identifier,
                         estimator,
                         fold_seed: ctx.rng.master_seed(),
-                        validation: analysis.refute,
+                        validation: analysis.settings.refute,
                         origin: if analysis.structure_source
                             == crate::support::StructureSource::Accepted
                         {
@@ -170,14 +172,14 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
         (Some(RouteInput::CodeterminedJoint { query, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.structure_source == crate::support::StructureSource::Explicit
-                && analysis.custom_validators.is_empty()
+                && analysis.declared.custom_validators.is_empty()
                 && analysis.shared_batch_design.is_none()
                 && analysis.continuous_cell.is_none()
-                && matches!(analysis.inference, InferenceMode::Frequentist)
+                && matches!(analysis.settings.inference, InferenceMode::Frequentist)
                 && cx.binding.names(IdentifierId::GeneralizedAdjustment, EstimatorId::CellAipw) =>
         {
             let (Some(admg), Some(background)) =
-                (analysis.graph.as_admg(), analysis.tiered.as_ref())
+                (analysis.graph.as_admg(), analysis.declared.tiered.as_ref())
             else {
                 return Err(CausalError::Compile {
                     message: "CoDetermined joint cell prepare lost its closure ADMG or tiers"
@@ -196,7 +198,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
                     identifier: crate::strategy_table::IdentifierId::GeneralizedAdjustment,
                     estimator: crate::strategy_table::EstimatorId::CellAipw,
                     fold_seed: ctx.rng.master_seed(),
-                    validation: analysis.refute,
+                    validation: analysis.settings.refute,
                     origin: crate::analysis::execute::DagResponseOrigin::Explicit,
                     plan: Some(&**cx.plan),
                 },
@@ -218,7 +220,7 @@ pub(super) fn static_response_curve(cx: &SealContext<'_>) -> SealOutcome {
                     query.functional,
                     antecedent_core::ResponseFunctional::MeanCurve { .. }
                 )
-                && matches!(analysis.inference, InferenceMode::Frequentist)
+                && matches!(analysis.settings.inference, InferenceMode::Frequentist)
                 && cx.binding.runs_defaults(RouteDefaults::RESPONSE) =>
         {
             let antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } =

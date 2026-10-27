@@ -748,7 +748,8 @@ impl BayesianSession {
             .live
             .as_ref()
             .ok_or(RecalcRunError::NoLiveState(antecedent_core::recalc::Stage::ScoreArtifact))?;
-        let crate::InferenceMode::Bayesian(config) = &live.prepared.study().inference else {
+        let crate::InferenceMode::Bayesian(config) = &live.prepared.study().settings.inference
+        else {
             return Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnsupported));
         };
         if live.model != BayesianModel::Gaussian

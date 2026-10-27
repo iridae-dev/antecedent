@@ -552,7 +552,9 @@ pub(crate) use checked_temporal_response::{
     CheckedTemporalResponseOperation, TemporalResponseHorizonEvidence, temporal_response_is_direct,
 };
 pub use execute::{CheckedBayesianSpecialistInfo, CheckedTransportTrialInfo};
-pub(crate) use execute::{parametric_scm_identification, response_witness_ate};
+pub(crate) use execute::{
+    parametric_scm_identification, parametric_scm_identification_over, response_witness_ate,
+};
 
 pub mod proposal_arrival;
 pub mod recalc_attempt;

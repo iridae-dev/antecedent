@@ -5,13 +5,13 @@
 use super::estimate::{ClickNotes, ClickScores, Rebound};
 use super::sealed::{SeriesCall, SeriesEntry};
 use super::{
-    overlay_prepared_score_functional, PreparedExecution, PreparedModality, PreparedStudy,
+    PreparedExecution, PreparedModality, PreparedStudy, overlay_prepared_score_functional,
 };
 use crate::analysis::builder::{DataInput, RefuteSuite};
 use crate::analysis::execute::Study;
-use crate::analysis::helpers::{project_for_ate_estimate, RefutationRun};
+use crate::analysis::helpers::{RefutationRun, project_for_ate_estimate};
 use crate::analysis::route_guards::series_input;
-use crate::analysis::stage::{StageClock, STAGE_VALIDATE};
+use crate::analysis::stage::{STAGE_VALIDATE, StageClock};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::RouteDefaults;
@@ -221,7 +221,7 @@ impl PreparedStudy {
         use crate::estimator_spec::EstimatorSpec;
         use crate::strategy_table::EstimatorId;
 
-        if self.analysis.estimator != Some(EstimatorId::Aipw)
+        if self.analysis.declared.estimator != Some(EstimatorId::Aipw)
             || !matches!(self.analysis.query, CausalQuery::AverageEffect(_))
             || self.analysis.static_cache().is_none()
             || !matches!(
@@ -230,8 +230,7 @@ impl PreparedStudy {
             )
         {
             return Err(CausalError::Unsupported {
-                message:
-                    "AIPW configuration refresh requires the same checked average-effect study",
+                message: "AIPW configuration refresh requires the same checked average-effect study",
             });
         }
 
@@ -253,10 +252,10 @@ impl PreparedStudy {
         Arc::make_mut(&mut self.analysis.config).estimator_spec_identity =
             Some(crate::analysis::contract_identity::estimator_spec_identity(&spec));
         if let Some(replicates) = spec.bootstrap_replicates() {
-            self.analysis.bootstrap_replicates = replicates;
+            self.analysis.settings.bootstrap_replicates = replicates;
         }
-        self.analysis.overlap_policy = None;
-        self.analysis.estimator_spec = Some(Arc::new(spec));
+        self.analysis.declared.overlap_policy = None;
+        self.analysis.declared.estimator_spec = Some(Arc::new(spec));
         self.program_cache = std::sync::OnceLock::new();
         self.contract_cache = std::sync::OnceLock::new();
         self.inspection_header = std::sync::OnceLock::new();
@@ -408,8 +407,11 @@ impl PreparedStudy {
             // any data-bound evidence (such as the fixed interference
             // network), so the result is bound once, to the snapshot the
             // handle actually retains.
-            result.executed_contract =
-                Some(self.executed_contract(&self.analysis.data, self.analysis.refute, None)?);
+            result.executed_contract = Some(self.executed_contract(
+                &self.analysis.data,
+                self.analysis.settings.refute,
+                None,
+            )?);
             return Ok(result);
         }
         let mut result = refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?;
@@ -480,7 +482,7 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         use crate::strategy_table::EstimatorId;
         if !matches!(spec.id(), EstimatorId::Dml | EstimatorId::DrLearner)
-            || self.analysis.estimator != Some(spec.id())
+            || self.analysis.declared.estimator != Some(spec.id())
             || !self.execution.runs_shared_dispatch()
             || self.analysis.static_cache().is_none()
         {
@@ -544,7 +546,7 @@ impl PreparedStudy {
                     .into(),
             });
         }
-        if matches!(self.analysis.inference, InferenceMode::Bayesian(_)) {
+        if matches!(self.analysis.settings.inference, InferenceMode::Bayesian(_)) {
             return self.refute_bayesian_rerun(prior, data, suite, ctx);
         }
         let estimator = self.plan.binding().estimator_or(RouteDefaults::STATIC_ATE)?;
@@ -569,7 +571,7 @@ impl PreparedStudy {
             estimate: effect,
             suite,
             estimator: estimator.as_str(),
-            custom: &self.analysis.custom_validators,
+            custom: &self.analysis.declared.custom_validators,
             temporal: None,
         }
         .reports(&mut workspace, None, ctx)?;
@@ -647,7 +649,7 @@ impl PreparedStudy {
         // retain the prior point/identification while replacing validation state.
         let started = Instant::now();
         let mut analysis = self.analysis.clone();
-        analysis.refute = suite;
+        analysis.settings.refute = suite;
         let validated = analysis.execute_on(
             &DataInput::Tabular(data.clone()),
             &self.plan,
@@ -670,11 +672,11 @@ impl PreparedStudy {
                 crate::support::matrix_graph_class(
                     &analysis.graph,
                     &analysis.query,
-                    analysis.tiered.as_ref(),
+                    analysis.declared.tiered.as_ref(),
                 )
             },
             analysis.structure_source,
-            &analysis.inference,
+            &analysis.settings.inference,
             suite,
         );
         if suite_cell.is_some_and(crate::support::executes_unlicensed) {
@@ -830,7 +832,7 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let mut complete = study.clone();
-        complete.missing = None;
+        complete.declared.missing = None;
         crate::analysis::missing_imputation::impute_fit_pool_series(
             study,
             data,

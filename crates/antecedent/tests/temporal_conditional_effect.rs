@@ -84,9 +84,9 @@ fn temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point() {
                 drop(study);
                 let result = prepared.estimate_retained(&ctx).unwrap();
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.05,
+                    (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.05,
                     "sustained={sustained} accepted={accepted} bayesian={bayesian} ate={}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 let plan = &result.logical_plan;
                 assert!(
@@ -95,14 +95,14 @@ fn temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point() {
                         .iter()
                         .any(|d| { d.code.as_ref() == "estimate.temporal.conditional_marginal" }),
                     "ate={} diagnostics={:?}",
-                    result.estimate.as_effect().unwrap().ate,
+                    result.estimate().as_effect().unwrap().ate,
                     result.diagnostics.iter().map(|d| d.code.as_ref()).collect::<Vec<_>>()
                 );
                 // Bayesian: the tempered slope posterior's credible interval. Frequentist:
                 // the shared circular-block interval, withheld when this exact-fit fixture
                 // leaves the replicates without spread.
                 assert_eq!(result.posterior.is_some(), bayesian);
-                let method = result.interval.as_ref().map(|binding| binding.method);
+                let method = result.interval().as_ref().map(|binding| binding.method);
                 if bayesian {
                     assert_eq!(method, Some(antecedent_core::IntervalMethod::PosteriorQuantile));
                 } else {
@@ -189,7 +189,7 @@ fn multi_step_sustained_effect_uses_a_named_modifier() {
             .unwrap();
         let one_shot = study.run(&ctx).unwrap();
         let retained = study.prepare(&ctx).unwrap().estimate_retained(&ctx).unwrap();
-        (one_shot.estimate.as_effect().unwrap().ate, retained.estimate.as_effect().unwrap().ate)
+        (one_shot.estimate().as_effect().unwrap().ate, retained.estimate().as_effect().unwrap().ate)
     };
     let (fresh, retained) = run(modified);
     let (plain_fresh, plain_retained) = run(base);

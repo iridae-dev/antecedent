@@ -78,7 +78,7 @@ fn fit(effect: f64) -> (Vec<u8>, antecedent_estimate::FittedEffect) {
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
     let fitted = result
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .heterogeneity

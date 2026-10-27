@@ -132,7 +132,7 @@ fn moved_outcome(cell: Cell, treatment: &[f64], outcome: &[f64], effect: f64) ->
 }
 
 fn ate(result: &StudyResult) -> f64 {
-    result.estimate.as_effect().expect("effect").ate
+    result.estimate().as_effect().expect("effect").ate
 }
 
 fn fact(markdown: &str, key: &str) -> String {

@@ -1464,8 +1464,7 @@ fn decode_decision(
     if expected.is_some_and(|id| id != decision_artifact_identity(bytes)) {
         return Err(FlagshipError::Route("decision artifact identity mismatch"));
     }
-    let record: DecisionRecord =
-        serde_json::from_slice(bytes)?;
+    let record: DecisionRecord = serde_json::from_slice(bytes)?;
     if record.version != 2 {
         return Err(FlagshipError::Route("unsupported decision artifact version"));
     }

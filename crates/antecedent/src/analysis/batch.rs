@@ -1258,7 +1258,8 @@ impl PreparedBatch {
                     });
                 }
                 let (result, used) = nuisances.scope(|| {
-                    let (mut ready, scores_owed) = bound.plans[index].materialize_for_estimate(inner)?;
+                    let (mut ready, scores_owed) =
+                        bound.plans[index].materialize_for_estimate(inner)?;
                     let result = ready.estimate_with_shared(data, shared.clone(), inner)?;
                     if let Some(from_shared_design) = scores_owed {
                         ready.retain_estimated_scores(&result, from_shared_design, inner)?;

@@ -54,13 +54,12 @@ fn round_trip(label: &str, study: &Study) {
     let bytes = prepared
         .encode_contracted_result(&result, &format!("class-route-{label}"), &ctx)
         .unwrap_or_else(|e| panic!("{label}: encode: {e}"));
-    let again = prepared
-        .encode_contracted_result(&result, &format!("class-route-{label}"), &ctx)
-        .unwrap();
+    let again =
+        prepared.encode_contracted_result(&result, &format!("class-route-{label}"), &ctx).unwrap();
     assert_eq!(bytes, again, "{label}: the encoding is deterministic");
     let consumed = consume_analysis_result(&bytes).unwrap_or_else(|e| panic!("{label}: {e}"));
     // A scalar the route did not publish (an attribution has none) is absent from the artifact.
-    match result.estimate.as_effect().map(|effect| effect.ate).filter(|ate| ate.is_finite()) {
+    match result.estimate().as_effect().map(|effect| effect.ate).filter(|ate| ate.is_finite()) {
         Some(ate) => assert_eq!(consumed.body.estimate, Some(ate), "{label}: artifact estimate"),
         None => assert_eq!(consumed.body.estimate, None, "{label}: no scalar published"),
     }

@@ -40,7 +40,7 @@ use crate::result::{ImputationReport, StudyResult};
 
 /// The declared imputation of `study`, when its policy is multiple imputation.
 pub(crate) fn declared_imputation(study: &Study) -> Option<(&MissingDeclaration, ImputationSpec)> {
-    let declaration = study.missing.as_ref()?;
+    let declaration = study.declared.missing.as_ref()?;
     declaration.policy.imputation().map(|spec| (declaration, spec))
 }
 
@@ -128,8 +128,9 @@ pub(super) fn build_imputer_with(
         columns.push(ImputationColumn::new(name, values));
     }
     columns.extend(extra);
-    let units = multiple_imputation::bind_units(study.sampling_design, groups, data.row_count())
-        .map_err(|error| CausalError::Estimate(error.into()))?;
+    let units =
+        multiple_imputation::bind_units(study.declared.sampling_design, groups, data.row_count())
+            .map_err(|error| CausalError::Estimate(error.into()))?;
     let imputer =
         Imputer::new(columns, spec, units).map_err(|error| CausalError::Estimate(error.into()))?;
     // A treatment-by-modifier target reads a dependence an additive conditional model cannot
@@ -156,7 +157,10 @@ fn treatment_modifier_pairs(
         _ => return Vec::new(),
     };
     let name = |id: VariableId| {
-        model.contains(&id).then(|| data.schema().get(id).ok().map(|v| Arc::clone(&v.name))).flatten()
+        model
+            .contains(&id)
+            .then(|| data.schema().get(id).ok().map(|v| Arc::clone(&v.name)))
+            .flatten()
     };
     let Some(treatment) = name(average.treatment) else { return Vec::new() };
     average
@@ -263,11 +267,11 @@ where
     }
     let (declaration, spec) =
         declared_imputation(study).ok_or_else(|| refused("no imputation is declared"))?;
-    let cell = missing_data::route_cell(&study.query, &study.data, &study.inference);
+    let cell = missing_data::route_cell(&study.query, &study.data, &study.settings.inference);
     let row = route_missing_support(cell)
         .filter(|row| row.supports(declaration.policy))
         .ok_or_else(|| refused("this route cell does not execute multiple imputation"))?;
-    let bayesian = study.inference.is_bayesian();
+    let bayesian = study.settings.inference.is_bayesian();
     let (imputer, ids) = build_imputer(study, declaration, spec, data)?;
     let imputed: Vec<usize> = imputer
         .variables()
@@ -309,7 +313,7 @@ where
     })?;
     let mut result = base.ok_or_else(|| refused("no completed table was fitted"))?;
     let mut assumptions = run.assumptions.clone();
-    assumptions.design = study.sampling_design;
+    assumptions.design = study.declared.sampling_design;
     let assumptions_digest: Arc<str> = Arc::from(assumptions.digest());
     let points: Arc<[f64]> = run.fits.iter().map(|fit| fit.point).collect();
     let estimator: Arc<str> = Arc::from(result.logical_plan.estimator.as_deref().unwrap_or(""));

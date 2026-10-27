@@ -19,12 +19,12 @@ use std::sync::Arc;
 
 use antecedent::analysis::evidence_plan::{EvidencePlanRequest, STUDY_POPULATION};
 use antecedent::analysis::fallback::{
-    fallback_roles, FallbackOutcome, FallbackPart, FallbackRequest, RankedPlan,
+    FallbackOutcome, FallbackPart, FallbackRequest, RankedPlan, fallback_roles,
 };
-use antecedent::host::{fallback_response, host_schema, HostStatus};
-use antecedent::report::{render_fallback_report, ReportFormat};
+use antecedent::host::{HostStatus, fallback_response, host_schema};
+use antecedent::report::{ReportFormat, render_fallback_report};
 use antecedent::{
-    CausalError, InferenceMode, RefuteSuite, Study, StudyResult, IDENTIFICATION_REFUSAL_CODES,
+    CausalError, IDENTIFICATION_REFUSAL_CODES, InferenceMode, RefuteSuite, Study, StudyResult,
 };
 use antecedent_contract::{ClaimKind, DomainStatus};
 use antecedent_core::{
@@ -199,7 +199,7 @@ fn an_unmeasured_confounder_returns_the_refusal_a_noncausal_description_and_the_
     assert_eq!(part.claim.domains.identification, DomainStatus::NotClaimed);
     let payload = part.result.association().expect("an association payload");
     assert_eq!(payload.refused_after.as_deref(), Some("effect_not_identified"));
-    assert!(part.result.estimate.as_effect().is_none(), "an association is no effect estimate");
+    assert!(part.result.estimate().as_effect().is_none(), "an association is no effect estimate");
     assert_eq!(
         payload.estimate.terms.len(),
         2,
@@ -255,11 +255,13 @@ fn a_hedge_returns_the_refusal_the_description_and_a_ranked_plan_over_declared_s
     let actions: Vec<&str> = needs.next_actions.iter().map(|a| a.id.as_ref()).collect();
     assert!(actions.iter().any(|id| id.starts_with("run_experiment:")), "{actions:?}");
     // A study supplies data, never an assumption: an assumption obligation is not satisfiable.
-    assert!(needs
-        .obligations
-        .iter()
-        .filter(|o| o.kind == antecedent_contract::EvidenceObligationKind::EstablishAssumption)
-        .all(|o| !o.satisfiable_by_study()));
+    assert!(
+        needs
+            .obligations
+            .iter()
+            .filter(|o| o.kind == antecedent_contract::EvidenceObligationKind::EstablishAssumption)
+            .all(|o| !o.satisfiable_by_study())
+    );
 }
 
 #[test]
@@ -281,11 +283,11 @@ fn a_successful_causal_query_returns_the_ordinary_result_and_never_a_fallback() 
         panic!("an identified query must return its ordinary result");
     };
     let ordinary: StudyResult = study.run(&ctx(3)).unwrap();
-    assert!(result.estimate.as_effect().is_some());
+    assert!(result.estimate().as_effect().is_some());
     assert!(result.association().is_none());
     assert_eq!(
-        result.estimate.as_effect().unwrap().ate,
-        ordinary.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate,
+        ordinary.estimate().as_effect().unwrap().ate
     );
 }
 
@@ -416,8 +418,8 @@ fn without_the_option_a_refusal_and_a_success_are_reproduced_exactly() {
         panic!("an identified query is never described");
     };
     assert_eq!(
-        plain.estimate.as_effect().unwrap().ate.to_bits(),
-        with_option.estimate.as_effect().unwrap().ate.to_bits()
+        plain.estimate().as_effect().unwrap().ate.to_bits(),
+        with_option.estimate().as_effect().unwrap().ate.to_bits()
     );
     assert!(with_option.association().is_none());
 }
@@ -432,7 +434,7 @@ fn the_association_ranks_no_action_for_either_fixture() {
         assert!(!fallback.answers_causal_question());
         let part = fallback.associational.as_ref().expect("an association form exists");
         assert!(!part.claim.kind.is_causal());
-        assert!(part.result.estimate.as_effect().is_none());
+        assert!(part.result.estimate().as_effect().is_none());
         // Only the evidence plan orders anything, and it orders studies, not actions on the
         // outcome; the host record states the association's own flag.
         let record = fallback_response(&fallback);

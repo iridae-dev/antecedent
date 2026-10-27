@@ -89,8 +89,8 @@ fn bayesian_gcomp_on_the_treated_and_untreated_recovers_each_arms_model_based_ef
     assert!((att - atc).abs() > 0.3, "the arms must differ for the check to bite");
     let treated = static_effect(&data, TargetPopulation::Treated);
     let untreated = static_effect(&data, TargetPopulation::Untreated);
-    let ate_treated = treated.estimate.as_effect().unwrap().ate;
-    let ate_untreated = untreated.estimate.as_effect().unwrap().ate;
+    let ate_treated = treated.estimate().as_effect().unwrap().ate;
+    let ate_untreated = untreated.estimate().as_effect().unwrap().ate;
     assert!((ate_treated - att).abs() < 0.06, "treated {ate_treated} vs {att}");
     assert!((ate_untreated - atc).abs() < 0.06, "untreated {ate_untreated} vs {atc}");
     for result in [&treated, &untreated] {
@@ -198,7 +198,7 @@ fn the_history_outcome_model_reports_a_model_based_effect_on_the_treated() {
     let column = posterior.effect_column().expect("the effect on the treated");
     let ate = posterior.summaries.mean[column];
     assert!((ate - truth).abs() < 0.06, "posterior effect {ate} vs effect on treated {truth}");
-    assert!(result.support_status.is_none(), "the route is unlicensed");
+    assert!(result.support_status().is_none(), "the route is unlicensed");
     let carries = |id: &str| {
         result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|record| {
             matches!(&record.assumption, Assumption::Custom { id: name, .. } if name.as_ref() == id)

@@ -709,15 +709,14 @@ fn requests_outside_the_cell_refuse_with_their_details() {
         assert!(validate(&q, &base, &at_reference).is_ok(), "{at_reference:?}");
         assert!(validate(&q, &base, &past_reference).is_ok(), "{past_reference:?}");
     }
-    assert!(validate(&q, &base, &SmoothedDoseOptions { quadrature_nodes: 32, ..options() }).is_ok());
+    assert!(
+        validate(&q, &base, &SmoothedDoseOptions { quadrature_nodes: 32, ..options() }).is_ok()
+    );
     for refused in [
         SmoothedDoseOptions { quadrature_nodes: 64, ..options() },
         SmoothedDoseOptions { quadrature_nodes: 8, ..options() },
         SmoothedDoseOptions { folds: 65_536, ..options() },
-        SmoothedDoseOptions {
-            basis: DoseBasis { degree: 0, ..DoseBasis::default() },
-            ..options()
-        },
+        SmoothedDoseOptions { basis: DoseBasis { degree: 0, ..DoseBasis::default() }, ..options() },
     ] {
         assert!(bounds_refused(validate(&q, &base, &refused)), "{refused:?}");
     }
@@ -1669,11 +1668,7 @@ fn the_io_wire_consumes_bytes_directly_under_its_own_limits() {
     );
     assert!(SmoothedDoseArtifactWire::consume(&looser, limits, &ctx).is_ok());
     assert_eq!(
-        coded(
-            &mutate(&original, |w| w.bounds.quadrature_nodes = [32, 32], true),
-            limits,
-            &ctx
-        ),
+        coded(&mutate(&original, |w| w.bounds.quadrature_nodes = [32, 32], true), limits, &ctx),
         Refusal::LimitsExceeded("request above the stored frozen bounds")
     );
     assert_eq!(

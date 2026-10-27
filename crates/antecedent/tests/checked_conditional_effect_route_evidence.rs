@@ -232,8 +232,8 @@ fn conditional_grid_and_quantile_retain_distribution_score_procedure() {
         assert_eq!(plan.procedure.as_ref(), "crossfit_aipw_distribution_scores");
         assert_eq!(plan.query.inner.outcome_functional, functional);
         let result = prepared.estimate(&route_data, &ctx).unwrap();
-        assert!(result.estimate.as_effect().unwrap().joint.exceedance_cdf.is_some());
-        assert!(result.estimate.as_effect().unwrap().joint.covariance.is_some());
+        assert!(result.estimate().as_effect().unwrap().joint.exceedance_cdf.is_some());
+        assert!(result.estimate().as_effect().unwrap().joint.covariance.is_some());
         let refreshed_data = if matches!(functional, OutcomeFunctional::Quantile(_)) {
             quantile_data()
         } else {
@@ -244,7 +244,7 @@ fn conditional_grid_and_quantile_retain_distribution_score_procedure() {
             panic!("retained conditional distribution operation after refresh")
         };
         assert_eq!(rebound.query, plan.query);
-        assert!(refreshed.estimate.as_effect().unwrap().joint.exceedance_cdf.is_some());
+        assert!(refreshed.estimate().as_effect().unwrap().joint.exceedance_cdf.is_some());
     }
 }
 

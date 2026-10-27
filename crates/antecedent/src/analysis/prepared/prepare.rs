@@ -2,14 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::sealers::{seal_deferred_execution, seal_execution, SealContext};
+use super::sealers::{SealContext, seal_deferred_execution, seal_execution};
 use super::{
-    build_admg_graph_posterior_response_identification_cache,
+    CachedTemporalClassIdentification, IdentificationCache, PreparedModality, PreparedStudy,
+    SampledPreparedState, build_admg_graph_posterior_response_identification_cache,
     build_dbn_posterior_identification_cache, build_dbn_posterior_mediation_identification_cache,
     build_dbn_posterior_response_identification_cache, build_graph_posterior_identification_cache,
     build_temporal_class_posterior_identification_cache, ensure_prepared_supported,
-    multi_env_regularity, CachedTemporalClassIdentification, IdentificationCache, PreparedModality,
-    PreparedStudy, SampledPreparedState,
+    multi_env_regularity,
 };
 use crate::accepted::{GraphClass, GraphRef};
 use crate::analysis::builder::DataInput;
@@ -115,9 +115,9 @@ impl Study {
         // the requested suite so each estimate validates (see `functional_validation`).
         if crate::analysis::functional_validation::requested(self) {
             let mut base = self.clone();
-            base.refute = crate::analysis::builder::RefuteSuite::None;
+            base.settings.refute = crate::analysis::builder::RefuteSuite::None;
             let mut handle = base.prepare_metered(ctx, materialized, previous)?;
-            handle.analysis.refute = self.refute;
+            handle.analysis.settings.refute = self.settings.refute;
             handle.program_cache = std::sync::OnceLock::new();
             handle.contract_cache = std::sync::OnceLock::new();
             handle.inspection_header = std::sync::OnceLock::new();
@@ -502,7 +502,7 @@ impl Study {
                     crate::analysis::identification_cache::build_interference_graph_posterior_identification_cache(
                         posterior,
                         query,
-                        &self.inference,
+                        &self.settings.inference,
                         ctx,
                     )?,
                 )))
@@ -702,7 +702,7 @@ impl Study {
                     posterior,
                     variables,
                     query,
-                    self.max_completions,
+                    self.declared.max_completions,
                     ctx,
                 )?,
             ))
@@ -732,7 +732,7 @@ impl Study {
                     posterior,
                     variables,
                     &witness,
-                    self.max_completions,
+                    self.declared.max_completions,
                     ctx,
                 )?,
             ))
@@ -777,7 +777,7 @@ impl Study {
                 posterior,
                 variables,
                 &witness,
-                self.max_completions,
+                self.declared.max_completions,
                 ctx,
             )?;
             if let Some(atom) = cache.class_atoms.first() {
@@ -788,7 +788,7 @@ impl Study {
             }
             caches.push(IdentificationCache::TemporalClassPosterior(Arc::new(cache)));
         } else {
-            let estimator_id = EstimatorId::temporal_response_for(&self.inference);
+            let estimator_id = EstimatorId::temporal_response_for(&self.settings.inference);
             caches.push(IdentificationCache::DbnPosterior(Arc::new(
                 build_dbn_posterior_response_identification_cache(
                     posterior,
@@ -899,7 +899,7 @@ impl PreparedStudy {
                 let mut ready = self.clone();
                 let mut source = self.analysis.clone();
                 if crate::analysis::functional_validation::requested(&source) {
-                    source.refute = crate::analysis::builder::RefuteSuite::None;
+                    source.settings.refute = crate::analysis::builder::RefuteSuite::None;
                 }
                 let counterfactual = source.compile_counterfactual()?;
                 let nested_counterfactual = source.compile_nested_counterfactual()?;

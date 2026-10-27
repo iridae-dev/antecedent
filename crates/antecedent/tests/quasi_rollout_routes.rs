@@ -120,7 +120,7 @@ fn staggered_rollout_recovers_heterogeneous_effects_where_two_way_fixed_effects_
             result.logical_plan.estimator.as_deref(),
             Some("quasi.staggered_heterogeneity_robust")
         );
-        assert_eq!(result.support_status, None, "the rollout route is unlicensed");
+        assert_eq!(result.support_status(), None, "the rollout route is unlicensed");
         let rollout = result.quasi_rollout().unwrap();
         assert_eq!(rollout.calibration.as_ref(), "unmeasured");
         assert!(!rollout.licensed);
@@ -260,7 +260,7 @@ fn the_bayesian_rollout_is_a_joint_bayesian_bootstrap_posterior_with_credible_ba
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.logical_plan.plan_id.as_ref(), "bayesian.panel_did");
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
     let posterior = result.posterior.as_ref().unwrap();
     assert!(posterior.draws.n_draws >= 380);
     let rollout = result.quasi_rollout().unwrap();
@@ -338,7 +338,7 @@ fn the_augmented_panel_publishes_a_whole_cluster_resample_interval() {
     let interval = fit.interval_95.unwrap();
     assert!(interval[0] < fit.effect && fit.effect < interval[1]);
     assert!(fit.uncertainty.contains("calibration_unmeasured"));
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
     assert!(has_assumption(&result, "independent_resampling_units"));
 }
 

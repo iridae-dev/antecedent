@@ -167,16 +167,14 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 .into(),
             ate_query(),
         ),
-        "ipw_hajek_bootstrap_ci_coverage" => builder(
-            PropensityWeighting::new().with_bootstrap_replicates(60).into(),
-            ate_query(),
-        ),
+        "ipw_hajek_bootstrap_ci_coverage" => {
+            builder(PropensityWeighting::new().with_bootstrap_replicates(60).into(), ate_query())
+        }
         "ipw_hajek_analytic_ci_coverage"
         | "ipw_hajek_analytic_conformance_scm_ci_coverage"
-        | "ipw_hajek_weak_overlap_adversarial_ci_coverage" => builder(
-            PropensityWeighting::new().with_bootstrap_replicates(0).into(),
-            ate_query(),
-        ),
+        | "ipw_hajek_weak_overlap_adversarial_ci_coverage" => {
+            builder(PropensityWeighting::new().with_bootstrap_replicates(0).into(), ate_query())
+        }
         "aipw_analytic_ci_coverage" => {
             builder(AipwAte::new().with_bootstrap_replicates(0).into(), ate_query())
         }
@@ -228,21 +226,21 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
             PropensityMatching::new()
                 .with_bootstrap_replicates(0)
                 .with_se_kind(AnalyticSeKind::Homoskedastic)
-            .into(),
+                .into(),
             ate_query().with_target_population(TargetPopulation::Treated),
         ),
         "matching_heterogeneous_atc_ci_coverage" => builder(
             PropensityMatching::new()
                 .with_bootstrap_replicates(0)
                 .with_se_kind(AnalyticSeKind::Homoskedastic)
-            .into(),
+                .into(),
             ate_query().with_target_population(TargetPopulation::Untreated),
         ),
         "matching_heterogeneous_ate_ci_coverage" => builder(
             PropensityMatching::new()
                 .with_bootstrap_replicates(0)
                 .with_se_kind(AnalyticSeKind::Homoskedastic)
-            .into(),
+                .into(),
             ate_query(),
         ),
         "wald_iv_analytic_ci_coverage"
@@ -270,9 +268,9 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 .graph(iv_dag())
                 .query(continuous_query())
                 .identifier(IdentifierId::Iv)
-                .estimator(TwoStageLeastSquares::new()
-                    .with_bootstrap_replicates(0)
-                    .with_se_kind(se_kind))
+                .estimator(
+                    TwoStageLeastSquares::new().with_bootstrap_replicates(0).with_se_kind(se_kind),
+                )
                 .refute(RefuteSuite::None)
         }
         "frontdoor_stacked_hc0_ci_coverage"
@@ -287,9 +285,9 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 .graph(frontdoor_dag())
                 .query(continuous_query())
                 .identifier(IdentifierId::Frontdoor)
-                .estimator(FrontDoorTwoStage::new()
-                    .with_bootstrap_replicates(0)
-                    .with_se_kind(se_kind))
+                .estimator(
+                    FrontDoorTwoStage::new().with_bootstrap_replicates(0).with_se_kind(se_kind),
+                )
                 .refute(RefuteSuite::None)
         }
         "frontdoor_functional_saturated_ci_coverage"
@@ -363,10 +361,10 @@ fn assert_owned_static_construction(study: &Study, result: &StudyResult, owner: 
         }),
         "missing actual scientific owner {owner}: {reported:?}"
     );
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     assert!(
-        result.estimate.as_effect().unwrap().se_analytic().is_finite()
-            && result.estimate.as_effect().unwrap().se_analytic() > 0.0
+        result.estimate().as_effect().unwrap().se_analytic().is_finite()
+            && result.estimate().as_effect().unwrap().se_analytic() > 0.0
     );
 }
 
@@ -403,12 +401,12 @@ fn checked_score_learner_calibration_owners_execute_all_static_coordinates() {
                 let prepared = study.prepare(&context).unwrap();
                 let replay = prepared.estimate(&data, &context).unwrap();
                 assert_eq!(
-                    replay.estimate.as_effect().unwrap().ate.to_bits(),
-                    result.estimate.as_effect().unwrap().ate.to_bits()
+                    replay.estimate().as_effect().unwrap().ate.to_bits(),
+                    result.estimate().as_effect().unwrap().ate.to_bits()
                 );
                 assert_eq!(
-                    replay.estimate.as_effect().unwrap().se_analytic().to_bits(),
-                    result.estimate.as_effect().unwrap().se_analytic().to_bits()
+                    replay.estimate().as_effect().unwrap().se_analytic().to_bits(),
+                    result.estimate().as_effect().unwrap().se_analytic().to_bits()
                 );
                 if suite != RefuteSuite::None {
                     assert!(!result.refutations.is_empty());
@@ -444,12 +442,12 @@ fn checked_frontdoor_functional_calibration_owner_executes_all_static_coordinate
                 let prepared = study.prepare(&context).unwrap();
                 let replay = prepared.estimate(&data, &context).unwrap();
                 assert_eq!(
-                    replay.estimate.as_effect().unwrap().ate.to_bits(),
-                    result.estimate.as_effect().unwrap().ate.to_bits()
+                    replay.estimate().as_effect().unwrap().ate.to_bits(),
+                    result.estimate().as_effect().unwrap().ate.to_bits()
                 );
                 assert_eq!(
-                    replay.estimate.as_effect().unwrap().se_analytic().to_bits(),
-                    result.estimate.as_effect().unwrap().se_analytic().to_bits()
+                    replay.estimate().as_effect().unwrap().se_analytic().to_bits(),
+                    result.estimate().as_effect().unwrap().se_analytic().to_bits()
                 );
                 if suite != RefuteSuite::None {
                     assert!(!result.refutations.is_empty());

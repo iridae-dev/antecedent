@@ -159,7 +159,7 @@ impl PreparedStudy {
                 fitter.prepare_linear_response_problem(data, *outcome, &treatments)
             })
         })?;
-        let inference = inference(&self.analysis.inference, ctx)?;
+        let inference = inference(&self.analysis.settings.inference, ctx)?;
         let numerical = PreparedJointLinear::new(problem, inference, ctx.kernel_policy)
             .map_err(numerical_error)?;
         let resident = source_resident_bytes(numerical.problem())?;

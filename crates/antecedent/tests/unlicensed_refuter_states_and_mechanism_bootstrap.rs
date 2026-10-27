@@ -78,7 +78,7 @@ fn counterfactual_study(data: TabularData, replicates: u32) -> Study {
 }
 
 fn bootstrap_se(result: &StudyResult) -> Option<f64> {
-    result.estimate.as_effect().and_then(|effect| effect.uncertainty.bootstrap.se)
+    result.estimate().as_effect().and_then(|effect| effect.uncertainty.bootstrap.se)
 }
 
 fn has_diagnostic(result: &StudyResult, code: &str) -> bool {
@@ -89,13 +89,13 @@ fn has_diagnostic(result: &StudyResult, code: &str) -> bool {
 fn frequentist_counterfactual_bootstrap_is_an_unlicensed_interval() {
     let data = linear_table(600, 3);
     let point = counterfactual_study(data.clone(), 0).run(&ExecutionContext::for_tests(3)).unwrap();
-    assert_eq!(point.support_status, Some(CellStatus::Licensed));
+    assert_eq!(point.support_status(), Some(CellStatus::Licensed));
     assert!(bootstrap_se(&point).is_none());
 
     let result =
         counterfactual_study(data.clone(), 40).run(&ExecutionContext::for_tests(3)).unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Refused));
-    let effect = result.estimate.as_effect().unwrap();
+    assert_eq!(result.support_status(), Some(CellStatus::Refused));
+    let effect = result.estimate().as_effect().unwrap();
     // The linear law's unit contrast is the slope.
     assert!((effect.ate - 2.0).abs() < 0.2, "mean ITE {}", effect.ate);
     let se = bootstrap_se(&result).expect("bootstrap standard error");
@@ -143,10 +143,10 @@ fn frequentist_attribution_bootstraps_publish_unlicensed_standard_errors() {
         .unwrap()
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
-    assert_eq!(anomaly.support_status, Some(CellStatus::Refused));
+    assert_eq!(anomaly.support_status(), Some(CellStatus::Refused));
     // Known truth: `y` is Gaussian, so against its median / 1.4826·MAD reference the
     // two-sided tail probability is uniform and the score `-ln p` is Exp(1): mean 1.
-    let mean_score = anomaly.estimate.as_effect().unwrap().ate;
+    let mean_score = anomaly.estimate().as_effect().unwrap().ate;
     assert!((mean_score - 1.0).abs() < 0.35, "mean anomaly score {mean_score}");
     assert!(bootstrap_se(&anomaly).is_some_and(|se| se.is_finite() && se > 0.0));
     assert!(has_diagnostic(&anomaly, "gcm.frequentist_bootstrap"));
@@ -178,8 +178,8 @@ fn frequentist_attribution_bootstraps_publish_unlicensed_standard_errors() {
         .unwrap()
         .run(&ExecutionContext::for_tests(11))
         .unwrap();
-    assert_eq!(change.support_status, Some(CellStatus::Refused));
-    let total = change.estimate.as_effect().unwrap().ate;
+    assert_eq!(change.support_status(), Some(CellStatus::Refused));
+    let total = change.estimate().as_effect().unwrap().ate;
     assert!((total - 3.0).abs() < 0.6, "total change {total}");
     assert!(bootstrap_se(&change).is_some_and(|se| se > 0.0));
 }
@@ -212,7 +212,7 @@ fn cpdag_intervention_level_runs_its_per_completion_refuter_state() {
             .unwrap_or_else(|error| panic!("{suite:?}: {error}"))
             .run(&ExecutionContext::for_tests(13))
             .unwrap_or_else(|error| panic!("{suite:?}: {error}"));
-        assert_eq!(result.support_status, Some(CellStatus::Refused), "{suite:?}");
+        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{suite:?}");
         assert!(!result.refutations.is_empty(), "{suite:?}");
         assert!(has_diagnostic(&result, "refute.response.class_envelope_disagreement"));
         assert!(has_diagnostic(&result, "refute.response.class_state"));
@@ -252,7 +252,7 @@ fn temporal_dag_intervention_level_runs_its_pulse_witness_state() {
             .unwrap_or_else(|error| panic!("{label}: {error}"))
             .run(&ExecutionContext::for_tests(17))
             .unwrap_or_else(|error| panic!("{label}: {error}"));
-        assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
+        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
         assert!(!result.refutations.is_empty(), "{label}");
         assert!(has_diagnostic(&result, "refute.temporal_response.pulse_witness_state"), "{label}");
     }
@@ -304,7 +304,7 @@ fn codetermined_bayesian_joint_level_executes_unlicensed() {
         .unwrap()
         .run(&ExecutionContext::for_tests(19))
         .unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Refused));
+    assert_eq!(result.support_status(), Some(CellStatus::Refused));
     let level = match &result.response().expect("response").estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => *value,
         other => panic!("expected a scalar joint level, got {other:?}"),
@@ -362,7 +362,7 @@ fn temporal_class_intervention_level_runs_per_completion_witness_state() {
             .unwrap_or_else(|error| panic!("{label}: {error}"))
             .run(&ExecutionContext::for_tests(23))
             .unwrap_or_else(|error| panic!("{label}: {error}"));
-        assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
+        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
         assert!(!result.refutations.is_empty(), "{label}");
         assert!(
             has_diagnostic(&result, "refute.temporal_response.class_envelope_disagreement"),
@@ -402,7 +402,7 @@ fn temporal_derivative_runs_its_refuter_state_on_dag_and_class() {
             .unwrap_or_else(|error| panic!("{label}: {error}"))
             .run(&ExecutionContext::for_tests(29))
             .unwrap_or_else(|error| panic!("{label}: {error}"));
-        assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
+        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
         let fd = result
             .refutations
             .iter()
@@ -592,7 +592,9 @@ fn bayesian_rows_that_are_not_ordinary_posteriors_are_exactly_the_classified_one
     for bayesian in rows.iter().filter(|r| {
         r.inference == "bayesian" && executes(&r.status) && r.uncertainty == "posterior"
     }) {
-        if BAYESIAN_ONLY_BY_THEORY.contains(&format!("{}.{}", bayesian.method, bayesian.design).as_str()) {
+        if BAYESIAN_ONLY_BY_THEORY
+            .contains(&format!("{}.{}", bayesian.method, bayesian.design).as_str())
+        {
             continue;
         }
         let frequentist = rows

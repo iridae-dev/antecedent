@@ -14,8 +14,8 @@ use crate::analysis::prepared::estimate::ClickNotes;
 use crate::analysis::{
     CheckedAdmgGraphPosteriorResponse, CheckedBayesianClassConditional,
     CheckedBayesianGraphPosteriorAte, CheckedClassGraphPosteriorEffect,
-    CheckedGraphPosteriorEffect, CheckedStaticClassEffect, StaticClassGraph,
-    IdentificationCache, StaticClassIdentification,
+    CheckedGraphPosteriorEffect, CheckedStaticClassEffect, IdentificationCache, StaticClassGraph,
+    StaticClassIdentification,
 };
 use crate::error::CausalError;
 use crate::result::StudyResult;
@@ -111,12 +111,12 @@ impl SealedOperation for CheckedStaticClassEffect {
         let mut click_analysis = handle.analysis.clone();
         click_analysis.data = DataInput::Tabular(data.clone());
         click_analysis.query = CausalQuery::AverageEffect(self.query().clone());
-        click_analysis.inference = self.inference().clone();
-        click_analysis.estimator = Some(self.procedure().id());
-        click_analysis.estimator_spec = Some(Arc::new(self.procedure().clone()));
-        click_analysis.refute = self.validation();
-        click_analysis.bootstrap_replicates = self.bootstrap_replicates();
-        click_analysis.overlap_policy = Some(self.overlap());
+        click_analysis.settings.inference = self.inference().clone();
+        click_analysis.declared.estimator = Some(self.procedure().id());
+        click_analysis.declared.estimator_spec = Some(Arc::new(self.procedure().clone()));
+        click_analysis.settings.refute = self.validation();
+        click_analysis.settings.bootstrap_replicates = self.bootstrap_replicates();
+        click_analysis.declared.overlap_policy = Some(self.overlap());
         let result = match (self.graph(), self.identification()) {
             (StaticClassGraph::Cpdag(graph), StaticClassIdentification::Cpdag(cache)) => {
                 click_analysis

@@ -80,9 +80,11 @@ impl super::Study {
         let mut bound = self.clone();
         bound.query = CausalQuery::Response(operation.query().clone());
         bound.graph_posterior = Some(operation.posterior().clone());
-        bound.install_identification(crate::analysis::IdentificationCache::GraphPosterior(Arc::clone(operation.identification())));
-        bound.inference = operation.inference().clone();
-        bound.refute = operation.validation();
+        bound.install_identification(crate::analysis::IdentificationCache::GraphPosterior(
+            Arc::clone(operation.identification()),
+        ));
+        bound.settings.inference = operation.inference().clone();
+        bound.settings.refute = operation.validation();
         bound.execute_admg_graph_posterior_response(
             data,
             operation.posterior(),
@@ -453,7 +455,7 @@ impl super::Study {
                 "estimate.response.admg_graph_posterior.uncertainty_withheld",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                if self.inference.is_bayesian() {
+                if self.settings.inference.is_bayesian() {
                     "multi-atom Bayesian ADMG graph-posterior response withholds an aggregate \
                      credible band: graph-specific dispersion and a frozen-weight aggregate are \
                      different objects"
@@ -492,11 +494,12 @@ impl super::Study {
         if is_intervention
             && scalar.is_finite()
             && matches!(aggregation_policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
+            && (!matches!(self.settings.refute, RefuteSuite::None)
+                || !self.declared.custom_validators.is_empty())
         {
             let ate_query = AverageEffectQuery::binary_ate(run.treatment, run.outcome);
             let mut refute_ws = EstimationWorkspace::default();
-            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+            if matches!(self.settings.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
                 diagnostics.push(Diagnostic::new(
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
@@ -511,14 +514,14 @@ impl super::Study {
                 estimand,
                 query: &ate_query,
                 estimate: &pooled.estimate,
-                suite: self.refute,
+                suite: self.settings.refute,
                 estimator: EstimatorId::FunctionalEffect.as_str(),
-                custom: &self.custom_validators,
+                custom: &self.declared.custom_validators,
                 temporal: None,
             }
             .plugin_level(&mut refute_ws, run.ctx)
         } else {
-            if !matches!(self.refute, RefuteSuite::None) {
+            if !matches!(self.settings.refute, RefuteSuite::None) {
                 diagnostics.push(Diagnostic::new(
                     "refute.response.skipped",
                     DiagnosticKind::Scientific,
@@ -571,10 +574,10 @@ fn estimate_admg_posterior_atom_response(
     ctx: &ExecutionContext,
 ) -> Result<(CausalResponse, Option<antecedent_estimate::CausalPosterior>), CausalError> {
     let (treatment, outcome) = response_primary_pair(&query.functional)?;
-    let bayesian = study.inference.is_bayesian();
+    let bayesian = study.settings.inference.is_bayesian();
     match &query.functional {
         ResponseFunctional::InterventionResponse { .. } => {
-            let replicates = if bayesian { 0 } else { study.bootstrap_replicates };
+            let replicates = if bayesian { 0 } else { study.settings.bootstrap_replicates };
             let (mut response, _) = estimate_general_id_response(
                 data,
                 query,
@@ -630,7 +633,7 @@ fn estimate_admg_mean_curve(
     ctx: &ExecutionContext,
 ) -> Result<(CausalResponse, Option<antecedent_estimate::CausalPosterior>), CausalError> {
     let AtomAdjacency { mask, n_vars } = adjacency;
-    let bayesian = study.inference.is_bayesian();
+    let bayesian = study.settings.inference.is_bayesian();
     let ResponseFunctional::MeanCurve { outcome, treatment: tx } = &query.functional else {
         return Err(CausalError::Unsupported {
             message: "ADMG graph-posterior response is licensed for InterventionResponse and \
@@ -645,7 +648,7 @@ fn estimate_admg_mean_curve(
     let mut credible_bounds: Vec<(f64, f64)> = Vec::new();
     let mut first_posterior = None;
     let mut support = None;
-    let replicates = if bayesian { 0 } else { study.bootstrap_replicates };
+    let replicates = if bayesian { 0 } else { study.settings.bootstrap_replicates };
     for level in levels {
         let level_query = admg_response_at_level(query, tx.variable, *outcome, level);
         let (level_id, level_est) = if means.is_empty() {

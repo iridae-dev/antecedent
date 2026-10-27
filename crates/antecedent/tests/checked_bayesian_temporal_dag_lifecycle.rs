@@ -148,17 +148,17 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
 
                 let result = prepared.estimate_series(&data, &ctx).unwrap();
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.16,
+                    (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.16,
                     "query={target:?}, accepted={accepted}, suite={suite:?}, estimate={}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 assert!(result.posterior.is_some(), "posterior must be retained");
 
                 let refreshed = prepared.refresh_series(updated_data.clone(), &ctx).unwrap();
                 assert!(
-                    (refreshed.estimate.as_effect().unwrap().ate - refreshed_truth).abs() < 0.2,
+                    (refreshed.estimate().as_effect().unwrap().ate - refreshed_truth).abs() < 0.2,
                     "refresh estimate={}",
-                    refreshed.estimate.as_effect().unwrap().ate
+                    refreshed.estimate().as_effect().unwrap().ate
                 );
                 let RetainedOperation::BayesianTemporalDagEffect(retained) =
                     prepared.retained_operation()

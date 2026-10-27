@@ -22,15 +22,17 @@ impl super::Study {
         click_analysis.data = DataInput::Tabular(data.clone());
         click_analysis.query = operation.target().causal_query();
         click_analysis.graph_posterior = Some(operation.posterior().clone());
-        click_analysis.install_identification(crate::analysis::IdentificationCache::GraphPosterior(Arc::clone(
-            operation.identification(),
-        )));
-        click_analysis.inference = operation.inference().clone();
-        click_analysis.estimator_spec = Some(Arc::new(operation.procedure().clone()));
-        click_analysis.estimator = Some(operation.procedure().id());
-        click_analysis.refute = operation.validation();
-        click_analysis.overlap_policy = Some(operation.overlap());
-        click_analysis.population_registry = operation.population_registry().cloned();
+        click_analysis.install_identification(
+            crate::analysis::IdentificationCache::GraphPosterior(Arc::clone(
+                operation.identification(),
+            )),
+        );
+        click_analysis.settings.inference = operation.inference().clone();
+        click_analysis.declared.estimator_spec = Some(Arc::new(operation.procedure().clone()));
+        click_analysis.declared.estimator = Some(operation.procedure().id());
+        click_analysis.settings.refute = operation.validation();
+        click_analysis.declared.overlap_policy = Some(operation.overlap());
+        click_analysis.declared.population_registry = operation.population_registry().cloned();
         click_analysis.latency_mode = operation.latency_mode();
         click_analysis.execute_class_graph_posterior(
             data,
@@ -53,14 +55,16 @@ impl super::Study {
         click_analysis.data = DataInput::Tabular(data.clone());
         click_analysis.query = operation.target().causal_query();
         click_analysis.graph_posterior = Some(operation.posterior().clone());
-        click_analysis.install_identification(crate::analysis::IdentificationCache::GraphPosterior(Arc::clone(
-            operation.identification(),
-        )));
-        click_analysis.inference = operation.inference().clone();
-        click_analysis.estimator_spec = Some(Arc::new(operation.procedure().clone()));
-        click_analysis.estimator = Some(operation.procedure().id());
-        click_analysis.refute = operation.validation();
-        click_analysis.overlap_policy = Some(operation.overlap());
+        click_analysis.install_identification(
+            crate::analysis::IdentificationCache::GraphPosterior(Arc::clone(
+                operation.identification(),
+            )),
+        );
+        click_analysis.settings.inference = operation.inference().clone();
+        click_analysis.declared.estimator_spec = Some(Arc::new(operation.procedure().clone()));
+        click_analysis.declared.estimator = Some(operation.procedure().id());
+        click_analysis.settings.refute = operation.validation();
+        click_analysis.declared.overlap_policy = Some(operation.overlap());
         click_analysis.latency_mode = operation.latency_mode();
         click_analysis.execute_graph_posterior_bayesian(
             data,

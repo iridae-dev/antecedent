@@ -91,13 +91,13 @@ fn block_bootstrap_recovers_the_known_mean_shift_with_a_row_block_interval() {
     let data = shifted_series(41);
     let result = run(&data, 99, None, &ExecutionContext::for_tests(3)).unwrap();
     let total = result.change_attribution().unwrap().total_change;
-    let estimate = result.estimate.as_effect().unwrap();
+    let estimate = result.estimate().as_effect().unwrap();
     let se = estimate.se_bootstrap().expect("a block-bootstrap standard error");
     // The two population means differ by 5; the published SE is the SD of the
     // replicate totals, of the order of a two-sample mean difference (about 0.2 here).
     assert!(se > 0.03 && se < 1.0, "se {se}");
     assert!((total - 5.0).abs() < 5.0 * se + 0.5, "total {total} se {se}");
-    let binding = result.interval.as_ref().expect("an interval binding");
+    let binding = result.interval().as_ref().expect("an interval binding");
     assert_eq!(binding.method, IntervalMethod::CircularBlockSe);
     assert_eq!(binding.dependence, "circular_block:row_block");
     assert!(
@@ -115,7 +115,7 @@ fn block_bootstrap_is_the_same_for_any_thread_budget() {
     parallel.parallelism = Parallelism::bounded(NonZeroThreadCount::new(4).unwrap());
     let a = run(&data, 49, None, &serial).unwrap();
     let b = run(&data, 49, None, &parallel).unwrap();
-    let se = |result: &StudyResult| result.estimate.as_effect().unwrap().se_bootstrap().unwrap();
+    let se = |result: &StudyResult| result.estimate().as_effect().unwrap().se_bootstrap().unwrap();
     assert_eq!(se(&a).to_bits(), se(&b).to_bits());
 }
 

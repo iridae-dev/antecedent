@@ -111,15 +111,14 @@ impl super::Study {
             });
         }
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-        let (identified, identify_cached) =
-            if let Some(cache) = self.dbn_posterior_cache() {
-                (Arc::clone(cache), true)
-            } else if let Some(cache) =
-                crate::analysis::lowering::plan_retained_dbn_posterior(self, physical)
-            {
-                (cache, false)
-            } else {
-                (
+        let (identified, identify_cached) = if let Some(cache) = self.dbn_posterior_cache() {
+            (Arc::clone(cache), true)
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_dbn_posterior(self, physical)
+        {
+            (cache, false)
+        } else {
+            (
                 Arc::new(
                     crate::analysis::prepared::build_dbn_posterior_mediation_identification_cache(
                         gp, &vars, query, ctx,
@@ -127,7 +126,7 @@ impl super::Study {
                 ),
                 false,
             )
-            };
+        };
         let horizon = query.horizons[0];
         let identified = identified.mediation_horizon(horizon)?;
         let mut atoms = dbn_posterior_structural_atoms(&identified);
@@ -176,7 +175,7 @@ impl super::Study {
             (designs.len(), identify_cached),
         );
         let mut refutations = Vec::new();
-        if self.refute != RefuteSuite::None {
+        if self.settings.refute != RefuteSuite::None {
             refutations = self.refute_dbn_mediation_atoms(
                 (data, query),
                 &refute_atoms,
@@ -251,12 +250,12 @@ impl super::Study {
             &refs,
             weights,
             query.contrast,
-            self.bootstrap_replicates,
+            self.settings.bootstrap_replicates,
             mediation_block_stream(MediationRoute::Dbn, horizon),
             ctx,
         );
         let requested_se = shared.as_ref().and_then(|s| s.requested).filter(|s| s.is_finite());
-        let replicates_requested = self.bootstrap_replicates > 0;
+        let replicates_requested = self.settings.bootstrap_replicates > 0;
         let (replicates_ok, replicates_attempted) = shared
             .as_ref()
             .map_or((0, 0), |s| (s.block.replicates_ok, s.block.replicates_attempted));
@@ -313,7 +312,8 @@ impl super::Study {
         diagnostics: &mut Vec<Diagnostic>,
         ctx: &ExecutionContext,
     ) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
-        let plan = QueryRefutationPlan::temporal_mediation(self.refute == RefuteSuite::Full);
+        let plan =
+            QueryRefutationPlan::temporal_mediation(self.settings.refute == RefuteSuite::Full);
         let mut per_atom = Vec::with_capacity(refute_atoms.len());
         for ((_, weight, estimand, lagged), design) in refute_atoms.iter().zip(designs) {
             let reports = plan

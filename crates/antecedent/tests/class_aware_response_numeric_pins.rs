@@ -384,7 +384,7 @@ fn class_aware_curve_pins_against_ate_on_continuous_t() {
                     .unwrap()
                     .run(&ExecutionContext::for_tests(1))
                     .unwrap()
-                    .estimate
+                    .estimate()
                     .as_effect()
                     .unwrap()
                     .ate
@@ -568,7 +568,7 @@ fn class_aware_bayesian_curve_pins_against_ate_envelope() {
         assert_eq!(cached_count(&click), 1);
         assert_eq!(fresh.logical_plan.estimator.as_deref(), Some("response.bayesian"));
         for result in [&fresh, &click] {
-            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "licensed");
             assert_eq!(format!("{:?}", result.identification.status), "PartiallyIdentified");
             assert_envelope_diagnostic(result, section, "cpdag");
             assert!(

@@ -567,14 +567,13 @@ mod tests {
         let validation = units("validation");
         let mut policy = base.recipe.policy.clone();
         policy.resource_costs = vec![1.0; 3];
-        let prepared =
-            PreparedRandomizedSelection::compile(
-                base.recipe.design.clone(),
-                training,
-                validation,
-                policy,
-            )
-                .unwrap();
+        let prepared = PreparedRandomizedSelection::compile(
+            base.recipe.design.clone(),
+            training,
+            validation,
+            policy,
+        )
+        .unwrap();
         let result =
             prepared.execute(repetitions, 0.01, &ExecutionContext::for_tests(seed)).unwrap();
         let selected = &result.procedure.observed;

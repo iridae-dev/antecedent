@@ -41,8 +41,8 @@ fn public_pairs_bootstrap_preserves_seeded_uncertainty_and_failure_accounting() 
     let reference = study.clone().run(&ExecutionContext::for_tests(31)).unwrap();
     for threads in [1, 4] {
         let actual = study.clone().run(&ExecutionContext::production(31, threads)).unwrap();
-        let a = actual.estimate.as_effect().unwrap();
-        let b = reference.estimate.as_effect().unwrap();
+        let a = actual.estimate().as_effect().unwrap();
+        let b = reference.estimate().as_effect().unwrap();
         assert!((a.ate - b.ate).abs() < 1e-12);
         assert!((a.se_bootstrap().unwrap() - b.se_bootstrap().unwrap()).abs() < 1e-10);
         assert_eq!(actual.performance.bootstrap_replicates_ok, Some(199));

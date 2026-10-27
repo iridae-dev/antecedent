@@ -105,9 +105,9 @@ fn survival_posterior_matches_the_gamma_hazard_reference_and_keeps_joint_draws()
     let (result, _, _) =
         run(&data, query, bayesian(40_000, hazards(&[1.0, 2.0, 3.0], 1.0, 1.0)), 11).unwrap();
 
-    assert!(matches!(result.estimate, PrimaryEstimate::NotAnEffect));
+    assert!(matches!(result.estimate(), PrimaryEstimate::NotAnEffect));
     assert!(result.survival().is_none());
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.piecewise_survival"));
     let row = result.posterior_row().unwrap();
     assert_eq!(row.estimator, "bayesian.piecewise_survival");
@@ -360,7 +360,7 @@ fn dose_policy_posterior_matches_the_per_group_conjugate_reference() {
         run(&data, CausalQuery::ContinuousDoseResponse(query), bayesian(40_000, model), 5).unwrap();
 
     assert!(result.continuous_dose_response().is_none());
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.continuous_dose_policy"));
     let row = result.posterior_row().unwrap();
     assert_eq!(row.estimator, "bayesian.continuous_dose_policy");
@@ -595,7 +595,7 @@ fn quantile_posterior_matches_the_dirichlet_reference_and_keeps_joint_draws() {
     // the two arm quantiles retained beside it.
     let posterior = result.posterior.as_ref().unwrap();
     assert_eq!(posterior.draws.schema.n_quantities(), 3);
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     close(effect.ate, row.mean[2], 1e-9);
     let joint = row.covariance.as_ref().unwrap();
     // Independent arms under randomization: the control-treated covariance is near zero and the

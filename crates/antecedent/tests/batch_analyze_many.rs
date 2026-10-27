@@ -89,18 +89,18 @@ fn shared_design_field<'a>(result: &'a StudyResult, key: &str) -> &'a str {
 
 fn assert_bit_identical(batch: &StudyResult, solo: &StudyResult, what: &str) {
     assert_eq!(
-        batch.estimate.as_effect().unwrap().ate.to_bits(),
-        solo.estimate.as_effect().unwrap().ate.to_bits(),
+        batch.estimate().as_effect().unwrap().ate.to_bits(),
+        solo.estimate().as_effect().unwrap().ate.to_bits(),
         "{what}: ate"
     );
     assert_eq!(
-        batch.estimate.as_effect().unwrap().se_analytic().to_bits(),
-        solo.estimate.as_effect().unwrap().se_analytic().to_bits(),
+        batch.estimate().as_effect().unwrap().se_analytic().to_bits(),
+        solo.estimate().as_effect().unwrap().se_analytic().to_bits(),
         "{what}: se_analytic"
     );
     let (Some(a), Some(b)) = (
-        &batch.estimate.as_effect().unwrap().scores.influence,
-        &solo.estimate.as_effect().unwrap().scores.influence,
+        &batch.estimate().as_effect().unwrap().scores.influence,
+        &solo.estimate().as_effect().unwrap().scores.influence,
     ) else {
         panic!("{what}: both runs publish the influence function");
     };
@@ -162,8 +162,8 @@ fn batch_never_shares_nuisances_across_different_seeds() {
         assert_bit_identical(&second[i], &solo(&data, &graph, query, 44), "seed 44");
     }
     assert_ne!(
-        first[0].estimate.as_effect().unwrap().ate.to_bits(),
-        second[0].estimate.as_effect().unwrap().ate.to_bits()
+        first[0].estimate().as_effect().unwrap().ate.to_bits(),
+        second[0].estimate().as_effect().unwrap().ate.to_bits()
     );
 }
 
@@ -290,7 +290,7 @@ fn a_dml_batch_fits_each_learner_nuisance_once_and_matches_independent_runs() {
         })
     };
     let same_estimate = |a: &StudyResult, b: &StudyResult, what: &str| {
-        let (a, b) = (a.estimate.as_effect().unwrap(), b.estimate.as_effect().unwrap());
+        let (a, b) = (a.estimate().as_effect().unwrap(), b.estimate().as_effect().unwrap());
         assert_eq!(a.ate.to_bits(), b.ate.to_bits(), "{what}: ate");
         assert_eq!(a.se_analytic().to_bits(), b.se_analytic().to_bits(), "{what}: se");
     };
@@ -445,7 +445,7 @@ fn completed_batch_shares_actual_fits_and_retains_final_family_evidence() {
         let result = &completed.results()[index];
         assert_bit_identical(result, &solo(&data, &graph, query, 73), "completed batch");
         assert_eq!(shared_design_field(result, "shares_propensity"), "true");
-        assert!(result.estimate.as_effect().unwrap().joint.covariance.is_some());
+        assert!(result.estimate().as_effect().unwrap().joint.covariance.is_some());
         let (_, body) = completed.prepared().plans()[index]
             .execution_record_with_quantity_labels(result, &ctx, None)
             .unwrap();
@@ -471,7 +471,7 @@ fn completed_batch_data_branches_preserve_earlier_results_scores_and_contracts()
     let queries = [ate(T1, Y1), ate(T1, Y2)];
     let ctx = ExecutionContext::for_tests(79);
     let completed = deferred_batch(&data, &graph, &queries, &ctx).execute_retained(&ctx).unwrap();
-    let original_point = completed.results()[0].estimate.as_effect().unwrap().ate.to_bits();
+    let original_point = completed.results()[0].estimate().as_effect().unwrap().ate.to_bits();
     let original_rows = completed.scores().common_rows().unwrap().unwrap();
     let original_contract = completed.prepared().plans()[0]
         .execution_record_with_quantity_labels(&completed.results()[0], &ctx, None)
@@ -488,7 +488,10 @@ fn completed_batch_data_branches_preserve_earlier_results_scores_and_contracts()
     for (index, query) in queries.iter().enumerate() {
         assert_bit_identical(&updated.results()[index], &solo(&other, &graph, query, 79), "branch");
     }
-    assert_eq!(completed.results()[0].estimate.as_effect().unwrap().ate.to_bits(), original_point);
+    assert_eq!(
+        completed.results()[0].estimate().as_effect().unwrap().ate.to_bits(),
+        original_point
+    );
     assert_eq!(completed.scores().common_rows().unwrap().unwrap(), original_rows);
     assert_eq!(original_rows.len(), 500);
     let after_contract = completed.prepared().plans()[0]
@@ -621,7 +624,7 @@ fn cancelled_batch_execution_never_publishes_into_a_prepared_or_completed_branch
     let ctx = ExecutionContext::for_tests(101);
     let prepared = deferred_batch(&data, &graph, &queries, &ctx);
     let completed = prepared.execute_retained(&ctx).unwrap();
-    let original_point = completed.results()[0].estimate.as_effect().unwrap().ate.to_bits();
+    let original_point = completed.results()[0].estimate().as_effect().unwrap().ate.to_bits();
     let mut cancelled = ctx.clone();
     cancelled.cancellation = CancellationToken::new();
     cancelled.cancellation.cancel();
@@ -648,7 +651,10 @@ fn cancelled_batch_execution_never_publishes_into_a_prepared_or_completed_branch
     assert!(attempt.report.is_complete());
     assert_eq!(prepared.materialized_plan_count(), 0);
     assert_eq!(prepared.retained_score_table_count(), 0);
-    assert_eq!(completed.results()[0].estimate.as_effect().unwrap().ate.to_bits(), original_point);
+    assert_eq!(
+        completed.results()[0].estimate().as_effect().unwrap().ate.to_bits(),
+        original_point
+    );
     assert_eq!(completed.prepared().retained_score_table_count(), 2);
     let recovered = prepared.execute_retained(&ctx).unwrap();
     for (before, after) in completed.results().iter().zip(recovered.results()) {
@@ -750,7 +756,7 @@ fn scalar_branches_of_completed_batch_members_rebuild_their_row_bound_shared_des
     let member = &completed.prepared().plans()[0];
     let old_covariates =
         member.shared_design().unwrap().covariate.as_ref().unwrap().design_matrix.clone();
-    let old_point = completed.results()[0].estimate.as_effect().unwrap().ate.to_bits();
+    let old_point = completed.results()[0].estimate().as_effect().unwrap().ate.to_bits();
     let names = ["t1", "t2", "y1", "y2", "z"];
     let mut columns: Vec<Vec<f64>> =
         (0..5).map(|id| data.float64_values(VariableId::from_raw(id)).unwrap()).collect();
@@ -793,7 +799,7 @@ fn scalar_branches_of_completed_batch_members_rebuild_their_row_bound_shared_des
         old_covariates
     );
     assert_eq!(member.shared_design().unwrap().fold_ids.len(), 500);
-    assert_eq!(completed.results()[0].estimate.as_effect().unwrap().ate.to_bits(), old_point);
+    assert_eq!(completed.results()[0].estimate().as_effect().unwrap().ate.to_bits(), old_point);
 }
 
 #[test]
@@ -839,8 +845,8 @@ fn staged_checked_aipw_keeps_its_claim_and_performs_each_fit_only_once() {
         let plain_result = &plain.results()[0];
         let staged_result = &staged.results()[0];
         assert_bit_identical(plain_result, staged_result, "staged checked AIPW");
-        let a = plain_result.estimate.as_effect().unwrap();
-        let b = staged_result.estimate.as_effect().unwrap();
+        let a = plain_result.estimate().as_effect().unwrap();
+        let b = staged_result.estimate().as_effect().unwrap();
         assert_eq!(a.se_bootstrap().map(f64::to_bits), b.se_bootstrap().map(f64::to_bits));
         assert_eq!(a.uncertainty.bootstrap, b.uncertainty.bootstrap);
         assert_eq!(
@@ -981,8 +987,8 @@ fn rebound_batch_executes_without_compiling_its_checked_programs_again() {
             "the program does not change with the rows"
         );
         assert_ne!(
-            branch.results()[index].estimate.as_effect().unwrap().ate.to_bits(),
-            completed.results()[index].estimate.as_effect().unwrap().ate.to_bits(),
+            branch.results()[index].estimate().as_effect().unwrap().ate.to_bits(),
+            completed.results()[index].estimate().as_effect().unwrap().ate.to_bits(),
             "the new rows move the estimate"
         );
     }

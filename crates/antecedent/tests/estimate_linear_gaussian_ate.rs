@@ -138,15 +138,16 @@ fn estimate_linear_gaussian_ate_stable_float() {
     let result = analysis.run(&ctx).unwrap();
 
     assert!(
-        ToleranceClass::StableFloat.close(result.estimate.as_effect().unwrap().ate, true_ate),
+        ToleranceClass::StableFloat.close(result.estimate().as_effect().unwrap().ate, true_ate),
         "ate={} vs true {}",
-        result.estimate.as_effect().unwrap().ate,
+        result.estimate().as_effect().unwrap().ate,
         true_ate
     );
     assert!(
-        ToleranceClass::StableFloat.close(result.estimate.as_effect().unwrap().ate, reference_ate),
+        ToleranceClass::StableFloat
+            .close(result.estimate().as_effect().unwrap().ate, reference_ate),
         "ate={} vs estimate-parity/reference {}",
-        result.estimate.as_effect().unwrap().ate,
+        result.estimate().as_effect().unwrap().ate,
         reference_ate
     );
     // When the fixture was generated against pinned estimate-parity, also require the
@@ -155,9 +156,9 @@ fn estimate_linear_gaussian_ate_stable_float() {
     if dw["available"].as_bool() == Some(true) {
         let bb = dw["outputs"]["estimate"].as_f64().expect("estimate.estimate");
         assert!(
-            ToleranceClass::StableFloat.close(result.estimate.as_effect().unwrap().ate, bb),
+            ToleranceClass::StableFloat.close(result.estimate().as_effect().unwrap().ate, bb),
             "ate={} vs estimate-parity black-box {}",
-            result.estimate.as_effect().unwrap().ate,
+            result.estimate().as_effect().unwrap().ate,
             bb
         );
         assert!(
@@ -168,7 +169,7 @@ fn estimate_linear_gaussian_ate_stable_float() {
     assert_eq!(result.estimand.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
     assert_eq!(result.refutations.len(), 2);
     assert!(result.refutations.iter().all(|r| r.passed));
-    assert!(!result.estimate.as_effect().unwrap().provenance.assumptions.is_empty());
+    assert!(!result.estimate().as_effect().unwrap().provenance.assumptions.is_empty());
     assert!(!result.identification.derivation.steps.is_empty());
 
     let trace = result.analysis_trace_wire();

@@ -43,8 +43,8 @@ fn augmented_panel_did_retains_known_truth_and_point_only_semantics() {
     assert!((fit.effect - 3.0).abs() < 1e-12);
     assert_eq!(fit.augmented, Some((0.5, 0.5, 3.0, true)));
     assert_eq!(fit.uncertainty.as_ref(), "point_only_no_standard_error");
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     for required in
         ["strict_propensity_overlap", "supplied_nuisance_predictions_valid_for_evaluation_rows"]
     {

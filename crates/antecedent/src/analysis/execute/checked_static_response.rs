@@ -180,8 +180,7 @@ impl CheckedDerivativeResponseOperation {
             InferenceMode::Frequentist => DERIVATIVE_CELL_BYTES,
             InferenceMode::Bayesian(config) => {
                 let draws = u64::try_from(config.n_draws).unwrap_or(u64::MAX);
-                DERIVATIVE_CELL_BYTES
-                    .saturating_add(draws.saturating_mul(size_of::<f64>() as u64))
+                DERIVATIVE_CELL_BYTES.saturating_add(draws.saturating_mul(size_of::<f64>() as u64))
             }
         };
         let bytes = u64::try_from(self.max_derivative_cells)
@@ -758,7 +757,7 @@ impl super::Study {
         operation: &CheckedCellAipwResponseOperation,
     ) -> Result<StudyResult, CausalError> {
         if self.query != CausalQuery::Response(operation.query().clone())
-            || !operation.matches_structure(&self.graph, self.tiered.as_ref())
+            || !operation.matches_structure(&self.graph, self.declared.tiered.as_ref())
         {
             return Err(CausalError::Compile {
                 message: "prepared cell AIPW operation no longer matches the study query, graph, or tier closure"

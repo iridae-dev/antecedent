@@ -72,8 +72,8 @@ pub const IDENTIFIED_PER_EXECUTION: &str = "identified_per_execution";
 
 /// Whether this study is the identify-per-click exception (sharp RD).
 pub(super) fn identifies_per_execution(study: &Study) -> bool {
-    study.estimator == Some(crate::EstimatorId::RdSharp)
-        || study.identifier == Some(crate::IdentifierId::RdSharp)
+    study.declared.estimator == Some(crate::EstimatorId::RdSharp)
+        || study.declared.identifier == Some(crate::IdentifierId::RdSharp)
 }
 
 pub(crate) fn matrix_coordinate(study: &Study) -> Option<String> {
@@ -84,11 +84,15 @@ pub(crate) fn matrix_coordinate(study: &Study) -> Option<String> {
         if study.graph_posterior.is_some() {
             study.graph.class().as_str()
         } else {
-            crate::support::matrix_graph_class(&study.graph, &study.query, study.tiered.as_ref())
+            crate::support::matrix_graph_class(
+                &study.graph,
+                &study.query,
+                study.declared.tiered.as_ref(),
+            )
         },
         study.structure_source,
-        &study.inference,
-        study.refute,
+        &study.settings.inference,
+        study.settings.refute,
     )?;
     Some(crate::support::cell_coordinate(cell))
 }

@@ -79,8 +79,8 @@ fn iv_graph() -> TemporalDag {
 /// dependence, the static fit no standard error at all (the weak-instrument-robust
 /// Anderson-Rubin set instead).
 #[test]
-fn horizon_one_lagged_instrument_reproduces_the_static_two_stage_ratio_with_a_different_uncertainty_product(
-) {
+fn horizon_one_lagged_instrument_reproduces_the_static_two_stage_ratio_with_a_different_uncertainty_product()
+ {
     let columns = iv_series();
     let rows = IV_ROWS - 2;
     let pick =
@@ -127,22 +127,17 @@ fn horizon_one_lagged_instrument_reproduces_the_static_two_stage_ratio_with_a_di
     // The replicate count lives on the configured estimator, so this study does not set it on
     // the builder as well.
     let static_result = run(Study::tabular(table(&[("z", &zs), ("x", &xs), ("y", &ys)]))
-            .graph(dag(3, &[(0, 1), (1, 2)]))
-            .query(CausalQuery::AverageEffect(AverageEffectQuery::with_levels(
-                id(1),
-                id(2),
-                0.0,
-                1.0,
-            )))
-            .identifier(IdentifierId::Iv)
-            .estimator(TwoStageLeastSquares::new().with_bootstrap_replicates(0))
-            .inference(InferenceMode::Frequentist)
-            .refute(RefuteSuite::None)
-            .build()
-            .unwrap());
+        .graph(dag(3, &[(0, 1), (1, 2)]))
+        .query(CausalQuery::AverageEffect(AverageEffectQuery::with_levels(id(1), id(2), 0.0, 1.0)))
+        .identifier(IdentifierId::Iv)
+        .estimator(TwoStageLeastSquares::new().with_bootstrap_replicates(0))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap());
 
-    let temporal_effect = temporal.estimate.as_effect().unwrap();
-    let static_effect = static_result.estimate.as_effect().unwrap();
+    let temporal_effect = temporal.estimate().as_effect().unwrap();
+    let static_effect = static_result.estimate().as_effect().unwrap();
     // Same estimand, same rows, same ratio.
     assert!(close(temporal_effect.ate, ratio), "{} vs {ratio}", temporal_effect.ate);
     assert!(close(static_effect.ate, ratio), "{} vs {ratio}", static_effect.ate);
@@ -160,8 +155,8 @@ fn horizon_one_lagged_instrument_reproduces_the_static_two_stage_ratio_with_a_di
     assert!(lower < ratio && ratio < upper, "[{lower}, {upper}] around {ratio}");
     // Different licence: the temporal instrument is certified from the unfolded graph and
     // executes unlicensed; the static cell is licensed.
-    assert_eq!(static_result.support_status, Some(antecedent::support::CellStatus::Licensed));
-    assert_ne!(temporal.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(static_result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_ne!(temporal.support_status(), Some(antecedent::support::CellStatus::Licensed));
 }
 
 // ---------------------------------------------------------------------------
@@ -222,8 +217,8 @@ fn sequential_query() -> SequentialContrastQuery {
 /// follow the observed law), a different estimand, and publishes a licensed graph-based effect.
 /// On this panel the two numbers differ by about the second decision's contribution.
 #[test]
-fn a_sequential_contrast_has_no_one_decision_member_and_differs_from_the_static_aipw_of_the_first_action(
-) {
+fn a_sequential_contrast_has_no_one_decision_member_and_differs_from_the_static_aipw_of_the_first_action()
+ {
     let [l0, a0, l1, a1, y] = sequential_panel();
     let panel = TabularData::from_f64_columns([
         ("l0", l0.as_slice()),
@@ -248,8 +243,8 @@ fn a_sequential_contrast_has_no_one_decision_member_and_differs_from_the_static_
         .unwrap();
     let sequential = prepared.estimate(&panel, &context).unwrap();
     let fit = sequential.sequential_contrast().unwrap();
-    assert!(matches!(sequential.estimate, PrimaryEstimate::NotAnEffect));
-    assert_eq!(sequential.support_status, None);
+    assert!(matches!(sequential.estimate(), PrimaryEstimate::NotAnEffect));
+    assert_eq!(sequential.support_status(), None);
 
     // The static twin of the first decision alone: adjust for the baseline covariate.
     let static_result = run(frequentist(
@@ -258,8 +253,8 @@ fn a_sequential_contrast_has_no_one_decision_member_and_differs_from_the_static_
             .query(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(id(1), id(2))))
             .estimator(EstimatorId::Aipw),
     ));
-    let total_effect = static_result.estimate.as_effect().unwrap().ate;
-    assert_eq!(static_result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let total_effect = static_result.estimate().as_effect().unwrap().ate;
+    assert_eq!(static_result.support_status(), Some(antecedent::support::CellStatus::Licensed));
     // Different estimands: the regime contrast adds the second action's own effect.
     assert!(
         (fit.contrast - total_effect).abs() > 0.2,
@@ -350,7 +345,7 @@ fn horizon_one_history_match_is_the_unadjusted_matched_difference_of_the_static_
     let reported: Vec<usize> =
         matched.matched_donors.iter().map(|donor| usize::try_from(*donor).unwrap()).collect();
     assert_eq!(reported, donors);
-    assert_eq!(history_result.support_status, None);
+    assert_eq!(history_result.support_status(), None);
 
     let static_result = run(frequentist(
         Study::tabular(table(&[("treated", &treated), ("y", &outcome), ("h", &history)]))
@@ -361,7 +356,7 @@ fn horizon_one_history_match_is_the_unadjusted_matched_difference_of_the_static_
             ))
             .estimator(EstimatorId::DistanceMatching),
     ));
-    let static_effect = static_result.estimate.as_effect().unwrap();
+    let static_effect = static_result.estimate().as_effect().unwrap();
     assert!(
         (static_effect.ate - (raw - correction)).abs() < 1e-8,
         "{} vs {}",

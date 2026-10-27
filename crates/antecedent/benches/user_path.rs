@@ -86,7 +86,7 @@ fn report(name: &str, ctx: &ExecutionContext, result: &antecedent::StudyResult) 
         result.performance.wall_time_ns,
         result.performance.copy_count,
         result.performance.bytes_borrowed,
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     eprintln!(
         "user_path {name} stages_ns={:?} bootstrap_requested={:?} bootstrap_ok={:?} draws={:?} early_stopped={} cancelled={}",
@@ -125,7 +125,7 @@ fn bench_user_path(c: &mut Criterion) {
         .unwrap();
     c.bench_function(&format!("user_path_dag_ate_frequentist/n_{n}/threads_{threads}"), |b| {
         b.iter(|| {
-            black_box(frequentist.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate)
+            black_box(frequentist.clone().run(&ctx).unwrap().estimate().as_effect().unwrap().ate)
         });
     });
     let started = Instant::now();
@@ -154,7 +154,9 @@ fn bench_user_path(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function(&format!("user_path_dag_ate_bayesian_laplace/n_{n}/threads_{threads}"), |b| {
-        b.iter(|| black_box(bayesian.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
+        b.iter(|| {
+            black_box(bayesian.clone().run(&ctx).unwrap().estimate().as_effect().unwrap().ate)
+        });
     });
     report("dag_ate_bayesian_laplace", &ctx, &bayesian.run(&ctx).unwrap());
 
@@ -175,7 +177,7 @@ fn bench_user_path(c: &mut Criterion) {
         .unwrap();
     c.bench_function(&format!("user_path_intervention_level/n_{n}/threads_{threads}"), |b| {
         b.iter(|| {
-            black_box(intervention.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate)
+            black_box(intervention.clone().run(&ctx).unwrap().estimate().as_effect().unwrap().ate)
         });
     });
     report("intervention_level", &ctx, &intervention.run(&ctx).unwrap());
@@ -207,7 +209,7 @@ fn bench_user_path(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function(&format!("user_path_kennedy_curve/n_{kn}/threads_{threads}"), |b| {
-        b.iter(|| black_box(curve.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
+        b.iter(|| black_box(curve.clone().run(&ctx).unwrap().estimate().as_effect().unwrap().ate));
     });
     report("kennedy_curve", &ctx, &curve.run(&ctx).unwrap());
 
@@ -234,7 +236,9 @@ fn bench_user_path(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function(&format!("user_path_graph_posterior_mixture/n_{n}/threads_{threads}"), |b| {
-        b.iter(|| black_box(mixture.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
+        b.iter(|| {
+            black_box(mixture.clone().run(&ctx).unwrap().estimate().as_effect().unwrap().ate)
+        });
     });
     report("graph_posterior_mixture", &ctx, &mixture.run(&ctx).unwrap());
 
@@ -262,7 +266,9 @@ fn bench_user_path(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function(&format!("user_path_temporal_pulse/n_{n}/threads_{threads}"), |b| {
-        b.iter(|| black_box(temporal.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
+        b.iter(|| {
+            black_box(temporal.clone().run(&ctx).unwrap().estimate().as_effect().unwrap().ate)
+        });
     });
     report("temporal_pulse", &ctx, &temporal.run(&ctx).unwrap());
 }

@@ -59,7 +59,7 @@ fn checked_mediation_inference(
     study: &Study,
     physical: &PhysicalExecutionPlan,
 ) -> Result<CheckedMediationInference, CausalError> {
-    Ok(match &study.inference {
+    Ok(match &study.settings.inference {
         InferenceMode::Frequentist => {
             if !physical.binding().estimator.is(EstimatorId::TemporalMediation) {
                 return Err(CausalError::Compile {
@@ -68,7 +68,7 @@ fn checked_mediation_inference(
                 });
             }
             CheckedMediationInference::Frequentist {
-                bootstrap_replicates: study.bootstrap_replicates,
+                bootstrap_replicates: study.settings.bootstrap_replicates,
             }
         }
         InferenceMode::Bayesian(config) => {
@@ -155,10 +155,10 @@ impl CheckedTemporalMediationOperation {
         if !matches!(
             study.structure_source,
             crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
-        ) || study.split.is_some()
+        ) || study.declared.split.is_some()
             || study.graph_posterior.is_some()
-            || !study.custom_validators.is_empty()
-            || !study.refute.is_point()
+            || !study.declared.custom_validators.is_empty()
+            || !study.settings.refute.is_point()
             || physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != "temporal_mediation"
             || !physical.binding().identifier.is_wire("temporal.mediation")
@@ -208,7 +208,7 @@ impl CheckedTemporalMediationOperation {
             horizons: horizons.into(),
             targets: targets.into(),
             inference,
-            validation: study.refute,
+            validation: study.settings.refute,
             physical: physical.clone(),
             schema: data.schema().clone(),
             result_context: IdentifiedResultContext::from_study(study),
@@ -484,7 +484,7 @@ mod tests {
             .build()
             .unwrap();
         let physical = study.compile(&ctx).unwrap();
-        let estimator = if matches!(study.inference, InferenceMode::Bayesian(_)) {
+        let estimator = if matches!(study.settings.inference, InferenceMode::Bayesian(_)) {
             EstimatorId::BayesianTemporalMediation
         } else {
             EstimatorId::TemporalMediation

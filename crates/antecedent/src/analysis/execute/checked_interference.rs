@@ -74,7 +74,7 @@ impl CheckedInterferenceOperation {
         })?;
         let design = design.bound_to(data)?;
         refuse_unsupported_interference_design(study, &design, data, graph)?;
-        let (procedure, estimator) = match &study.inference {
+        let (procedure, estimator) = match &study.settings.inference {
             InferenceMode::Frequentist => frequentist_interference_procedure(query, &design)?,
             InferenceMode::Bayesian(config) if cluster_bootstrap_design(query) => {
                 admit_cluster_bootstrap(config)?;
@@ -158,8 +158,8 @@ impl CheckedInterferenceOperation {
             estimator,
             physical: physical.clone(),
             result_context: IdentifiedResultContext::from_study(study),
-            refute: study.refute,
-            replicates: study.bootstrap_replicates,
+            refute: study.settings.refute,
+            replicates: study.settings.bootstrap_replicates,
         })
     }
 
@@ -794,8 +794,8 @@ fn refuse_unsupported_interference_design(
         crate::support::StructureSource::Explicit
             | crate::support::StructureSource::Accepted
             | crate::support::StructureSource::GraphPosterior
-    ) || study.tiered.is_some()
-        || !study.custom_validators.is_empty()
+    ) || study.declared.tiered.is_some()
+        || !study.declared.custom_validators.is_empty()
         || design.assignment.len() != data.row_count()
         || design.network.units().row_count() != data.row_count()
         || width != data.schema().variables().len()

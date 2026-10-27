@@ -133,7 +133,7 @@ fn run_series(
 
 /// The published frequentist SE of a scalar result.
 fn block_se(result: &StudyResult) -> f64 {
-    result.estimate.as_effect().unwrap().se_bootstrap().expect("a shared-block SE")
+    result.estimate().as_effect().unwrap().se_bootstrap().expect("a shared-block SE")
 }
 
 #[test]
@@ -143,10 +143,10 @@ fn frequentist_cross_world_intervals_refit_every_regression_and_recover_the_mech
     let ctx = ExecutionContext::for_tests(5);
     for (key, query, truth) in cross_world_queries() {
         let result = run_series(&data, &graph, query, None, 199, &ctx).unwrap();
-        let binding = result.interval.as_ref().expect("an interval binding");
+        let binding = result.interval().as_ref().expect("an interval binding");
         assert_eq!(binding.method, IntervalMethod::CircularBlockSe, "{key}");
         let se = block_se(&result);
-        let point = result.estimate.as_effect().unwrap().ate;
+        let point = result.estimate().as_effect().unwrap().ate;
         assert!(se.is_finite() && se > 0.0 && se < 0.5, "{key} se={se}");
         assert!((point - truth).abs() < 4.0 * se, "{key}: {point} vs {truth} (se {se})");
         assert!(
@@ -168,7 +168,7 @@ fn bayesian_cross_world_posteriors_are_joint_draws_of_every_regression() {
         let result = run_series(&data, &graph, query, Some(bayesian(400)), 0, &ctx).unwrap();
         let posterior = result.posterior.as_ref().expect("a posterior");
         assert_eq!(
-            result.interval.as_ref().map(|binding| binding.method),
+            result.interval().as_ref().map(|binding| binding.method),
             Some(IntervalMethod::PosteriorQuantile),
             "{key}"
         );
@@ -197,7 +197,7 @@ fn point_only_without_replicates_and_the_same_interval_for_any_thread_budget() {
     // No replicates requested: the point is published alone and carries no interval
     // binding, like every point-only route.
     let point = run_series(&data, &graph, query.clone(), None, 0, &serial).unwrap();
-    assert!(point.interval.is_none());
+    assert!(point.interval().is_none());
     assert!(
         point
             .diagnostics
@@ -325,7 +325,7 @@ fn derivative_bands_cover_every_jacobian_cell_with_a_simultaneous_band() {
                 .any(|d| d.id.as_ref() == antecedent_estimate::SIMULTANEOUS_BAND_CRITICAL),
             "bayes={bayes}: a sup-t simultaneous band accompanies the pointwise band"
         );
-        let method = result.interval.as_ref().map(|binding| binding.method);
+        let method = result.interval().as_ref().map(|binding| binding.method);
         let expected =
             if bayes { IntervalMethod::PosteriorQuantile } else { IntervalMethod::CircularBlockSe };
         assert_eq!(method, Some(expected), "bayes={bayes}");
@@ -373,9 +373,9 @@ fn conditional_marginal_effect_interval_refits_the_interaction_and_the_modifier_
     let ctx = ExecutionContext::for_tests(7);
     let frequentist = run_series(&data, &graph, query.clone(), None, 199, &ctx).unwrap();
     let se = block_se(&frequentist);
-    let point = frequentist.estimate.as_effect().unwrap().ate;
+    let point = frequentist.estimate().as_effect().unwrap().ate;
     assert_eq!(
-        frequentist.interval.as_ref().map(|binding| binding.method),
+        frequentist.interval().as_ref().map(|binding| binding.method),
         Some(IntervalMethod::CircularBlockSe)
     );
     assert!(se > 0.0 && (point - truth).abs() < 4.0 * se, "{point} vs {truth} (se {se})");
@@ -439,9 +439,12 @@ fn conditional_marginal_effect_over_a_modifier_set_recovers_the_averaged_slope()
     let ctx = ExecutionContext::for_tests(7);
     let frequentist = run_series(&data, &graph, query, None, 199, &ctx).unwrap();
     let se = block_se(&frequentist);
-    let point = frequentist.estimate.as_effect().unwrap().ate;
+    let point = frequentist.estimate().as_effect().unwrap().ate;
     assert!(se > 0.0 && (point - truth).abs() < 4.0 * se, "{point} vs {truth} (se {se})");
-    assert!(frequentist.diagnostics.iter().any(|d| {
-        d.code.as_ref() == "estimate.temporal.conditional_modifier_set"
-    }));
+    assert!(
+        frequentist
+            .diagnostics
+            .iter()
+            .any(|d| { d.code.as_ref() == "estimate.temporal.conditional_modifier_set" })
+    );
 }

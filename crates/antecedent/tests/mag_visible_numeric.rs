@@ -137,7 +137,7 @@ fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
                                 other => panic!("unexpected {other:?}"),
                             }
                         } else {
-                            vec![result.estimate.as_effect().unwrap().ate]
+                            vec![result.estimate().as_effect().unwrap().ate]
                         };
                         assert_eq!(values.len(), expected.len());
                         for (value, target) in values.iter().zip(expected) {

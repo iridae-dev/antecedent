@@ -160,26 +160,53 @@ pub fn identify_static_query_in_context(
                 });
             };
             q.validate()?;
-            if q.allow_nested || q.outcomes.len() != 1 || q.interventions.len() != 1 {
-                return Err(CausalError::Unsupported {
-                    message: "staged Counterfactual requires one outcome and one hard intervention; nested forms are refused",
-                });
-            }
-            let antecedent_core::Intervention::Set { variable, value } = &q.interventions[0] else {
-                return Err(CausalError::Unsupported {
-                    message: "staged Counterfactual requires Set",
-                });
-            };
-            if value.as_f64().is_none_or(|v| !v.is_finite())
-                || variable.as_usize() >= graph.node_count()
-                || q.outcomes[0].as_usize() >= graph.node_count()
-            {
-                return Err(CausalError::Unsupported {
-                    message: "invalid counterfactual variables or level",
-                });
-            }
-            crate::analysis::parametric_scm_identification(query.clone(), *variable, q.outcomes[0])
+            let single = !q.allow_nested
+                && q.outcomes.len() == 1
+                && q.interventions.len() == 1
+                && q.joint_control.is_empty();
+            if single {
+                let antecedent_core::Intervention::Set { variable, value } = &q.interventions[0]
+                else {
+                    return Err(CausalError::Unsupported {
+                        message: "staged Counterfactual requires Set",
+                    });
+                };
+                if value.as_f64().is_none_or(|v| !v.is_finite())
+                    || variable.as_usize() >= graph.node_count()
+                    || q.outcomes[0].as_usize() >= graph.node_count()
+                {
+                    return Err(CausalError::Unsupported {
+                        message: "invalid counterfactual variables or level",
+                    });
+                }
+                crate::analysis::parametric_scm_identification(
+                    query.clone(),
+                    *variable,
+                    q.outcomes[0],
+                )
                 .0
+            } else {
+                // Several outcomes, simultaneous interventions or nested interventions: the
+                // checked operation owns the worlds' levels; identification names every
+                // intervened variable and outcome the graph holds.
+                let treatments = q.active_variables();
+                if treatments.is_empty()
+                    || treatments
+                        .iter()
+                        .chain(q.outcomes.iter())
+                        .any(|v| v.as_usize() >= graph.node_count())
+                {
+                    return Err(CausalError::Unsupported {
+                        message: "invalid counterfactual variables or level",
+                    });
+                }
+                crate::analysis::parametric_scm_identification_over(
+                    query.clone(),
+                    &treatments,
+                    &q.outcomes,
+                )
+                .0
+            }
         }
         IdentifierId::ResponseBackdoor => {
             let mut id = ResponseIdentifier::new();
@@ -897,7 +924,8 @@ pub fn attach_static_bootstrap(
         }
         EstimatorId::FrontDoorTwoStage => {
             let mut est = FrontDoorTwoStage::new();
-            est.inference.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
+            est.inference.sampling_design =
+                crate::estimator_spec::declared_sampling(sampling_design);
             est.inference.bootstrap_replicates = bootstrap_replicates;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = FrontDoorWorkspace::default();

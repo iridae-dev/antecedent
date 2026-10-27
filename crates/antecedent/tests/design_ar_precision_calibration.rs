@@ -135,7 +135,7 @@ fn execute_one(r: &DesignRequest, seed: u64, critical: f64, check_replay: bool) 
             let diagnostic = session
                 .result()
                 .unwrap()
-                .estimate
+                .estimate()
                 .as_effect()
                 .unwrap()
                 .diagnostics
@@ -159,7 +159,7 @@ fn execute_one(r: &DesignRequest, seed: u64, critical: f64, check_replay: bool) 
                         .session
                         .result()
                         .unwrap()
-                        .estimate
+                        .estimate()
                         .as_effect()
                         .unwrap()
                         .diagnostics

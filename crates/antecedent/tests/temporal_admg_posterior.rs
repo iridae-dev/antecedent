@@ -227,7 +227,7 @@ fn the_atoms_are_identified_per_window_and_mixed_by_posterior_weight() {
         assert!(scalar(by_key(2).value.as_ref()).is_none(), "the bow atom has no value");
         assert_eq!(by_key(2).status, IdentificationStatus::NotIdentified);
         // The mixture is posterior-weighted over the identified mass, and graph-dependent.
-        let effect = result.estimate.as_effect().unwrap().ate;
+        let effect = result.estimate().as_effect().unwrap().ate;
         assert!((effect - expected).abs() < 0.02, "{inference:?}: {effect} vs {expected}");
         assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
         assert!(result.posterior.is_none(), "an atom posterior is conditional on its graph");
@@ -254,7 +254,7 @@ fn the_mixture_standard_error_resamples_blocks_of_windows_at_one_table() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let estimate = result.estimate.as_effect().unwrap();
+    let estimate = result.estimate().as_effect().unwrap();
     let se = estimate.se_bootstrap().expect("a mixture standard error");
     assert!(se > 0.0 && se < 0.1, "{se}");
     assert_eq!(estimate.uncertainty.bootstrap.replicates_ok, Some(60));
@@ -276,7 +276,7 @@ fn a_single_identified_atom_reproduces_the_window_route_of_its_template() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let effect = result.estimate.as_effect().unwrap().ate;
+    let effect = result.estimate().as_effect().unwrap().ate;
     assert!((effect - STRUCTURAL_EFFECT).abs() < 0.02, "{effect}");
     let mixture = result.structural_response.as_ref().unwrap();
     assert_eq!(mixture.unidentified_mass, 0.0);
@@ -299,7 +299,8 @@ fn a_prepared_handle_freezes_the_per_atom_identification_and_re_estimates() {
     let prepared = study.prepare(&ctx).unwrap();
     let again = prepared.estimate_retained(&ctx).unwrap();
     assert!(
-        (again.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+        (again.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
+            .abs()
             < 1e-12,
         "the click evaluates the frozen identification at the same data"
     );
@@ -360,7 +361,7 @@ fn a_posterior_scored_from_the_series_concentrates_on_the_supported_template() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let effect = result.estimate.as_effect().unwrap().ate;
+    let effect = result.estimate().as_effect().unwrap().ate;
     assert!((effect - STRUCTURAL_EFFECT).abs() < 0.03, "{effect}");
 }
 
@@ -468,9 +469,9 @@ fn a_mediation_posterior_mixes_each_component_over_the_atoms_that_identify_it() 
     // The recanting atom leaves the requested contrast unidentified and keeps its mass.
     assert!((mixture.unidentified_mass - 0.4).abs() < 1e-12, "{}", mixture.unidentified_mass);
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
-    let indirect = result.estimate.as_effect().unwrap().ate;
+    let indirect = result.estimate().as_effect().unwrap().ate;
     assert!((indirect - structural_indirect()).abs() < 0.02, "{indirect}");
-    let components = result.payload.mediation().expect("the decomposition");
+    let components = result.payload().mediation().expect("the decomposition");
     assert!((components.mediated.unwrap() - structural_indirect()).abs() < 0.02);
     // The total effect of the treatment is identified by both templates, whatever the
     // confounder of the mediator.

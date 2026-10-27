@@ -80,7 +80,7 @@ fn staged(
     assert_eq!(study.structure_source().as_str(), if accepted { "accepted" } else { "explicit" });
     let ctx = ExecutionContext::for_tests(seed);
     let result = study.prepare(&ctx).unwrap().estimate(data, &ctx).unwrap();
-    assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(result.support_status().unwrap().as_str(), "licensed");
     assert!(
         result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
         "the prepared click must reuse identification"
@@ -106,9 +106,9 @@ fn report<'a>(result: &'a StudyResult, name: &str) -> &'a antecedent_validate::R
 /// when the refuter did not run.
 fn assert_evalue_fields(result: &StudyResult, ran: bool, label: &str) {
     if !ran {
-        assert_eq!(result.estimate.as_effect().unwrap().diagnostics.evalue, None, "{label}");
+        assert_eq!(result.estimate().as_effect().unwrap().diagnostics.evalue, None, "{label}");
         assert_eq!(
-            result.estimate.as_effect().unwrap().diagnostics.evalue_threshold,
+            result.estimate().as_effect().unwrap().diagnostics.evalue_threshold,
             None,
             "{label}"
         );
@@ -116,12 +116,12 @@ fn assert_evalue_fields(result: &StudyResult, ran: bool, label: &str) {
     }
     let report = report(result, "sensitivity.evalue");
     assert_eq!(
-        result.estimate.as_effect().unwrap().diagnostics.evalue,
+        result.estimate().as_effect().unwrap().diagnostics.evalue,
         Some(report.comparison),
         "{label}"
     );
     let threshold = result
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .diagnostics
@@ -208,9 +208,9 @@ fn average_effect_dag_frequentist_known_truth_all_structures_and_suites() {
             );
             assert!(result.posterior.is_none(), "{label}: Frequentist publishes no posterior");
             assert!(
-                (result.estimate.as_effect().unwrap().ate - truth).abs() < 1e-8,
+                (result.estimate().as_effect().unwrap().ate - truth).abs() < 1e-8,
                 "{label}: {}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             assert_evalue_fields(&result, suite != RefuteSuite::None, &label);
             match suite {
@@ -273,7 +273,7 @@ fn average_effect_dag_bayesian_known_truth_all_structures_and_suites() {
             let posterior = result.posterior.as_ref().expect("Bayesian posterior");
             let mean = posterior.summaries.mean[posterior.effect_column().unwrap()];
             assert!((mean - truth).abs() < tolerance, "{label}: posterior mean {mean}");
-            assert!((result.estimate.as_effect().unwrap().ate - mean).abs() < 1e-12, "{label}");
+            assert!((result.estimate().as_effect().unwrap().ate - mean).abs() < 1e-12, "{label}");
             assert_bayesian_validation(&result, suite, &label);
         }
     }
@@ -326,9 +326,9 @@ fn conditional_effect_dag_frequentist_known_truth_all_structures_and_suites() {
                 "{label}"
             );
             assert!(
-                (result.estimate.as_effect().unwrap().ate - target).abs() < tolerance,
+                (result.estimate().as_effect().unwrap().ate - target).abs() < tolerance,
                 "{label}: {}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             match suite {
                 RefuteSuite::None => assert!(result.refutations.is_empty(), "{label}"),
@@ -344,7 +344,8 @@ fn conditional_effect_dag_frequentist_known_truth_all_structures_and_suites() {
                     report(&result, "sensitivity.evalue");
                     let rcc = report(&result, "random.common_cause");
                     assert!(
-                        (rcc.original_ate - result.estimate.as_effect().unwrap().ate).abs() < 1e-9,
+                        (rcc.original_ate - result.estimate().as_effect().unwrap().ate).abs()
+                            < 1e-9,
                         "{label}: full must refit the interaction scalar that was licensed"
                     );
                     assert!(
@@ -416,7 +417,7 @@ fn conditional_effect_graph_posterior_known_truth_all_inferences_and_suites() {
                 .unwrap();
             let ctx = ExecutionContext::for_tests(18);
             let result = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
-            assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+            assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{label}");
             assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
             assert_eq!(
                 result.logical_plan.estimator.as_deref(),
@@ -428,7 +429,7 @@ fn conditional_effect_graph_posterior_known_truth_all_inferences_and_suites() {
                 "{label}"
             );
             assert!(
-                result.estimate.as_effect().unwrap().ate.is_nan(),
+                result.estimate().as_effect().unwrap().ate.is_nan(),
                 "{label}: scalar aggregate must be withheld"
             );
             let structural = result.structural_response.as_ref().expect("structural atoms");
@@ -540,9 +541,9 @@ fn mediation_bayesian_known_truth_all_structures_and_suites() {
                 );
                 let posterior = result.posterior.as_ref().expect("Bayesian mediation posterior");
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.15,
+                    (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.15,
                     "{label}: posterior mean {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 let mut draws =
                     posterior.draws.column(posterior.effect_column().unwrap()).unwrap().to_vec();
@@ -744,7 +745,7 @@ fn counterfactual_dag_interaction_outcome_recovers_subgroup_unit_effects() {
             assert!(unit_effect_spread(&cf.unit_effects) > 0.5, "{label}");
 
             assert!(
-                !result.estimate.as_effect().unwrap().heterogeneity.unit_effects_homogeneous,
+                !result.estimate().as_effect().unwrap().heterogeneity.unit_effects_homogeneous,
                 "{label}"
             );
             assert!(homogeneity_diagnostic(&result).is_none(), "{label}");
@@ -845,7 +846,7 @@ fn counterfactual_dag_additive_outcome_reports_rejected_heterogeneity_not_homoge
         staged(&data, &graph, false, query, InferenceMode::Frequentist, RefuteSuite::None, 21);
     let cf = result.counterfactual().unwrap();
     assert!(unit_effect_spread(&cf.unit_effects) < 1e-9, "linear family must still be selected");
-    assert!(!result.estimate.as_effect().unwrap().heterogeneity.unit_effects_homogeneous);
+    assert!(!result.estimate().as_effect().unwrap().heterogeneity.unit_effects_homogeneous);
     assert!(homogeneity_diagnostic(&result).is_none());
     let rejected = diagnostic(&result, "gcm.counterfactual.heterogeneity_rejected")
         .expect("the rejected heterogeneity families must be recorded");
@@ -881,7 +882,7 @@ fn counterfactual_dag_single_parent_outcome_discloses_structural_homogeneity() {
             let cf = result.counterfactual().unwrap();
             assert!(unit_effect_spread(&cf.unit_effects) < 1e-9, "{label}");
             assert!(
-                result.estimate.as_effect().unwrap().heterogeneity.unit_effects_homogeneous,
+                result.estimate().as_effect().unwrap().heterogeneity.unit_effects_homogeneous,
                 "{label}"
             );
             let disclosure = homogeneity_diagnostic(&result)
@@ -929,7 +930,7 @@ fn counterfactual_dag_exp_modifier_unit_effects_rise_with_the_modifier() {
     let result =
         staged(&data, &graph, false, query, InferenceMode::Frequentist, RefuteSuite::None, 21);
     let cf = result.counterfactual().unwrap();
-    assert!(!result.estimate.as_effect().unwrap().heterogeneity.unit_effects_homogeneous);
+    assert!(!result.estimate().as_effect().unwrap().heterogeneity.unit_effects_homogeneous);
     assert!(homogeneity_diagnostic(&result).is_none());
     let rank = |values: &[f64]| {
         let mut order: Vec<usize> = (0..values.len()).collect();
@@ -1098,6 +1099,6 @@ fn counterfactual_dag_discrete_outcome_makes_no_homogeneity_claim() {
         unit_effect_spread(&cf.unit_effects) > 1e-9,
         "a discrete outcome must not produce one constant contrast"
     );
-    assert!(!result.estimate.as_effect().unwrap().heterogeneity.unit_effects_homogeneous);
+    assert!(!result.estimate().as_effect().unwrap().heterogeneity.unit_effects_homogeneous);
     assert!(homogeneity_diagnostic(&result).is_none());
 }

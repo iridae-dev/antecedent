@@ -108,9 +108,9 @@ fn a_logit_likelihood_recovers_the_risk_difference_on_a_binary_outcome() {
     let (_, logit) = run_dag(table.clone(), bayes(BayesLikelihood::BernoulliLogit)).unwrap();
     let posterior = logit.posterior.as_ref().expect("posterior");
     assert!(
-        (logit.estimate.as_effect().unwrap().ate - truth).abs() < 0.05,
+        (logit.estimate().as_effect().unwrap().ate - truth).abs() < 0.05,
         "logit ATE {} vs in-sample risk difference {truth}",
-        logit.estimate.as_effect().unwrap().ate
+        logit.estimate().as_effect().unwrap().ate
     );
     assert!(
         format!("{:?}", posterior.assumptions).contains("Bernoulli logit outcome regression"),
@@ -120,8 +120,8 @@ fn a_logit_likelihood_recovers_the_risk_difference_on_a_binary_outcome() {
 
     let (_, gaussian) = run_dag(table, bayes(BayesLikelihood::GaussianIdentity)).unwrap();
     assert_ne!(
-        gaussian.estimate.as_effect().unwrap().ate.to_bits(),
-        logit.estimate.as_effect().unwrap().ate.to_bits()
+        gaussian.estimate().as_effect().unwrap().ate.to_bits(),
+        logit.estimate().as_effect().unwrap().ate.to_bits()
     );
     assert_eq!(disclosed(&gaussian).as_deref(), Some("binary"));
 }
@@ -166,8 +166,8 @@ fn a_poisson_likelihood_fits_a_count_outcome_and_gaussian_is_disclosed() {
     });
     let (_, poisson) = run_dag(table.clone(), bayes(BayesLikelihood::PoissonLog)).unwrap();
     assert!(
-        poisson.estimate.as_effect().unwrap().ate.is_finite()
-            && poisson.estimate.as_effect().unwrap().ate > 0.0
+        poisson.estimate().as_effect().unwrap().ate.is_finite()
+            && poisson.estimate().as_effect().unwrap().ate > 0.0
     );
     assert_eq!(disclosed(&poisson), None);
     let (_, gaussian) = run_dag(table, bayes(BayesLikelihood::GaussianIdentity)).unwrap();

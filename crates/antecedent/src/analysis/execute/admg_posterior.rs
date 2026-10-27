@@ -210,7 +210,7 @@ impl super::Study {
     /// Withheld-posterior, class-envelope, aggregation-policy and overlap disclosures.
     fn admg_graph_posterior_diagnostics(&self, mixed: &MixedAdmgPosterior) -> Vec<Diagnostic> {
         let mut diagnostics = mixed.identification.diagnostics.clone();
-        if self.inference.is_bayesian() && mixed.posterior.is_none() {
+        if self.settings.inference.is_bayesian() && mixed.posterior.is_none() {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(Diagnostic::new(
@@ -343,7 +343,9 @@ fn refute_admg_graph_posterior(
     policy: StructuralAggregationPolicy,
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
-    if matches!(study.refute, RefuteSuite::None) && study.custom_validators.is_empty() {
+    if matches!(study.settings.refute, RefuteSuite::None)
+        && study.declared.custom_validators.is_empty()
+    {
         return Ok((Vec::new(), Vec::new()));
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
@@ -366,9 +368,9 @@ fn refute_admg_graph_posterior(
             let (reports, notes) = EnvelopeRefutation {
                 data,
                 query,
-                suite: study.refute,
+                suite: study.settings.refute,
                 estimator: EstimatorId::FunctionalEffect.as_str(),
-                custom: &study.custom_validators,
+                custom: &study.declared.custom_validators,
                 temporal: None,
             }
             .run(&eval.refute_atoms, &mut refute_ws, ctx)?;

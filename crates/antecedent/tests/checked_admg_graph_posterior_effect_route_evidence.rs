@@ -111,9 +111,9 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
             let result = prepared.estimate(&data, &context).unwrap();
             let tolerance = if bayesian { 0.05 } else { 1e-9 };
             assert!(
-                (result.estimate.as_effect().unwrap().ate - truth).abs() < tolerance,
+                (result.estimate().as_effect().unwrap().ate - truth).abs() < tolerance,
                 "bayesian={bayesian} suite={suite:?}: {} vs {truth}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             let mixture = result.structural_response.as_ref().expect("mixture");
             assert!((mixture.identified_mass - 0.8).abs() < 1e-12);
@@ -139,8 +139,8 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
             }
             let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
             assert!(
-                (refreshed.estimate.as_effect().unwrap().ate
-                    - result.estimate.as_effect().unwrap().ate)
+                (refreshed.estimate().as_effect().unwrap().ate
+                    - result.estimate().as_effect().unwrap().ate)
                     .abs()
                     < 1e-9
             );

@@ -115,23 +115,23 @@ impl CheckedRandomizedOperation {
         query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || study.refute != RefuteSuite::None
-            || study.bootstrap_replicates != 0
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || study.settings.bootstrap_replicates != 0
+            || !study.declared.custom_validators.is_empty()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
+            || study.declared.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
                 message: "randomized ITT supports Bernoulli, complete, stratified, cluster, and switchback estimation only, without a graph, validation suite, or bootstrap",
             });
         }
-        let bayesian = match &study.inference {
+        let bayesian = match &study.settings.inference {
             InferenceMode::Frequentist => false,
             InferenceMode::Bayesian(config) => {
                 if matches!(query.design, antecedent_core::RandomizationDesign::Switchback { .. }) {
                     bayesian_switchback::admit(query, config)?;
                 } else if bayesian_arms::is_complier_query(query) {
-                    bayesian_arms::admit_complier(query, config, study.estimator)?;
+                    bayesian_arms::admit_complier(query, config, study.declared.estimator)?;
                 } else {
                     bayesian_arms::admit(query, config)?;
                 }
@@ -151,7 +151,7 @@ impl CheckedRandomizedOperation {
             data.schema().get(covariate).map_err(CausalError::rejected)?;
         }
         let planned_estimator = if bayesian {
-            bayesian_randomized_estimator(study.estimator, query)
+            bayesian_randomized_estimator(study.declared.estimator, query)
         } else {
             RandomizedMethod::of(query).estimator_id()
         };
@@ -169,7 +169,7 @@ impl CheckedRandomizedOperation {
                 message: "randomized target or design differs from its compiled plan".into(),
             });
         }
-        if let Some(declaration) = &study.missing {
+        if let Some(declaration) = &study.declared.missing {
             check_declaration_for_design(query, declaration)?;
         }
         let (identification, estimand) =
@@ -181,7 +181,7 @@ impl CheckedRandomizedOperation {
             physical,
             identification,
             estimand,
-            study.missing.clone(),
+            study.declared.missing.clone(),
         ))
     }
 
@@ -718,16 +718,16 @@ impl CheckedPolicyValueOperation {
             .as_ref()
             .map_or(query.assignment.len(), |multi| multi.assignment.len())
             != data.row_count()
-            || study.refute != RefuteSuite::None
-            || study.bootstrap_replicates != 0
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || study.settings.bootstrap_replicates != 0
+            || !study.declared.custom_validators.is_empty()
             || study.graph.class() != GraphClass::RandomizedTrial
         {
             return Err(CausalError::Unsupported {
                 message: "policy value requires aligned graphless randomized rows and does not accept refuters or bootstrap",
             });
         }
-        let bayesian = match &study.inference {
+        let bayesian = match &study.settings.inference {
             InferenceMode::Frequentist => None,
             InferenceMode::Bayesian(config) => {
                 bayesian_policy::admit_bayesian_policy(query, config)?;

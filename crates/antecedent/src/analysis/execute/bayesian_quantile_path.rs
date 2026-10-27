@@ -153,7 +153,7 @@ impl Study {
             ctx,
         )?;
         require_identified(&identification)?;
-        let InferenceMode::Bayesian(config) = &self.inference else {
+        let InferenceMode::Bayesian(config) = &self.settings.inference else {
             return Err(CausalError::unsupported_inference(
                 "bayesian.randomized_quantile requires Bayesian inference",
             ));

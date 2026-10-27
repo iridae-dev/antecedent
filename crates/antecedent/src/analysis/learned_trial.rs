@@ -404,7 +404,8 @@ mod tests {
     fn retained_trial_proof_reads_execute_no_scientific_work() {
         let (diagram, query, input, options) = fixture();
         let ctx = ExecutionContext::for_tests(8);
-        let study = StudyBuilder::learned_trial_transport(diagram, query, input, options, &ctx).unwrap();
+        let study =
+            StudyBuilder::learned_trial_transport(diagram, query, input, options, &ctx).unwrap();
         let observed = antecedent_core::execution_attempt::observe_execution(|| {
             let proof = study.identification();
             assert!(matches!(proof, TransportIdentification::Transportable { .. }));

@@ -168,35 +168,12 @@ pub struct Study {
     /// was used; `graph` then holds only a placeholder shape (variable count / modality
     /// only — never consulted for identification). Mutually exclusive with a "real" `graph`.
     pub(crate) graph_posterior: Option<GraphPosterior>,
-    /// Caller-supplied mass over incomplete-temporal class members.
-    pub(crate) class_prior: Option<crate::ClassPrior>,
-    /// Optional cap on `TemporalCpdag` / `TemporalPag` completion search.
-    pub(crate) max_completions: Option<usize>,
     /// Matrix structure-source axis recorded at [`crate::StudyBuilder::build`].
     pub(crate) structure_source: crate::support::StructureSource,
     /// Licensed vs allowlisted evidence status recorded at build. `None` when
     /// the query is not on the public matrix axis.
     pub(crate) support_status: Option<crate::support::CellStatus>,
     pub(crate) query: CausalQuery,
-    pub(crate) refute: RefuteSuite,
-    pub(crate) bootstrap_replicates: u32,
-    /// Retain the joint replicates of a temporal response surface (see
-    /// [`crate::StudyBuilder::retain_joint_horizons`]).
-    pub(crate) retain_joint_horizons: bool,
-    pub(crate) split: Option<DiscoveryEstimationSplit>,
-    pub(crate) identifier: Option<IdentifierId>,
-    pub(crate) estimator: Option<EstimatorId>,
-    pub(crate) estimator_spec: Option<Arc<crate::estimator_spec::EstimatorSpec>>,
-    pub(crate) inference: InferenceMode,
-    pub(crate) overlap_policy: Option<OverlapPolicy>,
-    pub(crate) population_registry: Option<PopulationRegistry>,
-    /// Digests of the participant labels bound to the rows of the data.
-    pub(crate) participants: Option<antecedent_io::ParticipantBindingWire>,
-    /// Declared handling of missing values, when the caller declared one.
-    pub(crate) missing: Option<antecedent_data::MissingDeclaration>,
-    /// Declared sampling design of the rows, held by every estimator that bootstraps or splits.
-    pub(crate) sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
-    pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
     /// The identification product [`Study::prepare`] installed: the static contrast
     /// (including the general-ID result and functional estimand of a bidirected
@@ -207,12 +184,49 @@ pub struct Study {
     /// (every builder-constructed study) identifies on each run. The kinds are
     /// mutually exclusive; see the typed accessors in `identification_slot`.
     pub(crate) identification: Option<super::prepared::IdentificationCache>,
-    /// Optional tier-rule background for O(p) closure certification.
-    pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
     /// Network + assignment of an interference query, rebound to each click's rows.
     pub(crate) interference: Option<super::builder::InterferenceSpec>,
     /// Shared fold assignment / covariate design when this study is part of a batch.
     pub(crate) shared_batch_design: Option<Arc<super::batch::SharedBatchDesign>>,
+    /// Per-click declarations a rebinding may replace.
+    pub(crate) declared: StudyDeclarations,
+    /// Inference, refutation and resampling choices of this analysis.
+    pub(crate) settings: StudyInference,
+}
+
+/// The per-click declarations of a [`Study`], held together so a rebinding replaces them as one group.
+#[derive(Clone, Debug)]
+pub(crate) struct StudyDeclarations {
+    /// Caller-supplied mass over incomplete-temporal class members.
+    pub(crate) class_prior: Option<crate::ClassPrior>,
+    /// Optional cap on `TemporalCpdag` / `TemporalPag` completion search.
+    pub(crate) max_completions: Option<usize>,
+    pub(crate) split: Option<DiscoveryEstimationSplit>,
+    pub(crate) identifier: Option<IdentifierId>,
+    pub(crate) estimator: Option<EstimatorId>,
+    pub(crate) estimator_spec: Option<Arc<crate::estimator_spec::EstimatorSpec>>,
+    pub(crate) overlap_policy: Option<OverlapPolicy>,
+    pub(crate) population_registry: Option<PopulationRegistry>,
+    /// Digests of the participant labels bound to the rows of the data.
+    pub(crate) participants: Option<antecedent_io::ParticipantBindingWire>,
+    /// Declared handling of missing values, when the caller declared one.
+    pub(crate) missing: Option<antecedent_data::MissingDeclaration>,
+    /// Declared sampling design of the rows, held by every estimator that bootstraps or splits.
+    pub(crate) sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
+    pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
+    /// Optional tier-rule background for O(p) closure certification.
+    pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
+}
+
+/// The inference, refutation and resampling choices of a [`Study`].
+#[derive(Clone, Debug)]
+pub(crate) struct StudyInference {
+    pub(crate) refute: RefuteSuite,
+    pub(crate) bootstrap_replicates: u32,
+    /// Retain the joint replicates of a temporal response surface (see
+    /// [`crate::StudyBuilder::retain_joint_horizons`]).
+    pub(crate) retain_joint_horizons: bool,
+    pub(crate) inference: InferenceMode,
 }
 
 impl std::ops::Deref for Study {
@@ -224,11 +238,11 @@ impl std::ops::Deref for Study {
 }
 
 mod admg_posterior;
-mod identification_slot;
 mod admg_posterior_response;
 mod attribution_path;
 mod checked_attribution;
 mod class_attribution;
+mod identification_slot;
 mod temporal_admg_mediation;
 mod temporal_attribution;
 pub(crate) use temporal_admg_mediation::mediation_window_namespace;
@@ -378,7 +392,6 @@ mod mediation_streams;
 use mediation_streams::{MediationRoute, mediation_block_stream, mediation_mechanism_seed};
 mod checked_static_response;
 mod dispatch;
-mod route_call;
 mod identified_set_diagnostics;
 mod interference_refutation;
 mod mediation_mixed;
@@ -388,6 +401,7 @@ mod pag_path;
 mod panel_link_path;
 mod panel_path;
 mod response_path;
+mod route_call;
 mod temporal_iv_path;
 pub(crate) use checked_static_response::{
     CheckedDerivativeResponseOperation, CheckedStaticDagResponseOperation,

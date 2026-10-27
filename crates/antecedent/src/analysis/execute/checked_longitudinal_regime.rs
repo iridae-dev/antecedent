@@ -74,17 +74,17 @@ impl CheckedLongitudinalRegimeOperation {
             || !query.probabilities_known_by_design
             || study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || study.refute != RefuteSuite::None
-            || study.bootstrap_replicates != 0
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || study.settings.bootstrap_replicates != 0
+            || !study.declared.custom_validators.is_empty()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
+            || study.declared.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
                 message: "retained longitudinal regime value requires known sequential randomization, one outcome row per subject, graphless trial, and point-only frequentist execution or the Bayesian sequential regime posterior",
             });
         }
-        let bayesian = match &study.inference {
+        let bayesian = match &study.settings.inference {
             InferenceMode::Frequentist => None,
             InferenceMode::Bayesian(config) => {
                 bayesian_regime::admit_bayesian_regime(query, config)?;

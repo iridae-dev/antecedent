@@ -15,8 +15,8 @@ pub(super) fn interference(cx: &SealContext<'_>) -> SealOutcome {
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             ) && analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(crate::analysis::execute::CheckedInterferenceOperation::checked(
                 analysis, data, plan,
@@ -33,8 +33,8 @@ pub(super) fn randomized(cx: &SealContext<'_>) -> SealOutcome {
         Some(RouteInput::RandomizedEffect { data, .. })
             if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
                 && analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(crate::analysis::execute::CheckedRandomizedOperation::checked(
                 analysis, data, plan,
@@ -51,8 +51,8 @@ pub(super) fn policy_value(cx: &SealContext<'_>) -> SealOutcome {
         Some(RouteInput::PolicyValue { data, .. })
             if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
                 && analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(crate::analysis::execute::CheckedPolicyValueOperation::checked(
                 analysis, data, plan,
@@ -68,8 +68,8 @@ pub(super) fn continuous_dose(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match cx.route {
         Some(RouteInput::ContinuousDoseResponse { data, .. })
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(crate::analysis::execute::CheckedContinuousDoseOperation::checked(
                 analysis, data, plan,
@@ -85,8 +85,8 @@ pub(super) fn panel_did(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match cx.route {
         Some(RouteInput::PanelDid { data, .. })
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(crate::analysis::execute::CheckedPanelDidOperation::checked(analysis, data, plan)?)
         }
@@ -100,8 +100,8 @@ pub(super) fn synthetic_control(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match cx.route {
         Some(RouteInput::SyntheticControl { data, .. })
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(crate::analysis::execute::CheckedSyntheticControlOperation::checked(
                 analysis, data, plan,
@@ -117,8 +117,8 @@ pub(super) fn local_polynomial_ratio(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match cx.route {
         Some(RouteInput::LocalPolynomialRatio { data, .. })
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(crate::analysis::execute::CheckedLocalPolynomialRatioOperation::checked(
                 analysis, data, plan,
@@ -135,8 +135,8 @@ pub(super) fn survival(cx: &SealContext<'_>) -> SealOutcome {
         Some(RouteInput::Survival { data, .. })
             if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
                 && analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(crate::analysis::execute::CheckedSurvivalOperation::checked(analysis, data, plan)?)
         }
@@ -151,8 +151,8 @@ pub(super) fn longitudinal_regime(cx: &SealContext<'_>) -> SealOutcome {
         Some(RouteInput::LongitudinalRegime { data, .. })
             if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
                 && analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(crate::analysis::execute::CheckedLongitudinalRegimeOperation::checked(
                 analysis, data, plan,
@@ -169,8 +169,8 @@ pub(super) fn history_match(cx: &SealContext<'_>) -> SealOutcome {
         Some(RouteInput::HistoryMatch { data, .. })
             if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
                 && analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(crate::analysis::execute::CheckedHistoryMatchOperation::checked(
                 analysis, data, plan,
@@ -187,8 +187,8 @@ pub(super) fn temporal_design(cx: &SealContext<'_>) -> SealOutcome {
         Some(RouteInput::TemporalDesign { data, .. })
             if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
                 && analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(Box::new(crate::analysis::execute::CheckedTemporalDesignOperation::checked(
                 analysis, data, plan,
@@ -205,8 +205,8 @@ pub(super) fn iv_bounds(cx: &SealContext<'_>) -> SealOutcome {
         Some(RouteInput::IvBounds { data, .. })
             if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
                 && analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(crate::analysis::execute::CheckedIvBoundsOperation::checked(analysis, data, plan)?)
         }
@@ -221,8 +221,8 @@ pub(super) fn sequential_contrast(cx: &SealContext<'_>) -> SealOutcome {
         Some(RouteInput::SequentialContrast { data, .. })
             if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
                 && analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none() =>
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none() =>
         {
             Some(crate::analysis::execute::CheckedSequentialContrastOperation::checked(
                 analysis, data, plan,

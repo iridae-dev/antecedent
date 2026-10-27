@@ -106,7 +106,7 @@ fn time_min(study: &Study, ctx: &ExecutionContext, repeats: usize) -> Duration {
         let started = Instant::now();
         let result = study.clone().run(ctx).unwrap();
         let elapsed = started.elapsed();
-        assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+        assert!(result.estimate().as_effect().unwrap().ate.is_finite());
         best = best.min(elapsed);
     }
     best

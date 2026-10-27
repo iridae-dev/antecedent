@@ -140,7 +140,7 @@ fn average_effect_keeps_its_licensed_populations() {
             .unwrap()
             .run(&ctx)
             .unwrap()
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .ate

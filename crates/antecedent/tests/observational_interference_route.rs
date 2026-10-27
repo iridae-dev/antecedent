@@ -68,9 +68,9 @@ fn observational_network_contrast_retains_truth_assumptions_and_artifact() {
     };
     assert_eq!(info.estimator, EstimatorId::InterferenceObservationalIpw);
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(result.support_status, None);
-    assert!((result.estimate.as_effect().unwrap().ate - 6.0).abs() < 1e-12);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.support_status(), None);
+    assert!((result.estimate().as_effect().unwrap().ate - 6.0).abs() < 1e-12);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     let observed = result.interference().unwrap();
     assert!((observed.contrast.hajek - 6.0).abs() < 1e-12);
     assert!((observed.contrast.conservative_variance - 36.0).abs() < 1e-12);
@@ -88,7 +88,7 @@ fn observational_network_contrast_retains_truth_assumptions_and_artifact() {
             .unwrap()
             .contains("known, fixed")
     );
-    assert!(result.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|entry| matches!(&entry.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.network_exchangeability")));
+    assert!(result.estimate().as_effect().unwrap().provenance.assumptions.entries.iter().any(|entry| matches!(&entry.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.network_exchangeability")));
     assert!(result.diagnostics.iter().any(|d| {
         d.code.as_ref() == "estimate.interference.observational_ipw"
             && d.fields

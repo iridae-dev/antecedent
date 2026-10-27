@@ -41,11 +41,12 @@ const DESCRIPTIVE_DISCLOSURE: &str = "estimate.association.descriptive";
 impl Study {
     /// The estimator the study's inference mode and sampling design declare.
     pub(crate) fn association_estimator(&self, modality: Modality) -> AssociationEstimator {
-        let estimator = AssociationEstimator::new(modality)
-            .with_sampling_design(crate::estimator_spec::declared_sampling(self.sampling_design));
-        match &self.inference {
+        let estimator = AssociationEstimator::new(modality).with_sampling_design(
+            crate::estimator_spec::declared_sampling(self.declared.sampling_design),
+        );
+        match &self.settings.inference {
             InferenceMode::Frequentist => {
-                estimator.with_bootstrap_replicates(self.bootstrap_replicates)
+                estimator.with_bootstrap_replicates(self.settings.bootstrap_replicates)
             }
             InferenceMode::Bayesian(config) => estimator.with_bayesian(BayesianSettings {
                 draws: config.n_draws,
@@ -74,27 +75,30 @@ impl Study {
         };
         if self.graph.class() != crate::accepted::GraphClass::RandomizedTrial
             || self.structure_source != crate::support::StructureSource::RandomizedTrial
-            || self.refute != RefuteSuite::None
-            || !self.custom_validators.is_empty()
+            || self.settings.refute != RefuteSuite::None
+            || !self.declared.custom_validators.is_empty()
             || self.graph_posterior.is_some()
-            || self.tiered.is_some()
-            || self.split.is_some()
+            || self.declared.tiered.is_some()
+            || self.declared.split.is_some()
         {
             return Err(CausalError::Unsupported {
                 message: "an association reads the observed columns with no graph, refuter, \
                           split or custom validator",
             });
         }
-        if self.identifier.is_some() || self.estimator.is_some() || self.estimator_spec.is_some() {
+        if self.declared.identifier.is_some()
+            || self.declared.estimator.is_some()
+            || self.declared.estimator_spec.is_some()
+        {
             return Err(crate::compile_reason!(
                 "option_not_applicable",
                 "an association picks its analysis by the declared selection rule, so it takes no \
                  identifier or estimator. Next attempt: declare the functional on the query"
             ));
         }
-        if let InferenceMode::Bayesian(config) = &self.inference {
+        if let InferenceMode::Bayesian(config) = &self.settings.inference {
             require_built_in_model(config, "the Bayesian association")?;
-            if self.bootstrap_replicates != 0 {
+            if self.settings.bootstrap_replicates != 0 {
                 return Err(crate::compile_reason!(
                     "option_not_applicable",
                     "the Bayesian association draws its posterior with n_draws and reads no \
@@ -164,14 +168,14 @@ impl Study {
             wall_time_ns: elapsed_ns(started),
             latency_mode: self.latency_mode.map(|mode| Arc::from(mode.as_str())),
             stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: (self.bootstrap_replicates > 0
-                && !self.inference.is_bayesian())
-            .then_some(self.bootstrap_replicates),
+            bootstrap_replicates_requested: (self.settings.bootstrap_replicates > 0
+                && !self.settings.inference.is_bayesian())
+            .then_some(self.settings.bootstrap_replicates),
             bootstrap_replicates_ok: replicates_ok,
             n_draws: draws,
             cancelled: false,
             early_stopped: false,
-            bayesian: self.inference.is_bayesian(),
+            bayesian: self.settings.inference.is_bayesian(),
         });
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
@@ -179,7 +183,7 @@ impl Study {
             &mut result,
             self.support_status,
             self.structure_source,
-            self.population_registry.as_ref(),
+            self.declared.population_registry.as_ref(),
             &[],
         );
         Ok(result)

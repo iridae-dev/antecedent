@@ -307,8 +307,8 @@ fn design_coordinates_publish_the_scored_interval() {
     let (_, transport) =
         run_transport(transport_data(400, 5), 5).expect("the transport study must run");
     assert!(
-        transport.estimate.as_effect().unwrap().se_analytic().is_finite()
-            && transport.estimate.as_effect().unwrap().se_analytic() > 0.0,
+        transport.estimate().as_effect().unwrap().se_analytic().is_finite()
+            && transport.estimate().as_effect().unwrap().se_analytic() > 0.0,
         "the transported IPW must publish its SE"
     );
     assert!(scalar_normal_pair(&transport)[0].is_some());

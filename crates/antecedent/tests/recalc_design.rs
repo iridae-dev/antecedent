@@ -133,7 +133,7 @@ fn design_first_fits_match_iv_rd_frontdoor_structural_and_covariance_truth() {
             let d = session
                 .result()
                 .unwrap()
-                .estimate
+                .estimate()
                 .as_effect()
                 .unwrap()
                 .diagnostics

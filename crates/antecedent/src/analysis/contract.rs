@@ -641,7 +641,7 @@ impl PreparedStudy {
         refute: crate::RefuteSuite,
         population: Option<&TargetPopulation>,
     ) -> Result<Arc<CompiledContract>, CausalError> {
-        if refute == self.study().refute && population.is_none() {
+        if refute == self.study().settings.refute && population.is_none() {
             return self.compiled_contract();
         }
         let key = (refute, population.cloned());
@@ -685,11 +685,11 @@ impl PreparedStudy {
         refute: crate::RefuteSuite,
         population: Option<&TargetPopulation>,
     ) -> Option<Study> {
-        if refute == self.study().refute && population.is_none() {
+        if refute == self.study().settings.refute && population.is_none() {
             return None;
         }
         let mut study = self.study().clone();
-        study.refute = refute;
+        study.settings.refute = refute;
         if let (Some(population), Some(target)) = (population, study.query.target_population_mut())
         {
             *target = population.clone();
@@ -724,9 +724,9 @@ impl PreparedStudy {
         let snapshot = data_snapshot_wire(
             data,
             self.study().interference.as_ref(),
-            self.study().participants.as_ref(),
+            self.study().declared.participants.as_ref(),
             missing_data::policy_wire(self.study()),
-            self.study().sampling_design,
+            self.study().declared.sampling_design,
             &program.observation_digest,
         )?;
         let mut snapshot = snapshot;
@@ -760,7 +760,7 @@ impl PreparedStudy {
                 snapshot.nested_counterfactual_fit = Some(temporal_nested_fit_wire(
                     series,
                     query,
-                    nested_prior_scale(&self.study().inference),
+                    nested_prior_scale(&self.study().settings.inference),
                 )?);
             }
         }
@@ -964,7 +964,7 @@ impl PreparedStudy {
             nuisance_provenance: table.nuisance_provenance.as_ref(),
             treatment: table.treatment,
             intervened: &table.intervened,
-            bootstrap_replicates: self.study().bootstrap_replicates,
+            bootstrap_replicates: self.study().settings.bootstrap_replicates,
             inference_binding: identities.inference_binding,
         }))
     }

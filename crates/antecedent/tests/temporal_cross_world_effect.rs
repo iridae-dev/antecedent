@@ -123,10 +123,10 @@ fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
                 // contrast; every other cell is the linear unfolded point.
                 let posterior_cell = bayesian && key == "counterfactual";
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - truth).abs()
+                    (result.estimate().as_effect().unwrap().ate - truth).abs()
                         < if posterior_cell { tolerance.max(0.25) } else { tolerance },
                     "{key} accepted={accepted} bayesian={bayesian} ate={}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 assert!(
                     result
@@ -140,7 +140,7 @@ fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
                 // path-specific effect and the interventional mean publish their shared
                 // circular-block interval.
                 assert_eq!(result.posterior.is_some(), bayesian, "{key}");
-                let method = result.interval.as_ref().map(|binding| binding.method);
+                let method = result.interval().as_ref().map(|binding| binding.method);
                 if bayesian {
                     assert_eq!(method, Some(antecedent_core::IntervalMethod::PosteriorQuantile));
                 } else if matches!(key, "nested" | "counterfactual") {
@@ -242,7 +242,7 @@ fn nested_and_path_stay_the_fitted_quantities_when_adjustment_is_nonempty() {
             .unwrap()
             .estimate_retained(&ctx)
             .unwrap();
-        assert!(result.estimate.as_effect().unwrap().ate.is_finite(), "{key}");
+        assert!(result.estimate().as_effect().unwrap().ate.is_finite(), "{key}");
         let rule = result
             .identification
             .arena
@@ -351,7 +351,7 @@ fn a_multi_node_path_is_the_product_of_the_edge_coefficients_along_it() {
             .and_then(|prepared| prepared.estimate_retained(&ctx))
     };
     let result = run(ids).unwrap();
-    let ate = result.estimate.as_effect().unwrap().ate;
+    let ate = result.estimate().as_effect().unwrap().ate;
     assert!((ate - 3.0).abs() < 0.15, "two-node path product {ate}");
     assert_eq!(result.estimand.mediators.as_ref(), &ids);
     assert!(matches!(

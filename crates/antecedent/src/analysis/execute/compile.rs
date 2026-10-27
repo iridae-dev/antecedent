@@ -511,7 +511,7 @@ impl super::Study {
         data: &TabularData,
         q: &InterventionalDistributionQuery,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        super::static_path::ensure_admg_distribution_licensed(q, self.refute)?;
+        super::static_path::ensure_admg_distribution_licensed(q, self.settings.refute)?;
         let (identifier, estimator) = wire_pair(self.resolve_distribution_ids());
         let treatment =
             q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(|| {
@@ -550,7 +550,7 @@ impl super::Study {
         source: PathSpecificMixedSource<'_>,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         if !matches!(source, PathSpecificMixedSource::Mediation(_)) {
-            super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+            super::static_path::ensure_admg_path_specific_licensed(self.settings.refute)?;
         }
         let admg = mixed_admg(self)?;
         let (identifier, estimator) = self.resolve_path_ids();
@@ -578,7 +578,7 @@ impl super::Study {
         source: PathSpecificMixedSource<'_>,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         if !matches!(source, PathSpecificMixedSource::Mediation(_)) {
-            super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+            super::static_path::ensure_admg_path_specific_licensed(self.settings.refute)?;
         }
         let GraphRef::Cpdag(cpdag) = self.graph.graph_ref() else {
             return Err(CausalError::Compile {
@@ -610,7 +610,7 @@ impl super::Study {
         source: PathSpecificMixedSource<'_>,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         if !matches!(source, PathSpecificMixedSource::Mediation(_)) {
-            super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
+            super::static_path::ensure_admg_path_specific_licensed(self.settings.refute)?;
         }
         let GraphRef::Pag(pag) = self.graph.graph_ref() else {
             return Err(CausalError::Compile {
@@ -662,23 +662,23 @@ impl super::Study {
             data,
             graph,
             q,
-            self.split,
+            self.declared.split,
             false,
             classification,
         )?;
         if let Some(
             instrument @ (EstimatorId::TemporalLaggedInstrument
             | EstimatorId::BayesianTemporalLaggedInstrument),
-        ) = self.estimator
+        ) = self.declared.estimator
         {
             plan.record.identifier = Some(Arc::from(IdentifierId::TemporalIvUnfolded.as_str()));
             plan.record.estimator = Some(Arc::from(instrument.as_str()));
         } else if q.is_multi_step_sustained() {
             plan.record.estimator = Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
-        } else if self.inference.is_bayesian() && q.effect_modifiers.is_empty() {
+        } else if self.settings.inference.is_bayesian() && q.effect_modifiers.is_empty() {
             // A declared white-innovation premise changes the posterior, so it changes the
             // estimator the plan names; builder validation has already refused it elsewhere.
-            let estimator = match &self.inference {
+            let estimator = match &self.settings.inference {
                 InferenceMode::Bayesian(config) if config.white_innovation.is_some() => {
                     EstimatorId::BayesianTemporalWhiteInnovation
                 }
@@ -747,7 +747,7 @@ impl super::Study {
                  causes into latent ones. Next attempt: drop the cap, or edit the template"
             ));
         }
-        if self.split.is_some() {
+        if self.declared.split.is_some() {
             return Err(crate::compile_reason!(
                 "option_not_applicable",
                 "a supplied TemporalAdmg needs no discovery/estimation split: the window table \
@@ -805,7 +805,7 @@ impl super::Study {
         graph: &TemporalDag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         let mut plan = compile_logical_temporal_response(data, graph, q, false)?;
-        if self.inference.is_bayesian() {
+        if self.settings.inference.is_bayesian() {
             plan.record.estimator = Some(Arc::from(EstimatorId::TemporalResponseBayesian.as_str()));
         }
         Ok(plan)
@@ -819,7 +819,7 @@ impl super::Study {
         let mut plan = compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
         plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         plan.record.estimator =
-            Some(Arc::from(EstimatorId::temporal_response_for(&self.inference).as_str()));
+            Some(Arc::from(EstimatorId::temporal_response_for(&self.settings.inference).as_str()));
         Ok(plan)
     }
 
@@ -887,7 +887,7 @@ impl super::Study {
                  causes into latent ones. Next attempt: drop the cap, or edit the template"
             ));
         }
-        if self.split.is_some() {
+        if self.declared.split.is_some() {
             return Err(crate::compile_reason!(
                 "option_not_applicable",
                 "a supplied TemporalAdmg needs no discovery/estimation split: the slope \
@@ -898,7 +898,7 @@ impl super::Study {
         let mut plan = compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
         plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         plan.record.estimator =
-            Some(Arc::from(EstimatorId::temporal_response_for(&self.inference).as_str()));
+            Some(Arc::from(EstimatorId::temporal_response_for(&self.settings.inference).as_str()));
         Ok(plan)
     }
 
@@ -915,7 +915,7 @@ impl super::Study {
             data,
             graph,
             q,
-            self.split,
+            self.declared.split,
             false,
             DataClassification::MultiEnvironment,
         )
@@ -931,7 +931,7 @@ impl super::Study {
             compile_logical_temporal_response(panel_compile_series(panel)?, graph, q, false)?;
         plan.record.data_classification = DataClassification::Panel;
         plan.record.estimator =
-            Some(Arc::from(EstimatorId::temporal_response_for(&self.inference).as_str()));
+            Some(Arc::from(EstimatorId::temporal_response_for(&self.settings.inference).as_str()));
         Ok(plan)
     }
 
@@ -945,17 +945,17 @@ impl super::Study {
             panel_compile_series(panel)?,
             graph,
             q,
-            self.split,
+            self.declared.split,
             false,
             DataClassification::Panel,
         )?;
         if let Some(
             link @ (EstimatorId::TemporalGlmLinkContrast
             | EstimatorId::BayesianTemporalGlmLinkContrast),
-        ) = self.estimator
+        ) = self.declared.estimator
         {
             plan.record.estimator = Some(Arc::from(link.as_str()));
-        } else if self.inference.is_bayesian() {
+        } else if self.settings.inference.is_bayesian() {
             plan.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }
         Ok(plan)
@@ -1094,7 +1094,7 @@ impl super::Study {
         if let GraphRef::TemporalAdmg(temporal) = self.graph.graph_ref() {
             // The contemporaneous projection must compile (a mean contrast, identified by IDC);
             // the plan below is then the projection's.
-            if self.inference.is_bayesian() {
+            if self.settings.inference.is_bayesian() {
                 compile_temporal_admg_conditional_bayesian(temporal, q).map(drop)?;
             } else {
                 compile_temporal_admg_conditional_frequentist(temporal, q).map(drop)?;
@@ -1156,12 +1156,12 @@ impl super::Study {
             data,
             graph,
             &TemporalEffectQuery::pulse(q.treatment, q.outcome, 1.0),
-            self.split,
+            self.declared.split,
             false,
         )?;
         plan.record.plan_id = Arc::from(PlanId::TemporalMediation.as_str());
         plan.record.identifier = Some(Arc::from("temporal.mediation"));
-        plan.record.estimator = Some(Arc::from(if self.inference.is_bayesian() {
+        plan.record.estimator = Some(Arc::from(if self.settings.inference.is_bayesian() {
             "temporal.mediation.bayesian"
         } else {
             "temporal.mediation"
@@ -1210,7 +1210,7 @@ impl super::Study {
             });
         };
         let effect = super::temporal_admg_mediation::window_effect_query(query)?;
-        if self.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
+        if self.declared.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
             || self
                 .caller_selected_estimator()
                 .is_some_and(|id| id != EstimatorId::FunctionalEffect)
@@ -1219,7 +1219,7 @@ impl super::Study {
                 "strategy_incompatible",
                 "mediation on a TemporalPag is identified by path_specific.natural and evaluated \
                  by functional.effect; got identifier {:?} and estimator {:?}",
-                self.identifier,
+                self.declared.identifier,
                 self.caller_selected_estimator()
             ));
         }
@@ -1231,7 +1231,7 @@ impl super::Study {
                  use a TemporalDag whose linear fit reads them"
             ));
         }
-        if self.split.is_some() {
+        if self.declared.split.is_some() {
             return Err(crate::compile_reason!(
                 "option_not_applicable",
                 "a supplied TemporalPag needs no discovery/estimation split: the window table is \
@@ -1276,13 +1276,13 @@ impl super::Study {
             data,
             &TemporalDag::empty(),
             &TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0),
-            self.split,
+            self.declared.split,
             false,
             DataClassification::Temporal,
         )?;
         plan.record.plan_id = Arc::from(PlanId::TemporalMediationClass.as_str());
         plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
-        plan.record.estimator = Some(Arc::from(if self.inference.is_bayesian() {
+        plan.record.estimator = Some(Arc::from(if self.settings.inference.is_bayesian() {
             EstimatorId::BayesianTemporalMediation.as_str()
         } else {
             EstimatorId::TemporalMediation.as_str()
@@ -1299,11 +1299,11 @@ impl super::Study {
         graph: &Dag,
         source: StaticMediationSource<'_>,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        if self.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
-            || self.estimator.is_some_and(|id| id != EstimatorId::StaticMediationLinear)
-            || self.estimator_spec.is_some()
-            || !self.custom_validators.is_empty()
-            || self.split.is_some()
+        if self.declared.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
+            || self.declared.estimator.is_some_and(|id| id != EstimatorId::StaticMediationLinear)
+            || self.declared.estimator_spec.is_some()
+            || !self.declared.custom_validators.is_empty()
+            || self.declared.split.is_some()
         {
             return Err(CausalError::Unsupported {
                 message: "static mediation requires path_specific.natural and mediation.linear without custom estimators, scalar validators, or discovery split",
@@ -1356,7 +1356,7 @@ impl super::Study {
             DataClassification::Tabular,
             PlanId::TransportTrial.as_str(),
             "transport.sid",
-            if self.inference.is_bayesian() {
+            if self.settings.inference.is_bayesian() {
                 "transport.trial_bayesian_bootstrap"
             } else {
                 "transport.trial_ipw"
@@ -1383,14 +1383,14 @@ impl super::Study {
             DataClassification::Tabular,
             PlanId::InterferenceDesign.as_str(),
             "interference.design",
-            if self.inference.is_bayesian()
+            if self.settings.inference.is_bayesian()
                 && matches!(
                     q.assignment,
                     antecedent_core::AssignmentDesign::ClusterRandomization { .. }
                 )
             {
                 "interference.cluster_bayesian_bootstrap"
-            } else if self.inference.is_bayesian() {
+            } else if self.settings.inference.is_bayesian() {
                 "interference.bayesian_gaussian"
             } else if matches!(
                 q.assignment,
@@ -1430,8 +1430,9 @@ impl super::Study {
             DataClassification::Tabular,
             PlanId::RandomizedTrialItt.as_str(),
             "randomized.design",
-            if self.inference.is_bayesian() {
-                super::checked_randomized::bayesian_randomized_estimator(self.estimator, q).as_str()
+            if self.settings.inference.is_bayesian() {
+                super::checked_randomized::bayesian_randomized_estimator(self.declared.estimator, q)
+                    .as_str()
             } else {
                 match &q.design {
                     antecedent_core::RandomizationDesign::Bernoulli => {
@@ -1474,7 +1475,7 @@ impl super::Study {
                 message: "policy inputs must align with the table rows".into(),
             });
         }
-        if self.inference.is_bayesian() {
+        if self.settings.inference.is_bayesian() {
             return Ok(self.study_query_plan(
                 data.row_count() as u64,
                 DataClassification::Tabular,
@@ -1517,7 +1518,7 @@ impl super::Study {
                 message: "panel DiD metadata must align with table rows".into(),
             });
         }
-        let (plan_id, identifier, estimator) = if self.inference.is_bayesian() {
+        let (plan_id, identifier, estimator) = if self.settings.inference.is_bayesian() {
             super::checked_panel_did::bayesian_panel_did_plan_ids(q.design)
         } else {
             super::checked_panel_did::panel_did_plan_ids(q.design)
@@ -1543,7 +1544,7 @@ impl super::Study {
                 message: "synthetic-control metadata must align with table rows".into(),
             });
         }
-        let (plan_id, identifier, estimator) = if self.inference.is_bayesian() {
+        let (plan_id, identifier, estimator) = if self.settings.inference.is_bayesian() {
             super::checked_synthetic_control::bayesian_synthetic_panel_plan_ids()
         } else {
             super::checked_synthetic_control::synthetic_query_plan_ids(q)
@@ -1569,7 +1570,7 @@ impl super::Study {
                 message: "continuous-dose baseline groups must align with table rows".into(),
             });
         }
-        let (plan, estimator) = if self.inference.is_bayesian() {
+        let (plan, estimator) = if self.settings.inference.is_bayesian() {
             (PlanId::BayesianDosePolicy, EstimatorId::BayesianDosePolicy)
         } else {
             (PlanId::PolicyContinuousDoseResponse, EstimatorId::ContinuousDoseKernel)
@@ -1593,7 +1594,7 @@ impl super::Study {
         for variable in [q.outcome, q.treatment, q.running] {
             data.schema().get(variable).map_err(CausalError::rejected)?;
         }
-        let (plan_id, identifier, estimator) = if self.inference.is_bayesian() {
+        let (plan_id, identifier, estimator) = if self.settings.inference.is_bayesian() {
             super::checked_local_polynomial_ratio::bayesian_local_polynomial_ratio_plan_ids(q.kink)
         } else {
             super::checked_local_polynomial_ratio::local_ratio_query_plan_ids(q)
@@ -1620,7 +1621,7 @@ impl super::Study {
         {
             data.schema().get(id).map_err(CausalError::rejected)?;
         }
-        let (plan, estimator) = if self.inference.is_bayesian() {
+        let (plan, estimator) = if self.settings.inference.is_bayesian() {
             (
                 PlanId::BayesianPiecewiseSurvival.as_str(),
                 EstimatorId::BayesianPiecewiseSurvival.as_str(),
@@ -1658,8 +1659,8 @@ impl super::Study {
         // The matching contrast has no posterior; a Bayesian request reaches the outcome-model
         // estimator only by selecting it, and otherwise keeps the matching plan so the typed
         // boundary refuses it at build with the estimator named as the next attempt.
-        let plan = if self.inference.is_bayesian()
-            && self.estimator == Some(EstimatorId::BayesianPeriodHistoryOutcomeModel)
+        let plan = if self.settings.inference.is_bayesian()
+            && self.declared.estimator == Some(EstimatorId::BayesianPeriodHistoryOutcomeModel)
         {
             PlanId::BayesianPeriodHistoryOutcomeModel
         } else {
@@ -1685,7 +1686,7 @@ impl super::Study {
         for id in super::checked_iv_bounds::query_columns(q) {
             data.schema().get(id).map_err(CausalError::rejected)?;
         }
-        let plan = if self.inference.is_bayesian() {
+        let plan = if self.settings.inference.is_bayesian() {
             PlanId::BayesianIvBounds
         } else {
             PlanId::IvBoundsSharp
@@ -1714,7 +1715,7 @@ impl super::Study {
         for id in q.columns() {
             data.schema().get(id).map_err(CausalError::rejected)?;
         }
-        let plan = if self.inference.is_bayesian() {
+        let plan = if self.settings.inference.is_bayesian() {
             PlanId::BayesianAssociation
         } else {
             PlanId::Association
@@ -1747,7 +1748,7 @@ impl super::Study {
         }
         let survival =
             matches!(q.assignment, antecedent_core::TemporalAssignment::RegimeSurvival { .. });
-        let plan = match (survival, self.inference.is_bayesian()) {
+        let plan = match (survival, self.settings.inference.is_bayesian()) {
             (false, false) => PlanId::TemporalDesignExcursion,
             (false, true) => PlanId::BayesianTemporalDesignExcursion,
             (true, false) => PlanId::TemporalRegimeSurvival,
@@ -1782,7 +1783,7 @@ impl super::Study {
         {
             data.schema().get(id).map_err(CausalError::rejected)?;
         }
-        let plan = if self.inference.is_bayesian() {
+        let plan = if self.settings.inference.is_bayesian() {
             PlanId::BayesianSequentialCrossfitContrast
         } else {
             PlanId::SequentialCrossfitContrastWald
@@ -1810,7 +1811,7 @@ impl super::Study {
             });
         }
         data.schema().get(q.outcome).map_err(CausalError::rejected)?;
-        let bayesian = self.inference.is_bayesian();
+        let bayesian = self.settings.inference.is_bayesian();
         let method_id = match q.method {
             _ if bayesian => PlanId::BayesianSequentialRegimeValue,
             antecedent_core::LongitudinalRegimeMethod::Ipw => PlanId::LongitudinalIpwRegime,
@@ -1920,7 +1921,7 @@ impl super::Study {
             classification,
             plan_id,
             "gcm.parametric",
-            match (&self.query, &self.inference) {
+            match (&self.query, &self.settings.inference) {
                 (CausalQuery::AnomalyAttribution(_), InferenceMode::Bayesian(_)) => {
                     "gcm.fit.bayesian"
                 }
@@ -1974,7 +1975,7 @@ impl super::Study {
         // slope times the contrast: the Bayesian twin runs the tempered temporal posterior,
         // not the ridge point of the frequentist fit.
         let estimator = if matches!(self.query, CausalQuery::Counterfactual(_))
-            && self.inference.is_bayesian()
+            && self.settings.inference.is_bayesian()
         {
             EstimatorId::BayesianTemporalGcomp
         } else {
@@ -2058,9 +2059,8 @@ impl super::Study {
             {
                 // A branch on new rows whose retained identification was accepted rebinds the
                 // retained checked operation to them; it does not identify the claim again.
-                let retained = previous
-                    .and_then(|previous| previous.linear.as_ref())
-                    .filter(|_| {
+                let retained =
+                    previous.and_then(|previous| previous.linear.as_ref()).filter(|_| {
                         matches!((&plan.lowered, previous.and_then(|p| p.lowered.as_ref())),
                             (Some(fresh), Some(old)) if std::sync::Arc::ptr_eq(fresh, old))
                     });
@@ -2260,9 +2260,9 @@ impl super::Study {
         super::super::builder::refuse_unlicensed_panel_route(
             &self.query,
             self.graph.class(),
-            &self.inference,
+            &self.settings.inference,
             panel,
-            self.split.as_ref(),
+            self.declared.split.as_ref(),
         )?;
         self.compile_logical_class_effect(
             panel_compile_series(panel)?,
@@ -2281,9 +2281,9 @@ impl super::Study {
         super::super::builder::refuse_unlicensed_panel_route(
             &self.query,
             self.graph.class(),
-            &self.inference,
+            &self.settings.inference,
             panel,
-            self.split.as_ref(),
+            self.declared.split.as_ref(),
         )?;
         let mut plan = compile_logical_temporal_response(
             panel_compile_series(panel)?,
@@ -2294,7 +2294,7 @@ impl super::Study {
         plan.record.data_classification = DataClassification::Panel;
         plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         plan.record.estimator =
-            Some(Arc::from(EstimatorId::temporal_response_for(&self.inference).as_str()));
+            Some(Arc::from(EstimatorId::temporal_response_for(&self.settings.inference).as_str()));
         plan.record.plan_id = Arc::from(match self.graph.class() {
             GraphClass::TemporalCpdag => PlanId::PanelCpdagResponse.as_str(),
             GraphClass::TemporalPag => PlanId::PanelPagResponse.as_str(),
@@ -2326,7 +2326,7 @@ impl super::Study {
             data,
             nodes,
             query,
-            split: self.split,
+            split: self.declared.split,
             data_classification: classification,
             plan_id,
             identifier,
@@ -2335,7 +2335,7 @@ impl super::Study {
         if query.is_multi_step_sustained() {
             logical.record.estimator =
                 Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
-        } else if self.inference.is_bayesian() && query.effect_modifiers.is_empty() {
+        } else if self.settings.inference.is_bayesian() && query.effect_modifiers.is_empty() {
             logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }
         logical.record.discovery_algorithm = self.graph.algorithm_id().map(Arc::from);
@@ -2413,10 +2413,10 @@ fn compile_logical_admg_derivative(
     study: &super::Study,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     query.validate()?;
-    let identifier_id = study.identifier.unwrap_or(IdentifierId::GeneralizedAdjustment);
-    let estimator_id = study
-        .caller_selected_estimator()
-        .unwrap_or_else(|| EstimatorId::static_response_for(&query.functional, &study.inference));
+    let identifier_id = study.declared.identifier.unwrap_or(IdentifierId::GeneralizedAdjustment);
+    let estimator_id = study.caller_selected_estimator().unwrap_or_else(|| {
+        EstimatorId::static_response_for(&query.functional, &study.settings.inference)
+    });
     crate::strategy_table::validate_class_response_pair(identifier_id, estimator_id)?;
     let expected = EstimatorId::default_for_response(&query.functional);
     if estimator_id != expected && estimator_id != EstimatorId::ResponseBayesian {
