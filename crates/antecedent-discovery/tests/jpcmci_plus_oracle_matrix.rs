@@ -168,12 +168,24 @@ fn jpcmci_plus_tigramite_matrix_is_reproducible() {
 }
 
 #[test]
-fn jpcmci_plus_fixture_records_pins_and_no_generator() {
+fn jpcmci_plus_fixture_records_retained_harness_and_historical_pins() {
     let fixture = fixture();
     let oracle = &fixture["oracle"];
     assert_eq!(oracle["packages"]["tigramite"]["version"], "5.2.9.7");
     assert_eq!(oracle["packages"]["numpy"]["version"], "2.1.3");
-    assert_eq!(oracle["generation_location"], "temporary external harness; not retained");
+    assert_eq!(
+        fixture["historical_oracle"]["generation_location"],
+        "temporary external harness; not retained"
+    );
+    assert_eq!(oracle["generator_retained"], true);
+    for name in ["reference.py", "reference.py.lock"] {
+        assert!(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../conformance/discovery/jpcmci_plus_matrix")
+                .join(name)
+                .is_file()
+        );
+    }
     for package in ["tigramite", "numpy", "scipy", "joblib"] {
         assert_eq!(oracle["packages"][package]["metadata_sha256"].as_str().unwrap().len(), 64);
     }

@@ -174,12 +174,24 @@ fn fixed_label_rpcmci_matches_independent_per_regime_tigramite() {
 }
 
 #[test]
-fn fixed_regime_fixture_records_scope_pins_and_no_generator() {
+fn fixed_regime_fixture_records_scope_and_retained_harness() {
     let fixture = fixture();
     let oracle = &fixture["oracle"];
     assert_eq!(oracle["packages"]["tigramite"]["version"], "5.2.9.7");
     assert_eq!(oracle["packages"]["numpy"]["version"], "2.1.3");
-    assert_eq!(oracle["generation_location"], "temporary external harness; not retained");
+    assert_eq!(
+        fixture["historical_oracle"]["generation_location"],
+        "temporary external harness; not retained"
+    );
+    assert_eq!(oracle["generator_retained"], true);
+    for name in ["reference.py", "reference.py.lock"] {
+        assert!(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../conformance/discovery/jpcmci_plus_matrix")
+                .join(name)
+                .is_file()
+        );
+    }
     assert!(oracle["scope"].as_str().unwrap().contains("caller-supplied"));
     for package in ["tigramite", "numpy", "scipy"] {
         assert_eq!(oracle["packages"][package]["metadata_sha256"].as_str().unwrap().len(), 64);

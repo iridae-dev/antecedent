@@ -20,8 +20,44 @@
     },
     "python": "3.10.17",
     "seed": 20260726,
-    "command": "uv run --python 3.10 --with numpy==1.23.5 --with scipy==1.10.1 --with tigramite==5.2.1.30 python /tmp/antecedent_tigramite_lpcmci_matrix.py", "generator_retained": false,
-    "generation_location": "temporary external harness; not retained"
+    "command": "uv run --frozen --script conformance/discovery/lpcmci_matrix/reference.py --check --self-test",
+    "generator_retained": true,
+    "generation_location": "retained black-box harness with isolated locked environment",
+    "generator": "conformance/discovery/lpcmci_matrix/reference.py",
+    "reference_review": {
+      "scope": "Six retained motif scenarios: lagged, contemporaneous, latent-fork, null autoregressive, three-node chain and column relabelling. Regeneration checks the full upstream endpoint-marked graph, value matrix and p matrix. The product assertion compares canonical skeletons only.",
+      "independence_basis": "Independently authored orchestration calls released Tigramite public DataFrame/ParCorr/LPCMCI APIs on the exact retained numeric inputs. No product algorithm or test helper is imported, and no upstream implementation/test source is consulted or translated. The sole repository helper only compares returned values; it computes no reference statistic or graph.",
+      "historical_exposure": "Original historical author exposure is unknown. Original deleted-harness commands, package metadata and link-indexing correction note are preserved; the current harness does not claim to recover the deleted source.",
+      "redistribution": "Repository-authored harness remains MIT OR Apache-2.0; upstream dependency wheels are isolated by the lock and not vendored into the product or ordinary CI. Historical inputs/outputs remain unchanged, without manufacturing an authorship attestation.",
+      "limitations": "Only the six fixed continuous, unweighted, complete-data scenarios are demonstrated. Product comparison discards PAG endpoints/middle marks and does not compare CI statistics or p values. Regenerated full upstream outputs are reference context for those unasserted fields, not delivered product parity. No categorical, weighted, missing-data, intervention-identification or calibration claim is granted.",
+      "sources": [
+        "https://jakobrunge.github.io/tigramite/#tigramite.lpcmci.LPCMCI",
+        "https://jakobrunge.github.io/tigramite/#tigramite.pcmci.PCMCI.get_graph_from_pmatrix"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/discovery/lpcmci_matrix/reference.py",
+          "sha256": "9b6563cfbab445afdbf5d22d1a381e0e1ca17f41f30f64e7db68357ac5d463ba"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/discovery/lpcmci_matrix/reference.py.lock",
+          "sha256": "b8a907061adfa47e97d91864eca40ceae23d962832e835816a96e9e7a62bc828"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-discovery/tests/lpcmci_oracle_matrix.rs",
+          "sha256": "595aca70c61b6ca5bfa3432ae424fb4022f71d6f3566baee00d5c9e8969dc0de"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "scripts/reference_compare.py",
+          "sha256": "79904dc8724633c835ca4bcd894bedee2938a1ecbb7d4e4eda02be0b2b27d134"
+        }
+      ],
+      "fixture_payload_sha256": "e376edec8a71be757d70bc5fe88f7d2d29b0238b6ec028d082a426a491735da2"
+    }
   },
   "canonicalization": {
     "lagged_link": "(source name, positive source lag, target name, target lag zero, endpoint mark)",
@@ -8675,5 +8711,33 @@
   ],
   "notes": {
     "link_indexing_correction": "2026-07-25: reference.links confirmed against pinned Tigramite 5.2.1.30 using documented graph[i,j,tau]=edge from var_i@lag -> var_j (matches graph_dict). An intermediate j->i extraction was discarded. p_matrix/val_matrix unchanged. Ephemeral harness deleted after import."
+  },
+  "regeneration_tolerance": {
+    "atol": 1e-12,
+    "rtol": 1e-10
+  },
+  "historical_oracle": {
+    "kind": "external_package",
+    "project": "Tigramite",
+    "api": "tigramite.lpcmci.LPCMCI.run_lpcmci",
+    "packages": {
+      "tigramite": {
+        "version": "5.2.1.30",
+        "metadata_sha256": "53f29dbb4be322da2469310db815a5af60d72a5fee56a3ae2decaebdf9eb90bd"
+      },
+      "numpy": {
+        "version": "1.23.5",
+        "metadata_sha256": "1dd9add64280d256885e58fc129daa201ea0cd362f7bd595ad1dc85af3be3788"
+      },
+      "scipy": {
+        "version": "1.10.1",
+        "metadata_sha256": "3b483c6bf8accc499e14437b91f00894ca92da42c8091f00a61e81f728a6b1dd"
+      }
+    },
+    "python": "3.10.17",
+    "seed": 20260726,
+    "command": "uv run --python 3.10 --with numpy==1.23.5 --with scipy==1.10.1 --with tigramite==5.2.1.30 python /tmp/antecedent_tigramite_lpcmci_matrix.py",
+    "generator_retained": false,
+    "generation_location": "temporary external harness; not retained"
   }
 }

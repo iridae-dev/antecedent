@@ -1020,3 +1020,21 @@ previous = "crates/antecedent/tests/joint_panel_workflow.rs::temporal_bayesian_f
 replacement = "crates/antecedent/tests/joint_panel_workflow.rs::temporal_bayesian_frame_decomposes_on_reference_worlds_and_translates_experiments"
 disposition = "routing_sampler_effort_increased_for_valid_diagnostics"
 reason = "The corrected upper-CDF-tail diagnostic exposed zero tail ESS in the original two-chain, 150-warmup/150-retained, proposal-scale-0.2 fixture. Increase warmup and retained draws to 512 per chain and use a 0.01 step; retain max_rhat=5 and min_ess=1, assert the convergence verdict explicitly, and preserve every decomposition, reference-world and experimental-update assertion. This is a small routing fixture with deliberately loose thresholds, not calibrated posterior convergence. The repaired test passes in 93.25 seconds; the earlier failing 5.30-second run stopped before the experimental chain and is not a comparable speed baseline."
+
+[[case]]
+previous = "crates/antecedent-discovery/tests/lpcmci_oracle_matrix.rs::lpcmci_fixture_records_pins_and_no_generator"
+replacement = "crates/antecedent-discovery/tests/lpcmci_oracle_matrix.rs::lpcmci_fixture_records_retained_harness_and_historical_pins"
+disposition = "renamed_and_strengthened"
+reason = "Require the retained black-box generator and lock while preserving all original package pins, metadata hashes, API assertion and deleted-harness history. All six numerical skeleton/relabeling scenarios remain unchanged; the report explicitly withholds endpoint-mark and statistic parity that the product assertion does not test."
+
+[[case]]
+previous = "crates/antecedent-discovery/tests/jpcmci_plus_oracle_matrix.rs::jpcmci_plus_fixture_records_pins_and_no_generator"
+replacement = "crates/antecedent-discovery/tests/jpcmci_plus_oracle_matrix.rs::jpcmci_plus_fixture_records_retained_harness_and_historical_pins"
+disposition = "renamed_and_strengthened"
+reason = "Retain every original pin, metadata hash and fixed-scope assertion; require the independently authored public-API generator and lock, preserving the deleted-harness metadata. Every numerical canonical-skeleton case remains unchanged. Full marked matrices are reference context; the product does not compare endpoint marks or statistics, and fixed labels do not establish regime inference."
+
+[[case]]
+previous = "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs::fixed_regime_fixture_records_scope_pins_and_no_generator"
+replacement = "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs::fixed_regime_fixture_records_scope_and_retained_harness"
+disposition = "renamed_and_strengthened"
+reason = "Retain every original pin, metadata hash and fixed-scope assertion; require the independently authored public-API generator and lock, preserving the deleted-harness metadata. Every numerical canonical-skeleton case remains unchanged. Full marked matrices are reference context; the product does not compare endpoint marks or statistics, and fixed labels do not establish regime inference."

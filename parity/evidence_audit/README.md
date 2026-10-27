@@ -145,7 +145,7 @@ assertions pass; the ten foundations assertions pass. These are fixed-input
 comparisons. Temporal Sobel uncertainty is checked only under explicit iid
 opt-in, and GAM fit outputs remain product regression pins.
 
-Fifteen retained reference reviews bind generator, transitive comparison
+Eighteen retained reference reviews bind generator, transitive comparison
 helper, lock, assertion source and fixture payload by digest. Gates reject
 changed inputs, expected outputs, tolerances, origins, assertions and helpers
 until reviewed again. Reviews record limited independence, redistribution
@@ -166,6 +166,16 @@ affected known-truth declarations instead name the exact executing analytic
 positivity counterexample and confounded-effect inequality; no policy label is
 used as an independent numerical oracle. Numeric covariance comparisons remain
 with the separate retained statsmodels fixture.
+
+Retained isolated Tigramite environments reproduce six LPCMCI motifs, five
+pooled J-PCMCI+ cases and four caller-fixed-regime cases, including the complete
+upstream endpoint-marked graphs and numeric matrices. Corrupted inputs,
+outputs, marks, tolerances and empty/missing selections fail the controls.
+Product assertions compare canonical skeletons; they do not establish endpoint
+or statistic parity. The fixed-regime comparator runs PCMCI+ independently on
+declared segments and establishes no regime-inference claim. Context/dummy-node
+tests, weights, missingness, categorical inputs and calibration are outside these
+matrices. Original values, pins and deleted-harness histories remain preserved.
 
 Inspection also repaired stale conditional-estimator provenance: the current
 implementation supports joint modifiers and adds modifier-mean sampling

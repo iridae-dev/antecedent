@@ -305,6 +305,8 @@ known_truth_fixture = "conformance/discovery/lpcmci_matrix"
 owner = "pag"
 notes = "antecedent-discovery Lpcmci → TemporalPag; conformance/pag/lpcmci_chain; facade temporal estimate via PAG completion→DAG when fully oriented"
 
+limitations = "The six-motif executing assertion checks canonical temporal skeletons and relabelling only. PAG endpoints/middle marks, CI statistics, p values, FDR behavior, weighted/missing/categorical inputs and calibration are not established by this comparator. Full regenerated upstream matrices are retained as reference context."
+
 [[capabilities]]
 id = "discovery.jpcmci_plus"
 group = "discovery"
@@ -318,6 +320,8 @@ known_truth_fixture = "conformance/discovery/jpcmci_plus_matrix"
 owner = "context"
 notes = "JpcmciPlus; structure jpcmci_plus_two_env + edge-set jpcmci_plus_two_env_edges + MV space-dummy jpcmci_plus_two_env_space_dummy_mv; SpaceDummyCiMode; TimeDummyEncoding OneHot + TimeDummyCiMode; PanelFrame also supports pooled PCMCI/Plus/Lpcmci (not multi-env JPCMCI+ semantics); python_facade=full (EventFrame PCMCI-family + panel pooled)"
 
+limitations = "The five fixed multiple-environment cases compare canonical skeletons with space/time dummies disabled and FDR disabled. Endpoint marks, CI statistics/p values, context/dummy-node tests, weighted/missing/categorical inputs and calibration are not established by this matrix."
+
 [[capabilities]]
 id = "discovery.rpcmci"
 group = "discovery"
@@ -328,7 +332,7 @@ evidence_test = "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs
 evidence_assertion = "fixed_label_rpcmci_matches_independent_per_regime_tigramite"
 external_oracle = "Tigramite 5.2.9.7"
 known_truth_fixture = "conformance/discovery/rpcmci_fixed_regime_matrix"
-limitations = "Per-regime comparison with caller-supplied regimes. The rpcmci_two_regime fixture's reference records a failed oracle attempt (available=false) and is not external evidence."
+limitations = "Per-regime canonical-skeleton comparison with caller-supplied regimes and alternating_iters=0; this is not regime inference or endpoint/statistic parity. The rpcmci_two_regime fixture's reference records a failed oracle attempt (available=false) and is not external evidence."
 owner = "context"
 notes = "Rpcmci; conformance/discovery/rpcmci_two_regime"
 

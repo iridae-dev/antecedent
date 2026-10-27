@@ -176,12 +176,24 @@ fn lpcmci_matches_tigramite_motif_matrix_and_relabeling() {
 }
 
 #[test]
-fn lpcmci_fixture_records_pins_and_no_generator() {
+fn lpcmci_fixture_records_retained_harness_and_historical_pins() {
     let fixture = fixture();
     let oracle = &fixture["oracle"];
     assert_eq!(oracle["packages"]["tigramite"]["version"], "5.2.1.30");
     assert_eq!(oracle["packages"]["numpy"]["version"], "1.23.5");
-    assert_eq!(oracle["generation_location"], "temporary external harness; not retained");
+    assert_eq!(
+        fixture["historical_oracle"]["generation_location"],
+        "temporary external harness; not retained"
+    );
+    assert_eq!(oracle["generator_retained"], true);
+    for name in ["reference.py", "reference.py.lock"] {
+        assert!(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../conformance/discovery/lpcmci_matrix")
+                .join(name)
+                .is_file()
+        );
+    }
     assert!(oracle["api"].as_str().unwrap().contains("run_lpcmci"));
     for package in ["tigramite", "numpy", "scipy"] {
         assert_eq!(oracle["packages"][package]["metadata_sha256"].as_str().unwrap().len(), 64);
