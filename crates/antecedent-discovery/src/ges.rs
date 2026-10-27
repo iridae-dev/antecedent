@@ -383,7 +383,8 @@ fn score_gain_tolerance(
     let empty: Arc<[u32]> = Arc::from([]);
     let mut magnitude = 0.0_f64;
     for node in 0..data.n_vars {
-        let score = local_score_or_degenerate(cache, data, crate::indexing::dense_u32(node), &empty)?;
+        let score =
+            local_score_or_degenerate(cache, data, crate::indexing::dense_u32(node), &empty)?;
         if score.is_finite() {
             magnitude += score.abs();
         }
@@ -1636,7 +1637,9 @@ mod tests {
         let mut state = seed;
         (0..n)
             .map(|_| {
-                state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+                state = state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
                 ((state >> 11) as f64 / (1u64 << 53) as f64) * 2.0 - 1.0
             })
             .collect()

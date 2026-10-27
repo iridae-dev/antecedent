@@ -43,6 +43,32 @@ pub const DEFAULT_STORE_CAPACITY: usize = 4_000_000;
 /// Most receipts a portable state carries.
 pub const MAX_PORTABLE_RECEIPTS: usize = 250_000;
 
+/// Caller-configurable bounds of the statistics a selective-discovery run retains and a
+/// portable state carries. The defaults are [`DEFAULT_STORE_CAPACITY`] and
+/// [`MAX_PORTABLE_RECEIPTS`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SelectiveLimits {
+    /// Most statistics one store retains; beyond it a test still runs and is counted, but
+    /// its result is not retained.
+    pub store_capacity: usize,
+    /// Most receipts a portable state carries, exported or loaded.
+    pub max_portable_receipts: usize,
+}
+
+impl SelectiveLimits {
+    /// The documented defaults.
+    pub const DEFAULT: Self = Self {
+        store_capacity: DEFAULT_STORE_CAPACITY,
+        max_portable_receipts: MAX_PORTABLE_RECEIPTS,
+    };
+}
+
+impl Default for SelectiveLimits {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
 /// One retained statistic with the digest of the coordinate it was computed at.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StatisticReceipt {
@@ -164,8 +190,21 @@ impl StatisticStore {
     /// A receipt that is not a usable statistic, a repeated coordinate, or more receipts
     /// than [`MAX_PORTABLE_RECEIPTS`].
     pub fn replay_only(receipts: &[StatisticReceipt]) -> Result<Self, SelectiveDiscoveryError> {
+        Self::replay_only_within(receipts, MAX_PORTABLE_RECEIPTS)
+    }
+
+    /// [`Self::replay_only`] under the caller's receipt bound instead of
+    /// [`MAX_PORTABLE_RECEIPTS`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::replay_only`], with `max_receipts` as the bound.
+    pub fn replay_only_within(
+        receipts: &[StatisticReceipt],
+        max_receipts: usize,
+    ) -> Result<Self, SelectiveDiscoveryError> {
         let store = Self::with_mode(StoreMode::ReplayOnly, receipts.len().max(1));
-        store.load(receipts)?;
+        store.load(receipts, max_receipts)?;
         Ok(store)
     }
 
@@ -175,16 +214,33 @@ impl StatisticStore {
     ///
     /// As [`Self::replay_only`].
     pub fn seeded(receipts: &[StatisticReceipt]) -> Result<Self, SelectiveDiscoveryError> {
-        let store = Self::new();
-        store.load(receipts)?;
+        Self::seeded_within(receipts, &SelectiveLimits::DEFAULT)
+    }
+
+    /// [`Self::seeded`] under the caller's bounds instead of [`DEFAULT_STORE_CAPACITY`] and
+    /// [`MAX_PORTABLE_RECEIPTS`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::replay_only`], with `limits.max_portable_receipts` as the bound.
+    pub fn seeded_within(
+        receipts: &[StatisticReceipt],
+        limits: &SelectiveLimits,
+    ) -> Result<Self, SelectiveDiscoveryError> {
+        let store = Self::with_capacity(limits.store_capacity);
+        store.load(receipts, limits.max_portable_receipts)?;
         Ok(store)
     }
 
-    fn load(&self, receipts: &[StatisticReceipt]) -> Result<(), SelectiveDiscoveryError> {
-        if receipts.len() > MAX_PORTABLE_RECEIPTS {
+    fn load(
+        &self,
+        receipts: &[StatisticReceipt],
+        max_receipts: usize,
+    ) -> Result<(), SelectiveDiscoveryError> {
+        if receipts.len() > max_receipts {
             return Err(statistics_invalid(
                 "selective_discovery.receipt_limit",
-                format!("a portable state carries at most {MAX_PORTABLE_RECEIPTS} receipts"),
+                format!("a portable state carries at most {max_receipts} receipts"),
             ));
         }
         let mut inner = self.lock();
@@ -609,5 +665,47 @@ mod tests {
         let good = StatisticReceipt { p_value: 0.5, ..bad };
         assert!(StatisticStore::replay_only(&[good, good]).is_err());
         assert_eq!(StatisticStore::replay_only(&[good]).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn caller_limits_bound_the_receipts_and_the_retained_statistics() {
+        let receipt = |n: u8| StatisticReceipt {
+            coordinate: [n; 32],
+            statistic: 0.1,
+            p_value: 0.5,
+            df: 10.0,
+            interval: None,
+        };
+        let two = [receipt(1), receipt(2)];
+        // Under the default two receipts load; under a bound of one they are refused.
+        assert_eq!(StatisticStore::seeded(&two).unwrap().len(), 2);
+        let one = SelectiveLimits { max_portable_receipts: 1, ..SelectiveLimits::DEFAULT };
+        assert!(StatisticStore::seeded_within(&two, &one).is_err());
+        assert!(StatisticStore::replay_only_within(&two, 1).is_err());
+        assert_eq!(StatisticStore::replay_only_within(&two, 2).unwrap().len(), 2);
+
+        // A capacity of zero computes every test but retains none.
+        let (a, b) = (series(1, 40), series(2, 40));
+        let columns: Vec<&[f64]> = vec![&a, &b];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let store = Arc::new(
+            StatisticStore::seeded_within(
+                &[],
+                &SelectiveLimits { store_capacity: 0, ..SelectiveLimits::DEFAULT },
+            )
+            .unwrap(),
+        );
+        let ci = SelectiveCi::new(Arc::new(PartialCorrelation), Arc::clone(&store), "parcorr");
+        let ctx = ExecutionContext::for_tests(1);
+        let prepared = ci.prepare(&columns, &CiPreparationPlan::default(), &ctx).unwrap();
+        ci.test_batch(
+            &prepared,
+            &request(&columns, &queries, &[]),
+            &mut CiWorkspace::default(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(store.len(), 0);
+        assert_eq!(store.counters().not_retained, 1);
     }
 }

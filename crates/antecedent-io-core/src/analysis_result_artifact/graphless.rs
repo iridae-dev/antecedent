@@ -258,10 +258,9 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                     .iter()
                     .all(|p| *p + 1e-12 >= 0.2 && *p <= 0.8 + 1e-12)
                 && (query.ancova_covariates.is_empty()
-                    || query
-                        .assignment_probabilities
-                        .iter()
-                        .all(|p| REPLAY_ABSOLUTE_TIGHT.close(*p, query.assignment_probabilities[0])))
+                    || query.assignment_probabilities.iter().all(|p| {
+                        REPLAY_ABSOLUTE_TIGHT.close(*p, query.assignment_probabilities[0])
+                    }))
         }
         crate::RandomizationDesignWire::Complete { .. }
         | crate::RandomizationDesignWire::Cluster { .. } => control >= 30 && treated >= 30,
@@ -568,8 +567,10 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                 ) if has_interval => {
                     REPLAY_ABSOLUTE_LOOSE.close(sl, second - z95 * second_var.sqrt())
                         && REPLAY_ABSOLUTE_LOOSE.close(su, second + z95 * second_var.sqrt())
-                        && REPLAY_ABSOLUTE_LOOSE.close(il, interaction - z95 * interaction_var.sqrt())
-                        && REPLAY_ABSOLUTE_LOOSE.close(iu, interaction + z95 * interaction_var.sqrt())
+                        && REPLAY_ABSOLUTE_LOOSE
+                            .close(il, interaction - z95 * interaction_var.sqrt())
+                        && REPLAY_ABSOLUTE_LOOSE
+                            .close(iu, interaction + z95 * interaction_var.sqrt())
                 }
                 (_, _, None, _, _, None) if !has_interval => true,
                 _ => false,
@@ -644,10 +645,14 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
         || randomized.second_factor_effect.is_some_and(|value| !value.is_finite())
         || randomized.factorial_interaction.is_some_and(|value| !value.is_finite())
         || randomized.second_factor_variance.is_some_and(|value| {
-            !value.is_finite() || value < 0.0 || !REPLAY_ABSOLUTE_TIGHT.close(value, randomized.variance)
+            !value.is_finite()
+                || value < 0.0
+                || !REPLAY_ABSOLUTE_TIGHT.close(value, randomized.variance)
         })
         || randomized.factorial_interaction_variance.is_some_and(|value| {
-            !value.is_finite() || value < 0.0 || !REPLAY_ABSOLUTE_TIGHT.close(value, 4.0 * randomized.variance)
+            !value.is_finite()
+                || value < 0.0
+                || !REPLAY_ABSOLUTE_TIGHT.close(value, 4.0 * randomized.variance)
         })
         || (matches!(query.design, crate::RandomizationDesignWire::MultiArm)
             == randomized.multi_arm_values.is_empty())
@@ -699,7 +704,8 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
         || randomized.treatment_arms != query.treatment_arms
         || randomized.control_units != control
         || randomized.treatment_units != treated
-        || !REPLAY_ABSOLUTE_TIGHT.close(randomized.minimum_assignment_probability, minimum_probability)
+        || !REPLAY_ABSOLUTE_TIGHT
+            .close(randomized.minimum_assignment_probability, minimum_probability)
     {
         return Err(IoError::Convert("invalid randomized payload or fabricated interval".into()));
     }
@@ -721,7 +727,8 @@ pub(in crate::analysis_result_artifact) fn validate_ratio_graphless(
     let z = antecedent_stats::normal_ppf(0.975);
     let lower = fit.effect - z * fit.standard_error;
     let upper = fit.effect + z * fit.standard_error;
-    let tolerance = interval_bound_replay(INTERVAL_BOUND_RELATIVE, fit.effect, z * fit.standard_error);
+    let tolerance =
+        interval_bound_replay(INTERVAL_BOUND_RELATIVE, fit.effect, z * fit.standard_error);
     let bounds_match = |bounds: Option<f64>, expected: f64| {
         if interval_available {
             bounds.is_some_and(|value| value.is_finite() && tolerance.close(value, expected))
@@ -1254,10 +1261,8 @@ pub(in crate::analysis_result_artifact) fn validate_continuous_dose_graphless(
         if value.policy_doses != expected_policy
             || value.reference_doses != expected_reference
             || !centers.iter().chain(&variances).all(|number| number.is_finite())
-            || !REPLAY_ABSOLUTE_LOOSE.close(
-                value.policy_value - value.reference_value,
-                value.incremental_value,
-            )
+            || !REPLAY_ABSOLUTE_LOOSE
+                .close(value.policy_value - value.reference_value, value.incremental_value)
             || variances.iter().any(|variance| *variance < 0.0)
             || value.minimum_local_rows < query.min_local_support
             || !value.minimum_effective_sample_size.is_finite()

@@ -88,6 +88,38 @@ pub const MAX_JOINT_LAW_PROPAGATION_TEXT_BYTES: usize = 4096;
 /// Most shared-evidence identities the artifact may record.
 pub const MAX_JOINT_LAW_PROPAGATION_SHARED_EVIDENCE: usize = 4096;
 
+/// Intake bounds for a joint-law propagation artifact. The defaults are the
+/// `JOINT_LAW_PROPAGATION_MAX_*` and `MAX_JOINT_LAW_PROPAGATION_*` constants and
+/// [`MAX_DISTRIBUTION_DRAWS`]; a consumer with a larger budget passes its own to
+/// [`JointLawPropagationArtifactWire::decode_within`] and
+/// [`JointLawPropagationArtifactWire::consume_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct JointLawPropagationLimits {
+    /// Most encoded bytes.
+    pub max_bytes: usize,
+    /// Most inputs one composition may name, and the most entries of a coefficient,
+    /// mean, variance, weight, estimate or component list.
+    pub max_inputs: usize,
+    /// Most draws of an aligned or enumerated marginal.
+    pub max_draws: usize,
+    /// Longest identity, label or name, in bytes.
+    pub max_text_bytes: usize,
+    /// Most shared-evidence identities.
+    pub max_shared_evidence: usize,
+}
+
+impl Default for JointLawPropagationLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_JOINT_LAW_PROPAGATION_ARTIFACT_BYTES,
+            max_inputs: JOINT_LAW_PROPAGATION_MAX_INPUTS,
+            max_draws: MAX_DISTRIBUTION_DRAWS,
+            max_text_bytes: MAX_JOINT_LAW_PROPAGATION_TEXT_BYTES,
+            max_shared_evidence: MAX_JOINT_LAW_PROPAGATION_SHARED_EVIDENCE,
+        }
+    }
+}
+
 /// Why a joint-law propagation artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]
@@ -853,14 +885,11 @@ impl PropagationResultWire {
             });
         }
         if shape(&["probability", "standard_error", "band", "verdict_code", "n_rows"]) {
-            let verdict = [
-                DecisionVerdict::Act,
-                DecisionVerdict::Withhold,
-                DecisionVerdict::Unresolved,
-            ]
-            .into_iter()
-            .find(|verdict| verdict_code(*verdict) == bits[3])
-            .ok_or_else(|| "unknown stored verdict code".to_owned())?;
+            let verdict =
+                [DecisionVerdict::Act, DecisionVerdict::Withhold, DecisionVerdict::Unresolved]
+                    .into_iter()
+                    .find(|verdict| verdict_code(*verdict) == bits[3])
+                    .ok_or_else(|| "unknown stored verdict code".to_owned())?;
             return Ok(Self::AlignedExceedance {
                 probability: bits[0],
                 standard_error: bits[1],
@@ -880,9 +909,8 @@ impl PropagationResultWire {
                 between: bits[3],
             });
         }
-        if let Some(quantity) = EnvelopeQuantityWire::ALL
-            .into_iter()
-            .find(|q| shape(&[q.lower_name(), q.upper_name()]))
+        if let Some(quantity) =
+            EnvelopeQuantityWire::ALL.into_iter().find(|q| shape(&[q.lower_name(), q.upper_name()]))
         {
             return Ok(Self::Envelope { quantity, bounds: bounds(0) });
         }
@@ -1049,15 +1077,17 @@ fn request_from_wire(
 
 // ----------------------------------------------------------------- bounds
 
-fn check_bounds(wire: &JointLawPropagationArtifactWire) -> Result<(), Error> {
+fn check_bounds(
+    wire: &JointLawPropagationArtifactWire,
+    limits: &JointLawPropagationLimits,
+) -> Result<(), Error> {
     let too_large = Error::LimitsExceeded;
-    if wire.inputs.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS {
+    if wire.inputs.len() > limits.max_inputs {
         return Err(too_large("inputs"));
     }
-    let long = |text: &str| text.len() > MAX_JOINT_LAW_PROPAGATION_TEXT_BYTES;
+    let long = |text: &str| text.len() > limits.max_text_bytes;
     let long_opt = |text: &Option<String>| text.as_deref().is_some_and(long);
-    if wire.shared_evidence.len() > MAX_JOINT_LAW_PROPAGATION_SHARED_EVIDENCE
-        || wire.required_features.len() > 16
+    if wire.shared_evidence.len() > limits.max_shared_evidence || wire.required_features.len() > 16
     {
         return Err(too_large("shared evidence"));
     }
@@ -1083,14 +1113,13 @@ fn check_bounds(wire: &JointLawPropagationArtifactWire) -> Result<(), Error> {
         return Err(too_large("text"));
     }
     let draws = |n: usize| {
-        if n > MAX_DISTRIBUTION_DRAWS { Err(too_large("draws")) } else { Ok(()) }
+        if n > limits.max_draws { Err(too_large("draws")) } else { Ok(()) }
     };
     match &wire.request {
         PropagationRequestWire::LinearCombination { coefficients, means, covariance } => {
-            if coefficients.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-                || means.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-                || covariance.len()
-                    > JOINT_LAW_PROPAGATION_MAX_INPUTS * JOINT_LAW_PROPAGATION_MAX_INPUTS
+            if coefficients.len() > limits.max_inputs
+                || means.len() > limits.max_inputs
+                || covariance.len() > limits.max_inputs.saturating_mul(limits.max_inputs)
             {
                 return Err(too_large("linear combination"));
             }
@@ -1106,18 +1135,16 @@ fn check_bounds(wire: &JointLawPropagationArtifactWire) -> Result<(), Error> {
             draws(y.len())?;
         }
         PropagationRequestWire::MixtureExceedance { weights, components, .. } => {
-            if weights.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-                || components.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-            {
+            if weights.len() > limits.max_inputs || components.len() > limits.max_inputs {
                 return Err(too_large("mixture components"));
             }
             let total: usize = components.iter().map(Vec::len).sum();
             draws(total)?;
         }
         PropagationRequestWire::Mixture { weights, means, variances } => {
-            if weights.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-                || means.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-                || variances.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
+            if weights.len() > limits.max_inputs
+                || means.len() > limits.max_inputs
+                || variances.len() > limits.max_inputs
             {
                 return Err(too_large("mixture components"));
             }
@@ -1130,9 +1157,7 @@ fn check_bounds(wire: &JointLawPropagationArtifactWire) -> Result<(), Error> {
         }
         PropagationRequestWire::CorrelationRange { .. } => {}
         PropagationRequestWire::PooledCorrelationRange { estimates, standard_errors } => {
-            if estimates.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-                || standard_errors.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-            {
+            if estimates.len() > limits.max_inputs || standard_errors.len() > limits.max_inputs {
                 return Err(too_large("pooled studies"));
             }
         }
@@ -1258,9 +1283,10 @@ fn evaluate_envelope(
             let t = f64::from_bits(*threshold);
             (Quantity::DifferenceCdf, difference_cdf_envelope(&mx, &my, t).map_err(math_error)?)
         }
-        EnvelopeQueryWire::ProductMoment => {
-            (Quantity::ProductMoment, product_moment_envelope(&mx, &my, cancel).map_err(math_error)?)
-        }
+        EnvelopeQueryWire::ProductMoment => (
+            Quantity::ProductMoment,
+            product_moment_envelope(&mx, &my, cancel).map_err(math_error)?,
+        ),
         EnvelopeQueryWire::Covariance => {
             (Quantity::Covariance, covariance_envelope(&mx, &my, cancel).map_err(math_error)?)
         }
@@ -1547,6 +1573,19 @@ impl JointLawPropagationArtifactWire {
         request: PropagationRequestWire,
         ctx: &ExecutionContext,
     ) -> Result<Self, Error> {
+        Self::seal_within(declared, request, ctx, &JointLawPropagationLimits::default())
+    }
+
+    /// [`Self::seal`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::seal`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn seal_within(
+        declared: &PropagationRequest,
+        request: PropagationRequestWire,
+        ctx: &ExecutionContext,
+        limits: &JointLawPropagationLimits,
+    ) -> Result<Self, Error> {
         let (dependence, covariance_id, rho_lo, rho_hi) = dependence_wire(&declared.dependence);
         let rule = PropagationRuleWire {
             operation: declared.operation.as_str().to_owned(),
@@ -1584,7 +1623,7 @@ impl JointLawPropagationArtifactWire {
             result,
             identity,
         };
-        check_bounds(&wire)?;
+        check_bounds(&wire, limits)?;
         Ok(wire)
     }
 
@@ -1593,10 +1632,18 @@ impl JointLawPropagationArtifactWire {
     /// # Errors
     /// A bound exceeded or an encoding failure.
     pub fn export(&self) -> Result<Vec<u8>, Error> {
+        self.export_within(&JointLawPropagationLimits::default())
+    }
+
+    /// [`Self::export`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::export`].
+    pub fn export_within(&self, limits: &JointLawPropagationLimits) -> Result<Vec<u8>, Error> {
         if self.version != JOINT_LAW_PROPAGATION_ARTIFACT_VERSION {
             return Err(Error::UnsupportedVersion { version: self.version });
         }
-        check_bounds(self)?;
+        check_bounds(self, limits)?;
         crate::to_cbor(self).map_err(|e| Error::Encode(e.to_string()))
     }
 
@@ -1606,7 +1653,15 @@ impl JointLawPropagationArtifactWire {
     /// # Errors
     /// A decoding failure, another version or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, Error> {
-        if bytes.len() > MAX_JOINT_LAW_PROPAGATION_ARTIFACT_BYTES {
+        Self::decode_within(bytes, &JointLawPropagationLimits::default())
+    }
+
+    /// [`Self::decode`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::decode`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn decode_within(bytes: &[u8], limits: &JointLawPropagationLimits) -> Result<Self, Error> {
+        if bytes.len() > limits.max_bytes {
             return Err(Error::LimitsExceeded("artifact bytes"));
         }
         let wire: Self = crate::decode_with_version(bytes, |version| {
@@ -1619,7 +1674,7 @@ impl JointLawPropagationArtifactWire {
         if wire.required_features != [JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE] {
             return Err(Error::UnsupportedSemantics("required features"));
         }
-        check_bounds(&wire)?;
+        check_bounds(&wire, limits)?;
         Ok(wire)
     }
 
@@ -1635,13 +1690,26 @@ impl JointLawPropagationArtifactWire {
         expected_identity: Option<&str>,
         ctx: &ExecutionContext,
     ) -> Result<ConsumedJointLawPropagation, Error> {
+        self.consume_within(expected_identity, ctx, &JointLawPropagationLimits::default())
+    }
+
+    /// [`Self::consume`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::consume`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn consume_within(
+        &self,
+        expected_identity: Option<&str>,
+        ctx: &ExecutionContext,
+        limits: &JointLawPropagationLimits,
+    ) -> Result<ConsumedJointLawPropagation, Error> {
         if !is_supported_version(self.version) {
             return Err(Error::UnsupportedVersion { version: self.version });
         }
         if self.required_features != [JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE] {
             return Err(Error::UnsupportedSemantics("required features"));
         }
-        check_bounds(self)?;
+        check_bounds(self, limits)?;
         let recomputed = joint_law_propagation_identity(
             &self.rule,
             &self.inputs,

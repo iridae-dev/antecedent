@@ -274,17 +274,28 @@ pub struct CyclicRecoveryOrigins {
     pub prior: Option<String>,
 }
 /// Derive origins from native recipe/report parts, never from caller-assigned labels.
-pub fn recovery_origins(request: &R, report: &CyclicFamilyReport) -> Result<Option<CyclicRecoveryOrigins>, CyclicArtifactError> {
-    let R::ExperimentalRecovery { regimes, dropped, samples, .. } = request.recovery_recipe() else { return Ok(None); };
-    let A::ExperimentalRecovery(answer) = &report.answer else { return Err(invalid("experimental recovery source/report mismatch")); };
+pub fn recovery_origins(
+    request: &R,
+    report: &CyclicFamilyReport,
+) -> Result<Option<CyclicRecoveryOrigins>, CyclicArtifactError> {
+    let R::ExperimentalRecovery { regimes, dropped, samples, .. } = request.recovery_recipe()
+    else {
+        return Ok(None);
+    };
+    let A::ExperimentalRecovery(answer) = &report.answer else {
+        return Err(invalid("experimental recovery source/report mismatch"));
+    };
     let hex = antecedent_core::to_hex;
-    let evidence = hex(&json_digest("antecedent.cyclic_recovery.evidence.v1", &(regimes,dropped,samples))?);
+    let evidence =
+        hex(&json_digest("antecedent.cyclic_recovery.evidence.v1", &(regimes, dropped, samples))?);
     let fit = super::compiled::fit_dependency_identity(request)?;
     let law = hex(&json_digest("antecedent.cyclic_recovery.ordered_law.v1", answer.law.as_ref())?);
-    let alignment = hex(&json_digest("antecedent.cyclic_recovery.alignment.v1", &(&fit,&law))?);
+    let alignment = hex(&json_digest("antecedent.cyclic_recovery.alignment.v1", &(&fit, &law))?);
     let prior = match &answer.law.origin {
-        super::RecoveredDrawOriginWire::Posterior { prior, .. } => Some(hex(&json_digest("antecedent.cyclic_recovery.prior.v1",prior)?)),
+        super::RecoveredDrawOriginWire::Posterior { prior, .. } => {
+            Some(hex(&json_digest("antecedent.cyclic_recovery.prior.v1", prior)?))
+        }
         _ => None,
     };
-    Ok(Some(CyclicRecoveryOrigins { evidence,fit,law,alignment,prior }))
+    Ok(Some(CyclicRecoveryOrigins { evidence, fit, law, alignment, prior }))
 }

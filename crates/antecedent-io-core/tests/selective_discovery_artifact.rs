@@ -15,7 +15,7 @@ use antecedent_io_core::container_kind;
 use antecedent_io_core::reader::ArtifactReader;
 use antecedent_io_core::selective_discovery_artifact::{
     SELECTIVE_DISCOVERY_ARTIFACT_FEATURE, SELECTIVE_DISCOVERY_INFERENCE,
-    SelectiveDiscoveryArtifact, SelectiveDiscoveryArtifactError,
+    SelectiveDiscoveryArtifact, SelectiveDiscoveryArtifactError, SelectiveDiscoveryIntakeLimits,
 };
 
 fn state() -> PortableDiscoveryState {
@@ -226,4 +226,33 @@ fn stored_metadata_is_plain_cbor_readable_without_library_types() {
     assert_eq!(text("inference").as_deref(), Some("algorithmic_match_only"));
     assert_eq!(text("route").as_deref(), Some("static_pc"));
     assert_eq!(text("identity").map(|t| t.len()), Some(64));
+}
+
+#[test]
+fn caller_intake_limits_refuse_what_the_defaults_admit() {
+    let state = state();
+    let defaults = SelectiveDiscoveryIntakeLimits::default();
+    let bytes =
+        SelectiveDiscoveryArtifact::to_bytes_with_limits(&state, "selective-1", &defaults).unwrap();
+    SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &defaults).unwrap();
+
+    let few_receipts = SelectiveDiscoveryIntakeLimits { max_receipts: 2, ..defaults };
+    assert!(
+        SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &few_receipts).is_err()
+    );
+    assert!(
+        SelectiveDiscoveryArtifact::to_bytes_with_limits(&state, "selective-1", &few_receipts)
+            .is_err()
+    );
+    let few_items = SelectiveDiscoveryIntakeLimits { max_structure_items: 1, ..defaults };
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &few_items),
+        Err(SelectiveDiscoveryArtifactError::LimitsExceeded("structure"))
+    ));
+    let few_bytes = SelectiveDiscoveryIntakeLimits { max_bytes: bytes.len() - 1, ..defaults };
+    assert!(SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &few_bytes).is_err());
+    assert!(
+        SelectiveDiscoveryArtifact::to_bytes_with_limits(&state, "selective-1", &few_bytes)
+            .is_err()
+    );
 }

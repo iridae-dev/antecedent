@@ -337,7 +337,8 @@ fn synthetic_seeded(n: usize, covariance: &str, seed: u64) -> CategoricalTreatme
         levels,
         spec: CategoricalSpecWire {
             pairwise: vec![("b".into(), "c".into())],
-            covariance: serde_json::from_str(&format!("\"{covariance}\"")).expect("a covariance kind"),
+            covariance: serde_json::from_str(&format!("\"{covariance}\""))
+                .expect("a covariance kind"),
             ..spec(&["a", "b", "c"], false, "a")
         },
     }
@@ -735,4 +736,25 @@ fn categorical_artifact_unknown_major_version_and_corrupt_bytes_refuse() {
     assert!(CategoricalTreatmentArtifact::from_bytes(&corrupt, None).is_err());
     assert!(CategoricalTreatmentArtifact::from_bytes(&bytes[..bytes.len() - 5], None).is_err());
     assert!(CategoricalTreatmentArtifact::from_bytes(&[], None).is_err());
+}
+
+#[test]
+fn the_budgeted_trait_agrees_with_the_inherent_entry_points() {
+    use antecedent_io::BudgetedTreatmentArtifact;
+    let request = abc_request();
+    let artifact =
+        <CategoricalTreatmentArtifact as BudgetedTreatmentArtifact>::seal(&request).unwrap();
+    let bytes = BudgetedTreatmentArtifact::to_bytes(&artifact, "categorical-test").unwrap();
+    assert_eq!(bytes, export(&request).1);
+    assert_eq!(
+        artifact
+            .to_bytes_within("categorical-test", CategoricalTreatmentArtifact::MAX_BYTES)
+            .unwrap(),
+        bytes
+    );
+    assert!(artifact.to_bytes_within("categorical-test", bytes.len() - 1).is_err());
+    let restored =
+        <CategoricalTreatmentArtifact as BudgetedTreatmentArtifact>::from_bytes(&bytes, None)
+            .unwrap();
+    assert_eq!(restored.identity(), artifact.identity());
 }

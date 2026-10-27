@@ -34,10 +34,10 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::sync::Arc;
 
 use antecedent_core::{CancellationToken, CanonicalWriter};
+use antecedent_io_core::byte_cursor::ByteCursor;
 use antecedent_io_core::container::{
     DomainDigest, stream_encoder_workspace_bytes, zstd_compress_chunked, zstd_decompress_chunked,
 };
-use antecedent_io_core::byte_cursor::ByteCursor;
 use antecedent_io_core::error::IoError;
 
 use crate::width::lossless_u64;

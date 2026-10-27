@@ -41,9 +41,7 @@ impl Default for ProviderEnvelopeLimits {
 impl ProviderEnvelopeLimits {
     /// Largest sealed result, container framing included.
     fn max_envelope_bytes(&self) -> usize {
-        self.max_header_bytes
-            .saturating_add(self.max_artifact_bytes)
-            .saturating_add(1 << 20)
+        self.max_header_bytes.saturating_add(self.max_artifact_bytes).saturating_add(1 << 20)
     }
 }
 

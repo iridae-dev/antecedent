@@ -110,7 +110,6 @@ pub use dbn_posterior::{
     temporal_pag_from_dbn_masks,
 };
 pub use discriminating_paths::DiscriminatingPathBudget;
-pub use uncovered_paths::PdPathBudget;
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
 pub use evidence::threshold_scored_links;
@@ -118,8 +117,7 @@ pub use exact_enumeration::ExactDagPosterior;
 pub use exact_marginals::{EXACT_MARGINAL_MAX_NODES, ExactDagMarginals, exact_dag_marginals};
 pub use exact_pag_posterior::{
     PAG_ENUM_MAX_NODES, PAG_MCMC_MAX_NODES, PAG_MCMC_WORK_BUDGET, PagMcmcSchedule,
-    exact_pag_posterior,
-    pag_posterior_mcmc,
+    exact_pag_posterior, pag_posterior_mcmc,
 };
 pub use fci::{Fci, StaticPagDiscoveryResult};
 pub use ges::Ges;
@@ -128,11 +126,6 @@ pub use graph_posterior::{
     SamplingSummary, adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
     admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask, edge_bit,
     has_edge, mask_is_dag, n_directed_edges, pag_from_adjacency_mask, parents_of, set_edge,
-};
-pub use temporal_admg_posterior::TemporalAdmgPosterior;
-pub use temporal_admg_atoms::{
-    TemporalAdmgAtom, has_lagged_edge, lagged_edge_bit, temporal_admg_from_lagged_atoms,
-    with_lagged_edge,
 };
 pub use jpcmci_plus::JpcmciPlus;
 pub use lingam::{DirectLingam, StaticDagDiscoveryResult};
@@ -162,6 +155,12 @@ pub use rule_scheduling::{
 };
 pub use stability::{EdgeSelection, MarkSelection, StructureSelection, StructureStability};
 pub use structure_mcmc::StructureMcmc;
+pub use temporal_admg_atoms::{
+    TemporalAdmgAtom, has_lagged_edge, lagged_edge_bit, temporal_admg_from_lagged_atoms,
+    with_lagged_edge,
+};
+pub use temporal_admg_posterior::TemporalAdmgPosterior;
+pub use uncovered_paths::PdPathBudget;
 
 // Additional orientation helpers stay under their modules for advanced callers:
 // `antecedent_discovery::orientation::*` and `antecedent_discovery::rule_scheduling::*`.

@@ -71,6 +71,39 @@ pub const MAX_SENSITIVITY_ACTIONS: usize = 64;
 pub const MAX_SENSITIVITY_SCENARIO_EVALUATIONS: usize = 1 << 24;
 /// Deepest utility expression.
 pub const MAX_SENSITIVITY_UTILITY_DEPTH: usize = 32;
+
+/// Intake bounds for a sensitivity artifact. The defaults are the `MAX_SENSITIVITY_*`
+/// constants; a consumer with a larger budget passes its own to
+/// [`SensitivityArtifact::new_within`] and [`SensitivityArtifact::from_bytes_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SensitivityLimits {
+    /// Most container bytes.
+    pub max_bytes: usize,
+    /// Most grid points of the assumption coordinate.
+    pub max_grid_points: usize,
+    /// Most surface quantities.
+    pub max_quantities: usize,
+    /// Most actions.
+    pub max_actions: usize,
+    /// Most utility evaluations the range vertices of the surface may need.
+    pub max_scenario_evaluations: usize,
+    /// Deepest utility expression.
+    pub max_utility_depth: usize,
+}
+
+impl Default for SensitivityLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_SENSITIVITY_ARTIFACT_BYTES,
+            max_grid_points: MAX_SENSITIVITY_GRID_POINTS,
+            max_quantities: MAX_SENSITIVITY_QUANTITIES,
+            max_actions: MAX_SENSITIVITY_ACTIONS,
+            max_scenario_evaluations: MAX_SENSITIVITY_SCENARIO_EVALUATIONS,
+            max_utility_depth: MAX_SENSITIVITY_UTILITY_DEPTH,
+        }
+    }
+}
+
 /// Sampling-composition methods licensed for an assumption range. None is licensed, so a
 /// sampling interval is always reported next to the range and never inside it.
 pub const LICENSED_SAMPLING_COMPOSITIONS: &[&str] = &[];
@@ -837,13 +870,16 @@ pub struct SensitivityArtifact {
     outcome: Option<SensitivityOutcome>,
 }
 
-fn canonicalize(mut parts: SensitivityParts) -> Result<SensitivityParts, IoError> {
+fn canonicalize(
+    mut parts: SensitivityParts,
+    limits: &SensitivityLimits,
+) -> Result<SensitivityParts, IoError> {
     let n = parts.grid.len();
     if n == 0
-        || n > MAX_SENSITIVITY_GRID_POINTS
+        || n > limits.max_grid_points
         || parts.quantities.is_empty()
-        || parts.quantities.len() > MAX_SENSITIVITY_QUANTITIES
-        || parts.actions.len() > MAX_SENSITIVITY_ACTIONS
+        || parts.quantities.len() > limits.max_quantities
+        || parts.actions.len() > limits.max_actions
     {
         return Err(bounds_exceeded("grid points, quantities or actions are outside the bounds"));
     }
@@ -923,14 +959,18 @@ fn validate_quantities(parts: &SensitivityParts) -> Result<(), IoError> {
     Ok(())
 }
 
-/// Refuse a surface whose vertex enumeration exceeds [`MAX_SENSITIVITY_SCENARIO_EVALUATIONS`].
-fn validate_scenario_work(parts: &SensitivityParts) -> Result<(), IoError> {
+/// Refuse a surface whose vertex enumeration exceeds the limits' scenario evaluations
+/// ([`MAX_SENSITIVITY_SCENARIO_EVALUATIONS`] by default).
+fn validate_scenario_work(
+    parts: &SensitivityParts,
+    limits: &SensitivityLimits,
+) -> Result<(), IoError> {
     let ranged = parts.quantities.iter().filter(|q| q.is_ranged()).count();
     let scenarios = u32::try_from(ranged).ok().and_then(|r| 1_usize.checked_shl(r));
     let evaluations = scenarios
         .and_then(|vertices| vertices.checked_mul(parts.grid.len()))
         .and_then(|points| points.checked_mul(parts.actions.len()));
-    if evaluations.is_none_or(|work| work > MAX_SENSITIVITY_SCENARIO_EVALUATIONS) {
+    if evaluations.is_none_or(|work| work > limits.max_scenario_evaluations) {
         return Err(bounds_exceeded(
             "the range vertices of the surface need more utility evaluations than the bound",
         ));
@@ -938,7 +978,7 @@ fn validate_scenario_work(parts: &SensitivityParts) -> Result<(), IoError> {
     Ok(())
 }
 
-fn validate_actions(parts: &SensitivityParts) -> Result<(), IoError> {
+fn validate_actions(parts: &SensitivityParts, limits: &SensitivityLimits) -> Result<(), IoError> {
     if parts.actions.len() < 2 {
         return Err(wrong_contract("a decision compares at least two actions"));
     }
@@ -955,7 +995,7 @@ fn validate_actions(parts: &SensitivityParts) -> Result<(), IoError> {
         if is_blank(&action.id) || !ids.insert(action.id.as_str()) {
             return Err(wrong_contract("action ids must be nonblank and unique"));
         }
-        if action.utility.depth() > MAX_SENSITIVITY_UTILITY_DEPTH || !action.utility.all_finite() {
+        if action.utility.depth() > limits.max_utility_depth || !action.utility.all_finite() {
             return Err(invalid_surface("utility expression is too deep or not finite"));
         }
         if action.utility.references().iter().any(|id| !known.contains(id.as_str())) {
@@ -1025,11 +1065,11 @@ fn validate_uncertainty(parts: &SensitivityParts) -> Result<(), IoError> {
     Ok(())
 }
 
-fn validate(parts: &SensitivityParts) -> Result<(), IoError> {
+fn validate(parts: &SensitivityParts, limits: &SensitivityLimits) -> Result<(), IoError> {
     validate_coordinate(parts)?;
     validate_quantities(parts)?;
-    validate_actions(parts)?;
-    validate_scenario_work(parts)?;
+    validate_actions(parts, limits)?;
+    validate_scenario_work(parts, limits)?;
     validate_uncertainty(parts)?;
     let p = &parts.provenance;
     if is_blank(&p.source_kind)
@@ -1118,19 +1158,20 @@ pub fn encode_parts(
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, IoError> {
-    encode_parts_impl(meta, numbers, artifact_id)
+    encode_parts_impl(meta, numbers, artifact_id, MAX_SENSITIVITY_ARTIFACT_BYTES)
 }
 
 fn encode_parts_impl(
     meta: &SensitivityMeta,
     numbers: &[u8],
     artifact_id: &str,
+    max_bytes: usize,
 ) -> Result<Vec<u8>, IoError> {
     crate::artifact_codec::encode_sectioned_io(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "sensitivity_decision_assumption_range",
-            max_bytes: MAX_SENSITIVITY_ARTIFACT_BYTES,
+            max_bytes,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
@@ -1155,13 +1196,16 @@ fn encode_parts_impl(
 #[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<(SensitivityMeta, Vec<u8>), IoError> {
-    decode_parts_impl(bytes)
+    decode_parts_impl(bytes, MAX_SENSITIVITY_ARTIFACT_BYTES)
 }
 
-fn decode_parts_impl(bytes: &[u8]) -> Result<(SensitivityMeta, Vec<u8>), IoError> {
+fn decode_parts_impl(
+    bytes: &[u8],
+    max_bytes: usize,
+) -> Result<(SensitivityMeta, Vec<u8>), IoError> {
     let (meta, [payload]) = crate::artifact_codec::decode_sectioned_io_versioned(
         ARTIFACT_KIND,
-        MAX_SENSITIVITY_ARTIFACT_BYTES,
+        max_bytes,
         META_SECTION,
         &[NUMBERS_SECTION],
         "unsupported sensitivity artifact layout",
@@ -1171,10 +1215,14 @@ fn decode_parts_impl(bytes: &[u8]) -> Result<(SensitivityMeta, Vec<u8>), IoError
     Ok((meta, payload))
 }
 
-fn parts_from(meta: &SensitivityMeta, numbers: &[u8]) -> Result<SensitivityParts, IoError> {
+fn parts_from(
+    meta: &SensitivityMeta,
+    numbers: &[u8],
+    limits: &SensitivityLimits,
+) -> Result<SensitivityParts, IoError> {
     let n = meta.support.len();
     let q = meta.quantities.len();
-    if n == 0 || n > MAX_SENSITIVITY_GRID_POINTS || q == 0 || q > MAX_SENSITIVITY_QUANTITIES {
+    if n == 0 || n > limits.max_grid_points || q == 0 || q > limits.max_quantities {
         return Err(bounds_exceeded("grid points or quantities are outside the bounds"));
     }
     let reported = matches!(meta.uncertainty.sampling, SamplingStatus::Reported(_));
@@ -1272,8 +1320,20 @@ impl SensitivityArtifact {
     /// (`unsupported_coordinate`) and a sampling composition that is not licensed
     /// (`composition_not_licensed`).
     pub fn new(parts: SensitivityParts) -> Result<Self, IoError> {
-        let parts = canonicalize(parts)?;
-        validate(&parts)?;
+        Self::new_within(parts, &SensitivityLimits::default())
+    }
+
+    /// [`Self::new`] under the caller's intake bounds instead of the `MAX_SENSITIVITY_*`
+    /// defaults.
+    ///
+    /// # Errors
+    /// As [`Self::new`]; a bound of `limits` exceeded is `bounds_exceeded`.
+    pub fn new_within(
+        parts: SensitivityParts,
+        limits: &SensitivityLimits,
+    ) -> Result<Self, IoError> {
+        let parts = canonicalize(parts, limits)?;
+        validate(&parts, limits)?;
         let identity = identity_of(&parts)?;
         let mut artifact = Self { parts, identity, outcome: None };
         artifact.outcome = if artifact.parts.support.contains(&PointSupport::Unsupported) {
@@ -1603,7 +1663,16 @@ impl SensitivityArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
-        encode_parts_impl(&self.meta(), &numbers_of(&self.parts), artifact_id)
+        self.to_bytes_within(artifact_id, MAX_SENSITIVITY_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::to_bytes`] under the caller's byte bound instead of
+    /// [`MAX_SENSITIVITY_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes`]; a payload over `max_bytes` is refused.
+    pub fn to_bytes_within(&self, artifact_id: &str, max_bytes: usize) -> Result<Vec<u8>, IoError> {
+        encode_parts_impl(&self.meta(), &numbers_of(&self.parts), artifact_id, max_bytes)
     }
 
     /// Consume an artifact by recomputation.
@@ -1621,13 +1690,26 @@ impl SensitivityArtifact {
         bytes: &[u8],
         expected: Option<&SensitivityIdentity>,
     ) -> Result<Self, IoError> {
-        let (meta, numbers) = decode_parts_impl(bytes)?;
+        Self::from_bytes_within(bytes, expected, &SensitivityLimits::default())
+    }
+
+    /// [`Self::from_bytes`] under the caller's intake bounds instead of the
+    /// `MAX_SENSITIVITY_*` defaults.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is refused.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected: Option<&SensitivityIdentity>,
+        limits: &SensitivityLimits,
+    ) -> Result<Self, IoError> {
+        let (meta, numbers) = decode_parts_impl(bytes, limits.max_bytes)?;
         if meta.feature != SENSITIVITY_ARTIFACT_FEATURE
             || meta.inference_claim != SENSITIVITY_INFERENCE_CLAIM
         {
             return Err(wrong_contract("feature marker or inference claim is not this format's"));
         }
-        let artifact = Self::new(parts_from(&meta, &numbers)?)?;
+        let artifact = Self::new_within(parts_from(&meta, &numbers, limits)?, limits)?;
         if let Some(field) = identity_diff(&meta.identity, &artifact.identity) {
             return Err(wrong_contract(&format!("stored {field} differs from the recomputed one")));
         }

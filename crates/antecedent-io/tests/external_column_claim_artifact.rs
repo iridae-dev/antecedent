@@ -9,7 +9,7 @@ use antecedent_contract::{
 use antecedent_core::{IdentificationStatus, SupportStatus};
 use antecedent_io::external_claim_artifact::ExternalClaimArtifact;
 use antecedent_io::external_column_claim_artifact::{
-    ExternalColumnClaimArtifact, ExternalColumnIdentity,
+    ExternalColumnClaimArtifact, ExternalColumnIdentity, ExternalColumnIntakeLimits,
 };
 
 fn quantity() -> ScientificQuantity {
@@ -123,4 +123,24 @@ fn a_column_claim_is_never_read_as_a_response_grid() {
     let bytes = artifact.to_bytes("claim").unwrap();
     let identity = artifact.metadata().identity.claim.clone();
     assert!(ExternalClaimArtifact::from_bytes(&bytes, &identity).is_err());
+}
+
+#[test]
+fn caller_intake_limits_refuse_what_the_defaults_admit() {
+    let artifact = bound(&[0.1, 0.2, 0.3], None);
+    let retained = artifact.metadata().identity.clone();
+    let defaults = ExternalColumnIntakeLimits::default();
+    let bytes = artifact.to_bytes_with_limits("claim", &defaults).unwrap();
+    ExternalColumnClaimArtifact::from_bytes_with_limits(&bytes, &retained, &defaults).unwrap();
+
+    let few_rows = ExternalColumnIntakeLimits { max_rows: 2, ..defaults };
+    assert!(
+        ExternalColumnClaimArtifact::from_bytes_with_limits(&bytes, &retained, &few_rows).is_err()
+    );
+    assert!(artifact.to_bytes_with_limits("claim", &few_rows).is_err());
+    let few_bytes = ExternalColumnIntakeLimits { max_bytes: bytes.len() - 1, ..defaults };
+    assert!(
+        ExternalColumnClaimArtifact::from_bytes_with_limits(&bytes, &retained, &few_bytes).is_err()
+    );
+    assert!(artifact.to_bytes_with_limits("claim", &few_bytes).is_err());
 }

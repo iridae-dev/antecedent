@@ -67,7 +67,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
 use crate::artifact_budget::{
-    BudgetDetails, BudgetRefusal, admit_export, admit_regression, unbounded_context,
+    BudgetDetails, BudgetRefusal, BudgetedTreatmentArtifact, admit_export, admit_regression,
 };
 use crate::artifact_codec::CanonicalSize;
 use crate::vector_treatment_artifact::{
@@ -1230,7 +1230,8 @@ fn encode_parts_impl(
             bytes: numbers,
         }],
         |uncompressed| {
-            admit_export(BUDGET, uncompressed, MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES).map_err(budget_refusal)
+            admit_export(BUDGET, uncompressed, MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES)
+                .map_err(budget_refusal)
         },
     )?;
     admit_export(BUDGET, bytes.len(), export_budget.min(MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES))
@@ -1256,7 +1257,10 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(CategoricalTreatmentMeta, Vec<u8>), CategoricalTreatmentArtifactError> {
-    let (meta, parts) = crate::artifact_codec::decode_sectioned::<CategoricalTreatmentArtifactError, CategoricalTreatmentMeta>(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+        CategoricalTreatmentArtifactError,
+        CategoricalTreatmentMeta,
+    >(
         ARTIFACT_KIND,
         MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES,
         META_SECTION,
@@ -1265,7 +1269,9 @@ fn decode_parts_impl(
         bytes,
     )?;
     let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(CategoricalTreatmentArtifactError::Malformed("unsupported container layout".into()));
+        return Err(CategoricalTreatmentArtifactError::Malformed(
+            "unsupported container layout".into(),
+        ));
     };
     Ok((meta, payload))
 }
@@ -1301,6 +1307,36 @@ fn data_digest(request: &CategoricalTreatmentRequest) -> String {
     writer.finish_hex()
 }
 
+impl BudgetedTreatmentArtifact for CategoricalTreatmentArtifact {
+    type Request = CategoricalTreatmentRequest;
+    type Identity = CategoricalTreatmentIdentity;
+    type Error = CategoricalTreatmentArtifactError;
+    const MAX_BYTES: usize = MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES;
+
+    fn seal_with(
+        request: &CategoricalTreatmentRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        Self::seal_with(request, ctx)
+    }
+
+    fn to_bytes_within(
+        &self,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
+        self.to_bytes_within(artifact_id, export_budget)
+    }
+
+    fn from_bytes_with(
+        bytes: &[u8],
+        expected: Option<&CategoricalTreatmentIdentity>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        Self::from_bytes_with(bytes, expected, ctx)
+    }
+}
+
 impl CategoricalTreatmentArtifact {
     /// Fit the declared categorical regime and seal the answer with its embedded design and
     /// identity, with no memory limit; see [`Self::seal_with`].
@@ -1312,7 +1348,7 @@ impl CategoricalTreatmentArtifact {
     pub fn seal(
         request: &CategoricalTreatmentRequest,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
-        Self::seal_with(request, &unbounded_context())
+        <Self as BudgetedTreatmentArtifact>::seal(request)
     }
 
     /// Fit the declared categorical regime under the computation budget of `ctx`.
@@ -1473,7 +1509,7 @@ impl CategoricalTreatmentArtifact {
         &self,
         artifact_id: &str,
     ) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
-        self.to_bytes_within(artifact_id, MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES)
+        <Self as BudgetedTreatmentArtifact>::to_bytes(self, artifact_id)
     }
 
     /// Serialize when the whole artifact fits `export_budget` bytes (at most
@@ -1505,7 +1541,7 @@ impl CategoricalTreatmentArtifact {
         bytes: &[u8],
         expected: Option<&CategoricalTreatmentIdentity>,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
-        Self::from_bytes_with(bytes, expected, &unbounded_context())
+        <Self as BudgetedTreatmentArtifact>::from_bytes(bytes, expected)
     }
 
     /// Consume an artifact by recomputation within the replay budget of `ctx`.

@@ -144,11 +144,13 @@ pub(crate) fn from_estimation(error: EstimationError, prefix: &str) -> Posterior
             detail: format!("{prefix}.unsupported"),
             message: message.to_owned(),
         },
-        unresolved @ EstimationError::QuantileGridUnresolved => PosteriorRowArtifactError::Refused {
-            code: antecedent_core::reason_code!("route_not_supported"),
-            detail: format!("{prefix}.unresolved_draws"),
-            message: unresolved.to_string(),
-        },
+        unresolved @ EstimationError::QuantileGridUnresolved => {
+            PosteriorRowArtifactError::Refused {
+                code: antecedent_core::reason_code!("route_not_supported"),
+                detail: format!("{prefix}.unresolved_draws"),
+                message: unresolved.to_string(),
+            }
+        }
         other => PosteriorRowArtifactError::Refused {
             code: antecedent_core::reason_code!("invalid_argument"),
             detail: format!("{prefix}.invalid_request"),

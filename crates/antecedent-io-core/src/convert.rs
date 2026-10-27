@@ -234,10 +234,7 @@ pub fn dag_from_wire(wire: &DagWire) -> Result<Dag, IoError> {
 /// # Errors
 ///
 /// As [`dag_from_wire`]; a bound of `limits` exceeded is refused.
-pub fn dag_from_wire_with_limits(
-    wire: &DagWire,
-    limits: &GraphLimits,
-) -> Result<Dag, IoError> {
+pub fn dag_from_wire_with_limits(wire: &DagWire, limits: &GraphLimits) -> Result<Dag, IoError> {
     check_graph_budget_within(wire.node_count, wire.edges.len(), limits)?;
     let mut dag = Dag::with_variables(wire.node_count);
     for &(from, to) in &wire.edges {
@@ -304,10 +301,7 @@ pub fn pag_from_wire(wire: &PagWire) -> Result<Pag, IoError> {
 /// # Errors
 ///
 /// As [`pag_from_wire`]; a bound of `limits` exceeded is refused.
-pub fn pag_from_wire_with_limits(
-    wire: &PagWire,
-    limits: &GraphLimits,
-) -> Result<Pag, IoError> {
+pub fn pag_from_wire_with_limits(wire: &PagWire, limits: &GraphLimits) -> Result<Pag, IoError> {
     check_graph_budget_within(wire.node_count, wire.edges.len(), limits)?;
     let mut pag = Pag::with_variables(wire.node_count);
     for e in &wire.edges {
@@ -421,10 +415,7 @@ pub fn admg_from_wire(wire: &AdmgWire) -> Result<Admg, IoError> {
 /// # Errors
 ///
 /// As [`admg_from_wire`]; a bound of `limits` exceeded is refused.
-pub fn admg_from_wire_with_limits(
-    wire: &AdmgWire,
-    limits: &GraphLimits,
-) -> Result<Admg, IoError> {
+pub fn admg_from_wire_with_limits(wire: &AdmgWire, limits: &GraphLimits) -> Result<Admg, IoError> {
     let edges = wire.directed.len().saturating_add(wire.bidirected.len());
     check_graph_budget_within(wire.node_count, edges, limits)?;
     let mut g = Admg::with_variables(wire.node_count);

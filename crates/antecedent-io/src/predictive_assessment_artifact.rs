@@ -49,7 +49,6 @@ use antecedent_validate::predictive_assessment::{
 };
 use serde::{Deserialize, Serialize};
 
-
 /// The artifact major version this reader writes and accepts.
 pub const PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.

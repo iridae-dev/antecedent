@@ -62,18 +62,14 @@ fn randomization_design_from_wire(
             || !w.multi_arm_assignment.is_empty()
             || !w.multi_arm_probabilities.is_empty())
     {
-        return Err(IoError::Convert(
-            "multi-arm metadata requires a multi-arm design".into(),
-        ));
+        return Err(IoError::Convert("multi-arm metadata requires a multi-arm design".into()));
     }
     if !matches!(w.design, RandomizationDesignWire::Factorial2x2)
         && (!w.second_factor_assignment.is_empty()
             || w.factorial_cell_counts.is_some()
             || w.second_factor_arms.is_some())
     {
-        return Err(IoError::Convert(
-            "factorial metadata requires a factorial design".into(),
-        ));
+        return Err(IoError::Convert("factorial metadata requires a factorial design".into()));
     }
     Ok(match &w.design {
         RandomizationDesignWire::Bernoulli => RandomizationDesign::Bernoulli,
@@ -94,13 +90,14 @@ fn randomization_design_from_wire(
         },
         RandomizationDesignWire::Factorial2x2 => RandomizationDesign::Factorial2x2 {
             second_factor_assignment: w.second_factor_assignment.clone().into(),
-            cell_counts: w.factorial_cell_counts.ok_or_else(|| {
-                IoError::Convert("factorial cell counts are missing".into())
-            })?,
+            cell_counts: w
+                .factorial_cell_counts
+                .ok_or_else(|| IoError::Convert("factorial cell counts are missing".into()))?,
             second_factor_arms: {
-                let arms = w.second_factor_arms.as_ref().ok_or_else(|| {
-                    IoError::Convert("second-factor labels are missing".into())
-                })?;
+                let arms = w
+                    .second_factor_arms
+                    .as_ref()
+                    .ok_or_else(|| IoError::Convert("second-factor labels are missing".into()))?;
                 (Arc::<str>::from(arms.0.as_str()), Arc::<str>::from(arms.1.as_str()))
             },
         },
@@ -145,11 +142,7 @@ fn randomized_effect_from_wire(w: &RandomizedEffectQueryWire) -> Result<CausalQu
     }
     if !w.ancova_covariates.is_empty() {
         query = query.with_ancova(
-            w.ancova_covariates
-                .iter()
-                .copied()
-                .map(VariableId::from_raw)
-                .collect::<Vec<_>>(),
+            w.ancova_covariates.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
         );
     }
     if let Some(receipt) = &w.received_treatment {
@@ -201,22 +194,20 @@ fn policy_value_from_wire(w: &PolicyValueQueryWire) -> Result<CausalQuery, IoErr
             .map(|x| Arc::<str>::from(x.as_str()))
             .collect::<Vec<_>>()
             .into(),
-        regret: w.regret.as_ref().map(|regret| {
-            antecedent_core::FixedCandidateRegretInputs {
-                candidates: regret
-                    .candidates
-                    .iter()
-                    .map(|actions| Arc::<[bool]>::from(actions.clone()))
-                    .collect::<Vec<_>>()
-                    .into(),
-                selected_index: regret.selected_index,
-                training_subject_ids: regret
-                    .training_subject_ids
-                    .iter()
-                    .map(|id| Arc::<str>::from(id.as_str()))
-                    .collect::<Vec<_>>()
-                    .into(),
-            }
+        regret: w.regret.as_ref().map(|regret| antecedent_core::FixedCandidateRegretInputs {
+            candidates: regret
+                .candidates
+                .iter()
+                .map(|actions| Arc::<[bool]>::from(actions.clone()))
+                .collect::<Vec<_>>()
+                .into(),
+            selected_index: regret.selected_index,
+            training_subject_ids: regret
+                .training_subject_ids
+                .iter()
+                .map(|id| Arc::<str>::from(id.as_str()))
+                .collect::<Vec<_>>()
+                .into(),
         }),
     };
     q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
@@ -224,7 +215,9 @@ fn policy_value_from_wire(w: &PolicyValueQueryWire) -> Result<CausalQuery, IoErr
 }
 
 /// Decode the [`CausalQuery::ContinuousDoseResponse`] payload.
-fn continuous_dose_response_from_wire(w: &ContinuousDoseResponseQueryWire) -> Result<CausalQuery, IoError> {
+fn continuous_dose_response_from_wire(
+    w: &ContinuousDoseResponseQueryWire,
+) -> Result<CausalQuery, IoError> {
     let q = antecedent_core::ContinuousDoseResponseQuery {
         outcome: VariableId::from_raw(w.outcome),
         dose: VariableId::from_raw(w.dose),
@@ -267,17 +260,13 @@ fn panel_did_rollout_from_wire(w: &PanelDidQueryWire) -> Result<CausalQuery, IoE
         || w.repeated_cross_section
     {
         return Err(IoError::Convert(
-            "a heterogeneity-robust rollout cannot also select another sampling design"
-                .into(),
+            "a heterogeneity-robust rollout cannot also select another sampling design".into(),
         ));
     }
     let (design, robust) = crate::rollout_query_wire::rollout_from_wire(rollout)?;
-    let subjects =
-        w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>();
-    let clusters =
-        w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>();
-    let mut q = if design == antecedent_core::DidSamplingDesign::CovariateAdjustedTwoPeriod
-    {
+    let subjects = w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>();
+    let clusters = w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>();
+    let mut q = if design == antecedent_core::DidSamplingDesign::CovariateAdjustedTwoPeriod {
         PanelDidQuery::covariate_adjusted_two_period(
             VariableId::from_raw(w.outcome),
             w.treated.clone(),
@@ -298,11 +287,8 @@ fn panel_did_rollout_from_wire(w: &PanelDidQueryWire) -> Result<CausalQuery, IoE
         )
     };
     q.robust = Some(robust);
-    q.resampling = w
-        .resampling
-        .as_ref()
-        .map(crate::rollout_query_wire::resampling_from_wire)
-        .transpose()?;
+    q.resampling =
+        w.resampling.as_ref().map(crate::rollout_query_wire::resampling_from_wire).transpose()?;
     if q.treated.as_ref() != w.treated.as_slice() || q.post.as_ref() != w.post.as_slice() {
         return Err(IoError::Convert(
             "rollout treatment and post indicators disagree with cohort and period metadata".into(),
@@ -337,7 +323,10 @@ fn panel_did_from_wire(w: &PanelDidQueryWire) -> Result<CausalQuery, IoError> {
         )
     } else if w.staggered_event_study {
         if w.repeated_cross_section || w.staggered_target.is_some() {
-            return Err(IoError::Convert("event study cannot also select a group-time target or repeated cross section".into()));
+            return Err(IoError::Convert(
+                "event study cannot also select a group-time target or repeated cross section"
+                    .into(),
+            ));
         }
         PanelDidQuery::staggered_event_study(
             VariableId::from_raw(w.outcome),
@@ -376,19 +365,16 @@ fn panel_did_from_wire(w: &PanelDidQueryWire) -> Result<CausalQuery, IoError> {
         )
     };
     if (w.staggered_target.is_some() || w.staggered_event_study || w.augmented.is_some())
-        && (q.treated.as_ref() != w.treated.as_slice()
-            || q.post.as_ref() != w.post.as_slice())
+        && (q.treated.as_ref() != w.treated.as_slice() || q.post.as_ref() != w.post.as_slice())
     {
         return Err(IoError::Convert(
-            "staggered DiD treatment and post indicators disagree with cohort and period metadata".into(),
+            "staggered DiD treatment and post indicators disagree with cohort and period metadata"
+                .into(),
         ));
     }
     let mut q = q;
-    q.resampling = w
-        .resampling
-        .as_ref()
-        .map(crate::rollout_query_wire::resampling_from_wire)
-        .transpose()?;
+    q.resampling =
+        w.resampling.as_ref().map(crate::rollout_query_wire::resampling_from_wire).transpose()?;
     q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
     Ok(CausalQuery::PanelDid(q))
 }
@@ -403,15 +389,10 @@ fn synthetic_control_from_wire(w: &SyntheticControlQueryWire) -> Result<CausalQu
         w.intervention_period,
     );
     let q = if w.difference_in_differences { q.difference_in_differences() } else { q };
+    let q = if w.uniform_unit_randomization { q.with_uniform_unit_randomization() } else { q };
     let q =
-        if w.uniform_unit_randomization { q.with_uniform_unit_randomization() } else { q };
-    let q = if let Some(effect) = w.sharp_null_effect {
-        q.with_sharp_null_effect(effect)
-    } else {
-        q
-    };
-    let mut q =
-        if let Some(ridge) = w.augmentation_ridge { q.with_augmentation(ridge) } else { q };
+        if let Some(effect) = w.sharp_null_effect { q.with_sharp_null_effect(effect) } else { q };
+    let mut q = if let Some(ridge) = w.augmentation_ridge { q.with_augmentation(ridge) } else { q };
     q.rollout = w
         .rollout
         .as_ref()
@@ -422,7 +403,9 @@ fn synthetic_control_from_wire(w: &SyntheticControlQueryWire) -> Result<CausalQu
 }
 
 /// Decode the [`CausalQuery::LocalPolynomialRatio`] payload.
-fn local_polynomial_ratio_from_wire(w: &LocalPolynomialRatioQueryWire) -> Result<CausalQuery, IoError> {
+fn local_polynomial_ratio_from_wire(
+    w: &LocalPolynomialRatioQueryWire,
+) -> Result<CausalQuery, IoError> {
     let q = LocalPolynomialRatioQuery {
         outcome: VariableId::from_raw(w.outcome),
         treatment: VariableId::from_raw(w.treatment),
@@ -445,9 +428,7 @@ fn survival_from_wire(w: &SurvivalQueryWire) -> Result<CausalQuery, IoError> {
     if w.censoring_probability_floor.is_none()
         && (!w.censoring_times.is_empty() || !w.censoring_columns.is_empty())
     {
-        return Err(IoError::Convert(
-            "censoring grid requires its positivity floor".into(),
-        ));
+        return Err(IoError::Convert("censoring grid requires its positivity floor".into()));
     }
     let q = antecedent_core::SurvivalQuery {
         duration: VariableId::from_raw(w.duration),
@@ -470,11 +451,7 @@ fn survival_from_wire(w: &SurvivalQueryWire) -> Result<CausalQuery, IoError> {
         }),
         observation_assumption: if w.independent_observation {
             antecedent_core::ObservationAssumption::IndependentGiven(Arc::from(
-                w.independent_given
-                    .iter()
-                    .copied()
-                    .map(VariableId::from_raw)
-                    .collect::<Vec<_>>(),
+                w.independent_given.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
             ))
         } else {
             return Err(IoError::Convert(
@@ -497,9 +474,7 @@ fn longitudinal_regime_from_wire(w: &LongitudinalRegimeQueryWire) -> Result<Caus
     let method = match w.method.as_str() {
         "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
         "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
-        "sequential_dr" => {
-            antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust
-        }
+        "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
         "marginal_structural_model" => {
             antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel
         }
@@ -515,10 +490,7 @@ fn longitudinal_regime_from_wire(w: &LongitudinalRegimeQueryWire) -> Result<Caus
             Some(w.period_outcome_predictions.clone().into())
         },
         known_fixed_outcome_predictions: w.known_fixed_outcome_predictions,
-        stabilizing_numerator_probabilities: if w
-            .stabilizing_numerator_probabilities
-            .is_empty()
-        {
+        stabilizing_numerator_probabilities: if w.stabilizing_numerator_probabilities.is_empty() {
             None
         } else {
             Some(w.stabilizing_numerator_probabilities.clone().into())
@@ -680,7 +652,13 @@ fn effect_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoError> {
 /// [`CausalQueryWire`].
 fn counterfactual_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoError> {
     Ok(match w {
-        CausalQueryWire::Counterfactual { outcomes, interventions, control, allow_nested } => {
+        CausalQueryWire::Counterfactual {
+            outcomes,
+            interventions,
+            control,
+            joint_control,
+            allow_nested,
+        } => {
             let interventions: Arc<[Intervention]> =
                 interventions.iter().map(InterventionWire::to_domain).collect::<Vec<_>>().into();
             let control = match control {
@@ -691,6 +669,7 @@ fn counterfactual_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, Io
                 outcomes: vars_from_raw(outcomes),
                 interventions,
                 control,
+                joint_control: joint_control.iter().map(InterventionWire::to_domain).collect(),
                 allow_nested: *allow_nested,
             })
         }

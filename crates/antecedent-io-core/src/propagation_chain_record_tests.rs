@@ -822,3 +822,41 @@ fn a_record_without_expressions_keeps_its_identity_encoding() {
     assert_eq!(StageKind::MeasurementMapping.tag(), 1);
     assert_eq!(OperatorClass::Nonlinear.tag(), 5);
 }
+
+#[test]
+fn caller_limits_refuse_what_the_defaults_admit() {
+    let record = PropagationChainRecordWire::seal(correction_draft(0.5), &ctx()).expect("seals");
+    let defaults = PropagationChainLimits::default();
+    let bytes = record.export_within(&defaults).expect("exports");
+    PropagationChainRecordWire::decode_within(&bytes, &defaults).expect("default bounds");
+    record.consume_within(None, &ctx(), &defaults).expect("default consume");
+
+    let tight = PropagationChainLimits { max_bytes: bytes.len() - 1, ..defaults };
+    assert_eq!(
+        PropagationChainRecordWire::decode_within(&bytes, &tight),
+        Err(PropagationChainError::LimitsExceeded("record bytes"))
+    );
+    let short_text = PropagationChainLimits { max_text_bytes: 1, ..defaults };
+    assert_eq!(
+        PropagationChainRecordWire::decode_within(&bytes, &short_text),
+        Err(PropagationChainError::LimitsExceeded("text bytes"))
+    );
+    assert!(record.export_within(&short_text).is_err());
+    assert!(record.consume_within(None, &ctx(), &short_text).is_err());
+    assert!(record.plan_within(&short_text).is_err());
+    let no_values = PropagationChainLimits { max_stage_values: 0, ..defaults };
+    assert!(record.export_within(&no_values).is_err());
+}
+
+#[test]
+fn a_caller_limit_on_changes_gates_a_further_change() {
+    let record = release();
+    let one_change = PropagationChainLimits { max_changes: 1, ..PropagationChainLimits::default() };
+    let once = record
+        .with_change_within(ChainChangeWire::withdraw("cost"), &ctx(), &one_change)
+        .expect("one change fits");
+    assert_eq!(
+        once.with_change_within(ChainChangeWire::withdraw("effect"), &ctx(), &one_change),
+        Err(PropagationChainError::LimitsExceeded("changes"))
+    );
+}

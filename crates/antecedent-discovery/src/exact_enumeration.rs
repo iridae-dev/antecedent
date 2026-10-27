@@ -102,9 +102,7 @@ impl ExactDagPosterior {
                      use order_mcmc, structure_mcmc, or ci_screened_posterior",
                 ));
             }
-            return Self::sample_instead(
-                data, variables, prior, score_family, workspace, ctx, cap,
-            );
+            return Self::sample_instead(data, variables, prior, score_family, workspace, ctx, cap);
         }
 
         let score_data = tabular_score_data(data, variables)?;
@@ -361,8 +359,14 @@ mod tests {
             ));
         for word in 0..(1u64 << (n * (n - 1))) {
             let mask = AdjacencyMask::from_word(word);
-            let direct =
-                crate::graph_score::score_dag_mask(&mask, n, &score_data, &mut cache, &prior, &vars);
+            let direct = crate::graph_score::score_dag_mask(
+                &mask,
+                n,
+                &score_data,
+                &mut cache,
+                &prior,
+                &vars,
+            );
             assert_eq!(scorer.score(&mask).map(f64::to_bits), direct.map(f64::to_bits));
         }
     }

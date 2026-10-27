@@ -21,6 +21,30 @@ pub const MAX_DISTRIBUTION_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_DISTRIBUTION_DRAWS: usize = 100_000;
 /// Maximum number of scalar coordinates.
 pub const MAX_DISTRIBUTION_COORDINATES: usize = 1_024;
+
+/// Intake bounds for a distribution artifact. The defaults are the `MAX_DISTRIBUTION_*`
+/// constants; a consumer with a larger budget passes its own to
+/// [`DistributionArtifact::new_within`] and [`DistributionArtifact::from_bytes_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DistributionIntakeLimits {
+    /// Most container bytes, and the most bytes the draw table may occupy.
+    pub max_bytes: usize,
+    /// Most draws.
+    pub max_draws: usize,
+    /// Most scalar coordinates.
+    pub max_coordinates: usize,
+}
+
+impl Default for DistributionIntakeLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_DISTRIBUTION_ARTIFACT_BYTES,
+            max_draws: MAX_DISTRIBUTION_DRAWS,
+            max_coordinates: MAX_DISTRIBUTION_COORDINATES,
+        }
+    }
+}
+
 const ARTIFACT_KIND: &str = crate::artifact_kinds::JOINT_DISTRIBUTION;
 const META_SECTION: &str = "distribution.meta";
 const DRAW_SECTION: &str = "distribution.draws";
@@ -157,7 +181,11 @@ impl DistributionIdentity {
     }
 
     fn validate(&self) -> Result<(), IoError> {
-        if self.quantities.is_empty() || self.quantities.len() > MAX_DISTRIBUTION_COORDINATES {
+        self.validate_within(MAX_DISTRIBUTION_COORDINATES)
+    }
+
+    fn validate_within(&self, max_coordinates: usize) -> Result<(), IoError> {
+        if self.quantities.is_empty() || self.quantities.len() > max_coordinates {
             return Err(IoError::TooLarge);
         }
         for quantity in &self.quantities {
@@ -361,7 +389,20 @@ impl DistributionArtifact {
     /// # Errors
     /// Shape, values, weights, masks, identities and payload bounds are checked.
     pub fn new(metadata: DistributionMetadata, draws: Vec<f64>) -> Result<Self, IoError> {
-        validate(&metadata, &draws)?;
+        Self::new_within(metadata, draws, &DistributionIntakeLimits::default())
+    }
+
+    /// [`Self::new`] under the caller's intake bounds instead of the `MAX_DISTRIBUTION_*`
+    /// defaults.
+    ///
+    /// # Errors
+    /// As [`Self::new`]; a bound of `limits` exceeded is `TooLarge`.
+    pub fn new_within(
+        metadata: DistributionMetadata,
+        draws: Vec<f64>,
+        limits: &DistributionIntakeLimits,
+    ) -> Result<Self, IoError> {
+        validate(&metadata, &draws, limits)?;
         Ok(Self { metadata, draws })
     }
 
@@ -461,7 +502,20 @@ impl DistributionArtifact {
     /// # Errors
     /// A payload larger than the declared bound or invalid metadata is refused.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
-        validate(&self.metadata, &self.draws)?;
+        self.to_bytes_within(artifact_id, &DistributionIntakeLimits::default())
+    }
+
+    /// [`Self::to_bytes`] under the caller's intake bounds instead of the `MAX_DISTRIBUTION_*`
+    /// defaults.
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes`]; a bound of `limits` exceeded is refused.
+    pub fn to_bytes_within(
+        &self,
+        artifact_id: &str,
+        limits: &DistributionIntakeLimits,
+    ) -> Result<Vec<u8>, IoError> {
+        validate(&self.metadata, &self.draws, limits)?;
         let mut draw_bytes = Vec::with_capacity(self.draws.len() * 8);
         for value in &self.draws {
             draw_bytes.extend_from_slice(&value.to_le_bytes());
@@ -470,7 +524,7 @@ impl DistributionArtifact {
             &crate::ArtifactContainer {
                 kind: ARTIFACT_KIND,
                 note: "aligned_joint_distribution",
-                max_bytes: MAX_DISTRIBUTION_ARTIFACT_BYTES,
+                max_bytes: limits.max_bytes,
                 artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),
             },
@@ -495,14 +549,27 @@ impl DistributionArtifact {
     /// Oversized, truncated, corrupt, incompatible or semantically changed
     /// artifacts are refused before any numerical operation.
     pub fn from_bytes(bytes: &[u8], expected: &DistributionIdentity) -> Result<Self, IoError> {
-        if bytes.len() > MAX_DISTRIBUTION_ARTIFACT_BYTES {
+        Self::from_bytes_within(bytes, expected, &DistributionIntakeLimits::default())
+    }
+
+    /// [`Self::from_bytes`] under the caller's intake bounds instead of the
+    /// `MAX_DISTRIBUTION_*` defaults.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is `TooLarge`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected: &DistributionIdentity,
+        limits: &DistributionIntakeLimits,
+    ) -> Result<Self, IoError> {
+        if bytes.len() > limits.max_bytes {
             return Err(IoError::TooLarge);
         }
-        expected.validate()?;
+        expected.validate_within(limits.max_coordinates)?;
         let (metadata, [draw_bytes]): (DistributionMetadata, _) =
             crate::artifact_codec::decode_sectioned_io(
                 ARTIFACT_KIND,
-                MAX_DISTRIBUTION_ARTIFACT_BYTES,
+                limits.max_bytes,
                 META_SECTION,
                 &[DRAW_SECTION],
                 "unsupported distribution artifact layout",
@@ -514,12 +581,12 @@ impl DistributionArtifact {
                 message: "aligned_joint_draws.identity_expected: distribution identity differs from expected causal contract".into(),
             });
         }
-        validate_metadata(&metadata)?;
+        validate_metadata(&metadata, limits)?;
         if draw_bytes.len() != metadata.shape[0] * metadata.shape[1] * 8 {
             return Err(IoError::Convert("distribution draw payload length mismatch".into()));
         }
         let draws = crate::artifact_codec::f64s_from_le_bytes(&draw_bytes);
-        Self::new(metadata, draws)
+        Self::new_within(metadata, draws, limits)
     }
 
     /// Finite weighted mean of one supported coordinate.
@@ -724,20 +791,23 @@ impl DistributionArtifact {
     }
 }
 
-fn validate_metadata(meta: &DistributionMetadata) -> Result<(), IoError> {
+fn validate_metadata(
+    meta: &DistributionMetadata,
+    limits: &DistributionIntakeLimits,
+) -> Result<(), IoError> {
     if meta.version != 1 {
         return Err(IoError::UnsupportedVersion { version: u32::from(meta.version) });
     }
-    meta.identity.validate()?;
+    meta.identity.validate_within(limits.max_coordinates)?;
     if meta.axes != ["draw", "quantity"]
         || meta.shape[0] == 0
-        || meta.shape[0] > MAX_DISTRIBUTION_DRAWS
+        || meta.shape[0] > limits.max_draws
         || meta.shape[1] != meta.identity.quantities.len()
     {
         return Err(IoError::Convert("invalid distribution axes or shape".into()));
     }
     let cells = meta.shape[0].checked_mul(meta.shape[1]).ok_or(IoError::TooLarge)?;
-    if cells.checked_mul(8).ok_or(IoError::TooLarge)? > MAX_DISTRIBUTION_ARTIFACT_BYTES {
+    if cells.checked_mul(8).ok_or(IoError::TooLarge)? > limits.max_bytes {
         return Err(IoError::TooLarge);
     }
     if let Some(weights) = &meta.weights {
@@ -794,8 +864,12 @@ fn validate_metadata(meta: &DistributionMetadata) -> Result<(), IoError> {
     Ok(())
 }
 
-fn validate(meta: &DistributionMetadata, draws: &[f64]) -> Result<(), IoError> {
-    validate_metadata(meta)?;
+fn validate(
+    meta: &DistributionMetadata,
+    draws: &[f64],
+    limits: &DistributionIntakeLimits,
+) -> Result<(), IoError> {
+    validate_metadata(meta, limits)?;
     if draws.len() != meta.shape[0] * meta.shape[1] || draws.iter().any(|value| !value.is_finite())
     {
         return Err(IoError::Convert("invalid distribution draw values or length".into()));
@@ -1215,5 +1289,41 @@ mod tests {
         assert_eq!(read, DistributionTrust::ExternalAttested);
         assert_eq!(serde_json::to_string(&read).unwrap(), "\"external_attested\"");
         assert!(serde_json::from_str::<DistributionTrust>("\"native\"").is_err());
+    }
+
+    #[test]
+    fn caller_intake_limits_refuse_what_the_defaults_admit() {
+        let original = fixture(DrawAlignment::Joint);
+        let identity = original.metadata.identity.clone();
+        let defaults = DistributionIntakeLimits::default();
+        let bytes = original.to_bytes_within("limits", &defaults).unwrap();
+        assert!(DistributionArtifact::from_bytes_within(&bytes, &identity, &defaults).is_ok());
+        for tight in [
+            DistributionIntakeLimits { max_draws: 1, ..defaults },
+            DistributionIntakeLimits { max_coordinates: 1, ..defaults },
+        ] {
+            assert!(DistributionArtifact::from_bytes_within(&bytes, &identity, &tight).is_err());
+            assert!(original.to_bytes_within("limits", &tight).is_err());
+            assert!(
+                DistributionArtifact::new_within(
+                    original.metadata.clone(),
+                    original.draws.clone(),
+                    &tight
+                )
+                .is_err()
+            );
+        }
+        let small = DistributionIntakeLimits { max_bytes: bytes.len() - 1, ..defaults };
+        assert!(DistributionArtifact::from_bytes_within(&bytes, &identity, &small).is_err());
+        assert!(original.to_bytes_within("limits", &small).is_err());
+        let cells = DistributionIntakeLimits { max_bytes: 8, ..defaults };
+        assert!(
+            DistributionArtifact::new_within(
+                original.metadata.clone(),
+                original.draws.clone(),
+                &cells
+            )
+            .is_err()
+        );
     }
 }

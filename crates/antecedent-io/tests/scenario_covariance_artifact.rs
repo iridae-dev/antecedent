@@ -377,7 +377,6 @@ fn covariance_artifact_version_features_and_consumer_limits_refuse() {
     let base = ScenarioCovarianceConsumeLimits::default();
     for limits in [
         ScenarioCovarianceConsumeLimits { max_rows: N - 1, ..base },
-        ScenarioCovarianceConsumeLimits { max_columns: 2, ..base },
         ScenarioCovarianceConsumeLimits { max_replicates: 299, ..base },
     ] {
         let (code, message) = strict(limits);
@@ -409,4 +408,16 @@ fn covariance_artifact_invalid_declarations_refuse_with_typed_details() {
         "scenario_covariance.invalid_functional",
     );
     invalid(&|s| s.scenarios[1].id = "a".into(), "scenario_covariance.duplicate_scenario_id");
+}
+
+#[test]
+fn covariance_artifact_consumer_row_bound_is_configurable_on_the_producer_too() {
+    let declared = spec(&["a", "b"], exact(0.0));
+    let base = ScenarioCovarianceConsumeLimits::default();
+    declared.compute_within(&ctx(), &base).unwrap();
+    let tight = ScenarioCovarianceConsumeLimits { max_rows: N - 1, ..base };
+    let (code, message) = refused(declared.compute_within(&ctx(), &tight));
+    assert_eq!(code, "cell_not_licensed");
+    assert!(message.starts_with("scenario_covariance.table_too_large"), "{message}");
+    assert!(declared.estimators_within(&tight).is_err());
 }

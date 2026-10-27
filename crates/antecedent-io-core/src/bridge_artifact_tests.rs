@@ -480,3 +480,54 @@ fn a_bridge_of_draws_is_replayed_bit_for_bit_from_its_stored_table() {
             .is_err()
     );
 }
+
+#[test]
+fn a_caller_byte_bound_and_draw_limits_refuse_what_the_defaults_admit() {
+    let bridged = bridged_draws(5);
+    let bytes = ScientificBridgeDrawsArtifact::to_bytes(&bridged, "draws-bridge").expect("bytes");
+    let defaults = DistributionIntakeLimits::default();
+    ScientificBridgeDrawsArtifact::from_bytes_within(
+        &bytes,
+        None,
+        MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES,
+        &defaults,
+    )
+    .expect("default bounds");
+    assert!(ScientificBridgeAny::shape_within(&bytes, bytes.len() - 1).is_err());
+    assert!(
+        ScientificBridgeDrawsArtifact::from_bytes_within(&bytes, None, bytes.len() - 1, &defaults)
+            .is_err()
+    );
+    assert!(
+        ScientificBridgeDrawsArtifact::from_bytes_within(
+            &bytes,
+            None,
+            MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES,
+            &DistributionIntakeLimits { max_draws: 1, ..defaults }
+        )
+        .is_err()
+    );
+    assert!(
+        ScientificBridgeAny::from_bytes_within(&bytes, None, bytes.len() - 1, &defaults).is_err()
+    );
+    assert!(
+        ScientificBridgeDrawsArtifact::to_bytes_within(&bridged, "draws-bridge", bytes.len() - 1)
+            .is_err()
+    );
+}
+
+#[test]
+fn a_caller_byte_bound_refuses_a_point_bridge_over_it() {
+    let contract = contract(ValueKind::Mean, false);
+    let claim = source_claim();
+    let quantity = contract.source.quantity.clone();
+    let source = BridgeSource { claim: &claim, quantity: &quantity };
+    let bridged = derive_bridged_claim(&contract, &source).expect("licensed bridge");
+    let bytes = ScientificBridgeArtifact::to_bytes(&bridged, &source, "point").expect("bytes");
+    assert!(ScientificBridgeArtifact::from_bytes_within(&bytes, None, bytes.len()).is_ok());
+    assert!(ScientificBridgeArtifact::from_bytes_within(&bytes, None, bytes.len() - 1).is_err());
+    assert!(
+        ScientificBridgeArtifact::to_bytes_within(&bridged, &source, "point", bytes.len() - 1)
+            .is_err()
+    );
+}

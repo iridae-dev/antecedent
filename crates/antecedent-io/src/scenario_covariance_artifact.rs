@@ -49,8 +49,8 @@ pub const SCENARIO_COVARIANCE_ARTIFACT_VERSION: u32 = 1;
 pub const SCENARIO_COVARIANCE_ARTIFACT_FEATURE: &str = "scenario_shared_covariance_v1";
 /// Most rows of one stored row table.
 pub const MAX_TABLE_ROWS: usize = 10_000;
-/// Most columns of one stored row table.
-pub const MAX_TABLE_COLUMNS: usize = 64;
+// There is no column-count cap: the in-memory estimators take any number of columns, and the
+// width of a stored table is bounded by the stored row bytes.
 
 /// Why a covariance artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -128,8 +128,6 @@ const fn to_f64(n: usize) -> f64 {
 pub struct ScenarioCovarianceConsumeLimits {
     /// Most rows the consumer will replay.
     pub max_rows: usize,
-    /// Most columns the consumer will replay.
-    pub max_columns: usize,
     /// Most bootstrap replicates the consumer will replay.
     pub max_replicates: usize,
     /// Most count vectors an exact enumeration the consumer will replay may visit.
@@ -140,7 +138,6 @@ impl Default for ScenarioCovarianceConsumeLimits {
     fn default() -> Self {
         Self {
             max_rows: MAX_TABLE_ROWS,
-            max_columns: MAX_TABLE_COLUMNS,
             max_replicates: MAX_REPLICATES,
             max_compositions: EXACT_ENUMERATION_HARD_CAP,
         }
@@ -462,18 +459,29 @@ impl CovarianceSpec {
     /// Compile every scenario declaration against the row table.
     ///
     /// # Errors
-    /// An invalid table or functional (`invalid_argument`), more rows or columns
-    /// than the bounds allow (`cell_not_licensed`), or a scenario declaring a unit
+    /// An invalid table or functional (`invalid_argument`), more rows
+    /// than the bound allows (`cell_not_licensed`), or a scenario declaring a unit
     /// list of another length (`route_not_supported` /
     /// `scenario_covariance.unknown_dependence`).
     pub fn estimators(&self) -> Result<Vec<ScenarioRowEstimator>, IoError> {
+        self.estimators_within(&ScenarioCovarianceConsumeLimits::default())
+    }
+
+    /// [`Self::estimators`] under the caller's bounds instead of [`MAX_TABLE_ROWS`].
+    ///
+    /// # Errors
+    /// As [`Self::estimators`]; more rows than `limits.max_rows` is `cell_not_licensed`.
+    pub fn estimators_within(
+        &self,
+        limits: &ScenarioCovarianceConsumeLimits,
+    ) -> Result<Vec<ScenarioRowEstimator>, IoError> {
         self.table.check()?;
-        if self.table.rows.len() > MAX_TABLE_ROWS || self.table.columns.len() > MAX_TABLE_COLUMNS {
+        if self.table.rows.len() > limits.max_rows {
             return Err(IoError::Refused {
                 code: reason_code!("cell_not_licensed"),
                 message: format!(
-                    "scenario_covariance.table_too_large: at most {MAX_TABLE_ROWS} rows and \
-                     {MAX_TABLE_COLUMNS} columns"
+                    "scenario_covariance.table_too_large: at most {} rows",
+                    limits.max_rows
                 ),
             });
         }
@@ -513,7 +521,19 @@ impl CovarianceSpec {
     /// The refusals of [`Self::estimators`] and of the covariance estimators
     /// (`scenario_covariance.*`).
     pub fn compute(&self, ctx: &ExecutionContext) -> Result<ScenarioCovariance, IoError> {
-        let estimators = self.estimators()?;
+        self.compute_within(ctx, &ScenarioCovarianceConsumeLimits::default())
+    }
+
+    /// [`Self::compute`] under the caller's bounds instead of [`MAX_TABLE_ROWS`].
+    ///
+    /// # Errors
+    /// As [`Self::compute`].
+    pub fn compute_within(
+        &self,
+        ctx: &ExecutionContext,
+        limits: &ScenarioCovarianceConsumeLimits,
+    ) -> Result<ScenarioCovariance, IoError> {
+        let estimators = self.estimators_within(limits)?;
         match &self.method {
             CovarianceMethodWire::SharedRowBootstrap { replicates, seed, max_failure_fraction } => {
                 shared_row_bootstrap_covariance(
@@ -727,9 +747,6 @@ impl ScenarioCovarianceArtifactWire {
         if self.table.rows.len() > limits.max_rows {
             return Err(exceeded("row count"));
         }
-        if self.table.columns.len() > limits.max_columns {
-            return Err(exceeded("column count"));
-        }
         if self.scenarios.len() > MAX_SCENARIOS {
             return Err(exceeded("scenario count"));
         }
@@ -773,7 +790,7 @@ impl ScenarioCovarianceArtifactWire {
             std::convert::identity,
             || ScenarioCovarianceArtifactError::DataIdentityMismatch.into(),
         )?;
-        let covariance = wire.spec().compute(ctx)?;
+        let covariance = wire.spec().compute_within(ctx, &limits)?;
         let replayed = CovarianceResultWire::from_covariance(&covariance);
         if crate::to_cbor(&replayed)? != crate::to_cbor(&wire.result)? {
             return Err(ScenarioCovarianceArtifactError::ReplayMismatch.into());

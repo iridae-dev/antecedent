@@ -115,8 +115,8 @@ fn the_joint_law_propagation_golden_is_replayed_and_gated() {
 fn the_current_layout_round_trips_and_names_the_typed_result() {
     let fresh = contrast();
     assert_eq!(fresh.version, JOINT_LAW_PROPAGATION_ARTIFACT_VERSION);
-    let decoded = JointLawPropagationArtifactWire::decode(&fresh.export().expect("export"))
-        .expect("decodes");
+    let decoded =
+        JointLawPropagationArtifactWire::decode(&fresh.export().expect("export")).expect("decodes");
     assert_eq!(decoded, fresh);
     let consumed = decoded.consume(Some(&fresh.identity), &ctx()).expect("replays");
     assert_eq!(consumed.value("mean"), Some(3.0));

@@ -177,7 +177,13 @@ impl CiScreenedPosterior {
         if let Some(note) = screened_out_note(data, variables, &pair_arc) {
             post.push_note(note);
         }
-        apply_screened_out_floor(&mut post, &effective, variables, &pair_arc, prior.edge_inclusion)?;
+        apply_screened_out_floor(
+            &mut post,
+            &effective,
+            variables,
+            &pair_arc,
+            prior.edge_inclusion,
+        )?;
         Ok(post)
     }
 }

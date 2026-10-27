@@ -123,7 +123,8 @@ impl TemporalAdmgPosterior {
         }
         let weights = normalize_log_weights(&log_weights)?;
         let ess = kish_ess(&weights);
-        let masks: Vec<AdjacencyMask> = kept.iter().map(|atom| atom.contemporaneous.clone()).collect();
+        let masks: Vec<AdjacencyMask> =
+            kept.iter().map(|atom| atom.contemporaneous.clone()).collect();
         let (edge, orient) = accumulate_marginals(p, &weights, &masks);
         let mut lagged = vec![0.0; cells];
         for (atom, &weight) in kept.iter().zip(&weights) {

@@ -24,7 +24,9 @@ mod worlds;
 
 #[path = "cyclic_retained_recovery.rs"]
 mod retained_recovery;
-pub use retained_recovery::{RetainedRecoveryInputs, RetainedRecoveryProvenance, CyclicRecoveryOrigins, recovery_origins};
+pub use retained_recovery::{
+    CyclicRecoveryOrigins, RetainedRecoveryInputs, RetainedRecoveryProvenance, recovery_origins,
+};
 
 #[path = "cyclic_family_contract.rs"]
 mod contract;

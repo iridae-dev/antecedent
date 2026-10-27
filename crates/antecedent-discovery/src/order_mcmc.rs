@@ -650,7 +650,8 @@ mod tests {
         let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
         let refs: Vec<&str> = names.iter().map(String::as_str).collect();
         let data = crate::test_tables::continuous_table(&refs, cols);
-        let vars: Vec<_> = (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
+        let vars: Vec<_> =
+            (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
         let post = OrderMcmc::new()
             .with_schedule(2, 0, 12, 1)
             .with_diagnostics_gate(false)

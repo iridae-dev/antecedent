@@ -95,9 +95,8 @@ pub(crate) fn single_finite(
 ) -> Result<(f64, f64), DiscoveryError> {
     let results =
         run_ci_batch(ci, prepared, request, workspace, ctx).map_err(DiscoveryError::from)?;
-    let result = results
-        .first()
-        .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
+    let result =
+        results.first().ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
     finite_outcome(result)
 }
 

@@ -18,8 +18,27 @@ use crate::{
 /// Wire format version of the portable factor laws.
 pub const FACTOR_LAWS_FORMAT: u16 = 1;
 const MASS_TOLERANCE: f64 = 1e-9;
-const MAX_REPLAY_CELLS: usize = 1_000_000;
-const MAX_REPLAY_OPERATIONS: usize = 50_000_000;
+/// Default most table cells (domain levels plus factor entries) a replay admits.
+pub const MAX_REPLAY_CELLS: usize = 1_000_000;
+/// Default most evaluator operations (support cells times program nodes) a replay performs.
+pub const MAX_REPLAY_OPERATIONS: usize = 50_000_000;
+
+/// Resource bounds of the detached finite-discrete replay of a checked functional artifact.
+/// The defaults are [`MAX_REPLAY_CELLS`] and [`MAX_REPLAY_OPERATIONS`]; a consumer with a
+/// larger budget passes its own to [`crate::contract_section::verify_contract_against_body_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReplayLimits {
+    /// Most table cells a replay admits.
+    pub max_cells: usize,
+    /// Most evaluator operations a replay performs.
+    pub max_operations: usize,
+}
+
+impl Default for ReplayLimits {
+    fn default() -> Self {
+        Self { max_cells: MAX_REPLAY_CELLS, max_operations: MAX_REPLAY_OPERATIONS }
+    }
+}
 
 /// Recompute every finite-discrete distribution atom from its checked program and portable
 /// factor laws. Returns a stable dependency/error key suitable for a refusal report.
@@ -32,6 +51,7 @@ pub(crate) fn replay_distribution_atoms(
     result: &InterventionalDistributionWire,
     program_wire: &FunctionalProgramWire,
     laws: &DistributionFactorLawsWire,
+    limits: &ReplayLimits,
 ) -> Result<(), ContractReason> {
     let CausalQueryWire::Distribution(query) = query else {
         return Err(ContractReason::DistributionQueryKind);
@@ -53,7 +73,7 @@ pub(crate) fn replay_distribution_atoms(
         functional_program_from_wire(program_wire, antecedent_expr::ProgramLimits::default())
             .map_err(|_| ContractReason::DistributionFunctionalProgram)?;
     verify_requirements(&program, query, laws)?;
-    validate_law_size(laws)?;
+    validate_law_size(laws, limits)?;
     let provider = provider_from_laws(laws)?;
 
     let outcomes: Vec<_> = query.outcomes.iter().copied().map(VariableId::from_raw).collect();
@@ -88,15 +108,15 @@ pub(crate) fn replay_distribution_atoms(
         .copied()
         .filter(|variable| !bound.contains(variable))
         .collect();
-    let outcome_cells = support_cells(laws, &outcomes)?;
-    let conditioning_cells = support_cells(laws, &conditioning)?;
-    let free_cells = support_cells(laws, &free)?;
+    let outcome_cells = support_cells(laws, &outcomes, limits)?;
+    let conditioning_cells = support_cells(laws, &conditioning, limits)?;
+    let free_cells = support_cells(laws, &free, limits)?;
     let max_program_nodes = program.arena().len().max(1);
     if outcome_cells
         .saturating_mul(conditioning_cells)
         .saturating_mul(free_cells)
         .saturating_mul(max_program_nodes)
-        > MAX_REPLAY_OPERATIONS
+        > limits.max_operations
     {
         return Err(ContractReason::DistributionReplayResourceLimit);
     }
@@ -224,6 +244,7 @@ pub(crate) fn replay_functional_scalar(
     reported: Option<f64>,
     program_wire: &FunctionalProgramWire,
     laws: &DistributionFactorLawsWire,
+    limits: &ReplayLimits,
 ) -> Result<(), ContractReason> {
     if !matches!(
         query,
@@ -252,7 +273,8 @@ pub(crate) fn replay_functional_scalar(
         functional_program_from_wire(program_wire, antecedent_expr::ProgramLimits::default())
             .map_err(|_| ContractReason::FunctionalEffectFunctionalProgram)?;
     verify_scalar_requirements(&program, laws)?;
-    validate_law_size(laws).map_err(|_| ContractReason::FunctionalEffectFactorLawsResourceLimit)?;
+    validate_law_size(laws, limits)
+        .map_err(|_| ContractReason::FunctionalEffectFactorLawsResourceLimit)?;
     let provider = provider_from_laws(laws).map_err(|reason| match reason {
         ContractReason::DistributionFactorNormalization => {
             ContractReason::FunctionalEffectFactorNormalization
@@ -260,9 +282,9 @@ pub(crate) fn replay_functional_scalar(
         _ => ContractReason::FunctionalEffectFactorLaws,
     })?;
     let free = program.free_variables();
-    let free_cells =
-        support_cells(laws, free).map_err(|_| ContractReason::FunctionalEffectFactorDomains)?;
-    if free_cells.saturating_mul(program.arena().len().max(1)) > MAX_REPLAY_OPERATIONS {
+    let free_cells = support_cells(laws, free, limits)
+        .map_err(|_| ContractReason::FunctionalEffectFactorDomains)?;
+    if free_cells.saturating_mul(program.arena().len().max(1)) > limits.max_operations {
         return Err(ContractReason::FunctionalEffectReplayResourceLimit);
     }
     let support = provider
@@ -540,7 +562,10 @@ fn insert_factor_table(
     Ok(())
 }
 
-fn validate_law_size(laws: &DistributionFactorLawsWire) -> Result<(), ContractReason> {
+fn validate_law_size(
+    laws: &DistributionFactorLawsWire,
+    limits: &ReplayLimits,
+) -> Result<(), ContractReason> {
     let domain_entries =
         laws.domains.iter().fold(0usize, |total, (_, levels)| total.saturating_add(levels.len()));
     let factor_cells = laws.factors.iter().fold(0usize, |total, factor| {
@@ -548,7 +573,7 @@ fn validate_law_size(laws: &DistributionFactorLawsWire) -> Result<(), ContractRe
             subtotal.saturating_add(row.values.len().saturating_add(1))
         }))
     });
-    if domain_entries.saturating_add(factor_cells) > MAX_REPLAY_CELLS {
+    if domain_entries.saturating_add(factor_cells) > limits.max_cells {
         return Err(ContractReason::DistributionReplayResourceLimit);
     }
     Ok(())
@@ -557,6 +582,7 @@ fn validate_law_size(laws: &DistributionFactorLawsWire) -> Result<(), ContractRe
 fn support_cells(
     laws: &DistributionFactorLawsWire,
     variables: &[VariableId],
+    limits: &ReplayLimits,
 ) -> Result<usize, ContractReason> {
     let count = variables
         .iter()
@@ -567,7 +593,7 @@ fn support_cells(
                 .map(|(_, levels)| product.saturating_mul(levels.len()))
         })
         .ok_or(ContractReason::DistributionFactorDomains)?;
-    if count > MAX_REPLAY_CELLS {
+    if count > limits.max_cells {
         return Err(ContractReason::DistributionReplayResourceLimit);
     }
     Ok(count)
@@ -578,6 +604,24 @@ mod tests {
     use super::*;
     use crate::contract_reason::ContractReason;
     use crate::{DistributionFactorRowWire, DistributionFactorTableWire};
+
+    fn replay_distribution_atoms(
+        query: &CausalQueryWire,
+        result: &InterventionalDistributionWire,
+        program: &FunctionalProgramWire,
+        laws: &DistributionFactorLawsWire,
+    ) -> Result<(), ContractReason> {
+        super::replay_distribution_atoms(query, result, program, laws, &ReplayLimits::default())
+    }
+
+    fn replay_functional_scalar(
+        query: &CausalQueryWire,
+        reported: Option<f64>,
+        program: &FunctionalProgramWire,
+        laws: &DistributionFactorLawsWire,
+    ) -> Result<(), ContractReason> {
+        super::replay_functional_scalar(query, reported, program, laws, &ReplayLimits::default())
+    }
     use antecedent_expr::{
         CausalExprArena, FunctionalProgram, InterventionAssignment, ProgramLimits, ProgramSchema,
         ProgramVariable,
@@ -802,6 +846,29 @@ mod tests {
         assert_eq!(
             replay_functional_scalar(&query, Some(0.0), &program, &zero_mass),
             Err(ContractReason::FunctionalEffectFactorNormalization)
+        );
+    }
+
+    #[test]
+    fn caller_replay_limits_refuse_what_the_defaults_admit() {
+        let (query, program, laws) = scalar_fixture();
+        super::replay_functional_scalar(
+            &query,
+            Some(0.75),
+            &program,
+            &laws,
+            &ReplayLimits::default(),
+        )
+        .unwrap();
+        let few_cells = ReplayLimits { max_cells: 1, ..ReplayLimits::default() };
+        assert_eq!(
+            super::replay_functional_scalar(&query, Some(0.75), &program, &laws, &few_cells),
+            Err(ContractReason::FunctionalEffectFactorLawsResourceLimit)
+        );
+        let few_operations = ReplayLimits { max_operations: 0, ..ReplayLimits::default() };
+        assert_eq!(
+            super::replay_functional_scalar(&query, Some(0.75), &program, &laws, &few_operations),
+            Err(ContractReason::FunctionalEffectReplayResourceLimit)
         );
     }
 }

@@ -196,9 +196,7 @@ impl<R: Read + Seek> ArtifactReader<R> {
             return Ok(SectionAccess::Shared(Arc::clone(cached)));
         }
         let SectionIndexEntry { file_offset, on_wire_len, .. } = self.index[pos];
-        self.inner
-            .seek(SeekFrom::Start(file_offset))
-            .map_err(IoError::from)?;
+        self.inner.seek(SeekFrom::Start(file_offset)).map_err(IoError::from)?;
         let len = usize::try_from(on_wire_len).map_err(|_| IoError::TooLarge)?;
         if len > self.limits.max_section_bytes {
             return Err(IoError::TooLarge);
@@ -559,8 +557,7 @@ fn index_seekable<R: Read + Seek>(
             return Err(IoError::ManifestMismatch { message: "section size mismatch" });
         }
         let file_offset = r.stream_position().map_err(IoError::from)?;
-        r.seek(SeekFrom::Current(i64::from(on_wire_len)))
-            .map_err(IoError::from)?;
+        r.seek(SeekFrom::Current(i64::from(on_wire_len))).map_err(IoError::from)?;
         index.push(SectionIndexEntry { id: desc.id.clone(), file_offset, on_wire_len });
     }
     Ok((manifest, index, stats))

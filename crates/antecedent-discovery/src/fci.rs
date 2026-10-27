@@ -296,8 +296,10 @@ impl Fci {
         let orient_delta = run_fci_orientation_to_fixed_point(&mut pag, &rules, &mut state)?;
 
         let mut diagnostics = Vec::new();
-        diagnostics
-            .extend(crate::static_skeleton::parent_limit_diagnostic(&parent_limit_removed, ALGORITHM));
+        diagnostics.extend(crate::static_skeleton::parent_limit_diagnostic(
+            &parent_limit_removed,
+            ALGORITHM,
+        ));
         if !state.discriminating_skipped.is_empty() {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("fci.discriminating_path_budget"),

@@ -258,9 +258,8 @@ impl CounterfactualEngine {
         // Built straight into the shared allocation (an exact-size iterator collects into an
         // `Arc<[f64]>` without a second buffer), so publishing the posterior copies nothing.
         let mut noise: Arc<[f64]> = std::iter::repeat_n(0.0, n * n_nodes).collect();
-        let noise_buf = Arc::get_mut(&mut noise).ok_or_else(|| {
-            CounterfactualError::model_msg("noise buffer is unexpectedly shared")
-        })?;
+        let noise_buf = Arc::get_mut(&mut noise)
+            .ok_or_else(|| CounterfactualError::model_msg("noise buffer is unexpectedly shared"))?;
         let mut kind = NoiseInferenceKind::Invertible;
         let mut assumed_columns = vec![false; n_nodes];
 
@@ -338,7 +337,13 @@ impl CounterfactualEngine {
             }
         }
 
-        Ok(ExogenousPosterior { noise, n_units: n, n_nodes, kind, assumed_columns: Arc::from(assumed_columns) })
+        Ok(ExogenousPosterior {
+            noise,
+            n_units: n,
+            n_nodes,
+            kind,
+            assumed_columns: Arc::from(assumed_columns),
+        })
     }
 
     /// Predict counterfactual outcomes for worlds sharing abduced noise,

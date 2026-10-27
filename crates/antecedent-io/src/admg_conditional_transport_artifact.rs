@@ -564,8 +564,7 @@ impl AdmgConditionalArtifactWire {
             || self.query.treatments.len() > limits.max_treatments
             || self.query.conditioned_on.len() > limits.max_conditioned
             || self.proof.conditioned_on.len() > limits.max_conditioned
-            || self.proof.moves.len() + self.proof.remaining.len()
-                > limits.max_conditioned
+            || self.proof.moves.len() + self.proof.remaining.len() > limits.max_conditioned
         {
             return Err(exceeded("query size"));
         }
@@ -823,8 +822,7 @@ impl AdmgConditionalObstructionWire {
         if self.query.outcomes.len() > nodes
             || self.query.treatments.len() > limits.max_treatments
             || self.query.conditioned_on.len() > limits.max_conditioned
-            || self.proof.moves.len() + self.proof.remaining.len()
-                > limits.max_conditioned
+            || self.proof.moves.len() + self.proof.remaining.len() > limits.max_conditioned
         {
             return Err(exceeded("query size"));
         }
@@ -835,10 +833,7 @@ impl AdmgConditionalObstructionWire {
             if model.latents.len() > max_edges
                 || model.source.len() > nodes
                 || model.target.len() > nodes
-                || model
-                    .latents
-                    .iter()
-                    .any(|l| l.probabilities.len() > limits.max_latent_levels)
+                || model.latents.iter().any(|l| l.probabilities.len() > limits.max_latent_levels)
             {
                 return Err(exceeded("witness size"));
             }

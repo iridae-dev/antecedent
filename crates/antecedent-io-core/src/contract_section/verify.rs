@@ -23,6 +23,7 @@ use antecedent_core::IdentityDomain;
 
 use super::{AnalysisResultContractWire, ClaimSectionWire};
 use crate::contract_reason::{ContractReason, publish_reasons};
+use crate::distribution_replay::ReplayLimits;
 use crate::identity::{
     data_snapshot_digest, digest_wire, execution_digest, identification_digest,
     identification_product_digest_wire, inference_binding_digest, program_digest,
@@ -60,13 +61,26 @@ pub fn verify_contract_against_body(
     body: &AnalysisResultWire,
     contract: &AnalysisResultContractWire,
 ) -> Vec<Arc<str>> {
-    publish_reasons(contract_unresolved(header, body, contract))
+    verify_contract_against_body_within(header, body, contract, &ReplayLimits::default())
+}
+
+/// [`verify_contract_against_body`] under the caller's replay bounds instead of the
+/// [`ReplayLimits`] defaults.
+#[must_use]
+pub fn verify_contract_against_body_within(
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+    limits: &ReplayLimits,
+) -> Vec<Arc<str>> {
+    publish_reasons(contract_unresolved(header, body, contract, limits))
 }
 
 pub(in crate::contract_section) fn contract_unresolved(
     header: &AnalysisResultHeader,
     body: &AnalysisResultWire,
     contract: &AnalysisResultContractWire,
+    limits: &ReplayLimits,
 ) -> Vec<ContractReason> {
     let mut unresolved = verify_stored_payloads(contract);
     note_linear_fit_replay(contract, body, &mut unresolved);
@@ -86,7 +100,7 @@ pub(in crate::contract_section) fn contract_unresolved(
         unresolved.push(ContractReason::BodyQuery);
     }
     note_replay_dependencies(contract, body, &mut unresolved);
-    note_functional_and_nested_replay(contract, body, &mut unresolved);
+    note_functional_and_nested_replay(contract, body, &mut unresolved, limits);
     verify_graph_posterior_mixture(contract, body, &mut unresolved);
     note_published_claim(header, body, contract, &mut unresolved);
     unresolved
@@ -721,6 +735,7 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
     unresolved: &mut Vec<ContractReason>,
+    limits: &ReplayLimits,
 ) {
     if is_functional_distribution_contract(contract) && body.interventional_distribution.is_none() {
         // Pre-atom artifacts remain decodable, but cannot independently verify
@@ -826,6 +841,7 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
                         grid,
                         &response.estimate,
                         laws,
+                        limits,
                     ) {
                         unresolved.push(reason);
                     }
@@ -862,6 +878,7 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
                     result,
                     program,
                     laws,
+                    limits,
                 ) {
                     unresolved.push(reason);
                 }
@@ -890,6 +907,7 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
                     body.estimate,
                     program,
                     laws,
+                    limits,
                 ) {
                     unresolved.push(reason);
                 }
@@ -1046,7 +1064,7 @@ pub(crate) fn verify_contract_for_encoding(
 ) -> Vec<Arc<str>> {
     publish_reasons(producer_encoding_unresolved(
         contract,
-        contract_unresolved(header, body, contract),
+        contract_unresolved(header, body, contract, &ReplayLimits::default()),
     ))
 }
 

@@ -470,14 +470,7 @@ fn lag_bit(p: usize, max_lag: u32, lag: u32, from: usize, to: usize) -> u32 {
     crate::indexing::dense_u32(block + from * p + to)
 }
 
-fn has_lag_edge(
-    lmask: &LagMask,
-    p: usize,
-    max_lag: u32,
-    lag: u32,
-    from: usize,
-    to: usize,
-) -> bool {
+fn has_lag_edge(lmask: &LagMask, p: usize, max_lag: u32, lag: u32, from: usize, to: usize) -> bool {
     lmask.bit(lag_bit(p, max_lag, lag, from, to))
 }
 
@@ -1345,7 +1338,8 @@ mod tests {
         assert!(has_lag_edge(&lmask, n_vars, max_lag, 9, 2, 1));
         assert!(!has_lag_edge(&lmask, n_vars, max_lag, 9, 1, 2));
         temporal_dag_from_dbn_atoms(0u64, lmask.clone(), n_vars, max_lag, &variables).unwrap();
-        let graph = temporal_cpdag_from_dbn_atoms(0u64, &lmask, n_vars, max_lag, &variables).unwrap();
+        let graph =
+            temporal_cpdag_from_dbn_atoms(0u64, &lmask, n_vars, max_lag, &variables).unwrap();
         // x_{t-1}, y_t and z_{t-9}.
         assert_eq!(graph.nodes().len(), 3);
         let marginals = accumulate_lagged_marginals(

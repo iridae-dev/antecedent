@@ -20,8 +20,8 @@ use std::collections::BTreeSet;
 use antecedent_core::ExecutionContext;
 
 use super::{
-    HistoryId, POLL_EVERY, RefusingWitness, SnapshotId, TemporalCounterfactualError, UnitDrawDigest,
-    UnitId, digest, invalid, poll, unsupported,
+    HistoryId, POLL_EVERY, RefusingWitness, SnapshotId, TemporalCounterfactualError,
+    UnitDrawDigest, UnitId, digest, invalid, poll, unsupported,
 };
 
 /// Most `units x (worlds + 1) x nodes` evaluations one call may perform. A work budget, not a
@@ -325,7 +325,11 @@ pub(super) fn digest_world(world: &GeneralActionHistory) -> String {
     d.finish_hex()
 }
 
-pub(super) fn digest_draw(snapshot: &SnapshotId, unit: &GeneralFactualHistory, noise: &[f64]) -> String {
+pub(super) fn digest_draw(
+    snapshot: &SnapshotId,
+    unit: &GeneralFactualHistory,
+    noise: &[f64],
+) -> String {
     let mut d = digest("general_unit_draw");
     d.text(snapshot.as_str());
     d.text(unit.unit.as_str());
@@ -335,7 +339,11 @@ pub(super) fn digest_draw(snapshot: &SnapshotId, unit: &GeneralFactualHistory, n
     d.finish_hex()
 }
 
-fn unpaired(world: &str, unit: &UnitId, history: Option<&HistoryId>) -> TemporalCounterfactualError {
+fn unpaired(
+    world: &str,
+    unit: &UnitId,
+    history: Option<&HistoryId>,
+) -> TemporalCounterfactualError {
     unsupported(
         "temporal_counterfactual.unpaired_histories",
         Some(unit.as_str().to_owned()),
@@ -749,9 +757,8 @@ mod tests {
     fn unpaired_world_units_are_refused() {
         let mut spec = general_spec(3, 4, &[vec![0.0, 1.0, 0.0]]);
         spec.worlds[0].units.pop();
-        let err =
-            evaluate_general_temporal_counterfactual(&spec, &ExecutionContext::for_tests(1))
-                .unwrap_err();
+        let err = evaluate_general_temporal_counterfactual(&spec, &ExecutionContext::for_tests(1))
+            .unwrap_err();
         assert!(err.refusal().is_some());
     }
 }

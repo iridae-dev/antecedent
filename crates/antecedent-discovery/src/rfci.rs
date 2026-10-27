@@ -275,8 +275,10 @@ impl Rfci {
         }
 
         let mut diagnostics = Vec::new();
-        diagnostics
-            .extend(crate::static_skeleton::parent_limit_diagnostic(&parent_limit_removed, ALGORITHM));
+        diagnostics.extend(crate::static_skeleton::parent_limit_diagnostic(
+            &parent_limit_removed,
+            ALGORITHM,
+        ));
         if !state.discriminating_skipped.is_empty() {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("rfci.discriminating_path_budget"),

@@ -540,6 +540,9 @@ pub(super) fn validate_result(
     if let Some(unit_effects) = &result.unit_effects {
         validate_unit_effects(unit_effects)?;
     }
+    if let Some(section) = &result.counterfactual_contrasts {
+        super::counterfactual_contrasts::validate(result, section, variable_names.len())?;
+    }
     validate_cate_and_learner_metrics(result)?;
     validate_family_inference(result)?;
     if let Some(structural) = &result.structural_response {
@@ -785,7 +788,7 @@ fn validate_mediation_uncertainty(
     Ok(())
 }
 
-fn validate_unit_effects(unit_effects: &UnitEffectsWire) -> Result<(), IoError> {
+pub(super) fn validate_unit_effects(unit_effects: &UnitEffectsWire) -> Result<(), IoError> {
     if unit_effects.effects.is_empty()
         || unit_effects.effects.iter().any(|effect| !effect.is_finite())
     {

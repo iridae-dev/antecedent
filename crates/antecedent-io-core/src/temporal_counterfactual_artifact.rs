@@ -34,7 +34,6 @@ use antecedent_counterfactual::temporal_cross_world::{
 };
 use serde::{Deserialize, Serialize};
 
-
 /// The artifact major version this reader writes and accepts.
 pub const TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
@@ -921,12 +920,7 @@ impl TemporalCounterfactualArtifact {
         expected: Option<&TemporalCounterfactualIdentity>,
         ctx: &ExecutionContext,
     ) -> Result<Self, TemporalCounterfactualArtifactError> {
-        Self::from_bytes_within(
-            bytes,
-            expected,
-            ctx,
-            MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES,
-        )
+        Self::from_bytes_within(bytes, expected, ctx, MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES)
     }
 
     /// [`Self::from_bytes`] under the caller's byte bound instead of

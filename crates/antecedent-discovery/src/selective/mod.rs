@@ -70,8 +70,8 @@ pub use stages::{
     STATISTIC_COMPONENTS, StageDecision, StageInputs,
 };
 pub use store::{
-    DEFAULT_STORE_CAPACITY, MAX_PORTABLE_RECEIPTS, SelectiveCi, StatisticReceipt, StatisticStore,
-    StoreCounters, StoreMode,
+    DEFAULT_STORE_CAPACITY, MAX_PORTABLE_RECEIPTS, SelectiveCi, SelectiveLimits, StatisticReceipt,
+    StatisticStore, StoreCounters, StoreMode,
 };
 pub use structure::{
     DiscoveredStructure, Mark, StructureClass, StructureEdge, StructureNode, UnresolvedEdge,

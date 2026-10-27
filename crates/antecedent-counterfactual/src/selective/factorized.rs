@@ -233,8 +233,11 @@ pub(crate) fn infer_unit(
                     (world_node.get(&(source, *parent)).copied(), constant(source, *parent))
                 })
                 .collect();
-            let mut scope: Vec<usize> =
-                out_node.into_iter().chain([u_node]).chain(parent_nodes.iter().filter_map(|p| p.0)).collect();
+            let mut scope: Vec<usize> = out_node
+                .into_iter()
+                .chain([u_node])
+                .chain(parent_nodes.iter().filter_map(|p| p.0))
+                .collect();
             scope.sort_unstable();
             scope.dedup();
             let dims: Vec<usize> = scope.iter().map(|v| domains[*v]).collect();
@@ -321,7 +324,8 @@ pub(crate) fn infer_unit(
     let mut log_scale = 0.0f64;
     let mut peak = 0usize;
     let mut multiplications = 0u64;
-    let mut order = CanonicalWriter::new("antecedent.counterfactual.selective.elimination_order.v1");
+    let mut order =
+        CanonicalWriter::new("antecedent.counterfactual.selective.elimination_order.v1");
     order.word(labels.len() as u64);
     while let Some((cells, x)) = queue.pop_first() {
         poll(ctx)?;
@@ -330,7 +334,9 @@ pub(crate) fn infer_unit(
         }
         match labels[x] {
             Label::Exogenous(k) => order.word(0).word(k as u64),
-            Label::World { world, variable } => order.word(1).word(world as u64).word(variable as u64),
+            Label::World { world, variable } => {
+                order.word(1).word(world as u64).word(variable as u64)
+            }
         };
         let ids: Vec<usize> = holders[x].iter().copied().collect();
         let mut inputs: Vec<Factor> = Vec::with_capacity(ids.len());
@@ -530,9 +536,8 @@ fn combine(
             assignment[at] = 0;
         }
     }
-    let multiplications = (out_size as u64)
-        .saturating_mul(summed as u64)
-        .saturating_mul(inputs.len().max(1) as u64);
+    let multiplications =
+        (out_size as u64).saturating_mul(summed as u64).saturating_mul(inputs.len().max(1) as u64);
     Ok(Combined { factor: Factor { vars: kept, data }, multiplications })
 }
 

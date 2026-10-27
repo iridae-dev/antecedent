@@ -123,7 +123,8 @@ mod tests {
         assert!(!refuse.close(f64::NAN, f64::NAN));
         assert!(!refuse.close(f64::INFINITY, f64::INFINITY));
         assert!(!refuse.close(1.0, f64::INFINITY), "an infinite scale accepts nothing");
-        let nan = ReplayTolerance::new(1e-9, ReplayScale::LargerOrOne, ReplayNonFinite::NanMatchesNan);
+        let nan =
+            ReplayTolerance::new(1e-9, ReplayScale::LargerOrOne, ReplayNonFinite::NanMatchesNan);
         assert!(nan.close(f64::NAN, f64::NAN));
         assert!(!nan.close(f64::NAN, 1.0));
         assert!(!nan.close(f64::INFINITY, f64::INFINITY));

@@ -223,11 +223,9 @@ impl<'a> Resolver<'a> {
         node: VariableId,
     ) -> Result<(bool, f64), DiscoveryError> {
         let members: Vec<usize> = implicated.iter().copied().collect();
-        let seed = members
-            .iter()
-            .fold(u64::from(node.raw()) ^ 0x9E37_79B9_7F4A_7C15, |acc, &k| {
-                acc.rotate_left(7) ^ (k as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9)
-            });
+        let seed = members.iter().fold(u64::from(node.raw()) ^ 0x9E37_79B9_7F4A_7C15, |acc, &k| {
+            acc.rotate_left(7) ^ (k as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9)
+        });
         let mut rng = antecedent_core::CausalRng::from_seed(seed);
         let mut first: Option<IncidentOrientation> = None;
         let mut drawn: HashSet<BTreeSet<usize>> = HashSet::new();

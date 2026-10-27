@@ -23,16 +23,18 @@
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_counterfactual::temporal_cross_world::general::{
-    GeneralActionHistory, GeneralAbductionReceipt, GeneralFactualHistory, GeneralMechanismFit,
-    GeneralNodeMechanism, GeneralTemporalResult, GeneralTemporalSpec, node_count,
-    evaluate_general_temporal_counterfactual,
+    GeneralAbductionReceipt, GeneralActionHistory, GeneralFactualHistory, GeneralMechanismFit,
+    GeneralNodeMechanism, GeneralTemporalResult, GeneralTemporalSpec,
+    evaluate_general_temporal_counterfactual, node_count,
 };
 use antecedent_counterfactual::temporal_cross_world::{
     HistoryId, MECHANISM_CLASS, SnapshotId, TemporalCounterfactualError, UnitId,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::temporal_counterfactual_artifact::{RefusalWire, TemporalCounterfactualRefusalWire, UnitDrawWire, WitnessWire};
+use crate::temporal_counterfactual_artifact::{
+    RefusalWire, TemporalCounterfactualRefusalWire, UnitDrawWire, WitnessWire,
+};
 
 /// The artifact major version this reader writes and accepts.
 pub const GENERAL_TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION: u16 = 1;
@@ -521,7 +523,11 @@ fn encode_parts_impl(
         },
         META_SECTION,
         meta,
-        &[crate::OutSection { id: VALUES_SECTION, content_type: crate::CONTENT_BYTES, bytes: values }],
+        &[crate::OutSection {
+            id: VALUES_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: values,
+        }],
     )
 }
 
@@ -542,9 +548,7 @@ pub fn encode_parts(
     encode_parts_impl(meta, values, artifact_id)
 }
 
-fn decode_parts_impl(
-    bytes: &[u8],
-) -> Result<(GeneralTemporalCounterfactualMeta, Vec<u8>), Error> {
+fn decode_parts_impl(bytes: &[u8]) -> Result<(GeneralTemporalCounterfactualMeta, Vec<u8>), Error> {
     let (meta, mut parts) = crate::artifact_codec::decode_sectioned::<Error, _>(
         ARTIFACT_KIND,
         MAX_GENERAL_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES,
@@ -568,10 +572,8 @@ fn decode_parts_impl(
 #[doc(hidden)]
 pub fn decode_parts(
     bytes: &[u8],
-) -> Result<
-    (GeneralTemporalCounterfactualMeta, Vec<u8>),
-    GeneralTemporalCounterfactualArtifactError,
-> {
+) -> Result<(GeneralTemporalCounterfactualMeta, Vec<u8>), GeneralTemporalCounterfactualArtifactError>
+{
     decode_parts_impl(bytes)
 }
 
@@ -579,8 +581,8 @@ fn request_of(
     meta: &GeneralTemporalCounterfactualMeta,
     values: &[u8],
 ) -> Result<GeneralTemporalRequestWire, Error> {
-    let per_unit = reals_per_unit(meta.horizon, meta.worlds.len())
-        .ok_or(Error::LimitsExceeded("horizon"))?;
+    let per_unit =
+        reals_per_unit(meta.horizon, meta.worlds.len()).ok_or(Error::LimitsExceeded("horizon"))?;
     let expected = meta
         .units
         .len()
@@ -763,11 +765,13 @@ impl GeneralTemporalCounterfactualArtifact {
             .ok_or(Error::LimitsExceeded("horizon"))?;
         let nodes = per_unit - meta.worlds.len();
         let stored = crate::artifact_codec::f64s_from_le_bytes(&values);
-        let outcomes_replay = stored.chunks_exact(per_unit.max(1)).zip(&result.units).all(
-            |(row, unit)| {
-                row[nodes..].iter().map(|v| v.to_bits()).eq(unit.outcomes.iter().map(|v| v.to_bits()))
-            },
-        );
+        let outcomes_replay =
+            stored.chunks_exact(per_unit.max(1)).zip(&result.units).all(|(row, unit)| {
+                row[nodes..]
+                    .iter()
+                    .map(|v| v.to_bits())
+                    .eq(unit.outcomes.iter().map(|v| v.to_bits()))
+            });
         if !outcomes_replay {
             return Err(Error::ResultMismatch("per-unit outcomes"));
         }
@@ -863,12 +867,9 @@ mod tests {
         other.worlds[1].actions[0] = 7.0;
         let b = GeneralTemporalCounterfactualArtifact::seal(&other, &ctx).unwrap();
         let bytes = b.to_bytes("general").unwrap();
-        let error = GeneralTemporalCounterfactualArtifact::from_bytes(
-            &bytes,
-            Some(a.identity()),
-            &ctx,
-        )
-        .unwrap_err();
+        let error =
+            GeneralTemporalCounterfactualArtifact::from_bytes(&bytes, Some(a.identity()), &ctx)
+                .unwrap_err();
         assert!(matches!(error, Error::IdentityMismatch { field: "action_history" }));
     }
 
@@ -876,8 +877,9 @@ mod tests {
     fn a_core_refusal_is_a_typed_refusal() {
         let mut bad = request(2, 2);
         bad.worlds[0].units.pop();
-        let error = GeneralTemporalCounterfactualArtifact::seal(&bad, &ExecutionContext::for_tests(1))
-            .unwrap_err();
+        let error =
+            GeneralTemporalCounterfactualArtifact::seal(&bad, &ExecutionContext::for_tests(1))
+                .unwrap_err();
         let refusal = error.refusal().expect("a structured refusal");
         assert_eq!(refusal.detail, "temporal_counterfactual.unpaired_histories");
     }

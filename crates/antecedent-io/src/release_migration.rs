@@ -16,8 +16,8 @@
 
 use antecedent_core::ScientificTarget;
 
-use crate::recalc_receipt_artifact::{RecalcReceiptArtifact, RecalcReceiptArtifactError};
 use crate::PayloadDigestWire;
+use crate::recalc_receipt_artifact::{RecalcReceiptArtifact, RecalcReceiptArtifactError};
 
 /// Kind string of the score-table row-index digest.
 pub const SCORE_ROW_IDENTITY_KIND: &str = "score_reuse.row_index";
@@ -531,9 +531,7 @@ pub enum PreviousReleaseError {
     #[error(transparent)]
     Migration(#[from] MigrationError),
     /// A fresh process reused a derived stage. That reuse stays in-process.
-    #[error(
-        "a fresh process cannot reuse derived stage {stage}; that reuse stays in-process only"
-    )]
+    #[error("a fresh process cannot reuse derived stage {stage}; that reuse stays in-process only")]
     FreshProcessReusedDerivedStage {
         /// Stage the receipt marked reused.
         stage: String,
@@ -680,9 +678,9 @@ mod tests {
     };
 
     use super::{
-        adopt_carried_target_digest, adopt_retained_score_row_digest,
-        caller_world_id_and_reference_flag_enter_identity, current_score_row_digest,
-        keep_refusal_reason, narrow_score_row_digest, MigrationError, RouteAxis, TargetShape,
+        MigrationError, RouteAxis, TargetShape, adopt_carried_target_digest,
+        adopt_retained_score_row_digest, caller_world_id_and_reference_flag_enter_identity,
+        current_score_row_digest, keep_refusal_reason, narrow_score_row_digest,
     };
 
     fn world(id: u32, reference: bool, level: f64) -> InterventionWorld {
@@ -853,7 +851,7 @@ mod tests {
     #[test]
     fn a_route_record_maps_one_to_one_split_retired_or_kept() {
         use super::{
-            migrate_route_record, ManifestRouteRecord, RouteRecordError, RouteRecordOutcome,
+            ManifestRouteRecord, RouteRecordError, RouteRecordOutcome, migrate_route_record,
         };
         let record = |id, status, design, inference| ManifestRouteRecord {
             id,
@@ -920,7 +918,7 @@ mod tests {
 
     #[test]
     fn a_licensed_route_without_a_licensed_method_is_a_break_with_a_remedy() {
-        use super::{migrate_route_record, ManifestRouteRecord, RouteRecordError};
+        use super::{ManifestRouteRecord, RouteRecordError, migrate_route_record};
         let record = |id| ManifestRouteRecord {
             id,
             status: "licensed",
@@ -957,8 +955,8 @@ mod tests {
     #[test]
     fn every_break_has_a_path_and_each_path_matches_the_function_that_enforces_it() {
         use super::{
-            break_path, migrate_route_record, BreakPath, IntentionalBreak, ManifestRouteRecord,
-            RouteRecordError,
+            BreakPath, IntentionalBreak, ManifestRouteRecord, RouteRecordError, break_path,
+            migrate_route_record,
         };
         let licensed = ManifestRouteRecord {
             id: "r",

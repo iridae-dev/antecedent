@@ -376,8 +376,7 @@ impl Notears {
 
         // Stronger edges are inserted first. A directed cycle refuses the whole
         // set before any edge is given to the DAG.
-        edge_coefs
-            .sort_by(|a, b| b.2.abs().total_cmp(&a.2.abs()));
+        edge_coefs.sort_by(|a, b| b.2.abs().total_cmp(&a.2.abs()));
         let directed = dense_edge_ids(&edge_coefs);
         if antecedent_graph::error::directed_edges_contain_cycle(d, &directed) {
             return Err(DiscoveryError::stats_msg(notears_cycle_refusal()));

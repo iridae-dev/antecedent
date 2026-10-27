@@ -1301,6 +1301,12 @@ pub struct AnalysisResultWire {
     /// unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit_effects: Option<UnitEffectsWire>,
+    /// Per-outcome counterfactual contrasts of a query with several outcomes or a joint
+    /// baseline, in place of [`Self::unit_effects`].
+    ///
+    /// Absent on every other result, so their bodies (and digests) are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub counterfactual_contrasts: Option<CounterfactualContrastsWire>,
     /// Complete-case-aligned CATE point predictions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate: Option<std::sync::Arc<[f64]>>,
@@ -1474,6 +1480,7 @@ pub fn decode_analysis_result_artifact(
 }
 
 mod association;
+mod counterfactual_contrasts;
 mod graphless;
 mod iv_bounds;
 mod quasi_rollout;
@@ -1486,6 +1493,7 @@ pub use association::{
     AssociationPosteriorWire, AssociationPredictionWire, AssociationResamplingWire,
     AssociationTermWire, AssociationWire,
 };
+pub use counterfactual_contrasts::{CounterfactualContrastsWire, OutcomeContrastWire};
 pub use iv_bounds::{
     IV_BOUNDS_BAYESIAN_METHOD, IV_BOUNDS_FREQUENTIST_METHOD, IV_BOUNDS_POINT_UNCERTAINTY,
     IvBoundsIntervalWire, IvBoundsPosteriorWire, IvBoundsWire,

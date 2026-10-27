@@ -1284,6 +1284,11 @@ pub enum CausalQueryWire {
         /// Control world. Absent on format-0.4 artifacts written before this field; decode as 0.
         #[serde(default)]
         control: Option<InterventionWire>,
+        /// The further simultaneous interventions of a joint baseline, applied with
+        /// `control`. Absent for a single-intervention baseline, so those artifacts are
+        /// unchanged.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        joint_control: Vec<InterventionWire>,
         /// Nested flag.
         allow_nested: bool,
     },
@@ -2477,20 +2482,12 @@ mod decode;
 mod encode;
 
 pub use decode::{
-    association_query_from_wire,
-    causal_query_from_wire,
-    interference_query_from_wire,
-    interventional_distribution_from_wire,
-    path_specific_from_wire,
-    transport_query_from_wire,
+    association_query_from_wire, causal_query_from_wire, interference_query_from_wire,
+    interventional_distribution_from_wire, path_specific_from_wire, transport_query_from_wire,
 };
 pub use encode::{
-    association_query_to_wire,
-    causal_query_to_wire,
-    causal_query_to_wire_with_registry,
-    interference_query_to_wire,
-    interventional_distribution_to_wire,
-    path_specific_to_wire,
+    association_query_to_wire, causal_query_to_wire, causal_query_to_wire_with_registry,
+    interference_query_to_wire, interventional_distribution_to_wire, path_specific_to_wire,
     transport_query_to_wire,
 };
 

@@ -526,3 +526,27 @@ fn the_producer_kind_is_recorded_text_and_keeps_its_own_identity() {
         assert_eq!(restored.outcome(), Some(&frozen_switch()));
     }
 }
+
+#[test]
+fn caller_intake_limits_refuse_what_the_defaults_admit() {
+    use antecedent_io::sensitivity_artifact::SensitivityLimits;
+    let defaults = SensitivityLimits::default();
+    let artifact = SensitivityArtifact::new_within(frozen_parts(), &defaults).expect("defaults");
+    let bytes = artifact.to_bytes("tight").expect("encode");
+    SensitivityArtifact::from_bytes_within(&bytes, None, &defaults).expect("default consume");
+
+    for limits in [
+        SensitivityLimits { max_grid_points: 2, ..defaults },
+        SensitivityLimits { max_quantities: 1, ..defaults },
+        SensitivityLimits { max_actions: 1, ..defaults },
+        SensitivityLimits { max_scenario_evaluations: 0, ..defaults },
+        SensitivityLimits { max_utility_depth: 0, ..defaults },
+    ] {
+        assert!(SensitivityArtifact::new_within(frozen_parts(), &limits).is_err());
+        assert!(SensitivityArtifact::from_bytes_within(&bytes, None, &limits).is_err());
+    }
+    let tight = SensitivityLimits { max_bytes: bytes.len() - 1, ..defaults };
+    assert!(SensitivityArtifact::from_bytes_within(&bytes, None, &tight).is_err());
+    assert!(artifact.to_bytes_within("tight", bytes.len() - 1).is_err());
+    assert_eq!(artifact.to_bytes_within("tight", bytes.len()).expect("fits"), bytes);
+}

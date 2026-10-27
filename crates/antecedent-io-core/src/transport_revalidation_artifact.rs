@@ -602,10 +602,7 @@ fn check(
     Ok(TransportRevalidationArtifact { previous, current, effects, report, identity })
 }
 
-fn encode_meta(
-    meta: &TransportRevalidationMeta,
-    artifact_id: &str,
-) -> Result<Vec<u8>, Failure> {
+fn encode_meta(meta: &TransportRevalidationMeta, artifact_id: &str) -> Result<Vec<u8>, Failure> {
     crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
@@ -620,10 +617,7 @@ fn encode_meta(
     )
 }
 
-fn decode_meta(
-    bytes: &[u8],
-    max_bytes: usize,
-) -> Result<TransportRevalidationMeta, Failure> {
+fn decode_meta(bytes: &[u8], max_bytes: usize) -> Result<TransportRevalidationMeta, Failure> {
     crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
         max_bytes,

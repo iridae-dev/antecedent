@@ -130,7 +130,13 @@ fn checked_response_grid_rejects_reordered_member_values() {
         factors: Vec::new(),
     };
     assert_eq!(
-        replay_functional_response_grid(&target, &family, &reported, &laws),
+        replay_functional_response_grid(
+            &target,
+            &family,
+            &reported,
+            &laws,
+            &crate::distribution_replay::ReplayLimits::default()
+        ),
         Err(ContractReason::ProgramFunctionalEffectResponseGridMemberValue)
     );
 }
@@ -226,6 +232,7 @@ fn fixture_body() -> (AnalysisResultWire, TargetIdentityWire, Vec<String>) {
         mediation_grid: None,
         structural_response: None,
         unit_effects: None,
+        counterfactual_contrasts: None,
         cate: None,
         fitted_effect: None,
         cate_se: None,
@@ -1690,11 +1697,13 @@ fn an_estimators_own_summary_covariance_is_not_family_evidence() {
     let encoded = to_bytes(&body, names, Some(&contract));
     let consumed = consume_analysis_result(&encoded).unwrap();
     assert_eq!(consumed.body.joint_covariance, body.joint_covariance);
-    assert!(!consumed
-        .acceptance
-        .unresolved
-        .iter()
-        .any(|reason| reason.as_ref() == "dependencies.checked_batch_family_operation"));
+    assert!(
+        !consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "dependencies.checked_batch_family_operation")
+    );
 }
 
 #[test]

@@ -64,11 +64,7 @@ fn canonical_cond(cond: &[(VariableId, Lag)]) -> std::borrow::Cow<'_, [(Variable
 
 impl CiMemo {
     /// The remembered outcome of a test; `Some(None)` is a remembered untestable query.
-    fn get(
-        &self,
-        link: LaggedLink,
-        canonical: &[(VariableId, Lag)],
-    ) -> Option<Option<(f64, f64)>> {
+    fn get(&self, link: LaggedLink, canonical: &[(VariableId, Lag)]) -> Option<Option<(f64, f64)>> {
         self.outcomes.get(&link)?.get(canonical).copied()
     }
 
@@ -1137,7 +1133,9 @@ impl PcmciEngine {
                     &mut workspace.ci,
                     ctx,
                 ),
-                None => Err(DiscoveryError::Unsupported { message: "CI test used before prepare()" }),
+                None => {
+                    Err(DiscoveryError::Unsupported { message: "CI test used before prepare()" })
+                }
             };
             workspace.column_views.recover(cols);
             return outcome;
@@ -1215,8 +1213,7 @@ impl PcmciEngine {
             (0..n_sel).map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep]).collect();
         // The compacted-shape preparation is local: `workspace.prepared_ci` stays the frame's,
         // so the next unmasked test does not re-prepare.
-        let prepared =
-            crate::ci::prepare_ci(&*self.ci, &cols, self.constraints.significance, ctx)?;
+        let prepared = crate::ci::prepare_ci(&*self.ci, &cols, self.constraints.significance, ctx)?;
         let z_remap: Vec<usize> = (2..2 + z_len).collect();
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len }];
         let req =

@@ -117,7 +117,8 @@ impl TemporalAdmgAtom {
             for from in 0..n_vars {
                 for to in 0..n_vars {
                     let directed = has_lagged_edge(&self.lagged_directed, n_vars, lag, from, to);
-                    let bidirected = has_lagged_edge(&self.lagged_bidirected, n_vars, lag, from, to);
+                    let bidirected =
+                        has_lagged_edge(&self.lagged_bidirected, n_vars, lag, from, to);
                     if !directed && !bidirected {
                         continue;
                     }

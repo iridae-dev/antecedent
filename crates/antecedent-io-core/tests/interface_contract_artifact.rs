@@ -266,8 +266,8 @@ fn an_unknown_field_and_a_corrupted_byte_do_not_decode() {
     corrupted[last] ^= 0x01;
     assert!(matches!(
         InterfaceContractArtifact::from_bytes(&corrupted, None).unwrap_err(),
-        InterfaceContractArtifactError::Container(antecedent_io_core::IoError::ChecksumMismatch {
-            ..
-        })
+        InterfaceContractArtifactError::Container(
+            antecedent_io_core::IoError::ChecksumMismatch { .. }
+        )
     ));
 }

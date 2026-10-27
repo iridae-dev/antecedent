@@ -11,8 +11,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use antecedent_io::release_migration::{
-    added_methods, consume_previous_route_records, migrate_route_record, CurrentMethod,
-    ManifestRouteRecord, PreviousReleaseError, RouteAxis, RouteRecordError, RouteRecordOutcome,
+    CurrentMethod, ManifestRouteRecord, PreviousReleaseError, RouteAxis, RouteRecordError,
+    RouteRecordOutcome, added_methods, consume_previous_route_records, migrate_route_record,
 };
 
 struct Route {

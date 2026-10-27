@@ -296,6 +296,7 @@ pub(in crate::contract_section) fn replay_functional_response_grid(
     family: &crate::CheckedFunctionalResponseGridWire,
     reported: &crate::ResponseIdentificationWire,
     laws: &crate::DistributionFactorLawsWire,
+    limits: &crate::distribution_replay::ReplayLimits,
 ) -> Result<(), ContractReason> {
     use crate::{GridSpecWire, ResponseFunctionalWire, ResponseValueWire};
     let CausalQueryWire::Response(target) = target else {
@@ -382,6 +383,7 @@ pub(in crate::contract_section) fn replay_functional_response_grid(
             Some(*reported),
             &member.program,
             laws,
+            limits,
         )?;
     }
     Ok(())

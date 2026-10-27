@@ -667,3 +667,50 @@ fn an_exported_source_carries_one_mean_and_no_law() {
     .unwrap_err();
     assert_eq!(error.detail, "cohort_decision.replay_mismatch");
 }
+
+#[test]
+fn caller_intake_limits_refuse_what_the_defaults_admit() {
+    let defaults = CohortIntakeLimits::default();
+    let bind = |limits: &CohortIntakeLimits| {
+        CohortBinding::new_within(
+            "s",
+            "target",
+            ids(3),
+            vec!["z".into()],
+            vec![CohortColumn::Numeric(vec![-1.0, 0.5, 1.0])],
+            vec![0.2, 0.3, 0.5],
+            limits,
+        )
+    };
+    assert!(bind(&defaults).is_ok());
+    let small = CohortIntakeLimits { max_rows: 2, ..defaults };
+    assert_eq!(bind(&small).unwrap_err().detail, "cohort_decision.cohort_too_large");
+
+    let model = portable(Some(box_support()), "claim-a");
+    assert!(
+        CohortDecisionSource::build_within(
+            &model,
+            &cohort(),
+            "mmHg",
+            &CohortOptions::default(),
+            &ctx(),
+            &small
+        )
+        .is_err()
+    );
+
+    let source = build(&model, &cohort()).unwrap();
+    let bytes = source.to_bytes("limits").unwrap();
+    let expectation = CohortExpectation::for_identity(source.identity());
+    CohortDecisionSource::consume_within(&bytes, &expectation, &defaults).unwrap();
+    assert!(CohortDecisionSource::consume_within(&bytes, &expectation, &small).is_err());
+    let tight = CohortIntakeLimits { max_bytes: bytes.len() - 1, ..defaults };
+    assert_eq!(
+        CohortDecisionSource::consume_within(&bytes, &expectation, &tight).unwrap_err().detail,
+        "cohort_decision.oversized"
+    );
+    assert_eq!(
+        source.to_bytes_within("limits", bytes.len() - 1).unwrap_err().detail,
+        "cohort_decision.oversized"
+    );
+}

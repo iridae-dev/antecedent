@@ -65,8 +65,7 @@ use antecedent_core::{CanonicalWriter, ExecutionContext};
 use super::finite_executor::{ExogenousInference, FiniteExecutionRequest, FiniteExecutionResult};
 use super::finite_scm::{
     CompensatedSum, MAX_ABDUCTION_WORK, MAX_EVALUATION_WORK, WorldPlan, abduct_unit,
-    evaluate_worlds,
-    validate_units, validate_worlds,
+    evaluate_worlds, validate_units, validate_worlds,
 };
 use super::refusal::{CrossWorldExecutionError, from_external, invalid, poll, refuse};
 use super::stages::WorkCounters;

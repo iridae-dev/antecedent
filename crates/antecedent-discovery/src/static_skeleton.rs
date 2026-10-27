@@ -395,7 +395,8 @@ fn static_ci_batch(
     let mut z_flat = std::mem::take(&mut workspace.z_flat);
     queries.clear();
     z_flat.clear();
-    let results = static_ci_batch_with(input, (xi, yi), zs, &mut queries, &mut z_flat, workspace, ctx);
+    let results =
+        static_ci_batch_with(input, (xi, yi), zs, &mut queries, &mut z_flat, workspace, ctx);
     workspace.queries = queries;
     workspace.z_flat = z_flat;
     results
@@ -999,9 +1000,8 @@ mod tests {
         let ids = |raw: &[u32]| raw.iter().map(|&r| VariableId::from_raw(r)).collect::<Vec<_>>();
         let (nx, ny) = (ids(&[1, 2, 4]), ids(&[2, 3, 4]));
         for depth in 0..=3 {
-            let mut expected: Vec<Vec<VariableId>> = Combinations::new(&nx, depth)
-                .chain(Combinations::new(&ny, depth))
-                .collect();
+            let mut expected: Vec<Vec<VariableId>> =
+                Combinations::new(&nx, depth).chain(Combinations::new(&ny, depth)).collect();
             expected.sort();
             expected.dedup();
             let mut sets = SortedUnionSets::new(&nx, &ny, depth);

@@ -713,13 +713,10 @@ fn encode_parts_impl(
         },
         META_SECTION,
         meta,
-        &[crate::OutSection {
-            id: DATA_SECTION,
-            content_type: crate::CONTENT_BYTES,
-            bytes: data,
-        }],
+        &[crate::OutSection { id: DATA_SECTION, content_type: crate::CONTENT_BYTES, bytes: data }],
         |uncompressed| {
-            admit_export(BUDGET, uncompressed, MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES).map_err(budget_refusal)
+            admit_export(BUDGET, uncompressed, MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES)
+                .map_err(budget_refusal)
         },
     )?;
     admit_export(BUDGET, bytes.len(), export_budget.min(MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES))
@@ -745,7 +742,10 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(NonlinearMediationMeta, Vec<u8>), NonlinearMediationArtifactError> {
-    let (meta, parts) = crate::artifact_codec::decode_sectioned::<NonlinearMediationArtifactError, NonlinearMediationMeta>(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+        NonlinearMediationArtifactError,
+        NonlinearMediationMeta,
+    >(
         ARTIFACT_KIND,
         MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES,
         META_SECTION,
@@ -754,7 +754,9 @@ fn decode_parts_impl(
         bytes,
     )?;
     let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(NonlinearMediationArtifactError::Malformed("unsupported container layout".into()));
+        return Err(NonlinearMediationArtifactError::Malformed(
+            "unsupported container layout".into(),
+        ));
     };
     Ok((meta, payload))
 }

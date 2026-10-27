@@ -40,7 +40,6 @@ use antecedent_estimate::mechanism_discrepancy::{
 };
 use serde::{Deserialize, Serialize};
 
-
 /// The artifact major version this reader writes and accepts.
 pub const MECHANISM_DISCREPANCY_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
@@ -645,7 +644,10 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(MechanismDiscrepancyMeta, Vec<u8>), MechanismDiscrepancyArtifactError> {
-    let (meta, parts) = crate::artifact_codec::decode_sectioned::<MechanismDiscrepancyArtifactError, MechanismDiscrepancyMeta>(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+        MechanismDiscrepancyArtifactError,
+        MechanismDiscrepancyMeta,
+    >(
         ARTIFACT_KIND,
         MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES,
         META_SECTION,
@@ -654,7 +656,9 @@ fn decode_parts_impl(
         bytes,
     )?;
     let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(MechanismDiscrepancyArtifactError::Malformed("unsupported container layout".into()));
+        return Err(MechanismDiscrepancyArtifactError::Malformed(
+            "unsupported container layout".into(),
+        ));
     };
     Ok((meta, payload))
 }
@@ -679,10 +683,7 @@ fn check_semantics(
         ),
         (meta.alignment == MECHANISM_DISCREPANCY_ALIGNMENT, "alignment"),
         (meta.dependence_assumption == MECHANISM_DISCREPANCY_DEPENDENCE, "dependence assumption"),
-        (
-            !meta.result.non_rejection_certifies_invariance,
-            "non-rejection certifies invariance",
-        ),
+        (!meta.result.non_rejection_certifies_invariance, "non-rejection certifies invariance"),
     ])
 }
 

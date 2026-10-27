@@ -166,7 +166,8 @@ pub(crate) fn for_each_uncovered_pd_path<G: PagOps>(
         true
     }
 
-    let mut state = Search { end, remaining: budget.max_expansions, exhausted: false, visit: &mut visit };
+    let mut state =
+        Search { end, remaining: budget.max_expansions, exhausted: false, visit: &mut visit };
     let mut path = vec![start];
     let nbrs: Vec<_> = graph.neighbors(start).into_iter().map(|(n, _, _)| n).collect();
     for next in nbrs {

@@ -228,8 +228,7 @@ fn assert_marginals_match_the_exact_posterior(
         // A rarely-flipping edge has fewer effective draws than the chain's median; its own ESS,
         // when finite, bounds the draws its marginal is estimated from.
         let edge_draws = |k: usize| {
-            let own =
-                post.edge_ess().map(|ess| ess[k]).filter(|e| e.is_finite() && *e > 0.0);
+            let own = post.edge_ess().map(|ess| ess[k]).filter(|e| e.is_finite() && *e > 0.0);
             match (n_eff, own) {
                 (Some(chain), Some(own)) => Some(chain.min(own)),
                 (chain, own) => chain.or(own),
@@ -252,7 +251,8 @@ fn assert_marginals_match_the_exact_posterior(
                     violation = Some(format!(
                         "{label} n={n} rep={rep} edge {i}->{j}: sampler {:.5} vs exact {:.5} \
                          (error {error_k:.5})",
-                        post.edge_marginals()[k], exact.edge_marginals[k],
+                        post.edge_marginals()[k],
+                        exact.edge_marginals[k],
                     ));
                 }
                 if i < j {
@@ -523,7 +523,8 @@ fn exact_marginals_locate_the_skeleton_overstatement() {
                 for j in (i + 1)..n {
                     let exact_skeleton =
                         exact.edge_marginals[i * n + j] + exact.edge_marginals[j * n + i];
-                    let sampled = post.edge_marginals()[i * n + j] + post.edge_marginals()[j * n + i];
+                    let sampled =
+                        post.edge_marginals()[i * n + j] + post.edge_marginals()[j * n + i];
                     worst_gap = worst_gap.max((sampled - exact_skeleton).abs());
                     gap_all += sampled - exact_skeleton;
                     if exact_skeleton < 1.0 / N_BINS as f64 {
@@ -533,11 +534,8 @@ fn exact_marginals_locate_the_skeleton_overstatement() {
                     }
                 }
             }
-            let (mcse, rhat, ess) = (
-                post.edge_mcse().unwrap(),
-                post.edge_rhat().unwrap(),
-                post.edge_ess().unwrap(),
-            );
+            let (mcse, rhat, ess) =
+                (post.edge_mcse().unwrap(), post.edge_rhat().unwrap(), post.edge_ess().unwrap());
             let worst = (0..n * n).max_by(|&a, &b| mcse[a].total_cmp(&mcse[b])).unwrap();
             let (wi, wj) = (worst / n, worst % n);
             let d = post.diagnostics();

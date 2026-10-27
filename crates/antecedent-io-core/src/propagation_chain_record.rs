@@ -80,6 +80,35 @@ pub const MAX_PROPAGATION_CHAIN_TEXT_BYTES: usize = 4096;
 /// Most named values one stage result may hold.
 pub const MAX_STAGE_VALUES: usize = 64;
 
+/// Intake bounds for a propagation chain record. The defaults are
+/// [`MAX_PROPAGATION_CHAIN_BYTES`], [`MAX_PROPAGATION_CHAIN_CHANGES`],
+/// [`MAX_PROPAGATION_CHAIN_TEXT_BYTES`] and [`MAX_STAGE_VALUES`]; a consumer with a larger
+/// budget passes its own to [`PropagationChainRecordWire::decode_within`] and
+/// [`PropagationChainRecordWire::consume_within`]. The chain rule's node, row and term bounds
+/// belong to the rule itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PropagationChainLimits {
+    /// Most encoded bytes.
+    pub max_bytes: usize,
+    /// Most changes one record may append.
+    pub max_changes: usize,
+    /// Longest identity or name, in bytes.
+    pub max_text_bytes: usize,
+    /// Most named values one stage result may hold.
+    pub max_stage_values: usize,
+}
+
+impl Default for PropagationChainLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_PROPAGATION_CHAIN_BYTES,
+            max_changes: MAX_PROPAGATION_CHAIN_CHANGES,
+            max_text_bytes: MAX_PROPAGATION_CHAIN_TEXT_BYTES,
+            max_stage_values: MAX_STAGE_VALUES,
+        }
+    }
+}
+
 /// A stage that depends on no changed source keeps its stored numbers.
 pub const STATUS_CURRENT: &str = "current";
 /// A stage summarized under the row weights its sources' changes imply.
@@ -914,40 +943,43 @@ fn operator_class(wire: &ChainOpWire) -> OperatorClass {
     }
 }
 
-fn text_ok(text: &str) -> Result<(), Error> {
-    if text.len() > MAX_PROPAGATION_CHAIN_TEXT_BYTES {
+fn text_ok(text: &str, limits: &PropagationChainLimits) -> Result<(), Error> {
+    if text.len() > limits.max_text_bytes {
         Err(Error::LimitsExceeded("text bytes"))
     } else {
         Ok(())
     }
 }
 
-fn check_bounds(record: &PropagationChainRecordWire) -> Result<(), Error> {
+fn check_bounds(
+    record: &PropagationChainRecordWire,
+    limits: &PropagationChainLimits,
+) -> Result<(), Error> {
     if record.sources.len() + record.stages.len() > MAX_CHAIN_NODES {
         return Err(Error::LimitsExceeded("nodes"));
     }
-    if record.changes.len() > MAX_PROPAGATION_CHAIN_CHANGES {
+    if record.changes.len() > limits.max_changes {
         return Err(Error::LimitsExceeded("changes"));
     }
     if record.results.len() > MAX_CHAIN_NODES {
         return Err(Error::LimitsExceeded("results"));
     }
     for text in [&record.construction, &record.reading, &record.output, &record.label] {
-        text_ok(text)?;
+        text_ok(text, limits)?;
     }
     for source in &record.sources {
-        text_ok(&source.id)?;
+        text_ok(&source.id, limits)?;
         if source.values.len() > MAX_CHAIN_ROWS {
             return Err(Error::LimitsExceeded("rows"));
         }
         for factor in &source.factors {
-            text_ok(&factor.id)?;
+            text_ok(&factor.id, limits)?;
         }
     }
     for stage in &record.stages {
-        text_ok(&stage.id)?;
+        text_ok(&stage.id, limits)?;
         for factor in &stage.own_factors {
-            text_ok(&factor.id)?;
+            text_ok(&factor.id, limits)?;
         }
         if let ChainOpWire::Preposterior { noise, .. } = &stage.op {
             if noise.len() > MAX_CHAIN_ROWS {
@@ -967,9 +999,9 @@ fn check_bounds(record: &PropagationChainRecordWire) -> Result<(), Error> {
     }
     for change in &record.changes {
         match change {
-            ChainChangeWire::Withdraw { source } => text_ok(source)?,
+            ChainChangeWire::Withdraw { source } => text_ok(source, limits)?,
             ChainChangeWire::Reweight { source, log_weights } => {
-                text_ok(source)?;
+                text_ok(source, limits)?;
                 if log_weights.len() > MAX_CHAIN_ROWS {
                     return Err(Error::LimitsExceeded("rows"));
                 }
@@ -977,10 +1009,10 @@ fn check_bounds(record: &PropagationChainRecordWire) -> Result<(), Error> {
         }
     }
     for result in &record.results {
-        if result.values.len() > MAX_STAGE_VALUES {
+        if result.values.len() > limits.max_stage_values {
             return Err(Error::LimitsExceeded("result values"));
         }
-        text_ok(&result.stage)?;
+        text_ok(&result.stage, limits)?;
     }
     Ok(())
 }
@@ -1183,7 +1215,15 @@ impl PropagationChainRecordWire {
     /// # Errors
     /// A malformed declaration or a refusal of the rule, with its next attempt.
     pub fn plan(&self) -> Result<ChainPlan, Error> {
-        check_bounds(self)?;
+        self.plan_within(&PropagationChainLimits::default())
+    }
+
+    /// [`Self::plan`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::plan`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn plan_within(&self, limits: &PropagationChainLimits) -> Result<ChainPlan, Error> {
+        check_bounds(self, limits)?;
         Ok(check_propagation_chain(&self.declaration()?)?)
     }
 
@@ -1245,9 +1285,13 @@ impl PropagationChainRecordWire {
         clippy::too_many_lines,
         reason = "one linear pass: build the table, evaluate, summarize each stage"
     )]
-    fn execute(&self, ctx: &ExecutionContext) -> Result<Executed, Error> {
-        check_bounds(self)?;
-        let plan = self.plan()?;
+    fn execute(
+        &self,
+        ctx: &ExecutionContext,
+        limits: &PropagationChainLimits,
+    ) -> Result<Executed, Error> {
+        check_bounds(self, limits)?;
+        let plan = self.plan_within(limits)?;
         let positions: BTreeMap<&str, usize> = self
             .sources
             .iter()
@@ -1451,14 +1495,26 @@ impl PropagationChainRecordWire {
     /// A malformed declaration, a refusal of the chain rule (each carries its
     /// registered code and next attempt), a refusal of the arithmetic,
     /// cancellation or an encoding failure.
-    pub fn seal(mut draft: Self, ctx: &ExecutionContext) -> Result<Self, Error> {
+    pub fn seal(draft: Self, ctx: &ExecutionContext) -> Result<Self, Error> {
+        Self::seal_within(draft, ctx, &PropagationChainLimits::default())
+    }
+
+    /// [`Self::seal`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::seal`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn seal_within(
+        mut draft: Self,
+        ctx: &ExecutionContext,
+        limits: &PropagationChainLimits,
+    ) -> Result<Self, Error> {
         draft.version = PROPAGATION_CHAIN_VERSION;
         draft.required_features = vec![PROPAGATION_CHAIN_FEATURE.to_owned()];
-        let executed = draft.execute(ctx)?;
+        let executed = draft.execute(ctx, limits)?;
         executed.plan.label.clone_into(&mut draft.label);
         draft.results = executed.results;
         draft.identity = propagation_chain_identity(&draft)?;
-        check_bounds(&draft)?;
+        check_bounds(&draft, limits)?;
         Ok(draft)
     }
 
@@ -1475,9 +1531,22 @@ impl PropagationChainRecordWire {
         change: ChainChangeWire,
         ctx: &ExecutionContext,
     ) -> Result<Self, Error> {
+        self.with_change_within(change, ctx, &PropagationChainLimits::default())
+    }
+
+    /// [`Self::with_change`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::with_change`]; more changes than `limits.max_changes` is `LimitsExceeded`.
+    pub fn with_change_within(
+        &self,
+        change: ChainChangeWire,
+        ctx: &ExecutionContext,
+        limits: &PropagationChainLimits,
+    ) -> Result<Self, Error> {
         let mut next = self.clone();
         next.changes.push(change);
-        Self::seal(next, ctx)
+        Self::seal_within(next, ctx, limits)
     }
 
     /// The stages a change would invalidate or re-weight: the plan's
@@ -1494,7 +1563,15 @@ impl PropagationChainRecordWire {
     /// # Errors
     /// A bound exceeded or an encoding failure.
     pub fn export(&self) -> Result<Vec<u8>, Error> {
-        check_bounds(self)?;
+        self.export_within(&PropagationChainLimits::default())
+    }
+
+    /// [`Self::export`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::export`].
+    pub fn export_within(&self, limits: &PropagationChainLimits) -> Result<Vec<u8>, Error> {
+        check_bounds(self, limits)?;
         crate::to_cbor(self).map_err(|error| Error::Encode(error.to_string()))
     }
 
@@ -1504,7 +1581,15 @@ impl PropagationChainRecordWire {
     /// # Errors
     /// A decoding failure, another version or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, Error> {
-        if bytes.len() > MAX_PROPAGATION_CHAIN_BYTES {
+        Self::decode_within(bytes, &PropagationChainLimits::default())
+    }
+
+    /// [`Self::decode`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::decode`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn decode_within(bytes: &[u8], limits: &PropagationChainLimits) -> Result<Self, Error> {
+        if bytes.len() > limits.max_bytes {
             return Err(Error::LimitsExceeded("record bytes"));
         }
         let wire: Self = crate::decode_with_version(bytes, |version: u32| {
@@ -1517,7 +1602,7 @@ impl PropagationChainRecordWire {
         if wire.required_features != [PROPAGATION_CHAIN_FEATURE] {
             return Err(Error::UnsupportedSemantics("required features"));
         }
-        check_bounds(&wire)?;
+        check_bounds(&wire, limits)?;
         Ok(wire)
     }
 
@@ -1533,13 +1618,26 @@ impl PropagationChainRecordWire {
         expected_identity: Option<&str>,
         ctx: &ExecutionContext,
     ) -> Result<ConsumedPropagationChain, Error> {
+        self.consume_within(expected_identity, ctx, &PropagationChainLimits::default())
+    }
+
+    /// [`Self::consume`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::consume`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn consume_within(
+        &self,
+        expected_identity: Option<&str>,
+        ctx: &ExecutionContext,
+        limits: &PropagationChainLimits,
+    ) -> Result<ConsumedPropagationChain, Error> {
         if self.version != PROPAGATION_CHAIN_VERSION {
             return Err(Error::UnsupportedVersion { version: self.version });
         }
         if self.required_features != [PROPAGATION_CHAIN_FEATURE] {
             return Err(Error::UnsupportedSemantics("required features"));
         }
-        check_bounds(self)?;
+        check_bounds(self, limits)?;
         let recomputed = propagation_chain_identity(self)?;
         if recomputed != self.identity {
             return Err(Error::IdentityMismatch);
@@ -1552,7 +1650,7 @@ impl PropagationChainRecordWire {
         // The rule decides again from the stored declaration, and the arithmetic
         // runs again from the stored draws: a resealed edit that changes an
         // operator, a declared factor, a draw or the label no longer matches.
-        let executed = self.execute(ctx)?;
+        let executed = self.execute(ctx, limits)?;
         if executed.plan.label != self.label {
             return Err(Error::IdentityMismatch);
         }

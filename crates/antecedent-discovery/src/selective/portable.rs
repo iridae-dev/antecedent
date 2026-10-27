@@ -28,7 +28,7 @@ use super::identity::{DataIdentity, Digest};
 use super::outcome::DiscoveryOutcome;
 use super::refusal::SelectiveDiscoveryError;
 use super::stages::{DiscoveryStage, StageInputs};
-use super::store::{MAX_PORTABLE_RECEIPTS, StatisticReceipt, StatisticStore};
+use super::store::{MAX_PORTABLE_RECEIPTS, SelectiveLimits, StatisticReceipt, StatisticStore};
 use super::structure::DiscoveredStructure;
 use super::work::WorkUnits;
 
@@ -81,13 +81,15 @@ impl PortableDiscoveryState {
         store: &StatisticStore,
         outcome: &DiscoveryOutcome,
         work: WorkUnits,
+        limits: &SelectiveLimits,
     ) -> Result<Self, SelectiveDiscoveryError> {
-        if store.len() > MAX_PORTABLE_RECEIPTS {
+        let max_receipts = limits.max_portable_receipts;
+        if store.len() > max_receipts {
             return Err(refuse(
                 "selective_discovery.receipt_limit",
                 format!(
                     "the run retains {} statistics; a portable state carries at most \
-                     {MAX_PORTABLE_RECEIPTS}. Export a smaller search (fewer variables, a lower \
+                     {max_receipts}. Export a smaller search (fewer variables, a lower \
                      conditioning-set limit) or recompute from the raw data",
                     store.len()
                 ),
@@ -138,10 +140,20 @@ impl PortableDiscoveryState {
     ///
     /// The first inconsistency found.
     pub fn validate(&self) -> Result<(), SelectiveDiscoveryError> {
-        if self.receipts.len() > MAX_PORTABLE_RECEIPTS {
+        self.validate_within(MAX_PORTABLE_RECEIPTS)
+    }
+
+    /// [`Self::validate`] under the caller's receipt bound instead of
+    /// [`MAX_PORTABLE_RECEIPTS`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::validate`].
+    pub fn validate_within(&self, max_receipts: usize) -> Result<(), SelectiveDiscoveryError> {
+        if self.receipts.len() > max_receipts {
             return Err(refuse(
                 "selective_discovery.receipt_limit",
-                format!("a portable state carries at most {MAX_PORTABLE_RECEIPTS} receipts"),
+                format!("a portable state carries at most {max_receipts} receipts"),
             ));
         }
         if self.receipts.iter().any(|r| !r.is_valid()) {
@@ -192,8 +204,9 @@ impl PortableDiscoveryState {
         &self,
         inputs: &StageInputs,
         data: &DataIdentity,
+        max_receipts: usize,
     ) -> Result<(), SelectiveDiscoveryError> {
-        self.validate()?;
+        self.validate_within(max_receipts)?;
         if self.route != inputs.route() {
             return Err(refuse(
                 "selective_discovery.contract_mismatch",

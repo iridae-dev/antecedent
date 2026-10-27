@@ -807,3 +807,25 @@ fn vector_artifact_unknown_major_version_and_corrupt_bytes_refuse() {
     assert!(VectorTreatmentArtifact::from_bytes(&bytes[..bytes.len() - 5], None).is_err());
     assert!(VectorTreatmentArtifact::from_bytes(&[], None).is_err());
 }
+
+/// The shared shape of the budgeted treatment artifacts: sealed, exported under a byte budget
+/// and consumed again through the trait alone.
+fn round_trip_through_the_trait<A>(request: &A::Request) -> Vec<u8>
+where
+    A: antecedent_io::BudgetedTreatmentArtifact,
+    A::Error: std::fmt::Debug,
+{
+    let artifact = A::seal(request).unwrap();
+    let bytes = artifact.to_bytes("vector-test").unwrap();
+    assert_eq!(artifact.to_bytes_within("vector-test", A::MAX_BYTES).unwrap(), bytes);
+    assert!(artifact.to_bytes_within("vector-test", bytes.len() - 1).is_err());
+    A::from_bytes(&bytes, None).unwrap();
+    bytes
+}
+
+#[test]
+fn the_budgeted_trait_agrees_with_the_inherent_entry_points() {
+    let request = request();
+    let bytes = round_trip_through_the_trait::<VectorTreatmentArtifact>(&request);
+    assert_eq!(bytes, export(&request).1);
+}

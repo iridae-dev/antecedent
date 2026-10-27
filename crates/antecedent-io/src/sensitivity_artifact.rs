@@ -14,7 +14,7 @@ pub use antecedent_io_core::sensitivity_artifact::{
     MAX_SENSITIVITY_UTILITY_DEPTH, NoRobustReason, PointInput, PointLeaders, PointSupport,
     SENSITIVITY_ARTIFACT_FEATURE, SENSITIVITY_ARTIFACT_VERSION, SENSITIVITY_CLAIM_LINK_ID,
     SENSITIVITY_INFERENCE_CLAIM, SamplingInterval, SamplingStatus, SensitivityArtifact,
-    SensitivityIdentity, SensitivityMeta, SensitivityOutcome, SensitivityParts,
+    SensitivityIdentity, SensitivityLimits, SensitivityMeta, SensitivityOutcome, SensitivityParts,
     SensitivityProvenance, SourceTipping, SurfaceQuantity, UncertaintyRelationship, UtilityTerm,
     classify_decision_points,
 };

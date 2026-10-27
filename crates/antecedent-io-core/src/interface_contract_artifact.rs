@@ -579,8 +579,16 @@ pub fn contract_from_wire_within(
     };
     names(&wire.produces.iter().map(|p| p.name.as_str()).collect::<Vec<_>>())?;
     names(&wire.consumes.iter().map(|p| p.name.as_str()).collect::<Vec<_>>())?;
-    let produces = wire.produces.iter().map(|p| produced_from_wire(p, limits)).collect::<Result<Vec<_>, _>>()?;
-    let consumes = wire.consumes.iter().map(|p| consumed_from_wire(p, limits)).collect::<Result<Vec<_>, _>>()?;
+    let produces = wire
+        .produces
+        .iter()
+        .map(|p| produced_from_wire(p, limits))
+        .collect::<Result<Vec<_>, _>>()?;
+    let consumes = wire
+        .consumes
+        .iter()
+        .map(|p| consumed_from_wire(p, limits))
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(InterfaceContract { component: wire.component.clone(), produces, consumes })
 }
 
@@ -628,10 +636,7 @@ fn check(
     Ok(InterfaceContractArtifact { contract, contract_identity, identity })
 }
 
-fn encode_meta(
-    meta: &InterfaceContractMeta,
-    artifact_id: &str,
-) -> Result<Vec<u8>, Failure> {
+fn encode_meta(meta: &InterfaceContractMeta, artifact_id: &str) -> Result<Vec<u8>, Failure> {
     crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
@@ -646,10 +651,7 @@ fn encode_meta(
     )
 }
 
-fn decode_meta(
-    bytes: &[u8],
-    max_bytes: usize,
-) -> Result<InterfaceContractMeta, Failure> {
+fn decode_meta(bytes: &[u8], max_bytes: usize) -> Result<InterfaceContractMeta, Failure> {
     crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
         max_bytes,

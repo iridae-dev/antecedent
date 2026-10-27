@@ -33,7 +33,6 @@ use antecedent_estimate::effect_constancy::{
 };
 use serde::{Deserialize, Serialize};
 
-
 /// The artifact major version this reader writes and accepts.
 pub const EFFECT_CONSTANCY_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
@@ -640,7 +639,10 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(EffectConstancyMeta, Vec<u8>), EffectConstancyArtifactError> {
-    let (meta, parts) = crate::artifact_codec::decode_sectioned::<EffectConstancyArtifactError, EffectConstancyMeta>(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+        EffectConstancyArtifactError,
+        EffectConstancyMeta,
+    >(
         ARTIFACT_KIND,
         MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES,
         META_SECTION,

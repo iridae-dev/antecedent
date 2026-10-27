@@ -37,7 +37,6 @@ use antecedent_counterfactual::selective::{
 };
 use serde::{Deserialize, Serialize};
 
-
 /// The artifact major version this reader writes and accepts.
 pub const CROSS_WORLD_EXECUTION_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.

@@ -75,7 +75,9 @@ use crate::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use crate::measurement_model_wire::{MeasurementModelWire, model_from_wire};
-use crate::mechanism_composition_artifact::{MechanismCompositionPremisesWire, refusals_for_findings};
+use crate::mechanism_composition_artifact::{
+    MechanismCompositionPremisesWire, refusals_for_findings,
+};
 use crate::quantity_wire::DistributionMeaningWire;
 
 /// The artifact format this reader writes and accepts.

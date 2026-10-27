@@ -45,7 +45,6 @@ use antecedent_counterfactual::transported_path_specific::{
 };
 use serde::{Deserialize, Serialize};
 
-
 /// The artifact major version this reader writes and accepts.
 pub const TRANSPORTED_COUNTERFACTUAL_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
@@ -54,14 +53,41 @@ pub const TRANSPORTED_COUNTERFACTUAL_ARTIFACT_FEATURE: &str = "transported_count
 pub const TRANSPORTED_COUNTERFACTUAL_INFERENCE_CLAIM: &str = "point_only";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
-/// Most covariates a model may declare.
-pub const MAX_COVARIATES: usize = 64;
 /// Most mechanism nodes a model may declare.
 pub const MAX_MECHANISMS: usize = 256;
 /// Most support points either covariate law may declare.
 pub const MAX_SUPPORT_POINTS: usize = 65_536;
 /// Most selection nodes, evidence factors or assignment children a request may declare.
 pub const MAX_DECLARATIONS: usize = 256;
+
+/// Intake bounds for a transported counterfactual artifact. The defaults are
+/// [`MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES`], [`MAX_MECHANISMS`],
+/// [`MAX_SUPPORT_POINTS`] and [`MAX_DECLARATIONS`]; there is no covariate-count cap, as the
+/// number of covariates is bounded by the byte bound and the support points. A consumer with
+/// a larger budget passes its own to [`TransportedCounterfactualArtifact::seal_within`] and
+/// [`TransportedCounterfactualArtifact::from_bytes_with_limits`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TransportedCounterfactualLimits {
+    /// Most container bytes.
+    pub max_bytes: usize,
+    /// Most mechanism nodes a model may declare.
+    pub max_mechanisms: usize,
+    /// Most support points either covariate law may declare.
+    pub max_support_points: usize,
+    /// Most selection nodes, evidence factors or assignment children a request may declare.
+    pub max_declarations: usize,
+}
+
+impl Default for TransportedCounterfactualLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES,
+            max_mechanisms: MAX_MECHANISMS,
+            max_support_points: MAX_SUPPORT_POINTS,
+            max_declarations: MAX_DECLARATIONS,
+        }
+    }
+}
 
 const ARTIFACT_KIND: &str = crate::artifact_kinds::TRANSPORTED_COUNTERFACTUAL;
 const META_SECTION: &str = "transported_counterfactual_meta";
@@ -464,22 +490,22 @@ fn canonical(
     out
 }
 
-fn check_bounds(request: &TransportedCounterfactualRequestWire) -> Result<(), Failure> {
-    if request.model.covariates.len() > MAX_COVARIATES {
-        return Err(Failure::LimitsExceeded("covariates"));
-    }
-    if request.model.mechanisms.len() > MAX_MECHANISMS {
+fn check_bounds(
+    request: &TransportedCounterfactualRequestWire,
+    limits: &TransportedCounterfactualLimits,
+) -> Result<(), Failure> {
+    if request.model.mechanisms.len() > limits.max_mechanisms {
         return Err(Failure::LimitsExceeded("mechanisms"));
     }
-    if request.source_law.points.len() > MAX_SUPPORT_POINTS
-        || request.target_law.points.len() > MAX_SUPPORT_POINTS
+    if request.source_law.points.len() > limits.max_support_points
+        || request.target_law.points.len() > limits.max_support_points
     {
         return Err(Failure::LimitsExceeded("support points"));
     }
-    if request.selections.len() > MAX_DECLARATIONS
-        || request.evidence.len() > MAX_DECLARATIONS
-        || request.assignment.plus.len() > MAX_DECLARATIONS
-        || request.assignment.minus.len() > MAX_DECLARATIONS
+    if request.selections.len() > limits.max_declarations
+        || request.evidence.len() > limits.max_declarations
+        || request.assignment.plus.len() > limits.max_declarations
+        || request.assignment.minus.len() > limits.max_declarations
     {
         return Err(Failure::LimitsExceeded("declarations"));
     }
@@ -613,8 +639,9 @@ fn result_wire(result: &TransportedPathSpecificResult) -> TransportedCounterfact
 /// Run the core evaluator on the (already canonical) request.
 fn evaluate(
     request: &TransportedCounterfactualRequestWire,
+    limits: &TransportedCounterfactualLimits,
 ) -> Result<TransportedCounterfactualResultWire, Failure> {
-    check_bounds(request)?;
+    check_bounds(request, limits)?;
     let model = model_of(&request.model);
     let source = law_of(&request.source_law, "source")?;
     let target = law_of(&request.target_law, "target")?;
@@ -889,18 +916,19 @@ pub fn encode_parts(
     meta: &TransportedCounterfactualMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
-    encode_parts_impl(meta, artifact_id)
+    encode_parts_impl(meta, artifact_id, MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES)
 }
 
 fn encode_parts_impl(
     meta: &TransportedCounterfactualMeta,
     artifact_id: &str,
+    max_bytes: usize,
 ) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
     crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "transported_counterfactual_covariate_selected_point_only",
-            max_bytes: MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES,
+            max_bytes,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
@@ -961,8 +989,19 @@ impl TransportedCounterfactualArtifact {
     pub fn seal(
         request: &TransportedCounterfactualRequestWire,
     ) -> Result<Self, TransportedCounterfactualArtifactError> {
+        Self::seal_within(request, &TransportedCounterfactualLimits::default())
+    }
+
+    /// [`Self::seal`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::seal`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn seal_within(
+        request: &TransportedCounterfactualRequestWire,
+        limits: &TransportedCounterfactualLimits,
+    ) -> Result<Self, TransportedCounterfactualArtifactError> {
         let request = canonical(request);
-        let result = evaluate(&request)?;
+        let result = evaluate(&request, limits)?;
         let identity = identity_of(&request, &result);
         Ok(Self {
             meta: TransportedCounterfactualMeta {
@@ -1021,7 +1060,20 @@ impl TransportedCounterfactualArtifact {
         &self,
         artifact_id: &str,
     ) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
-        encode_parts_impl(&self.meta, artifact_id)
+        self.to_bytes_within(artifact_id, MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::to_bytes`] under the caller's byte bound instead of
+    /// [`MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes`]; a payload over `max_bytes` is refused.
+    pub fn to_bytes_within(
+        &self,
+        artifact_id: &str,
+        max_bytes: usize,
+    ) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
+        encode_parts_impl(&self.meta, artifact_id, max_bytes)
     }
 
     /// Consume an artifact by recomputing the transported contrast.
@@ -1051,7 +1103,26 @@ impl TransportedCounterfactualArtifact {
         expected: Option<&TransportedCounterfactualIdentity>,
         max_bytes: usize,
     ) -> Result<Self, TransportedCounterfactualArtifactError> {
-        let meta = decode_parts_impl(bytes, max_bytes)?;
+        Self::from_bytes_with_limits(
+            bytes,
+            expected,
+            &TransportedCounterfactualLimits {
+                max_bytes,
+                ..TransportedCounterfactualLimits::default()
+            },
+        )
+    }
+
+    /// [`Self::from_bytes`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn from_bytes_with_limits(
+        bytes: &[u8],
+        expected: Option<&TransportedCounterfactualIdentity>,
+        limits: &TransportedCounterfactualLimits,
+    ) -> Result<Self, TransportedCounterfactualArtifactError> {
+        let meta = decode_parts_impl(bytes, limits.max_bytes)?;
         crate::artifact_codec::require_semantics::<Failure>(
             meta.feature == TRANSPORTED_COUNTERFACTUAL_ARTIFACT_FEATURE,
             "feature marker",
@@ -1060,7 +1131,7 @@ impl TransportedCounterfactualArtifact {
             return Err(Failure::UnsupportedSemantics("inference claim"));
         }
         let request = canonical(&meta.request);
-        let replayed = evaluate(&request)?;
+        let replayed = evaluate(&request, limits)?;
         let recomputed = identity_of(&request, &replayed);
         if let Some(field) = identity_diff(&meta.identity, &recomputed) {
             // Only the result digest differing means the request is as stored and the stored

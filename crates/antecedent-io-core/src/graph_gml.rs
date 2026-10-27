@@ -284,9 +284,9 @@ pub(crate) fn tokenize(input: &str) -> Result<Vec<Tok>, IoError> {
         if c.is_ascii_digit() || c == '-' || c == '+' {
             chars.next();
             let mut end = start + 1;
-            while let Some((index, ch)) = chars
-                .next_if(|&(_, ch)| ch.is_ascii_digit() || matches!(ch, '.' | 'e' | 'E' | '-' | '+'))
-            {
+            while let Some((index, ch)) = chars.next_if(|&(_, ch)| {
+                ch.is_ascii_digit() || matches!(ch, '.' | 'e' | 'E' | '-' | '+')
+            }) {
                 end = index + ch.len_utf8();
             }
             let text = &input[start..end];

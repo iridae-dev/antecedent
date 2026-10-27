@@ -31,9 +31,9 @@ use antecedent_core::{CanonicalWriter, ExecutionContext};
 
 use super::factorized::{EliminationWork, infer_unit};
 use super::finite_scm::{
-    CompensatedSum, CompiledScm, FactualUnit, FiniteQuantity, FiniteScm, FiniteWorld, MAX_ABDUCTION_WORK,
-    MAX_EVALUATION_WORK, Posterior, WorldPlan, abduct_unit, evaluate_worlds, validate_units,
-    validate_worlds,
+    CompensatedSum, CompiledScm, FactualUnit, FiniteQuantity, FiniteScm, FiniteWorld,
+    MAX_ABDUCTION_WORK, MAX_EVALUATION_WORK, Posterior, WorldPlan, abduct_unit, evaluate_worlds,
+    validate_units, validate_worlds,
 };
 use super::matrix::{
     CapabilityStatus, ConditioningKind, EvidenceKind, HistoryKind, InterventionKind, MatrixRefusal,
@@ -47,7 +47,8 @@ use super::stages::{
     stream_identity,
 };
 
-/// Most abductions an executor retains; the smallest identity is evicted.
+/// Default most abductions an executor retains; the smallest identity is evicted. A caller
+/// with another budget builds the executor with [`FiniteScmExecutor::with_max_retained`].
 pub const MAX_RETAINED: usize = 4096;
 /// The only claim of this row.
 pub const INFERENCE_LABEL: &str = "point_only";
@@ -219,10 +220,17 @@ pub struct FiniteExecutionResult {
 }
 
 /// A selective executor over the fully declared finite SCM rows.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct FiniteScmExecutor {
     retained: BTreeMap<String, Arc<RetainedAbduction>>,
     counters: WorkCounters,
+    max_retained: usize,
+}
+
+impl Default for FiniteScmExecutor {
+    fn default() -> Self {
+        Self::with_max_retained(MAX_RETAINED)
+    }
 }
 
 fn digest(tag: &str) -> CanonicalWriter {
@@ -284,10 +292,24 @@ fn matrix_error(refusal: MatrixRefusal) -> CrossWorldExecutionError {
 }
 
 impl FiniteScmExecutor {
-    /// An executor with nothing retained.
+    /// An executor with nothing retained that keeps at most [`MAX_RETAINED`] abductions.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// An executor with nothing retained that keeps at most `max_retained` abductions
+    /// (the smallest identity is evicted first). Zero retains nothing, so every request
+    /// abduces again.
+    #[must_use]
+    pub fn with_max_retained(max_retained: usize) -> Self {
+        Self { retained: BTreeMap::new(), counters: WorkCounters::default(), max_retained }
+    }
+
+    /// The most abductions this executor retains.
+    #[must_use]
+    pub const fn max_retained(&self) -> usize {
+        self.max_retained
     }
 
     /// Cumulative observed work.
@@ -575,7 +597,7 @@ impl FiniteScmExecutor {
         for entry in &resolved {
             self.retained.entry(entry.identity.clone()).or_insert_with(|| Arc::clone(entry));
         }
-        while self.retained.len() > MAX_RETAINED {
+        while self.retained.len() > self.max_retained {
             if let Some(first) = self.retained.keys().next().cloned() {
                 self.retained.remove(&first);
             }
@@ -599,7 +621,10 @@ impl FiniteScmExecutor {
     ///
     /// The elimination depends on the worlds and the quantity as well as the evidence, so no
     /// abduction is retained and none is reused; every stage reports `Computed`.
-    #[allow(clippy::too_many_arguments, reason = "the identities one execution has already derived")]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the identities one execution has already derived"
+    )]
     fn execute_eliminated(
         &mut self,
         request: &FiniteExecutionRequest,

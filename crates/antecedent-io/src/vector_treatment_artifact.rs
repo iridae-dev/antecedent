@@ -63,7 +63,7 @@ use antecedent_estimate::vector_treatment::{
 use serde::{Deserialize, Serialize};
 
 use crate::artifact_budget::{
-    BudgetDetails, BudgetRefusal, admit_export, admit_regression, unbounded_context,
+    BudgetDetails, BudgetRefusal, BudgetedTreatmentArtifact, admit_export, admit_regression,
 };
 use crate::artifact_codec::CanonicalSize;
 
@@ -778,7 +778,8 @@ fn encode_parts_impl(
             bytes: numbers,
         }],
         |uncompressed| {
-            admit_export(BUDGET, uncompressed, MAX_VECTOR_TREATMENT_ARTIFACT_BYTES).map_err(budget_refusal)
+            admit_export(BUDGET, uncompressed, MAX_VECTOR_TREATMENT_ARTIFACT_BYTES)
+                .map_err(budget_refusal)
         },
     )?;
     admit_export(BUDGET, bytes.len(), export_budget.min(MAX_VECTOR_TREATMENT_ARTIFACT_BYTES))
@@ -804,7 +805,10 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(VectorTreatmentMeta, Vec<u8>), VectorTreatmentArtifactError> {
-    let (meta, parts) = crate::artifact_codec::decode_sectioned::<VectorTreatmentArtifactError, VectorTreatmentMeta>(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+        VectorTreatmentArtifactError,
+        VectorTreatmentMeta,
+    >(
         ARTIFACT_KIND,
         MAX_VECTOR_TREATMENT_ARTIFACT_BYTES,
         META_SECTION,
@@ -852,6 +856,36 @@ fn data_digest(request: &VectorTreatmentRequest) -> String {
     writer.finish_hex()
 }
 
+impl BudgetedTreatmentArtifact for VectorTreatmentArtifact {
+    type Request = VectorTreatmentRequest;
+    type Identity = VectorTreatmentIdentity;
+    type Error = VectorTreatmentArtifactError;
+    const MAX_BYTES: usize = MAX_VECTOR_TREATMENT_ARTIFACT_BYTES;
+
+    fn seal_with(
+        request: &VectorTreatmentRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, VectorTreatmentArtifactError> {
+        Self::seal_with(request, ctx)
+    }
+
+    fn to_bytes_within(
+        &self,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, VectorTreatmentArtifactError> {
+        self.to_bytes_within(artifact_id, export_budget)
+    }
+
+    fn from_bytes_with(
+        bytes: &[u8],
+        expected: Option<&VectorTreatmentIdentity>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, VectorTreatmentArtifactError> {
+        Self::from_bytes_with(bytes, expected, ctx)
+    }
+}
+
 impl VectorTreatmentArtifact {
     /// Fit the declared treatments jointly and seal the answer with its embedded design and
     /// identity, with no memory limit; see [`Self::seal_with`].
@@ -861,7 +895,7 @@ impl VectorTreatmentArtifact {
     /// set, snapshot or row count; `design_rank_deficient`; `invalid_argument`) and the
     /// format's bounds.
     pub fn seal(request: &VectorTreatmentRequest) -> Result<Self, VectorTreatmentArtifactError> {
-        Self::seal_with(request, &unbounded_context())
+        <Self as BudgetedTreatmentArtifact>::seal(request)
     }
 
     /// Fit the declared treatments jointly under the computation budget of `ctx`.
@@ -1007,7 +1041,7 @@ impl VectorTreatmentArtifact {
     /// An empty id, an encoding failure or `vector_treatment.export_budget_exceeded` when the
     /// artifact would exceed [`MAX_VECTOR_TREATMENT_ARTIFACT_BYTES`].
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, VectorTreatmentArtifactError> {
-        self.to_bytes_within(artifact_id, MAX_VECTOR_TREATMENT_ARTIFACT_BYTES)
+        <Self as BudgetedTreatmentArtifact>::to_bytes(self, artifact_id)
     }
 
     /// Serialize when the whole artifact fits `export_budget` bytes (at most
@@ -1039,7 +1073,7 @@ impl VectorTreatmentArtifact {
         bytes: &[u8],
         expected: Option<&VectorTreatmentIdentity>,
     ) -> Result<Self, VectorTreatmentArtifactError> {
-        Self::from_bytes_with(bytes, expected, &unbounded_context())
+        <Self as BudgetedTreatmentArtifact>::from_bytes(bytes, expected)
     }
 
     /// Consume an artifact by recomputation within the replay budget of `ctx`.

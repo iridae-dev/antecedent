@@ -197,6 +197,7 @@ fn receipt_body(
         mediation_grid: None,
         structural_response: None,
         unit_effects: None,
+        counterfactual_contrasts: None,
         cate: None,
         fitted_effect: None,
         cate_se: None,

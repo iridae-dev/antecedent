@@ -9,6 +9,75 @@
 
 use antecedent_core::ExecutionContext;
 
+/// The shape the budgeted treatment artifacts (`categorical_treatment`, `vector_treatment`)
+/// share: a fit sealed under the computation budget of an [`ExecutionContext`], exported under
+/// a byte budget and consumed by recomputation within a replay budget.
+///
+/// An implementor supplies the three budgeted operations; the unbudgeted `seal`, `to_bytes` and
+/// `from_bytes` follow from them (no memory limit, the format's byte cap).
+pub trait BudgetedTreatmentArtifact: Sized {
+    /// What is fitted and sealed.
+    type Request;
+    /// The identity a consumer retains independently of the artifact.
+    type Identity;
+    /// Why sealing, exporting or consuming was refused.
+    type Error;
+    /// The format's byte cap, the most an export may occupy.
+    const MAX_BYTES: usize;
+
+    /// Fit the request and seal the answer under the computation budget of `ctx`.
+    ///
+    /// # Errors
+    /// The core fit's refusals, the format's bounds and the memory or cancellation refusals.
+    fn seal_with(request: &Self::Request, ctx: &ExecutionContext) -> Result<Self, Self::Error>;
+
+    /// Serialize when the whole artifact fits `export_budget` bytes (at most
+    /// [`Self::MAX_BYTES`]).
+    ///
+    /// # Errors
+    /// An empty id, an encoding failure or an export budget exceeded.
+    fn to_bytes_within(
+        &self,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, Self::Error>;
+
+    /// Consume an artifact by recomputation within the replay budget of `ctx`.
+    ///
+    /// # Errors
+    /// Corruption, another major version, a changed identity, a stored result that does not
+    /// replay, or a memory or cancellation refusal.
+    fn from_bytes_with(
+        bytes: &[u8],
+        expected: Option<&Self::Identity>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, Self::Error>;
+
+    /// [`Self::seal_with`] with no memory limit.
+    ///
+    /// # Errors
+    /// As [`Self::seal_with`].
+    fn seal(request: &Self::Request) -> Result<Self, Self::Error> {
+        Self::seal_with(request, &unbounded_context())
+    }
+
+    /// [`Self::to_bytes_within`] up to the format's cap [`Self::MAX_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes_within`].
+    fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, Self::Error> {
+        self.to_bytes_within(artifact_id, Self::MAX_BYTES)
+    }
+
+    /// [`Self::from_bytes_with`] with no memory limit.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes_with`].
+    fn from_bytes(bytes: &[u8], expected: Option<&Self::Identity>) -> Result<Self, Self::Error> {
+        Self::from_bytes_with(bytes, expected, &unbounded_context())
+    }
+}
+
 /// The refusal details one artifact reports, spelled out where the artifact is defined.
 #[derive(Clone, Copy)]
 pub(crate) struct BudgetDetails {

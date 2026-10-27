@@ -1,5 +1,8 @@
 //! Borrowed encoding of the canonical expression wire, without owned DTO tables.
-#![allow(clippy::cast_possible_truncation, reason = "constructor validates every table index before iteration")]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "constructor validates every table index before iteration"
+)]
 use super::*;
 use serde::ser::{SerializeSeq, SerializeStruct};
 
@@ -16,8 +19,12 @@ impl<'a> BorrowedExprArenaWire<'a> {
     /// # Errors
     /// An arena table length cannot be represented on the canonical wire.
     pub fn new(arena: &'a CausalExprArena) -> Result<Self, IoError> {
-        for count in [arena.len(), arena.var_set_count(), arena.intervention_set_count(), arena.list_count()] {
-            if count > 0 { u32::try_from(count - 1).map_err(|_| IoError::TooLarge)?; }
+        for count in
+            [arena.len(), arena.var_set_count(), arena.intervention_set_count(), arena.list_count()]
+        {
+            if count > 0 {
+                u32::try_from(count - 1).map_err(|_| IoError::TooLarge)?;
+            }
         }
         Ok(Self(arena))
     }
@@ -25,7 +32,11 @@ impl<'a> BorrowedExprArenaWire<'a> {
 
 pub(crate) struct Sequence<F>(pub(crate) F);
 impl<F, I> Serialize for Sequence<F>
-where F: Fn() -> I, I: IntoIterator, I::Item: Serialize {
+where
+    F: Fn() -> I,
+    I: IntoIterator,
+    I::Item: Serialize,
+{
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.collect_seq((self.0)())
     }
@@ -34,26 +45,55 @@ where F: Fn() -> I, I: IntoIterator, I::Item: Serialize {
 impl Serialize for BorrowedExprArenaWire<'_> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let arena = self.0;
-        let derivation_count = (0..arena.len()).filter(|&index| {
-            arena.derivation(ExprId::from_raw(index as u32)).is_some()
-        }).count();
-        let mut wire = serializer.serialize_struct("ExprArenaWire", 4 + usize::from(derivation_count > 0))?;
+        let derivation_count = (0..arena.len())
+            .filter(|&index| arena.derivation(ExprId::from_raw(index as u32)).is_some())
+            .count();
+        let mut wire =
+            serializer.serialize_struct("ExprArenaWire", 4 + usize::from(derivation_count > 0))?;
         if derivation_count > 0 {
             wire.serialize_field("derivations", &Derivations(arena, derivation_count))?;
         }
-        wire.serialize_field("var_sets", &Sequence(|| (0..arena.var_set_count()).map(|index| {
-            Sequence(move || arena.var_set(VarSetId::from_raw(index as u32)).iter().map(|v| v.raw()))
-        })))?;
-        wire.serialize_field("interventions", &Sequence(|| (0..arena.intervention_set_count()).map(|index| {
-            Sequence(move || arena.intervention_assignments(InterventionSetId::from_raw(index as u32))
-                .iter().map(BorrowedAssignment))
-        })))?;
-        wire.serialize_field("lists", &Sequence(|| (0..arena.list_count()).map(|index| {
-            Sequence(move || arena.list(ExprListId::from_raw(index as u32)).iter().map(|v| v.raw()))
-        })))?;
-        wire.serialize_field("nodes", &Sequence(|| (0..arena.len()).map(|index| {
-            BorrowedNode::new(arena.node(ExprId::from_raw(index as u32)), arena)
-        })))?;
+        wire.serialize_field(
+            "var_sets",
+            &Sequence(|| {
+                (0..arena.var_set_count()).map(|index| {
+                    Sequence(move || {
+                        arena.var_set(VarSetId::from_raw(index as u32)).iter().map(|v| v.raw())
+                    })
+                })
+            }),
+        )?;
+        wire.serialize_field(
+            "interventions",
+            &Sequence(|| {
+                (0..arena.intervention_set_count()).map(|index| {
+                    Sequence(move || {
+                        arena
+                            .intervention_assignments(InterventionSetId::from_raw(index as u32))
+                            .iter()
+                            .map(BorrowedAssignment)
+                    })
+                })
+            }),
+        )?;
+        wire.serialize_field(
+            "lists",
+            &Sequence(|| {
+                (0..arena.list_count()).map(|index| {
+                    Sequence(move || {
+                        arena.list(ExprListId::from_raw(index as u32)).iter().map(|v| v.raw())
+                    })
+                })
+            }),
+        )?;
+        wire.serialize_field(
+            "nodes",
+            &Sequence(|| {
+                (0..arena.len()).map(|index| {
+                    BorrowedNode::new(arena.node(ExprId::from_raw(index as u32)), arena)
+                })
+            }),
+        )?;
         wire.end()
     }
 }
@@ -82,7 +122,10 @@ impl Serialize for BorrowedDerivation<'_> {
         wire.serialize_field("input", &d.input.map(ExprId::raw))?;
         wire.serialize_field("output", &d.output.map(ExprId::raw))?;
         wire.serialize_field("graph_operation", &d.graph_operation.as_deref())?;
-        wire.serialize_field("premises", &Sequence(|| d.premises.iter().map(AsRef::<str>::as_ref)))?;
+        wire.serialize_field(
+            "premises",
+            &Sequence(|| d.premises.iter().map(AsRef::<str>::as_ref)),
+        )?;
         wire.serialize_field("evidence", &Sequence(|| d.evidence.iter().map(|v| v.raw())))?;
         wire.serialize_field("parents", &Sequence(|| d.parents.iter().map(|v| v.raw())))?;
         wire.end()
@@ -92,12 +135,20 @@ impl Serialize for BorrowedDerivation<'_> {
 // Mirror the canonical scalar tags, borrowing only the one variable-length case.
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
-enum BorrowedValue<'a> { Float64(f64), Int64(i64), Bool(bool), Category(u32), Label(&'a str) }
+enum BorrowedValue<'a> {
+    Float64(f64),
+    Int64(i64),
+    Bool(bool),
+    Category(u32),
+    Label(&'a str),
+}
 impl<'a> From<&'a Value> for BorrowedValue<'a> {
     fn from(value: &'a Value) -> Self {
         match value {
-            Value::Float64(x) => Self::Float64(*x), Value::Int64(x) => Self::Int64(*x),
-            Value::Bool(x) => Self::Bool(*x), Value::Category(x) => Self::Category(*x),
+            Value::Float64(x) => Self::Float64(*x),
+            Value::Int64(x) => Self::Int64(*x),
+            Value::Bool(x) => Self::Bool(*x),
+            Value::Category(x) => Self::Category(*x),
             Value::Label(x) => Self::Label(x.as_ref()),
         }
     }
@@ -106,12 +157,20 @@ struct BorrowedAssignment<'a>(&'a InterventionAssignment);
 impl Serialize for BorrowedAssignment<'_> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let symbolic = self.0.is_symbolic();
-        let mut wire = serializer.serialize_struct("InterventionAssignmentWire", 2 + usize::from(symbolic))?;
-        if symbolic { wire.serialize_field("symbolic", &true)?; }
+        let mut wire =
+            serializer.serialize_struct("InterventionAssignmentWire", 2 + usize::from(symbolic))?;
+        if symbolic {
+            wire.serialize_field("symbolic", &true)?;
+        }
         wire.serialize_field("variable", &self.0.variable.raw())?;
-        wire.serialize_field("value", &if symbolic { BorrowedValue::Float64(0.0) } else {
-            BorrowedValue::from(&self.0.value)
-        })?;
+        wire.serialize_field(
+            "value",
+            &if symbolic {
+                BorrowedValue::Float64(0.0)
+            } else {
+                BorrowedValue::from(&self.0.value)
+            },
+        )?;
         wire.end()
     }
 }
@@ -119,33 +178,95 @@ impl Serialize for BorrowedAssignment<'_> {
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 enum BorrowedNode<'a> {
-    Distribution { variables: u32, conditioned_on: u32, intervention: u32, domain: &'static str,
-        #[serde(skip_serializing_if = "str::is_empty")] population: &'a str,
-        #[serde(skip_serializing_if = "Option::is_none")] regime: Option<u32> },
-    Kernel { body: u32, bound: u32,
-        #[serde(skip_serializing_if = "str::is_empty")] population: &'a str,
-        #[serde(skip_serializing_if = "Option::is_none")] regime: Option<u32> },
-    Product(u32), SumOut { variables: u32, expr: u32 }, IntegralOut { variables: u32, expr: u32 },
-    Ratio { numerator: u32, denominator: u32 }, Expectation { function: u32, distribution: u32 },
-    Contrast { left: u32, right: u32, op: &'static str },
+    Distribution {
+        variables: u32,
+        conditioned_on: u32,
+        intervention: u32,
+        domain: &'static str,
+        #[serde(skip_serializing_if = "str::is_empty")]
+        population: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        regime: Option<u32>,
+    },
+    Kernel {
+        body: u32,
+        bound: u32,
+        #[serde(skip_serializing_if = "str::is_empty")]
+        population: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        regime: Option<u32>,
+    },
+    Product(u32),
+    SumOut {
+        variables: u32,
+        expr: u32,
+    },
+    IntegralOut {
+        variables: u32,
+        expr: u32,
+    },
+    Ratio {
+        numerator: u32,
+        denominator: u32,
+    },
+    Expectation {
+        function: u32,
+        distribution: u32,
+    },
+    Contrast {
+        left: u32,
+        right: u32,
+        op: &'static str,
+    },
 }
 impl<'a> BorrowedNode<'a> {
     fn new(node: &'a ExprNode, arena: &'a CausalExprArena) -> Self {
         match node {
-            ExprNode::Distribution { variables, conditioned_on, intervention, domain, population, regime } =>
-                Self::Distribution { variables: variables.raw(), conditioned_on: conditioned_on.raw(),
-                    intervention: intervention.raw(), domain: match domain {
-                        DomainRef::Observational => "observational", DomainRef::Interventional => "interventional",
-                    }, population: arena.population(*population), regime: regime.map(RegimeId::raw) },
-            ExprNode::Kernel { body, bound, population, regime } => Self::Kernel { body: body.raw(), bound: bound.raw(),
-                population: arena.population(*population), regime: regime.map(RegimeId::raw) },
+            ExprNode::Distribution {
+                variables,
+                conditioned_on,
+                intervention,
+                domain,
+                population,
+                regime,
+            } => Self::Distribution {
+                variables: variables.raw(),
+                conditioned_on: conditioned_on.raw(),
+                intervention: intervention.raw(),
+                domain: match domain {
+                    DomainRef::Observational => "observational",
+                    DomainRef::Interventional => "interventional",
+                },
+                population: arena.population(*population),
+                regime: regime.map(RegimeId::raw),
+            },
+            ExprNode::Kernel { body, bound, population, regime } => Self::Kernel {
+                body: body.raw(),
+                bound: bound.raw(),
+                population: arena.population(*population),
+                regime: regime.map(RegimeId::raw),
+            },
             ExprNode::Product(list) => Self::Product(list.raw()),
-            ExprNode::SumOut { variables, expr } => Self::SumOut { variables: variables.raw(), expr: expr.raw() },
-            ExprNode::IntegralOut { variables, expr } => Self::IntegralOut { variables: variables.raw(), expr: expr.raw() },
-            ExprNode::Ratio { numerator, denominator } => Self::Ratio { numerator: numerator.raw(), denominator: denominator.raw() },
-            ExprNode::Expectation { function, distribution } => Self::Expectation { function: function.variable().raw(), distribution: distribution.raw() },
-            ExprNode::Contrast { left, right, op } => Self::Contrast { left: left.raw(), right: right.raw(),
-                op: match op { ContrastOp::Difference => "difference" } },
+            ExprNode::SumOut { variables, expr } => {
+                Self::SumOut { variables: variables.raw(), expr: expr.raw() }
+            }
+            ExprNode::IntegralOut { variables, expr } => {
+                Self::IntegralOut { variables: variables.raw(), expr: expr.raw() }
+            }
+            ExprNode::Ratio { numerator, denominator } => {
+                Self::Ratio { numerator: numerator.raw(), denominator: denominator.raw() }
+            }
+            ExprNode::Expectation { function, distribution } => Self::Expectation {
+                function: function.variable().raw(),
+                distribution: distribution.raw(),
+            },
+            ExprNode::Contrast { left, right, op } => Self::Contrast {
+                left: left.raw(),
+                right: right.raw(),
+                op: match op {
+                    ContrastOp::Difference => "difference",
+                },
+            },
         }
     }
 }
@@ -177,10 +298,19 @@ mod tests {
             InterventionAssignment { variable: x, value: Value::symbolic_intervention() },
             InterventionAssignment { variable: y, value: Value::Label(Arc::from("escaped\\\"λ")) },
         ]);
-        let leaf = arena.intern_distribution_tagged(
-            DistributionLeaf { variables, conditioned_on, intervention, domain: DomainRef::Interventional },
-            "source\\\"λ", Some(RegimeId::from_raw(3)), None,
-        ).unwrap();
+        let leaf = arena
+            .intern_distribution_tagged(
+                DistributionLeaf {
+                    variables,
+                    conditioned_on,
+                    intervention,
+                    domain: DomainRef::Interventional,
+                },
+                "source\\\"λ",
+                Some(RegimeId::from_raw(3)),
+                None,
+            )
+            .unwrap();
         let kernel = arena.intern_kernel(leaf, variables, "target", None);
         let list = arena.intern_list([leaf, kernel]);
         let product = arena.intern(ExprNode::Product(list));
@@ -188,18 +318,28 @@ mod tests {
         let integral = arena.intern(ExprNode::IntegralOut { variables, expr: sum });
         let ratio = arena.intern(ExprNode::Ratio { numerator: integral, denominator: leaf });
         let expectation = arena.intern(ExprNode::Expectation {
-            function: OutcomeExprId::identity(y), distribution: ratio,
+            function: OutcomeExprId::identity(y),
+            distribution: ratio,
         });
         let contrast = arena.intern(ExprNode::Contrast {
-            left: expectation, right: leaf, op: ContrastOp::Difference,
+            left: expectation,
+            right: leaf,
+            op: ContrastOp::Difference,
         });
         assert_same_bytes(&arena);
-        arena.set_derivation(contrast, antecedent_expr::DerivationMeta {
-            rule: Arc::from("rule\\\"λ"), note: Some(Arc::from("original note")),
-            input: Some(leaf), output: Some(contrast), graph_operation: Some(Arc::from("project")),
-            premises: Arc::from([Arc::from("first"), Arc::from("second")]),
-            evidence: Arc::from([RegimeId::from_raw(3)]), parents: Arc::from([leaf, expectation]),
-        });
+        arena.set_derivation(
+            contrast,
+            antecedent_expr::DerivationMeta {
+                rule: Arc::from("rule\\\"λ"),
+                note: Some(Arc::from("original note")),
+                input: Some(leaf),
+                output: Some(contrast),
+                graph_operation: Some(Arc::from("project")),
+                premises: Arc::from([Arc::from("first"), Arc::from("second")]),
+                evidence: Arc::from([RegimeId::from_raw(3)]),
+                parents: Arc::from([leaf, expectation]),
+            },
+        );
         assert_same_bytes(&arena);
     }
 }

@@ -110,13 +110,11 @@ impl From<EstimationError> for ArrayFitError {
     fn from(error: EstimationError) -> Self {
         match error {
             EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                Self::Refused {
-                    code,
-                    detail: message.detail().unwrap_or("array_fit.refused").to_owned(),
-                    message: message.explanation().to_owned(),
-                }
-            }
+            | EstimationError::RefusedWithFields { code, message, .. } => Self::Refused {
+                code,
+                detail: message.detail().unwrap_or("array_fit.refused").to_owned(),
+                message: message.explanation().to_owned(),
+            },
             other => Self::Refused {
                 code: antecedent_core::reason_code!("invalid_argument"),
                 detail: "array_fit.fit_refused".to_owned(),
@@ -286,15 +284,20 @@ pub fn inspect_array_fit_header(bytes: &[u8]) -> Result<bool, IoError> {
 struct FeatureMarker(bool);
 
 impl<'de> Deserialize<'de> for FeatureMarker {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self,D::Error> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct Marker;
         impl<'de> serde::de::Visitor<'de> for Marker {
-            type Value=FeatureMarker;
-            fn expecting(&self,f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("a required-features discriminator") }
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(self,mut seq:A) -> Result<Self::Value,A::Error> {
+            type Value = FeatureMarker;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a required-features discriminator")
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<Self::Value, A::Error> {
                 // The established discriminator is the first feature; later features
                 // remain the independent consumer's validation responsibility.
-                let first=seq.next_element::<ExactMarker>()?.is_some_and(|marker|marker.0);
+                let first = seq.next_element::<ExactMarker>()?.is_some_and(|marker| marker.0);
                 while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
                 Ok(FeatureMarker(first))
             }
@@ -305,13 +308,15 @@ impl<'de> Deserialize<'de> for FeatureMarker {
 
 struct ExactMarker(bool);
 impl<'de> Deserialize<'de> for ExactMarker {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self,D::Error> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct Marker;
         impl serde::de::Visitor<'_> for Marker {
-            type Value=ExactMarker;
-            fn expecting(&self,f:&mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("a feature name") }
-            fn visit_str<E:serde::de::Error>(self,value:&str) -> Result<Self::Value,E> {
-                Ok(ExactMarker(value==ARRAY_FIT_ARTIFACT_FEATURE))
+            type Value = ExactMarker;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a feature name")
+            }
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                Ok(ExactMarker(value == ARRAY_FIT_ARTIFACT_FEATURE))
             }
         }
         deserializer.deserialize_str(Marker)
@@ -359,13 +364,9 @@ fn finish(
 }
 
 fn run_propensity(wire: &PropensityPosteriorWire) -> Fit {
-    let design = StaticPropensityDesignRef::try_new(
-        &wire.x_colmajor,
-        &wire.treatment,
-        wire.nrows,
-    )?;
-    let posterior =
-        PropensityCoefficientPrior::new(wire.prior_sd, wire.draws, wire.seed)?.fit_borrowed(&design)?;
+    let design = StaticPropensityDesignRef::try_new(&wire.x_colmajor, &wire.treatment, wire.nrows)?;
+    let posterior = PropensityCoefficientPrior::new(wire.prior_sd, wire.draws, wire.seed)?
+        .fit_borrowed(&design)?;
     let mut values = vec![value("prior_sd", posterior.prior_sd)];
     for (j, mode) in posterior.mode.iter().enumerate() {
         values.push(value(&format!("mode.{j}"), *mode));
@@ -395,7 +396,9 @@ const SCORE_PREMISES: [&str; 3] = [
     "in-sample summary of the treatment model, not an out-of-fold effect score",
 ];
 
-fn score_design(wire: &PropensityDesignWire) -> Result<TemporalPropensityDesignRef<'_>, ArrayFitError> {
+fn score_design(
+    wire: &PropensityDesignWire,
+) -> Result<TemporalPropensityDesignRef<'_>, ArrayFitError> {
     Ok(TemporalPropensityDesignRef::try_new(
         &wire.x_colmajor,
         &wire.treatment,
@@ -513,7 +516,7 @@ impl ArrayFitRequestWire {
 
     fn evaluate(&self) -> Fit {
         #[cfg(test)]
-        ARRAY_EVALUATIONS.with(|count|count.set(count.get()+1));
+        ARRAY_EVALUATIONS.with(|count| count.set(count.get() + 1));
         match self {
             Self::PropensityPosterior(p) => run_propensity(p),
             Self::TemporalPropensity(p) => run_score(p),
@@ -631,7 +634,11 @@ impl ArrayFitArtifactWire {
     ///
     /// # Errors
     /// As [`Self::consume_typed`], including producer expectation mismatch.
-    pub fn consume_typed_expected(bytes: &[u8], limits: ArrayFitConsumeLimits, expected: Option<&str>) -> Result<Self, ArrayFitError> {
+    pub fn consume_typed_expected(
+        bytes: &[u8],
+        limits: ArrayFitConsumeLimits,
+        expected: Option<&str>,
+    ) -> Result<Self, ArrayFitError> {
         let wire = Self::decode(bytes).map_err(|e| match e {
             IoError::Refused { .. } => ArrayFitError::UnsupportedSemantics("shape"),
             other => ArrayFitError::Undecodable(other.to_string()),
@@ -659,26 +666,60 @@ mod header_and_replay_regression {
     use super::*;
     #[derive(Serialize)]
     struct OriginalRecord<'a> {
-        version:u32, required_features:&'a [String], request:&'a ArrayFitRequestWire,
-        result:&'a ArrayFitResultWire, request_digest:&'a str,
+        version: u32,
+        required_features: &'a [String],
+        request: &'a ArrayFitRequestWire,
+        result: &'a ArrayFitResultWire,
+        request_digest: &'a str,
     }
     #[test]
     fn exact_historical_record_encoding_and_one_independent_replay() {
-        let mut x=vec![1.0;200]; x.extend((0..200).map(|i|if i>=100 {1.0}else{0.0}));
-        let treatment=(0..200).map(|i|if i<30 || (100..160).contains(&i) {1.0}else{0.0}).collect();
-        let request=ArrayFitRequestWire::PropensityPosterior(PropensityPosteriorWire { x_colmajor:x,treatment,nrows:200,prior_sd:2.0,draws:8,seed:13,rows:vec![vec![1.0,0.0]],clip:0.05 });
-        let before=ARRAY_EVALUATIONS.with(std::cell::Cell::get);
-        let wire=ArrayFitArtifactWire::seal(request).unwrap();
-        assert_eq!(ARRAY_EVALUATIONS.with(std::cell::Cell::get),before+1);
-        let original=OriginalRecord {version:wire.version,required_features:&wire.required_features,request:&wire.request,result:&wire.result,request_digest:&wire.request_digest};
-        let bytes=wire.export().unwrap();
-        assert_eq!(bytes,crate::to_cbor(&original).unwrap());
+        let mut x = vec![1.0; 200];
+        x.extend((0..200).map(|i| if i >= 100 { 1.0 } else { 0.0 }));
+        let treatment =
+            (0..200).map(|i| if i < 30 || (100..160).contains(&i) { 1.0 } else { 0.0 }).collect();
+        let request = ArrayFitRequestWire::PropensityPosterior(PropensityPosteriorWire {
+            x_colmajor: x,
+            treatment,
+            nrows: 200,
+            prior_sd: 2.0,
+            draws: 8,
+            seed: 13,
+            rows: vec![vec![1.0, 0.0]],
+            clip: 0.05,
+        });
+        let before = ARRAY_EVALUATIONS.with(std::cell::Cell::get);
+        let wire = ArrayFitArtifactWire::seal(request).unwrap();
+        assert_eq!(ARRAY_EVALUATIONS.with(std::cell::Cell::get), before + 1);
+        let original = OriginalRecord {
+            version: wire.version,
+            required_features: &wire.required_features,
+            request: &wire.request,
+            result: &wire.result,
+            request_digest: &wire.request_digest,
+        };
+        let bytes = wire.export().unwrap();
+        assert_eq!(bytes, crate::to_cbor(&original).unwrap());
         assert!(inspect_array_fit_header(&bytes).unwrap());
-        assert_eq!(ARRAY_EVALUATIONS.with(std::cell::Cell::get),before+1);
-        assert_eq!(ArrayFitArtifactWire::consume_typed_expected(&bytes,ArrayFitConsumeLimits::default(),Some(&"0".repeat(64))).unwrap_err(),ArrayFitError::RequestMismatch);
-        assert_eq!(ARRAY_EVALUATIONS.with(std::cell::Cell::get),before+1);
-        let consumed=ArrayFitArtifactWire::consume_typed_expected(&bytes,ArrayFitConsumeLimits::default(),Some(&wire.request_digest)).unwrap();
-        assert_eq!(ARRAY_EVALUATIONS.with(std::cell::Cell::get),before+2);
-        assert_eq!(consumed,wire); assert_eq!(consumed.export().unwrap(),bytes);
+        assert_eq!(ARRAY_EVALUATIONS.with(std::cell::Cell::get), before + 1);
+        assert_eq!(
+            ArrayFitArtifactWire::consume_typed_expected(
+                &bytes,
+                ArrayFitConsumeLimits::default(),
+                Some(&"0".repeat(64))
+            )
+            .unwrap_err(),
+            ArrayFitError::RequestMismatch
+        );
+        assert_eq!(ARRAY_EVALUATIONS.with(std::cell::Cell::get), before + 1);
+        let consumed = ArrayFitArtifactWire::consume_typed_expected(
+            &bytes,
+            ArrayFitConsumeLimits::default(),
+            Some(&wire.request_digest),
+        )
+        .unwrap();
+        assert_eq!(ARRAY_EVALUATIONS.with(std::cell::Cell::get), before + 2);
+        assert_eq!(consumed, wire);
+        assert_eq!(consumed.export().unwrap(), bytes);
     }
 }

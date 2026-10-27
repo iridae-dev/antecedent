@@ -231,8 +231,10 @@ pub(crate) fn parse_dot_graph(dot: &str, options: DotParseOptions) -> Result<Par
 /// An edge endpoint at or beyond `node_count`.
 pub fn dag_wire_to_dot(wire: &DagWire, names: Option<&[String]>) -> Result<String, IoError> {
     let node_count = wire.node_count as usize;
-    if let Some(&(from, to)) =
-        wire.edges.iter().find(|&&(from, to)| from as usize >= node_count || to as usize >= node_count)
+    if let Some(&(from, to)) = wire
+        .edges
+        .iter()
+        .find(|&&(from, to)| from as usize >= node_count || to as usize >= node_count)
     {
         return Err(IoError::Convert(format!(
             "edge ({from}, {to}) names a node outside node_count {node_count}"

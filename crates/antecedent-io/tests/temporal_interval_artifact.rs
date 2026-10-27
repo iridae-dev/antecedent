@@ -50,7 +50,14 @@ fn panel() -> TemporalUnitPanel {
                     let level =
                         (unit * 7 + u64::from(s0) * 3 + u64::from(l2) * 5 + u64::from(a2)) % 10;
                     for a1 in 0..2 {
-                        histories.push(SequenceHistory::two_step(histories.len() as u64, s0, a1, l2, a2, level as f64 / 10.0));
+                        histories.push(SequenceHistory::two_step(
+                            histories.len() as u64,
+                            s0,
+                            a1,
+                            l2,
+                            a2,
+                            level as f64 / 10.0,
+                        ));
                     }
                 }
             }

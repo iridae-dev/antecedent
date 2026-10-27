@@ -89,7 +89,9 @@ impl CodecError {
         match self {
             Self::MissingArtifactId => ArtifactCheckError::Encode("missing artifact id".into()),
             Self::Encode(error) => ArtifactCheckError::Encode(error.to_string()),
-            Self::Decode(error) if error.is_container_fault() => ArtifactCheckError::Container(error),
+            Self::Decode(error) if error.is_container_fault() => {
+                ArtifactCheckError::Container(error)
+            }
             Self::Decode(error) => ArtifactCheckError::Decode(error.to_string()),
             Self::FileTooLarge | Self::SectionsTooLarge => {
                 ArtifactCheckError::LimitsExceeded("artifact bytes")
@@ -813,8 +815,7 @@ pub fn decode_sectioned_io_raw<const N: usize>(
     let mut parts =
         decode_container(kind, max_bytes, &ids, bytes).map_err(|error| error.into_io(layout))?;
     let meta = parts.remove(0);
-    let payloads =
-        <[Vec<u8>; N]>::try_from(parts).map_err(|_| IoError::Convert(layout.into()))?;
+    let payloads = <[Vec<u8>; N]>::try_from(parts).map_err(|_| IoError::Convert(layout.into()))?;
     Ok((meta, payloads))
 }
 
@@ -1105,8 +1106,8 @@ mod le_real_tests {
 #[cfg(test)]
 mod sectioned_io_tests {
     use super::{
-        ArtifactContainer, CONTENT_BYTES, OutSection, decode_sectioned_io,
-        decode_sectioned_io_raw, decode_sectioned_io_versioned, encode_sectioned_io,
+        ArtifactContainer, CONTENT_BYTES, OutSection, decode_sectioned_io, decode_sectioned_io_raw,
+        decode_sectioned_io_versioned, encode_sectioned_io,
     };
     use crate::error::IoError;
     use serde::{Deserialize, Serialize};
@@ -1160,7 +1161,9 @@ mod sectioned_io_tests {
             &[],
             LAYOUT,
         );
-        assert!(matches!(result, Err(IoError::Convert(message)) if message == "missing artifact id"));
+        assert!(
+            matches!(result, Err(IoError::Convert(message)) if message == "missing artifact id")
+        );
     }
 
     #[test]
@@ -1168,7 +1171,8 @@ mod sectioned_io_tests {
         let bytes = encode(1);
         let wrong = decode_sectioned_io_raw(KIND, 1 << 16, "test.meta", &[], LAYOUT, &bytes);
         assert!(matches!(wrong, Err(IoError::Convert(message)) if message == LAYOUT));
-        let oversize = decode_sectioned_io_raw(KIND, 4, "test.meta", &["test.payload"], LAYOUT, &bytes);
+        let oversize =
+            decode_sectioned_io_raw(KIND, 4, "test.meta", &["test.payload"], LAYOUT, &bytes);
         assert!(matches!(oversize, Err(IoError::TooLarge)));
     }
 

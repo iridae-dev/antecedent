@@ -50,6 +50,9 @@ fn close(actual: f64, expected: f64, tolerance: f64) {
 fn refusal_text(error: CyclicArtifactError) -> String {
     match error {
         CyclicArtifactError::Invalid(message) => message,
+        // Typed refusals render their full text, which carries the detail and next attempt.
+        other @ (CyclicArtifactError::ScientificRefusal { .. }
+        | CyclicArtifactError::WorldRefusal(_)) => other.to_string(),
         other => panic!("expected a typed refusal, got {other:?}"),
     }
 }

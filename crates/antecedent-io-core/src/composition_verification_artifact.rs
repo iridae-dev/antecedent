@@ -818,7 +818,11 @@ impl CompositionVerificationArtifact {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, CompositionVerificationArtifactError> {
-        Self::from_bytes_within(bytes, expected_identity, MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES)
+        Self::from_bytes_within(
+            bytes,
+            expected_identity,
+            MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES,
+        )
     }
 
     /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES`].

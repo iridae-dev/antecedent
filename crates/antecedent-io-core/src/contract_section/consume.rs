@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::verify::verify_contract_against_body;
+use super::verify::verify_contract_against_body_within;
 
 use std::sync::Arc;
 
@@ -500,6 +500,19 @@ pub(in crate::contract_section) fn require_payload_digest<T>(
 ///
 /// Wrong artifact kind, missing header/body, or invalid CBOR.
 pub fn consume_analysis_result(bytes: &[u8]) -> Result<AnalysisResultConsumption, IoError> {
+    consume_analysis_result_within(bytes, &crate::distribution_replay::ReplayLimits::default())
+}
+
+/// [`consume_analysis_result`] with the finite-discrete replay held to the caller's
+/// [`ReplayLimits`](crate::distribution_replay::ReplayLimits) instead of the defaults.
+///
+/// # Errors
+///
+/// As [`consume_analysis_result`].
+pub fn consume_analysis_result_within(
+    bytes: &[u8],
+    limits: &crate::distribution_replay::ReplayLimits,
+) -> Result<AnalysisResultConsumption, IoError> {
     let (artifact, header, body) = crate::decode_analysis_result_artifact(bytes)?;
     let artifact_digest = payload_digest("analysis_result.bytes", bytes);
     let contract = match super::decode_analysis_result_contract(&artifact) {
@@ -520,7 +533,7 @@ pub fn consume_analysis_result(bytes: &[u8]) -> Result<AnalysisResultConsumption
             });
         }
     };
-    let acceptance = accept_contract(&header, &body, contract.as_ref());
+    let acceptance = accept_contract(&header, &body, contract.as_ref(), limits);
     Ok(AnalysisResultConsumption { header, body, contract, acceptance, artifact_digest })
 }
 
@@ -528,6 +541,7 @@ pub(in crate::contract_section) fn accept_contract(
     header: &AnalysisResultHeader,
     body: &AnalysisResultWire,
     contract: Option<&AnalysisResultContractWire>,
+    limits: &crate::distribution_replay::ReplayLimits,
 ) -> AcceptanceReport {
     let Some(contract) = contract else {
         return AcceptanceReport::new(
@@ -547,7 +561,7 @@ pub(in crate::contract_section) fn accept_contract(
             Some(Arc::from("unknown_contract_format")),
         );
     }
-    let unresolved = verify_contract_against_body(header, body, contract);
+    let unresolved = verify_contract_against_body_within(header, body, contract, limits);
     let verified = unresolved.is_empty();
     let claim_present = contract.claim.is_some();
     let operations: Arc<[Arc<str>]> = match (verified, claim_present) {
@@ -602,7 +616,7 @@ pub(in crate::contract_section) fn storage_ops() -> Arc<[Arc<str>]> {
 
 /// Accept / verify a claim from bytes under a consumer profile.
 ///
-/// Reuses [`consume_analysis_result`] / [`verify_contract_against_body`]. Unknown
+/// Reuses [`consume_analysis_result`] / [`super::verify::verify_contract_against_body`]. Unknown
 /// required features refuse claim acceptance; storage/forwarding remains allowed.
 ///
 /// # Errors
@@ -733,8 +747,10 @@ pub fn project_claim_host(consumed: &AnalysisResultConsumption) -> ClaimHostProj
     let value = match (claim.kind.as_str(), claim.value_bits) {
         // A non-finite point estimate is not JSON-representable; it must not collapse into the
         // `null` that means an explicitly absent value.
-        ("point", Some(bits)) => serde_json::Number::from_f64(f64::from_bits(bits))
-            .map_or_else(|| serde_json::Value::String("non_finite".into()), serde_json::Value::Number),
+        ("point", Some(bits)) => serde_json::Number::from_f64(f64::from_bits(bits)).map_or_else(
+            || serde_json::Value::String("non_finite".into()),
+            serde_json::Value::Number,
+        ),
         ("point", None) => serde_json::Value::Null,
         ("bounds" | "incomplete", _) => serde_json::Value::String("unbounded".into()),
         ("refusal", _) => serde_json::Value::String("unsupported".into()),

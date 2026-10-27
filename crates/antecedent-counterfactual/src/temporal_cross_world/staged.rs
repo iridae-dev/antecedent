@@ -26,7 +26,9 @@ use super::{
 use crate::selective::stages::{ExecutionStage, StageReceipt, StageStatus, WorkCounters};
 use crate::temporal_cross_world::FactualUnitHistory;
 
-/// Most abductions a temporal executor retains.
+/// Default most abductions a temporal executor retains. A caller with another budget builds
+/// the executor with [`TemporalExecutor::with_max_retained`] or
+/// [`GeneralTemporalExecutor::with_max_retained`].
 pub const MAX_RETAINED: usize = 64;
 
 #[derive(Debug)]
@@ -47,10 +49,17 @@ pub struct TemporalExecution {
 }
 
 /// A selective executor of the temporal row.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TemporalExecutor {
     retained: BTreeMap<String, Arc<RetainedHistories>>,
     counters: WorkCounters,
+    max_retained: usize,
+}
+
+impl Default for TemporalExecutor {
+    fn default() -> Self {
+        Self::with_max_retained(MAX_RETAINED)
+    }
 }
 
 fn abduction_key(
@@ -65,10 +74,23 @@ fn abduction_key(
 }
 
 impl TemporalExecutor {
-    /// An executor with nothing retained.
+    /// An executor with nothing retained that keeps at most [`MAX_RETAINED`] abductions.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// An executor with nothing retained that keeps at most `max_retained` abductions (the
+    /// smallest key is evicted first). Zero retains nothing, so every request abduces again.
+    #[must_use]
+    pub fn with_max_retained(max_retained: usize) -> Self {
+        Self { retained: BTreeMap::new(), counters: WorkCounters::default(), max_retained }
+    }
+
+    /// The most abductions this executor retains.
+    #[must_use]
+    pub const fn max_retained(&self) -> usize {
+        self.max_retained
     }
 
     /// Cumulative observed work of successful executions.
@@ -207,7 +229,7 @@ impl TemporalExecutor {
         // Commit only after every stage succeeded.
         if !reused {
             self.retained.insert(key, retained);
-            while self.retained.len() > MAX_RETAINED {
+            while self.retained.len() > self.max_retained {
                 if let Some(first) = self.retained.keys().next().cloned() {
                     self.retained.remove(&first);
                 }
@@ -220,10 +242,10 @@ impl TemporalExecutor {
 
 use super::general::{
     GeneralAbductionReceipt, GeneralFactualHistory, GeneralTemporalResult, GeneralTemporalSpec,
-    GeneralUnitCounterfactual, abduce_unit as abduce_general, check_fit, check_inputs as
-    check_general_inputs, digest_draw as digest_general_draw, digest_factual as
-    digest_general_factual, digest_fit as digest_general_fit, digest_world, node_count,
-    outcome_node, replay as replay_general,
+    GeneralUnitCounterfactual, abduce_unit as abduce_general, check_fit,
+    check_inputs as check_general_inputs, digest_draw as digest_general_draw,
+    digest_factual as digest_general_factual, digest_fit as digest_general_fit, digest_world,
+    node_count, outcome_node, replay as replay_general,
 };
 use super::{invalid, unsupported};
 
@@ -251,10 +273,17 @@ pub struct GeneralTemporalExecution {
 /// Retains each factual set's abduction under the digest of the snapshot, the horizon and
 /// mechanism fit and the factual histories; a request that changes only the named action
 /// histories reuses it and replays the new worlds.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct GeneralTemporalExecutor {
     retained: BTreeMap<String, Arc<RetainedGeneral>>,
     counters: WorkCounters,
+    max_retained: usize,
+}
+
+impl Default for GeneralTemporalExecutor {
+    fn default() -> Self {
+        Self::with_max_retained(MAX_RETAINED)
+    }
 }
 
 fn general_key(snapshot: &str, fit: &str, factual: &str) -> String {
@@ -264,10 +293,23 @@ fn general_key(snapshot: &str, fit: &str, factual: &str) -> String {
 }
 
 impl GeneralTemporalExecutor {
-    /// An executor with nothing retained.
+    /// An executor with nothing retained that keeps at most [`MAX_RETAINED`] abductions.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// An executor with nothing retained that keeps at most `max_retained` abductions (the
+    /// smallest key is evicted first). Zero retains nothing, so every request abduces again.
+    #[must_use]
+    pub fn with_max_retained(max_retained: usize) -> Self {
+        Self { retained: BTreeMap::new(), counters: WorkCounters::default(), max_retained }
+    }
+
+    /// The most abductions this executor retains.
+    #[must_use]
+    pub const fn max_retained(&self) -> usize {
+        self.max_retained
     }
 
     /// Cumulative observed work of successful executions.
@@ -295,7 +337,10 @@ impl GeneralTemporalExecutor {
     ) -> Result<GeneralTemporalExecution, TemporalCounterfactualError> {
         poll(ctx)?;
         if spec.horizon == 0 {
-            return Err(invalid("temporal_counterfactual.invalid_graph", Some("horizon".to_owned())));
+            return Err(invalid(
+                "temporal_counterfactual.invalid_graph",
+                Some("horizon".to_owned()),
+            ));
         }
         if spec.latent_confounding {
             return Err(unsupported("temporal_counterfactual.latent_confounding", None, None));
@@ -405,7 +450,7 @@ impl GeneralTemporalExecutor {
         ];
         if !reused {
             self.retained.insert(key, retained);
-            while self.retained.len() > MAX_RETAINED {
+            while self.retained.len() > self.max_retained {
                 if let Some(first) = self.retained.keys().next().cloned() {
                     self.retained.remove(&first);
                 }
@@ -490,5 +535,22 @@ mod general_tests {
         assert_eq!((b.work.abductions, b.work.abductions_reused), (0, 4));
         assert_eq!(b.stages[1].status, StageStatus::Reused);
         assert_eq!(exec.retained_len(), 1);
+    }
+
+    #[test]
+    fn a_caller_retention_bound_evicts_what_the_default_keeps() {
+        let ctx = ExecutionContext::for_tests(3);
+        let request = spec(4, &[vec![0.0; 4], vec![1.0; 4]]);
+        let mut default = GeneralTemporalExecutor::new();
+        assert_eq!(default.max_retained(), MAX_RETAINED);
+        default.execute(&request, &ctx).unwrap();
+        assert_eq!(default.retained_len(), 1);
+
+        let mut none = GeneralTemporalExecutor::with_max_retained(0);
+        none.execute(&request, &ctx).unwrap();
+        assert_eq!(none.retained_len(), 0);
+        // Nothing was retained, so the same request abduces again.
+        let again = none.execute(&request, &ctx).unwrap();
+        assert_eq!(again.work.abductions_reused, 0);
     }
 }

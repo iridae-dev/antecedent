@@ -551,12 +551,12 @@ fn assert_ring_clears_the_gate_and_is_recovered(k: usize, coef: f64, rows: usize
         // mass on reversed edges, so BIC does not make the direction certain (the exhaustive
         // reference tests assert it against an exact enumeration instead).
         for (from, to) in ring_edges(k) {
-            let adjacent = post.edge_marginals()[from * n + to] + post.edge_marginals()[to * n + from];
+            let adjacent =
+                post.edge_marginals()[from * n + to] + post.edge_marginals()[to * n + from];
             assert!(adjacent >= 0.95, "{label}: P({from} - {to}) = {adjacent}");
         }
     }
-    let (mcse_s, mcse_o) =
-        (structure.edge_mcse().unwrap(), order.edge_mcse().unwrap());
+    let (mcse_s, mcse_o) = (structure.edge_mcse().unwrap(), order.edge_mcse().unwrap());
     for cell in 0..n * n {
         let band = 0.03 + 5.0 * (mcse_s[cell] + mcse_o[cell]);
         let gap = (structure.edge_marginals()[cell] - order.edge_marginals()[cell]).abs();

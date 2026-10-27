@@ -1091,18 +1091,12 @@ fn replay_procedure(
 // -- consumption --------------------------------------------------------------------------
 
 /// Stored boundaries and readings reproduce the recomputed ones to an absolute bound.
-const BOUNDARY_REPLAY: ReplayTolerance = ReplayTolerance::new(
-    BOUNDARY_REPLAY_TOLERANCE,
-    ReplayScale::Absolute,
-    ReplayNonFinite::Refuse,
-);
+const BOUNDARY_REPLAY: ReplayTolerance =
+    ReplayTolerance::new(BOUNDARY_REPLAY_TOLERANCE, ReplayScale::Absolute, ReplayNonFinite::Refuse);
 
 fn within(stored: &[u64], recomputed: &[f64]) -> bool {
     stored.len() == recomputed.len()
-        && stored
-            .iter()
-            .zip(recomputed)
-            .all(|(s, r)| BOUNDARY_REPLAY.close(f64::from_bits(*s), *r))
+        && stored.iter().zip(recomputed).all(|(s, r)| BOUNDARY_REPLAY.close(f64::from_bits(*s), *r))
 }
 
 fn check(

@@ -138,6 +138,11 @@ fn counterfactual_to_wire(
             .map(InterventionWire::from_domain)
             .collect::<Result<Vec<_>, _>>()?,
         control: Some(InterventionWire::from_domain(&q.control)?),
+        joint_control: q
+            .joint_control
+            .iter()
+            .map(InterventionWire::from_domain)
+            .collect::<Result<Vec<_>, _>>()?,
         allow_nested: q.allow_nested,
     })
 }
@@ -160,9 +165,7 @@ fn anomaly_attribution_to_wire(
         max_units: crate::error::fit_u64(q.max_units)?,
         reference: Some(match q.reference {
             AnomalyReference::Empirical => None,
-            AnomalyReference::Fixed { center, scale } => {
-                Some((center.to_f64(), scale.to_f64()))
-            }
+            AnomalyReference::Fixed { center, scale } => Some((center.to_f64(), scale.to_f64())),
         }),
     })
 }
@@ -196,9 +199,7 @@ fn mechanism_change_to_wire(
 }
 
 /// Encode the [`CausalQuery::UnitChange`] payload.
-fn unit_change_to_wire(
-    q: &antecedent_core::UnitChangeQuery,
-) -> Result<CausalQueryWire, IoError> {
+fn unit_change_to_wire(q: &antecedent_core::UnitChangeQuery) -> Result<CausalQueryWire, IoError> {
     Ok(CausalQueryWire::UnitChange {
         outcome: q.outcome.raw(),
         unit_rows: q
@@ -237,14 +238,10 @@ fn mediation_to_wire(
 }
 
 /// Encode the [`CausalQuery::RandomizedEffect`] payload.
-fn randomized_effect_to_wire(
-    q: &antecedent_core::RandomizedEffectQuery,
-) -> CausalQueryWire {
+fn randomized_effect_to_wire(q: &antecedent_core::RandomizedEffectQuery) -> CausalQueryWire {
     CausalQueryWire::RandomizedEffect(RandomizedEffectQueryWire {
         estimand: match q.estimand {
-            antecedent_core::RandomizedEstimand::IntentionToTreat => {
-                RandomizedEstimandWire::Itt
-            }
+            antecedent_core::RandomizedEstimand::IntentionToTreat => RandomizedEstimandWire::Itt,
             antecedent_core::RandomizedEstimand::ComplierAverageCausalEffect => {
                 RandomizedEstimandWire::CaceLate
             }
@@ -261,9 +258,7 @@ fn randomized_effect_to_wire(
                 RandomizationDesignWire::Cluster { treated_clusters: *treated_clusters }
             }
             RandomizationDesign::Stratified { .. } => RandomizationDesignWire::Stratified,
-            RandomizationDesign::Factorial2x2 { .. } => {
-                RandomizationDesignWire::Factorial2x2
-            }
+            RandomizationDesign::Factorial2x2 { .. } => RandomizationDesignWire::Factorial2x2,
             RandomizationDesign::MultiArm { .. } => RandomizationDesignWire::MultiArm,
             RandomizationDesign::Switchback { .. } => RandomizationDesignWire::Switchback,
         },
@@ -280,9 +275,7 @@ fn randomized_effect_to_wire(
             _ => Vec::new(),
         },
         treated_per_row: match &q.design {
-            RandomizationDesign::Stratified { treated_per_row, .. } => {
-                treated_per_row.to_vec()
-            }
+            RandomizationDesign::Stratified { treated_per_row, .. } => treated_per_row.to_vec(),
             _ => Vec::new(),
         },
         fixed_cuped: q.fixed_cuped.map(|(id, coefficient)| (id.raw(), coefficient)),
@@ -329,9 +322,7 @@ fn randomized_effect_to_wire(
 }
 
 /// Encode the [`CausalQuery::PolicyValue`] payload.
-fn policy_value_to_wire(
-    q: &antecedent_core::PolicyValueQuery,
-) -> CausalQueryWire {
+fn policy_value_to_wire(q: &antecedent_core::PolicyValueQuery) -> CausalQueryWire {
     CausalQueryWire::PolicyValue(PolicyValueQueryWire {
         outcome: q.outcome.raw(),
         assignment: q.assignment.to_vec(),
@@ -342,11 +333,7 @@ fn policy_value_to_wire(
         mu1: q.mu1.to_vec(),
         costs: q.costs.to_vec(),
         reference_costs: q.reference_costs.to_vec(),
-        evaluation_subject_ids: q
-            .evaluation_subject_ids
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        evaluation_subject_ids: q.evaluation_subject_ids.iter().map(ToString::to_string).collect(),
         disjoint_training_subjects: q.disjoint_training_subjects,
         crossfit_fold_ownership_valid: q.crossfit_fold_ownership_valid,
         global_constraints_present: q.global_constraints_present,
@@ -385,10 +372,7 @@ fn continuous_dose_response_to_wire(
         density_provenance: q.density_provenance.to_string(),
         fixed_policy: q.fixed_policy.as_ref().map(|rule| {
             (
-                rule.policy_doses
-                    .iter()
-                    .map(|(group, dose)| (group.to_string(), *dose))
-                    .collect(),
+                rule.policy_doses.iter().map(|(group, dose)| (group.to_string(), *dose)).collect(),
                 rule.reference_doses
                     .iter()
                     .map(|(group, dose)| (group.to_string(), *dose))
@@ -399,9 +383,7 @@ fn continuous_dose_response_to_wire(
 }
 
 /// Encode the [`CausalQuery::PanelDid`] payload.
-fn panel_did_to_wire(
-    q: &antecedent_core::PanelDidQuery,
-) -> CausalQueryWire {
+fn panel_did_to_wire(q: &antecedent_core::PanelDidQuery) -> CausalQueryWire {
     CausalQueryWire::PanelDid(PanelDidQueryWire {
         outcome: q.outcome.raw(),
         augmented: q.augmented.as_ref().map(|n| {
@@ -415,8 +397,7 @@ fn panel_did_to_wire(
         repeated_cross_section: q.design
             == antecedent_core::DidSamplingDesign::RepeatedCrossSection,
         staggered_target: q.target,
-        staggered_event_study: q.design
-            == antecedent_core::DidSamplingDesign::StaggeredEventStudy,
+        staggered_event_study: q.design == antecedent_core::DidSamplingDesign::StaggeredEventStudy,
         periods: q.periods.to_vec(),
         cohorts: q.cohorts.to_vec(),
         treated: q.treated.to_vec(),
@@ -432,9 +413,7 @@ fn panel_did_to_wire(
 }
 
 /// Encode the [`CausalQuery::SyntheticControl`] payload.
-fn synthetic_control_to_wire(
-    q: &antecedent_core::SyntheticControlQuery,
-) -> CausalQueryWire {
+fn synthetic_control_to_wire(q: &antecedent_core::SyntheticControlQuery) -> CausalQueryWire {
     CausalQueryWire::SyntheticControl(SyntheticControlQueryWire {
         outcome: q.outcome.raw(),
         units: q.units.iter().map(ToString::to_string).collect(),
@@ -446,10 +425,7 @@ fn synthetic_control_to_wire(
         uniform_unit_randomization: q.uniform_unit_randomization,
         sharp_null_effect: q.sharp_null_effect,
         augmentation_ridge: q.augmentation_ridge,
-        rollout: q
-            .rollout
-            .as_ref()
-            .map(crate::rollout_query_wire::synthetic_rollout_to_wire),
+        rollout: q.rollout.as_ref().map(crate::rollout_query_wire::synthetic_rollout_to_wire),
     })
 }
 
@@ -464,17 +440,12 @@ fn local_polynomial_ratio_to_wire(
         cutoff: q.cutoff,
         bandwidth: q.bandwidth,
         kink: q.kink,
-        options: q
-            .options
-            .as_ref()
-            .map(crate::rollout_query_wire::local_ratio_options_to_wire),
+        options: q.options.as_ref().map(crate::rollout_query_wire::local_ratio_options_to_wire),
     })
 }
 
 /// Encode the [`CausalQuery::Survival`] payload.
-fn survival_to_wire(
-    q: &antecedent_core::SurvivalQuery,
-) -> CausalQueryWire {
+fn survival_to_wire(q: &antecedent_core::SurvivalQuery) -> CausalQueryWire {
     CausalQueryWire::Survival(SurvivalQueryWire {
         duration: q.duration.raw(),
         event: q.event.raw(),
@@ -513,17 +484,13 @@ fn survival_to_wire(
 }
 
 /// Encode the [`CausalQuery::LongitudinalRegime`] payload.
-fn longitudinal_regime_to_wire(
-    q: &antecedent_core::LongitudinalRegimeQuery,
-) -> CausalQueryWire {
+fn longitudinal_regime_to_wire(q: &antecedent_core::LongitudinalRegimeQuery) -> CausalQueryWire {
     CausalQueryWire::LongitudinalRegime(LongitudinalRegimeQueryWire {
         outcome: q.outcome.raw(),
         method: match q.method {
             antecedent_core::LongitudinalRegimeMethod::Ipw => "ipw",
             antecedent_core::LongitudinalRegimeMethod::GFormula => "g_formula",
-            antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
-                "sequential_dr"
-            }
+            antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => "sequential_dr",
             antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
                 "marginal_structural_model"
             }
@@ -539,14 +506,8 @@ fn longitudinal_regime_to_wire(
             .as_ref()
             .map_or_else(Vec::new, |p| p.to_vec()),
         q_predictions: q.q_predictions.as_ref().map_or_else(Vec::new, |q| q.to_vec()),
-        observation_history: q
-            .observation_history
-            .as_ref()
-            .map_or_else(Vec::new, |o| o.to_vec()),
-        prediction_fold_ids: q
-            .prediction_fold_ids
-            .as_ref()
-            .map_or_else(Vec::new, |f| f.to_vec()),
+        observation_history: q.observation_history.as_ref().map_or_else(Vec::new, |o| o.to_vec()),
+        prediction_fold_ids: q.prediction_fold_ids.as_ref().map_or_else(Vec::new, |f| f.to_vec()),
         periods: q.periods,
         treatment_history: q.treatment_history.to_vec(),
         regime_actions: q.regime_actions.to_vec(),
@@ -565,9 +526,7 @@ fn longitudinal_regime_to_wire(
 }
 
 /// Encode the [`CausalQuery::SequentialContrast`] payload.
-fn sequential_contrast_to_wire(
-    q: &antecedent_core::SequentialContrastQuery,
-) -> CausalQueryWire {
+fn sequential_contrast_to_wire(q: &antecedent_core::SequentialContrastQuery) -> CausalQueryWire {
     CausalQueryWire::SequentialContrast(SequentialContrastQueryWire {
         outcome: q.outcome.raw(),
         first_treatment: q.first_treatment.raw(),
@@ -583,9 +542,7 @@ fn sequential_contrast_to_wire(
 }
 
 /// Encode the [`CausalQuery::HistoryMatch`] payload.
-fn history_match_to_wire(
-    q: &antecedent_core::HistoryMatchQuery,
-) -> CausalQueryWire {
+fn history_match_to_wire(q: &antecedent_core::HistoryMatchQuery) -> CausalQueryWire {
     CausalQueryWire::HistoryMatch(HistoryMatchQueryWire {
         outcome: q.outcome.raw(),
         treated: q.treated.raw(),

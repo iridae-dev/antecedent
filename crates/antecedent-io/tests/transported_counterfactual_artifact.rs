@@ -13,9 +13,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_io::transported_counterfactual_artifact::{
-    AffineWire, AssignmentWire, EvidenceWire, LawWire, MAX_COVARIATES, ModelWire, PremisesWire,
-    SelectionWire, SupportPointWire, TransportedCounterfactualArtifact,
-    TransportedCounterfactualArtifactError, TransportedCounterfactualMechanismWire,
+    AffineWire, AssignmentWire, EvidenceWire, LawWire, ModelWire, PremisesWire, SelectionWire,
+    SupportPointWire, TransportedCounterfactualArtifact, TransportedCounterfactualArtifactError,
+    TransportedCounterfactualLimits, TransportedCounterfactualMechanismWire,
     TransportedCounterfactualMeta, TransportedCounterfactualRefusalWire,
     TransportedCounterfactualRequestWire, decode_parts, encode_parts,
 };
@@ -418,10 +418,41 @@ fn x8t_artifact_unknown_versions_features_and_corruption_are_refused() {
 
 #[test]
 fn x8t_artifact_bounds_are_enforced_on_the_request() {
+    // There is no covariate-count cap: a wide model is refused for what it declares, never for
+    // how many covariates it names.
     let mut wide = request();
-    wide.model.covariates = (0..=MAX_COVARIATES).map(|i| format!("c{i}")).collect();
-    assert_eq!(
+    wide.model.covariates = (0..=64).map(|i| format!("c{i}")).collect();
+    assert!(!matches!(
         TransportedCounterfactualArtifact::seal(&wide).unwrap_err(),
-        TransportedCounterfactualArtifactError::LimitsExceeded("covariates")
+        TransportedCounterfactualArtifactError::LimitsExceeded(_)
+    ));
+}
+
+#[test]
+fn caller_limits_refuse_what_the_defaults_admit() {
+    let defaults = TransportedCounterfactualLimits::default();
+    let sealed = TransportedCounterfactualArtifact::seal_within(&request(), &defaults).unwrap();
+    let bytes = sealed.to_bytes("limits").unwrap();
+    TransportedCounterfactualArtifact::from_bytes_with_limits(&bytes, None, &defaults).unwrap();
+
+    for (limits, what) in [
+        (TransportedCounterfactualLimits { max_mechanisms: 0, ..defaults }, "mechanisms"),
+        (TransportedCounterfactualLimits { max_support_points: 2, ..defaults }, "support points"),
+        (TransportedCounterfactualLimits { max_declarations: 0, ..defaults }, "declarations"),
+    ] {
+        assert_eq!(
+            TransportedCounterfactualArtifact::seal_within(&request(), &limits).unwrap_err(),
+            TransportedCounterfactualArtifactError::LimitsExceeded(what)
+        );
+        assert_eq!(
+            TransportedCounterfactualArtifact::from_bytes_with_limits(&bytes, None, &limits)
+                .unwrap_err(),
+            TransportedCounterfactualArtifactError::LimitsExceeded(what)
+        );
+    }
+    let tight = TransportedCounterfactualLimits { max_bytes: bytes.len() - 1, ..defaults };
+    assert!(
+        TransportedCounterfactualArtifact::from_bytes_with_limits(&bytes, None, &tight).is_err()
     );
+    assert!(sealed.to_bytes_within("limits", bytes.len() - 1).is_err());
 }

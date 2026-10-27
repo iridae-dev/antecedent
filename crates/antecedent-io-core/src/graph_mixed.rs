@@ -138,7 +138,10 @@ pub fn pag_with_names_from_json_with_limits(
 ) -> Result<(Pag, Vec<String>), IoError> {
     let doc: PagJson = json_from_str(json)?;
     let names = names_or_default(doc.variable_names.as_deref(), doc.node_count, limits)?;
-    let g = pag_from_wire_with_limits(&PagWire { node_count: doc.node_count, edges: doc.edges }, limits)?;
+    let g = pag_from_wire_with_limits(
+        &PagWire { node_count: doc.node_count, edges: doc.edges },
+        limits,
+    )?;
     Ok((g, names))
 }
 
@@ -176,11 +179,14 @@ pub fn cpdag_with_names_from_json_with_limits(
 ) -> Result<(Cpdag, Vec<String>), IoError> {
     let doc: CpdagJson = json_from_str(json)?;
     let names = names_or_default(doc.variable_names.as_deref(), doc.node_count, limits)?;
-    let g = cpdag_from_wire_with_limits(&GraphCpdagWire {
-        node_count: doc.node_count,
-        directed: doc.directed,
-        undirected: doc.undirected,
-    }, limits)?;
+    let g = cpdag_from_wire_with_limits(
+        &GraphCpdagWire {
+            node_count: doc.node_count,
+            directed: doc.directed,
+            undirected: doc.undirected,
+        },
+        limits,
+    )?;
     Ok((g, names))
 }
 
@@ -225,11 +231,14 @@ pub fn admg_with_names_from_json_with_limits(
 ) -> Result<(Admg, Vec<String>), IoError> {
     let doc: AdmgJson = json_from_str(json)?;
     let names = names_or_default(doc.variable_names.as_deref(), doc.node_count, limits)?;
-    let g = admg_from_wire_with_limits(&AdmgWire {
-        node_count: doc.node_count,
-        directed: doc.directed,
-        bidirected: doc.bidirected,
-    }, limits)?;
+    let g = admg_from_wire_with_limits(
+        &AdmgWire {
+            node_count: doc.node_count,
+            directed: doc.directed,
+            bidirected: doc.bidirected,
+        },
+        limits,
+    )?;
     Ok((g, names))
 }
 
@@ -295,8 +304,10 @@ pub fn cpdag_with_names_from_dot_with_limits(
             }
         }
     }
-    let g =
-        cpdag_from_wire_with_limits(&GraphCpdagWire { node_count: parsed.node_count, directed, undirected }, limits)?;
+    let g = cpdag_from_wire_with_limits(
+        &GraphCpdagWire { node_count: parsed.node_count, directed, undirected },
+        limits,
+    )?;
     Ok((g, parsed.names))
 }
 
@@ -485,7 +496,10 @@ pub fn admg_with_names_from_dot_with_limits(
             }
         }
     }
-    let g = admg_from_wire_with_limits(&AdmgWire { node_count: parsed.node_count, directed, bidirected }, limits)?;
+    let g = admg_from_wire_with_limits(
+        &AdmgWire { node_count: parsed.node_count, directed, bidirected },
+        limits,
+    )?;
     Ok((g, parsed.names))
 }
 
@@ -675,11 +689,14 @@ pub fn cpdag_with_names_from_gml_with_limits(
     limits: &GraphLimits,
 ) -> Result<(Cpdag, Vec<String>), IoError> {
     let g = parse_gml(gml)?;
-    let cpdag = cpdag_from_wire_with_limits(&GraphCpdagWire {
-        node_count: g.node_count,
-        directed: g.directed,
-        undirected: g.undirected,
-    }, limits)?;
+    let cpdag = cpdag_from_wire_with_limits(
+        &GraphCpdagWire {
+            node_count: g.node_count,
+            directed: g.directed,
+            undirected: g.undirected,
+        },
+        limits,
+    )?;
     Ok((cpdag, g.names))
 }
 
@@ -785,11 +802,10 @@ pub fn admg_with_names_from_gml_with_limits(
     limits: &GraphLimits,
 ) -> Result<(Admg, Vec<String>), IoError> {
     let g = parse_gml(gml)?;
-    let admg = admg_from_wire_with_limits(&AdmgWire {
-        node_count: g.node_count,
-        directed: g.directed,
-        bidirected: g.bidirected,
-    }, limits)?;
+    let admg = admg_from_wire_with_limits(
+        &AdmgWire { node_count: g.node_count, directed: g.directed, bidirected: g.bidirected },
+        limits,
+    )?;
     Ok((admg, g.names))
 }
 
@@ -942,7 +958,9 @@ without_names! {
 /// # Errors
 ///
 /// Malformed JSON.
-pub fn cpdag_with_names_from_networkx_node_link(json: &str) -> Result<(Cpdag, Vec<String>), IoError> {
+pub fn cpdag_with_names_from_networkx_node_link(
+    json: &str,
+) -> Result<(Cpdag, Vec<String>), IoError> {
     cpdag_with_names_from_networkx_node_link_with_limits(json, &GraphLimits::default())
 }
 
@@ -966,7 +984,8 @@ pub fn cpdag_with_names_from_networkx_node_link_with_limits(
         }
     }
     let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-    let g = cpdag_from_wire_with_limits(&GraphCpdagWire { node_count, directed, undirected }, limits)?;
+    let g =
+        cpdag_from_wire_with_limits(&GraphCpdagWire { node_count, directed, undirected }, limits)?;
     Ok((g, order))
 }
 

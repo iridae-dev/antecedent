@@ -1324,7 +1324,11 @@ impl MeasurementModelArtifact {
     /// artifacts, an identity that is not the expected one, and a result that
     /// does not recompute refuse.
     pub fn from_bytes(bytes: &[u8], expected_model_identity: &str) -> Result<Self, IoError> {
-        Self::from_bytes_within(bytes, expected_model_identity, MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES)
+        Self::from_bytes_within(
+            bytes,
+            expected_model_identity,
+            MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES,
+        )
     }
 
     /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES`].

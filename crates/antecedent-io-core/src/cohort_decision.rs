@@ -74,6 +74,25 @@ pub const COHORT_DECISION_SECTION: &str = "cohort_decision_source_body";
 pub const MAX_COHORT_DECISION_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 /// Most cohort rows one source binds.
 pub const MAX_COHORT_ROWS: usize = 200_000;
+
+/// Intake bounds for a cohort decision source. The defaults are
+/// [`MAX_COHORT_DECISION_ARTIFACT_BYTES`] and [`MAX_COHORT_ROWS`]; a consumer with a larger
+/// budget passes its own to [`CohortBinding::new_within`],
+/// [`CohortDecisionSource::build_within`] and [`CohortDecisionSource::consume_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CohortIntakeLimits {
+    /// Most container bytes, and most declared uncompressed payload bytes.
+    pub max_bytes: usize,
+    /// Most cohort rows one source binds.
+    pub max_rows: usize,
+}
+
+impl Default for CohortIntakeLimits {
+    fn default() -> Self {
+        Self { max_bytes: MAX_COHORT_DECISION_ARTIFACT_BYTES, max_rows: MAX_COHORT_ROWS }
+    }
+}
+
 /// Largest allowed deviation of the weight sum from one.
 pub const WEIGHT_SUM_TOLERANCE: f64 = 1e-9;
 /// Functional identity of the model's conditional contrast.
@@ -318,6 +337,30 @@ impl CohortBinding {
         columns: Vec<CohortColumn>,
         weights: Vec<f64>,
     ) -> Result<Self, CohortRefusal> {
+        Self::new_within(
+            snapshot_id,
+            population_id,
+            row_ids,
+            features,
+            columns,
+            weights,
+            &CohortIntakeLimits::default(),
+        )
+    }
+
+    /// [`Self::new`] under the caller's intake bounds instead of [`MAX_COHORT_ROWS`].
+    ///
+    /// # Errors
+    /// As [`Self::new`]; more rows than `limits.max_rows` is `cohort_too_large`.
+    pub fn new_within(
+        snapshot_id: &str,
+        population_id: &str,
+        row_ids: Vec<String>,
+        features: Vec<String>,
+        columns: Vec<CohortColumn>,
+        weights: Vec<f64>,
+        limits: &CohortIntakeLimits,
+    ) -> Result<Self, CohortRefusal> {
         let cohort = Self {
             snapshot_id: snapshot_id.to_owned(),
             population_id: population_id.to_owned(),
@@ -326,7 +369,7 @@ impl CohortBinding {
             columns,
             weights,
         };
-        cohort.validate()?;
+        cohort.validate_within(limits)?;
         Ok(cohort)
     }
 
@@ -371,6 +414,14 @@ impl CohortBinding {
     /// # Errors
     /// As [`Self::new`].
     pub fn validate(&self) -> Result<(), CohortRefusal> {
+        self.validate_within(&CohortIntakeLimits::default())
+    }
+
+    /// [`Self::validate`] under the caller's intake bounds instead of [`MAX_COHORT_ROWS`].
+    ///
+    /// # Errors
+    /// As [`Self::validate`].
+    pub fn validate_within(&self, limits: &CohortIntakeLimits) -> Result<(), CohortRefusal> {
         let remedy = "declare a cohort with named finite feature rows and normalized weights";
         if self.snapshot_id.trim().is_empty() || self.population_id.trim().is_empty() {
             return Err(invalid(
@@ -383,7 +434,7 @@ impl CohortBinding {
         if rows == 0 {
             return Err(invalid("cohort_decision.cohort_empty", "rows", remedy));
         }
-        if rows > MAX_COHORT_ROWS {
+        if rows > limits.max_rows {
             return Err(invalid("cohort_decision.cohort_too_large", rows.to_string(), remedy));
         }
         if self.features.is_empty()
@@ -1298,7 +1349,29 @@ impl CohortDecisionSource {
         options: &CohortOptions,
         ctx: &ExecutionContext,
     ) -> Result<Self, CohortRefusal> {
-        cohort.validate()?;
+        Self::build_within(
+            model,
+            cohort,
+            outcome_units,
+            options,
+            ctx,
+            &CohortIntakeLimits::default(),
+        )
+    }
+
+    /// [`Self::build`] under the caller's intake bounds instead of [`MAX_COHORT_ROWS`].
+    ///
+    /// # Errors
+    /// As [`Self::build`].
+    pub fn build_within(
+        model: &RetainedEffectModel,
+        cohort: &CohortBinding,
+        outcome_units: &str,
+        options: &CohortOptions,
+        ctx: &ExecutionContext,
+        limits: &CohortIntakeLimits,
+    ) -> Result<Self, CohortRefusal> {
+        cohort.validate_within(limits)?;
         if outcome_units.trim().is_empty() {
             return Err(invalid(
                 "cohort_decision.outcome_units_required",
@@ -1603,6 +1676,19 @@ impl CohortDecisionSource {
     /// # Errors
     /// A blank artifact id, an oversized payload or an encoding failure.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, CohortRefusal> {
+        self.to_bytes_within(artifact_id, MAX_COHORT_DECISION_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::to_bytes`] under the caller's byte bound instead of
+    /// [`MAX_COHORT_DECISION_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes`]; a payload over `max_bytes` is `cohort_decision.oversized`.
+    pub fn to_bytes_within(
+        &self,
+        artifact_id: &str,
+        max_bytes: usize,
+    ) -> Result<Vec<u8>, CohortRefusal> {
         if artifact_id.trim().is_empty() {
             return Err(invalid(
                 "cohort_decision.missing_artifact_id",
@@ -1633,7 +1719,7 @@ impl CohortDecisionSource {
         };
         let mut bytes = Vec::new();
         encoded.write_to(&mut bytes).map_err(|e| io_refusal(&e))?;
-        if bytes.len() > MAX_COHORT_DECISION_ARTIFACT_BYTES {
+        if bytes.len() > max_bytes {
             return Err(invalid(
                 "cohort_decision.oversized",
                 bytes.len().to_string(),
@@ -1654,6 +1740,24 @@ impl CohortDecisionSource {
         Self::consume_with(bytes, expectation, &ExecutionContext::production_default(0))
     }
 
+    /// As [`Self::consume`] under the caller's intake bounds instead of
+    /// [`MAX_COHORT_DECISION_ARTIFACT_BYTES`] and [`MAX_COHORT_ROWS`].
+    ///
+    /// # Errors
+    /// As [`Self::consume`].
+    pub fn consume_within(
+        bytes: &[u8],
+        expectation: &CohortExpectation,
+        limits: &CohortIntakeLimits,
+    ) -> Result<Self, CohortRefusal> {
+        Self::consume_with_limits(
+            bytes,
+            expectation,
+            &ExecutionContext::production_default(0),
+            limits,
+        )
+    }
+
     /// As [`Self::consume`] under a caller's execution context (cancellation, budgets).
     ///
     /// # Errors
@@ -1663,10 +1767,24 @@ impl CohortDecisionSource {
         expectation: &CohortExpectation,
         ctx: &ExecutionContext,
     ) -> Result<Self, CohortRefusal> {
-        let body = decode_body(bytes)?;
+        Self::consume_with_limits(bytes, expectation, ctx, &CohortIntakeLimits::default())
+    }
+
+    /// As [`Self::consume_with`] under the caller's intake bounds.
+    ///
+    /// # Errors
+    /// As [`Self::consume`].
+    pub fn consume_with_limits(
+        bytes: &[u8],
+        expectation: &CohortExpectation,
+        ctx: &ExecutionContext,
+        limits: &CohortIntakeLimits,
+    ) -> Result<Self, CohortRefusal> {
+        let body = decode_body(bytes, limits.max_bytes)?;
         let model = rebuild_model(&body)?;
         let options = CohortOptions { shift: body.shift.clone(), expected_contrast_regime: None };
-        let recomputed = Self::build(&model, &body.cohort, &body.outcome_units, &options, ctx)?;
+        let recomputed =
+            Self::build_within(&model, &body.cohort, &body.outcome_units, &options, ctx, limits)?;
         check_expectation(&recomputed, expectation)?;
         if recomputed.to_body() != body
             || recomputed.mean_contrast.to_bits() != body.mean_contrast.to_bits()
@@ -1689,8 +1807,8 @@ impl CohortDecisionSource {
     }
 }
 
-fn decode_body(bytes: &[u8]) -> Result<SourceBody, CohortRefusal> {
-    if bytes.len() > MAX_COHORT_DECISION_ARTIFACT_BYTES {
+fn decode_body(bytes: &[u8], max_bytes: usize) -> Result<SourceBody, CohortRefusal> {
+    if bytes.len() > max_bytes {
         return Err(invalid(
             "cohort_decision.oversized",
             bytes.len().to_string(),
@@ -1718,7 +1836,7 @@ fn decode_body(bytes: &[u8]) -> Result<SourceBody, CohortRefusal> {
             "supply a cohort decision source",
         ));
     }
-    if crate::error::declared_exceeds_usize_limit(declared, MAX_COHORT_DECISION_ARTIFACT_BYTES) {
+    if crate::error::declared_exceeds_usize_limit(declared, max_bytes) {
         return Err(invalid(
             "cohort_decision.oversized",
             "declared_uncompressed_size",
@@ -1726,7 +1844,7 @@ fn decode_body(bytes: &[u8]) -> Result<SourceBody, CohortRefusal> {
         ));
     }
     let section = reader.load_section(COHORT_DECISION_SECTION).map_err(|e| io_refusal(&e))?;
-    if section.as_bytes().len() > MAX_COHORT_DECISION_ARTIFACT_BYTES {
+    if section.as_bytes().len() > max_bytes {
         return Err(invalid("cohort_decision.oversized", "section", "bind a smaller cohort"));
     }
     let body: SourceBody = from_cbor(section.as_bytes()).map_err(|e| io_refusal(&e))?;

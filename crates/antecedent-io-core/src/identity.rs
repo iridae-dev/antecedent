@@ -338,9 +338,7 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 "factorial_cell_counts".into(),
                 query.factorial_cell_counts.map_or_else(
                     || "none".into(),
-                    |counts| {
-                        counts.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
-                    },
+                    |counts| counts.iter().map(ToString::to_string).collect::<Vec<_>>().join(","),
                 ),
             ),
             (
@@ -1450,14 +1448,9 @@ fn posterior_atom_graph_wire(
             .ok_or_else(|| IoError::Convert("posterior lag masks must align with atoms".into()))?;
         return match posterior.atom_kind() {
             GraphPosteriorAtomKind::Cpdag => {
-                let graph = temporal_cpdag_from_dbn_atoms(
-                    adjacency,
-                    lag_mask,
-                    n_vars,
-                    max_lag,
-                    ids,
-                )
-                .map_err(|err| IoError::Convert(err.to_string()))?;
+                let graph =
+                    temporal_cpdag_from_dbn_atoms(adjacency, lag_mask, n_vars, max_lag, ids)
+                        .map_err(|err| IoError::Convert(err.to_string()))?;
                 let GraphIdentityWire::TemporalClass(wire) = temporal_cpdag_identity(&graph) else {
                     return Err(IoError::Convert(
                         "temporal CPDAG posterior atom must encode as TemporalClass".into(),
@@ -1485,12 +1478,7 @@ fn posterior_atom_graph_wire(
             GraphPosteriorAtomKind::Pag => {
                 let mark_mask = posterior.mark_atom(index);
                 let graph = temporal_pag_from_dbn_atoms(
-                    adjacency,
-                    lag_mask,
-                    mark_mask,
-                    n_vars,
-                    max_lag,
-                    ids,
+                    adjacency, lag_mask, mark_mask, n_vars, max_lag, ids,
                 )
                 .map_err(|err| IoError::Convert(err.to_string()))?;
                 let GraphIdentityWire::TemporalClass(wire) = temporal_pag_identity(&graph) else {
@@ -1501,14 +1489,8 @@ fn posterior_atom_graph_wire(
                 Ok(PosteriorAtomGraphWire::TemporalClass(wire))
             }
             _ => {
-                let graph = temporal_dag_from_dbn_atoms(
-                    adjacency,
-                    lag_mask,
-                    n_vars,
-                    max_lag,
-                    ids,
-                )
-                .map_err(|err| IoError::Convert(err.to_string()))?;
+                let graph = temporal_dag_from_dbn_atoms(adjacency, lag_mask, n_vars, max_lag, ids)
+                    .map_err(|err| IoError::Convert(err.to_string()))?;
                 Ok(PosteriorAtomGraphWire::Temporal(canonical_temporal_dag_wire(&graph)?))
             }
         };
@@ -3915,18 +3897,12 @@ mod tests {
         let adjusted = set_edge(set_edge(&direct, 3, 2, 0, true), 3, 2, 1, true);
         let reversed = set_edge(0, 3, 1, 0, true);
         let confounded = set_edge(set_edge(0, 3, 2, 0, true), 3, 2, 1, true);
-        let base = static_posterior(
-            [0.5, 0.3, 0.2],
-            [direct.clone(), adjusted.clone(), reversed.clone()],
-        );
-        let reweighted = static_posterior(
-            [0.2, 0.3, 0.5],
-            [direct.clone(), adjusted.clone(), reversed.clone()],
-        );
-        let regraphed = static_posterior(
-            [0.5, 0.3, 0.2],
-            [direct.clone(), adjusted.clone(), confounded],
-        );
+        let base =
+            static_posterior([0.5, 0.3, 0.2], [direct.clone(), adjusted.clone(), reversed.clone()]);
+        let reweighted =
+            static_posterior([0.2, 0.3, 0.5], [direct.clone(), adjusted.clone(), reversed.clone()]);
+        let regraphed =
+            static_posterior([0.5, 0.3, 0.2], [direct.clone(), adjusted.clone(), confounded]);
         let reordered = static_posterior([0.2, 0.5, 0.3], [reversed, direct, adjusted]);
         assert_ne!(posterior_premises(&base), posterior_premises(&reweighted));
         assert_ne!(posterior_premises(&base), posterior_premises(&regraphed));
@@ -3950,8 +3926,7 @@ mod tests {
         let built = set_edge(set_edge(AdjacencyMask::EMPTY, n, 0, 1, true), n, 2, 0, true);
         assert_eq!(from_word, built);
         let empty = AdjacencyMask::EMPTY;
-        let legacy =
-            static_posterior([0.5, 0.3, 0.2], [from_word, empty.clone(), empty.clone()]);
+        let legacy = static_posterior([0.5, 0.3, 0.2], [from_word, empty.clone(), empty.clone()]);
         let wide = static_posterior([0.5, 0.3, 0.2], [built, empty.clone(), empty]);
         assert_eq!(posterior_premises(&legacy), posterior_premises(&wide));
         let mut dag = Dag::with_variables(3);

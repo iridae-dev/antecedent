@@ -18,6 +18,27 @@ use crate::external_claim_artifact::{ExternalClaimIdentity, values_digest};
 pub const MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES: usize = 1024 * 1024;
 /// Maximum rows one column claim covers.
 pub const MAX_EXTERNAL_COLUMN_ROWS: u64 = 16 * 1024 * 1024;
+
+/// Intake bounds for a column claim. The defaults are
+/// [`MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES`] and [`MAX_EXTERNAL_COLUMN_ROWS`]; a consumer
+/// with a larger budget passes its own to [`ExternalColumnClaimArtifact::from_bytes_with_limits`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExternalColumnIntakeLimits {
+    /// Most container bytes.
+    pub max_bytes: usize,
+    /// Most rows one column claim covers.
+    pub max_rows: u64,
+}
+
+impl Default for ExternalColumnIntakeLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES,
+            max_rows: MAX_EXTERNAL_COLUMN_ROWS,
+        }
+    }
+}
+
 const ARTIFACT_KIND: &str = crate::artifact_kinds::EXTERNAL_COLUMN_CLAIM;
 const META_SECTION: &str = "external_column_claim.meta";
 const LABELS: [&str; 5] =
@@ -59,7 +80,11 @@ pub struct ExternalColumnIdentity {
 }
 
 impl ExternalColumnIdentity {
-    fn from_claim(claim: &BoundExternalClaim, causal_contract_id: &str) -> Result<Self, IoError> {
+    fn from_claim(
+        claim: &BoundExternalClaim,
+        causal_contract_id: &str,
+        max_rows: u64,
+    ) -> Result<Self, IoError> {
         let Some(column) = claim.column() else {
             return Err(IoError::Convert("claim is not a row-level column".into()));
         };
@@ -71,11 +96,11 @@ impl ExternalColumnIdentity {
             )?,
             column: ColumnIdentityWire::from(column),
         };
-        value.validate()?;
+        value.validate(max_rows)?;
         Ok(value)
     }
 
-    fn validate(&self) -> Result<(), IoError> {
+    fn validate(&self, max_rows: u64) -> Result<(), IoError> {
         self.claim.validate()?;
         let column = &self.column;
         if self.claim.quantities.len() != 1 {
@@ -84,7 +109,7 @@ impl ExternalColumnIdentity {
         if column.dtype != ColumnClaim::DTYPE {
             return Err(IoError::Convert(format!("unsupported column dtype `{}`", column.dtype)));
         }
-        if column.rows == 0 || column.rows > MAX_EXTERNAL_COLUMN_ROWS {
+        if column.rows == 0 || column.rows > max_rows {
             return Err(IoError::TooLarge);
         }
         let positions: Option<Vec<usize>> = column
@@ -145,14 +170,14 @@ pub struct ExternalColumnClaimArtifact {
     metadata: ExternalColumnClaimMetadata,
 }
 
-fn validate(meta: &ExternalColumnClaimMetadata) -> Result<(), IoError> {
+fn validate(meta: &ExternalColumnClaimMetadata, max_rows: u64) -> Result<(), IoError> {
     if meta.version != 1 {
         return Err(IoError::UnsupportedVersion { version: u32::from(meta.version) });
     }
     if meta.native_estimation {
         return Err(IoError::Convert("external claim cannot be native estimation".into()));
     }
-    meta.identity.validate()
+    meta.identity.validate(max_rows)
 }
 
 impl ExternalColumnClaimArtifact {
@@ -165,12 +190,33 @@ impl ExternalColumnClaimArtifact {
         claim: &BoundExternalClaim,
         causal_contract_id: &str,
     ) -> Result<Self, IoError> {
+        Self::from_bound_claim_with_limits(
+            claim,
+            causal_contract_id,
+            &ExternalColumnIntakeLimits::default(),
+        )
+    }
+
+    /// [`Self::from_bound_claim`] under the caller's intake bounds instead of
+    /// [`MAX_EXTERNAL_COLUMN_ROWS`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bound_claim`]; a column over `limits.max_rows` is `TooLarge`.
+    pub fn from_bound_claim_with_limits(
+        claim: &BoundExternalClaim,
+        causal_contract_id: &str,
+        limits: &ExternalColumnIntakeLimits,
+    ) -> Result<Self, IoError> {
         let metadata = ExternalColumnClaimMetadata {
             version: 1,
-            identity: ExternalColumnIdentity::from_claim(claim, causal_contract_id)?,
+            identity: ExternalColumnIdentity::from_claim(
+                claim,
+                causal_contract_id,
+                limits.max_rows,
+            )?,
             native_estimation: false,
         };
-        validate(&metadata)?;
+        validate(&metadata, limits.max_rows)?;
         Ok(Self { metadata })
     }
 
@@ -199,12 +245,24 @@ impl ExternalColumnClaimArtifact {
     /// # Errors
     /// A blank artifact id or an oversized payload refuses.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
-        validate(&self.metadata)?;
+        self.to_bytes_with_limits(artifact_id, &ExternalColumnIntakeLimits::default())
+    }
+
+    /// [`Self::to_bytes`] under the caller's intake bounds.
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes`]; a bound of `limits` exceeded refuses.
+    pub fn to_bytes_with_limits(
+        &self,
+        artifact_id: &str,
+        limits: &ExternalColumnIntakeLimits,
+    ) -> Result<Vec<u8>, IoError> {
+        validate(&self.metadata, limits.max_rows)?;
         crate::artifact_codec::encode_sectioned_io(
             &crate::ArtifactContainer {
                 kind: ARTIFACT_KIND,
                 note: "external_column_claim",
-                max_bytes: MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES,
+                max_bytes: limits.max_bytes,
                 artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),
             },
@@ -233,10 +291,28 @@ impl ExternalColumnClaimArtifact {
         expected: &ExternalColumnIdentity,
         max_bytes: usize,
     ) -> Result<Self, IoError> {
+        Self::from_bytes_with_limits(
+            bytes,
+            expected,
+            &ExternalColumnIntakeLimits { max_bytes, ..ExternalColumnIntakeLimits::default() },
+        )
+    }
+
+    /// [`Self::from_bytes`] under the caller's intake bounds instead of
+    /// [`MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES`] and [`MAX_EXTERNAL_COLUMN_ROWS`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is `TooLarge`.
+    pub fn from_bytes_with_limits(
+        bytes: &[u8],
+        expected: &ExternalColumnIdentity,
+        limits: &ExternalColumnIntakeLimits,
+    ) -> Result<Self, IoError> {
+        let max_bytes = limits.max_bytes;
         if bytes.len() > max_bytes {
             return Err(IoError::TooLarge);
         }
-        expected.validate()?;
+        expected.validate(limits.max_rows)?;
         let (metadata, []): (ExternalColumnClaimMetadata, _) =
             crate::artifact_codec::decode_sectioned_io(
                 ARTIFACT_KIND,
@@ -252,7 +328,7 @@ impl ExternalColumnClaimArtifact {
                 message: "external_column_claim.identity_expected: claim identity differs from the consumer's checked contract".into(),
             });
         }
-        validate(&metadata)?;
+        validate(&metadata, limits.max_rows)?;
         Ok(Self { metadata })
     }
 }

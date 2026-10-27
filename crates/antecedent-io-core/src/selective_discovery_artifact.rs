@@ -35,7 +35,6 @@ use antecedent_discovery::selective::{
 };
 use serde::{Deserialize, Serialize};
 
-
 /// The artifact major version this reader writes and accepts.
 pub const SELECTIVE_DISCOVERY_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
@@ -46,6 +45,30 @@ pub const SELECTIVE_DISCOVERY_INFERENCE: &str = "algorithmic_match_only";
 pub const MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 /// Most nodes and most edges a stored structure may declare.
 pub const MAX_STRUCTURE_ITEMS: usize = 1 << 16;
+
+/// Intake bounds for a selective-discovery artifact. The defaults are
+/// [`MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES`], [`MAX_STRUCTURE_ITEMS`] and
+/// [`MAX_PORTABLE_RECEIPTS`]; a consumer with a larger budget passes its own to
+/// [`SelectiveDiscoveryArtifact::from_bytes_with_limits`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SelectiveDiscoveryIntakeLimits {
+    /// Most container bytes.
+    pub max_bytes: usize,
+    /// Most nodes, and most edges, a stored structure may declare.
+    pub max_structure_items: usize,
+    /// Most receipts a stored state may carry.
+    pub max_receipts: usize,
+}
+
+impl Default for SelectiveDiscoveryIntakeLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES,
+            max_structure_items: MAX_STRUCTURE_ITEMS,
+            max_receipts: MAX_PORTABLE_RECEIPTS,
+        }
+    }
+}
 
 const ARTIFACT_KIND: &str = crate::artifact_kinds::SELECTIVE_DISCOVERY;
 const META_SECTION: &str = "selective_discovery_meta";
@@ -271,8 +294,11 @@ pub fn structure_to_wire(structure: &DiscoveredStructure) -> StructureWire {
     }
 }
 
-fn structure_from_wire(wire: &StructureWire) -> Result<DiscoveredStructure, Failure> {
-    if wire.nodes.len() > MAX_STRUCTURE_ITEMS || wire.edges.len() > MAX_STRUCTURE_ITEMS {
+fn structure_from_wire(
+    wire: &StructureWire,
+    max_items: usize,
+) -> Result<DiscoveredStructure, Failure> {
+    if wire.nodes.len() > max_items || wire.edges.len() > max_items {
         return Err(Failure::LimitsExceeded("structure"));
     }
     let class = StructureClass::from_name(&wire.class)
@@ -404,6 +430,7 @@ fn compute_identity(meta: &SelectiveDiscoveryMeta) -> String {
 fn check(
     meta: &SelectiveDiscoveryMeta,
     expected_identity: Option<&str>,
+    limits: &SelectiveDiscoveryIntakeLimits,
 ) -> Result<SelectiveDiscoveryArtifact, Failure> {
     if meta.version != SELECTIVE_DISCOVERY_ARTIFACT_VERSION {
         return Err(Failure::UnsupportedVersion { version: meta.version });
@@ -418,7 +445,7 @@ fn check(
     if meta.inference != SELECTIVE_DISCOVERY_INFERENCE {
         return Err(Failure::UnsupportedSemantics("inference label"));
     }
-    if meta.receipts.len() > MAX_PORTABLE_RECEIPTS {
+    if meta.receipts.len() > limits.max_receipts {
         return Err(Failure::LimitsExceeded("receipts"));
     }
     let receipts = meta.receipts.iter().map(receipt_from_wire).collect::<Result<Vec<_>, _>>()?;
@@ -426,7 +453,7 @@ fn check(
     for (name, hex) in &meta.components {
         components.push((name.clone(), hex_digest(hex, "a stage input")?));
     }
-    let structure = structure_from_wire(&meta.structure)?;
+    let structure = structure_from_wire(&meta.structure, limits.max_structure_items)?;
     let graph_identity = hex_digest(&meta.graph_identity, "graph_identity")?;
     if structure.identity() != graph_identity {
         return Err(Failure::IdentityMismatch { field: "graph_identity" });
@@ -447,7 +474,7 @@ fn check(
         bounded_search_receipts: meta.bounded_search_receipts.clone(),
         work: work_from_wire(&meta.work),
     };
-    state.validate().map_err(|e| refused(&e))?;
+    state.validate_within(limits.max_receipts).map_err(|e| refused(&e))?;
     let identity = compute_identity(meta);
     if meta.identity != identity {
         return Err(Failure::IdentityMismatch { field: "identity" });
@@ -488,12 +515,13 @@ fn meta_of(state: &PortableDiscoveryState) -> SelectiveDiscoveryMeta {
 fn encode_meta(
     meta: &SelectiveDiscoveryMeta,
     artifact_id: &str,
+    max_bytes: usize,
 ) -> Result<Vec<u8>, Failure> {
     crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "selective_discovery",
-            max_bytes: MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES,
+            max_bytes,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
@@ -503,10 +531,7 @@ fn encode_meta(
     )
 }
 
-fn decode_meta(
-    bytes: &[u8],
-    max_bytes: usize,
-) -> Result<SelectiveDiscoveryMeta, Failure> {
+fn decode_meta(bytes: &[u8], max_bytes: usize) -> Result<SelectiveDiscoveryMeta, Failure> {
     crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
         max_bytes,
@@ -536,9 +561,21 @@ impl SelectiveDiscoveryArtifact {
     pub fn seal(
         state: &PortableDiscoveryState,
     ) -> Result<(Self, SelectiveDiscoveryMeta), SelectiveDiscoveryArtifactError> {
-        state.validate().map_err(|e| refused(&e))?;
+        Self::seal_with_limits(state, &SelectiveDiscoveryIntakeLimits::default())
+    }
+
+    /// [`Self::seal`] under the caller's intake bounds instead of the defaults.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::seal`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn seal_with_limits(
+        state: &PortableDiscoveryState,
+        limits: &SelectiveDiscoveryIntakeLimits,
+    ) -> Result<(Self, SelectiveDiscoveryMeta), SelectiveDiscoveryArtifactError> {
+        state.validate_within(limits.max_receipts).map_err(|e| refused(&e))?;
         let meta = meta_of(state);
-        let artifact = check(&meta, None)?;
+        let artifact = check(&meta, None, limits)?;
         Ok((artifact, meta))
     }
 
@@ -551,8 +588,21 @@ impl SelectiveDiscoveryArtifact {
         state: &PortableDiscoveryState,
         artifact_id: &str,
     ) -> Result<Vec<u8>, SelectiveDiscoveryArtifactError> {
-        let (_, meta) = Self::seal(state)?;
-        encode_meta(&meta, artifact_id)
+        Self::to_bytes_with_limits(state, artifact_id, &SelectiveDiscoveryIntakeLimits::default())
+    }
+
+    /// [`Self::to_bytes`] under the caller's intake bounds instead of the defaults.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::to_bytes`]; a bound of `limits` exceeded refuses.
+    pub fn to_bytes_with_limits(
+        state: &PortableDiscoveryState,
+        artifact_id: &str,
+        limits: &SelectiveDiscoveryIntakeLimits,
+    ) -> Result<Vec<u8>, SelectiveDiscoveryArtifactError> {
+        let (_, meta) = Self::seal_with_limits(state, limits)?;
+        encode_meta(&meta, artifact_id, limits.max_bytes)
     }
 
     /// Consume an artifact: rebuild receipts and structure, recompute every identity.
@@ -580,7 +630,28 @@ impl SelectiveDiscoveryArtifact {
         expected_identity: Option<&str>,
         max_bytes: usize,
     ) -> Result<Self, SelectiveDiscoveryArtifactError> {
-        check(&decode_meta(bytes, max_bytes)?, expected_identity)
+        Self::from_bytes_with_limits(
+            bytes,
+            expected_identity,
+            &SelectiveDiscoveryIntakeLimits {
+                max_bytes,
+                ..SelectiveDiscoveryIntakeLimits::default()
+            },
+        )
+    }
+
+    /// [`Self::from_bytes`] under the caller's intake bounds instead of
+    /// [`MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES`], [`MAX_STRUCTURE_ITEMS`] and
+    /// [`MAX_PORTABLE_RECEIPTS`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn from_bytes_with_limits(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        limits: &SelectiveDiscoveryIntakeLimits,
+    ) -> Result<Self, SelectiveDiscoveryArtifactError> {
+        check(&decode_meta(bytes, limits.max_bytes)?, expected_identity, limits)
     }
 
     /// Read the stored metadata without validating it: the independent inspection of a
@@ -617,7 +688,7 @@ impl SelectiveDiscoveryArtifact {
         meta: &SelectiveDiscoveryMeta,
         expected_identity: Option<&str>,
     ) -> Result<Self, SelectiveDiscoveryArtifactError> {
-        check(meta, expected_identity)
+        check(meta, expected_identity, &SelectiveDiscoveryIntakeLimits::default())
     }
 
     /// Recompute the identity of `meta` after an edit, for tests that reseal.
@@ -636,6 +707,6 @@ impl SelectiveDiscoveryArtifact {
         meta: &SelectiveDiscoveryMeta,
         artifact_id: &str,
     ) -> Result<Vec<u8>, SelectiveDiscoveryArtifactError> {
-        encode_meta(meta, artifact_id)
+        encode_meta(meta, artifact_id, MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES)
     }
 }

@@ -152,11 +152,8 @@ impl DirectLingam {
         }
         // Working residual matrix, standardised so the degeneracy tests below are relative to
         // each variable's own scale: rescaling a column cannot make it look degenerate.
-        let cols: Vec<Vec<f64>> = centered
-            .iter()
-            .zip(&sd)
-            .map(|(c, &s)| c.iter().map(|v| v / s).collect())
-            .collect();
+        let cols: Vec<Vec<f64>> =
+            centered.iter().zip(&sd).map(|(c, &s)| c.iter().map(|v| v / s).collect()).collect();
 
         // Required contemporaneous edges as index pairs `(parent, child)`.
         let required_pairs: Vec<(usize, usize)> = self
@@ -219,25 +216,23 @@ impl DirectLingam {
 
         let edge_evidence: Vec<EdgeEvidence> = edge_coefs
             .iter()
-            .map(|&(par, child, beta)| {
-                EdgeEvidence {
-                    link: LaggedLink {
-                        source: variables[par],
-                        source_lag: Lag::CONTEMPORANEOUS,
-                        target: variables[child],
-                        target_lag: Lag::CONTEMPORANEOUS,
-                    },
-                    statistic: Some(beta),
-                    p_value: None,
-                    adjusted_p_value: None,
-                    interval: None,
-                    separating_set: None,
-                    provenance: if required_pairs.contains(&(par, child)) {
-                        Arc::from([Arc::from(ALGORITHM), Arc::from("required")])
-                    } else {
-                        Arc::from([Arc::from(ALGORITHM)])
-                    },
-                }
+            .map(|&(par, child, beta)| EdgeEvidence {
+                link: LaggedLink {
+                    source: variables[par],
+                    source_lag: Lag::CONTEMPORANEOUS,
+                    target: variables[child],
+                    target_lag: Lag::CONTEMPORANEOUS,
+                },
+                statistic: Some(beta),
+                p_value: None,
+                adjusted_p_value: None,
+                interval: None,
+                separating_set: None,
+                provenance: if required_pairs.contains(&(par, child)) {
+                    Arc::from([Arc::from(ALGORITHM), Arc::from("required")])
+                } else {
+                    Arc::from([Arc::from(ALGORITHM)])
+                },
             })
             .collect();
 
@@ -391,73 +386,73 @@ fn causal_order(
     // round) reads it instead of re-summing the two columns.
     let mut gram = vec![0.0; p * p];
     let mut order: Vec<usize> = Vec::with_capacity(p);
-        while remaining.len() > 1 {
+    while remaining.len() > 1 {
+        if ctx.cancellation.is_cancelled() {
+            return Err(DiscoveryError::Cancelled);
+        }
+        fill_gram(&mut gram, &cols, &remaining);
+        let mut best_j = remaining[0];
+        let mut best_score = f64::INFINITY;
+        // A variable whose required parent is still unplaced cannot be exogenous yet:
+        // ordering it first would silently contradict the constraint.
+        let eligible: Vec<usize> = remaining
+            .iter()
+            .copied()
+            .filter(|&j| !required_pairs.iter().any(|&(a, b)| b == j && in_remaining[a]))
+            .collect();
+        if eligible.is_empty() {
+            return Err(DiscoveryError::unsupported(
+                "required edges form a cycle: no causal order satisfies them",
+            ));
+        }
+        for &j in &eligible {
             if ctx.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            fill_gram(&mut gram, &cols, &remaining);
-            let mut best_j = remaining[0];
-            let mut best_score = f64::INFINITY;
-            // A variable whose required parent is still unplaced cannot be exogenous yet:
-            // ordering it first would silently contradict the constraint.
-            let eligible: Vec<usize> = remaining
-                .iter()
-                .copied()
-                .filter(|&j| !required_pairs.iter().any(|&(a, b)| b == j && in_remaining[a]))
-                .collect();
-            if eligible.is_empty() {
-                return Err(DiscoveryError::unsupported(
-                    "required edges form a cycle: no causal order satisfies them",
-                ));
-            }
-            for &j in &eligible {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(DiscoveryError::Cancelled);
-                }
-                let mut score = 0.0;
-                // `cols[j]` is residualized after this round, so the cache dies with `j`.
-                let y = DistanceY::new(&cols[j]);
-                for &i in &remaining {
-                    if i == j {
-                        continue;
-                    }
-                    let beta = slope_from_gram(gram[i * p + j], gram[j * p + j], n);
-                    residual_into(&cols[i], &cols[j], beta, &mut resid);
-                    let d = y.correlate(&resid);
-                    if !d.is_finite() {
-                        return Err(DiscoveryError::stats_msg(
-                            "DirectLiNGAM independence score is non-finite",
-                        ));
-                    }
-                    score += d;
-                }
-                if score < best_score {
-                    best_score = score;
-                    best_j = j;
-                }
-            }
-            if !best_score.is_finite() {
-                return Err(DiscoveryError::stats_msg(
-                    "DirectLiNGAM causal-order search produced a non-finite score",
-                ));
-            }
-            // Residualize remaining on chosen exogenous.
-            let exogenous = std::mem::take(&mut cols[best_j]);
+            let mut score = 0.0;
+            // `cols[j]` is residualized after this round, so the cache dies with `j`.
+            let y = DistanceY::new(&cols[j]);
             for &i in &remaining {
-                if i != best_j {
-                    let beta = slope_from_gram(gram[i * p + best_j], gram[best_j * p + best_j], n);
-                    for (yi, xi) in cols[i].iter_mut().zip(&exogenous) {
-                        *yi -= beta * xi;
-                    }
+                if i == j {
+                    continue;
+                }
+                let beta = slope_from_gram(gram[i * p + j], gram[j * p + j], n);
+                residual_into(&cols[i], &cols[j], beta, &mut resid);
+                let d = y.correlate(&resid);
+                if !d.is_finite() {
+                    return Err(DiscoveryError::stats_msg(
+                        "DirectLiNGAM independence score is non-finite",
+                    ));
+                }
+                score += d;
+            }
+            if score < best_score {
+                best_score = score;
+                best_j = j;
+            }
+        }
+        if !best_score.is_finite() {
+            return Err(DiscoveryError::stats_msg(
+                "DirectLiNGAM causal-order search produced a non-finite score",
+            ));
+        }
+        // Residualize remaining on chosen exogenous.
+        let exogenous = std::mem::take(&mut cols[best_j]);
+        for &i in &remaining {
+            if i != best_j {
+                let beta = slope_from_gram(gram[i * p + best_j], gram[best_j * p + best_j], n);
+                for (yi, xi) in cols[i].iter_mut().zip(&exogenous) {
+                    *yi -= beta * xi;
                 }
             }
-            remaining.retain(|&i| i != best_j);
-            in_remaining[best_j] = false;
-            order.push(best_j);
         }
-        if let Some(last) = remaining.pop() {
-            order.push(last);
-        }
+        remaining.retain(|&i| i != best_j);
+        in_remaining[best_j] = false;
+        order.push(best_j);
+    }
+    if let Some(last) = remaining.pop() {
+        order.push(last);
+    }
     Ok(order)
 }
 

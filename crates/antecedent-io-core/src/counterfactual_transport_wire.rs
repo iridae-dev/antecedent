@@ -36,13 +36,13 @@ use std::sync::Arc;
 use antecedent_core::{IdentityDomain, VariableId};
 use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
-    COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_MAX_ATOMS,
-    COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES, COUNTERFACTUAL_TRANSPORT_MAX_LIMITS,
+    COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES,
+    COUNTERFACTUAL_TRANSPORT_MAX_ATOMS, COUNTERFACTUAL_TRANSPORT_MAX_LIMITS,
     COUNTERFACTUAL_TRANSPORT_MAX_REGIMES, COUNTERFACTUAL_TRANSPORT_MAX_SOURCES,
-    COUNTERFACTUAL_TRANSPORT_MAX_WORLDS, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES, CounterfactualTransportDerivation,
-    CounterfactualTransportProblem, CounterfactualTransportQuery,
-    CounterfactualTransportSearchRecord, CounterfactualTransportSource,
-    CounterfactualTransportWitness,
+    COUNTERFACTUAL_TRANSPORT_MAX_WORLDS, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
+    CounterfactualTransportDerivation, CounterfactualTransportProblem,
+    CounterfactualTransportQuery, CounterfactualTransportSearchRecord,
+    CounterfactualTransportSource, CounterfactualTransportWitness,
 };
 use serde::{Deserialize, Serialize};
 

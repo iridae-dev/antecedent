@@ -11,8 +11,8 @@ use antecedent_contract::RequestedReading;
 use antecedent_core::ExecutionContext;
 use antecedent_counterfactual::selective::finite_scm::abduct_unit;
 use antecedent_counterfactual::selective::{
-    ExogenousInference, ExogenousVariable, FactualUnit, FiniteExecutionRequest, FiniteQuantity,
-    ExogenousMethod, FiniteScm, FiniteScmExecutor, FiniteVariable, FiniteWorld, NoiseCoupling,
+    ExogenousInference, ExogenousMethod, ExogenousVariable, FactualUnit, FiniteExecutionRequest,
+    FiniteQuantity, FiniteScm, FiniteScmExecutor, FiniteVariable, FiniteWorld, NoiseCoupling,
     StageStatus, WorldAtom, WorldRoute,
 };
 
@@ -907,14 +907,13 @@ fn elimination_refuses_refuted_evidence_and_keeps_the_joint_law_rule() {
         "cross_world_execution.evidence_outside_model_support"
     );
     // An undeclared coupling is refused exactly as on the enumerating route.
-    let mut undeclared = request(
-        scm,
-        vec![unit("case", &[])],
-        vec![do_x("x0", 0), do_x("x1", 1)],
-        joint_y1_y0(),
-    );
+    let mut undeclared =
+        request(scm, vec![unit("case", &[])], vec![do_x("x0", 0), do_x("x1", 1)], joint_y1_y0());
     undeclared.coupling = NoiseCoupling::Undeclared;
-    assert_eq!(refusal_of(FiniteScmExecutor::new().execute(&undeclared, &ctx())).0, "joint_law_required");
+    assert_eq!(
+        refusal_of(FiniteScmExecutor::new().execute(&undeclared, &ctx())).0,
+        "joint_law_required"
+    );
 }
 
 // One exogenous term U ~ (0.7, 0.3) is named by all three mechanisms:
@@ -1064,4 +1063,29 @@ fn a_law_to_be_fitted_is_unsupported_execution_while_latent_confounding_is_nonid
     assert_eq!(latent.code, "cross_world_not_identified");
     assert_eq!(latent.detail, "cross_world_execution.latent_confounding_not_identified");
     assert_ne!(undeclared.code, latent.code);
+}
+
+#[test]
+fn a_caller_retention_bound_evicts_what_the_default_keeps() {
+    let req = request(
+        response_types([0.2, 0.5, 0.1, 0.2]),
+        vec![unit("case", &[(0, 1), (1, 1)])],
+        vec![do_x("x0", 0), do_x("x1", 1)],
+        FiniteQuantity::Probability(atom(0, 1, 0)),
+    );
+    let mut default = FiniteScmExecutor::new();
+    assert_eq!(
+        default.max_retained(),
+        antecedent_counterfactual::selective::finite_executor::MAX_RETAINED
+    );
+    default.execute(&req, &ctx()).unwrap();
+    assert_eq!(default.retained_len(), 1);
+    assert_eq!(default.execute(&req, &ctx()).unwrap().work.abductions_reused, 1);
+
+    // A bound of zero retains nothing, so the same request abduces again.
+    let mut none = FiniteScmExecutor::with_max_retained(0);
+    none.execute(&req, &ctx()).unwrap();
+    assert_eq!(none.retained_len(), 0);
+    let again = none.execute(&req, &ctx()).unwrap();
+    assert_eq!((again.work.abductions, again.work.abductions_reused), (1, 0));
 }

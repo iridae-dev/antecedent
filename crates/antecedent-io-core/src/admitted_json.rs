@@ -21,13 +21,19 @@ pub struct AdmittedJson {
 impl AdmittedJson {
     /// Borrow the encoded payload while its admission owner remains alive.
     #[must_use]
-    pub fn as_str(&self) -> &str { &self.text }
+    pub fn as_str(&self) -> &str {
+        &self.text
+    }
     /// Borrow the exact encoded bytes.
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] { self.text.as_bytes() }
+    pub fn as_bytes(&self) -> &[u8] {
+        self.text.as_bytes()
+    }
     /// Actual funded output capacity, without a guessed encoded-size multiplier.
     #[must_use]
-    pub fn retained_bytes(&self) -> usize { self.text.capacity() }
+    pub fn retained_bytes(&self) -> usize {
+        self.text.capacity()
+    }
 }
 
 fn cancelled(ctx: &ExecutionContext) -> Result<(), IoError> {
@@ -43,13 +49,22 @@ fn admit(ctx: &ExecutionContext, bytes: usize) -> Result<AdmissionLease, IoError
     })
 }
 fn serialization(error: serde_json::Error, ctx: &ExecutionContext) -> IoError {
-    if ctx.cancellation.is_requested() { IoError::StreamCancelled }
-    else { IoError::Convert(format!("native JSON serialization failed: {error}")) }
+    if ctx.cancellation.is_requested() {
+        IoError::StreamCancelled
+    } else {
+        IoError::Convert(format!("native JSON serialization failed: {error}"))
+    }
 }
-struct Counter<'a> { ctx: &'a ExecutionContext, length: usize, overflow: bool }
+struct Counter<'a> {
+    ctx: &'a ExecutionContext,
+    length: usize,
+    overflow: bool,
+}
 impl Write for Counter<'_> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        if self.ctx.cancellation.is_cancelled() { return Err(io::Error::other("native JSON serialization cancelled")); }
+        if self.ctx.cancellation.is_cancelled() {
+            return Err(io::Error::other("native JSON serialization cancelled"));
+        }
         let Some(length) = self.length.checked_add(bytes.len()) else {
             self.overflow = true;
             return Err(io::Error::other("native JSON byte count overflow"));
@@ -57,19 +72,29 @@ impl Write for Counter<'_> {
         self.length = length;
         Ok(bytes.len())
     }
-    fn flush(&mut self) -> io::Result<()> { Ok(()) }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
-struct Output<'a> { ctx: &'a ExecutionContext, bytes: &'a mut Vec<u8>, quoted: usize }
+struct Output<'a> {
+    ctx: &'a ExecutionContext,
+    bytes: &'a mut Vec<u8>,
+    quoted: usize,
+}
 impl Write for Output<'_> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        if self.ctx.cancellation.is_cancelled() { return Err(io::Error::other("native JSON serialization cancelled")); }
+        if self.ctx.cancellation.is_cancelled() {
+            return Err(io::Error::other("native JSON serialization cancelled"));
+        }
         if bytes.len() > self.quoted.saturating_sub(self.bytes.len()) {
             return Err(io::Error::other("native JSON changed after its exact quote"));
         }
         self.bytes.extend_from_slice(bytes);
         Ok(bytes.len())
     }
-    fn flush(&mut self) -> io::Result<()> { Ok(()) }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 /// Encode a stable borrowed native serializer under exact output admission.
@@ -83,14 +108,17 @@ impl Write for Output<'_> {
 /// Cancellation, insufficient admission, allocator failure, serialization failure
 /// or a source serializer that changes its output length between the two passes.
 pub fn serialize_admitted<T: Serialize + ?Sized>(
-    source: &T, ctx: &ExecutionContext,
+    source: &T,
+    ctx: &ExecutionContext,
 ) -> Result<AdmittedJson, IoError> {
     cancelled(ctx)?;
     let mut quote = Counter { ctx, length: 0, overflow: false };
     if let Err(error) = serde_json::to_writer(&mut quote, source) {
-        if quote.overflow { return Err(IoError::StreamBudgetRefused {
-            message: "native JSON byte count exceeds usize".into(),
-        }); }
+        if quote.overflow {
+            return Err(IoError::StreamBudgetRefused {
+                message: "native JSON byte count exceeds usize".into(),
+            });
+        }
         return Err(serialization(error, ctx));
     }
     cancelled(ctx)?;
@@ -119,13 +147,19 @@ pub fn serialize_admitted<T: Serialize + ?Sized>(
 mod tests {
     use super::*;
     use antecedent_core::execution::AdmissionPool;
-    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
     #[derive(Serialize)]
-    struct Payload<'a> { text: &'a str, rows: &'a [u32] }
+    struct Payload<'a> {
+        text: &'a str,
+        rows: &'a [u32],
+    }
 
     #[test]
     fn exact_json_buffer_is_funded_before_encoding_and_until_last_owner_drops() {
-        let payload = Payload { text: "original\\\"λ", rows: &[9,2,0] };
+        let payload = Payload { text: "original\\\"λ", rows: &[9, 2, 0] };
         let expected = serde_json::to_vec(&payload).unwrap();
         let budget = u64::try_from(expected.len()).unwrap();
         let pool = AdmissionPool::fixed(1, budget);
@@ -143,16 +177,22 @@ mod tests {
         assert_eq!(pool.available().bytes(), budget);
         let short = AdmissionPool::fixed(1, budget - 1);
         let ctx = ExecutionContext::for_tests(17).with_admission(short.clone());
-        assert!(matches!(serialize_admitted(&payload, &ctx), Err(IoError::StreamBudgetRefused { .. })));
+        assert!(matches!(
+            serialize_admitted(&payload, &ctx),
+            Err(IoError::StreamBudgetRefused { .. })
+        ));
         assert_eq!(short.available().bytes(), budget - 1);
     }
 
     #[test]
     fn cancellation_during_funded_output_releases_the_exact_lease() {
-        struct CancelOnEncoding<'a> { ctx: &'a ExecutionContext, calls: AtomicUsize }
+        struct CancelOnEncoding<'a> {
+            ctx: &'a ExecutionContext,
+            calls: AtomicUsize,
+        }
         impl Serialize for CancelOnEncoding<'_> {
             fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                if self.calls.fetch_add(1,Ordering::SeqCst) == 1 {
+                if self.calls.fetch_add(1, Ordering::SeqCst) == 1 {
                     assert_eq!(self.ctx.admission.available().bytes(), 0);
                     self.ctx.cancellation.cancel();
                 }
@@ -162,8 +202,8 @@ mod tests {
         let pool = AdmissionPool::fixed(1, 7);
         let ctx = ExecutionContext::for_tests(17).with_admission(pool.clone());
         let payload = CancelOnEncoding { ctx: &ctx, calls: AtomicUsize::new(0) };
-        assert!(matches!(serialize_admitted(&payload,&ctx), Err(IoError::StreamCancelled)));
-        assert_eq!(payload.calls.load(Ordering::SeqCst),2);
-        assert_eq!(pool.available().bytes(),7);
+        assert!(matches!(serialize_admitted(&payload, &ctx), Err(IoError::StreamCancelled)));
+        assert_eq!(payload.calls.load(Ordering::SeqCst), 2);
+        assert_eq!(pool.available().bytes(), 7);
     }
 }

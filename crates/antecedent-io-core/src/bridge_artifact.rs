@@ -76,7 +76,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::bridge_distribution::{BridgedDistribution, bridge_draws};
 use crate::convert::to_cbor;
-use crate::distribution_artifact::{DistributionArtifact, DistributionIdentity};
+use crate::distribution_artifact::{
+    DistributionArtifact, DistributionIdentity, DistributionIntakeLimits,
+};
 use crate::measurement_model_wire::{MeasurementModelWire, model_from_wire, model_to_wire};
 use crate::quantity_wire::ScientificQuantityWire;
 
@@ -974,6 +976,7 @@ fn encode_meta(
     meta: &ScientificBridgeMeta,
     source_draws: Option<&[u8]>,
     artifact_id: &str,
+    max_bytes: usize,
 ) -> Result<Vec<u8>, ScientificBridgeArtifactError> {
     let payloads: Vec<crate::OutSection<'_>> = source_draws
         .map(|draws| crate::OutSection {
@@ -987,7 +990,7 @@ fn encode_meta(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "scientific_bridge",
-            max_bytes: MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES,
+            max_bytes,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
@@ -1000,7 +1003,7 @@ fn encode_meta(
 /// The stored metadata and, for a bridge of draws, the embedded source table.
 type Decoded = (ScientificBridgeMeta, Option<Vec<u8>>);
 
-fn decode_meta(bytes: &[u8]) -> Result<Decoded, ScientificBridgeArtifactError> {
+fn decode_meta(bytes: &[u8], max_bytes: usize) -> Result<Decoded, ScientificBridgeArtifactError> {
     // A bridge of draws is a second section; try the layout of a single section first so a
     // version-1 artifact is read exactly as before.
     let (meta, _layout, mut payloads) = crate::artifact_codec::decode_sectioned_layouts::<
@@ -1008,7 +1011,7 @@ fn decode_meta(bytes: &[u8]) -> Result<Decoded, ScientificBridgeArtifactError> {
         ScientificBridgeMeta,
     >(
         ARTIFACT_KIND,
-        MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES,
+        max_bytes,
         META_SECTION,
         &[&[], &[DRAWS_SECTION]],
         |version| {
@@ -1077,8 +1080,22 @@ impl ScientificBridgeArtifact {
         source: &BridgeSource<'_>,
         artifact_id: &str,
     ) -> Result<Vec<u8>, ScientificBridgeArtifactError> {
+        Self::to_bytes_within(bridged, source, artifact_id, MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::to_bytes`] under the caller's byte bound instead of
+    /// [`MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes`]; a payload over `max_bytes` is refused.
+    pub fn to_bytes_within(
+        bridged: &BridgedClaim,
+        source: &BridgeSource<'_>,
+        artifact_id: &str,
+        max_bytes: usize,
+    ) -> Result<Vec<u8>, ScientificBridgeArtifactError> {
         let (_, meta) = Self::seal(bridged, source)?;
-        encode_meta(&meta, None, artifact_id)
+        encode_meta(&meta, None, artifact_id, max_bytes)
     }
 
     /// Consume an artifact by replaying the derivation.
@@ -1097,7 +1114,20 @@ impl ScientificBridgeArtifact {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, ScientificBridgeArtifactError> {
-        let (meta, source_draws) = decode_meta(bytes)?;
+        Self::from_bytes_within(bytes, expected_identity, MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of
+    /// [`MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+    ) -> Result<Self, ScientificBridgeArtifactError> {
+        let (meta, source_draws) = decode_meta(bytes, max_bytes)?;
         if source_draws.is_some() {
             return Err(ScientificBridgeArtifactError::UnsupportedSemantics(
                 "a bridge of draws is consumed with its draws",
@@ -1158,6 +1188,7 @@ fn check_draws(
     meta: &ScientificBridgeMeta,
     source_draws: &[u8],
     expected_identity: Option<&str>,
+    draws_limits: &DistributionIntakeLimits,
 ) -> Result<ScientificBridgeDrawsArtifact, ScientificBridgeArtifactError> {
     check_format(meta)?;
     let Some(draws) = &meta.draws else {
@@ -1172,14 +1203,15 @@ fn check_draws(
     if meta.propagation.is_some() {
         return Err(mismatch("propagated uncertainty"));
     }
-    if source_draws.len() > crate::distribution_artifact::MAX_DISTRIBUTION_ARTIFACT_BYTES {
+    if source_draws.len() > draws_limits.max_bytes {
         return Err(ScientificBridgeArtifactError::LimitsExceeded("source draws"));
     }
     if CanonicalWriter::digest_bytes_hex(TAG_BODY, source_draws) != draws.source_digest {
         return Err(mismatch("source draws"));
     }
-    let table = DistributionArtifact::from_bytes(source_draws, &draws.source_identity)
-        .map_err(|error| malformed(error.to_string()))?;
+    let table =
+        DistributionArtifact::from_bytes_within(source_draws, &draws.source_identity, draws_limits)
+            .map_err(|error| malformed(error.to_string()))?;
     let contract = contract_from_wire(&meta.contract)?;
     let bridged = bridge_draws(&contract, &table, None, draws.seed).map_err(refused)?;
     let claim = bridged.claim();
@@ -1259,7 +1291,8 @@ impl ScientificBridgeDrawsArtifact {
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta)?;
-        let artifact = check_draws(&meta, &source_bytes, None)?;
+        let artifact =
+            check_draws(&meta, &source_bytes, None, &DistributionIntakeLimits::default())?;
         Ok((artifact, meta, source_bytes))
     }
 
@@ -1271,8 +1304,21 @@ impl ScientificBridgeDrawsArtifact {
         bridged: &BridgedDistribution,
         artifact_id: &str,
     ) -> Result<Vec<u8>, ScientificBridgeArtifactError> {
+        Self::to_bytes_within(bridged, artifact_id, MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::to_bytes`] under the caller's byte bound instead of
+    /// [`MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes`]; a payload over `max_bytes` is refused.
+    pub fn to_bytes_within(
+        bridged: &BridgedDistribution,
+        artifact_id: &str,
+        max_bytes: usize,
+    ) -> Result<Vec<u8>, ScientificBridgeArtifactError> {
         let (_, meta, source_bytes) = Self::seal(bridged)?;
-        encode_meta(&meta, Some(&source_bytes), artifact_id)
+        encode_meta(&meta, Some(&source_bytes), artifact_id, max_bytes)
     }
 
     /// Consume an artifact by mapping its stored draws again.
@@ -1286,13 +1332,33 @@ impl ScientificBridgeDrawsArtifact {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, ScientificBridgeArtifactError> {
-        let (meta, source_draws) = decode_meta(bytes)?;
+        Self::from_bytes_within(
+            bytes,
+            expected_identity,
+            MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES,
+            &DistributionIntakeLimits::default(),
+        )
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of
+    /// [`MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES`], with the embedded source draw table
+    /// held to `draws_limits` instead of the `MAX_DISTRIBUTION_*` defaults.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound exceeded is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+        draws_limits: &DistributionIntakeLimits,
+    ) -> Result<Self, ScientificBridgeArtifactError> {
+        let (meta, source_draws) = decode_meta(bytes, max_bytes)?;
         let Some(source_draws) = source_draws else {
             return Err(ScientificBridgeArtifactError::Malformed(
                 "a bridge of draws stores its draws".into(),
             ));
         };
-        check_draws(&meta, &source_draws, expected_identity)
+        check_draws(&meta, &source_draws, expected_identity, draws_limits)
     }
 
     /// The replayed bridged distribution.
@@ -1318,7 +1384,7 @@ impl ScientificBridgeDrawsArtifact {
         source_draws: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, ScientificBridgeArtifactError> {
-        check_draws(meta, source_draws, expected_identity)
+        check_draws(meta, source_draws, expected_identity, &DistributionIntakeLimits::default())
     }
 
     /// Recompute the identity of `meta` after an edit, for tests that reseal.
@@ -1351,11 +1417,30 @@ impl ScientificBridgeAny {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, ScientificBridgeArtifactError> {
-        let (meta, source_draws) = decode_meta(bytes)?;
+        Self::from_bytes_within(
+            bytes,
+            expected_identity,
+            MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES,
+            &DistributionIntakeLimits::default(),
+        )
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound and, for a bridge of draws, the
+    /// caller's bounds on the embedded source table.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound exceeded is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+        draws_limits: &DistributionIntakeLimits,
+    ) -> Result<Self, ScientificBridgeArtifactError> {
+        let (meta, source_draws) = decode_meta(bytes, max_bytes)?;
         match source_draws {
             None => check(&meta, expected_identity).map(Self::Point),
             Some(source_draws) => {
-                check_draws(&meta, &source_draws, expected_identity).map(Self::Draws)
+                check_draws(&meta, &source_draws, expected_identity, draws_limits).map(Self::Draws)
             }
         }
     }
@@ -1365,7 +1450,18 @@ impl ScientificBridgeAny {
     /// # Errors
     /// Corruption, another major version or a layout that is not a bridge.
     pub fn shape(bytes: &[u8]) -> Result<&'static str, ScientificBridgeArtifactError> {
-        let (_, source_draws) = decode_meta(bytes)?;
+        Self::shape_within(bytes, MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::shape`] under the caller's byte bound.
+    ///
+    /// # Errors
+    /// As [`Self::shape`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn shape_within(
+        bytes: &[u8],
+        max_bytes: usize,
+    ) -> Result<&'static str, ScientificBridgeArtifactError> {
+        let (_, source_draws) = decode_meta(bytes, max_bytes)?;
         Ok(if source_draws.is_some() { "draws" } else { "point" })
     }
 

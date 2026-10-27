@@ -168,9 +168,8 @@ impl Pc {
         )?;
         let (family_p, family_edge) = skel.family_columns();
         let mut scored = skeleton_scored_links(&skel);
-        let StaticSkeleton {
-            mut adj, sepsets, ci_tests, iterations, parent_limit_removed, ..
-        } = skel;
+        let StaticSkeleton { mut adj, sepsets, ci_tests, iterations, parent_limit_removed, .. } =
+            skel;
 
         let fdr_diagnostic =
             self.correct_multiplicity(&mut scored, &mut adj, &family_p, &family_edge);

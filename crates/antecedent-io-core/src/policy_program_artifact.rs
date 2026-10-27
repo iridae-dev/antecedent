@@ -163,7 +163,8 @@ fn open_envelope(bytes: &[u8]) -> Result<PolicyProgramEnvelope, IoError> {
     struct Peek {
         version: Option<u64>,
     }
-    let no_version = IoError::ManifestMismatch { message: "policy program has no encoding version" };
+    let no_version =
+        IoError::ManifestMismatch { message: "policy program has no encoding version" };
     let version = match ciborium::from_reader::<Peek, _>(body) {
         Ok(peek) => peek.version,
         Err(ciborium::de::Error::Semantic(..)) => return Err(no_version),

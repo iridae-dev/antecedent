@@ -671,13 +671,9 @@ pub(crate) fn decode_on_wire_arc_owned(
 ) -> Result<(Arc<[u8]>, bool), IoError> {
     match compression {
         None => Ok((Arc::from(on_wire), false)),
-        _ => decode_on_wire_arc(
-            &on_wire,
-            compression,
-            section,
-            uncompressed_size,
-            max_section_bytes,
-        ),
+        _ => {
+            decode_on_wire_arc(&on_wire, compression, section, uncompressed_size, max_section_bytes)
+        }
     }
 }
 
@@ -1949,10 +1945,7 @@ mod tests {
             let work = StreamWork::new(&ctx).with_chunk_bytes(chunk);
             let refused =
                 describe_streaming("s", "t", &source, CompressPolicy::Always, &work).unwrap_err();
-            assert!(
-                matches!(&refused, IoError::StreamBudgetRefused { .. }),
-                "{refused}"
-            );
+            assert!(matches!(&refused, IoError::StreamBudgetRefused { .. }), "{refused}");
             assert_eq!(pool.available().bytes(), need - 1);
 
             let exact = AdmissionPool::fixed(1, need);
