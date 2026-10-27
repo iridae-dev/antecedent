@@ -1308,7 +1308,7 @@ mod tests {
             moved |= cell_contrasts[draw].abs() > 1e-9;
         }
         assert!(moved, "the four-cell linear contrast must be a real draw, not an additive zero");
-        source.refresh(data(1.0), &ctx).unwrap();
+        crate::analysis::prepared::rebind_estimate(&mut source, data(1.0), &ctx).unwrap();
         let updated = source.compile_joint_response(&target(false), &ctx).unwrap();
         assert_ne!(program.source_digest(), updated.source_digest());
         let attempt = observe_with_context(&ctx, || updated.execute(&ctx));

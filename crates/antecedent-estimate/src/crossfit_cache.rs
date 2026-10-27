@@ -528,6 +528,20 @@ impl CrossfitNuisanceCache {
         Arc::new(Self::build(ctx.cloned(), max_entries, max_bytes))
     }
 
+    /// Release the least recently used entry nobody is reading, returning its bytes to the
+    /// pool. `false` when nothing can be released. Retention is a best-effort reuse of
+    /// fits, so mandatory scratch may displace it but never the reverse.
+    pub(crate) fn release_one_idle(&self) -> bool {
+        let Ok(mut state) = self.store.state.lock() else {
+            return false;
+        };
+        let released = state.evict_one();
+        if released {
+            self.store.evictions.fetch_add(1, Ordering::AcqRel);
+        }
+        released
+    }
+
     /// Bytes this cache currently retains (keys and predictions), as charged.
     #[must_use]
     pub fn retained_bytes(&self) -> u64 {

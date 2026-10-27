@@ -151,7 +151,7 @@ fn verify_functional_effect_coordinate(
     } else {
         assert!(result.posterior.is_none(), "{coordinate} unexpected posterior");
     }
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{coordinate} refresh");
     assert!(
         matches!(
@@ -208,7 +208,7 @@ fn admg_default_estimator_replay_uses_resolved_commitment() {
     assert!(prepared.contract().unwrap().estimator.is_none());
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert!((result.effect() - 0.4).abs() < 1e-12);
-    let refreshed = prepared.refresh(data, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits());
     let bytes = prepared
         .encode_contracted_result(&refreshed, "admg-default-functional-effect", &ctx)
@@ -350,4 +350,17 @@ fn admg_explicit_frequentist_none() {
         false,
         "none",
     );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

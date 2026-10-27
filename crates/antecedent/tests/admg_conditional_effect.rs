@@ -464,7 +464,7 @@ fn verify_conditional_coordinate(coordinate: &str, accepted: bool, bayesian: boo
         result.effect()
     );
     assert_eq!(result.posterior.is_some(), bayesian, "{coordinate} posterior presence");
-    let refreshed = prepared.refresh(data, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{coordinate} refresh");
     // The artifact a consumer reads carries the scalar the route published.
     let artifact = prepared
@@ -480,4 +480,17 @@ fn admg_conditional_effect_coordinates_execute_from_the_retained_plan() {
     verify_conditional_coordinate("ConditionalEffect:Admg:accepted:Frequentist:none", true, false);
     verify_conditional_coordinate("ConditionalEffect:Admg:explicit:Bayesian:none", false, true);
     verify_conditional_coordinate("ConditionalEffect:Admg:accepted:Bayesian:none", true, true);
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

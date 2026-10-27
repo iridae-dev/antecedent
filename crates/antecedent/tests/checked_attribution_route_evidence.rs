@@ -72,7 +72,7 @@ fn frequentist_static_dag_attribution_plans_body() {
     let maximum = score.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
     assert_eq!(score.rows[maximum.0], 19, "the injected outlier is the top anomaly");
     let refreshed_anomaly = anomaly_data(220.0);
-    let refreshed = anomaly_prepared.refresh(refreshed_anomaly, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut anomaly_prepared, refreshed_anomaly, &ctx).unwrap();
     assert!(refreshed.anomaly().unwrap()[0].scores.iter().any(|score| score.is_finite()));
     let artifact = anomaly_prepared
         .encode_contracted_result(&refreshed, "checked-anomaly-attribution", &ctx)
@@ -113,7 +113,7 @@ fn frequentist_static_dag_attribution_plans_body() {
     let initial_change = initial.change_attribution().unwrap().total_change;
     assert!((initial_change - 5.0).abs() < 1e-8, "known population mean shift: {initial_change}");
     let refreshed_data = change_data(0.5);
-    let refreshed = change_prepared.refresh(refreshed_data, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut change_prepared, refreshed_data, &ctx).unwrap();
     let refreshed_change = refreshed.change_attribution().unwrap().total_change;
     assert!(
         (refreshed_change - 5.5).abs() < 1e-8,
@@ -176,7 +176,7 @@ fn bayesian_static_dag_attribution_plans_body() {
     let score = scores.iter().find(|score| score.target == VariableId::from_raw(1)).unwrap();
     let maximum = score.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
     assert_eq!(score.rows[maximum.0], 19, "the injected outlier remains the top anomaly");
-    let refreshed = anomaly_prepared.refresh(anomaly_data(220.0), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut anomaly_prepared, anomaly_data(220.0), &ctx).unwrap();
     assert!(refreshed.posterior.is_some());
     let artifact = anomaly_prepared
         .encode_contracted_result(&refreshed, "checked-bayesian-anomaly-attribution", &ctx)
@@ -217,7 +217,7 @@ fn bayesian_static_dag_attribution_plans_body() {
     assert!(initial.posterior.is_some());
     let change_result = initial.change_attribution().expect("change result");
     assert!((change_result.total_change - 5.0).abs() < 0.15);
-    let refreshed = change_prepared.refresh(change_data(0.5), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut change_prepared, change_data(0.5), &ctx).unwrap();
     assert!(refreshed.posterior.is_some());
     let refreshed_change = refreshed.change_attribution().unwrap();
     assert!((refreshed_change.total_change - 5.5).abs() < 0.15);
@@ -233,4 +233,17 @@ fn bayesian_static_dag_attribution_plans_body() {
             .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
     );
     assert!(!consumed.acceptance.accepts_as_verified_program());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

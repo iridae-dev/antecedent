@@ -17,7 +17,7 @@ fn refresh_and_export(builder: StudyBuilder, rows: usize) -> AnalysisResultConsu
     let context = ExecutionContext::for_tests(73);
     let (replacement, _, _) = confounded_scm(rows, 91);
     let mut prepared = builder.build().unwrap().prepare(&context).unwrap();
-    let refreshed = prepared.refresh(replacement, &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, replacement, &context).unwrap();
     let artifact = prepared.encode_contracted_result(&refreshed, "refresh", &context).unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
     assert!(
@@ -66,4 +66,17 @@ fn refreshed_trimmed_aipw_exports_a_verified_row_binding() {
             .refute(RefuteSuite::Cheap);
         refresh_and_export(builder, rows);
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

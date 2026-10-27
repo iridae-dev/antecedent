@@ -307,7 +307,9 @@ fn prepared_gaussian_refresh_replans_changed_rows_without_reidentifying() {
     )
     .unwrap();
     let (observed, solves) = count_least_squares_solves(|| {
-        antecedent_core::execution_attempt::observe_execution(|| prepared.refresh(data, &ctx))
+        antecedent_core::execution_attempt::observe_execution(|| {
+            crate::analysis::prepared::rebind_estimate(&mut prepared, data, &ctx)
+        })
     });
     assert!(solves > 0);
     assert_eq!(

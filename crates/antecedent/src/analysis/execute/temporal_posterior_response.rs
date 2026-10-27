@@ -742,6 +742,9 @@ fn dbn_posterior_structural_mixture(
         conditional_on_identified: Some(conditional),
         full_mass_scope: true,
         truncated_atoms: 0,
+        aggregation_policy: Some(
+            crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+        ),
     }
 }
 

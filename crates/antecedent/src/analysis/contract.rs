@@ -1214,7 +1214,7 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<crate::result::StudyResult, CausalError> {
         self.require_bound_preview(preview, TransformIntent::CompatibleDataReplace, "refresh")?;
-        self.refresh(data, ctx)
+        self.refresh_in_place(data, ctx)
     }
 
     /// Apply retarget only if `preview` still binds this handle.

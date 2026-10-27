@@ -316,14 +316,16 @@ fn a_pool_that_refuses_retention_leaves_every_batch_result_equal_to_its_solo_run
     use antecedent_state::retention::RetentionMode;
     let (data, graph) = two_by_two(600, 41);
     let queries = [ate(T1, Y1), ate(T1, Y2), ate(T1, Y1)];
-    // The AIPW batch asks the pool for worker slots only (zero bytes), and planners compare
-    // against the pool's capacity, not its free bytes. Leasing all but 2 KiB leaves capacity
-    // untouched while no retained entry (a key alone is larger) can be admitted.
+    // The AIPW batch asks the pool for worker slots and for the transient simultaneous-band
+    // simulation scratch (about 33 KiB, released before the next query); planners compare
+    // against the pool's capacity, not its free bytes. Leaving a small headroom funds that
+    // scratch but admits no retained fitted-state entry.
     let capacity = 1_u64 << 30;
+    let headroom = 33 * 1024_u64;
     let pool = AdmissionPool::fixed(1, capacity);
     let held = ExecutionContext::for_tests(41)
         .with_admission(pool.clone())
-        .acquire_admission(0, capacity - 2048)
+        .acquire_admission(0, capacity - headroom)
         .unwrap();
     let ctx = ExecutionContext::for_tests(41).with_admission(pool.clone());
     let check = |results: &[StudyResult], what: &str| {
@@ -347,7 +349,7 @@ fn a_pool_that_refuses_retention_leaves_every_batch_result_equal_to_its_solo_run
     };
     let refused = batch(BatchStudy::new(data.clone(), graph.clone()), &ctx);
     check(&refused, "pool refuses retention");
-    assert_eq!(pool.available().bytes(), 2048, "nothing was admitted past the lease");
+    assert_eq!(pool.available().bytes(), headroom, "nothing was retained past the lease");
     // A reduced retention mode builds an empty cache even with a roomy pool.
     let reduced = batch(
         BatchStudy::new(data.clone(), graph.clone()).retention(RetentionMode::SummaryOnly),

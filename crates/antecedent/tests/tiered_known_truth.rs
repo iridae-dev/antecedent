@@ -212,7 +212,7 @@ fn codetermined_average_effect_known_truth() {
                 .abs()
                 < 1e-12
         );
-        let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
         assert!((refreshed.estimate.as_effect().unwrap().ate - CODETERMINED_TRUTH).abs() < 0.12);
         let artifact =
             prepared.encode_contracted_result(&refreshed, "codetermined-aipw", &ctx).unwrap();
@@ -288,4 +288,17 @@ fn unknown_scenarios_known_truth() {
             assert!(lo <= *truth && *truth <= hi, "scenario {j} joint band [{lo}, {hi}]");
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

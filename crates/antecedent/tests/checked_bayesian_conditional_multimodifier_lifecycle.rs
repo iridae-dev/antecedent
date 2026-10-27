@@ -162,7 +162,7 @@ fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_ar
                 ("u", columns[5].as_slice()),
             ])
             .unwrap();
-            let refreshed = prepared.refresh(shifted, &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, shifted, &context).unwrap();
             let RetainedOperation::BayesianConditional(retained) = prepared.retained_operation()
             else {
                 panic!("refreshed route retains its conditional plan")
@@ -184,4 +184,17 @@ fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_ar
             assert!(!consumed.acceptance.accepts_as_verified_program());
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -221,7 +221,8 @@ fn checked_glm_adjustment_survives_builder_drop_and_refresh() {
     assert_eq!(operation.estimator, EstimatorId::GlmAdjustment);
     let first = prepared.estimate(&data, &context).unwrap();
     assert!((first.effect() - 2.0).abs() < 0.2);
-    let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+    let refreshed =
+        crate::analysis::prepared::rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
     assert!((refreshed.effect() - first.effect()).abs() < 1e-10);
 }
 
@@ -293,7 +294,8 @@ fn checked_rd_retains_cutoff_target_and_bandwidth_on_refresh() {
         first.identification.average_effect().unwrap().target_population,
         antecedent_core::TargetPopulation::local_at_cutoff(data.schema().id_of("r").unwrap(), 0.0)
     );
-    let refreshed = prepared.refresh(data, &context).unwrap();
+    let refreshed =
+        crate::analysis::prepared::rebind_estimate(&mut prepared, data, &context).unwrap();
     assert!((refreshed.effect() - first.effect()).abs() < 1e-10);
 }
 
@@ -573,7 +575,7 @@ fn admitted_population_retarget_after_refresh_matches_fresh_preparation() {
     let mut retained = study.prepare(&ctx).unwrap();
     let before = retained.contract().unwrap().identities;
     let frozen = retained.clone();
-    retained.refresh(data.clone(), &ctx).unwrap();
+    crate::analysis::prepared::rebind_estimate(&mut retained, data.clone(), &ctx).unwrap();
     let fresh = study.prepare(&ctx).unwrap();
     let table = retained.score_table().unwrap();
     let z_values = data.float64_values(z).unwrap();
@@ -649,6 +651,11 @@ fn signed_zero_query_drift_is_refused_before_posterior_contract_work() {
     assert!(refused.is_err(), "bit-distinct signed-zero target must require preparation");
     assert_eq!(work, antecedent_expr::execution_counts::StaticWorkCounts::default());
     prepared.analysis.query = changed;
+    // Preparation seals the program and contract caches for the prepare-time query; drop them so
+    // the altered declaration is compiled again against the frozen posterior programs.
+    prepared.program_cache = std::sync::OnceLock::new();
+    prepared.contract_cache = std::sync::OnceLock::new();
+    prepared.inspection_header = std::sync::OnceLock::new();
     let (refused, work) =
         antecedent_expr::execution_counts::count_static_work(|| prepared.contract());
     assert!(refused.is_err(), "contract must refuse internally altered frozen target");
@@ -716,7 +723,8 @@ fn late_stage_cancellation_never_commits_a_refresh_candidate() {
     let changed = TabularData::new(
         OwnedColumnarStorage::try_new(rows.schema().clone(), columns, None, None).unwrap(),
     );
-    let refused = prepared.refresh(changed.clone(), &ctx).unwrap_err();
+    let refused = crate::analysis::prepared::rebind_estimate(&mut prepared, changed.clone(), &ctx)
+        .unwrap_err();
     assert!(
         sink.completed.load(Ordering::SeqCst),
         "cancel must occur after point/uncertainty/validation completed"
@@ -731,7 +739,8 @@ fn late_stage_cancellation_never_commits_a_refresh_candidate() {
         baseline.to_bits(),
         prepared.estimate(&rows, &recovered).unwrap().effect().to_bits()
     );
-    let refreshed = prepared.refresh(changed, &recovered).unwrap();
+    let refreshed =
+        crate::analysis::prepared::rebind_estimate(&mut prepared, changed, &recovered).unwrap();
     assert!((refreshed.effect() - 2.0 * baseline).abs() < 1e-10);
     assert_ne!(before.data_snapshot, prepared.contract().unwrap().identities.data_snapshot);
 }

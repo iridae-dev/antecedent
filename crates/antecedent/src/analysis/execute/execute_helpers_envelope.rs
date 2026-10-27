@@ -807,6 +807,7 @@ pub(super) fn mix_graph_posterior_identified_atoms(
         conditional_on_identified,
         full_mass_scope: true,
         truncated_atoms,
+        aggregation_policy: Some(policy),
     };
     MixedGraphPosteriorPolicy { policy, ate, mixable_scalar, mixture }
 }

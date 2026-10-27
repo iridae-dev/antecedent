@@ -116,7 +116,7 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                     "{coordinate}: missing prior-sensitivity grid"
                 );
             }
-            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             assert_eq!(
                 refreshed.estimate.as_effect().unwrap().ate.to_bits(),
                 result.estimate.as_effect().unwrap().ate.to_bits()
@@ -282,4 +282,17 @@ fn bayesian_dag_ate_hmc_draw_floor_and_population_refusal_keep_scope_visible() {
         Err(error) => error,
     };
     assert!(error.to_string().contains("population_not_estimable"), "{error}");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

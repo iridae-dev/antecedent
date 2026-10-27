@@ -95,7 +95,7 @@ fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
         reference.refutations.iter().map(|report| report.passed).collect::<Vec<_>>(),
         "{coordinate} refutation decisions"
     );
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{coordinate} refresh");
     assert!(
         matches!(prepared.retained_operation(), RetainedOperation::CheckedAipw(..)),
@@ -164,7 +164,7 @@ fn dag_explicit_frequentist_trimmed_aipw_lifecycle() {
         assert!(codes.contains(&"estimate.overlap.require_diagnostics"), "{codes:?}");
         assert!(codes.contains(&"exec.identify.cached"), "{codes:?}");
     }
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "refresh");
     assert_eq!(
         match prepared.retained_operation() {
@@ -253,4 +253,17 @@ fn dag_explicit_frequentist_aipw_none() {
         false,
         "none",
     );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

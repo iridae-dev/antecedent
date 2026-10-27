@@ -325,7 +325,7 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
                         "{coordinate}: one-shot run must execute the retained proof"
                     );
 
-                    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+                    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
                     assert_eq!(
                         refreshed.estimate.as_effect().unwrap().ate.to_bits(),
                         result.estimate.as_effect().unwrap().ate.to_bits()
@@ -339,7 +339,7 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
                     assert_eq!(rebound.inference, plan.inference);
                     assert_eq!(rebound.completion_count, plan.completion_count);
                     assert!(
-                        prepared.refresh(reordered(pin), &ctx).is_err(),
+                        rebind_estimate(&mut prepared, reordered(pin), &ctx).is_err(),
                         "{coordinate}: schema-changing refresh must be refused"
                     );
 
@@ -375,4 +375,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

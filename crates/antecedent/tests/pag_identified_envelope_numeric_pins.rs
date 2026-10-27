@@ -166,7 +166,7 @@ fn run_prepared(
     );
     let mut out = vec![fresh, click];
     if suite != RefuteSuite::Full {
-        let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
         assert_eq!(cached_count(&refreshed), 1, "same-schema refresh must reuse the envelope");
         out.push(refreshed);
     }
@@ -794,4 +794,17 @@ fn pag_identified_envelope_response_curve_pins_structural_contrast() {
             }
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

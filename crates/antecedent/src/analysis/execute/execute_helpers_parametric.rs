@@ -278,6 +278,7 @@ pub(super) fn class_structural_mixture<G>(
         conditional_on_identified: None,
         full_mass_scope: envelope.truncated_completions == 0,
         truncated_atoms: envelope.truncated_completions,
+        aggregation_policy: None,
     };
     (mixture, facts)
 }

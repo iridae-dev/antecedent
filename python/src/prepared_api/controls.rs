@@ -1,4 +1,4 @@
-//! Click controls for one estimate or refresh.
+//! Click controls for one estimate.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -11,7 +11,7 @@ use pyo3::types::PyAny;
 
 use crate::{AteAnalysisResult, ate_result_from_analysis, py_execution_context_ext};
 
-/// Execution controls for one estimate or refresh click.
+/// Execution controls for one estimate click.
 ///
 /// Cancellation and progress ride on the execution context. A stage sink is
 /// set on a private clone of the prepared study for this click only, so it is

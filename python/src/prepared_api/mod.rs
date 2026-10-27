@@ -64,7 +64,7 @@ use routing::{
 #[pyclass(name = "PreparedAnalysis")]
 pub struct PyPreparedAnalysis {
     /// Arc so per-click estimate/refute detach with a refcount bump, not a
-    /// deep `PreparedStudy` clone; `refresh` clones-on-write to swap data.
+    /// deep `PreparedStudy` clone.
     pub(crate) inner: Arc<PreparedStudy>,
     pub(in crate::prepared_api) names: Vec<String>,
     /// Last estimate result retained for second-click refute.
@@ -73,7 +73,7 @@ pub struct PyPreparedAnalysis {
     pub(in crate::prepared_api) last_seed: u64,
     pub(in crate::prepared_api) last_threads: u32,
     pub(in crate::prepared_api) borrowed_bytes: Option<u64>,
-    /// When true, estimate/refresh clicks use series data (`estimate_series`).
+    /// When true, estimate clicks use series data (`estimate_series`).
     pub(in crate::prepared_api) series: bool,
 }
 
@@ -117,16 +117,14 @@ impl PyPreparedAnalysis {
         }
     }
 
-    /// Execute one click on new data, optionally replacing the retained data.
+    /// Execute one click on new data without replacing the retained data.
     ///
     /// The executed study (with the click's data bound) becomes the snapshot
-    /// source for exports and second-click refutes; a refresh also replaces the
-    /// handle's retained study. A click-only stage sink is stripped first.
+    /// source for exports and second-click refutes. A click-only stage sink is stripped first.
     pub(in crate::prepared_api) fn click<T: Send>(
         &mut self,
         py: Python<'_>,
         data: FrameInput,
-        refresh: bool,
         seed: u64,
         threads: Option<u32>,
         controls: ClickControls,
@@ -175,10 +173,6 @@ impl PyPreparedAnalysis {
             drop(frame_retention);
             Ok((mapped, result, Arc::new(unstaged(study))))
         })?;
-        if refresh {
-            self.inner = Arc::clone(&bound);
-            self.borrowed_bytes = None;
-        }
         self.last_study = Some(bound);
         self.last = Some(Arc::new(result));
         self.last_seed = seed;
@@ -267,7 +261,7 @@ impl PyPreparedAnalysis {
         let prior = self
             .last
             .clone()
-            .ok_or_else(|| crate::value_err("call estimate/refresh before refute"))?;
+            .ok_or_else(|| crate::value_err("call estimate before refute"))?;
         let refute_suite = suite_from_refute(Some(&suite))?;
         let cancel_token = cancel.map(|c| c.inner);
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));

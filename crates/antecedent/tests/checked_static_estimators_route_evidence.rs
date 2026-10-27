@@ -78,7 +78,7 @@ fn checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal() {
                     assert!(!result.refutations.is_empty());
                 }
                 assert!((one_shot.effect() - result.effect()).abs() < 1e-10);
-                let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
                 assert!((refreshed.effect() - result.effect()).abs() < 1e-10);
                 let bytes =
                     prepared.encode_contracted_result(&refreshed, "checked-glm", &ctx).unwrap();
@@ -140,7 +140,7 @@ fn checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal() {
                 assert!(!result.refutations.is_empty());
             }
             assert!((one_shot.effect() - result.effect()).abs() < 1e-10);
-            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             assert!((refreshed.effect() - result.effect()).abs() < 1e-10);
             let bytes = prepared.encode_contracted_result(&refreshed, "checked-rd", &ctx).unwrap();
             let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
@@ -154,4 +154,17 @@ fn checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal() {
             assert!(!consumed.acceptance.accepts_as_verified_program());
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

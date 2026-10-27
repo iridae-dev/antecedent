@@ -788,6 +788,7 @@ pub(crate) fn ate_result_from_analysis(
         structural_identified_mass,
         structural_unidentified_mass,
         structural_unevaluable_mass,
+        structural_aggregation_policy,
     } = sections;
     let mediation_slices: &[antecedent_estimate::TemporalMediationSlice] =
         result.mediation_grid().map_or(&[], |grid| grid.slices.as_ref());
@@ -799,6 +800,7 @@ pub(crate) fn ate_result_from_analysis(
         structural_identified_mass,
         structural_unidentified_mass,
         structural_unevaluable_mass,
+        structural_aggregation_policy,
         structural_identified_set: identified_set.set,
         structural_identified_set_interval: identified_set.interval,
         structural_identified_set_interval_level: identified_set.level,
@@ -806,6 +808,7 @@ pub(crate) fn ate_result_from_analysis(
         structural_identified_set_interval_truncated: identified_set.truncated,
         certificate_json,
         missing_data_json: crate::missing_report::report_json(result.missing_data.as_ref()),
+        interval_bindings_json: crate::interval_binding_api::bindings_json(result),
         ate: effect.map_or(f64::NAN, |estimate| estimate.ate),
         se_analytic: effect.map_or(f64::NAN, antecedent_estimate::EffectEstimate::se_analytic),
         se_bootstrap: effect.and_then(antecedent_estimate::EffectEstimate::se_bootstrap),
@@ -907,6 +910,9 @@ pub(crate) fn ate_result_from_analysis(
         posterior_ppc_n_sims: ppc.posterior_ppc_n_sims,
         posterior_ppc_dispersion_p_value: ppc.posterior_ppc_dispersion_p_value,
         posterior_ppc_noise: ppc.posterior_ppc_noise,
+        predictive_replicates: result
+            .predictive_replicates()
+            .map(crate::predictive_assessment_api::PredictiveReplicateLaws::from),
         prior_sensitivity_scales,
         prior_sensitivity_alphas,
         prior_sensitivity_means,

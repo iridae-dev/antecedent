@@ -631,6 +631,9 @@ fn dbn_mediation_structural_mixture(
         conditional_on_identified: Some(ResponseValue::Scalar(point)),
         full_mass_scope: true,
         truncated_atoms: 0,
+        aggregation_policy: Some(
+            crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+        ),
     }
 }
 

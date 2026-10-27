@@ -140,7 +140,8 @@ fn a_refresh_names_exactly_what_recalculation_invalidates_and_refresh_then_runs(
     assert_eq!(report.changed_keys, vec![Stage::DataSnapshot, Stage::RowDesign]);
     assert_eq!(report.invalidated, recalculated(&old, &new, false));
     assert!(!report.invalidated.contains(&Stage::Identification));
-    prepared.refresh(table(&new), &ctx()).expect("a refresh recommendation refreshes");
+    rebind_estimate(&mut prepared, table(&new), &ctx())
+        .expect("a refresh recommendation refreshes");
 }
 
 #[test]
@@ -165,7 +166,10 @@ fn a_refusal_agrees_with_what_refresh_refuses() {
     let report = prepared.staleness(&table(&wider), &policy(), &ctx()).unwrap();
     assert_eq!(report.recommendation, Recommendation::Refuse);
     assert!(exceeded(&report, FindingKind::SchemaChange));
-    assert!(prepared.refresh(table(&wider), &ctx()).is_err(), "refresh refuses the same data");
+    assert!(
+        rebind_estimate(&mut prepared, table(&wider), &ctx()).is_err(),
+        "refresh refuses the same data"
+    );
 }
 
 #[test]
@@ -201,4 +205,17 @@ fn reports_and_policies_render_as_json() {
     object.as_object_mut().unwrap().remove("identity");
     let parsed = staleness_policy_from_json(&object.to_string()).unwrap();
     assert_eq!(parsed.identity(), policy().identity());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

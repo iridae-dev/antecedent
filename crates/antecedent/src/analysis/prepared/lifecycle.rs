@@ -263,18 +263,14 @@ impl PreparedStudy {
         Ok(())
     }
 
-    /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
+    /// Replace retained data and re-estimate as one transaction, for a bound-preview refresh.
     ///
     /// Everything the click derives from the new rows is handed to the
     /// handle rather than derived again: the rebound sealed operation, the
     /// frozen scores of a functional click, and, through one shared
     /// nuisance scope, the cross-fitted nuisances of the click and of the
     /// frozen score table (see [`Self::refresh_scoped`]).
-    ///
-    /// # Errors
-    ///
-    /// Schema incompatibility, identification / estimation / validation failures.
-    pub fn refresh(
+    pub(crate) fn refresh_in_place(
         &mut self,
         data: TabularData,
         ctx: &ExecutionContext,
@@ -319,7 +315,7 @@ impl PreparedStudy {
         observed.result
     }
 
-    /// The body of [`Self::refresh`], run inside one nuisance scope.
+    /// The body of [`Self::refresh_in_place`], run inside one nuisance scope.
     ///
     /// The click and the frozen score table of the refreshed study fit the
     /// same cross-fitted nuisances: the same design, treatment coding, fold

@@ -170,7 +170,7 @@ fn verify_path_specific_coordinate(
     } else {
         assert!(result.posterior.is_none(), "{coordinate} unexpected posterior");
     }
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{coordinate} refresh");
     assert!(
         matches!(
@@ -322,4 +322,17 @@ fn path_specific_dag_explicit_frequentist_none() {
         false,
         "none",
     );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

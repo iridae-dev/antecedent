@@ -136,23 +136,205 @@ pub fn render_report(input: &ReportInput<'_>, format: ReportFormat) -> String {
 /// computes nothing: every figure is read from the fallback.
 #[must_use]
 pub fn render_fallback_report(fallback: &AnalysisWithFallback, format: ReportFormat) -> String {
-    let report = Report {
-        title: "Refusal with descriptive fallback",
-        sections: fallback_sections(fallback),
-    };
+    render_fallback_input(&FallbackReportInput::of(fallback), format)
+}
+
+/// Render the report of a descriptive fallback whose parts a caller holds as plain values.
+///
+/// The document is the one [`render_fallback_report`] writes for an [`AnalysisWithFallback`]:
+/// that function reads its input into a [`FallbackReportInput`] and calls this one, so a caller
+/// that composed the parts itself (as the Python facade does) gets the same wording, escaping and
+/// layout, in Markdown and in HTML. Nothing is computed here.
+#[must_use]
+pub fn render_fallback_input(input: &FallbackReportInput, format: ReportFormat) -> String {
+    let report =
+        Report { title: "Refusal with descriptive fallback", sections: fallback_sections(input) };
     match format {
         ReportFormat::Markdown => report.markdown(),
         ReportFormat::Html => report.html(),
     }
 }
 
-fn fallback_sections(fallback: &AnalysisWithFallback) -> Vec<Section> {
+/// The plain values of a descriptive-fallback report.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FallbackReportInput {
+    /// Registered reason code of the unchanged causal refusal, when it has one.
+    pub reason_code: Option<String>,
+    /// The refusal's message.
+    pub message: String,
+    /// The refusal's remedy, when it has one.
+    pub remedy: Option<String>,
+    /// The noncausal description, or the stated reason there is none.
+    pub associational: Result<FallbackAssociationInput, String>,
+    /// The evidence needs, or the stated reason there are none.
+    pub evidence: Result<FallbackEvidenceInput, String>,
+}
+
+/// The associational part of a [`FallbackReportInput`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct FallbackAssociationInput {
+    /// Claim kind of the description (`associational`).
+    pub claim_kind: String,
+    /// Identification domain of its claim (`not_claimed`).
+    pub identification: String,
+    /// Name of the rule that chose the held-fixed columns.
+    pub rule: String,
+    /// The figures of the description, when its payload is held.
+    pub figures: Option<FallbackFigures>,
+}
+
+/// The reported figures of an associational description.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FallbackFigures {
+    /// Analysis the selection rule chose.
+    pub analysis: String,
+    /// Rows the description used.
+    pub rows: usize,
+    /// Label of the uncertainty the description carries.
+    pub uncertainty: String,
+    /// Calibration standing of that uncertainty.
+    pub calibration: String,
+    /// Reason code of the refusal the description follows, when recorded.
+    pub refused_after: Option<String>,
+    /// Each reported quantity, labelled.
+    pub terms: Vec<(String, f64)>,
+}
+
+/// The evidence part of a [`FallbackReportInput`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct FallbackEvidenceInput {
+    /// The verified obligations.
+    pub obligations: Vec<FallbackObligationInput>,
+    /// Evidence-gathering next actions as `(id, description)`.
+    pub next_actions: Vec<(String, String)>,
+    /// The ranked plan over declared candidate studies.
+    pub ranking: FallbackRankingInput,
+}
+
+/// One evidence obligation of a [`FallbackEvidenceInput`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct FallbackObligationInput {
+    /// Obligation id.
+    pub id: String,
+    /// Obligation kind.
+    pub kind: String,
+    /// Route family.
+    pub route: String,
+    /// Proof step, when recorded.
+    pub proof_step: Option<String>,
+    /// Whether a study can satisfy it.
+    pub satisfiable_by_study: bool,
+}
+
+/// The ranked plan of a [`FallbackEvidenceInput`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum FallbackRankingInput {
+    /// No candidate studies were declared.
+    NotRequested,
+    /// Candidates were declared and the plan refused, with the stated reason.
+    Unavailable(String),
+    /// The ordered options.
+    Ranked(Vec<FallbackOptionInput>),
+}
+
+/// One ranked option.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FallbackOptionInput {
+    /// Rank, best first.
+    pub rank: String,
+    /// Theorem route.
+    pub route: String,
+    /// Labels of the studies of the option.
+    pub studies: Vec<String>,
+    /// Identification gate.
+    pub gate: String,
+    /// Cost with its unit label.
+    pub cost: String,
+}
+
+impl FallbackReportInput {
+    /// The plain values `fallback` holds.
+    #[must_use]
+    pub fn of(fallback: &AnalysisWithFallback) -> Self {
+        let associational = match &fallback.associational {
+            Err(reason) => Err(reason.to_string()),
+            Ok(part) => Ok(FallbackAssociationInput {
+                claim_kind: part.claim.kind.as_str().to_owned(),
+                identification: part.claim.domains.identification.as_str().to_owned(),
+                rule: part.roles.rule.to_owned(),
+                figures: part.result.association().map(|payload| FallbackFigures {
+                    analysis: payload.estimate.selection.analysis.as_str().to_owned(),
+                    rows: payload.estimate.rows,
+                    uncertainty: payload.uncertainty_label().to_owned(),
+                    calibration: ASSOCIATION_CALIBRATION.to_owned(),
+                    refused_after: payload.refused_after.as_deref().map(str::to_owned),
+                    terms: payload
+                        .estimate
+                        .terms
+                        .iter()
+                        .map(|term| (term.label.clone(), term.estimate))
+                        .collect(),
+                }),
+            }),
+        };
+        let evidence = match &fallback.evidence {
+            Err(reason) => Err(reason.to_string()),
+            Ok(needs) => Ok(FallbackEvidenceInput {
+                obligations: needs
+                    .obligations
+                    .iter()
+                    .map(|o| FallbackObligationInput {
+                        id: o.id.to_string(),
+                        kind: o.kind.as_str().to_owned(),
+                        route: o.provenance.family.to_string(),
+                        proof_step: o.provenance.proof_step.as_deref().map(str::to_owned),
+                        satisfiable_by_study: o.satisfiable_by_study(),
+                    })
+                    .collect(),
+                next_actions: needs
+                    .next_actions
+                    .iter()
+                    .map(|a| (a.id.to_string(), a.description.to_string()))
+                    .collect(),
+                ranking: match &needs.ranking {
+                    RankedPlan::NotRequested => FallbackRankingInput::NotRequested,
+                    RankedPlan::Unavailable(reason) => {
+                        FallbackRankingInput::Unavailable(reason.to_string())
+                    }
+                    RankedPlan::Ranked(result) => FallbackRankingInput::Ranked(
+                        result
+                            .plan
+                            .options
+                            .iter()
+                            .map(|option| FallbackOptionInput {
+                                rank: option.rank.to_string(),
+                                route: option.route.to_owned(),
+                                studies: option.labels.iter().map(ToString::to_string).collect(),
+                                gate: option.gate.as_str().to_owned(),
+                                cost: format!("{} {}", option.cost.units, option.cost.unit_label),
+                            })
+                            .collect(),
+                    ),
+                },
+            }),
+        };
+        Self {
+            reason_code: fallback.refusal.reason_code().map(str::to_owned),
+            message: fallback.refusal.to_string(),
+            remedy: fallback.refusal.remedy().map(str::to_owned),
+            associational,
+            evidence,
+        }
+    }
+}
+
+fn fallback_sections(input: &FallbackReportInput) -> Vec<Section> {
     let mut refusal = Vec::new();
     fact(&mut refusal, "Status", "unsupported");
-    fact(&mut refusal, "Reason code", opt_str(fallback.refusal.reason_code()));
-    fact(&mut refusal, "Message", clean(&fallback.refusal.to_string()));
-    fact(&mut refusal, "Remedy", opt_str(fallback.refusal.remedy()));
-    let mut sections = vec![
+    fact(&mut refusal, "Reason code", opt_str(input.reason_code.as_deref()));
+    fact(&mut refusal, "Message", clean(&input.message));
+    fact(&mut refusal, "Remedy", opt_str(input.remedy.as_deref()));
+    vec![
         Section {
             title: "Causal question",
             blocks: vec![
@@ -166,32 +348,31 @@ fn fallback_sections(fallback: &AnalysisWithFallback) -> Vec<Section> {
         },
         Section {
             title: "Noncausal description",
-            blocks: vec![Block::Text(NONCAUSAL_NOTICE.to_owned()), associational_block(fallback)],
+            blocks: vec![Block::Text(NONCAUSAL_NOTICE.to_owned()), associational_block(input)],
         },
-    ];
-    sections.push(Section {
-        title: "Evidence that would resolve the refusal",
-        blocks: evidence_blocks(fallback),
-    });
-    sections
+        Section {
+            title: "Evidence that would resolve the refusal",
+            blocks: evidence_blocks(input),
+        },
+    ]
 }
 
-fn associational_block(fallback: &AnalysisWithFallback) -> Block {
-    match &fallback.associational {
-        Err(reason) => unavailable_text("The associational description", &reason.to_string()),
+fn associational_block(input: &FallbackReportInput) -> Block {
+    match &input.associational {
+        Err(reason) => unavailable_text("The associational description", reason),
         Ok(part) => {
             let mut facts = Vec::new();
-            fact(&mut facts, "Claim kind", part.claim.kind.as_str());
-            fact(&mut facts, "Identification", part.claim.domains.identification.as_str());
-            fact(&mut facts, "Selection rule", part.roles.rule);
-            if let Some(payload) = part.result.association() {
-                fact(&mut facts, "Analysis", payload.estimate.selection.analysis.as_str());
-                fact(&mut facts, "Rows", payload.estimate.rows.to_string());
-                fact(&mut facts, "Uncertainty", payload.uncertainty_label());
-                fact(&mut facts, "Calibration", ASSOCIATION_CALIBRATION);
-                fact(&mut facts, "Refusal retained", opt_str(payload.refused_after.as_deref()));
-                for term in &payload.estimate.terms {
-                    fact(&mut facts, &term.label, num(term.estimate));
+            fact(&mut facts, "Claim kind", part.claim_kind.as_str());
+            fact(&mut facts, "Identification", part.identification.as_str());
+            fact(&mut facts, "Selection rule", part.rule.as_str());
+            if let Some(figures) = &part.figures {
+                fact(&mut facts, "Analysis", figures.analysis.as_str());
+                fact(&mut facts, "Rows", figures.rows.to_string());
+                fact(&mut facts, "Uncertainty", figures.uncertainty.as_str());
+                fact(&mut facts, "Calibration", figures.calibration.as_str());
+                fact(&mut facts, "Refusal retained", opt_str(figures.refused_after.as_deref()));
+                for (label, estimate) in &figures.terms {
+                    fact(&mut facts, label, num(*estimate));
                 }
             }
             fact(&mut facts, "Ranks actions", "no");
@@ -201,9 +382,9 @@ fn associational_block(fallback: &AnalysisWithFallback) -> Block {
     }
 }
 
-fn evidence_blocks(fallback: &AnalysisWithFallback) -> Vec<Block> {
-    let needs = match &fallback.evidence {
-        Err(reason) => return vec![unavailable_text("The evidence plan", &reason.to_string())],
+fn evidence_blocks(input: &FallbackReportInput) -> Vec<Block> {
+    let needs = match &input.evidence {
+        Err(reason) => return vec![unavailable_text("The evidence plan", reason)],
         Ok(needs) => needs,
     };
     let mut blocks = Vec::new();
@@ -213,10 +394,10 @@ fn evidence_blocks(fallback: &AnalysisWithFallback) -> Vec<Block> {
         .map(|o| {
             vec![
                 clean(&o.id),
-                o.kind.as_str().to_owned(),
-                o.provenance.family.to_string(),
-                o.provenance.proof_step.as_deref().unwrap_or("unrecorded").to_owned(),
-                yes_no(o.satisfiable_by_study()).to_owned(),
+                o.kind.clone(),
+                o.route.clone(),
+                o.proof_step.as_deref().unwrap_or("unrecorded").to_owned(),
+                yes_no(o.satisfiable_by_study).to_owned(),
             ]
         })
         .collect();
@@ -228,32 +409,29 @@ fn evidence_blocks(fallback: &AnalysisWithFallback) -> Vec<Block> {
         blocks.push(Block::Text("No evidence-gathering next action follows.".to_owned()));
     } else {
         blocks.push(Block::Bullets(
-            needs.next_actions.iter().map(|a| format!("{}: {}", a.id, a.description)).collect(),
+            needs
+                .next_actions
+                .iter()
+                .map(|(id, description)| format!("{id}: {description}"))
+                .collect(),
         ));
     }
     blocks.push(match &needs.ranking {
-        RankedPlan::NotRequested => Block::Text(
+        FallbackRankingInput::NotRequested => Block::Text(
             "No candidate studies were declared, so the options are not ranked.".to_owned(),
         ),
-        RankedPlan::Unavailable(reason) => unavailable_text("The ranked plan", &reason.to_string()),
-        RankedPlan::Ranked(result) => Block::Table {
+        FallbackRankingInput::Unavailable(reason) => unavailable_text("The ranked plan", reason),
+        FallbackRankingInput::Ranked(options) => Block::Table {
             head: &["Rank", "Route", "Studies", "Gate", "Cost"],
-            rows: result
-                .plan
-                .options
+            rows: options
                 .iter()
                 .map(|option| {
                     vec![
-                        option.rank.to_string(),
-                        option.route.to_owned(),
-                        option
-                            .labels
-                            .iter()
-                            .map(ToString::to_string)
-                            .collect::<Vec<_>>()
-                            .join(", "),
-                        option.gate.as_str().to_owned(),
-                        format!("{} {}", option.cost.units, option.cost.unit_label),
+                        option.rank.clone(),
+                        option.route.clone(),
+                        option.studies.join(", "),
+                        option.gate.clone(),
+                        option.cost.clone(),
                     ]
                 })
                 .collect(),

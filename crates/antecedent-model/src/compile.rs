@@ -683,21 +683,6 @@ impl ProbabilisticCausalModel {
     }
 }
 
-/// Structural causal model (SCM): additive / structural assignments with noise.
-#[derive(Clone, Debug)]
-pub struct StructuralCausalModel {
-    /// Compiled plan.
-    pub compiled: CompiledCausalModel,
-}
-
-impl StructuralCausalModel {
-    /// Wrap.
-    #[must_use]
-    pub fn new(compiled: CompiledCausalModel) -> Self {
-        Self { compiled }
-    }
-}
-
 /// Invertible SCM supporting abduction (noise inference).
 #[derive(Clone, Debug)]
 pub struct InvertibleStructuralCausalModel {

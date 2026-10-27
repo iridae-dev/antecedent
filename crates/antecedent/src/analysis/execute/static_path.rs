@@ -2459,6 +2459,7 @@ fn scenario_structural_mixture(
         conditional_on_identified: None,
         full_mass_scope: true,
         truncated_atoms: 0,
+        aggregation_policy: None,
     })
 }
 

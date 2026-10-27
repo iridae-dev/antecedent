@@ -234,7 +234,7 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
             "{coordinate} interval method"
         );
     }
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(means(&refreshed), means(&result), "{coordinate} refresh");
     assert!(
         matches!(prepared.retained_operation(), RetainedOperation::AdmgResponseCurve(..)),
@@ -349,7 +349,7 @@ fn graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes() {
         for (actual, expected) in means(&result).iter().zip([0.314_f64, 0.596]) {
             assert!((actual - expected).abs() < if bayesian { 0.08 } else { 1e-12 });
         }
-        let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
         for (actual, expected) in means(&refreshed).iter().zip([0.314_f64, 0.596]) {
             assert!((actual - expected).abs() < if bayesian { 0.08 } else { 1e-12 });
         }
@@ -384,4 +384,17 @@ fn admg_response_curve_explicit_frequentist_publishes_bootstrap_band() {
 #[test]
 fn admg_response_curve_explicit_bayesian_none() {
     verify_coordinate("ResponseCurve:Admg:explicit:Bayesian:none", false, true);
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

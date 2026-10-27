@@ -171,7 +171,7 @@ fn prepared_refresh_rejects_schema_mismatch() {
         ),
     ];
     let bad = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
-    let err = prepared.refresh(bad, &ctx).unwrap_err();
+    let err = rebind_estimate(&mut prepared, bad, &ctx).unwrap_err();
     let msg = err.to_string();
     assert!(msg.contains("same schema"), "unexpected: {msg}");
     // Original data still works after failed refresh.
@@ -209,7 +209,7 @@ fn prepared_second_shot_reuses_identification() {
     assert_eq!(identify_computations(&sink), 1, "prepare computes identification once");
     let first = prepared.estimate(&data, &ctx).unwrap();
     let _ = prepared.refute(&first, &data, RefuteSuite::Cheap, &ctx).unwrap();
-    let _ = prepared.refresh(data.clone(), &ctx).unwrap();
+    let _ = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     let third = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(prepared.plan().record.plan_id.as_ref(), third.physical_plan.plan_id.as_ref());
     assert!(
@@ -413,8 +413,8 @@ fn refresh_updates_retained_data() {
     let ctx = ExecutionContext::for_tests(1);
     let mut prepared: PreparedStudy =
         build_analysis(data1.clone(), dag, query).prepare(&ctx).unwrap();
-    let a = prepared.refresh(data1, &ctx).unwrap().estimate.as_effect().unwrap().ate;
-    let b = prepared.refresh(data2, &ctx).unwrap().estimate.as_effect().unwrap().ate;
+    let a = rebind_estimate(&mut prepared, data1, &ctx).unwrap().estimate.as_effect().unwrap().ate;
+    let b = rebind_estimate(&mut prepared, data2, &ctx).unwrap().estimate.as_effect().unwrap().ate;
     // Different seeds → different finite ATEs (not identical bit-for-bit).
     assert!(a.is_finite() && b.is_finite());
     assert!((a - 2.0).abs() < 0.6);
@@ -869,10 +869,10 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
         })
         .expect("true outcome atom");
     assert!((true_atom.probability - 0.7).abs() < 1e-12);
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert!((refreshed.distribution().unwrap().mean - 0.7).abs() < 1e-12);
     let (incompatible, _, _) = confounded_scm(64, 91);
-    assert!(prepared.refresh(incompatible, &ctx).is_err());
+    assert!(rebind_estimate(&mut prepared, incompatible, &ctx).is_err());
     assert!(
         (prepared.estimate(&data, &ctx).unwrap().distribution().unwrap().mean - 0.7).abs() < 1e-12
     );
@@ -1984,4 +1984,17 @@ fn claim_refuses_a_result_that_carries_no_execution_stamp() {
     // The prepared handle's own execution still seals.
     let stamped = prepared.estimate(&data, &ctx).unwrap();
     assert!(stamped.claim(&contract, &ctx).is_ok());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

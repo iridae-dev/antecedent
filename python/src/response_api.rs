@@ -98,6 +98,9 @@ pub(crate) struct ResponseAnalysisResult {
     mass_scope: Option<String>,
     #[pyo3(get)]
     weight_basis: Option<String>,
+    /// How identified graph atoms were combined, when the route aggregates across graphs.
+    #[pyo3(get)]
+    aggregation_policy: Option<String>,
     #[pyo3(get)]
     atom_keys: Vec<u64>,
     #[pyo3(get)]
@@ -123,6 +126,9 @@ pub(crate) struct ResponseAnalysisResult {
     /// The missing-data report of the execution as JSON, when the route reports one.
     #[pyo3(get)]
     missing_data_json: Option<String>,
+    /// Every interval this execution reported, primary first, as JSON.
+    #[pyo3(get)]
+    interval_bindings_json: Option<String>,
     /// What the native response fixes about each value coordinate (regime, horizon,
     /// functional), or the typed refusal that says why it has none. Units, population
     /// and scale are declared by the caller of [`Self::response_coordinates`].
@@ -734,6 +740,9 @@ pub(crate) fn response_result(
             if mixture.full_mass_scope { "full_class" } else { "examined_completions" }.into()
         }),
         weight_basis: structural.map(|mixture| mixture.weight_basis.as_str().into()),
+        aggregation_policy: structural
+            .and_then(|mixture| mixture.aggregation_policy)
+            .map(|policy| policy.as_str().to_owned()),
         atom_keys: structural
             .map(|mixture| mixture.atoms.iter().map(|atom| atom.graph_key).collect())
             .unwrap_or_default(),
@@ -754,6 +763,7 @@ pub(crate) fn response_result(
         diagnostics: Vec::new(),
         identifier: None,
         missing_data_json: None,
+        interval_bindings_json: None,
         coordinates,
     })
 }
@@ -807,8 +817,10 @@ pub(crate) fn attach_study_response_meta(
     identifier: Option<String>,
     diagnostics: Vec<String>,
     missing_data_json: Option<String>,
+    interval_bindings_json: Option<String>,
 ) -> ResponseAnalysisResult {
     mapped.missing_data_json = missing_data_json;
+    mapped.interval_bindings_json = interval_bindings_json;
     mapped.certificate_json = certificate_json;
     mapped.identifier = identifier;
     mapped.diagnostics = diagnostics;

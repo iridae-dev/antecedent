@@ -222,7 +222,7 @@ fn bayesian_class_graph_posterior_effect_body() {
                 "{coordinate}: one-shot run must execute its retained prepared plan"
             );
 
-            let refreshed = prepared.refresh(shifted.clone(), &ctx).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, shifted.clone(), &ctx).unwrap();
             let RetainedOperation::ClassGraphPosteriorEffect(retained) =
                 prepared.retained_operation()
             else {
@@ -244,7 +244,7 @@ fn bayesian_class_graph_posterior_effect_body() {
                 );
             }
             assert!(
-                prepared.refresh(reordered_data(), &ctx).is_err(),
+                rebind_estimate(&mut prepared, reordered_data(), &ctx).is_err(),
                 "{coordinate}: reordered columns must be refused"
             );
 
@@ -276,4 +276,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

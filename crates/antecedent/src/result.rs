@@ -636,6 +636,13 @@ impl StudyResult {
             .try_fold(0_u64, |bytes, lease| bytes.checked_add(lease.remainder().bytes()))
     }
 
+    /// The posterior predictive replicates the study retained at fit time, when it declared
+    /// bounds for them with [`crate::StudyBuilder::bayesian_predictive_replicates`].
+    #[must_use]
+    pub fn predictive_replicates(&self) -> Option<&crate::analysis::RetainedPredictiveReplicates> {
+        self.predictive_replicates.as_deref()
+    }
+
     /// Target population a row-weight retarget recorded, when it differs from
     /// the prepared query.
     #[must_use]
@@ -1094,6 +1101,10 @@ pub struct StructuralResponseMixture {
     pub full_mass_scope: bool,
     /// Atoms whose identification search was capped before a determination.
     pub truncated_atoms: usize,
+    /// How the identified atoms were combined, for routes that aggregate across
+    /// graphs. `None` for routes whose atoms are not graph alternatives to be
+    /// combined under a policy.
+    pub aggregation_policy: Option<StructuralAggregationPolicy>,
 }
 
 /// One 95% pointwise interval for a declared interference exposure contrast.
@@ -1426,6 +1437,10 @@ pub struct StudyResult {
     pub refutations: Vec<RefutationReport>,
     /// Prior/posterior predictive check reports (Bayesian path; may be empty).
     pub predictive_checks: Vec<PredictiveCheckReport>,
+    /// Posterior predictive replicates retained at fit time when the study declared bounds
+    /// for them; read through [`Self::predictive_replicates`].
+    pub(crate) predictive_replicates:
+        Option<Arc<crate::analysis::RetainedPredictiveReplicates>>,
     /// Diagnostics.
     pub diagnostics: Vec<Diagnostic>,
     /// Provenance.

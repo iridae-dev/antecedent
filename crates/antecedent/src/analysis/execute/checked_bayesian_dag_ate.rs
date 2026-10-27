@@ -548,6 +548,16 @@ impl CheckedBayesianDagAteExecution {
                 predictive_checks: predictive_checks.clone(),
             },
         );
+        let predictive_replicates = self
+            .config
+            .predictive_replicates
+            .map(|bounds| {
+                let outcome = data.schema().get(query.outcome)?.name.to_string();
+                crate::analysis::predictive_assessment::retain_predictive_replicates(
+                    bounds, &fitter, &prepared, &posterior, &outcome, ctx,
+                )
+            })
+            .transpose()?;
         if !ctx.cancellation.is_requested() {
             self.retain_design(data, prepared, workspace, ctx);
         }
@@ -576,7 +586,12 @@ impl CheckedBayesianDagAteExecution {
             bootstrap_replicates_requested: Some(None),
             ..Default::default()
         });
-        Ok(finish_identified_execute_with_context(&self.context, Some(data), args))
+        let mut result = finish_identified_execute_with_context(&self.context, Some(data), args);
+        if let Some((retained, lease)) = predictive_replicates {
+            result.predictive_replicates = Some(Arc::new(retained));
+            result.retained_resources.push(Arc::new(lease));
+        }
+        Ok(result)
     }
     fn retain_design(
         &self,

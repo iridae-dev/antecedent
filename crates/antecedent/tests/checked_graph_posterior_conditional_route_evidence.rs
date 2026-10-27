@@ -390,7 +390,8 @@ fn graph_posterior_conditional_effect_body() {
 
                 // Compatible data refreshes through the retained atoms; the
                 // outcome shift leaves every conditional effect unchanged.
-                let refreshed = prepared.refresh(fixture.shifted.clone(), &ctx).unwrap();
+                let refreshed =
+                    rebind_estimate(&mut prepared, fixture.shifted.clone(), &ctx).unwrap();
                 let retained = retained_plan(&prepared, fixture.graph_class, bayesian);
                 assert_eq!(retained.graph_keys, plan.graph_keys);
                 assert_eq!(retained.weights, plan.weights);
@@ -407,7 +408,7 @@ fn graph_posterior_conditional_effect_body() {
 
                 // A different semantic schema is refused by refresh.
                 assert!(
-                    prepared.refresh(reordered_data(), &ctx).is_err(),
+                    rebind_estimate(&mut prepared, reordered_data(), &ctx).is_err(),
                     "{coordinate}: reordered columns must be refused"
                 );
 
@@ -442,4 +443,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

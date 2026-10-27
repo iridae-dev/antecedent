@@ -339,6 +339,7 @@ where
         conditional_on_identified,
         full_mass_scope: input.full_mass_scope,
         truncated_atoms: input.truncated_atoms,
+        aggregation_policy: Some(policy),
     };
     let identification = primary_identification
         .ok_or_else(|| CausalError::Compile { message: missing_values(evals.len(), mixable) })?;

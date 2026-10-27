@@ -31,7 +31,8 @@ use super::{
     design_api, design_ranking_api, discovered_transport_api, discovery_api,
     discretized_composition_api, distribution_api, dose_grid_api, effect_constancy_api,
     effect_constancy_review_api, evidence_ledger_api, evidence_plan_api, execution_attempt_api,
-    experiment_api, external_api, factorial_api, forward_source_api, gcm_api,
+    experiment_api, external_api, factorial_api, fallback_report_api, fallback_stage_api,
+    forward_source_api, gcm_api,
     graph_falsification_api, graph_io, graphs, horizon_composition_api, interface_contract_api,
     interference_saturation_api, inverse_outcome_api, inverse_query_api, joint_law_propagation_api,
     joint_response_api, joint_transport_api, latent_class_api, learned_continuous_api,
@@ -45,7 +46,8 @@ use super::{
     preflight_api, prepared_api, prior_bank, prior_signal_api, program_claims_api,
     propagation_chain_api, proposal_arrival_api, provider_api, provider_callbacks_api, quasi_api,
     recalc_adjusted_api, recalc_api, recalc_bayesian_api, recalc_cell_api, recalc_composite_api,
-    recalc_design_api, recalc_dr_api, recalc_external_api, recalc_static_api, recalc_temporal_api,
+    recalc_design_api, recalc_dr_api, recalc_external_api, recalc_standing_api, recalc_static_api,
+    recalc_temporal_api,
     recovery_api, recovery_chain_api, regimes_api, repair_api, response_api,
     scenario_invariance_api, scientific_bridge_api, selective_discovery_api,
     sensitivity_decision_api, sensitivity_source_api, set_not_identified_error_class,
@@ -66,6 +68,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_native_classes(m)?;
     super::compiled_route_api::register(m)?;
     gcm_api::register(m)?;
+    super::gcm_estimand_api::register(m)?;
     graph_falsification_api::register(m)?;
     super::intrinsic_influence_api::register(m)?;
     super::file_source_api::register(m)?;
@@ -145,6 +148,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     effect_constancy_api::register(m)?;
     effect_constancy_review_api::register(m)?;
     recalc_api::register(m)?;
+    recalc_standing_api::register(m)?;
     recalc_adjusted_api::register(m)?;
     recalc_dr_api::register(m)?;
     recalc_design_api::register(m)?;
@@ -380,6 +384,8 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     interference_saturation_api::register(m)?;
     observational_interference_api::register(m)?;
     factorial_api::register(m)?;
+    fallback_report_api::register(m)?;
+    fallback_stage_api::register(m)?;
     super::planning_api::register(m)?;
     regimes_api::register(m)?;
     unlicensed_design_api::register(m)?;

@@ -1269,6 +1269,7 @@ impl super::Study {
             conditional_on_identified: conditional,
             full_mass_scope: assembly.full_mass_scope,
             truncated_atoms: assembly.truncated_atoms,
+            aggregation_policy: None,
         }
     }
 

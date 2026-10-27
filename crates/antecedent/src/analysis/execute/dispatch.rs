@@ -31,39 +31,6 @@ pub(super) const GRAPH_POSTERIOR_QUERY_REFUSAL: &str = concat!(
     "response queries only",
 );
 
-/// A physical plan the executor shares behind an `Arc`.
-///
-/// A borrowed plan is copied into a new `Arc`; a plan the caller owns or already shares is
-/// not copied.
-pub trait IntoSharedPlan {
-    /// The plan behind an `Arc`.
-    fn into_shared(self) -> Arc<PhysicalExecutionPlan>;
-}
-
-impl IntoSharedPlan for Arc<PhysicalExecutionPlan> {
-    fn into_shared(self) -> Arc<PhysicalExecutionPlan> {
-        self
-    }
-}
-
-impl IntoSharedPlan for &Arc<PhysicalExecutionPlan> {
-    fn into_shared(self) -> Arc<PhysicalExecutionPlan> {
-        Arc::clone(self)
-    }
-}
-
-impl IntoSharedPlan for PhysicalExecutionPlan {
-    fn into_shared(self) -> Arc<PhysicalExecutionPlan> {
-        Arc::new(self)
-    }
-}
-
-impl IntoSharedPlan for &PhysicalExecutionPlan {
-    fn into_shared(self) -> Arc<PhysicalExecutionPlan> {
-        Arc::new(self.clone())
-    }
-}
-
 /// A route family that names its own validation suites.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ValidationFamily {
@@ -675,13 +642,13 @@ impl super::Study {
     /// `AcceptedGraph::class`/accessor invariant applies here.
     pub fn execute(
         &self,
-        physical: impl IntoSharedPlan,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if crate::analysis::functional_validation::requested(self) {
             return crate::analysis::functional_validation::run_validated(self, ctx);
         }
-        self.execute_shared(&physical.into_shared(), None, ctx)
+        self.execute_shared(&Arc::new(physical.clone()), None, ctx)
     }
 
     /// [`Self::execute`] for a plan the caller already holds behind an `Arc`.

@@ -270,6 +270,17 @@ impl EvidencePlanResult {
 /// for a sensitivity route, `unmeasured_confounder` (suffixed to stay distinct).
 #[must_use]
 pub fn variable_names(names: &[Arc<str>], routes: &FailureRoutes, graph: &Admg) -> Vec<String> {
+    graph_variable_names(names, graph, routes.confounder)
+}
+
+/// The variable names of a failure on `graph`: the study's variables, then the unmeasured
+/// common cause of each bidirected edge and, when a sensitivity route names one, its confounder.
+#[must_use]
+pub(crate) fn graph_variable_names(
+    names: &[Arc<str>],
+    graph: &Admg,
+    confounder: Option<VariableId>,
+) -> Vec<String> {
     let mut out: Vec<String> = names.iter().map(ToString::to_string).collect();
     let latents = latent_expansion(graph).map(|(_, l)| l).unwrap_or_default();
     let name_of = |variable: VariableId, out: &[String]| {
@@ -284,7 +295,7 @@ pub fn variable_names(names: &[Arc<str>], routes: &FailureRoutes, graph: &Admg) 
         );
         extra.push((latent.variable, label));
     }
-    if let Some(confounder) = routes.confounder {
+    if let Some(confounder) = confounder {
         let mut label = "unmeasured_confounder".to_owned();
         while out.contains(&label) || extra.iter().any(|(_, l)| *l == label) {
             label.push('_');

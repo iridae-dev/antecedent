@@ -1139,7 +1139,7 @@ fn refresh_findings(rep: &Rep, prepared: &mut PreparedStudy, found: &mut Finding
             if rep.label == "static_effect" {
                 staleness_findings(prepared, same(), changed(), found);
             }
-            match prepared.refresh(same(), &context) {
+            match rebind_estimate(prepared, same(), &context) {
                 Ok(result) => {
                     if let Some(after) = identities_of(prepared, found) {
                         found.check(
@@ -1159,7 +1159,7 @@ fn refresh_findings(rep: &Rep, prepared: &mut PreparedStudy, found: &mut Finding
                 }
                 Err(error) => found.refused("refresh", &error),
             }
-            match prepared.refresh(changed(), &context) {
+            match rebind_estimate(prepared, changed(), &context) {
                 Ok(_) => {
                     if let Some(after) = identities_of(prepared, found) {
                         found.check(
@@ -1360,7 +1360,7 @@ fn refusal_findings(rep: &mut Rep) -> Vec<String> {
         Retained::Table { .. } => {
             let wrong =
                 TabularData::from_f64_columns([("unrelated", &[0.0, 1.0, 2.0, 3.0][..])]).unwrap();
-            match prepared.refresh(wrong.clone(), &context) {
+            match rebind_estimate(&mut prepared, wrong.clone(), &context) {
                 Ok(_) => found.check(false, "refresh accepted data of another schema"),
                 Err(error) => found.refused("refresh on another schema", &error),
             }
@@ -2434,4 +2434,17 @@ fn the_plan_view_agrees_with_the_lowered_program() {
 #[test]
 fn every_refusal_names_its_next_attempt() {
     run_obligation(refusal_findings, Obligation::Refusal);
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

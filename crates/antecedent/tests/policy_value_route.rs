@@ -157,7 +157,7 @@ fn policy_answer_is_not_an_ate_and_survives_retained_reexecution() {
     assert_eq!(body.estimate, None, "policy values must never be serialized as ATEs");
     assert!(matches!(first.estimate, PrimaryEstimate::NotAnEffect));
     assert_eq!(first.effect().is_nan(), true);
-    let refreshed = prepared.refresh(data, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert_eq!(first.policy_value(), refreshed.policy_value());
     assert_eq!(first.logical_plan.plan_id, refreshed.logical_plan.plan_id);
 }
@@ -654,4 +654,17 @@ fn multi_action_intervals_require_nonbinding_global_constraints() {
     let capped_value =
         capped.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap().into_policy_value().unwrap();
     assert!(capped_value.policy_interval_95.is_none());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

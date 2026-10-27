@@ -929,6 +929,48 @@ pub(super) fn refuse_unsupported_draw_controls(
     })
 }
 
+/// Refuse retained predictive replicates where no executor builds them or a bound is zero.
+///
+/// Only a tabular `AverageEffect` on one fixed `Dag` under Bayesian g-computation retains
+/// replicates; every other route refuses the declaration rather than return a result that
+/// silently lacks them.
+pub(super) fn refuse_unsupported_predictive_replicates(
+    query: &CausalQuery,
+    data: &DataInput,
+    class: GraphClass,
+    structure_fixed: bool,
+    estimator: Option<EstimatorId>,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    let InferenceMode::Bayesian(cfg) = inference else {
+        return Ok(());
+    };
+    let Some(bounds) = cfg.predictive_replicates else {
+        return Ok(());
+    };
+    if bounds.n_sims == 0 || bounds.max_rows == 0 {
+        return Err(crate::unsupported_reason!(
+            "invalid_argument",
+            "predictive replicates need at least one simulation (n_sims) and a positive row \
+             bound (max_rows)"
+        ));
+    }
+    let supported = matches!(query, CausalQuery::AverageEffect(_))
+        && matches!(data, DataInput::Tabular(_))
+        && class == GraphClass::Dag
+        && structure_fixed
+        && matches!(estimator, None | Some(EstimatorId::BayesianGcomp));
+    if supported {
+        return Ok(());
+    }
+    Err(crate::unsupported_reason!(
+        "option_not_applicable",
+        "retained predictive replicates are built by Bayesian g-computation of a tabular \
+         AverageEffect on one fixed Dag; this route does not build them, so it refuses the \
+         declaration rather than return a result without them"
+    ))
+}
+
 /// Refuse a declared white-innovation premise where no executor reads it.
 ///
 /// The untempered posterior is the full-likelihood posterior of one lag-aligned Gaussian
@@ -1705,6 +1747,23 @@ impl StudyBuilder {
     ) -> Self {
         if let InferenceMode::Bayesian(cfg) = &mut self.settings.inference {
             cfg.white_innovation = Some(gate);
+        }
+        self
+    }
+
+    /// Retain the posterior predictive replicates of the Bayesian fit, bounded by `n_sims`
+    /// draws and `max_rows` design rows.
+    ///
+    /// The study builds one predictive sample law per design row at fit time, admitted
+    /// against the Execution memory pool and returned on the result for predictive
+    /// assessment ([`crate::StudyResult::predictive_replicates`]). It leaves a frequentist
+    /// study unchanged; a route that does not retain them, a zero bound, or a design with
+    /// more than `max_rows` rows is refused rather than silently unretained.
+    #[must_use]
+    pub fn bayesian_predictive_replicates(mut self, n_sims: u32, max_rows: u32) -> Self {
+        if let InferenceMode::Bayesian(cfg) = &mut self.settings.inference {
+            cfg.predictive_replicates =
+                Some(crate::inference::PredictiveReplicateBounds { n_sims, max_rows });
         }
         self
     }

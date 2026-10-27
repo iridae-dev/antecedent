@@ -153,7 +153,7 @@ fn frequentist_conditional_effect_keeps_six_dag_choices_sealed_through_refresh()
             assert!((result.effect() - 3.0).abs() < 1e-9);
             assert!((one_shot.effect() - result.effect()).abs() < 1e-10);
             assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None);
-            let refreshed = prepared.refresh(data(0.4), &ctx).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data(0.4), &ctx).unwrap();
             assert!((refreshed.effect() - 3.0).abs() < 1e-9);
             let RetainedOperation::CheckedConditional(rebound) = prepared.retained_operation()
             else {
@@ -161,7 +161,7 @@ fn frequentist_conditional_effect_keeps_six_dag_choices_sealed_through_refresh()
             };
             assert_eq!(rebound.query, plan.query);
             assert_eq!(rebound.procedure, plan.procedure);
-            let smaller = prepared.refresh(data_n(200, 0.4), &ctx).unwrap();
+            let smaller = rebind_estimate(&mut prepared, data_n(200, 0.4), &ctx).unwrap();
             assert!((smaller.effect() - 3.0).abs() < 1e-9);
             let RetainedOperation::CheckedConditional(resized) = prepared.retained_operation()
             else {
@@ -202,7 +202,7 @@ fn conditional_refresh_refuses_column_reordering_that_changes_semantic_ids() {
         ("t", t.as_slice()),
     ])
     .unwrap();
-    assert!(prepared.refresh(reordered, &ctx).is_err());
+    assert!(rebind_estimate(&mut prepared, reordered, &ctx).is_err());
 }
 
 #[test]
@@ -239,7 +239,7 @@ fn conditional_grid_and_quantile_retain_distribution_score_procedure() {
         } else {
             data(0.2)
         };
-        let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, refreshed_data, &ctx).unwrap();
         let RetainedOperation::CheckedConditional(rebound) = prepared.retained_operation() else {
             panic!("retained conditional distribution operation after refresh")
         };
@@ -298,7 +298,7 @@ fn fully_identified_class_conditional_effect_is_sealed_across_lifecycle() {
                 assert!((one_shot.effect() - result.effect()).abs() < 1e-10);
                 assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None);
 
-                let refreshed = prepared.refresh(class_data(0.35), &ctx).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, class_data(0.35), &ctx).unwrap();
                 assert!((refreshed.effect() - 3.0).abs() < 1e-9);
                 let RetainedOperation::CheckedConditional(rebound) = prepared.retained_operation()
                 else {
@@ -345,4 +345,17 @@ fn partially_identified_cpdag_conditional_effect_is_not_sealed_as_a_point_plan()
         .prepare(&ExecutionContext::for_tests(912))
         .unwrap();
     assert!(!matches!(prepared.retained_operation(), RetainedOperation::CheckedConditional(..)));
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

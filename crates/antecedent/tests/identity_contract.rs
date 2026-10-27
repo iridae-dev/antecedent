@@ -326,7 +326,7 @@ fn refresh_same_shape_changes_snapshot_and_expires_preview() {
             outcome.iter().zip(treatment).map(|(y, t)| y + t).collect::<Vec<_>>().into(),
         )
         .unwrap();
-    let refreshed = prepared.refresh(changed.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, changed.clone(), &ctx).unwrap();
     let after = prepared.contract().unwrap();
     assert_eq!(before.identities.target, after.identities.target);
     assert_eq!(before.identities.identification, after.identities.identification);
@@ -349,7 +349,7 @@ fn refresh_same_shape_changes_snapshot_and_expires_preview() {
     assert!((refreshed.effect() - original.effect() - 1.0).abs() < 1e-10);
     assert!((refreshed.effect() - 3.0).abs() < 0.2);
     let failure = data.with_replaced_float(VariableId::from_raw(0), vec![0.0; 256].into()).unwrap();
-    assert!(prepared.refresh(failure, &ctx).is_err());
+    assert!(rebind_estimate(&mut prepared, failure, &ctx).is_err());
     assert_eq!(after.identities, prepared.contract().unwrap().identities);
 }
 
@@ -522,7 +522,7 @@ fn dag_average_effect_vertical_path_counts_identify_compute() {
             data.float64_slice(VariableId::from_raw(1)).unwrap().to_vec().into(),
         )
         .unwrap();
-    let refreshed = prepared.refresh(compatible.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, compatible.clone(), &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 1, "compatible refresh must not re-identify");
     let second = prepared.estimate(&compatible, &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 1);
@@ -1897,7 +1897,7 @@ fn composition_score_table_retarget_reuses_scores_and_refuses_illegal_weights() 
 
     let (other, _, _) = confounded_scm(256, 42);
     assert_eq!(other.row_count(), data.row_count());
-    prepared.refresh(other, &ctx).unwrap();
+    rebind_estimate(&mut prepared, other, &ctx).unwrap();
     let after = prepared.contract().unwrap();
     assert_eq!(before.identities.identification, after.identities.identification);
     assert_eq!(before.identities.program, after.identities.program);
@@ -2164,7 +2164,7 @@ fn composition_adversarial_boundaries_refuse_stronger_claims() {
         )
         .unwrap()
     };
-    prepared.refresh(changed.clone(), &ctx).unwrap();
+    rebind_estimate(&mut prepared, changed.clone(), &ctx).unwrap();
     let stale = prepared.apply_refresh(&preview, changed, &ctx);
     assert!(
         stale.is_err_and(|err| err.to_string().contains("does not bind")),
@@ -6079,7 +6079,7 @@ fn row_weights_reexecute_only_on_their_own_snapshot() {
     assert_eq!(again.row_weights, retargeted.row_weights);
 
     let mut refreshed = prepared.clone();
-    refreshed.refresh(other_data, &ctx).unwrap();
+    rebind_estimate(&mut refreshed, other_data, &ctx).unwrap();
     let err = refreshed.reexecute_retarget(&carried, &ctx).unwrap_err();
     assert!(format!("{err}").contains("reason=row_weights_bound_to_snapshot"), "{err}");
     // A retarget computed on one snapshot cannot be exported through a handle
@@ -6740,4 +6740,17 @@ fn unlicensed_operation_blocker_ids_come_from_constants_not_prose() {
         message: "this retarget would need a licensed prepared contract first",
     };
     assert_eq!(reworded.blocker_id().map(|blocker| blocker.id.to_string()), None);
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

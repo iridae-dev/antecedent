@@ -74,7 +74,7 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
         ("y", shifted_y.as_slice()),
     ])
     .unwrap();
-    let refreshed = prepared.refresh(shifted, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, shifted, &ctx).unwrap();
     assert!(
         (refreshed.estimate.as_effect().unwrap().ate - first.estimate.as_effect().unwrap().ate)
             .abs()
@@ -263,4 +263,17 @@ fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interv
     .expect("an accepted Dag executes the nested natural effect as a supplied one does");
     // The cell is not licensed: it runs and the study states `refused`, with no coverage claim.
     assert_eq!(refused.support_status(), Some(antecedent::support::CellStatus::Refused));
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

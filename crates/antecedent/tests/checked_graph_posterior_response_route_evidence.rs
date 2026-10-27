@@ -283,7 +283,8 @@ fn graph_posterior_responses_body() {
                         "{label}: click must reproduce one-shot"
                     );
 
-                    let refreshed = prepared.refresh(shifted.clone(), &context).unwrap();
+                    let refreshed =
+                        rebind_estimate(&mut prepared, shifted.clone(), &context).unwrap();
                     assert_identified_atoms_match_truth(&refreshed, 0.5, curve, tolerance, &label);
                     let RetainedOperation::GraphPosteriorResponse(retained) =
                         prepared.retained_operation()
@@ -298,7 +299,7 @@ fn graph_posterior_responses_body() {
                         ("y", vec![0.0; 8].as_slice()),
                     ])
                     .unwrap();
-                    let error = prepared.refresh(two_columns, &context).unwrap_err();
+                    let error = rebind_estimate(&mut prepared, two_columns, &context).unwrap_err();
                     assert!(
                         error.to_string().contains("same schema"),
                         "{label}: schema-changed refresh must be refused: {error}"
@@ -354,7 +355,8 @@ fn graph_posterior_responses_body() {
                         "{mixed_label}"
                     );
                     let click = prepared.estimate(&initial, &context).unwrap();
-                    let refreshed = prepared.refresh(shifted.clone(), &context).unwrap();
+                    let refreshed =
+                        rebind_estimate(&mut prepared, shifted.clone(), &context).unwrap();
                     for (result, shift) in [(&click, 0.0), (&refreshed, 0.5)] {
                         let mixture = result.structural_response.as_ref().unwrap();
                         assert!((mixture.identified_mass - 0.8).abs() < 1e-12, "{mixed_label}");
@@ -384,4 +386,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

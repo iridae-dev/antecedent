@@ -388,7 +388,7 @@ fn interference_click_executes_on_the_clicked_outcomes() {
     assert_eq!(clicked.interference().expect("interference estimate").contrast, expected);
 
     let mut refreshed = prepared.clone();
-    let result = refreshed.refresh(moved, &ctx()).unwrap();
+    let result = rebind_estimate(&mut refreshed, moved, &ctx()).unwrap();
     assert_eq!(result.interference().expect("interference estimate").contrast, expected);
     let again = refreshed.estimate_retained(&ctx()).unwrap();
     assert_eq!(again.interference().expect("interference estimate").contrast, expected);
@@ -605,8 +605,7 @@ fn interference_is_stated_under_every_static_structure_class_with_the_design_ide
             "{class}"
         );
         assert!(
-            (estimated.contrast.hajek - expected["hajek_contrast"].as_f64().unwrap()).abs()
-                <= atol,
+            (estimated.contrast.hajek - expected["hajek_contrast"].as_f64().unwrap()).abs() <= atol,
             "{class}"
         );
         assert_eq!(result.estimand.method.as_ref(), "interference.design", "{class}");
@@ -704,7 +703,11 @@ fn interference_validation_checks_the_assignment_the_overlap_and_the_randomizati
             let got: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
             let expected: Vec<&str> = if bayesian {
                 // Only the design checks apply to the model-based posterior.
-                names.iter().copied().filter(|n| *n == "interference.assignment_calibration").collect()
+                names
+                    .iter()
+                    .copied()
+                    .filter(|n| *n == "interference.assignment_calibration")
+                    .collect()
             } else {
                 names.clone()
             };
@@ -727,4 +730,17 @@ fn interference_validation_checks_the_assignment_the_overlap_and_the_randomizati
             }
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

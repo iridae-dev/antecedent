@@ -295,8 +295,15 @@ pub fn max_t_critical(
     seed: u64,
 ) -> Result<f64, EstimationError> {
     let mut rng = CausalRng::from_seed(seed);
+    // The only stop the draw loop can observe here is the ambient execution context's
+    // cancellation, so a stop is that typed cancellation, never an unsupported refusal.
     max_t_critical_polled(cov, level, replicates, &mut rng, &|| false)?.ok_or_else(|| {
-        EstimationError::unsupported("max-t draw loop stopped without a stop signal")
+        EstimationError::refused_detail(
+            antecedent_core::reason_code!("cancelled_no_claim"),
+            "max_t.cancelled",
+            "the max-t simulation was cancelled before every draw was made; no critical value \
+             is reported and the stop is not a verdict on the data",
+        )
     })
 }
 

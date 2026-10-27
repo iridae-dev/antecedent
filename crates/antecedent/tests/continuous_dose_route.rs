@@ -82,7 +82,7 @@ fn retained_grid_recovers_linear_truth_and_artifact_identity() {
         )
         .is_err()
     );
-    let refreshed = prepared.refresh(data, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert_eq!(result.continuous_dose_response(), refreshed.continuous_dose_response());
 }
 
@@ -110,4 +110,17 @@ fn retained_grid_refuses_missing_support_and_invalid_density() {
         Study::tabular(data).query(CausalQuery::ContinuousDoseResponse(query)).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     assert!(prepared.estimate(&invalid, &ctx).is_err());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

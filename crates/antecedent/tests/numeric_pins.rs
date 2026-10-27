@@ -389,7 +389,7 @@ fn retarget_matches_refit_and_covers_kernel_target() {
     );
 
     let mut refreshed = prepared;
-    let click = refreshed.refresh(data, &ctx).unwrap();
+    let click = rebind_estimate(&mut refreshed, data, &ctx).unwrap();
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
 }
 
@@ -1051,7 +1051,7 @@ fn prepared_score_failure_is_visible_and_refresh_keeps_previous_scores() {
         .unwrap();
     let original = plan.score_table().unwrap().scores.clone();
     let invalid = data.with_replaced_float(VariableId::from_raw(0), vec![0.0; 400].into()).unwrap();
-    assert!(plan.refresh(invalid.clone(), &ctx).is_err());
+    assert!(rebind_estimate(&mut plan, invalid.clone(), &ctx).is_err());
     assert_eq!(plan.score_table().unwrap().scores.as_ref(), original.as_ref());
     assert!(plan.retarget(&weights, &[VariableId::from_raw(2)], &ctx).is_ok());
     assert!(ate_study(invalid, graph, query, EstimatorId::Aipw).prepare(&ctx).is_err());
@@ -3749,7 +3749,7 @@ fn prepared_batch_rebinds_covariates_on_new_data() {
         (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
             < 1e-12
     );
-    let refreshed = plan.refresh(new_data, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut plan, new_data, &ctx).unwrap();
     assert!(
         (refreshed.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate)
             .abs()
@@ -3906,7 +3906,7 @@ fn conditional_quantile_matches_cdf_and_prepared_paths() {
     assert!(expected.estimate.as_effect().unwrap().se_analytic() > 0.0);
     let mut prepared = study.prepare(&ctx).unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     let class = Study::tabular(data)
         .graph(cpdag)
         .query(CausalQuery::ConditionalEffect(query))
@@ -3981,7 +3981,7 @@ fn joint_quantile_is_requested_cell_level_including_zero_and_retarget() {
         let mut plan = study.prepare(&ctx).unwrap();
         let click = plan.estimate(&data, &ctx).unwrap();
         let weighted = plan.retarget(&vec![1.0; n], &[], &ctx).unwrap();
-        let refresh = plan.refresh(data.clone(), &ctx).unwrap();
+        let refresh = rebind_estimate(&mut plan, data.clone(), &ctx).unwrap();
         for result in [&click, &weighted, &refresh] {
             assert!(
                 (result.estimate.as_effect().unwrap().ate
@@ -4118,7 +4118,7 @@ fn replacement_data_changes_score_reuse_not_identification() {
         .unwrap();
     let before = prepared.contract().unwrap().identities;
     let score_before = prepared.score_reuse_identity().unwrap().expect("score key");
-    prepared.refresh(data_b, &ctx).unwrap();
+    rebind_estimate(&mut prepared, data_b, &ctx).unwrap();
     let after = prepared.contract().unwrap().identities;
     let score_after = prepared.score_reuse_identity().unwrap().expect("score key");
     assert_eq!(before.identification, after.identification);
@@ -4295,4 +4295,17 @@ fn three_factor_interaction_batch_publishes_the_three_way_contrast() {
         identities[0], identities[1],
         "the complete interaction is independent of the requested member level"
     );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

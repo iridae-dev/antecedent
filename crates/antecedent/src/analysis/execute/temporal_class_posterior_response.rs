@@ -96,12 +96,13 @@ impl super::Study {
                  summary is not applicable and the result is carried by the response payload",
             ));
         }
-        let mixture = class_posterior_mixture(
+        let mut mixture = class_posterior_mixture(
             atoms,
             masses,
             (structural_set, conditional),
             (unidentified_mass + failed_mass) == 0.0,
         );
+        mixture.aggregation_policy = Some(aggregation_policy);
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
         // Same identified-execute tail as the class response. The posterior
@@ -425,6 +426,7 @@ fn class_posterior_mixture(
         conditional_on_identified: conditional,
         full_mass_scope,
         truncated_atoms: 0,
+        aggregation_policy: None,
     }
 }
 

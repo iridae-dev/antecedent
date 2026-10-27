@@ -218,7 +218,25 @@ impl PrepareRequest {
         ctx: &antecedent_core::ExecutionContext,
     ) -> PyResult<super::PyPreparedAnalysis> {
         let analysis = builder.build().map_err(crate::py_err)?;
-        let prepared = analysis.prepare_deferred(ctx).map_err(crate::py_err)?;
+        let prepared = match analysis.prepare_deferred(ctx) {
+            Ok(prepared) => prepared,
+            // A refused study the caller asked to have described keeps its refusal and, beside
+            // it, Rust's descriptive fallback of that same study.
+            Err(refusal) => {
+                return Err(match &self.opts.fallback {
+                    Some(declaration) => crate::fallback_stage_api::describe_refusal(
+                        &analysis,
+                        declaration,
+                        &self.names,
+                        self.seed,
+                        crate::resolve_user_threads(self.threads),
+                        ctx,
+                        refusal,
+                    ),
+                    None => crate::py_err(refusal),
+                });
+            }
+        };
         let mut out = super::finished_prepared(prepared, self.names, series);
         out.borrowed_bytes = self.borrowed_bytes;
         Ok(out)

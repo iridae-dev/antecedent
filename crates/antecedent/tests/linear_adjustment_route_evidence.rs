@@ -77,7 +77,7 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
         "{coordinate}: ate={}",
         result.estimate.as_effect().unwrap().ate
     );
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert!(
         (refreshed.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
         "{coordinate}: refreshed ate={}",
@@ -234,4 +234,17 @@ fn dag_accepted_frequentist_full_linear_adjustment_coordinate() {
         true,
         "full",
     );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

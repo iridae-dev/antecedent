@@ -205,7 +205,7 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
                     "{coordinate}: missing prior sensitivity"
                 );
             }
-            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             assert_eq!(
                 refreshed.estimate.as_effect().unwrap().ate.to_bits(),
                 result.estimate.as_effect().unwrap().ate.to_bits()
@@ -225,4 +225,17 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
             assert!(!consumed.acceptance.accepts_as_verified_program());
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

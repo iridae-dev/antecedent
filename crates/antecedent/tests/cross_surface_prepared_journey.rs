@@ -214,7 +214,7 @@ fn the_plan_the_report_and_the_artifact_agree_and_survive_a_refresh() {
                 [("t", treatment), ("y", shifted.as_slice())],
             )
             .unwrap();
-            prepared.refresh(data, &ctx()).unwrap()
+            rebind_estimate(&mut prepared, data, &ctx()).unwrap()
         };
         assert_close(ate(&refreshed), truth, 2.0 * cell.tolerance());
         assert_eq!(prepared.plan_view().unwrap().identity(), program, "{label}: refresh");
@@ -260,7 +260,7 @@ fn a_refresh_the_schema_refuses_leaves_the_prepared_study_as_it_was() {
         .unwrap();
     let foreign =
         TabularData::try_from_schema_f64(other, [("t", treatment), ("w", outcome)]).unwrap();
-    assert!(prepared.refresh(foreign, &ctx()).is_err());
+    assert!(rebind_estimate(&mut prepared, foreign, &ctx()).is_err());
 
     assert_eq!(prepared.plan_view().unwrap().identity(), program);
     let again = prepared.estimate_retained(&ctx()).unwrap();
@@ -287,4 +287,17 @@ fn a_result_of_another_handle_is_not_sealed_under_this_one() {
             cell.label()
         );
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

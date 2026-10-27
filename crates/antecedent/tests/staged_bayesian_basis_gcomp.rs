@@ -183,7 +183,7 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
         ("z", refreshed_modifier.as_slice()),
     ])
     .unwrap();
-    let refreshed = prepared.refresh(shifted, &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, shifted, &context).unwrap();
     let RetainedOperation::BayesianBasisAte(rebound) = prepared.retained_operation() else {
         panic!("basis ATE plan survives refresh")
     };
@@ -207,7 +207,7 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
         ("z", refreshed_modifier.as_slice()),
     ])
     .unwrap();
-    assert!(prepared.refresh(reordered, &context).is_err());
+    assert!(rebind_estimate(&mut prepared, reordered, &context).is_err());
 }
 
 #[test]
@@ -271,7 +271,7 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
         ("z", z.as_slice()),
     ])
     .unwrap();
-    let refreshed = prepared.refresh(shifted, &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, shifted, &context).unwrap();
     assert!(
         (refreshed.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
             .abs()
@@ -305,4 +305,17 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
         .unwrap()
         .prepare(&context);
     assert!(refused.is_err(), "modifier projection must be refused at preparation");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

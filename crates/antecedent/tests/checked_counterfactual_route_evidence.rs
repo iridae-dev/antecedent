@@ -48,7 +48,7 @@ fn checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portabl
         let refreshed_data =
             TabularData::from_f64_columns([("x", x.as_slice()), ("y", refreshed_y.as_slice())])
                 .unwrap();
-        let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, refreshed_data, &ctx).unwrap();
         let refreshed_mean = refreshed.counterfactual().unwrap().mean_ite;
         assert!((refreshed_mean - 2.5).abs() < 0.1, "mean_ite={refreshed_mean}");
         let bytes =
@@ -74,4 +74,17 @@ fn checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portabl
                 .any(|reason| reason.as_ref() == "dependencies.fitted_counterfactual_mechanisms")
         );
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

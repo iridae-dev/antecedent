@@ -45,6 +45,7 @@ use antecedent_graph::Admg;
 use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
 
 use super::builder::{DataInput, data_schema};
+use crate::inference::InferenceMode;
 use super::contract::evidence_next_actions;
 use super::evidence_plan::{
     EvidencePlanRequest, EvidencePlanResult, STUDY_POPULATION, plan_over_routes, variable_names,
@@ -142,6 +143,9 @@ pub struct AssociationalFallback {
     pub result: StudyResult,
     /// Its claim: kind `associational`, identification not claimed.
     pub claim: ClaimEnvelope,
+    /// The compiled associational study that produced the result, so a caller can inspect,
+    /// re-estimate or rebind the description like any other prepared study.
+    pub prepared: crate::PreparedStudy,
 }
 
 /// The ranked plan of a fallback.
@@ -161,6 +165,8 @@ pub struct EvidenceNeeds {
     /// Variable names by id: the study's variables, then the unmeasured common causes of the
     /// graph's bidirected edges.
     pub names: Vec<String>,
+    /// The variables of the declared graph, by id: the ones measured today.
+    pub observed: Vec<VariableId>,
     /// The verified obligations, each with its proof step. An assumption obligation is listed
     /// and satisfiable by no study.
     pub obligations: Vec<EvidenceObligation>,
@@ -498,6 +504,21 @@ impl Study {
         }
     }
 
+    /// The variable names a caller spells candidate studies in for this study's fallback: the
+    /// study's variables, then the unmeasured common cause of each bidirected edge of the
+    /// declared graph (`common_cause_of_<a>_<b>`). `None` when the declared graph is not one
+    /// the evidence routes read, so no plan can be asked for.
+    #[must_use]
+    pub fn fallback_candidate_names(&self) -> Option<Vec<String>> {
+        let graph = failure_graph(self)?;
+        let names: Vec<Arc<str>> = data_schema(&self.data)
+            .variables()
+            .iter()
+            .map(|variable| Arc::clone(&variable.name))
+            .collect();
+        Some(super::evidence_plan::graph_variable_names(&names, &graph, None))
+    }
+
     /// The study over the same data and declarations whose query is the association `query`,
     /// or why the data modality has none.
     fn associational_counterpart(
@@ -521,7 +542,11 @@ impl Study {
         let mut builder = builder
             .query(CausalQuery::Association(query))
             .inference(self.inference.clone())
-            .bootstrap_replicates(self.bootstrap_replicates);
+            // A posterior is drawn with n_draws: only a resampling spread reads replicates.
+            .bootstrap_replicates(match self.inference {
+                InferenceMode::Bayesian(_) => 0,
+                _ => self.bootstrap_replicates,
+            });
         if let Some(design) = self.sampling_design {
             builder = builder.sampling_design(design);
         }
@@ -552,15 +577,17 @@ impl Study {
             Ok(study) => study,
             Err(unavailable) => return Ok(Err(unavailable)),
         };
-        let run = || -> Result<(StudyResult, ClaimEnvelope), CausalError> {
+        let run = || -> Result<(StudyResult, ClaimEnvelope, crate::PreparedStudy), CausalError> {
             let prepared = study.prepare(ctx)?;
             let result = prepared.estimate_retained(ctx)?;
             let contract = prepared.contract()?;
             let claim = result.claim(&contract, ctx)?;
-            Ok((result, claim))
+            Ok((result, claim, prepared))
         };
         match run() {
-            Ok((result, claim)) => Ok(Ok(AssociationalFallback { roles, result, claim })),
+            Ok((result, claim, prepared)) => {
+                Ok(Ok(AssociationalFallback { roles, result, claim, prepared }))
+            }
             Err(error) if is_stop(&error) => Err(error),
             Err(error) => Ok(Err(refused_association(&error))),
         }
@@ -692,6 +719,7 @@ impl Study {
         };
         Ok(Ok(EvidenceNeeds {
             names: labels,
+            observed,
             obligations,
             next_actions,
             candidate_templates,

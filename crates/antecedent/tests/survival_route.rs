@@ -124,7 +124,7 @@ fn known_censoring_survival_is_retained_and_refuses_positivity_violation() {
         ("g3", &g3[..]),
     ])
     .unwrap();
-    assert!(prepared.refresh(bad, &ctx).is_err());
+    assert!(rebind_estimate(&mut prepared, bad, &ctx).is_err());
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn randomized_survival_rmst_is_retained_and_round_trips() {
     assert!(first.identification.required_assumptions.entries.iter().any(|record| {
         matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "independent_censoring_and_entry")
     }));
-    let refreshed = prepared.refresh(data, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert_eq!(first.survival(), refreshed.survival());
 }
 
@@ -245,7 +245,7 @@ fn subject_bootstrap_scalar_intervals_are_retained_and_artifact_checked() {
     let rmst = section.rmst_difference_interval.unwrap();
     assert!(rmst[0] <= 0.2 && 0.2 <= rmst[1]);
     assert_eq!(section.difference_at_tau_interval.unwrap().len(), 2);
-    assert_eq!(prepared.refresh(data, &ctx).unwrap().survival(), first.survival());
+    assert_eq!(rebind_estimate(&mut prepared, data, &ctx).unwrap().survival(), first.survival());
     let artifact = prepared.encode_contracted_result(&first, "survival-bootstrap", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&artifact).unwrap();
     assert_eq!(body.survival.as_ref().unwrap().rmst_difference_interval, Some(rmst));
@@ -1130,4 +1130,17 @@ fn competing_incidence_scalar_interval_is_off_axis_and_refuses_forged_license() 
         )
         .is_err()
     );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

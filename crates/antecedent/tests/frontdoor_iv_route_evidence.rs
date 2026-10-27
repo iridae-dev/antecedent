@@ -166,7 +166,7 @@ fn verify_frontdoor(accepted: bool, validation: &str) {
         (result.effect() - reference.effect()).abs() < 1e-12,
         "{coordinate} changed result vs fresh route"
     );
-    let refreshed = prepared.refresh(refreshed_data, &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, refreshed_data, &context).unwrap();
     assert!((refreshed.effect() - result.effect()).abs() < 0.05, "{coordinate} refresh");
     let artifact = prepared
         .encode_contracted_result(
@@ -245,7 +245,7 @@ fn verify_iv(accepted: bool, validation: &str, wald: bool) {
         Some(AnalyticSeKind::Hc1),
         "{coordinate}"
     );
-    let refreshed = prepared.refresh(refreshed_data, &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, refreshed_data, &context).unwrap();
     assert!(
         (refreshed.effect() - 2.0).abs() < 0.15,
         "{coordinate} refresh: {}",
@@ -355,4 +355,17 @@ fn dag_explicit_frequentist_iv_2sls_full() {
 #[test]
 fn dag_explicit_frequentist_iv_wald_full() {
     verify_iv(false, "full", true);
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

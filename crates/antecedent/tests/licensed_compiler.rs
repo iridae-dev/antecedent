@@ -501,11 +501,7 @@ fn temporal_gp(n_vars: usize) -> GraphPosterior {
     if n_vars >= 2 {
         lagged[1] = 1.0;
     }
-    static_gp(n_vars)
-        .with_lagged_marginals(1, lagged)
-        .unwrap()
-        .with_lag_masks(vec![2_u64])
-        .unwrap()
+    static_gp(n_vars).with_lagged_marginals(1, lagged).unwrap().with_lag_masks(vec![2_u64]).unwrap()
 }
 
 /// Reconstructible TemporalCpdag/Pag atom.
@@ -1605,7 +1601,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
             }
             .map_err(|e| format!("execute after drop: {e}"))?;
             let refreshed = match &data {
-                CellData::Tabular(table) => prepared.refresh(table.clone(), &ctx),
+                CellData::Tabular(table) => rebind_estimate(&mut prepared, table.clone(), &ctx),
                 CellData::Series(series) => prepared.refresh_series(series.clone(), &ctx),
             }
             .map_err(|e| format!("compatible refresh after drop: {e}"))?;
@@ -1751,7 +1747,7 @@ fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
             }
             .map_err(|e| format!("execute after builder/Study drop: {e}"))?;
             let refreshed = match &data {
-                CellData::Tabular(table) => prepared.refresh(table.clone(), &ctx),
+                CellData::Tabular(table) => rebind_estimate(&mut prepared, table.clone(), &ctx),
                 CellData::Series(series) => prepared.refresh_series(series.clone(), &ctx),
             }
             .map_err(|e| format!("compatible refresh: {e}"))?;
@@ -2056,9 +2052,7 @@ fn regress(design: Vec<Vec<f64>>, y: &[f64]) -> Regression {
     let leverage: Vec<f64> = design
         .iter()
         .map(|row| {
-            (0..p)
-                .map(|i| (0..p).map(|j| row[i] * bread[i][j] * row[j]).sum::<f64>())
-                .sum::<f64>()
+            (0..p).map(|i| (0..p).map(|j| row[i] * bread[i][j] * row[j]).sum::<f64>()).sum::<f64>()
         })
         .collect();
     Regression { beta, bread, design, residuals, leverage }
@@ -2111,8 +2105,11 @@ impl Regression {
 fn binary_treatment_columns() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let n = 48usize;
     let t = (0..n).map(|i| (i % 2) as f64).collect();
-    let y = (0..n).map(|i| 0.3 + 0.8 * (i % 2) as f64 + 0.2 * ((i + 5) as f64 * 0.13).sin()).collect();
-    let z = (0..n).map(|i| ((i / 2 + 6) % 5) as f64 * 0.25 + 0.1 * ((i + 2) as f64 * 0.2).sin()).collect();
+    let y =
+        (0..n).map(|i| 0.3 + 0.8 * (i % 2) as f64 + 0.2 * ((i + 5) as f64 * 0.13).sin()).collect();
+    let z = (0..n)
+        .map(|i| ((i / 2 + 6) % 5) as f64 * 0.25 + 0.1 * ((i + 2) as f64 * 0.2).sin())
+        .collect();
     (t, y, z)
 }
 
@@ -2176,8 +2173,7 @@ fn the_wald_and_two_stage_iv_routes_match_the_instrumental_variable_algebra() {
     let szz: f64 = (0..n).map(|i| (z[i] - mz) * (z[i] - mz)).sum();
     // First stage `t ~ 1 + z`: the F statistic of the instrument.
     let slope = szt / szz;
-    let first_stage_rss: f64 =
-        (0..n).map(|i| (t[i] - mt - slope * (z[i] - mz)).powi(2)).sum();
+    let first_stage_rss: f64 = (0..n).map(|i| (t[i] - mt - slope * (z[i] - mz)).powi(2)).sum();
     let df = n as f64 - 2.0;
     let first_stage_f = slope * slope * szz / (first_stage_rss / df);
     // Anderson-Rubin set at 95%: beta0 is kept when the F test of `z` in `y - beta0 t ~ 1 + z`
@@ -2254,7 +2250,10 @@ fn the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measur
         .collect();
     let side = |keep: &dyn Fn(f64) -> bool| {
         let rows: Vec<usize> = (0..n).filter(|&i| keep(r[i])).collect();
-        regress(rows.iter().map(|&i| vec![1.0, r[i]]).collect(), &rows.iter().map(|&i| y[i]).collect::<Vec<_>>())
+        regress(
+            rows.iter().map(|&i| vec![1.0, r[i]]).collect(),
+            &rows.iter().map(|&i| y[i]).collect::<Vec<_>>(),
+        )
     };
     let right = side(&|x| (0.0..=1.5).contains(&x));
     let left = side(&|x| (-1.5..0.0).contains(&x));
@@ -2327,7 +2326,8 @@ fn sampled_licensed_cells_replay_to_the_published_number() {
         };
         replayed += 1;
         if first.effect.to_bits() != second.effect.to_bits() {
-            failures.push(format!("{coordinate}: reruns differ {} vs {}", first.effect, second.effect));
+            failures
+                .push(format!("{coordinate}: reruns differ {} vs {}", first.effect, second.effect));
         }
         if first.lowered.is_none() || first.lowered != second.lowered {
             failures.push(format!("{coordinate}: the lowered program identity did not replay"));
@@ -2346,4 +2346,17 @@ fn sampled_licensed_cells_replay_to_the_published_number() {
     }
     assert!(replayed >= 60, "the sample drifted: {replayed} cells");
     assert!(failures.is_empty(), "{} replay failures:\n{}", failures.len(), failures.join("\n"));
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

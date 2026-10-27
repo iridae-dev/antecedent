@@ -557,6 +557,7 @@ impl super::Study {
             conditional_on_identified: Some(ResponseValue::Vector(Arc::from(merged.mean.clone()))),
             full_mass_scope: !class.capped,
             truncated_atoms: usize::from(class.capped),
+            aggregation_policy: None,
         };
 
         let set_diagnostic = identified_set_diagnostic(&merged);

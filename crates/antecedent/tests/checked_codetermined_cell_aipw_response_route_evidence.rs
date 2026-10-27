@@ -147,7 +147,7 @@ fn codetermined_joint_cell_aipw_response_body() {
         "one-shot run must execute its retained prepared plan"
     );
 
-    let refreshed = prepared.refresh(data(0.4), &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data(0.4), &context).unwrap();
     assert!((value(&refreshed) - truth(0.4)).abs() < 0.05, "refreshed {}", value(&refreshed));
     let RetainedOperation::CellAipwResponse(retained) = prepared.retained_operation() else {
         panic!("refresh retains the checked CoDetermined joint cell route")
@@ -161,7 +161,7 @@ fn codetermined_joint_cell_aipw_response_body() {
         ("y", vec![0.0; 8].as_slice()),
     ])
     .unwrap();
-    let error = prepared.refresh(three_columns, &context).unwrap_err();
+    let error = rebind_estimate(&mut prepared, three_columns, &context).unwrap_err();
     assert!(
         error.to_string().contains("same schema"),
         "schema-changed refresh must be refused: {error}"
@@ -179,4 +179,17 @@ fn codetermined_joint_cell_aipw_response_body() {
         consumed.acceptance.unresolved
     );
     assert!(!consumed.acceptance.accepts_as_verified_program());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

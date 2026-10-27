@@ -192,7 +192,7 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                     );
                 }
                 let (refreshed_data, _) = fixture(0.4);
-                let refreshed = prepared.refresh(refreshed_data, &context).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, refreshed_data, &context).unwrap();
                 assert!(
                     (response_value(&refreshed) - (truth + 0.4)).abs()
                         < if bayesian { 0.06 } else { 1e-12 }
@@ -293,7 +293,7 @@ fn explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters() {
                     response_value(&result)
                 );
                 assert_plugin_level_validation(&result, suite, &coordinate);
-                let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
                 assert_plugin_level_validation(&refreshed, suite, &coordinate);
             }
         }
@@ -391,7 +391,7 @@ fn graph_posterior_admg_intervention_response_is_sealed_across_refuters() {
                 }
                 RefuteSuite::PlaceboAndRcc => unreachable!(),
             }
-            let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
             let refreshed_mass = refreshed.structural_response.as_ref().unwrap();
             assert!((refreshed_mass.identified_mass - (1.0 - expected_unidentified)).abs() < 1e-12);
             assert!((refreshed_mass.unidentified_mass - expected_unidentified).abs() < 1e-12);
@@ -460,4 +460,17 @@ fn assert_plugin_level_validation(
         }
         RefuteSuite::None | RefuteSuite::PlaceboAndRcc => unreachable!(),
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

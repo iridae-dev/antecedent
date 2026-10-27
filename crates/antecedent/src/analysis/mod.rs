@@ -392,7 +392,7 @@ pub use missing_support::{
 pub use mixed_source::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
 pub use mz_transport::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
 pub use predictive_assessment::{
-    PredictiveAssessmentRefusal, PreparedPredictiveAssessment,
+    PredictiveAssessmentRefusal, PreparedPredictiveAssessment, RetainedPredictiveReplicates,
     consume_predictive_assessment_artifact, fit_declaration_from_ledger,
     observation_keys_from_ledger, posterior_predictive_predictor,
 };
@@ -514,7 +514,6 @@ pub use decision_contract_facade::{
     utility_interval,
 };
 pub use execute::DagResponseOrigin;
-pub use execute::IntoSharedPlan;
 pub use execute::Study;
 pub use execute::{
     BAYESIAN_REALIZATION, DECISION_NEXT_ATTEMPTS, DISTRIBUTIONAL_CARRIER, DecisionCarrierError,

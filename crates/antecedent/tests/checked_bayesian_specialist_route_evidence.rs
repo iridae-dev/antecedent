@@ -166,7 +166,7 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
             posterior.draws.values.as_ref()
         );
 
-        let refreshed = prepared.refresh(fixture.data.clone(), &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, fixture.data.clone(), &ctx).unwrap();
         assert!(
             (refreshed.estimate.as_effect().unwrap().ate
                 - result.estimate.as_effect().unwrap().ate)
@@ -190,7 +190,7 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
         );
         assert!(!consumed.acceptance.accepts_as_verified_program());
 
-        assert!(prepared.refresh(widened(&fixture.data), &ctx).is_err());
+        assert!(rebind_estimate(&mut prepared, widened(&fixture.data), &ctx).is_err());
     }
 }
 
@@ -204,4 +204,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .expect("spawn evidence thread")
         .join()
         .expect("evidence body panicked");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

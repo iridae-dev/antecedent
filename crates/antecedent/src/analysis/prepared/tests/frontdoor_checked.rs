@@ -86,7 +86,12 @@ fn frontdoor_refresh_publishes_the_refreshed_row_count() {
             .unwrap()
             .prepare(&context)
             .unwrap();
-        let refreshed = prepared.refresh(data_rows(0.4, rows), &context).unwrap();
+        let refreshed = crate::analysis::prepared::rebind_estimate(
+            &mut prepared,
+            data_rows(0.4, rows),
+            &context,
+        )
+        .unwrap();
         let artifact =
             prepared.encode_contracted_result(&refreshed, "frontdoor", &context).unwrap();
         let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
@@ -133,7 +138,9 @@ fn frontdoor_prepared_click_uses_retained_fit_after_study_config_changes() {
     )));
     let estimate = prepared.estimate(&base_data, &context).unwrap();
     assert!((estimate.effect() - 1.4).abs() < 0.1, "estimate={}", estimate.effect());
-    let refreshed = prepared.refresh(refreshed_data, &context).unwrap();
+    let refreshed =
+        crate::analysis::prepared::rebind_estimate(&mut prepared, refreshed_data, &context)
+            .unwrap();
     assert!((refreshed.effect() - estimate.effect()).abs() < 0.05);
     assert!(refreshed.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|entry| {
         matches!(&entry.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "frontdoor.linear_path_product")

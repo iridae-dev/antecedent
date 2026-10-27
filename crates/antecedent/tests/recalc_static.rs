@@ -465,7 +465,7 @@ fn generic_refresh_exports_actual_refreshed_factor_snapshot() {
     for y in &mut request.columns[2].1 {
         *y = 1.0 - *y;
     }
-    let result = prepared.refresh(data(&request.columns), &ctx).unwrap();
+    let result = rebind_estimate(&mut prepared, data(&request.columns), &ctx).unwrap();
     let antecedent_core::ResponseIdentification::PointIdentified(
         antecedent_core::ResponseValue::Surface { mean, .. },
     ) = &result.response().unwrap().estimate
@@ -527,4 +527,17 @@ fn adjacent_dag_and_unsorted_grid_refuse_before_work() {
         Err(RecalcRunError::Request(RecalcRequestCode::StaticGraphUnsupported))
     ));
     assert_eq!(work.provider_bindings, 0);
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -205,7 +205,7 @@ fn known_truth_value_is_retained_and_point_only_artifact_round_trips() {
         )
         .is_err()
     );
-    let refreshed = prepared.refresh(data, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert_eq!(first.longitudinal_regime(), refreshed.longitudinal_regime());
 }
 
@@ -844,4 +844,17 @@ fn sequential_dr_refuses_split_q_fold_and_reappearing_subject() {
     q.prediction_fold_ids = Some(q.fold_ids.clone());
     q.observation_history = Some(Arc::from([false, true, true, true, true, true, true, true]));
     assert!(q.validate().is_err());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

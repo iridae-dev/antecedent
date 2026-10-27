@@ -464,7 +464,7 @@ fn prepared_body() {
     );
     let changed = chain_table(30.0);
     let expected = tabular_study(&changed, cpdag, &query, &frequentist()).run(&ctx).unwrap();
-    let refreshed = prepared.refresh(changed, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, changed, &ctx).unwrap();
     assert_eq!(refreshed.anomaly().unwrap(), expected.anomaly().unwrap());
     assert_eq!(refreshed.lowered_program_identity(), prepared.plan().lowered_program_identity());
     let artifact =
@@ -625,4 +625,17 @@ fn temporal_admg_hedge_body() {
     let error = series_study(&data, template).run(&ctx).unwrap_err();
     assert!(matches!(error, CausalError::NotIdentified { .. }), "{error}");
     assert!(error.to_string().contains(HEDGE_WITNESS_ID));
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

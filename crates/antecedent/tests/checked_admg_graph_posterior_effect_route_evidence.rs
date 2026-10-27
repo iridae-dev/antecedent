@@ -137,7 +137,7 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
                 }
                 RefuteSuite::PlaceboAndRcc => unreachable!(),
             }
-            let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
             assert!(
                 (refreshed.estimate.as_effect().unwrap().ate
                     - result.estimate.as_effect().unwrap().ate)
@@ -168,4 +168,17 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
             );
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

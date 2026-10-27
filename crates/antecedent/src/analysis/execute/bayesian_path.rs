@@ -491,6 +491,7 @@ fn tiered_unknown_scenarios(
         conditional_on_identified: None,
         full_mass_scope: true,
         truncated_atoms: 0,
+        aggregation_policy: None,
     };
     let mut estimate =
         EffectEstimate::new(f64::NAN, f64::NAN, assumptions, OverlapPolicy::ExplicitOverride);
@@ -1412,6 +1413,15 @@ impl super::Study {
             status,
             conditional,
         } = *input;
+        if cfg.predictive_replicates.is_some() {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "retained predictive replicates are built by the sealed Bayesian g-computation \
+                 of a mean average effect over the all-observed, treated or untreated \
+                 population; this execution does not build them, so it refuses the declaration \
+                 rather than return a result without them"
+            ));
+        }
         let mut est = bayesian_gcomp(cfg, ctx);
         clock.begin(ctx, super::super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
         let prep = if conditional {
@@ -4660,6 +4670,9 @@ fn dbn_frequentist_structural_mixture(
         conditional_on_identified: Some(ResponseValue::Scalar(point)),
         full_mass_scope: true,
         truncated_atoms: 0,
+        aggregation_policy: Some(
+            crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+        ),
     }
 }
 

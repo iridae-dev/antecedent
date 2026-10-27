@@ -92,7 +92,7 @@ fn template_json(template: &CandidateTemplate, names: &[String]) -> Value {
     })
 }
 
-fn generation_json(generation: &CandidateGeneration, names: &[String]) -> Value {
+pub(crate) fn generation_json(generation: &CandidateGeneration, names: &[String]) -> Value {
     json!({
         "templates": generation.templates.iter().map(|t| template_json(t, names)).collect::<Vec<_>>(),
         "unmatched": generation.unmatched.iter().map(|u| json!({
@@ -507,6 +507,24 @@ pub(crate) struct EvidencePlanStage {
     generation: Option<CandidateGeneration>,
     unlocks: Option<Value>,
     artifact: Result<EvidencePlanArtifact, EvidencePlanArtifactError>,
+}
+
+impl EvidencePlanStage {
+    /// The stage of a plan the descriptive fallback produced, read like one declared on a
+    /// failure contract: the options, the routes behind them, the unlocks and the artifact.
+    pub(crate) fn of_result(
+        result: &antecedent::analysis::evidence_plan::EvidencePlanResult,
+        candidates: &[antecedent_design::DurableStudyCandidate],
+        observed: &[VariableId],
+    ) -> Self {
+        Self {
+            plan: result.plan.clone(),
+            names: result.names.clone(),
+            generation: Some(result.generation.clone()),
+            unlocks: Some(unlocks_json(&result.reports, candidates, observed, &result.names)),
+            artifact: result.artifact().cloned().map_err(Clone::clone),
+        }
+    }
 }
 
 #[pymethods]

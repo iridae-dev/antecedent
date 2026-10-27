@@ -261,7 +261,7 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
     assert!(!consumed.acceptance.accepts_as_verified_program());
 
     let shifted = shifted_outcomes(&data, 0.5);
-    let refreshed = prepared.refresh(shifted, &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, shifted, &context).unwrap();
     assert!(
         (refreshed.interference().unwrap().contrast.horvitz_thompson
             - estimated.contrast.horvitz_thompson)
@@ -283,7 +283,7 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
             .iter()
             .any(|dependency| dependency.as_ref() == "dependencies.checked_interference_operation")
     );
-    assert!(prepared.refresh(wrong_unit_count(), &context).is_err());
+    assert!(rebind_estimate(&mut prepared, wrong_unit_count(), &context).is_err());
 }
 
 #[test]
@@ -328,7 +328,7 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
     }));
     assert!(!consumed.acceptance.accepts_as_verified_program());
 
-    let refreshed = prepared.refresh(shifted_outcomes(&data, 0.5), &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, shifted_outcomes(&data, 0.5), &context).unwrap();
     assert!(
         (refreshed.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
             .abs()
@@ -349,5 +349,18 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
             .iter()
             .any(|dependency| dependency.as_ref() == "dependencies.checked_interference_operation")
     );
-    assert!(prepared.refresh(wrong_unit_count(), &context).is_err());
+    assert!(rebind_estimate(&mut prepared, wrong_unit_count(), &context).is_err());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

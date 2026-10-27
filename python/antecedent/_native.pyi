@@ -177,10 +177,12 @@ class AteAnalysisResult:
         self, units: str, population: str, supplied_value: float
     ) -> tuple[str | None, str | None]: ...
     missing_data_json: str | None
+    interval_bindings_json: str | None
     structural_weight_basis: str | None
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None
     structural_unevaluable_mass: float | None
+    structural_aggregation_policy: str | None
     structural_identified_set: tuple[float, float] | None
     structural_identified_set_interval: tuple[float, float] | None
     structural_identified_set_interval_level: float | None
@@ -267,6 +269,7 @@ class AteAnalysisResult:
     posterior_ppc_n_sims: int | None
     posterior_ppc_dispersion_p_value: float | None
     posterior_ppc_noise: str | None
+    predictive_replicates: PredictiveReplicateLaws | None
     identification: IdentificationSection
     estimate: EstimateSection
     posterior: PosteriorSection
@@ -321,6 +324,7 @@ class ResponseAnalysisResult:
     def program_basis_json(self) -> str | None: ...
     def horizon_draws_json(self, dose_index: int) -> tuple[str | None, str | None]: ...
     missing_data_json: str | None
+    interval_bindings_json: str | None
     certificate_json: str | None
     treatments: list[str]
     outcomes: list[str]
@@ -359,6 +363,7 @@ class ResponseAnalysisResult:
     enumeration_capped: bool | None
     mass_scope: str | None
     weight_basis: str | None
+    aggregation_policy: str | None
     atom_keys: list[int]
     atom_weights: list[float]
     atom_statuses: list[str]
@@ -780,6 +785,15 @@ class TemporalDesignSection:
     uncertainty: str
     calibration: str
     licensed: bool
+
+class PredictiveReplicateLaws:
+    quantity: str
+    population: str
+    units: str
+    model: str
+    laws: list[list[float]]
+    outcomes: list[float]
+    rows: list[int]
 
 class PolicyValueSection:
     policy_value: float
@@ -1344,6 +1358,7 @@ class AnalysisResult:
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None
     structural_unevaluable_mass: float | None
+    structural_aggregation_policy: str | None
     structural_identified_set: tuple[float, float] | None
     structural_identified_set_interval: tuple[float, float] | None
     structural_identified_set_interval_level: float | None
@@ -1521,7 +1536,6 @@ class PreparedAnalysis:
         frame: dict[str, Any] | None,
         *,
         response: bool = False,
-        refresh: bool = False,
         seed: int = 1,
         threads: int | None = None,
         cancel: CancellationToken | None = None,
@@ -2598,28 +2612,6 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int | None = None,
     ) -> AteAnalysisResult: ...
-    def refresh(
-        self,
-        names: list[str],
-        columns: Sequence[Any],
-        *,
-        seed: int = 1,
-        threads: int | None = None,
-        cancel: CancellationToken | None = None,
-        on_progress: Callable[..., Any] | None = None,
-        on_stage: Callable[..., Any] | None = None,
-    ) -> AteAnalysisResult: ...
-    def refresh_response(
-        self,
-        names: list[str],
-        columns: Sequence[Any],
-        *,
-        seed: int = 1,
-        threads: int | None = None,
-        cancel: CancellationToken | None = None,
-        on_progress: Callable[..., Any] | None = None,
-        on_stage: Callable[..., Any] | None = None,
-    ) -> ResponseAnalysisResult: ...
     def refute(
         self,
         names: list[str],
@@ -2800,6 +2792,54 @@ class _PreparedPolicyAnalysis:
     ) -> tuple[FittedGcm, PreparedPolicy]: ...
     def export_program(self) -> bytes: ...
 
+class ArrowStrength:
+    parent: str
+    child: str
+    strength: float
+    coefficient: float
+
+class PopulationDoContrast:
+    contrast: float
+    stderr: float
+    parent: str
+    child: str
+    delta: float
+
+class OutcomeContrast:
+    outcome: str
+    mean_ite: float
+    unit_effects: NDArray[np.float64]
+
+class ContrastSet:
+    contrasts: list[OutcomeContrast]
+    noise_inference: str
+    def contrast(self, outcome: str) -> OutcomeContrast | None: ...
+
+class DoSample:
+    mean: float
+    method: str
+    notes: list[str]
+    accept_rate: float | None
+    bandwidth: float | None
+    ess: float | None
+    @property
+    def values(self) -> NDArray[np.float64]: ...
+    @property
+    def weights(self) -> NDArray[np.float64]: ...
+    def density(self, x: float) -> float: ...
+    def __len__(self) -> int: ...
+
+class ModelEvaluation:
+    in_sample_loglik: float
+    zero_probability_rows: int
+    mean_abs_residual: float
+    residual_independence_p: list[float]
+    local_markov_p: list[float]
+    permutation_loglik: float
+    falsified: bool
+    alpha: float
+    notes: list[str]
+
 class FittedGcm:
     names: list[str]
     n_assignments: int
@@ -2858,6 +2898,67 @@ class FittedGcm:
         threads: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> str: ...
+    def arrow_strengths(self) -> list[ArrowStrength]: ...
+    def population_do_contrast(
+        self,
+        parent: str,
+        child: str,
+        delta: float,
+        *,
+        max_units: int | None = None,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> PopulationDoContrast: ...
+    def counterfactual_contrasts(
+        self,
+        outcomes: list[str],
+        active: dict[str, float],
+        control: dict[str, float],
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> ContrastSet: ...
+    def simultaneous_counterfactual(
+        self,
+        outcome: str,
+        outer: dict[str, float],
+        inner: dict[str, float],
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> float: ...
+    def interventional_mean(
+        self,
+        outcome: str,
+        interventions: dict[str, float],
+        n: int,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> float: ...
+    def do_sample(
+        self,
+        method: str,
+        outcome: str,
+        interventions: dict[str, float],
+        n: int = 1000,
+        *,
+        bandwidth: float | None = None,
+        proposal_sd: float | None = None,
+        burn_in: int | None = None,
+        thin: int | None = None,
+        root_match_tolerance: float | None = None,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> DoSample: ...
+    def evaluate(
+        self,
+        *,
+        alpha: float = 0.05,
+        n_permutations: int = 20,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> ModelEvaluation: ...
     def counterfactual_ite(
         self,
         treatment: str,
@@ -4302,6 +4403,7 @@ class Cpdag:
     def children(self, name: str) -> list[str]: ...
     def undirected_neighbors(self, name: str) -> list[str]: ...
     def try_into_dag(self) -> Dag: ...
+    def is_mec_member(self, dag: Dag) -> bool: ...
     def node_count(self) -> int: ...
     @classmethod
     def from_dot(cls, dot: str) -> Cpdag: ...
@@ -5939,6 +6041,19 @@ class EvidencePlanStage:
     def report(self) -> dict[str, Any]: ...
     def export(self) -> bytes: ...
 
+class FallbackStage:
+    def roles(self) -> tuple[str, str, list[str], str] | None: ...
+    def associational_unavailable(self) -> tuple[str, str, str, str] | None: ...
+    def associational(self) -> tuple[PreparedAnalysis, AteAnalysisResult] | None: ...
+    def evidence_unavailable(self) -> tuple[str, str, str, str] | None: ...
+    def obligations(self) -> list[dict[str, Any]] | None: ...
+    def next_actions(self) -> list[dict[str, Any]] | None: ...
+    def templates(self) -> dict[str, Any] | None: ...
+    def ranking_kind(self) -> str | None: ...
+    def ranked_plan(self) -> EvidencePlanStage | None: ...
+    def report(self, format: str) -> str: ...
+    def ranking_unavailable(self) -> tuple[str, str, str, str] | None: ...
+
 def evidence_failure_dag(
     graph: Dag,
     treatment: str,
@@ -7172,6 +7287,8 @@ def consume_effect_constancy_artifact(
 ) -> tuple[str | None, str | None]: ...
 def plan_recalculation(previous_json: str, requested_json: str, capabilities_json: str) -> str: ...
 def recalc_stage_identity(label: str, parts: list[bytes]) -> str: ...
+def recalc_session_standing(kind: str) -> str: ...
+def render_fallback_report(parts_json: str, format: str) -> str: ...
 def consume_recalc_receipt(
     artifact: bytes, expected_identity: str | None = None
 ) -> tuple[str | None, str | None]: ...

@@ -64,7 +64,7 @@ pub use super::{
     CheckedTemporalMediationInfo, CheckedTemporalMediationTargetInfo, CheckedTransportTrialInfo,
     CheckedUnknownTieredAverageInfo, CompletedBatch, ComputeBudget, ExactFactorRequirement,
     ExactPreparedState, ExactStudyIdentities, ExactStudyInspection, ExactStudyResult,
-    InterferenceSpec, IntoSharedPlan, LatencyMode, LearnedTrialResult, LearnedTrialState,
+    InterferenceSpec, LatencyMode, LearnedTrialResult, LearnedTrialState,
     LicensedNeighbor, NextAction, OperationKind, OperationReadiness, OperationReport,
     PremiseChange, PreparedBatch, PreparedStudy, PreparedZTransport, RdConfig, RefuteSuite,
     SemanticApplicability, SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink,
@@ -133,7 +133,7 @@ pub use super::{
     consume_observation_recovery_artifact,
 };
 pub use super::{
-    PredictiveAssessmentRefusal, PreparedPredictiveAssessment,
+    PredictiveAssessmentRefusal, PreparedPredictiveAssessment, RetainedPredictiveReplicates,
     consume_predictive_assessment_artifact, fit_declaration_from_ledger,
     observation_keys_from_ledger, posterior_predictive_predictor,
 };

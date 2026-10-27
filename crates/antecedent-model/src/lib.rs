@@ -36,7 +36,6 @@ pub mod local_cyclic;
 pub mod mechanism;
 pub mod mechanism_expr;
 pub mod mechanism_transport;
-pub mod model_collection;
 pub mod noise_replay;
 pub mod nonlinear_equilibrium;
 pub mod observation_query;
@@ -56,7 +55,7 @@ pub use batch::{
 pub use compile::{
     CompiledCausalModel, CompiledMechanismStore, DynamicMechanism, InvertibleStructuralCausalModel,
     MechanismSlot, ModelOutputLayout, ParentGatherPlan, ProbabilisticCausalModel,
-    StructuralCausalModel, standard_normal_log_density,
+    standard_normal_log_density,
 };
 pub use cyclic_component::{
     CYCLE_GATE_NEXT_ATTEMPT, ComponentDependency, ComponentOrder, CycleGateError, CyclicComponent,
@@ -86,7 +85,6 @@ pub use mechanism::{
     infer_noise_column_rng, log_prob_column, noise_inference_mode_of, reference_noise,
     sample_noise_column,
 };
-pub use model_collection::ModelCollection;
 pub use noise_replay::{
     NOISE_REPLAY_STREAM_DOMAIN, NOISE_ROW_BLOCK, NoiseFix, NoiseOrigin, NoiseReplayer, NoiseSource,
     NoiseTable, ReplayOutcome,

@@ -406,10 +406,9 @@ impl PyPreparedAnalysis {
 
     /// Execute on a panel, multi-environment, or event frame of the prepared schema.
     ///
-    /// `refresh=True` also replaces the retained data. Returns the ATE-shaped
-    /// result, or the response result when `response=True`.
+    /// Returns the ATE-shaped result, or the response result when `response=True`.
     #[pyo3(signature = (
-        names, columns, frame, *, response=false, refresh=false, seed=1, threads=None,
+        names, columns, frame, *, response=false, seed=1, threads=None,
         cancel=None, on_progress=None, on_stage=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -420,7 +419,6 @@ impl PyPreparedAnalysis {
         columns: Vec<Bound<'_, PyAny>>,
         frame: Bound<'_, PyDict>,
         response: bool,
-        refresh: bool,
         seed: u64,
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
@@ -432,10 +430,10 @@ impl PyPreparedAnalysis {
         let data = FrameInput::ingest(py, &names, columns, Some(&frame))?;
         if response {
             let out =
-                self.click(py, data, refresh, seed, threads, controls, response_from_study)?;
+                self.click(py, data, seed, threads, controls, response_from_study)?;
             Ok(Py::new(py, out)?.into_any())
         } else {
-            let out = self.click(py, data, refresh, seed, threads, controls, map_ate)?;
+            let out = self.click(py, data, seed, threads, controls, map_ate)?;
             Ok(Py::new(py, out)?.into_any())
         }
     }

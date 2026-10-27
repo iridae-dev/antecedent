@@ -790,7 +790,8 @@ fn static_cross_world_cells_retain_execute_refresh_and_export_their_own_family()
         let mut changed_study = study.clone();
         changed_study.data = DataInput::Tabular(changed.clone());
         let expected = changed_study.run(&ctx).unwrap();
-        let result = prepared.refresh(changed, &ctx).unwrap();
+        let result =
+            crate::analysis::prepared::rebind_estimate(&mut prepared, changed, &ctx).unwrap();
         assert_eq!(result.effect().to_bits(), expected.effect().to_bits(), "{name} refresh");
         assert_eq!(before, original.contract().unwrap().identities, "{name} clone");
         assert_ne!(

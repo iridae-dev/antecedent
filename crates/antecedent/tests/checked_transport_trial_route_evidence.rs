@@ -165,7 +165,7 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
         );
         assert!(!consumed.acceptance.accepts_as_verified_program());
 
-        let refreshed = prepared.refresh(shifted.clone(), &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, shifted.clone(), &ctx).unwrap();
         assert!(
             refreshed.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached")
         );
@@ -174,7 +174,7 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
             assert!((refreshed.transport().unwrap().ipw - ipw).abs() <= ipw_tolerance);
         }
         assert!(matches!(prepared.retained_operation(), RetainedOperation::TransportTrial(..)));
-        assert!(prepared.refresh(widened(), &ctx).is_err());
+        assert!(rebind_estimate(&mut prepared, widened(), &ctx).is_err());
     }
 }
 
@@ -207,11 +207,8 @@ fn dag_study(
     let mut dag = Dag::with_variables(5);
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let builder = Study::tabular(data.clone());
-    let builder = if accepted {
-        builder.graph(AcceptedGraph::from(dag))
-    } else {
-        builder.graph(dag)
-    };
+    let builder =
+        if accepted { builder.graph(AcceptedGraph::from(dag)) } else { builder.graph(dag) };
     builder
         .query(CausalQuery::Transport(query()))
         .selection_targets(Arc::from([]))
@@ -268,7 +265,10 @@ fn a_dag_is_the_confounder_free_selection_diagram_of_a_transport_query() {
                 assert_eq!(plan.identifier, IdentifierId::TransportSid);
                 let again = prepared.estimate(&data, &ctx).unwrap();
                 assert!(
-                    again.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached")
+                    again
+                        .diagnostics
+                        .iter()
+                        .any(|item| item.code.as_ref() == "exec.identify.cached")
                 );
                 assert!((again.estimate.as_effect().unwrap().ate - got).abs() < 1e-12);
             }
@@ -328,7 +328,8 @@ fn counted_ipw(columns: &[f64], rows: usize, selection: f64, propensity: f64) ->
     let total: f64 = (0..rows)
         .filter(|&row| trial[row] == 1.0)
         .map(|row| {
-            let (sign, arm) = if a[row] == 1.0 { (1.0, propensity) } else { (-1.0, 1.0 - propensity) };
+            let (sign, arm) =
+                if a[row] == 1.0 { (1.0, propensity) } else { (-1.0, 1.0 - propensity) };
             sign * (1.0 - selection) / (selection * arm) * y[row]
         })
         .sum();
@@ -413,7 +414,8 @@ fn cheap_and_full_validation_test_the_supplied_probabilities_against_the_rows() 
                 let arm = &result.refutations[1];
                 assert!((arm.original_ate - treated as f64).abs() < 1e-12);
                 assert!((arm.refuted_ate - trial_rows as f64 * 0.5).abs() < 1e-9);
-                let z = (treated as f64 - trial_rows as f64 * 0.5) / (trial_rows as f64 * 0.25).sqrt();
+                let z =
+                    (treated as f64 - trial_rows as f64 * 0.5) / (trial_rows as f64 * 0.25).sqrt();
                 assert_eq!(arm.passed, z.abs() < 1.959_964, "z = {z}");
                 // Fair coins give weights of equal size: the effective share is one.
                 for overlap in &result.refutations[2..4] {
@@ -449,4 +451,17 @@ fn probabilities_that_do_not_describe_the_rows_fail_their_calibration() {
         assert!(!arm.passed, "{arm:?}");
         assert!(arm.comparison < 1e-6, "{}", arm.comparison);
     });
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

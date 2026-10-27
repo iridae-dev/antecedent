@@ -119,7 +119,8 @@ fn accepted_and_explicit_dag_cell_aipw_body() {
             assert!((result_value(&retargeted) - result_value(&result)).abs() < 1e-12);
 
             let refreshed_data = data(0.4);
-            let refreshed = prepared.refresh(refreshed_data.clone(), &context).unwrap();
+            let refreshed =
+                rebind_estimate(&mut prepared, refreshed_data.clone(), &context).unwrap();
             assert!((result_value(&refreshed) - 10.9).abs() < 0.2);
             let refreshed_scores = prepared.score_table().expect("refresh retains cell scores");
             let refreshed_retargeted = prepared
@@ -158,7 +159,7 @@ fn checked_cell_aipw_quantile_is_sealed_and_executes() {
     assert!(value.is_finite());
     assert!((value - 10.5).abs() < 0.2, "median response {value}");
 
-    let refreshed = prepared.refresh(data(0.4), &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data(0.4), &context).unwrap();
     assert!((result_value(&refreshed) - 10.9).abs() < 0.2);
 }
 
@@ -175,4 +176,17 @@ fn cell_aipw_route_refuses_nonbinary_intervention_levels() {
         .run(&antecedent_core::ExecutionContext::for_tests(821))
         .unwrap_err();
     assert!(error.to_string().contains("binary 0/1 Set levels"), "{error}");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -86,9 +86,21 @@ pub(crate) fn admit_bound_array<T>(
         .and_then(|cells| cells.checked_mul(size_of::<T>().max(1)))
         .and_then(|bytes| u64::try_from(bytes).ok())
         .ok_or(EstimationError::ResampleBuffer(ResampleBufferFault::DrawBufferOverflow))?;
-    antecedent_core::numerical_admission::acquire(bytes).transpose().map_err(|error| {
-        EstimationError::ResampleBuffer(ResampleBufferFault::DrawBufferAdmission(error))
-    })
+    loop {
+        match antecedent_core::numerical_admission::acquire(bytes).transpose() {
+            Ok(lease) => return Ok(lease),
+            // Retained fits are only a reuse optimisation; when they hold the bytes this
+            // scratch needs, release idle ones and try again before refusing the work.
+            Err(antecedent_core::execution::AdmissionError::ExceedsRemainder { .. })
+                if crate::crossfit_cache::CrossfitNuisanceCache::active()
+                    .is_some_and(|cache| cache.release_one_idle()) => {}
+            Err(error) => {
+                return Err(EstimationError::ResampleBuffer(
+                    ResampleBufferFault::DrawBufferAdmission(error),
+                ));
+            }
+        }
+    }
 }
 
 /// Lease the per-worker gather buffers of one bootstrap, before any replicate runs.

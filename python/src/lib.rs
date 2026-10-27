@@ -90,15 +90,19 @@ mod execution_attempt_api;
 mod experiment_api;
 mod external_api;
 mod factorial_api;
+mod fallback_report_api;
+mod fallback_stage_api;
 mod ffi;
 mod file_source_api;
 mod finite_discrete_api;
 mod forward_source_api;
 mod functional_source_api;
 mod gcm_api;
+mod gcm_estimand_api;
 mod graph_build;
 mod graph_falsification_api;
 mod graph_io;
+mod graph_membership_api;
 mod graph_score_api;
 mod graphs;
 mod horizon_composition_api;
@@ -123,6 +127,7 @@ mod measured_inference_api;
 mod measurement_model_api;
 mod mechanism_composition_api;
 mod mechanism_discrepancy_api;
+mod interval_binding_api;
 mod missing_report;
 mod msm_sensitivity_api;
 mod multi_level_treatment_api;
@@ -155,6 +160,7 @@ mod published_decision_api;
 mod quasi_api;
 mod recalc_adjusted_api;
 mod recalc_api;
+mod recalc_standing_api;
 mod recalc_bayesian_api;
 mod recalc_bounds;
 mod recalc_cell_api;
@@ -539,6 +545,11 @@ pub(crate) struct AteAnalysisResult {
     pub(crate) structural_unidentified_mass: Option<f64>,
     #[pyo3(get)]
     pub(crate) structural_unevaluable_mass: Option<f64>,
+    /// How identified graph atoms were combined (`same_estimand_weighted_mean`,
+    /// `identified_set_envelope` or `graph_dependent_atoms`), when the route aggregates
+    /// across graphs.
+    #[pyo3(get)]
+    pub(crate) structural_aggregation_policy: Option<String>,
     /// Scalar identified set `(lower, upper)` over identified completions.
     #[pyo3(get)]
     pub(crate) structural_identified_set: Option<(f64, f64)>,
@@ -560,6 +571,10 @@ pub(crate) struct AteAnalysisResult {
     /// Missing-data policy, assumption and row accounting of this execution, as JSON.
     #[pyo3(get)]
     pub(crate) missing_data_json: Option<String>,
+    /// Every interval this execution reported (method, SE kind, level, dependence rule,
+    /// replicate and draw counts), primary first, as JSON.
+    #[pyo3(get)]
+    pub(crate) interval_bindings_json: Option<String>,
     #[pyo3(get)]
     ate: f64,
     #[pyo3(get)]
@@ -691,6 +706,9 @@ pub(crate) struct AteAnalysisResult {
     posterior_ppc_dispersion_p_value: Option<f64>,
     #[pyo3(get)]
     posterior_ppc_noise: Option<String>,
+    /// Posterior predictive replicates retained at fit time, when declared.
+    #[pyo3(get)]
+    predictive_replicates: Option<predictive_assessment_api::PredictiveReplicateLaws>,
     #[pyo3(get)]
     prior_sensitivity_scales: Option<Vec<f64>>,
     #[pyo3(get)]
@@ -1226,6 +1244,7 @@ pub(crate) struct SharedStudySections {
     pub structural_identified_mass: Option<f64>,
     pub structural_unidentified_mass: Option<f64>,
     pub structural_unevaluable_mass: Option<f64>,
+    pub structural_aggregation_policy: Option<String>,
 }
 
 impl SharedStudySections {
@@ -1559,6 +1578,9 @@ pub(crate) fn shared_study_sections(
         structural_identified_mass: structural.map(|m| m.identified_mass),
         structural_unidentified_mass: structural.map(|m| m.unidentified_mass),
         structural_unevaluable_mass: structural.map(|m| m.unevaluable_mass),
+        structural_aggregation_policy: structural
+            .and_then(|m| m.aggregation_policy)
+            .map(|policy| policy.as_str().to_owned()),
     })
 }
 

@@ -170,7 +170,7 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
             "one-shot run must execute its retained prepared plan"
         );
 
-        let shifted = prepared.refresh(data(4.0), &ctx).unwrap();
+        let shifted = rebind_estimate(&mut prepared, data(4.0), &ctx).unwrap();
         assert!(shifted.estimate.as_effect().unwrap().ate.is_nan());
         let RetainedOperation::ClassGraphPosteriorEffect(refreshed_plan) =
             prepared.retained_operation()
@@ -248,7 +248,7 @@ fn frequentist_pag_graph_posterior_effect_body() {
         assert!((mixture.unidentified_mass - 0.2).abs() < 1e-12);
         assert!((one_shot.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06);
 
-        let shifted = prepared.refresh(pag_data(4.0), &ctx).unwrap();
+        let shifted = rebind_estimate(&mut prepared, pag_data(4.0), &ctx).unwrap();
         assert!((shifted.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06);
         let RetainedOperation::ClassGraphPosteriorEffect(refreshed) = prepared.retained_operation()
         else {
@@ -275,4 +275,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

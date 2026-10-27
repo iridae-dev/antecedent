@@ -457,12 +457,12 @@ pub fn execute_design_with_receipt(
                 let result = prepared.estimate_retained(ctx)?;
                 (prepared, result)
             } else {
-                let mut prepared = held
+                let prepared = held
                     .ok_or(RecalcRunError::NoLiveState(Stage::Identification))?
                     .prepared
-                    .as_ref()
-                    .clone();
-                let result = prepared.refresh(data, ctx)?;
+                    .rebind_data(data, ctx)?
+                    .materialize(ctx)?;
+                let result = prepared.estimate_retained(ctx)?;
                 r.check_design(&prepared)?;
                 (prepared, result)
             };

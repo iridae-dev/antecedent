@@ -583,10 +583,12 @@ fn bayesian_stage(
                     Ok((prepared, result, verified_prior))
                 } else {
                     let retained = old.ok_or(RecalcRunError::NoLiveState(Stage::Identification))?;
-                    let mut prepared = retained
+                    let prepared = retained
                         .prepared
-                        .rebind_checked_bayesian_inference(execution_request.inference.clone())?;
-                    let result = prepared.refresh(data, ctx)?;
+                        .rebind_checked_bayesian_inference(execution_request.inference.clone())?
+                        .rebind_data(data, ctx)?
+                        .materialize(ctx)?;
+                    let result = prepared.estimate_retained(ctx)?;
                     Ok((prepared, result, verified_prior))
                 }
             })

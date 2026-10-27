@@ -561,8 +561,9 @@ mod tests {
         let wide = ConditionalStudyPolicy { policy_id: "rule".into(), branches: branches(200, 4) };
         let limits = ConditionalRankingLimits::default();
         assert!(validate(&wide, &source, limits).is_ok());
-        // The same shape with 250-byte identifiers cannot fit the artifact budget.
-        let heavy = ConditionalStudyPolicy { policy_id: "rule".into(), branches: branches(200, 250) };
+        // The same shape with 250-byte identifiers (a 10-byte prefix and 240 digits, inside the
+        // 256-byte name limit) cannot fit the artifact budget.
+        let heavy = ConditionalStudyPolicy { policy_id: "rule".into(), branches: branches(200, 240) };
         assert_eq!(
             validate(&heavy, &source, limits).unwrap_err().detail,
             "conditional_study_ranking.resource_limit"

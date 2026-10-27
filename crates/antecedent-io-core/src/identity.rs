@@ -2703,6 +2703,11 @@ pub struct BayesianBindingWire {
     /// configuration without it keeps its identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub white_innovation: Option<String>,
+    /// Declared bounds of the retained posterior predictive replicates, as
+    /// `n_sims=<n>:max_rows=<n>`; absent when none were requested, so a configuration
+    /// without them keeps its identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub predictive_replicates: Option<String>,
 }
 
 /// Discovery / estimation window split.
@@ -3742,6 +3747,7 @@ mod tests {
                 draw_controls: None,
                 design_model: None,
                 white_innovation: None,
+                predictive_replicates: None,
             }),
             validation_suite: None,
             overlap_policy: None,

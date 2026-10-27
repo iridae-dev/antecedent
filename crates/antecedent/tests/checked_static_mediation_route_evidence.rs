@@ -101,7 +101,7 @@ fn static_mediation_preserves_declared_nonbinary_levels_and_default_validation()
             let result = prepared.estimate(&base, &context).unwrap();
             assert!((result.estimate.as_effect().unwrap().ate - 0.6 * unit_truth).abs() < 1e-10);
             assert!(!result.refutations.is_empty());
-            let refreshed = prepared.refresh(data(0.15), &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data(0.15), &context).unwrap();
             let direct_delta = if matches!(
                 contrast,
                 MediationContrast::Total
@@ -254,7 +254,7 @@ fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_i
                         "{suite:?} must execute its retained refuter"
                     );
                 }
-                let refreshed = prepared.refresh(data(0.15), &context).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, data(0.15), &context).unwrap();
                 let refreshed_truth = if matches!(
                     contrast,
                     MediationContrast::Total
@@ -353,7 +353,7 @@ fn bayesian_static_mediation_plan_body() {
                     );
                 }
                 assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None);
-                let refreshed = prepared.refresh(base.clone(), &context).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, base.clone(), &context).unwrap();
                 assert!(
                     (refreshed.estimate.as_effect().unwrap().ate
                         - result.estimate.as_effect().unwrap().ate)
@@ -514,4 +514,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

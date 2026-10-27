@@ -36,6 +36,7 @@ const KEYS: &[&str] = &[
     "identifier",
     "estimator",
     "retain_joint_horizons",
+    "fallback",
 ];
 
 /// Declared inference: mode plus the Bayesian prior and draw budget.
@@ -59,6 +60,8 @@ pub(crate) struct InferenceSpec {
     pub white_innovation: Option<(usize, f64)>,
     /// Declared likelihood and prior of a randomized-design Bayesian estimator.
     pub design_model: Option<antecedent::DesignPosteriorModel>,
+    /// Declared bounds `(n_sims, max_rows)` of the retained posterior predictive replicates.
+    pub predictive_replicates: Option<(u32, u32)>,
 }
 
 impl InferenceSpec {
@@ -93,6 +96,9 @@ impl InferenceSpec {
                 .transpose()?,
             design_model: item("design_model")?
                 .map(|value| crate::design_model_api::parse_design_model(value.cast::<PyDict>()?))
+                .transpose()?,
+            predictive_replicates: item("predictive_replicates")?
+                .map(|value| value.extract::<(u32, u32)>())
                 .transpose()?,
         })
     }
@@ -161,6 +167,8 @@ pub(crate) struct PrepareOptions {
     /// Keep the replicates coupled across the horizons of a temporal response, so the draws of
     /// a quantity built from several horizons can be read back.
     pub retain_joint_horizons: bool,
+    /// The descriptive fallback to run on a study refused for identification, when declared.
+    pub fallback: Option<crate::fallback_stage_api::FallbackDeclaration>,
 }
 
 impl PrepareOptions {
@@ -275,6 +283,11 @@ impl PrepareOptions {
             .map(|value| value.extract::<bool>())
             .transpose()?
             .unwrap_or(false);
+        let fallback = item("fallback")?
+            .map(|value| {
+                crate::fallback_stage_api::FallbackDeclaration::parse(value.cast::<PyDict>()?)
+            })
+            .transpose()?;
         Ok(Self {
             refute,
             bootstrap,
@@ -293,6 +306,7 @@ impl PrepareOptions {
             identifier,
             estimator,
             retain_joint_horizons,
+            fallback,
         })
     }
 
@@ -323,6 +337,7 @@ impl PrepareOptions {
         let artifact = spec.prior_artifact.take();
         let white_innovation = spec.white_innovation;
         let design_model = spec.design_model.take();
+        let predictive_replicates = spec.predictive_replicates;
         let builder = crate::temporal_api::apply_temporal_inference_transfer(
             builder,
             spec.mode.as_deref(),
@@ -335,6 +350,10 @@ impl PrepareOptions {
         )?;
         let builder = match design_model {
             Some(model) => builder.bayesian_design_model(model),
+            None => builder,
+        };
+        let builder = match predictive_replicates {
+            Some((n_sims, max_rows)) => builder.bayesian_predictive_replicates(n_sims, max_rows),
             None => builder,
         };
         Ok(match white_innovation {
@@ -425,6 +444,7 @@ impl PrepareOptions {
             identifier: self.identifier,
             estimator: self.estimator,
             retain_joint_horizons: self.retain_joint_horizons,
+            fallback: None,
         };
         without_bootstrap.apply(builder)
     }

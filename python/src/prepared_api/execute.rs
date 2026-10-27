@@ -1,4 +1,4 @@
-//! Estimate, refresh, retarget, export, and refute clicks.
+//! Estimate, retarget, export, and refute clicks.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -127,7 +127,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<AteAnalysisResult> {
         self.refuse_design_retarget()?;
         // Retarget the scores of the execution this call follows: after
-        // `estimate(data)` that is the handle refreshed on `data`, not the one
+        // `estimate(data)` that is the handle rebound on `data`, not the one
         // frozen at prepare.
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
         let inner = Arc::clone(&bound);
@@ -220,7 +220,7 @@ impl PyPreparedAnalysis {
         require_prepared_names(&self.names, &names, "estimate")?;
         let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
         let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
-        self.click(py, data, false, seed, threads, controls, map_ate)
+        self.click(py, data, seed, threads, controls, map_ate)
     }
 
     /// Re-estimate a prepared response (same schema) without recompiling.
@@ -240,47 +240,7 @@ impl PyPreparedAnalysis {
         require_prepared_names(&self.names, &names, "estimate")?;
         let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
         let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
-        self.click(py, data, false, seed, threads, controls, response_from_study)
-    }
-
-    /// Replace retained data and re-estimate (same schema).
-    #[pyo3(signature = (names, columns, *, seed=1, threads=None, cancel=None, on_progress=None, on_stage=None))]
-    #[allow(clippy::too_many_arguments)]
-    fn refresh(
-        &mut self,
-        py: Python<'_>,
-        names: Vec<String>,
-        columns: Vec<Bound<'_, PyAny>>,
-        seed: u64,
-        threads: Option<u32>,
-        cancel: Option<crate::PyCancellationToken>,
-        on_progress: Option<Bound<'_, PyAny>>,
-        on_stage: Option<Bound<'_, PyAny>>,
-    ) -> PyResult<AteAnalysisResult> {
-        require_prepared_names(&self.names, &names, "refresh")?;
-        let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
-        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
-        self.click(py, data, true, seed, threads, controls, map_ate)
-    }
-
-    /// Replace retained data and re-estimate a prepared response.
-    #[pyo3(signature = (names, columns, *, seed=1, threads=None, cancel=None, on_progress=None, on_stage=None))]
-    #[allow(clippy::too_many_arguments)]
-    fn refresh_response(
-        &mut self,
-        py: Python<'_>,
-        names: Vec<String>,
-        columns: Vec<Bound<'_, PyAny>>,
-        seed: u64,
-        threads: Option<u32>,
-        cancel: Option<crate::PyCancellationToken>,
-        on_progress: Option<Bound<'_, PyAny>>,
-        on_stage: Option<Bound<'_, PyAny>>,
-    ) -> PyResult<ResponseAnalysisResult> {
-        require_prepared_names(&self.names, &names, "refresh")?;
-        let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
-        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
-        self.click(py, data, true, seed, threads, controls, response_from_study)
+        self.click(py, data, seed, threads, controls, response_from_study)
     }
 
     /// Export the retained full posterior or response without refitting.
@@ -472,7 +432,7 @@ impl PyPreparedAnalysis {
         let prior = self
             .last
             .clone()
-            .ok_or_else(|| crate::value_err("call estimate/refresh before refute"))?;
+            .ok_or_else(|| crate::value_err("call estimate before refute"))?;
         let refute_suite = crate::suite_from_refute(Some(&suite))?;
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
         let inner = Arc::clone(&bound);

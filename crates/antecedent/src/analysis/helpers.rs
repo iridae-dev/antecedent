@@ -82,6 +82,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         posterior: args.posterior,
         refutations: args.refutations,
         predictive_checks: Vec::new(),
+        predictive_replicates: None,
         diagnostics: args.diagnostics,
         provenance: args.provenance,
         support_status: None,

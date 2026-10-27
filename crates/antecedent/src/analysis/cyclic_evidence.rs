@@ -2829,10 +2829,17 @@ mod tests {
                 diffusion: vec![4.0],
             },
         };
-        let (report, v1) = request.export(&ctx).unwrap();
-        let old = ConsumedCyclicFamily::consume(&v1, &report.identity, &ctx).unwrap();
+        // Export now writes the contract-bearing record, so the historical record is the
+        // golden the previous-version encoder wrote (see `antecedent-io`'s previous-version
+        // tests); its identity is that of the request the golden pins.
+        let v1: &[u8] = include_bytes!("../../../antecedent-io/tests/fixtures/cyclic_family_v1.bin");
+        let v1_identity = "4ee65847b277589a4dae5e547f4b6999fee7ae504965c5c4be71aa0e5037cde7";
+        let old = ConsumedCyclicFamily::consume(v1, v1_identity, &ctx).unwrap();
         assert!(old.contract_metadata().is_none());
-        assert_eq!(old.artifact(), v1.as_slice());
+        assert_eq!(old.artifact(), v1);
+        let (report, current) = request.export(&ctx).unwrap();
+        let current = ConsumedCyclicFamily::consume(&current, &report.identity, &ctx).unwrap();
+        assert!(current.contract_metadata().is_some());
         let prepared = Study::prepare_cyclic_family(&request, &ctx).unwrap();
         let executed = prepared.execute_retained(&ctx).unwrap();
         let bytes = executed.export(&ctx).unwrap();

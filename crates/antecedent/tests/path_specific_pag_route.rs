@@ -361,7 +361,7 @@ fn contracted_pag_results_round_trip_through_the_consumer() {
             builder.bootstrap_replicates(0).build().unwrap_or_else(|e| panic!("{name}: {e}"));
         let mut prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{name}: {e}"));
         let result = prepared.estimate(&data, &ctx).unwrap();
-        let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
         let label = format!("path-specific-{name}");
         let bytes = prepared
             .encode_contracted_result(&refreshed, &label, &ctx)
@@ -372,4 +372,17 @@ fn contracted_pag_results_round_trip_through_the_consumer() {
         assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{name} artifact result");
         assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{name} refresh");
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

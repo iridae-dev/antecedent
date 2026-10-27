@@ -155,7 +155,7 @@ fn bayesian_static_dag_responses_body() {
                 assert!((estimate - truth).abs() < 0.12, "{label}: dose {dose}: {estimate}");
             }
 
-            let refreshed = prepared.refresh(data(0.3), &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data(0.3), &context).unwrap();
             let refreshed_values = values(&refreshed);
             for (&dose, &estimate) in doses.iter().zip(&refreshed_values) {
                 let truth = 0.7 + 1.7 * dose;
@@ -168,7 +168,7 @@ fn bayesian_static_dag_responses_body() {
 
             let treatment: Vec<f64> = (0..800).map(|i| f64::from(i) / 799.0).collect();
             let renamed = TabularData::from_f64_columns([("dose", treatment.as_slice())]).unwrap();
-            let error = prepared.refresh(renamed, &context).unwrap_err();
+            let error = rebind_estimate(&mut prepared, renamed, &context).unwrap_err();
             assert!(
                 error.to_string().contains("same schema"),
                 "{label}: schema-changed refresh must be refused: {error}"
@@ -196,4 +196,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

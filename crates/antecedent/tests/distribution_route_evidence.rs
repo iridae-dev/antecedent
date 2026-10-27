@@ -173,7 +173,7 @@ fn verify_distribution_coordinate(
         result.refutations.iter().map(|report| report.refuter.as_ref()).collect::<Vec<_>>()
     );
 
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     let refreshed_distribution = refreshed.distribution().expect("refreshed distribution");
     assert!(
         (refreshed_distribution.mean - 0.7).abs() < if bayesian { 0.08 } else { 1e-12 },
@@ -573,7 +573,7 @@ fn retained_distribution_factor_reuse_checks_contents_masks_weights_validity_and
         [("mask", masked), ("weights", weighted), ("validity", incomplete), ("values", changed)]
     {
         let mut prepared = original.clone();
-        let refreshed = prepared.refresh(rows.clone(), &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, rows.clone(), &ctx).unwrap();
         let cold = study(rows.clone()).prepare(&ctx).unwrap();
         let fresh = cold.estimate(&rows, &ctx).unwrap();
         let actual = refreshed.distribution().unwrap();
@@ -603,8 +603,21 @@ fn retained_distribution_factor_reuse_checks_contents_masks_weights_validity_and
     assert_eq!(renamed.storage().content_digest(), data.storage().content_digest());
     let mut prepared = original.clone();
     assert!(
-        prepared.refresh(renamed, &ctx).is_err(),
+        rebind_estimate(&mut prepared, renamed, &ctx).is_err(),
         "matching storage bytes cannot bypass schema"
     );
     assert_eq!(before, prepared.contract().unwrap().identities);
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

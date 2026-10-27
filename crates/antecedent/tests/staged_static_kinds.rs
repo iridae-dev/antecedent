@@ -173,7 +173,7 @@ fn fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs() {
         ("y", refreshed_y.as_slice()),
     ])
     .unwrap();
-    let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, refreshed_data, &ctx).unwrap();
     assert!(refreshed.estimate.as_effect().unwrap().ate.is_finite());
     let retained = prepared.estimate_retained(&ctx).unwrap();
     assert_eq!(
@@ -451,4 +451,17 @@ fn nested_counterfactual_refuses_before_execution() {
         .build()
         .and_then(|study| study.prepare(&ExecutionContext::for_tests(1)));
     assert!(result.is_err());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -117,6 +117,23 @@ pub struct BayesianConfig {
     /// composition. Prior-sensitivity refits set it; it does nothing when the isotropic
     /// `prior_scale` is in force (vary that instead). It is not part of the study identity.
     pub prior_variance_multiplier: Option<f64>,
+    /// Declared bounds of the posterior predictive replicates the study retains for
+    /// predictive assessment. Set with [`crate::StudyBuilder::bayesian_predictive_replicates`];
+    /// only a tabular `AverageEffect` on a fixed `Dag` under Bayesian g-computation reads it.
+    pub(crate) predictive_replicates: Option<PredictiveReplicateBounds>,
+}
+
+/// Declared bounds of the posterior predictive replicates a Bayesian study retains.
+///
+/// The replicates are `n_sims` draws over every design row, so they are retained only when
+/// asked for, only for a design of at most `max_rows` rows, and only after the Execution
+/// memory pool admits them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct PredictiveReplicateBounds {
+    /// Most posterior draws to replicate (capped by the draws the posterior holds).
+    pub(crate) n_sims: u32,
+    /// Most design rows a retained replicate matrix may cover.
+    pub(crate) max_rows: u32,
 }
 
 /// Numerical controls on the posterior draws behind a published interval.
@@ -180,6 +197,7 @@ impl BayesianConfig {
             white_innovation: None,
             design_model: None,
             prior_variance_multiplier: None,
+            predictive_replicates: None,
         }
     }
 
@@ -199,6 +217,7 @@ impl BayesianConfig {
             white_innovation: None,
             design_model: None,
             prior_variance_multiplier: None,
+            predictive_replicates: None,
         }
     }
 
@@ -221,6 +240,7 @@ impl BayesianConfig {
             white_innovation: None,
             design_model: None,
             prior_variance_multiplier: None,
+            predictive_replicates: None,
         }
     }
 

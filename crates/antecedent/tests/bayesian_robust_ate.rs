@@ -85,7 +85,7 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
         )
     );
     assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "bayesian.robust_ate.modular_bootstrap_pushforward")));
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(
         refreshed.estimate.as_effect().unwrap().ate.to_bits(),
         result.estimate.as_effect().unwrap().ate.to_bits()
@@ -103,10 +103,21 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
         ("y", &outcome[..outcome.len() - 1]),
     ])
     .unwrap();
-    assert!(
-        prepared.refresh(shortened, &ctx).is_err(),
-        "refresh cannot replace the fixed row and fold identities"
-    );
+    // A branch on other rows carries the row and fold identities of those rows; the handle it
+    // was bound from keeps its own.
+    let shorter = prepared.rebind_data(shortened, &ctx).unwrap().materialize(&ctx).unwrap();
+    let RetainedOperation::BayesianRobustAte(rebound) = shorter.retained_operation() else {
+        panic!("a rebound branch keeps the checked robust ATE operation")
+    };
+    assert_eq!(rebound.row_ids.len(), data.row_count() - 1);
+    assert_eq!(rebound.fold_ids.len(), data.row_count() - 1);
+    assert_eq!(rebound.query, query);
+    assert_eq!(rebound.posterior_draws, 80);
+    let RetainedOperation::BayesianRobustAte(unchanged) = prepared.retained_operation() else {
+        panic!("the source handle keeps the checked robust ATE operation")
+    };
+    assert_eq!(unchanged.row_ids.len(), data.row_count());
+    assert_eq!(unchanged.fold_ids.len(), data.row_count());
     let encoded = prepared.encode_contracted_result(&refreshed, "robust-stage", &ctx).unwrap();
     let (_, _, artifact) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
     assert!(artifact.estimate.is_some());
@@ -121,4 +132,17 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
         })
     );
     assert!(!consumed.acceptance.accepts_as_verified_program());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

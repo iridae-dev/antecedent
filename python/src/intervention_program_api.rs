@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use antecedent::SimulationOutcome;
 use antecedent::gcm::{
-    PolicySupport, PolicyValue, PreparedPolicy, RouteDecision,
+    PolicyRoute, PolicySupport, PolicyValue, PreparedPolicy, RouteDecision,
     policy_support as facade_policy_support,
 };
 use antecedent_core::{
@@ -146,9 +146,13 @@ fn decision_dict<'py>(py: Python<'py>, decision: &RouteDecision) -> PyResult<Bou
 
 fn support_dict<'py>(py: Python<'py>, support: &PolicySupport) -> PyResult<Bound<'py, PyDict>> {
     let out = PyDict::new(py);
-    out.set_item("simulation", decision_dict(py, &support.simulation)?)?;
-    out.set_item("counterfactual", decision_dict(py, &support.counterfactual)?)?;
-    out.set_item("identification", decision_dict(py, &support.identification)?)?;
+    for (key, route) in [
+        ("simulation", PolicyRoute::Simulation),
+        ("counterfactual", PolicyRoute::CounterfactualExecution),
+        ("identification", PolicyRoute::ObservationalIdentification),
+    ] {
+        out.set_item(key, decision_dict(py, support.decision(route))?)?;
+    }
     Ok(out)
 }
 

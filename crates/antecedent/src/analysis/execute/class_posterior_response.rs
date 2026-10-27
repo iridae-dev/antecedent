@@ -838,6 +838,7 @@ fn mix_class_posterior_responses(
         full_mass_scope: identified.class_atoms.iter().all(|a| a.truncated_completions == 0),
         truncated_atoms: evals.iter().map(|_| 0).sum::<usize>()
             + identified.class_atoms.iter().map(|a| a.truncated_completions).sum::<usize>(),
+        aggregation_policy: Some(policy),
     };
     let identification = primary_identification.ok_or_else(|| CausalError::Compile {
         message: "class graph-posterior response mix: no evaluable atom values".into(),

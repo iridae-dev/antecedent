@@ -622,6 +622,7 @@ impl super::Study {
             conditional_on_identified: conditional,
             full_mass_scope: run.full_mass_scope,
             truncated_atoms: run.truncated_atoms,
+            aggregation_policy: None,
         })
     }
 
@@ -2574,6 +2575,7 @@ impl super::Study {
             conditional_on_identified: conditional,
             full_mass_scope,
             truncated_atoms,
+            aggregation_policy: None,
         }
     }
 

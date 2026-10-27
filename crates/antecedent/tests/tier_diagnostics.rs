@@ -226,7 +226,7 @@ fn diagnostics_are_the_same_off_the_fresh_click_and_refreshed_results_and_the_ar
     let fresh = builder.clone().build().unwrap().run(&ctx).unwrap();
     let mut prepared = builder.build().unwrap().prepare(&ctx).unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     let reference = tier_diagnostics(&fresh, &ctx).unwrap();
     let (ref_report, ref_point) = (
         reference.overlap.available().expect("overlap report"),
@@ -275,4 +275,17 @@ fn a_result_that_is_not_a_tiered_average_effect_is_refused() {
     let error = tier_diagnostics(&result, &ctx).unwrap_err();
     assert_eq!(error.code, "invalid_argument");
     assert_eq!(error.detail, "tier_diagnostics.not_a_tiered_average_result");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -811,8 +811,62 @@ fn predictive_assessment_ledger_observations(
     })
 }
 
+/// The posterior predictive replicates a Bayesian study retained at fit time: the sample law
+/// of every design row, the outcomes they are laws of, and the source row of each.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct PredictiveReplicateLaws {
+    /// Outcome variable the laws are laws of.
+    pub quantity: String,
+    /// Population the laws are defined for.
+    pub population: String,
+    /// Units of the quantity.
+    pub units: String,
+    /// Native model that produced the replicates.
+    pub model: String,
+    /// Replicate draws of each design row.
+    pub laws: Vec<Vec<f64>>,
+    /// Observed outcome of each design row.
+    pub outcomes: Vec<f64>,
+    /// Source-table row of each design row.
+    pub rows: Vec<usize>,
+}
+
+impl From<&antecedent::RetainedPredictiveReplicates> for PredictiveReplicateLaws {
+    fn from(retained: &antecedent::RetainedPredictiveReplicates) -> Self {
+        let predictor = retained.predictor();
+        Self {
+            quantity: predictor.target.quantity.clone(),
+            population: predictor.target.population.clone(),
+            units: predictor.target.units.clone(),
+            model: match &predictor.source {
+                LawSource::Native { model } => model.clone(),
+                _ => String::new(),
+            },
+            laws: predictor
+                .laws
+                .iter()
+                .map(|law| match law {
+                    ForecastLaw::EmpiricalSample { draws } => draws.clone(),
+                    _ => Vec::new(),
+                })
+                .collect(),
+            outcomes: retained
+                .outcomes()
+                .iter()
+                .map(|outcome| match outcome {
+                    Outcome::Real(value) => *value,
+                    _ => f64::NAN,
+                })
+                .collect(),
+            rows: retained.rows().to_vec(),
+        }
+    }
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PredictiveAssessmentHandle>()?;
+    module.add_class::<PredictiveReplicateLaws>()?;
     module.add_function(wrap_pyfunction!(predictive_assessment_assess, module)?)?;
     module.add_function(wrap_pyfunction!(predictive_assessment_consume, module)?)?;
     module.add_function(wrap_pyfunction!(predictive_assessment_score_case, module)?)?;

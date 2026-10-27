@@ -650,7 +650,9 @@ mod identify_only_tests {
             let mut prepared = study.prepare(&ctx).unwrap();
             assert_eq!(identify_computations(&sink), 2, "prepare identifies the atoms once");
             let click = prepared.estimate(&data, &ctx).unwrap();
-            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            let refreshed =
+                crate::analysis::prepared::rebind_estimate(&mut prepared, data.clone(), &ctx)
+                    .unwrap();
             assert_eq!(
                 identify_computations(&sink),
                 2,
@@ -830,7 +832,9 @@ mod identify_only_tests {
             let mut prepared = study.prepare(&ctx).unwrap();
             assert_eq!(identify_computations(&sink), 2, "prepare identifies the atoms once");
             let click = prepared.estimate(&data, &ctx).unwrap();
-            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            let refreshed =
+                crate::analysis::prepared::rebind_estimate(&mut prepared, data.clone(), &ctx)
+                    .unwrap();
             assert_eq!(
                 identify_computations(&sink),
                 2,

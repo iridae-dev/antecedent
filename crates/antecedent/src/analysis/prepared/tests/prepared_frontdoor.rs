@@ -15,7 +15,6 @@ use antecedent_graph::Dag;
 use crate::Study;
 use crate::analysis::builder::RefuteSuite;
 use crate::analysis::prepared::PreparedExecution;
-use crate::estimator_spec::EstimatorSpec;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
 fn data(outcome_shift: f64) -> TabularData {
@@ -116,11 +115,8 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
     assert!(first_consumed.acceptance.accepts_as_verified_program());
     assert_eq!(first_consumed.body.estimate, Some(first.effect()));
 
-    prepared.study_mut().unwrap().estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
-        Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
-    )));
-
-    let refreshed = prepared.refresh(data(0.35), &context).unwrap();
+    let refreshed =
+        crate::analysis::prepared::rebind_estimate(&mut prepared, data(0.35), &context).unwrap();
     assert!(
         (refreshed.estimate.as_effect().unwrap().ate - 1.6).abs() < 0.12,
         "estimate={}",
@@ -130,7 +126,10 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
         refreshed.estimate.as_effect().unwrap().uncertainty.analytic.kind,
         Some(AnalyticSeKind::Hc1)
     );
-    assert!(matches!(prepared.execution, PreparedExecution::FrontDoorLinear(_)));
+    let PreparedExecution::FrontDoorLinear(rebound) = &prepared.execution else {
+        panic!("the rebound branch must keep the checked linear front-door operation")
+    };
+    assert_eq!(rebound.fitter.inference.se_kind, AnalyticSeKind::Hc1);
     let refreshed_bytes = prepared
         .encode_contracted_result(&refreshed, "checked-frontdoor-refresh", &context)
         .unwrap();

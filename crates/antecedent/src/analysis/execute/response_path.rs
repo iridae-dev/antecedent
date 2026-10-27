@@ -267,6 +267,7 @@ impl super::Study {
                     conditional_on_identified: Some(conditional),
                     full_mass_scope: true,
                     truncated_atoms: 0,
+                    aggregation_policy: None,
                 }),
                 diagnostics: Some(diagnostics),
                 predictive_checks,
@@ -2602,6 +2603,7 @@ fn structural_class_response<G>(
         conditional_on_identified: None,
         full_mass_scope: envelope.truncated_completions == 0,
         truncated_atoms: envelope.truncated_completions,
+        aggregation_policy: None,
     }
 }
 

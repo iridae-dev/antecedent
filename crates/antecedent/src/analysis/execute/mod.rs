@@ -378,7 +378,6 @@ mod mediation_streams;
 use mediation_streams::{MediationRoute, mediation_block_stream, mediation_mechanism_seed};
 mod checked_static_response;
 mod dispatch;
-pub use dispatch::IntoSharedPlan;
 mod route_call;
 mod identified_set_diagnostics;
 mod interference_refutation;

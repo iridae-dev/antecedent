@@ -204,7 +204,7 @@ fn temporal_admg_average_effect_explicit_and_accepted() {
                 if validation != "none" {
                     assert!(!result.refutations.is_empty(), "{coordinate} ran no refuter");
                 }
-                let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
                 assert!((refreshed.effect() - result.effect()).abs() < 1e-9, "{coordinate}");
                 let artifact =
                     prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
@@ -262,7 +262,7 @@ fn temporal_admg_average_effect_graph_posterior() {
             } else {
                 assert!(!result.refutations.is_empty(), "{coordinate}");
             }
-            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             assert!(
                 (refreshed.estimate.as_effect().unwrap().ate
                     - result.estimate.as_effect().unwrap().ate)
@@ -358,7 +358,7 @@ fn temporal_admg_intervention_response_explicit_and_accepted() {
                             result.refutations
                         );
                     }
-                    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+                    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
                     let artifact =
                         prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
                     let consumed = consume_analysis_result(&artifact).unwrap();
@@ -419,7 +419,7 @@ fn temporal_admg_intervention_response_graph_posterior() {
                 );
                 assert!(!result.refutations.is_empty(), "{coordinate}");
             }
-            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             let artifact =
                 prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
             let consumed = consume_analysis_result(&artifact).unwrap();
@@ -486,7 +486,7 @@ fn temporal_admg_response_curve_explicit_and_accepted() {
             for (actual, truth) in curve_means(&result).iter().zip(expected) {
                 assert!((actual - truth).abs() < tolerance, "{coordinate}: {actual} vs {truth}");
             }
-            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             let artifact =
                 prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
             let consumed = consume_analysis_result(&artifact).unwrap();
@@ -528,7 +528,7 @@ fn temporal_admg_response_curve_graph_posterior() {
         for (actual, truth) in curve_means(&result).iter().zip([0.314, 0.596]) {
             assert!((actual - truth).abs() < if bayesian { 0.08 } else { 1e-9 }, "{coordinate}");
         }
-        let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
         let artifact = prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
         let consumed = consume_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
@@ -1533,4 +1533,17 @@ mod window_contrast {
             .to_string();
         assert!(refusal.contains("unknown_variable"), "{refusal}");
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -862,7 +862,7 @@ fn retained_posterior_programs_survive_clone_refresh_and_refuse_population_retar
             let rows = rows
                 .with_analysis_mask(ValidityBitmap::from_bytes(bits, rows.row_count()).unwrap())
                 .unwrap();
-            let result = changed.refresh(rows.clone(), &ctx).unwrap();
+            let result = rebind_estimate(&mut changed, rows.clone(), &ctx).unwrap();
             let cold = build(rows.clone()).prepare(&ctx).unwrap();
             let fresh = cold.estimate(&rows, &ctx).unwrap();
             assert_eq!(result.effect().to_bits(), fresh.effect().to_bits());
@@ -1055,4 +1055,17 @@ fn a_tampered_atom_program_weight_or_mixture_is_refused() {
             assert!(reasons.contains(&chain), "{label}: {reasons:?}");
         }
     });
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -579,7 +579,7 @@ fn posterior_storage_is_quoted_before_admission_and_survives_the_retained_workfl
     let mut prepared = large_study.prepare(&ctx).unwrap();
     assert_eq!(prepared.plan_view().unwrap().physical().memory_quote(), Some(quote));
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(
         result.association().unwrap().estimate.terms,
         refreshed.association().unwrap().estimate.terms
@@ -660,4 +660,17 @@ fn fold_memory_tracks_the_live_window_instead_of_every_fold_and_learner() {
         1,
         "the predictive association fits and consumes one fold at a time"
     );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

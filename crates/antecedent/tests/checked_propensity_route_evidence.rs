@@ -129,7 +129,7 @@ fn propensity_estimators_retain_procedure_through_public_lifecycle() {
                 }
 
                 let refreshed_data = make_data(4.0);
-                let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, refreshed_data, &ctx).unwrap();
                 assert!((refreshed.effect() - 2.0).abs() < 0.45);
                 assert!((refreshed.effect() - result.effect()).abs() < 0.2);
                 let RetainedOperation::CheckedPropensity(rebound_plan) =
@@ -149,4 +149,17 @@ fn propensity_estimators_retain_procedure_through_public_lifecycle() {
             }
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

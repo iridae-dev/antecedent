@@ -98,7 +98,7 @@ fn mean_curve_explicit_and_accepted_keep_ordered_grid_through_refresh_and_export
         }
 
         let refreshed_data = data(0.3);
-        let refreshed = prepared.refresh(refreshed_data.clone(), &context).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, refreshed_data.clone(), &context).unwrap();
         let refreshed_values = values(refreshed.response().unwrap());
         for (&dose, &estimate) in [-0.5, 0.0, 0.5].iter().zip(&refreshed_values) {
             let truth = 0.7 + 1.7 * dose;
@@ -155,7 +155,7 @@ fn intervention_gcomp_explicit_and_accepted_cover_each_validation_suite() {
             assert!((got - truth).abs() < 0.12, "{suite:?}: {got} != {truth}");
 
             let refreshed_data = data(0.3);
-            let refreshed = prepared.refresh(refreshed_data, &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, refreshed_data, &context).unwrap();
             let refreshed_value = values(refreshed.response().unwrap())[0];
             assert!((refreshed_value - truth - 0.3).abs() < 0.12, "{suite:?} refresh");
 
@@ -188,4 +188,17 @@ fn static_response_curve_refuses_a_too_small_runtime_memory_budget() {
     context.set_memory_limit(Some(1));
     let error = prepared.estimate(&data, &context).unwrap_err();
     assert!(matches!(error, antecedent::CausalError::Resource { .. }), "{error:?}");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

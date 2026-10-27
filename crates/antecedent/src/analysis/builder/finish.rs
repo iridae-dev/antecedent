@@ -1130,6 +1130,14 @@ fn admit_executable_route(estimand: RetargetedEstimand) -> Result<ExecutableRout
         carry.declared.draw_controls,
         &carry.settings.inference,
     )?;
+    super::refuse_unsupported_predictive_replicates(
+        &query,
+        &carry.data,
+        graph.class(),
+        graph_posterior.is_none() && carry.declared.tiered.is_none(),
+        carry.declared.estimator,
+        &carry.settings.inference,
+    )?;
     if !population_estimable(&query) {
         return Err(crate::unsupported_reason!(
             "population_not_estimable",

@@ -236,7 +236,7 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
                 assert!((got - expected).abs() < 0.15, "{case}: {got} != {expected}");
             }
 
-            let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
             let refreshed_response = refreshed.response().expect("refreshed response");
             let refreshed_values = match &refreshed_response.estimate {
                 ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => {
@@ -430,7 +430,7 @@ fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() 
                 assert!((actual - truth).abs() < 0.15, "{case}: {actual} != {truth}");
             }
 
-            let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "checked-bayesian-derivative", &context)
                 .unwrap();
@@ -441,4 +441,17 @@ fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() 
             assert!(!consumed.acceptance.accepts_as_verified_program());
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

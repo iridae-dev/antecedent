@@ -63,10 +63,10 @@ pub use antecedent_model::{
     GraphFalsificationConfig, GraphFalsificationOutcome, GraphFalsificationReport,
     GraphUninformativeReason, InvertibleStructuralCausalModel, KdeDoSampler, MarkovImplicationTest,
     McmcDoSampler, MechanismAssignment, MechanismFamily, MechanismRegistry, MechanismSlot,
-    MechanismTyping, MechanismWorkspace, ModelCollection, ModelError, ModelEvaluator,
+    MechanismTyping, MechanismWorkspace, ModelError, ModelEvaluator,
     NodeFamilyConstraint, NoiseTable, PolicyRoute, PolicySupport, ProbabilisticCausalModel,
     RouteDecision, SelectionOptions, SelectionPolicy, SelectionProvenance, SelectionRule,
-    StructuralCausalModel, TemporalNoise, TemporalPath, TemporalPlan, ValidationSplits,
+    TemporalNoise, TemporalPath, TemporalPlan, ValidationSplits,
     WeightingDoSampler, interventional_mean, policy_support, sample_interventional,
     sample_observational,
 };

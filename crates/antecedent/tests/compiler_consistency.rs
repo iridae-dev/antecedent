@@ -45,9 +45,9 @@ fn checked_adjustment_executes_after_builder_discard_and_refresh() {
     assert_eq!(plan.executable_functional(), plan.program().mapping().executable);
     assert_eq!(plan.lowering().population, antecedent_core::TargetPopulation::AllObserved);
     let first = prepared.estimate(&data, &ctx).unwrap();
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert!(matches!(prepared.retained_operation(), RetainedOperation::CheckedLinear(..)));
-    let second_refresh = prepared.refresh(data, &ctx).unwrap();
+    let second_refresh = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert!((first.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2);
     assert!(
         (first.estimate.as_effect().unwrap().ate - one_shot.estimate.as_effect().unwrap().ate)
@@ -90,7 +90,7 @@ fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
     assert_eq!(lowering.lowering().rows.len(), 512);
     let first = prepared.estimate(&data, &ctx).unwrap();
     assert!((first.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.3);
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert!(
         (refreshed.estimate.as_effect().unwrap().ate - first.estimate.as_effect().unwrap().ate)
             .abs()
@@ -431,4 +431,17 @@ fn retarget_preview_reports_the_refusal_the_apply_raises() {
     assert!(aipw.apply_retarget(&preview, &weights, &[], &ctx).is_ok());
     let refresh = aipw.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
     assert!(!refresh.refused, "a prepared study can always attempt a compatible refresh");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -94,6 +94,25 @@ use antecedent_core::CausalSchema;
 
 use std::sync::Arc;
 
+/// Test instrument: bind `data` on a new branch, materialize it and estimate, then adopt the
+/// branch as the handle. A failure leaves the handle unchanged, as the immutable lifecycle does.
+#[cfg(test)]
+pub(crate) fn rebind_estimate(
+    prepared: &mut PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<crate::result::StudyResult, crate::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    // A native estimator may return a usable partial result after cancellation; a cancelled
+    // click must not be adopted as the new handle.
+    if ctx.cancellation.is_cancelled() {
+        return Err(crate::CausalError::Cancelled { stage: "refresh" });
+    }
+    *prepared = branch;
+    Ok(result)
+}
+
 /// Data modality a [`PreparedStudy`] was compiled for.
 ///
 /// The physical plan is modality-specific, so a handle prepared on one

@@ -195,6 +195,7 @@ impl super::Study {
                     conditional_on_identified: Some(conditional),
                     full_mass_scope: true,
                     truncated_atoms: 0,
+                    aggregation_policy: Some(aggregation_policy),
                 }),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()

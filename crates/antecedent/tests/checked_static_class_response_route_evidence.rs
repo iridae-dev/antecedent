@@ -361,7 +361,8 @@ fn static_class_responses_body() {
                     };
                     assert_levels(&click, 0.0, "click");
 
-                    let refreshed = prepared.refresh(shifted.clone(), &context).unwrap();
+                    let refreshed =
+                        rebind_estimate(&mut prepared, shifted.clone(), &context).unwrap();
                     assert_levels(&refreshed, 0.5, "refresh");
                     assert!(
                         matches!(
@@ -376,7 +377,7 @@ fn static_class_responses_body() {
                         ("y", vec![0.0; 8].as_slice()),
                     ])
                     .unwrap();
-                    let error = prepared.refresh(two_columns, &context).unwrap_err();
+                    let error = rebind_estimate(&mut prepared, two_columns, &context).unwrap_err();
                     assert!(
                         error.to_string().contains("same schema"),
                         "{label}: schema-changed refresh must be refused: {error}"
@@ -416,4 +417,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }
