@@ -412,7 +412,10 @@ fn recovers_att_via_gcomp() {
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = GlmAdjustmentWorkspace::default();
     let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-    assert!(effect.ate.is_finite());
+    // T alternates independently of Z, so the ATT equals the ATE: the mean over Z ~ U(-0.5, 0.5)
+    // of sigmoid(1.5 + z) - sigmoid(-0.5 + z) = 0.43378 (numerical integration). The tolerance is
+    // the one the probit ATE check above uses, about four standard errors at n = 800.
+    assert!((effect.ate - 0.43378).abs() < 0.15, "logit ATT {} vs 0.43378", effect.ate);
 }
 
 #[test]

@@ -602,6 +602,147 @@ mod tests {
     }
 
     #[test]
+    fn cluster_neyman_enumeration_is_unbiased_and_conservative_by_effect_heterogeneity() {
+        // Exact finite-population enumeration of every complete allocation of 3 of 6 unequal
+        // clusters. Potential outcomes are fixed and heterogeneous, so the unit-weighted total
+        // effect is known and the exact sampling variance of the estimator is computable.
+        // Theory (Neyman): E[estimate] = tau and E[variance estimate] - Var(estimate) =
+        // S_tau^2 / K with S_tau^2 the (K-1)-divisor variance of the scaled cluster effects.
+        let y0: [&[f64]; 6] = [&[1.0, 2.0], &[3.0, 2.0, 4.0], &[0.0, 1.0], &[5.0, 4.0, 6.0], &[2.0, 2.0], &[7.0, 1.0]];
+        let y1: [&[f64]; 6] = [&[4.0, 3.0], &[9.0, 4.0, 5.0], &[2.0, 2.0], &[6.0, 9.0, 7.0], &[3.0, 5.0], &[8.0, 6.0]];
+        let k = y0.len();
+        let sizes = y0.iter().map(|c| c.len()).collect::<Vec<_>>();
+        let n = sizes.iter().sum::<usize>();
+        let mut clusters = Vec::new();
+        let mut edges = Vec::new();
+        let mut first = 0_u64;
+        for (c, &size) in sizes.iter().enumerate() {
+            for j in 0..size {
+                clusters.push(u32::try_from(c).unwrap());
+                // A two-unit ring would emit the same pair twice.
+                if size == 2 && j == 1 {
+                    continue;
+                }
+                let from = first + j as u64;
+                let to = first + ((j + 1) % size) as u64;
+                edges.push(antecedent_data::NetworkEdge::new(from, to, 1.0));
+                edges.push(antecedent_data::NetworkEdge::new(to, from, 1.0));
+            }
+            first += size as u64;
+        }
+        let scale = k as f64 / n as f64;
+        let totals0 = y0.iter().map(|c| c.iter().sum::<f64>() * scale).collect::<Vec<_>>();
+        let totals1 = y1.iter().map(|c| c.iter().sum::<f64>() * scale).collect::<Vec<_>>();
+        let sv = |v: &[f64]| {
+            let m = v.iter().sum::<f64>() / v.len() as f64;
+            v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / (v.len() - 1) as f64
+        };
+        let effects = totals1.iter().zip(&totals0).map(|(a, b)| a - b).collect::<Vec<_>>();
+        let tau = effects.iter().sum::<f64>() / k as f64;
+        let treated_count = 3_usize;
+        let exact_variance =
+            sv(&totals1) / 3.0 + sv(&totals0) / 3.0 - sv(&effects) / k as f64;
+        let query = InterferenceQuery::new(
+            AssignmentDesign::ClusterRandomization {
+                clusters: Arc::from(clusters.clone()),
+                treated_clusters: treated_count,
+            },
+            ExposureMapping::NeighborFraction,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            },
+        );
+        let (mut count, mut mean_estimate, mut mean_square, mut mean_variance) = (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
+        for mask in 0_u32..(1 << k) {
+            if mask.count_ones() as usize != treated_count {
+                continue;
+            }
+            let treated = |c: u32| mask >> c & 1 == 1;
+            let assignment = clusters.iter().map(|&c| treated(c)).collect::<Vec<_>>();
+            let outcomes = clusters
+                .iter()
+                .scan([0_usize; 6], |seen, &c| {
+                    let slot = seen[c as usize];
+                    seen[c as usize] += 1;
+                    Some(if treated(c) { y1[c as usize][slot] } else { y0[c as usize][slot] })
+                })
+                .collect::<Vec<_>>();
+            let table = TabularData::from_f64_columns([("y", &outcomes[..])]).unwrap();
+            let network = NetworkData::try_new(table, edges.clone()).unwrap();
+            let estimate =
+                estimate_cluster_interference_total(&query, &network, &assignment).unwrap();
+            count += 1.0;
+            mean_estimate += estimate.contrast.horvitz_thompson;
+            mean_square += (estimate.contrast.horvitz_thompson - tau).powi(2);
+            mean_variance += estimate.contrast.conservative_variance;
+        }
+        assert!((count - 20.0).abs() < 1e-12);
+        assert!((mean_estimate / count - tau).abs() < 1e-12, "HT is unbiased for the total effect");
+        assert!((mean_square / count - exact_variance).abs() < 1e-10, "enumerated variance matches theory");
+        let gap = mean_variance / count - mean_square / count;
+        assert!(gap > 0.0, "variance estimator is conservative under heterogeneous effects");
+        assert!((gap - sv(&effects) / k as f64).abs() < 1e-10, "gap equals S_tau^2 / K exactly");
+    }
+
+    #[test]
+    fn cluster_bayesian_bootstrap_spread_matches_the_dirichlet_moment_of_each_arm() {
+        // With m clusters in an arm, Dirichlet(1..1) weights give the arm mean of the scaled
+        // cluster totals the exact variance (biased variance of the totals) / (m + 1); the two
+        // arms are independent, so the contrast variance is the sum over arms.
+        let outcomes = [3.0, 4.0, 1.0, 2.0, 8.0, 6.0, 2.0, 2.0, 5.0, 9.0, 0.0, 1.0, 7.0, 3.0, 4.0, 4.0];
+        let k = 8_usize;
+        let clusters = (0..k).flat_map(|c| [u32::try_from(c).unwrap(); 2]).collect::<Vec<_>>();
+        let assignment = (0..16).map(|unit| (unit / 2) % 2 == 0).collect::<Vec<_>>();
+        let edges = (0..k as u64)
+            .flat_map(|c| {
+                [
+                    antecedent_data::NetworkEdge::new(2 * c, 2 * c + 1, 1.0),
+                    antecedent_data::NetworkEdge::new(2 * c + 1, 2 * c, 1.0),
+                ]
+            })
+            .collect::<Vec<_>>();
+        let table = TabularData::from_f64_columns([("y", &outcomes[..])]).unwrap();
+        let network = NetworkData::try_new(table, edges).unwrap();
+        let query = InterferenceQuery::new(
+            AssignmentDesign::ClusterRandomization {
+                clusters: Arc::from(clusters),
+                treated_clusters: 4,
+            },
+            ExposureMapping::NeighborFraction,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            },
+        );
+        let options = ScorePosteriorOptions { draws: 8_000, coverage: 0.95 };
+        let ctx = ExecutionContext::for_tests(41);
+        let (estimate, posterior) =
+            estimate_cluster_interference_bayesian_bootstrap(&query, &network, &assignment, options, &ctx)
+                .unwrap();
+        let scale = k as f64 / 16.0;
+        let totals = |treated: bool| {
+            (0..k)
+                .filter(|c| (c % 2 == 0) == treated)
+                .map(|c| (outcomes[2 * c] + outcomes[2 * c + 1]) * scale)
+                .collect::<Vec<_>>()
+        };
+        let spread = |v: &[f64]| {
+            let m = v.iter().sum::<f64>() / v.len() as f64;
+            v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / v.len() as f64
+        };
+        let (treated, control) = (totals(true), totals(false));
+        let expected_sd =
+            (spread(&treated) / 5.0 + spread(&control) / 5.0).sqrt();
+        let relative = (posterior.standard_deviation - expected_sd).abs() / expected_sd;
+        assert!(relative < 0.05, "sd {} expected {expected_sd}", posterior.standard_deviation);
+        let tolerance = 5.0 * expected_sd / 8_000.0_f64.sqrt();
+        assert!((posterior.posterior_mean - estimate.contrast.horvitz_thompson).abs() < tolerance);
+    }
+
+    #[test]
     fn cluster_total_pointwise_refuses_thin_assignment_arms() {
         let outcomes = [1.0, 2.0, 2.0, 3.0, 8.0, 9.0, 9.0, 10.0];
         let table = TabularData::from_f64_columns([("y", &outcomes[..])]).unwrap();

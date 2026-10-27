@@ -466,13 +466,14 @@ struct WeightedMean {
 }
 
 /// Horvitz–Thompson and Hájek means of the units realized at one exposure level, with the
-/// Cauchy-bounded variance and the per-cluster totals of that level. Not the arithmetic
+/// Cauchy-bounded variance (`(Σ |y| √(1−π) / π^(3/2))² / n²`, the square of an unbiased
+/// estimate of the sum of unit standard deviations) and the per-cluster totals of that level. Not the arithmetic
 /// weighted mean of `antecedent_kernels::weighted_mean`: the weights are inverse exposure
 /// probabilities of a requested level, and the outputs carry the design-based variance.
 ///
 /// Positivity and an absent level are refused with the saturation messages before the
 /// stats mean is read. HT and Hájek then come from `randomization_mean`. The variance
-/// stays the Cauchy bound `(Σ |y| √(1−π) / π)² / n²`, not that kernel's Young diagonal,
+/// stays the Cauchy bound described above, not that kernel's Young diagonal,
 /// and the per-cluster totals stay here.
 fn weighted_mean(
     outcomes: &[f64],
@@ -499,9 +500,12 @@ fn weighted_mean(
             let weight = 1.0 / p;
             *cluster_totals.entry(clusters[i]).or_insert(0.0) += outcomes[i] * weight;
             weights += weight;
-            // Cauchy bounds every unknown pairwise covariance of the observed
-            // HT score contributions by the product of their standard deviations.
-            variance += (1.0 - p).sqrt() * outcomes[i].abs() / p;
+            // Cauchy bounds every unknown pairwise covariance of the HT score contributions
+            // by the product of their standard deviations, so Var(sum) <= (sum sd_i)^2 with
+            // sd_i = |y_i| sqrt((1 - p_i) / p_i). Weighting an observed unit by p^(-3/2)
+            // makes the sum unbiased for sum sd_i (P(observed) = p); weighting by 1/p
+            // would estimate sum |y_i| sqrt(1 - p_i), which falls short by sqrt(p_i).
+            variance += (1.0 - p).sqrt() * outcomes[i].abs() / (p * p.sqrt());
             units += 1;
             observed_clusters.insert(clusters[i]);
         }
@@ -546,6 +550,16 @@ mod tests {
 
     use super::{estimate_saturation_interference, estimate_saturation_interference_pointwise};
     use crate::arm::TreatmentArm;
+
+    #[test]
+    fn cauchy_standard_deviation_sum_is_unbiased_for_the_exact_sd_sum() {
+        // One unit with exposure probability p = 1/4 and outcome 2: sd = 2 sqrt((1 - p) / p).
+        // The unit is observed with probability p, so p times the realized sum must equal sd.
+        let level = ExposureLevel { own: 1.0, neighbors: 0.0 };
+        let mean = super::weighted_mean(&[2.0], &[0], &[level], level, &[0.25]).unwrap();
+        let sd = 2.0 * (0.75_f64 / 0.25).sqrt();
+        assert!((0.25 * mean.variance.sqrt() - sd).abs() < 1e-12, "{}", mean.variance);
+    }
 
     #[test]
     fn count_exposure_probability_is_exact_beyond_sixteen_neighbors() {

@@ -1446,6 +1446,50 @@ mod tests {
         );
     }
 
+    /// Heterogeneous nuisances, non-aligned treatment and participation, and wrong-signed
+    /// regressions. The expected values were evaluated outside the crate from the cited
+    /// inverse-odds weighting (equation 2) and DR1 (equation 4) estimators and the
+    /// ratio-of-means delta-method standard error, so the all-0.5 symmetric fixture cannot be
+    /// the only executing evidence for the weight orientation `(1 - s) / (s * arm)`.
+    #[test]
+    fn heterogeneous_nuisances_match_the_cited_inverse_odds_and_dr1_equations() {
+        let outcome = [2.0, 5.0, 1.0, 4.0, 0.0, 3.0, 0.0, 7.0];
+        let treatment = [true, false, true, false, false, true, false, false];
+        let trial = [true, true, true, true, false, true, false, true];
+        let selection = [0.4, 0.7, 0.25, 0.6, 0.5, 0.8, 0.3, 0.55];
+        let propensity = [0.3, 0.6, 0.5, 0.45, 0.5, 0.7, 0.5, 0.35];
+        let mu0 = [1.5, 2.0, 0.5, 3.0, 0.7, 2.2, 1.1, 4.0];
+        let mu1 = [3.0, 4.5, 2.0, 5.0, 2.1, 4.0, 2.6, 6.0];
+        let effect = trial_to_target_effect(
+            &certified_identification(),
+            &outcome,
+            &treatment,
+            &trial,
+            &selection,
+            &propensity,
+            Some((&mu0, &mu1)),
+        )
+        .unwrap();
+        assert!((effect.ipw - -0.972_693_972_693_973_4).abs() < 1e-10, "{}", effect.ipw);
+        assert!((effect.aipw.unwrap() - -8.329_886_779_886_78).abs() < 1e-10);
+        let se = trial_to_target_ipw_se(&outcome, &treatment, &trial, &selection, &propensity, effect.ipw)
+            .unwrap();
+        assert!((se - 8.198_842_288_654_943).abs() < 1e-10, "{se}");
+        // The inverted odds orientation would give a different answer.
+        let inverted: Vec<f64> = selection.iter().map(|s| 1.0 - s).collect();
+        let wrong = trial_to_target_effect(
+            &certified_identification(),
+            &outcome,
+            &treatment,
+            &trial,
+            &inverted,
+            &propensity,
+            None,
+        )
+        .unwrap();
+        assert!((wrong.ipw - effect.ipw).abs() > 0.1);
+    }
+
     #[test]
     fn bayesian_trial_transport_matches_two_row_dirichlet_law() {
         // With one source row in each arm, equal supplied probabilities and

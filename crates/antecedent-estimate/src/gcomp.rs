@@ -249,6 +249,71 @@ mod tests {
         }
     }
 
+    #[test]
+    fn standardized_logit_contrast_matches_the_hand_formula_and_interaction_columns_are_not_intervened() {
+        // Two rows, columns [intercept, T, Z]; T is observed at an arbitrary value that must
+        // not matter because it is replaced by the intervention.
+        let x = [1.0, 1.0, 0.7, 0.2, -1.0, 1.0];
+        let beta = [0.2, 0.7, 0.5];
+        let contrast = GcompContrast {
+            family: GlmFamily::BinomialLogit,
+            x_colmajor: &x,
+            nrows: 2,
+            ncols: 3,
+            t_col: 1,
+            active: 1.0,
+            control: 0.0,
+        };
+        let logistic = |eta: f64| 1.0 / (1.0 + (-eta).exp());
+        let expected = 0.5
+            * ((logistic(0.2 + 0.7 - 0.5) - logistic(0.2 - 0.5))
+                + (logistic(0.2 + 0.7 + 0.5) - logistic(0.2 + 0.5)));
+        assert!((contrast.mean_contrast(&beta) - expected).abs() < 1e-14);
+        let diffs = contrast.diffs(&beta);
+        assert!(((diffs[0] + diffs[1]) / 2.0 - expected).abs() < 1e-14);
+
+        // Counterexample: a treatment-derived design column (T*Z) is held at its observed
+        // value, so the identity-link shortcut equals (active - control) * beta_T and omits
+        // the interaction term of the true do(T) contrast (beta_T + beta_TZ * mean Z). The
+        // kernel is therefore valid only for main-effect designs, which the design compiler
+        // produces (intercept, treatment, covariate main effects).
+        let z = [-1.0, 1.0];
+        let observed_t = [1.0, 0.0];
+        let design: Vec<f64> = [1.0, 1.0]
+            .into_iter()
+            .chain(observed_t)
+            .chain(z)
+            .chain([observed_t[0] * z[0], observed_t[1] * z[1]])
+            .collect();
+        let with_interaction = GcompContrast {
+            family: GlmFamily::GaussianIdentity,
+            x_colmajor: &design,
+            nrows: 2,
+            ncols: 4,
+            t_col: 1,
+            active: 1.0,
+            control: 0.0,
+        };
+        let coefficients = [0.0, 1.0, 0.0, 2.0];
+        let kernel = with_interaction.mean_contrast(&coefficients);
+        let true_do_contrast = 1.0 + 2.0 * (z[0] + z[1]) / 2.0;
+        assert!((kernel - 1.0).abs() < 1e-14);
+        assert!((true_do_contrast - 1.0).abs() < 1e-14, "mean Z is zero here");
+        // With a nonzero mean covariate the shortcut and the true intervention part ways.
+        let z_shift = [0.5, 1.5];
+        let design_shift: Vec<f64> = [1.0, 1.0]
+            .into_iter()
+            .chain(observed_t)
+            .chain(z_shift)
+            .chain([observed_t[0] * z_shift[0], observed_t[1] * z_shift[1]])
+            .collect();
+        let shifted = GcompContrast { x_colmajor: &design_shift, ..with_interaction };
+        let true_shifted = 1.0 + 2.0 * (z_shift[0] + z_shift[1]) / 2.0;
+        assert!((shifted.mean_contrast(&coefficients) - 1.0).abs() < 1e-14);
+        assert!((true_shifted - 3.0).abs() < 1e-14);
+        assert!((shifted.mean_contrast(&coefficients) - true_shifted).abs() > 1.0);
+    }
+
     fn timed<R>(label: &str, reps: usize, mut work: impl FnMut() -> R) -> R {
         let start = std::time::Instant::now();
         let mut last = None;

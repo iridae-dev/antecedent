@@ -504,17 +504,20 @@ fn an_undeclared_design_takes_the_one_the_grouping_implies() {
     let labels = [0_u32, 0, 1, 1, 2, 2];
     let (rows, _) =
         design_run(BootstrapDesign { clusters: None, series_block: None, declared: undeclared }, 6);
-    assert!(rows.is_ok());
+    // All 8 requested replicates are drawn and kept, so the implied design was accepted, not skipped.
+    assert_eq!(rows.expect("the grouping implies a design").replicates_ok, 8);
     let (clusters, _) = design_run(
         BootstrapDesign { clusters: Some(&labels), series_block: None, declared: undeclared },
         6,
     );
-    assert!(clusters.is_ok());
+    // All 8 requested replicates are drawn and kept, so the implied design was accepted, not skipped.
+    assert_eq!(clusters.expect("the grouping implies a design").replicates_ok, 8);
     let (blocks, _) = design_run(
         BootstrapDesign { clusters: None, series_block: Some(2), declared: undeclared },
         6,
     );
-    assert!(blocks.is_ok());
+    // All 8 requested replicates are drawn and kept, so the implied design was accepted, not skipped.
+    assert_eq!(blocks.expect("the grouping implies a design").replicates_ok, 8);
 }
 
 #[test]
