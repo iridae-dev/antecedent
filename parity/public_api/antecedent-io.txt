@@ -49,6 +49,8 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_arti
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RetainedRecoveryInputs [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RetainedRecoveryProvenance [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_system_artifact::PreparedCyclicExecution [auto]
+impl antecedent_io::BudgetedTreatmentArtifact for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
+impl antecedent_io::BudgetedTreatmentArtifact for antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact
 impl antecedent_io_core::artifact_codec::ArtifactFamilyError for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 impl antecedent_io_core::artifact_codec::ArtifactFamilyError for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
 impl antecedent_io_core::artifact_codec::ArtifactFamilyError for antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
@@ -5970,7 +5972,6 @@ pub const antecedent_io::sampled_counterfactual_transport_artifact::SAMPLED_COUN
 pub const antecedent_io::sampled_counterfactual_transport_artifact::SAMPLED_COUNTERFACTUAL_TRANSPORT_ARTIFACT_VERSION: u32
 pub const antecedent_io::sampled_recovery_artifact::SAMPLED_RECOVERY_BCA_ARTIFACT_FEATURE: &str
 pub const antecedent_io::sampled_recovery_artifact::SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION: u32
-pub const antecedent_io::scenario_covariance_artifact::MAX_TABLE_COLUMNS: usize
 pub const antecedent_io::scenario_covariance_artifact::MAX_TABLE_ROWS: usize
 pub const antecedent_io::scenario_covariance_artifact::SCENARIO_COVARIANCE_ARTIFACT_FEATURE: &str
 pub const antecedent_io::scenario_covariance_artifact::SCENARIO_COVARIANCE_ARTIFACT_VERSION: u32
@@ -8102,7 +8103,6 @@ pub field antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifac
 pub field antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactWire::scenarios: alloc::vec::Vec<antecedent_io::scenario_covariance_artifact::CovarianceScenarioWire>
 pub field antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactWire::table: antecedent_io::scenario_covariance_artifact::RowTableWire
 pub field antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactWire::version: u32
-pub field antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits::max_columns: usize
 pub field antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits::max_compositions: u64
 pub field antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits::max_replicates: usize
 pub field antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits::max_rows: usize
@@ -9053,7 +9053,9 @@ pub fn <antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire>::
 pub fn <antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire>::fn measure(bytes: &[u8], expected: &antecedent_io::sampled_recovery_artifact::SampledRecoveryExpectation, limits: antecedent_io::sampled_recovery_artifact::SampledRecoveryConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::scenario_covariance_artifact::CovarianceResultWire>::fn from_covariance(cov: &antecedent_estimate::scenario_covariance::ScenarioCovariance) -> Self
 pub fn <antecedent_io::scenario_covariance_artifact::CovarianceSpec>::fn compute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::scenario_covariance::ScenarioCovariance, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::scenario_covariance_artifact::CovarianceSpec>::fn compute_within(&self, ctx: &antecedent_core::execution::context::ExecutionContext, limits: &antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits) -> core::result::Result<antecedent_estimate::scenario_covariance::ScenarioCovariance, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::scenario_covariance_artifact::CovarianceSpec>::fn estimators(&self) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::scenario_covariance::ScenarioRowEstimator>, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::scenario_covariance_artifact::CovarianceSpec>::fn estimators_within(&self, limits: &antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::scenario_covariance::ScenarioRowEstimator>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError>::fn refusal(&self) -> (&'static str, &'static str)
 pub fn <antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactWire>::fn checked(spec: &antecedent_io::scenario_covariance_artifact::CovarianceSpec, covariance: &antecedent_estimate::scenario_covariance::ScenarioCovariance) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactWire>::fn consume_with_limits(bytes: &[u8], limits: antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent_estimate::scenario_covariance::ScenarioCovariance), antecedent_io_core::error::IoError>
@@ -9761,6 +9763,17 @@ pub struct antecedent_io::vector_treatment_artifact::WaldWire
 pub struct antecedent_io::z_transport_artifact::ConsumedZTransport
 pub struct antecedent_io::z_transport_artifact::ZTransportArtifactWire
 pub struct antecedent_io::z_transport_artifact::ZTransportPointWire
+pub trait antecedent_io::BudgetedTreatmentArtifact: core::marker::Sized
+pub trait const antecedent_io::BudgetedTreatmentArtifact::MAX_BYTES: usize
+pub trait fn fn antecedent_io::BudgetedTreatmentArtifact::from_bytes(bytes: &[u8], expected: core::option::Option<&<Self as antecedent_io::BudgetedTreatmentArtifact>::Identity>) -> core::result::Result<Self, <Self as antecedent_io::BudgetedTreatmentArtifact>::Error> {default}
+pub trait fn fn antecedent_io::BudgetedTreatmentArtifact::from_bytes_with(bytes: &[u8], expected: core::option::Option<&<Self as antecedent_io::BudgetedTreatmentArtifact>::Identity>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, <Self as antecedent_io::BudgetedTreatmentArtifact>::Error>
+pub trait fn fn antecedent_io::BudgetedTreatmentArtifact::seal(request: &<Self as antecedent_io::BudgetedTreatmentArtifact>::Request) -> core::result::Result<Self, <Self as antecedent_io::BudgetedTreatmentArtifact>::Error> {default}
+pub trait fn fn antecedent_io::BudgetedTreatmentArtifact::seal_with(request: &<Self as antecedent_io::BudgetedTreatmentArtifact>::Request, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, <Self as antecedent_io::BudgetedTreatmentArtifact>::Error>
+pub trait fn fn antecedent_io::BudgetedTreatmentArtifact::to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, <Self as antecedent_io::BudgetedTreatmentArtifact>::Error> {default}
+pub trait fn fn antecedent_io::BudgetedTreatmentArtifact::to_bytes_within(&self, artifact_id: &str, export_budget: usize) -> core::result::Result<alloc::vec::Vec<u8>, <Self as antecedent_io::BudgetedTreatmentArtifact>::Error>
+pub trait type antecedent_io::BudgetedTreatmentArtifact::Error
+pub trait type antecedent_io::BudgetedTreatmentArtifact::Identity
+pub trait type antecedent_io::BudgetedTreatmentArtifact::Request
 pub type antecedent_io::cpdag_completion_artifact::CpdagWire = antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
 pub type antecedent_io::sampled_recovery_artifact::SampledRowWire = (u64, u8, u8, u8)
 pub type antecedent_io::z_transport_artifact::ZTransportConsumeLimits = antecedent_io_core::artifact_codec::ConsumeLimits
@@ -9821,6 +9834,7 @@ pub use antecedent_io::ContinuousDomainWire = antecedent_io_core::ContinuousDoma
 pub use antecedent_io::ContractIdentitiesWire = antecedent_io_core::ContractIdentitiesWire
 pub use antecedent_io::ContractReason = antecedent_io_core::ContractReason
 pub use antecedent_io::ContrastBundleWire = antecedent_io_core::ContrastBundleWire
+pub use antecedent_io::CounterfactualContrastsWire = antecedent_io_core::CounterfactualContrastsWire
 pub use antecedent_io::CpdagJson = antecedent_io_core::CpdagJson
 pub use antecedent_io::CpdagWire = antecedent_io_core::CpdagWire
 pub use antecedent_io::DagJson = antecedent_io_core::DagJson
@@ -9917,6 +9931,7 @@ pub use antecedent_io::ObservationIdentityWire = antecedent_io_core::Observation
 pub use antecedent_io::ObservationOptionsWire = antecedent_io_core::ObservationOptionsWire
 pub use antecedent_io::ObservationSpecWire = antecedent_io_core::ObservationSpecWire
 pub use antecedent_io::OutSection = antecedent_io_core::OutSection
+pub use antecedent_io::OutcomeContrastWire = antecedent_io_core::OutcomeContrastWire
 pub use antecedent_io::OverlapPolicyWire = antecedent_io_core::OverlapPolicyWire
 pub use antecedent_io::POSTERIOR_ROW_CALIBRATION = antecedent_io_core::POSTERIOR_ROW_CALIBRATION
 pub use antecedent_io::POSTERIOR_ROW_UNCERTAINTY = antecedent_io_core::POSTERIOR_ROW_UNCERTAINTY
@@ -10104,6 +10119,7 @@ pub use antecedent_io::compact_export = antecedent_io_core::compact_export
 pub use antecedent_io::compiled_identification_wire = antecedent_io_core::compiled_identification_wire
 pub use antecedent_io::composition_verification_artifact = antecedent_io_core::composition_verification_artifact
 pub use antecedent_io::consume_analysis_result = antecedent_io_core::consume_analysis_result
+pub use antecedent_io::consume_analysis_result_within = antecedent_io_core::consume_analysis_result_within
 pub use antecedent_io::container = antecedent_io_core::container
 pub use antecedent_io::container_kind = antecedent_io_core::container_kind
 pub use antecedent_io::contract_seal = antecedent_io_core::contract_seal
@@ -10367,6 +10383,7 @@ pub use antecedent_io::sensitivity_artifact::SamplingInterval = antecedent_io_co
 pub use antecedent_io::sensitivity_artifact::SamplingStatus = antecedent_io_core::sensitivity_artifact::SamplingStatus
 pub use antecedent_io::sensitivity_artifact::SensitivityArtifact = antecedent_io_core::sensitivity_artifact::SensitivityArtifact
 pub use antecedent_io::sensitivity_artifact::SensitivityIdentity = antecedent_io_core::sensitivity_artifact::SensitivityIdentity
+pub use antecedent_io::sensitivity_artifact::SensitivityLimits = antecedent_io_core::sensitivity_artifact::SensitivityLimits
 pub use antecedent_io::sensitivity_artifact::SensitivityMeta = antecedent_io_core::sensitivity_artifact::SensitivityMeta
 pub use antecedent_io::sensitivity_artifact::SensitivityOutcome = antecedent_io_core::sensitivity_artifact::SensitivityOutcome
 pub use antecedent_io::sensitivity_artifact::SensitivityParts = antecedent_io_core::sensitivity_artifact::SensitivityParts
@@ -10433,6 +10450,7 @@ pub use antecedent_io::transported_counterfactual_artifact = antecedent_io_core:
 pub use antecedent_io::validate_contract_section = antecedent_io_core::validate_contract_section
 pub use antecedent_io::validate_mixture_masses = antecedent_io_core::validate_mixture_masses
 pub use antecedent_io::verify_contract_against_body = antecedent_io_core::verify_contract_against_body
+pub use antecedent_io::verify_contract_against_body_within = antecedent_io_core::verify_contract_against_body_within
 pub use antecedent_io::weight_basis_name = antecedent_io_core::weight_basis_name
 pub use antecedent_io::wire = antecedent_io_core::wire
 pub use antecedent_io::z_transport_artifact::ZTransportArtifactError = antecedent_io_core::transport_errors::ZTransportArtifactError

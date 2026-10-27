@@ -218,6 +218,9 @@ impl core::clone::Clone for antecedent_contract::JointAxis
 impl core::clone::Clone for antecedent_contract::JointAxisKind
 impl core::clone::Clone for antecedent_contract::JointConsumer
 impl core::clone::Clone for antecedent_contract::JointCovariance
+impl core::clone::Clone for antecedent_contract::JointEventKind
+impl core::clone::Clone for antecedent_contract::JointEventQuantity
+impl core::clone::Clone for antecedent_contract::JointEventVariable
 impl core::clone::Clone for antecedent_contract::KernelSelection
 impl core::clone::Clone for antecedent_contract::LatentCauseDeclaration
 impl core::clone::Clone for antecedent_contract::LawArray
@@ -605,6 +608,9 @@ impl core::cmp::Eq for antecedent_contract::JointAxis
 impl core::cmp::Eq for antecedent_contract::JointAxisKind
 impl core::cmp::Eq for antecedent_contract::JointConsumer
 impl core::cmp::Eq for antecedent_contract::JointCovariance
+impl core::cmp::Eq for antecedent_contract::JointEventKind
+impl core::cmp::Eq for antecedent_contract::JointEventQuantity
+impl core::cmp::Eq for antecedent_contract::JointEventVariable
 impl core::cmp::Eq for antecedent_contract::KernelSelection
 impl core::cmp::Eq for antecedent_contract::LatentCauseDeclaration
 impl core::cmp::Eq for antecedent_contract::LawArray
@@ -992,6 +998,9 @@ impl core::cmp::PartialEq for antecedent_contract::JointAxis
 impl core::cmp::PartialEq for antecedent_contract::JointAxisKind
 impl core::cmp::PartialEq for antecedent_contract::JointConsumer
 impl core::cmp::PartialEq for antecedent_contract::JointCovariance
+impl core::cmp::PartialEq for antecedent_contract::JointEventKind
+impl core::cmp::PartialEq for antecedent_contract::JointEventQuantity
+impl core::cmp::PartialEq for antecedent_contract::JointEventVariable
 impl core::cmp::PartialEq for antecedent_contract::KernelSelection
 impl core::cmp::PartialEq for antecedent_contract::LatentCauseDeclaration
 impl core::cmp::PartialEq for antecedent_contract::LawArray
@@ -1490,6 +1499,9 @@ impl core::fmt::Debug for antecedent_contract::JointAxis
 impl core::fmt::Debug for antecedent_contract::JointAxisKind
 impl core::fmt::Debug for antecedent_contract::JointConsumer
 impl core::fmt::Debug for antecedent_contract::JointCovariance
+impl core::fmt::Debug for antecedent_contract::JointEventKind
+impl core::fmt::Debug for antecedent_contract::JointEventQuantity
+impl core::fmt::Debug for antecedent_contract::JointEventVariable
 impl core::fmt::Debug for antecedent_contract::KernelSelection
 impl core::fmt::Debug for antecedent_contract::LatentCauseDeclaration
 impl core::fmt::Debug for antecedent_contract::LawArray
@@ -1812,6 +1824,7 @@ impl core::fmt::Display for antecedent_contract::EvidencePortError
 impl core::fmt::Display for antecedent_contract::JointAlignmentError
 impl core::fmt::Display for antecedent_contract::JointAxis
 impl core::fmt::Display for antecedent_contract::JointAxisKind
+impl core::fmt::Display for antecedent_contract::JointEventQuantity
 impl core::fmt::Display for antecedent_contract::ProvenanceError
 impl core::fmt::Display for antecedent_contract::SharedFactor
 impl core::fmt::Display for antecedent_contract::SharedFactorId
@@ -1859,6 +1872,9 @@ impl core::hash::Hash for antecedent_contract::JointAxis
 impl core::hash::Hash for antecedent_contract::JointAxisKind
 impl core::hash::Hash for antecedent_contract::JointConsumer
 impl core::hash::Hash for antecedent_contract::JointCovariance
+impl core::hash::Hash for antecedent_contract::JointEventKind
+impl core::hash::Hash for antecedent_contract::JointEventQuantity
+impl core::hash::Hash for antecedent_contract::JointEventVariable
 impl core::hash::Hash for antecedent_contract::KernelSelection
 impl core::hash::Hash for antecedent_contract::LawArray
 impl core::hash::Hash for antecedent_contract::LawCoupling
@@ -1998,6 +2014,7 @@ impl core::marker::Copy for antecedent_contract::InputRole
 impl core::marker::Copy for antecedent_contract::JointAxisKind
 impl core::marker::Copy for antecedent_contract::JointConsumer
 impl core::marker::Copy for antecedent_contract::JointCovariance
+impl core::marker::Copy for antecedent_contract::JointEventKind
 impl core::marker::Copy for antecedent_contract::KernelSelection
 impl core::marker::Copy for antecedent_contract::LawCoupling
 impl core::marker::Copy for antecedent_contract::MassAccount
@@ -2221,6 +2238,9 @@ impl core::marker::Freeze for antecedent_contract::JointAxis [auto]
 impl core::marker::Freeze for antecedent_contract::JointAxisKind [auto]
 impl core::marker::Freeze for antecedent_contract::JointConsumer [auto]
 impl core::marker::Freeze for antecedent_contract::JointCovariance [auto]
+impl core::marker::Freeze for antecedent_contract::JointEventKind [auto]
+impl core::marker::Freeze for antecedent_contract::JointEventQuantity [auto]
+impl core::marker::Freeze for antecedent_contract::JointEventVariable [auto]
 impl core::marker::Freeze for antecedent_contract::KernelSelection [auto]
 impl core::marker::Freeze for antecedent_contract::LatentCauseDeclaration [auto]
 impl core::marker::Freeze for antecedent_contract::LawArray [auto]
@@ -2631,6 +2651,9 @@ impl core::marker::Send for antecedent_contract::JointAxis [auto]
 impl core::marker::Send for antecedent_contract::JointAxisKind [auto]
 impl core::marker::Send for antecedent_contract::JointConsumer [auto]
 impl core::marker::Send for antecedent_contract::JointCovariance [auto]
+impl core::marker::Send for antecedent_contract::JointEventKind [auto]
+impl core::marker::Send for antecedent_contract::JointEventQuantity [auto]
+impl core::marker::Send for antecedent_contract::JointEventVariable [auto]
 impl core::marker::Send for antecedent_contract::KernelSelection [auto]
 impl core::marker::Send for antecedent_contract::LatentCauseDeclaration [auto]
 impl core::marker::Send for antecedent_contract::LawArray [auto]
@@ -3041,6 +3064,9 @@ impl core::marker::StructuralPartialEq for antecedent_contract::JointAxis
 impl core::marker::StructuralPartialEq for antecedent_contract::JointAxisKind
 impl core::marker::StructuralPartialEq for antecedent_contract::JointConsumer
 impl core::marker::StructuralPartialEq for antecedent_contract::JointCovariance
+impl core::marker::StructuralPartialEq for antecedent_contract::JointEventKind
+impl core::marker::StructuralPartialEq for antecedent_contract::JointEventQuantity
+impl core::marker::StructuralPartialEq for antecedent_contract::JointEventVariable
 impl core::marker::StructuralPartialEq for antecedent_contract::KernelSelection
 impl core::marker::StructuralPartialEq for antecedent_contract::LatentCauseDeclaration
 impl core::marker::StructuralPartialEq for antecedent_contract::LawArray
@@ -3446,6 +3472,9 @@ impl core::marker::Sync for antecedent_contract::JointAxis [auto]
 impl core::marker::Sync for antecedent_contract::JointAxisKind [auto]
 impl core::marker::Sync for antecedent_contract::JointConsumer [auto]
 impl core::marker::Sync for antecedent_contract::JointCovariance [auto]
+impl core::marker::Sync for antecedent_contract::JointEventKind [auto]
+impl core::marker::Sync for antecedent_contract::JointEventQuantity [auto]
+impl core::marker::Sync for antecedent_contract::JointEventVariable [auto]
 impl core::marker::Sync for antecedent_contract::KernelSelection [auto]
 impl core::marker::Sync for antecedent_contract::LatentCauseDeclaration [auto]
 impl core::marker::Sync for antecedent_contract::LawArray [auto]
@@ -3856,6 +3885,9 @@ impl core::marker::Unpin for antecedent_contract::JointAxis [auto]
 impl core::marker::Unpin for antecedent_contract::JointAxisKind [auto]
 impl core::marker::Unpin for antecedent_contract::JointConsumer [auto]
 impl core::marker::Unpin for antecedent_contract::JointCovariance [auto]
+impl core::marker::Unpin for antecedent_contract::JointEventKind [auto]
+impl core::marker::Unpin for antecedent_contract::JointEventQuantity [auto]
+impl core::marker::Unpin for antecedent_contract::JointEventVariable [auto]
 impl core::marker::Unpin for antecedent_contract::KernelSelection [auto]
 impl core::marker::Unpin for antecedent_contract::LatentCauseDeclaration [auto]
 impl core::marker::Unpin for antecedent_contract::LawArray [auto]
@@ -4266,6 +4298,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointAxis 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointAxisKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointConsumer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointCovariance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointEventKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointEventQuantity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointEventVariable [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::KernelSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::LatentCauseDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::LawArray [auto]
@@ -4676,6 +4711,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointAxis [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointAxisKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointConsumer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointCovariance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointEventKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointEventQuantity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointEventVariable [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::KernelSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::LatentCauseDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::LawArray [auto]
@@ -5288,6 +5326,7 @@ pub enum antecedent_contract::ExternalVerificationError
 pub enum antecedent_contract::InferenceBasis
 pub enum antecedent_contract::InputAlignment
 pub enum antecedent_contract::InputRole
+pub enum antecedent_contract::JointEventKind
 pub enum antecedent_contract::KernelSelection
 pub enum antecedent_contract::MechanismOriginKind
 pub enum antecedent_contract::ObservationOperation
@@ -5579,6 +5618,16 @@ pub field antecedent_contract::IdentificationSlot::status: antecedent_core::iden
 pub field antecedent_contract::IdentificationSlot::unevaluable_mass: f64
 pub field antecedent_contract::IdentificationSlot::unidentified_mass: f64
 pub field antecedent_contract::IdentificationSlot::weight_basis: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent_contract::JointEventQuantity::conditioning: alloc::vec::Vec<antecedent_contract::QuantityCondition>
+pub field antecedent_contract::JointEventQuantity::horizon: u32
+pub field antecedent_contract::JointEventQuantity::kind: antecedent_contract::JointEventKind
+pub field antecedent_contract::JointEventQuantity::population_id: alloc::string::String
+pub field antecedent_contract::JointEventQuantity::regime_id: alloc::string::String
+pub field antecedent_contract::JointEventQuantity::schema_id: alloc::string::String
+pub field antecedent_contract::JointEventQuantity::transform_id: alloc::string::String
+pub field antecedent_contract::JointEventQuantity::variables: alloc::vec::Vec<antecedent_contract::JointEventVariable>
+pub field antecedent_contract::JointEventVariable::name: alloc::string::String
+pub field antecedent_contract::JointEventVariable::units: alloc::string::String
 pub field antecedent_contract::LatentCauseDeclaration::latent_id: alloc::string::String
 pub field antecedent_contract::LatentCauseDeclaration::shared_with_variable_ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_contract::LawProviderContract::capabilities: alloc::vec::Vec<antecedent_contract::ExternalCapability>
@@ -6535,6 +6584,12 @@ pub fn <antecedent_contract::JointConsumer>::const fn as_str(self) -> &'static s
 pub fn <antecedent_contract::JointConsumer>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::JointCovariance>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::JointCovariance>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::JointEventKind>::const fn functional_id(self) -> &'static str
+pub fn <antecedent_contract::JointEventQuantity>::fn from_coordinate(quantity: &antecedent_contract::ScientificQuantity, schema_id: &str, schema: &[(alloc::string::String, alloc::string::String)]) -> core::option::Option<Self>
+pub fn <antecedent_contract::JointEventQuantity>::fn to_coordinate(&self) -> core::result::Result<antecedent_contract::ScientificQuantity, antecedent_contract::QuantityMismatch>
+pub fn <antecedent_contract::JointEventQuantity>::fn validate(&self) -> core::result::Result<(), antecedent_contract::QuantityMismatch>
+pub fn <antecedent_contract::JointEventQuantity>::fn validate_in_schema(&self, schema: &[(alloc::string::String, alloc::string::String)]) -> core::result::Result<(), antecedent_contract::QuantityMismatch>
+pub fn <antecedent_contract::JointEventQuantity>::fn write_canonical(&self, stream: &mut antecedent_core::identity::CanonicalWriter)
 pub fn <antecedent_contract::LawArray>::const fn consumer(&self) -> antecedent_contract::JointConsumer
 pub fn <antecedent_contract::LawArray>::const fn is_empty(&self) -> bool
 pub fn <antecedent_contract::LawArray>::const fn len(&self) -> usize
@@ -7337,6 +7392,7 @@ pub mod antecedent_contract::external_binding
 pub mod antecedent_contract::external_refusal
 pub mod antecedent_contract::interface_contract
 pub mod antecedent_contract::joint_alignment
+pub mod antecedent_contract::joint_event_quantity
 pub mod antecedent_contract::joint_law_rule
 pub mod antecedent_contract::measurement
 pub mod antecedent_contract::mechanism_composition
@@ -7418,6 +7474,8 @@ pub struct antecedent_contract::JointAlignmentRequest
 pub struct antecedent_contract::JointAlignmentRequest has private fields
 pub struct antecedent_contract::JointAxis
 pub struct antecedent_contract::JointAxis has private fields
+pub struct antecedent_contract::JointEventQuantity
+pub struct antecedent_contract::JointEventVariable
 pub struct antecedent_contract::LatentCauseDeclaration
 pub struct antecedent_contract::LawArray
 pub struct antecedent_contract::LawArray has private fields
@@ -7771,6 +7829,9 @@ pub use antecedent_contract::joint_alignment::LawArray = antecedent_contract::La
 pub use antecedent_contract::joint_alignment::LawCoupling = antecedent_contract::LawCoupling
 pub use antecedent_contract::joint_alignment::MassAccount = antecedent_contract::MassAccount
 pub use antecedent_contract::joint_alignment::MassFate = antecedent_contract::MassFate
+pub use antecedent_contract::joint_event_quantity::JointEventKind = antecedent_contract::JointEventKind
+pub use antecedent_contract::joint_event_quantity::JointEventQuantity = antecedent_contract::JointEventQuantity
+pub use antecedent_contract::joint_event_quantity::JointEventVariable = antecedent_contract::JointEventVariable
 pub use antecedent_contract::joint_law_rule::ASSUMPTION_RANGE_LABEL = antecedent_contract::ASSUMPTION_RANGE_LABEL
 pub use antecedent_contract::joint_law_rule::ComposedCoordinate = antecedent_contract::ComposedCoordinate
 pub use antecedent_contract::joint_law_rule::ComposedIntervalPlan = antecedent_contract::ComposedIntervalPlan
@@ -8098,6 +8159,8 @@ pub variant antecedent_contract::JointConsumer::Coordinate
 pub variant antecedent_contract::JointConsumer::ResponseSurface
 pub variant antecedent_contract::JointCovariance::CrossTerms
 pub variant antecedent_contract::JointCovariance::NotMeasured
+pub variant antecedent_contract::JointEventKind::Density
+pub variant antecedent_contract::JointEventKind::Probability
 pub variant antecedent_contract::KernelSelection::DenseBackend
 pub variant antecedent_contract::KernelSelection::PortableOptimized
 pub variant antecedent_contract::KernelSelection::Scalar

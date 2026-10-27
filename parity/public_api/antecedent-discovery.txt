@@ -151,6 +151,7 @@ impl core::clone::Clone for antecedent_discovery::selective::OrientationWork
 impl core::clone::Clone for antecedent_discovery::selective::PlannedStage
 impl core::clone::Clone for antecedent_discovery::selective::PortableDiscoveryState
 impl core::clone::Clone for antecedent_discovery::selective::SelectiveDiscoveryError
+impl core::clone::Clone for antecedent_discovery::selective::SelectiveLimits
 impl core::clone::Clone for antecedent_discovery::selective::SelectiveRunReport
 impl core::clone::Clone for antecedent_discovery::selective::StageDecision
 impl core::clone::Clone for antecedent_discovery::selective::StageInputs
@@ -206,6 +207,7 @@ impl core::cmp::Eq for antecedent_discovery::selective::Mark
 impl core::cmp::Eq for antecedent_discovery::selective::OrientationWork
 impl core::cmp::Eq for antecedent_discovery::selective::PlannedStage
 impl core::cmp::Eq for antecedent_discovery::selective::SelectiveDiscoveryError
+impl core::cmp::Eq for antecedent_discovery::selective::SelectiveLimits
 impl core::cmp::Eq for antecedent_discovery::selective::StageDecision
 impl core::cmp::Eq for antecedent_discovery::selective::StageInputs
 impl core::cmp::Eq for antecedent_discovery::selective::StaticAlgorithm
@@ -266,6 +268,7 @@ impl core::cmp::PartialEq for antecedent_discovery::selective::Mark
 impl core::cmp::PartialEq for antecedent_discovery::selective::OrientationWork
 impl core::cmp::PartialEq for antecedent_discovery::selective::PlannedStage
 impl core::cmp::PartialEq for antecedent_discovery::selective::SelectiveDiscoveryError
+impl core::cmp::PartialEq for antecedent_discovery::selective::SelectiveLimits
 impl core::cmp::PartialEq for antecedent_discovery::selective::StageDecision
 impl core::cmp::PartialEq for antecedent_discovery::selective::StageInputs
 impl core::cmp::PartialEq for antecedent_discovery::selective::StaticAlgorithm
@@ -351,6 +354,7 @@ impl core::default::Default for antecedent_discovery::TemporalConstraints
 impl core::default::Default for antecedent_discovery::TimeDummyCiMode
 impl core::default::Default for antecedent_discovery::conflict_resolution::IncidentOrientation
 impl core::default::Default for antecedent_discovery::selective::OrientationWork
+impl core::default::Default for antecedent_discovery::selective::SelectiveLimits
 impl core::default::Default for antecedent_discovery::selective::StaticSelectiveDiscovery
 impl core::default::Default for antecedent_discovery::selective::StatisticStore
 impl core::default::Default for antecedent_discovery::selective::StoreCounters
@@ -454,6 +458,7 @@ impl core::fmt::Debug for antecedent_discovery::selective::PlannedStage
 impl core::fmt::Debug for antecedent_discovery::selective::PortableDiscoveryState
 impl core::fmt::Debug for antecedent_discovery::selective::SelectiveCi
 impl core::fmt::Debug for antecedent_discovery::selective::SelectiveDiscoveryError
+impl core::fmt::Debug for antecedent_discovery::selective::SelectiveLimits
 impl core::fmt::Debug for antecedent_discovery::selective::SelectiveRunReport
 impl core::fmt::Debug for antecedent_discovery::selective::StageDecision
 impl core::fmt::Debug for antecedent_discovery::selective::StageInputs
@@ -532,6 +537,7 @@ impl core::marker::Copy for antecedent_discovery::graph_posterior::GraphMcmcRun
 impl core::marker::Copy for antecedent_discovery::selective::DiscoveryStage
 impl core::marker::Copy for antecedent_discovery::selective::Mark
 impl core::marker::Copy for antecedent_discovery::selective::OrientationWork
+impl core::marker::Copy for antecedent_discovery::selective::SelectiveLimits
 impl core::marker::Copy for antecedent_discovery::selective::StaticAlgorithm
 impl core::marker::Copy for antecedent_discovery::selective::StatisticReceipt
 impl core::marker::Copy for antecedent_discovery::selective::StoreCounters
@@ -633,6 +639,7 @@ impl core::marker::Freeze for antecedent_discovery::selective::PlannedStage [aut
 impl core::marker::Freeze for antecedent_discovery::selective::PortableDiscoveryState [auto]
 impl core::marker::Freeze for antecedent_discovery::selective::SelectiveCi [auto]
 impl core::marker::Freeze for antecedent_discovery::selective::SelectiveDiscoveryError [auto]
+impl core::marker::Freeze for antecedent_discovery::selective::SelectiveLimits [auto]
 impl core::marker::Freeze for antecedent_discovery::selective::SelectiveRunReport [auto]
 impl core::marker::Freeze for antecedent_discovery::selective::StageDecision [auto]
 impl core::marker::Freeze for antecedent_discovery::selective::StageInputs [auto]
@@ -751,6 +758,7 @@ impl core::marker::Send for antecedent_discovery::selective::PlannedStage [auto]
 impl core::marker::Send for antecedent_discovery::selective::PortableDiscoveryState [auto]
 impl core::marker::Send for antecedent_discovery::selective::SelectiveCi [auto]
 impl core::marker::Send for antecedent_discovery::selective::SelectiveDiscoveryError [auto]
+impl core::marker::Send for antecedent_discovery::selective::SelectiveLimits [auto]
 impl core::marker::Send for antecedent_discovery::selective::SelectiveRunReport [auto]
 impl core::marker::Send for antecedent_discovery::selective::StageDecision [auto]
 impl core::marker::Send for antecedent_discovery::selective::StageInputs [auto]
@@ -818,6 +826,7 @@ impl core::marker::StructuralPartialEq for antecedent_discovery::selective::Mark
 impl core::marker::StructuralPartialEq for antecedent_discovery::selective::OrientationWork
 impl core::marker::StructuralPartialEq for antecedent_discovery::selective::PlannedStage
 impl core::marker::StructuralPartialEq for antecedent_discovery::selective::SelectiveDiscoveryError
+impl core::marker::StructuralPartialEq for antecedent_discovery::selective::SelectiveLimits
 impl core::marker::StructuralPartialEq for antecedent_discovery::selective::StageDecision
 impl core::marker::StructuralPartialEq for antecedent_discovery::selective::StageInputs
 impl core::marker::StructuralPartialEq for antecedent_discovery::selective::StaticAlgorithm
@@ -929,6 +938,7 @@ impl core::marker::Sync for antecedent_discovery::selective::PlannedStage [auto]
 impl core::marker::Sync for antecedent_discovery::selective::PortableDiscoveryState [auto]
 impl core::marker::Sync for antecedent_discovery::selective::SelectiveCi [auto]
 impl core::marker::Sync for antecedent_discovery::selective::SelectiveDiscoveryError [auto]
+impl core::marker::Sync for antecedent_discovery::selective::SelectiveLimits [auto]
 impl core::marker::Sync for antecedent_discovery::selective::SelectiveRunReport [auto]
 impl core::marker::Sync for antecedent_discovery::selective::StageDecision [auto]
 impl core::marker::Sync for antecedent_discovery::selective::StageInputs [auto]
@@ -1050,6 +1060,7 @@ impl core::marker::Unpin for antecedent_discovery::selective::PlannedStage [auto
 impl core::marker::Unpin for antecedent_discovery::selective::PortableDiscoveryState [auto]
 impl core::marker::Unpin for antecedent_discovery::selective::SelectiveCi [auto]
 impl core::marker::Unpin for antecedent_discovery::selective::SelectiveDiscoveryError [auto]
+impl core::marker::Unpin for antecedent_discovery::selective::SelectiveLimits [auto]
 impl core::marker::Unpin for antecedent_discovery::selective::SelectiveRunReport [auto]
 impl core::marker::Unpin for antecedent_discovery::selective::StageDecision [auto]
 impl core::marker::Unpin for antecedent_discovery::selective::StageInputs [auto]
@@ -1158,6 +1169,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::PlannedStage [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::PortableDiscoveryState [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::SelectiveDiscoveryError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::SelectiveLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::SelectiveRunReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::StageDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::StageInputs [auto]
@@ -1263,6 +1275,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::O
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::PlannedStage [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::PortableDiscoveryState [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::SelectiveDiscoveryError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::SelectiveLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::SelectiveRunReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::StageDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::StageInputs [auto]
@@ -1319,6 +1332,7 @@ impl<G> core::panic::unwind_safe::UnwindSafe for antecedent_discovery::GraphEvid
 pub const <antecedent_discovery::AdjacencyMask>::EMPTY: Self
 pub const <antecedent_discovery::selective::DiscoveryStage>::ALL: [Self; 4]
 pub const <antecedent_discovery::selective::Mark>::ALL: [Self; 4]
+pub const <antecedent_discovery::selective::SelectiveLimits>::DEFAULT: Self
 pub const <antecedent_discovery::selective::StructureClass>::ALL: [Self; 5]
 pub const antecedent_discovery::EXACT_ENUM_MAX_NODES: usize
 pub const antecedent_discovery::EXACT_MARGINAL_MAX_NODES: usize
@@ -1627,6 +1641,8 @@ pub field antecedent_discovery::selective::PortableDiscoveryState::search_incomp
 pub field antecedent_discovery::selective::PortableDiscoveryState::structure: antecedent_discovery::selective::DiscoveredStructure
 pub field antecedent_discovery::selective::PortableDiscoveryState::variables: alloc::vec::Vec<u32>
 pub field antecedent_discovery::selective::PortableDiscoveryState::work: antecedent_discovery::selective::WorkUnits
+pub field antecedent_discovery::selective::SelectiveLimits::max_portable_receipts: usize
+pub field antecedent_discovery::selective::SelectiveLimits::store_capacity: usize
 pub field antecedent_discovery::selective::SelectiveRunReport::outcome_changed: bool
 pub field antecedent_discovery::selective::SelectiveRunReport::plan: antecedent_discovery::selective::DiscoveryPlan
 pub field antecedent_discovery::selective::SelectiveRunReport::retained_statistics: usize
@@ -1999,6 +2015,7 @@ pub fn <antecedent_discovery::selective::Mark>::fn from_name(name: &str) -> core
 pub fn <antecedent_discovery::selective::PortableDiscoveryState>::fn graph_identity(&self) -> antecedent_discovery::selective::Digest
 pub fn <antecedent_discovery::selective::PortableDiscoveryState>::fn reseal(&mut self)
 pub fn <antecedent_discovery::selective::PortableDiscoveryState>::fn validate(&self) -> core::result::Result<(), antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::PortableDiscoveryState>::fn validate_within(&self, max_receipts: usize) -> core::result::Result<(), antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::SelectiveCi>::const fn store(&self) -> &alloc::sync::Arc<antecedent_discovery::selective::StatisticStore>
 pub fn <antecedent_discovery::selective::SelectiveCi>::fn new(inner: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>, store: alloc::sync::Arc<antecedent_discovery::selective::StatisticStore>, test_identity: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_discovery::selective::SelectiveDiscoveryError>::const fn code(&self) -> core::option::Option<&'static str>
@@ -2016,13 +2033,16 @@ pub fn <antecedent_discovery::selective::StaticDiscoveryContract>::fn identity(&
 pub fn <antecedent_discovery::selective::StaticDiscoveryContract>::fn new(algorithm: antecedent_discovery::selective::StaticAlgorithm, variables: alloc::vec::Vec<antecedent_core::ids::VariableId>, ci_test: antecedent_discovery::selective::CiTestSpec, rng_seed: u64) -> Self
 pub fn <antecedent_discovery::selective::StaticDiscoveryContract>::fn stage_inputs(&self, data: &antecedent_discovery::selective::DataIdentity, kernel: antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<antecedent_discovery::selective::StageInputs, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StaticDiscoveryContract>::fn validate(&self) -> core::result::Result<(), antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::const fn limits(&self) -> &antecedent_discovery::selective::SelectiveLimits
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::const fn new() -> Self
+pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::const fn with_limits(limits: antecedent_discovery::selective::SelectiveLimits) -> Self
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn data_identity(&self) -> core::option::Option<&antecedent_discovery::selective::DataIdentity>
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn export_state(&self) -> core::result::Result<antecedent_discovery::selective::PortableDiscoveryState, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn inputs(&self) -> core::option::Option<&antecedent_discovery::selective::StageInputs>
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn outcome(&self) -> core::option::Option<&antecedent_discovery::selective::DiscoveryOutcome>
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn plan(&self, contract: &antecedent_discovery::selective::StaticDiscoveryContract, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::DiscoveryPlan, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn resume(contract: &antecedent_discovery::selective::StaticDiscoveryContract, data: core::option::Option<&antecedent_data::dataset::TabularData>, state: &antecedent_discovery::selective::PortableDiscoveryState, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent_discovery::selective::SelectiveRunReport), antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn resume_with_limits(contract: &antecedent_discovery::selective::StaticDiscoveryContract, data: core::option::Option<&antecedent_data::dataset::TabularData>, state: &antecedent_discovery::selective::PortableDiscoveryState, ctx: &antecedent_core::execution::context::ExecutionContext, limits: antecedent_discovery::selective::SelectiveLimits) -> core::result::Result<(Self, antecedent_discovery::selective::SelectiveRunReport), antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn retained_statistics(&self) -> usize
 pub fn <antecedent_discovery::selective::StaticSelectiveDiscovery>::fn run(&mut self, contract: &antecedent_discovery::selective::StaticDiscoveryContract, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::SelectiveRunReport, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StatisticReceipt>::fn is_valid(&self) -> bool
@@ -2036,7 +2056,9 @@ pub fn <antecedent_discovery::selective::StatisticStore>::fn receipts(&self) -> 
 pub fn <antecedent_discovery::selective::StatisticStore>::fn receipts_identity(receipts: &[antecedent_discovery::selective::StatisticReceipt]) -> antecedent_discovery::selective::Digest
 pub fn <antecedent_discovery::selective::StatisticStore>::fn replay_missed(&self) -> bool
 pub fn <antecedent_discovery::selective::StatisticStore>::fn replay_only(receipts: &[antecedent_discovery::selective::StatisticReceipt]) -> core::result::Result<Self, antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::StatisticStore>::fn replay_only_within(receipts: &[antecedent_discovery::selective::StatisticReceipt], max_receipts: usize) -> core::result::Result<Self, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StatisticStore>::fn seeded(receipts: &[antecedent_discovery::selective::StatisticReceipt]) -> core::result::Result<Self, antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::StatisticStore>::fn seeded_within(receipts: &[antecedent_discovery::selective::StatisticReceipt], limits: &antecedent_discovery::selective::SelectiveLimits) -> core::result::Result<Self, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::StatisticStore>::fn with_capacity(capacity: usize) -> Self
 pub fn <antecedent_discovery::selective::StructureClass>::const fn as_str(self) -> &'static str
 pub fn <antecedent_discovery::selective::StructureClass>::const fn is_equivalence_class(self) -> bool
@@ -2052,13 +2074,16 @@ pub fn <antecedent_discovery::selective::TemporalDiscoveryContract>::fn identity
 pub fn <antecedent_discovery::selective::TemporalDiscoveryContract>::fn new(algorithm: antecedent_discovery::selective::TemporalAlgorithm, variables: alloc::vec::Vec<antecedent_core::ids::VariableId>, ci_test: antecedent_discovery::selective::CiTestSpec, rng_seed: u64) -> Self
 pub fn <antecedent_discovery::selective::TemporalDiscoveryContract>::fn stage_inputs(&self, data: &antecedent_discovery::selective::DataIdentity, kernel: antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<antecedent_discovery::selective::StageInputs, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::TemporalDiscoveryContract>::fn validate(&self) -> core::result::Result<(), antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::const fn limits(&self) -> &antecedent_discovery::selective::SelectiveLimits
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::const fn new() -> Self
+pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::const fn with_limits(limits: antecedent_discovery::selective::SelectiveLimits) -> Self
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn data_identity(&self) -> core::option::Option<&antecedent_discovery::selective::DataIdentity>
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn export_state(&self) -> core::result::Result<antecedent_discovery::selective::PortableDiscoveryState, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn inputs(&self) -> core::option::Option<&antecedent_discovery::selective::StageInputs>
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn outcome(&self) -> core::option::Option<&antecedent_discovery::selective::DiscoveryOutcome>
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn plan(&self, contract: &antecedent_discovery::selective::TemporalDiscoveryContract, data: &antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::DiscoveryPlan, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn resume(contract: &antecedent_discovery::selective::TemporalDiscoveryContract, data: core::option::Option<&antecedent_data::dataset::TimeSeriesData>, state: &antecedent_discovery::selective::PortableDiscoveryState, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent_discovery::selective::SelectiveRunReport), antecedent_discovery::selective::SelectiveDiscoveryError>
+pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn resume_with_limits(contract: &antecedent_discovery::selective::TemporalDiscoveryContract, data: core::option::Option<&antecedent_data::dataset::TimeSeriesData>, state: &antecedent_discovery::selective::PortableDiscoveryState, ctx: &antecedent_core::execution::context::ExecutionContext, limits: antecedent_discovery::selective::SelectiveLimits) -> core::result::Result<(Self, antecedent_discovery::selective::SelectiveRunReport), antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn retained_statistics(&self) -> usize
 pub fn <antecedent_discovery::selective::TemporalSelectiveDiscovery>::fn run(&mut self, contract: &antecedent_discovery::selective::TemporalDiscoveryContract, data: &antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::SelectiveRunReport, antecedent_discovery::selective::SelectiveDiscoveryError>
 pub fn <antecedent_discovery::selective::WorkUnits>::const fn is_pure_reuse(&self) -> bool
@@ -2293,6 +2318,7 @@ pub struct antecedent_discovery::selective::PlannedStage
 pub struct antecedent_discovery::selective::PortableDiscoveryState
 pub struct antecedent_discovery::selective::SelectiveCi
 pub struct antecedent_discovery::selective::SelectiveCi has private fields
+pub struct antecedent_discovery::selective::SelectiveLimits
 pub struct antecedent_discovery::selective::SelectiveRunReport
 pub struct antecedent_discovery::selective::StageInputs
 pub struct antecedent_discovery::selective::StageInputs has private fields
@@ -2523,6 +2549,7 @@ pub use antecedent_discovery::selective::static_data_identity = antecedent_disco
 pub use antecedent_discovery::selective::store::DEFAULT_STORE_CAPACITY = antecedent_discovery::selective::DEFAULT_STORE_CAPACITY
 pub use antecedent_discovery::selective::store::MAX_PORTABLE_RECEIPTS = antecedent_discovery::selective::MAX_PORTABLE_RECEIPTS
 pub use antecedent_discovery::selective::store::SelectiveCi = antecedent_discovery::selective::SelectiveCi
+pub use antecedent_discovery::selective::store::SelectiveLimits = antecedent_discovery::selective::SelectiveLimits
 pub use antecedent_discovery::selective::store::StatisticReceipt = antecedent_discovery::selective::StatisticReceipt
 pub use antecedent_discovery::selective::store::StatisticStore = antecedent_discovery::selective::StatisticStore
 pub use antecedent_discovery::selective::store::StoreCounters = antecedent_discovery::selective::StoreCounters

@@ -1589,6 +1589,7 @@ pub fn <antecedent_counterfactual::selective::FiniteQuantity>::fn validate(&self
 pub fn <antecedent_counterfactual::selective::FiniteScm>::fn compile(&self) -> core::result::Result<antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>, antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn <antecedent_counterfactual::selective::FiniteScm>::fn compile_layout(&self) -> core::result::Result<antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>, antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn <antecedent_counterfactual::selective::FiniteScm>::fn digest(&self) -> alloc::string::String
+pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::const fn max_retained(&self) -> usize
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn clear(&mut self)
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn counters(&self) -> antecedent_counterfactual::selective::WorkCounters
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn execute(&mut self, request: &antecedent_counterfactual::selective::FiniteExecutionRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::FiniteExecutionResult, antecedent_counterfactual::selective::CrossWorldExecutionError>
@@ -1596,21 +1597,26 @@ pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn new() -> Se
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn retained(&self, identity: &str) -> core::option::Option<&antecedent_counterfactual::selective::RetainedAbduction>
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn retained_all(&self) -> impl core::iter::traits::iterator::Iterator<Item = &antecedent_counterfactual::selective::RetainedAbduction>
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn retained_len(&self) -> usize
+pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn with_max_retained(max_retained: usize) -> Self
 pub fn <antecedent_counterfactual::selective::FiniteWorld>::fn digest(&self) -> alloc::string::String
+pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::const fn max_retained(&self) -> usize
 pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::fn counters(&self) -> antecedent_counterfactual::selective::WorkCounters
 pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::fn execute(&mut self, spec: &antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::GeneralTemporalExecution, antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>
 pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::fn new() -> Self
 pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::fn retained_len(&self) -> usize
+pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::fn with_max_retained(max_retained: usize) -> Self
 pub fn <antecedent_counterfactual::selective::HistoryKind>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::selective::MatrixRow>::const fn needs_shared_exogenous(&self) -> bool
 pub fn <antecedent_counterfactual::selective::ModelClass>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::selective::NoiseCoupling>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::selective::PopulationKind>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::selective::QuantityClass>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::TemporalExecutor>::const fn max_retained(&self) -> usize
 pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn counters(&self) -> antecedent_counterfactual::selective::WorkCounters
 pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn execute(&mut self, spec: &antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::TemporalExecution, antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>
 pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn new() -> Self
 pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn retained_len(&self) -> usize
+pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn with_max_retained(max_retained: usize) -> Self
 pub fn <antecedent_counterfactual::selective::WorkCounters>::fn since(self, earlier: Self) -> Self
 pub fn <antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>>::fn decode(&self, joint: usize) -> alloc::vec::Vec<usize>
 pub fn <antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>>::fn enumerable(&self) -> bool

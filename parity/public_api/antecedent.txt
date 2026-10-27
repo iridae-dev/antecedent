@@ -4,6 +4,7 @@
 #[doc(hidden)] pub const fn antecedent::error::is_runtime_refusal_code(code: &str) -> bool
 #[doc(hidden)] pub enum antecedent::analysis::file_table::RowFault
 #[doc(hidden)] pub fn <antecedent::EvidenceLedgerSession>::fn pooled_interval_candidate(&self, result: antecedent_contract::evidence_ledger::ids::ResultId) -> core::result::Result<antecedent::analysis::evidence_ledger::PooledIntervalCandidate, antecedent::EvidenceLedgerRefusal>
+#[doc(hidden)] pub fn <antecedent::StudyResult>::fn estimate_mut(&mut self) -> &mut antecedent::PrimaryEstimate
 #[doc(hidden)] pub fn <antecedent::gcm::PreparedPolicy>::fn value(&self, model: &antecedent_model::compile::CompiledCausalModel, outcome: antecedent_core::ids::VariableId, n: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::gcm::PolicyValue, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::analysis::file_table::summarize_weighted_gaussian_faulted(file: &antecedent_data::file_source::TableFile, spec: &antecedent::analysis::file_table::GaussianSummarySpec, control: antecedent_io_core::capacity_account::weighted_gaussian_capacity::CapacityControl, options: &antecedent_io_core::capacity_account::weighted_gaussian_capacity::CapacityOptions, ctx: &antecedent_core::execution::context::ExecutionContext, fault: antecedent::analysis::file_table::RowFault) -> core::result::Result<antecedent::analysis::file_table::FileGaussianSummary, antecedent::analysis::file_table::FileTableError>
 #[doc(hidden)] pub fn antecedent::analysis::max_t_critical_value(correlation: &antecedent_estimate::joint_if::JointCovariance, level: f64, seed: u64, draws: u32, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<f64, antecedent::BatchRetargetError>
@@ -971,6 +972,8 @@ impl core::clone::Clone for antecedent::error::PendingEdge
 impl core::clone::Clone for antecedent::estimate::StaticEstimateWorkspaces
 impl core::clone::Clone for antecedent::gcm::CheckedCounterfactualOperation
 impl core::clone::Clone for antecedent::gcm::ContrastSetResult
+impl core::clone::Clone for antecedent::gcm::ContrastedOutcome
+impl core::clone::Clone for antecedent::gcm::CounterfactualContrasts
 impl core::clone::Clone for antecedent::gcm::FittedGcm
 impl core::clone::Clone for antecedent::gcm::IteResult
 impl core::clone::Clone for antecedent::gcm::NestedCounterfactualOperation
@@ -2777,6 +2780,8 @@ impl core::fmt::Debug for antecedent::error::PendingEdge
 impl core::fmt::Debug for antecedent::estimate::StaticEstimateWorkspaces
 impl core::fmt::Debug for antecedent::gcm::CheckedCounterfactualOperation
 impl core::fmt::Debug for antecedent::gcm::ContrastSetResult
+impl core::fmt::Debug for antecedent::gcm::ContrastedOutcome
+impl core::fmt::Debug for antecedent::gcm::CounterfactualContrasts
 impl core::fmt::Debug for antecedent::gcm::FittedGcm
 impl core::fmt::Debug for antecedent::gcm::IteResult
 impl core::fmt::Debug for antecedent::gcm::NestedCounterfactualOperation
@@ -3921,6 +3926,8 @@ impl core::marker::Freeze for antecedent::error::PendingEdge [auto]
 impl core::marker::Freeze for antecedent::estimate::StaticEstimateWorkspaces [auto]
 impl core::marker::Freeze for antecedent::gcm::CheckedCounterfactualOperation [auto]
 impl core::marker::Freeze for antecedent::gcm::ContrastSetResult [auto]
+impl core::marker::Freeze for antecedent::gcm::ContrastedOutcome [auto]
+impl core::marker::Freeze for antecedent::gcm::CounterfactualContrasts [auto]
 impl core::marker::Freeze for antecedent::gcm::FittedGcm [auto]
 impl core::marker::Freeze for antecedent::gcm::IteResult [auto]
 impl core::marker::Freeze for antecedent::gcm::NestedCounterfactualOperation [auto]
@@ -4804,6 +4811,8 @@ impl core::marker::Send for antecedent::error::PendingEdge [auto]
 impl core::marker::Send for antecedent::estimate::StaticEstimateWorkspaces [auto]
 impl core::marker::Send for antecedent::gcm::CheckedCounterfactualOperation [auto]
 impl core::marker::Send for antecedent::gcm::ContrastSetResult [auto]
+impl core::marker::Send for antecedent::gcm::ContrastedOutcome [auto]
+impl core::marker::Send for antecedent::gcm::CounterfactualContrasts [auto]
 impl core::marker::Send for antecedent::gcm::FittedGcm [auto]
 impl core::marker::Send for antecedent::gcm::IteResult [auto]
 impl core::marker::Send for antecedent::gcm::NestedCounterfactualOperation [auto]
@@ -6206,6 +6215,8 @@ impl core::marker::Sync for antecedent::error::PendingEdge [auto]
 impl core::marker::Sync for antecedent::estimate::StaticEstimateWorkspaces [auto]
 impl core::marker::Sync for antecedent::gcm::CheckedCounterfactualOperation [auto]
 impl core::marker::Sync for antecedent::gcm::ContrastSetResult [auto]
+impl core::marker::Sync for antecedent::gcm::ContrastedOutcome [auto]
+impl core::marker::Sync for antecedent::gcm::CounterfactualContrasts [auto]
 impl core::marker::Sync for antecedent::gcm::FittedGcm [auto]
 impl core::marker::Sync for antecedent::gcm::IteResult [auto]
 impl core::marker::Sync for antecedent::gcm::NestedCounterfactualOperation [auto]
@@ -7090,6 +7101,8 @@ impl core::marker::Unpin for antecedent::error::PendingEdge [auto]
 impl core::marker::Unpin for antecedent::estimate::StaticEstimateWorkspaces [auto]
 impl core::marker::Unpin for antecedent::gcm::CheckedCounterfactualOperation [auto]
 impl core::marker::Unpin for antecedent::gcm::ContrastSetResult [auto]
+impl core::marker::Unpin for antecedent::gcm::ContrastedOutcome [auto]
+impl core::marker::Unpin for antecedent::gcm::CounterfactualContrasts [auto]
 impl core::marker::Unpin for antecedent::gcm::FittedGcm [auto]
 impl core::marker::Unpin for antecedent::gcm::IteResult [auto]
 impl core::marker::Unpin for antecedent::gcm::NestedCounterfactualOperation [auto]
@@ -7937,6 +7950,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::error::PendingEdge 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::estimate::StaticEstimateWorkspaces [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::CheckedCounterfactualOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::ContrastSetResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::ContrastedOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::CounterfactualContrasts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::IteResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::NestedCounterfactualOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::NestedOutcomeMechanism [auto]
@@ -8777,6 +8792,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::error::PendingEdge [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent::estimate::StaticEstimateWorkspaces [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::CheckedCounterfactualOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::ContrastSetResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::ContrastedOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::CounterfactualContrasts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::IteResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::NestedCounterfactualOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::NestedOutcomeMechanism [auto]
@@ -10385,19 +10402,13 @@ pub field antecedent::StructureProvenance::search_bounds: alloc::sync::Arc<str>
 pub field antecedent::StudyEstimate::estimate: f64
 pub field antecedent::StudyEstimate::source: antecedent_contract::evidence_ledger::ids::SourceId
 pub field antecedent::StudyEstimate::standard_error: f64
-pub field antecedent::StudyResult::candidate_selection: core::option::Option<antecedent::CandidateSelection>
 pub field antecedent::StudyResult::certificate: core::option::Option<antecedent::AnalysisIdentification>
-pub field antecedent::StudyResult::custom_validator_names: alloc::vec::Vec<alloc::sync::Arc<str>>
 pub field antecedent::StudyResult::diagnostics: alloc::vec::Vec<antecedent_core::diagnostic::Diagnostic>
 pub field antecedent::StudyResult::estimand: antecedent_expr::estimand::IdentifiedEstimand
-pub field antecedent::StudyResult::estimate: antecedent::PrimaryEstimate
 pub field antecedent::StudyResult::executed_contract: core::option::Option<antecedent::ExecutedContract>
 pub field antecedent::StudyResult::identification: antecedent_identify::result::IdentificationResult
-pub field antecedent::StudyResult::interval: core::option::Option<antecedent::result::IntervalBinding>
 pub field antecedent::StudyResult::logical_plan: antecedent_contract::plan::LogicalAnalysisPlanRecord
-pub field antecedent::StudyResult::missing_data: core::option::Option<antecedent::result::MissingDataReport>
 pub field antecedent::StudyResult::outcome: antecedent_core::ids::VariableId
-pub field antecedent::StudyResult::payload: antecedent::ResultPayload
 pub field antecedent::StudyResult::performance: antecedent_contract::plan::ExecutionPerformanceRecord
 pub field antecedent::StudyResult::physical_plan: antecedent_contract::plan::PhysicalExecutionPlanRecord
 pub field antecedent::StudyResult::population_registry: core::option::Option<antecedent_core::query::population::PopulationRegistry>
@@ -10405,10 +10416,8 @@ pub field antecedent::StudyResult::posterior: core::option::Option<antecedent_es
 pub field antecedent::StudyResult::predictive_checks: alloc::vec::Vec<antecedent_validate::bayesian_checks::predictive::PredictiveCheckReport>
 pub field antecedent::StudyResult::provenance: antecedent_contract::provenance::ProvenanceGraph
 pub field antecedent::StudyResult::refutations: alloc::vec::Vec<antecedent_validate::common::RefutationReport>
-pub field antecedent::StudyResult::row_weights: core::option::Option<antecedent::RowWeightsBinding>
 pub field antecedent::StudyResult::structural_response: core::option::Option<antecedent::result::StructuralResponseMixture>
 pub field antecedent::StudyResult::structure_source: antecedent::StructureSource
-pub field antecedent::StudyResult::support_status: core::option::Option<antecedent::CellStatus>
 pub field antecedent::StudyResult::treatment: core::option::Option<antecedent_core::ids::VariableId>
 pub field antecedent::StudySummary::estimate: f64
 pub field antecedent::StudySummary::source: antecedent_contract::evidence_ledger::ids::SourceId
@@ -12177,6 +12186,17 @@ pub field antecedent::estimator_spec::BuildDefaults::sampling_design: core::opti
 pub field antecedent::gcm::ContrastSetResult::contrasts: alloc::vec::Vec<antecedent::gcm::OutcomeContrast>
 pub field antecedent::gcm::ContrastSetResult::exogenous: antecedent_counterfactual::engine::ExogenousPosterior
 pub field antecedent::gcm::ContrastSetResult::noise_inference: antecedent_counterfactual::engine::NoiseInferenceKind
+pub field antecedent::gcm::ContrastedOutcome::mean_ite: f64
+pub field antecedent::gcm::ContrastedOutcome::outcome: antecedent_core::ids::VariableId
+pub field antecedent::gcm::ContrastedOutcome::standard_error: core::option::Option<f64>
+pub field antecedent::gcm::ContrastedOutcome::unit_effect_intervals: core::option::Option<antecedent::gcm::UnitEffectIntervals>
+pub field antecedent::gcm::ContrastedOutcome::unit_effects: alloc::sync::Arc<[f64]>
+pub field antecedent::gcm::ContrastedOutcome::unit_effects_homogeneous: bool
+pub field antecedent::gcm::ContrastedOutcome::unit_extrapolative: core::option::Option<alloc::sync::Arc<[bool]>>
+pub field antecedent::gcm::CounterfactualContrasts::contrasts: alloc::vec::Vec<antecedent::gcm::ContrastedOutcome>
+pub field antecedent::gcm::CounterfactualContrasts::exogenous: antecedent_counterfactual::engine::ExogenousPosterior
+pub field antecedent::gcm::CounterfactualContrasts::noise_inference: antecedent_counterfactual::engine::NoiseInferenceKind
+pub field antecedent::gcm::CounterfactualContrasts::treatments: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub field antecedent::gcm::FittedGcm::assignments: alloc::vec::Vec<antecedent_model::registry::MechanismAssignment>
 pub field antecedent::gcm::FittedGcm::model: antecedent_model::compile::CompiledCausalModel
 pub field antecedent::gcm::IteResult::exogenous: antecedent_counterfactual::engine::ExogenousPosterior
@@ -13165,6 +13185,7 @@ pub fn <antecedent::ResultPayload>::const fn unit_change(&self) -> core::option:
 pub fn <antecedent::ResultPayload>::fn anomaly(&self) -> core::option::Option<&[antecedent_attribution::anomaly::AnomalyScores]>
 pub fn <antecedent::ResultPayload>::fn association(&self) -> core::option::Option<&antecedent::analysis::association::AssociationPayload>
 pub fn <antecedent::ResultPayload>::fn attribution(&self) -> core::option::Option<&antecedent::AttributionPayload>
+pub fn <antecedent::ResultPayload>::fn counterfactual_contrasts(&self) -> core::option::Option<&antecedent::gcm::CounterfactualContrasts>
 pub fn <antecedent::ResultPayload>::fn discovery(&self) -> core::option::Option<&antecedent::DiscoveryPayload>
 pub fn <antecedent::ResultPayload>::fn from_interference(estimate: core::option::Option<antecedent_estimate::interference::InterferenceEstimate>, inference: core::option::Option<antecedent::result::InterferenceInference>) -> Self
 pub fn <antecedent::ResultPayload>::fn from_mediation(decomposition: core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationEstimate>, grid: core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationGrid>) -> Self
@@ -13173,6 +13194,7 @@ pub fn <antecedent::ResultPayload>::fn into_attribution(self) -> core::option::O
 pub fn <antecedent::ResultPayload>::fn into_change_attribution(self) -> core::option::Option<antecedent_attribution::result::ChangeAttributionResult>
 pub fn <antecedent::ResultPayload>::fn into_continuous_dose_response(self) -> core::option::Option<antecedent::ContinuousDoseResponseEstimate>
 pub fn <antecedent::ResultPayload>::fn into_counterfactual(self) -> core::option::Option<antecedent::gcm::IteResult>
+pub fn <antecedent::ResultPayload>::fn into_counterfactual_contrasts(self) -> core::option::Option<antecedent::gcm::CounterfactualContrasts>
 pub fn <antecedent::ResultPayload>::fn into_discovery(self) -> core::option::Option<antecedent::DiscoveryPayload>
 pub fn <antecedent::ResultPayload>::fn into_distribution(self) -> core::option::Option<antecedent_estimate::functional_distribution::InterventionalDistributionEstimate>
 pub fn <antecedent::ResultPayload>::fn into_history_match(self) -> core::option::Option<antecedent::HistoryMatchEstimate>
@@ -13362,8 +13384,15 @@ pub fn <antecedent::StudyBuilder>::fn transport_scenarios_empirical(set: &antece
 pub fn <antecedent::StudyBuilder>::fn transport_trial(self, spec: antecedent::TransportTrialSpec) -> Self
 pub fn <antecedent::StudyBuilder>::fn z_transport(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: antecedent_expr::exact::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedZTransport, antecedent_io_core::error::IoError>
 pub fn <antecedent::StudyBuilder>::fn z_transport_empirical(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: antecedent_expr::exact::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedZTransport, antecedent_io_core::error::IoError>
+pub fn <antecedent::StudyResult>::const fn candidate_selection(&self) -> &core::option::Option<antecedent::CandidateSelection>
+pub fn <antecedent::StudyResult>::const fn estimate(&self) -> &antecedent::PrimaryEstimate
 pub fn <antecedent::StudyResult>::const fn execution_facts(&self) -> core::option::Option<&antecedent_core::execution_facts::ExecutionFacts>
+pub fn <antecedent::StudyResult>::const fn interval(&self) -> &core::option::Option<antecedent::result::IntervalBinding>
 pub fn <antecedent::StudyResult>::const fn lowered_program_identity(&self) -> core::option::Option<antecedent_core::identity::SemanticDigest>
+pub fn <antecedent::StudyResult>::const fn missing_data(&self) -> &core::option::Option<antecedent::result::MissingDataReport>
+pub fn <antecedent::StudyResult>::const fn payload(&self) -> &antecedent::ResultPayload
+pub fn <antecedent::StudyResult>::const fn row_weights(&self) -> &core::option::Option<antecedent::RowWeightsBinding>
+pub fn <antecedent::StudyResult>::const fn support_status(&self) -> core::option::Option<antecedent::CellStatus>
 pub fn <antecedent::StudyResult>::fn analysis_result_wire(&self, query: &antecedent_core::query::variants::CausalQuery) -> core::result::Result<antecedent_io_core::analysis_result_artifact::AnalysisResultWire, antecedent::CausalError>
 pub fn <antecedent::StudyResult>::fn analysis_result_wire_with_context(&self, query: &antecedent_core::query::variants::CausalQuery, registry: core::option::Option<&antecedent_core::query::population::PopulationRegistry>, temporal: core::option::Option<&antecedent::analysis::CachedTemporalIdentification>) -> core::result::Result<antecedent_io_core::analysis_result_artifact::AnalysisResultWire, antecedent::CausalError>
 pub fn <antecedent::StudyResult>::fn analysis_trace_wire(&self) -> antecedent_io_core::trace::AnalysisTraceWire
@@ -13375,6 +13404,8 @@ pub fn <antecedent::StudyResult>::fn change_attribution(&self) -> core::option::
 pub fn <antecedent::StudyResult>::fn claim(&self, contract: &antecedent::CausalContract, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_contract::claim::ClaimEnvelope, antecedent::CausalError>
 pub fn <antecedent::StudyResult>::fn continuous_dose_response(&self) -> core::option::Option<&antecedent::ContinuousDoseResponseEstimate>
 pub fn <antecedent::StudyResult>::fn counterfactual(&self) -> core::option::Option<&antecedent::gcm::IteResult>
+pub fn <antecedent::StudyResult>::fn counterfactual_contrasts(&self) -> core::option::Option<&antecedent::gcm::CounterfactualContrasts>
+pub fn <antecedent::StudyResult>::fn custom_validator_names(&self) -> &[alloc::sync::Arc<str>]
 pub fn <antecedent::StudyResult>::fn discovery(&self) -> core::option::Option<&antecedent::DiscoveryPayload>
 pub fn <antecedent::StudyResult>::fn distribution(&self) -> core::option::Option<&antecedent_estimate::functional_distribution::InterventionalDistributionEstimate>
 pub fn <antecedent::StudyResult>::fn effect(&self) -> f64
@@ -13389,6 +13420,7 @@ pub fn <antecedent::StudyResult>::fn into_attribution(self) -> core::option::Opt
 pub fn <antecedent::StudyResult>::fn into_change_attribution(self) -> core::option::Option<antecedent_attribution::result::ChangeAttributionResult>
 pub fn <antecedent::StudyResult>::fn into_continuous_dose_response(self) -> core::option::Option<antecedent::ContinuousDoseResponseEstimate>
 pub fn <antecedent::StudyResult>::fn into_counterfactual(self) -> core::option::Option<antecedent::gcm::IteResult>
+pub fn <antecedent::StudyResult>::fn into_counterfactual_contrasts(self) -> core::option::Option<antecedent::gcm::CounterfactualContrasts>
 pub fn <antecedent::StudyResult>::fn into_discovery(self) -> core::option::Option<antecedent::DiscoveryPayload>
 pub fn <antecedent::StudyResult>::fn into_distribution(self) -> core::option::Option<antecedent_estimate::functional_distribution::InterventionalDistributionEstimate>
 pub fn <antecedent::StudyResult>::fn into_history_match(self) -> core::option::Option<antecedent::HistoryMatchEstimate>
@@ -14584,6 +14616,9 @@ pub fn <antecedent::gcm::CheckedCounterfactualOperation>::const fn query(&self) 
 pub fn <antecedent::gcm::CheckedCounterfactualOperation>::fn graph(&self) -> &antecedent_graph::dag::Dag
 pub fn <antecedent::gcm::ContrastSetResult>::fn contrast(&self, outcome: antecedent_core::ids::VariableId) -> core::option::Option<&antecedent::gcm::OutcomeContrast>
 pub fn <antecedent::gcm::ContrastSetResult>::fn ite_result(&self, outcome: antecedent_core::ids::VariableId) -> core::option::Option<antecedent::gcm::IteResult>
+pub fn <antecedent::gcm::CounterfactualContrasts>::fn contrast(&self, outcome: antecedent_core::ids::VariableId) -> core::option::Option<&antecedent::gcm::ContrastedOutcome>
+pub fn <antecedent::gcm::CounterfactualContrasts>::fn ite_result(&self, outcome: antecedent_core::ids::VariableId) -> core::option::Option<antecedent::gcm::IteResult>
+pub fn <antecedent::gcm::CounterfactualContrasts>::fn primary(&self) -> &antecedent::gcm::ContrastedOutcome
 pub fn <antecedent::gcm::NestedCounterfactualOperation>::const fn outcome_mechanism(&self) -> antecedent::gcm::NestedOutcomeMechanism
 pub fn <antecedent::gcm::NestedCounterfactualOperation>::const fn query(&self) -> &antecedent_core::query::nested_counterfactual::NestedCounterfactualQuery
 pub fn <antecedent::gcm::NestedCounterfactualOperation>::fn graph(&self) -> &antecedent_graph::dag::Dag
@@ -16315,6 +16350,8 @@ pub struct antecedent::estimator_spec::BuildDefaults<'a>
 pub struct antecedent::gcm::CheckedCounterfactualOperation
 pub struct antecedent::gcm::CheckedCounterfactualOperation has private fields
 pub struct antecedent::gcm::ContrastSetResult
+pub struct antecedent::gcm::ContrastedOutcome
+pub struct antecedent::gcm::CounterfactualContrasts
 pub struct antecedent::gcm::FittedGcm
 pub struct antecedent::gcm::IteResult
 pub struct antecedent::gcm::NestedCounterfactualOperation
@@ -19858,6 +19895,7 @@ pub variant antecedent::ResultPayload::Attribution(alloc::boxed::Box<antecedent:
 pub variant antecedent::ResultPayload::ChangeAttribution(antecedent_attribution::result::ChangeAttributionResult)
 pub variant antecedent::ResultPayload::ContinuousDoseResponse(antecedent::ContinuousDoseResponseEstimate)
 pub variant antecedent::ResultPayload::Counterfactual(antecedent::gcm::IteResult)
+pub variant antecedent::ResultPayload::CounterfactualContrasts(alloc::boxed::Box<antecedent::gcm::CounterfactualContrasts>)
 pub variant antecedent::ResultPayload::Discovery(alloc::boxed::Box<antecedent::DiscoveryPayload>)
 pub variant antecedent::ResultPayload::Distribution(antecedent_estimate::functional_distribution::InterventionalDistributionEstimate)
 pub variant antecedent::ResultPayload::HistoryMatch(antecedent::HistoryMatchEstimate)

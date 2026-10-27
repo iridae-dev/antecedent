@@ -5583,6 +5583,7 @@ pub variant antecedent_stats::StageOp::Preposterior(antecedent_stats::Preposteri
 pub variant antecedent_stats::StageOp::Reweight { weights: alloc::vec::Vec<f64> }
 pub variant antecedent_stats::StageOp::Unary(antecedent_stats::UnaryFn)
 pub variant antecedent_stats::StatsError::Backend(alloc::string::String)
+pub variant antecedent_stats::StatsError::CallbackFailed(antecedent_core::callback::CallbackFailure)
 pub variant antecedent_stats::StatsError::Cancelled
 pub variant antecedent_stats::StatsError::FewClusters { clusters: u64, minimum: u64, rendered: &'static str }
 pub variant antecedent_stats::StatsError::GlmRefused { kind: antecedent_stats::GlmRefusalKind, message: &'static str, iterations: u32, boundary_margin_bits: core::option::Option<u64>, boundary_count: core::option::Option<u64> }

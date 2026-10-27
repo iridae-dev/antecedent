@@ -4972,6 +4972,7 @@ pub variant antecedent_model::MechanismSlot::Vacant
 pub variant antecedent_model::MechanismTyping::Continuous
 pub variant antecedent_model::MechanismTyping::DeclaredDiscrete
 pub variant antecedent_model::MechanismTyping::LowCardinality
+pub variant antecedent_model::ModelError::CallbackFailed(antecedent_core::callback::CallbackFailure)
 pub variant antecedent_model::ModelError::Cancelled
 pub variant antecedent_model::ModelError::Data(antecedent_data::error::DataError)
 pub variant antecedent_model::ModelError::Graph(antecedent_graph::error::GraphError)
@@ -5270,6 +5271,7 @@ pub variant antecedent_model::nonlinear_equilibrium::Activation::Identity
 pub variant antecedent_model::nonlinear_equilibrium::Activation::Relu
 pub variant antecedent_model::nonlinear_equilibrium::Activation::Sin
 pub variant antecedent_model::nonlinear_equilibrium::Activation::Tanh
+pub variant antecedent_model::nonlinear_equilibrium::EquilibriumError::CallbackFailed { mechanism: alloc::string::String, failure: antecedent_core::callback::CallbackFailure }
 pub variant antecedent_model::nonlinear_equilibrium::EquilibriumError::Invalid(alloc::string::String)
 pub variant antecedent_model::nonlinear_equilibrium::EquilibriumError::Nonconvergence { residual: f64 }
 pub variant antecedent_model::nonlinear_equilibrium::EquilibriumError::Resource(alloc::string::String)
