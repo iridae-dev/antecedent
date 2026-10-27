@@ -30,6 +30,7 @@ from evidence_kinds import (
     inline_reference_problems,
     kind_problems,
 )
+from provenance_links import method_review_problems
 from test_evidence import (
     python_test_markers,
     rust_test_declaration_problems,
@@ -49,24 +50,30 @@ def disposition_problems(root: Path, cases: list[dict]) -> list[str]:
         if not previous or previous in seen:
             problems.append(f"invalid or duplicated previous assertion: {previous}")
         seen.add(previous)
-        token = case.get("replacement", "")
-        rel, _, name = token.partition("::")
-        path = in_repo(root, rel)
-        if not path or not path.is_file() or not name:
-            problems.append(f"missing replacement assertion: {token}")
-            continue
-        findings = (
-            rust_test_declaration_problems(path, name)
-            if path.suffix == ".rs"
-            else static_python_test(path, name)
-        )
-        if case.get("disposition") == "explicit_calibration_only":
-            if not any("ignore" in f for f in findings):
-                problems.append(
-                    f"measurement replacement is not explicitly ignored: {token}"
-                )
-            findings = [f for f in findings if "ignore" not in f]
-        problems += [f"{token}: {finding}" for finding in findings]
+        additional = case.get("additional_replacements", [])
+        if not isinstance(additional, list) or any(
+            not isinstance(token, str) for token in additional
+        ):
+            problems.append(f"invalid additional replacements: {previous}")
+            additional = []
+        for token in [case.get("replacement", ""), *additional]:
+            rel, _, name = token.partition("::")
+            path = in_repo(root, rel)
+            if not path or not path.is_file() or not name:
+                problems.append(f"missing replacement assertion: {token}")
+                continue
+            findings = (
+                rust_test_declaration_problems(path, name)
+                if path.suffix == ".rs"
+                else static_python_test(path, name)
+            )
+            if case.get("disposition") == "explicit_calibration_only":
+                if not any("ignore" in f for f in findings):
+                    problems.append(
+                        f"measurement replacement is not explicitly ignored: {token}"
+                    )
+                findings = [f for f in findings if "ignore" not in f]
+            problems += [f"{token}: {finding}" for finding in findings]
         if not str(case.get("reason", "")).strip():
             problems.append(f"coverage disposition lacks a reason: {previous}")
     return problems
@@ -369,7 +376,14 @@ def build_report(root: Path) -> dict:
                 "citation_identity": [
                     citation_verdict(p, citation_cache) for p in data.get("papers", [])
                 ],
-                "algorithm_section_review": "pending_implementation_correspondence_review",
+                "algorithm_section_review": (
+                    "reviewed_with_limits"
+                    if isinstance(data.get("method_review"), dict)
+                    and not method_review_problems(root, data)
+                    else "pending_or_stale_implementation_correspondence_review"
+                ),
+                "method_review": data.get("method_review"),
+                "method_review_findings": method_review_problems(root, data),
             }
         )
     specs_path = root / "parity/method_specs/specs.toml"
@@ -537,6 +551,20 @@ def render(report: dict) -> str:
         "",
         f"Measured-record acceptance assertions: {len(report.get('calibration_acceptance_assertions', []))}; pending frozen-branch measurements.",
     ]
+    primary = [
+        p
+        for p in report["provenance"]
+        if p["algorithm_section_review"] == "reviewed_with_limits"
+    ]
+    lines += [
+        "",
+        f"Bounded primary implementation reviews: {len(primary)} of {len(report['provenance'])} provenance records.",
+        "",
+    ]
+    for p in primary:
+        lines.append(
+            f"- `{p['path']}`: {p['method_review']['scope']} Limits: {p['method_review']['limitations']}"
+        )
     lines += ["", "## Claim-link findings", ""]
     for c in report["claims"]:
         if c["gaps"]:
@@ -604,7 +632,12 @@ def main() -> int:
             and (
                 any(c["gaps"] for c in report["claims"])
                 or any(f["gaps"] for f in report["fixtures"])
-                or bool(report["provenance"])
+                or any(
+                    p["algorithm_section_review"] != "reviewed_with_limits"
+                    for p in report["provenance"]
+                )
+                or bool(report["route_evidence_ledger_findings"])
+                or bool(report["disposition_findings"])
             )
         )
     rows = scientific_rows(report["claims"])

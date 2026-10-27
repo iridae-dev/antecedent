@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 import evidence_audit as audit
 import native_build_identity as native
+import provenance_links
 import run_dowhy_comparison as comparator
 import test_evidence as evidence
 import tomllib
@@ -29,6 +30,56 @@ from reference_compare import values_close
 
 
 class Classification(unittest.TestCase):
+    def test_primary_review_rejects_stale_code_and_altered_citation_sections(self):
+        import hashlib
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifacts = []
+            for role, rel in [
+                ("implementation", "method.rs"),
+                ("assertion", "test.rs"),
+            ]:
+                path = root / rel
+                path.write_text("// integrity control only\n", encoding="utf-8")
+                artifacts.append(
+                    {
+                        "role": role,
+                        "path": rel,
+                        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                    }
+                )
+            record = {
+                "feature_id": "control",
+                "papers": [{"sections": ["reviewed section"]}],
+            }
+            record["method_review"] = {
+                "status": "reviewed_with_limits",
+                "record_sha256": provenance_links.method_review_digest(record),
+                "artifacts": artifacts,
+                **{
+                    key: "synthetic integrity control"
+                    for key in (
+                        "scope",
+                        "historical_exposure",
+                        "redistribution",
+                        "limitations",
+                    )
+                },
+                **{
+                    key: ["synthetic integrity control"]
+                    for key in ("assumptions", "sources", "findings_resolved")
+                },
+            }
+            self.assertEqual(provenance_links.method_review_problems(root, record), [])
+            record["papers"][0]["sections"] = ["unreviewed section"]
+            self.assertTrue(provenance_links.method_review_problems(root, record))
+            record["papers"][0]["sections"] = ["reviewed section"]
+            (root / "method.rs").write_text(
+                "// changed implementation\n", encoding="utf-8"
+            )
+            self.assertTrue(provenance_links.method_review_problems(root, record))
+
     def test_software_fixture_cannot_be_promoted_to_known_truth_by_an_origin_tag(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

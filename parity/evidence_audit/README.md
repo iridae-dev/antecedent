@@ -86,7 +86,7 @@ also has a separate timing/RSS receipt in `registry_timings.json`.
 
 The focused ordinary statistical target passes ten tests, retaining its existing
 ignored fixture writer. The new learner point assertion passes. Thirty-nine
-compiled evidence-gate fault controls and twenty-two audit/tooling controls pass.
+compiled evidence-gate fault controls and twenty-three audit/tooling controls pass.
 The eight existing independent reference-generator checks pass. The explicit
 DoWhy environment passes all seven public-API comparison tests. These results
 do not grant coverage or license the deferred calibration study.
@@ -110,6 +110,28 @@ Inspection also repaired stale conditional-estimator provenance: the current
 implementation supports joint modifiers and adds modifier-mean sampling
 variance. The fixture checks its coefficient-variance part after removing that
 explicit term; the one-modifier fixture grants no joint-modifier calibration.
+
+The MCMC audit repaired two numerical defects: positive-lag covariance used N-1
+instead of N, and the upper-tail indicator used >=q95 rather than the CDF event
+<=q95 at tied cutoffs. The first failed an independent 19/48 hand calculation;
+the second reported about 184 rather than 100 ESS on the new tied-tail case.
+The previous final-pair omission was already fixed; its 8/7 regression remains.
+All 189 ordinary probability-library unit tests and both reference tests pass.
+
+Pinned ArviZ tooling reproduces all nine original outputs without replacing
+them. A separate 60-digit Decimal/public-SciPy reference checks the full-pair
+IPS/IMS equations on the three original chains plus tied-tail and odd-draw cases
+at absolute 1e-6. Compatible original 5% ESS comparisons remain. The shifted-chain
+truncation and odd-split discrepancies are explicit counterexamples: full-pair
+truncation differs from ArviZ's averaged endpoint convention, and the product
+keeps its documented drop-last rule. These are limits on comparator parity.
+
+Two more reference reviews and one bounded primary implementation review bind
+the exact Vehtari/Geyer sections, assumptions, source, assertions and fixtures.
+Citation/deviation-content edits also make that method review stale. This is
+one reviewed method record among 495; other primary reviews remain open.
+Neither fixed-chain comparison nor source correspondence licenses sampling
+calibration, convergence, causal identification or interval coverage.
 
 ## Work still required before closing the TODO items
 

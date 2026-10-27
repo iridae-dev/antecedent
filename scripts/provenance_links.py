@@ -8,9 +8,79 @@ gate and the route-method inventory read the same table.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 
 from _repo import REPO_ROOT
+
+
+def method_review_digest(record: dict) -> str:
+    payload = {key: value for key, value in record.items() if key != "method_review"}
+    return hashlib.sha256(
+        json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def method_review_problems(root: Path, record: dict) -> list[str]:
+    """Check integrity of explicit bounded source reviews; never invent a review."""
+    review = record.get("method_review")
+    if review is None:
+        return []
+    if not isinstance(review, dict):
+        return ["method_review must be a table"]
+    problems = []
+    if review.get("status") != "reviewed_with_limits":
+        problems.append("method_review has unknown status")
+    for key in ("scope", "historical_exposure", "redistribution", "limitations"):
+        if not isinstance(review.get(key), str) or not review[key].strip():
+            problems.append(f"method_review lacks {key}")
+    for key in ("assumptions", "sources", "findings_resolved"):
+        values = review.get(key)
+        if (
+            not isinstance(values, list)
+            or not values
+            or any(not isinstance(value, str) or not value.strip() for value in values)
+        ):
+            problems.append(f"method_review lacks explicit {key}")
+    if review.get("record_sha256") != method_review_digest(record):
+        problems.append("method_review stale provenance/citation/deviation content")
+    artifacts = review.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        return problems + ["method_review requires bound artifacts"]
+    roles, seen = set(), set()
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            problems.append("method_review artifact must be a table")
+            continue
+        role, rel = artifact.get("role"), artifact.get("path")
+        if role not in (
+            "implementation",
+            "assertion",
+            "reference",
+            "environment",
+            "fixture",
+        ):
+            problems.append("method_review artifact has unknown role")
+        else:
+            roles.add(role)
+        if not isinstance(rel, str) or rel in seen:
+            problems.append("method_review requires unique artifact paths")
+            continue
+        seen.add(rel)
+        path = (root / rel).resolve()
+        if not path.is_relative_to(root.resolve()) or not path.is_file():
+            problems.append(f"method_review missing artifact: {rel}")
+        elif hashlib.sha256(path.read_bytes()).hexdigest() != artifact.get("sha256"):
+            problems.append(f"method_review stale artifact: {rel}")
+    if not {"implementation", "assertion"}.issubset(roles):
+        problems.append(
+            "method_review must bind implementation and executing assertions"
+        )
+    return problems
+
 
 ALIAS = {
     "identify.general_id": "identify.id",
@@ -35,7 +105,11 @@ FAMILY = {
 
 
 def stems(root: Path = REPO_ROOT) -> set[str]:
-    return {p.stem for p in (root / "provenance").glob("*.toml") if p.name != "_template.toml"}
+    return {
+        p.stem
+        for p in (root / "provenance").glob("*.toml")
+        if p.name != "_template.toml"
+    }
 
 
 def resolve(feature: str, known: set[str]) -> str | None:
@@ -59,7 +133,9 @@ NOT_AN_ALGORITHM = {
 
 # Modules whose method an existing record documents without naming the file.
 MODULE_RECORDS = {
-    "crates/antecedent-design/src/temporal_policy_transport.rs": ("transport.period_shift_policy",),
+    "crates/antecedent-design/src/temporal_policy_transport.rs": (
+        "transport.period_shift_policy",
+    ),
     "crates/antecedent-estimate/src/smoothed_dose_posterior.rs": (
         "transport.smoothed_dose_response.bayesian",
     ),
@@ -81,7 +157,9 @@ MODULE_RECORDS = {
 
 def records_for(module: str, root: Path = REPO_ROOT) -> list[str]:
     """Provenance records that name a module: its path, else its file name, else a feature id."""
-    files = sorted(p for p in (root / "provenance").glob("*.toml") if p.name != "_template.toml")
+    files = sorted(
+        p for p in (root / "provenance").glob("*.toml") if p.name != "_template.toml"
+    )
     texts = {p.stem: p.read_text(encoding="utf-8") for p in files}
     linked = [stem for stem in MODULE_RECORDS.get(module, ()) if stem in texts]
     if linked:
@@ -91,10 +169,12 @@ def records_for(module: str, root: Path = REPO_ROOT) -> list[str]:
         return by_path
     base = Path(module)
     stem = base.parent.name if base.stem == "mod" else base.stem
-    by_file = [s for s, text in texts.items() if f"{stem}.rs" in text or f"{stem}/" in text]
+    by_file = [
+        s for s, text in texts.items() if f"{stem}.rs" in text or f"{stem}/" in text
+    ]
     if by_file:
         return by_file
-    return [s for s in texts if s.endswith("." + stem) or s.endswith("." + stem.replace("_", "."))]
+    return [s for s in texts if s.endswith(("." + stem, "." + stem.replace("_", ".")))]
 
 
 def public_items(module: str, root: Path = REPO_ROOT) -> set[str]:
@@ -102,7 +182,13 @@ def public_items(module: str, root: Path = REPO_ROOT) -> set[str]:
     import re
 
     path = root / module
-    files = [path] if path.is_file() else sorted(path.rglob("*.rs")) if path.is_dir() else []
+    files = (
+        [path]
+        if path.is_file()
+        else sorted(path.rglob("*.rs"))
+        if path.is_dir()
+        else []
+    )
     if path.is_file() and path.name == "mod.rs":
         files = sorted(path.parent.rglob("*.rs"))
     names: set[str] = set()
@@ -114,7 +200,7 @@ def public_items(module: str, root: Path = REPO_ROOT) -> set[str]:
             re.findall(
                 r"^\s*pub\s+(?:const\s+)?(?:struct|enum|fn|trait|type)\s+([A-Za-z_][A-Za-z0-9_]*)",
                 text,
-                re.M,
+                re.MULTILINE,
             )
         )
     return names
@@ -141,5 +227,7 @@ def api_review(module: str, root: Path = REPO_ROOT) -> str:
         if re.search(r"(?<![A-Za-z0-9_])" + re.escape(n) + r"(?![A-Za-z0-9_])", text)
     )
     if not reviewed:
-        return "internal: no public item of the module reaches the crate's public surface"
+        return (
+            "internal: no public item of the module reaches the crate's public surface"
+        )
     return f"{snapshot}: {len(reviewed)} of {len(names)} public items reviewed"

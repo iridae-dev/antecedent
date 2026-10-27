@@ -400,6 +400,11 @@ core conformance/stats/sandwich_covariance/expected.json
 core conformance/stats/glm_irls/expected.json
 core conformance/stats/descriptive/expected.json
 core conformance/stats/gam/expected.json
+core crates/antecedent-prob/tests/mcmc_arviz_oracle.rs
+core conformance/validate/bayesian_checks/diagnostics_oracle.json
+core conformance/validate/bayesian_checks/independent_ips.json
+core conformance/validate/bayesian_checks/reference.py
+core conformance/validate/bayesian_checks/reference.py.lock
 core conformance/discovery/multiplicity/expected.json
 core crates/antecedent-discovery/tests/multiplicity_oracle.rs
 core conformance/estimate/conditional_effects/expected.json

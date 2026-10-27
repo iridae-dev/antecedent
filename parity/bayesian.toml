@@ -159,9 +159,19 @@ evidence_kind = "frozen_external_oracle"
 external_oracle = "ArviZ 0.20.0"
 known_truth_fixture = "conformance/validate/bayesian_checks/diagnostics_oracle.json"
 evidence_test = "crates/antecedent-prob/tests/mcmc_arviz_oracle.rs"
-evidence_assertion = "rank_rhat_bulk_and_tail_ess_match_pinned_arviz_chains"
-limitations = "Pinned shared chains compare rank R-hat (within 1e-6) and bulk/tail ESS (within 5%) for iid, shifted-chain and autocorrelated cases. Production publication thresholds and missing-metric failures are exercised separately in bayesian_checks.rs. These diagnostics assess posterior computation only; they do not establish causal identification or fixed-parameter interval coverage."
+evidence_assertion = "rank_rhat_and_compatible_ess_cases_match_pinned_arviz_chains"
+limitations = "All three original frozen chains compare rank R-hat within 1e-6; iid and autocorrelated cases retain 5% bulk/tail ESS comparisons. The shifted-chain ESS differs because the full-pair IPS/IMS target does not use ArviZ's odd/even truncation averaging; the primary-equation reference checks that target separately and explicitly demonstrates the discrepancy. No convergence proof, causal identification or interval calibration is established."
 notes = "ArviZ numeric oracle is executed in Rust; production HMC publication thresholds are stricter than the older threshold-only routing pin; SBC is reported separately."
+
+[[capabilities]]
+id = "bayes.validate.full_pair_ess"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/validate/bayesian_checks/independent_ips.json"
+evidence_test = "crates/antecedent-prob/tests/mcmc_arviz_oracle.rs"
+evidence_assertion = "full_pair_diagnostics_match_the_high_precision_primary_equations"
+limitations = "Independent 60-digit covariance evaluation with public SciPy ranks/normal scores checks the full-pair IPS/IMS diagnostic equations on the original three chains plus tied-tail and odd-draw cases, at absolute 1e-6. Every complete pair is retained; odd lengths drop the final draw, and constant tail indicators fail closed. This validates the stated diagnostic variant on fixed inputs, not sampler convergence, causal identification or calibrated uncertainty."
+notes = "Primary references: Vehtari et al. 2021 sections 3.1-4.3 and Geyer 1992 section 3.3. Raw ArviZ outputs are preserved, including intentional convention differences."
 
 [[capabilities]]
 id = "bayes.ci.tests"

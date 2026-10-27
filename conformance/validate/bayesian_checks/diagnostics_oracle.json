@@ -10,7 +10,55 @@
       "rhat:rank",
       "ess:bulk",
       "ess:tail"
-    ]
+    ],
+    "generator": "conformance/validate/bayesian_checks/reference.py",
+    "command": "uv run --frozen --script conformance/validate/bayesian_checks/reference.py --check",
+    "generator_retained": true,
+    "environment_lock": "conformance/validate/bayesian_checks/reference.py.lock",
+    "asserted_outputs": [
+      "rank R-hat on all three original chains",
+      "bulk/tail ESS within 5% for iid and autocorrelated chains"
+    ],
+    "context_only_outputs": [
+      "shifted-chain ESS retained as an explicit truncation-convention counterexample"
+    ],
+    "limitations": "Fixed shared chains only; ArviZ ESS uses a different finite-lag truncation convention from the full-pair primary target. No sampler, convergence or coverage measurement is performed.",
+    "reference_review": {
+      "scope": "Retained frozen-chain reference construction and consuming numerical assertions. ArviZ API outputs and the independently evaluated full-pair primary target are kept distinct.",
+      "independence_basis": "Public ArviZ APIs reproduce their own outputs. The separate primary reference evaluates the published rank/fold, variance, positive/monotone-pair and CDF-indicator equations using SciPy ranks/normal scores and 60-digit Decimal covariance sums. Product source was inspected during the audit but no product algorithm/helper is imported or executed; no upstream implementation or tests were consulted or copied. reference_compare performs comparison only.",
+      "historical_exposure": "Historical chain input authorship and prior exposure cannot be independently reconstructed from the retained metadata. Existing inputs and original oracle metadata are preserved; the new tied-tail and odd-draw inputs are deterministic repository-authored constructions.",
+      "redistribution": "Retained reference harness and new deterministic inputs are MIT OR Apache-2.0. Primary papers and API documentation are linked without copying their implementation or text. Numerical outputs are retained; upstream packages stay in the isolated lock environment, outside the product runtime and ordinary CI.",
+      "limitations": "Fixed shared chains only; ArviZ ESS uses a different finite-lag truncation convention from the full-pair primary target. No sampler, convergence or coverage measurement is performed.",
+      "sources": [
+        "https://arxiv.org/html/1903.08008v5",
+        "https://www2.stat.duke.edu/homeweb/scs/Courses/Stat376/Papers/GeyerStatSci1992.pdf",
+        "https://python.arviz.org/en/v0.20.0/api/generated/arviz.rhat.html",
+        "https://python.arviz.org/en/v0.20.0/api/generated/arviz.ess.html"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/validate/bayesian_checks/reference.py",
+          "sha256": "718cd9c0bf94ea4a8e9ba3c5a0c64b6d242938c4d7152ea6dcb6b95f9ebccd9b"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "scripts/reference_compare.py",
+          "sha256": "79904dc8724633c835ca4bcd894bedee2938a1ecbb7d4e4eda02be0b2b27d134"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/validate/bayesian_checks/reference.py.lock",
+          "sha256": "23a3114c84b925ae79875d049c8f71aa90b13d5eb12a383313bad7b48ab99e2d"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-prob/tests/mcmc_arviz_oracle.rs",
+          "sha256": "81d05ea53fbecbfdf3bb5cce6d15cbee0e02947b65dab8ce0cedfbd7b5be80e7"
+        }
+      ],
+      "fixture_payload_sha256": "8748eac55d36502d0b86b73d74bf2361ae3cd25f5bb2eb9930bf720061e2562a"
+    }
   },
   "scenarios": [
     {
@@ -1585,5 +1633,21 @@
         "ess_tail": 83.73775856024325
       }
     }
-  ]
+  ],
+  "historical_oracle": {
+    "kind": "external_package",
+    "project": "ArviZ",
+    "version": "0.20.0",
+    "numpy_version": "2.1.3",
+    "seed": 20210924,
+    "methods": [
+      "rhat:rank",
+      "ess:bulk",
+      "ess:tail"
+    ]
+  },
+  "regeneration_tolerance": {
+    "atol": 5e-10,
+    "rtol": 0
+  }
 }

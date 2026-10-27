@@ -227,7 +227,10 @@ fn diagnostics_one(
     let mut ind_hi = vec![0.0; s];
     for i in 0..s {
         ind_lo[i] = if raw[i] <= q05 { 1.0 } else { 0.0 };
-        ind_hi[i] = if raw[i] >= q95 { 1.0 } else { 0.0 };
+        // Both local efficiencies concern the CDF I(theta <= quantile)
+        // (Vehtari 2021 eq. 16). >= q95 is only complementary for continuous
+        // draws with no ties; it measures a different event at a tied cutoff.
+        ind_hi[i] = if raw[i] <= q95 { 1.0 } else { 0.0 };
     }
     let ess_lo = if has_variation(&ind_lo) { geyer_ess_split(&ind_lo, m, half) } else { 0.0 };
     let ess_hi = if has_variation(&ind_hi) { geyer_ess_split(&ind_hi, m, half) } else { 0.0 };
@@ -298,8 +301,7 @@ fn split_rhat_on_segments(seg_major: &[f64], m: usize, n: usize) -> f64 {
 /// truncation point (the first non-positive pair sum) — the truncation rule
 /// only ever reads lags `≤ 2t+1`, so evaluating all `n−1` lags up front was
 /// O(m·n²) work of which O(m·n·τ) is used. Per-lag arithmetic, the
-/// truncation test, and the monotone clamp are unchanged, so the result is
-/// bit-identical to the eager form.
+/// truncation test, and monotone clamp agree with the corresponding eager form.
 #[allow(
     clippy::neg_cmp_op_on_partial_ord,
     reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
@@ -398,7 +400,7 @@ fn split_segment_stats(seg_major: &[f64], m: usize, n: usize) -> SegmentStats {
     SegmentStats { means, w, var_hat }
 }
 
-/// `Â_lag` for one lag > 0 (unbiased within-chain, Stan/Vehtari 2021:
+/// `Â_lag` for one lag > 0 (biased autocovariance divisor N, Vehtari 2021 sec. 3.2:
 /// `Â_t = var̂⁺ − W + ā_t`, so `ρ̂_t = 1 − (W − ā_t)/var̂⁺`, not `ā_t/var̂⁺`,
 /// which ignores between-chain variance).
 fn lag_autocovariance(
@@ -417,7 +419,9 @@ fn lag_autocovariance(
         for d in 0..(n - lag) {
             num += (seg_major[base + d] - mean) * (seg_major[base + d + lag] - mean);
         }
-        acc += num / (nf - 1.0);
+        // The autocovariance estimator uses N; the sample variance W above
+        // still uses N-1. They have different roles in the combined rho.
+        acc += num / nf;
     }
     let a_bar = acc / m as f64;
     stats.var_hat - stats.w + a_bar
@@ -438,6 +442,17 @@ fn sample_at(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lag_covariance_uses_the_biased_sample_divisor_from_the_ess_definition() {
+        // Two segments with means 1.5 and 2.5: W=5/3, B=2, var+=7/4.
+        // Each lag-one numerator is 5/4. Dividing by N=4 gives 5/16,
+        // hence A_1 = var+ - W + 5/16 = 19/48 (Vehtari 2021, sec. 3.2,
+        // discussion before eq. 10). Using N-1 instead would give 1/2.
+        let segments = [0.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 4.0];
+        let stats = split_segment_stats(&segments, 2, 4);
+        assert!((lag_autocovariance(&segments, 2, 4, 1, &stats) - 19.0 / 48.0).abs() < 1e-12);
+    }
 
     fn fill_iid_normal(n_chains: usize, n_draws: usize, seed: u64) -> Vec<f64> {
         let mut rng = antecedent_core::CausalRng::from_seed(seed);

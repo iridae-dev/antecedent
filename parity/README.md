@@ -128,6 +128,13 @@ with `evidence_kind`, exact `evidence_source` (`path::assertion`),
 Known-truth claims cannot cite such a fixture, even if it also carries an
 external-origin tag. The audit lists these software propositions separately.
 
+An explicit provenance `method_review` records bounded primary-source
+correspondence, assumptions, resolved findings, exposure uncertainty and limits.
+It binds the provenance content and implementation/assertion/reference artifacts
+by digest. Stale reviews fail the provenance gate. Structural provenance/API
+links, bounded primary reviews and measured calibration remain separate report
+counts; none substitutes for another.
+
 A licensed row labelled `frozen_external_oracle` compares **the cell's own
 output** with a pinned upstream run. Most licensed routes instead rest on
 external oracles at the **component** level: the identifier and estimator each

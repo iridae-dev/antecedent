@@ -3,6 +3,13 @@
 schema = 1
 
 [[case]]
+previous = "crates/antecedent-prob/tests/mcmc_arviz_oracle.rs::rank_rhat_bulk_and_tail_ess_match_pinned_arviz_chains"
+replacement = "crates/antecedent-prob/tests/mcmc_arviz_oracle.rs::rank_rhat_and_compatible_ess_cases_match_pinned_arviz_chains"
+additional_replacements = ["crates/antecedent-prob/tests/mcmc_arviz_oracle.rs::full_pair_diagnostics_match_the_high_precision_primary_equations"]
+disposition = "reference_target_mismatch_resolved_and_coverage_strengthened"
+reason = "Preserve all three original chains and ArviZ outputs, all original R-hat comparisons and the compatible iid/autocorrelated 5% ESS checks. Replace the invalid shifted-chain blanket parity assertion with a stricter absolute-1e-6 independent primary-equation check on all original chains plus tied-tail and odd-draw cases; explicitly assert the shifted ESS and odd-split ArviZ discrepancies. No sampling budget or truth value was adjusted to make the product pass."
+
+[[case]]
 previous = "crates/antecedent-discovery/tests/multiplicity_oracle.rs::multiplicity_fixture_records_pins_and_no_generator"
 replacement = "crates/antecedent-discovery/tests/multiplicity_oracle.rs::multiplicity_fixture_records_retained_generator_and_historical_pins"
 disposition = "renamed_and_strengthened"
