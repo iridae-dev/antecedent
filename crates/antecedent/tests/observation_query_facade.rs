@@ -781,6 +781,7 @@ fn dirichlet_table_redraw_agrees_with_the_count_fitted_posterior_and_labels_its_
     let aligned = claim.parameter_draws().unwrap();
     assert_eq!(aligned.quantities, ["probability:0", "probability:1"]);
     assert_eq!(aligned.draws, draws as usize);
+    assert_eq!(aligned.values.len(), 2 * draws as usize);
     assert_eq!(aligned.reading, "uncalibrated_spread");
     // The point value is the declared tables' own: P(Y=1 | S=1) = 0.78.
     near(aligned.point[1], 0.78);
@@ -813,6 +814,29 @@ fn dirichlet_table_redraw_agrees_with_the_count_fitted_posterior_and_labels_its_
     let (mean, spread) = aligned.spread(1);
     assert!((mean - reference.point).abs() < 0.01, "{mean} vs {}", reference.point);
     assert!(spread > 0.0 && spread.is_finite());
+
+    // Independent Beta quadrature integrates the conditional probability on
+    // each table realization; a ratio of posterior-mean tables is a different
+    // target. No product sampler or graph evaluator supplies these moments.
+    let independent: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/composition/dirichlet_conditioning/expected.json"
+    ))
+    .unwrap();
+    let expected = &independent["outputs"]["condition_s1"];
+    let expected_mean = expected["mean"].as_f64().unwrap();
+    let expected_sd = expected["sd"].as_f64().unwrap();
+    let budget = &independent["product_check"];
+    assert_eq!(budget["conditioning_draws"], draws);
+    assert_eq!(budget["conditioning_seed"], 17);
+    let mean_bound = budget["mean_standard_errors"].as_f64().unwrap()
+        * expected_sd
+        / f64::from(draws).sqrt();
+    assert!((mean - expected_mean).abs() < mean_bound, "{mean} vs {expected_mean}");
+    assert!(
+        (spread / expected_sd - 1.0).abs()
+            < budget["relative_sd_tolerance"].as_f64().unwrap(),
+        "{spread} vs {expected_sd}"
+    );
 
     // The same draws as the repo's distribution artifact, jointly aligned.
     let distribution = claim.distribution().unwrap();

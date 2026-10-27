@@ -13,9 +13,9 @@ papers = [
 implementation_deviations = [
   "Conditioning and intervention are not new methods: the conditional law is the ratio of two finite sums of the composed model's exact joint law, and the interventional law is the model's existing truncated factorization. The module adds the pairing, the operation tag in the claim's identity and the refusals; it estimates nothing.",
   "A measured signal is conditioned on through Bayes inversion of the declared likelihood P(recorded | construct) against the model's own law of the construct. The route rests on the premise that the indicator is conditionally independent of the outcome and of every other observed variable given the construct (non-differential error); that premise is declared by the measurement model's error structure and error declared to differ by arm, population or time is refused, not pooled. The Rogan-Gladen estimator is cited only for the sensitivity/specificity parameterisation; the prevalence correction itself is a different route.",
-  "A recorded value of an indicator used as the construct, an assigned value in a conditioning slot, and a request that mixes observations with an intervention are refused with typed details. The mixed (conditional interventional) distribution is not computed.",
+  "A recorded indicator used as the construct, an assigned value smuggled into a conditioning-only slot, and a variable both observed and intervened on are refused with typed details. Explicit observation-after-intervention requests now compute the bounded finite or linear-Gaussian mixed conditional law; this supersedes the original no-mixed-query restriction.",
   "A threshold-crossing query lists, for each observed level of one signal, the exact conditional probability and the probability of observing that level; a threshold no observed level reaches is refused with the most extreme conditional probability attained.",
-  "Values are exact given the declared tables and carry no sampling uncertainty. A value computed from tables fitted to a sample is a labelled point value; no interval, posterior or calibration claim is made and both routes are closed with cell_not_licensed.",
+  "Values are exact given the declared finite tables or linear-Gaussian coefficients. Fitted mechanisms give labelled point values. Retained counts and regression data now permit Dirichlet/Normal-Inverse-Gamma parameter redraw with explicitly uncalibrated spread; this is distinct from a measured probability interval. Calibration-dependent parameter intervals remain closed without attesting records.",
 ]
 
 upstream_implementations_observed = []
@@ -27,4 +27,5 @@ test_sources = [
   "crates/antecedent-contract/src/observation_query.rs",
   "crates/antecedent-io-core/tests/observation_query_artifact.rs",
   "crates/antecedent/tests/observation_query_facade.rs",
+  "conformance/composition/dirichlet_conditioning/expected.json (independent Beta quadrature for posterior-functional moments; no sampling-coverage claim)",
 ]

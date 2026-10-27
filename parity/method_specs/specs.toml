@@ -4165,6 +4165,7 @@ provenance = [
   "estimate.temporal_response.gcomp",
   "estimate.transport_response_grid",
   "mechanism_composition.acyclic_joint_model",
+  "observation_query.finite_law_conditioning",
   "response.joint_panel",
 ]
 api_review = "parity/public_api/antecedent.txt: 15 of 15 public items reviewed"
@@ -4195,6 +4196,7 @@ provenance = [
   "estimate.temporal_response.gcomp",
   "estimate.transport_response_grid",
   "mechanism_composition.acyclic_joint_model",
+  "observation_query.finite_law_conditioning",
   "response.joint_panel",
 ]
 api_review = "parity/public_api/antecedent.txt: 15 of 15 public items reviewed"

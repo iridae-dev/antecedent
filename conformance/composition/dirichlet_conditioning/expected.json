@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "posterior_beta_parameters": {
+    "z": [
+      101,
+      101
+    ],
+    "s_given_z0": [
+      41,
+      161
+    ],
+    "s_given_z1": [
+      161,
+      41
+    ],
+    "y_given_s1_z0": [
+      16,
+      36
+    ],
+    "y_given_s1_z1": [
+      46,
+      6
+    ]
+  },
+  "outputs": {
+    "condition_s1": {
+      "mean": 0.767245315335048,
+      "sd": 0.04179752826305943
+    },
+    "intervene_s1": {
+      "mean": 0.5961538461538461,
+      "sd": 0.043629015674961344
+    },
+    "intervene_s1_condition_z1": {
+      "mean": 0.8846153846153846,
+      "sd": 0.043884713012310964
+    }
+  },
+  "reference_atol": 1e-12,
+  "product_check": {
+    "conditioning_draws": 8000,
+    "conditioning_seed": 17,
+    "mean_standard_errors": 5.0,
+    "relative_sd_tolerance": 0.05
+  },
+  "oracle": {
+    "kind": "independent_reimplementation",
+    "generator": "conformance/composition/dirichlet_conditioning/reference.py",
+    "command": "uv run --frozen --script conformance/composition/dirichlet_conditioning/reference.py --check",
+    "method": "32/64-node tensor Beta quadrature plus analytic outcome-table first and second moments",
+    "limitations": "Fixed-table posterior functional moments only; finite quadrature agreement is a numerical convergence check, not a formal error certificate. Does not establish posterior interval coverage or sampling calibration.",
+    "reference_review": {
+      "scope": "Conditional posterior functional mean and standard deviation for the retained confounded binary model; additional intervention and fixed-Z moments are reference context until separately asserted.",
+      "independence_basis": "Repository-authored integration over five independent Beta coordinates. Public roots_jacobi supplies tensor nodes; outcome coordinates are integrated analytically. The harness imports no product sampler, graph inference, estimator or test helper. reference_compare only compares shapes and values. 32/64-node agreement is checked at absolute 1e-12.",
+      "historical_exposure": "New reference authored from the declared conjugate model, public versioned SciPy documentation and the existing product assertion/count inputs. Earlier author exposure cannot be established; the historical product CountFittedModel comparison is retained and labelled internal.",
+      "redistribution": "Repository-authored harness/input fixture under MIT OR Apache-2.0; NumPy and SciPy BSD-3-Clause dependencies stay in the isolated pinned environment. No upstream implementation/test source is redistributed.",
+      "limitations": "One fixed conditioning scenario at 8000 draws, seed 17. Mean within five reference Monte Carlo standard errors and standard deviation within 5 percent. This is ordinary posterior-functional conformance, not repeated-sampling calibration or an interval license. Quadrature refinement agreement is not a rigorous general error bound.",
+      "sources": [
+        "https://docs.scipy.org/doc/scipy-1.14.1/reference/generated/scipy.special.roots_jacobi.html",
+        "https://docs.scipy.org/doc/scipy-1.14.1/reference/generated/scipy.stats.beta.html"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/composition/dirichlet_conditioning/reference.py",
+          "sha256": "02372a0ac0cd4ca0b5489776a4863d73e0d270b1862916d9577b0c84cb2dbd57"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/composition/dirichlet_conditioning/reference.py.lock",
+          "sha256": "87774211723939884a170d86e8670db50824f24dae6ac357b443a107d4915711"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "scripts/reference_compare.py",
+          "sha256": "79904dc8724633c835ca4bcd894bedee2938a1ecbb7d4e4eda02be0b2b27d134"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/observation_query_facade.rs",
+          "sha256": "ead2806c0aa24436d1c9faa8c99e03b35c176967f0d27f7f80f3a92d82a11e68"
+        }
+      ],
+      "fixture_payload_sha256": "9812a84fc0899c2709dad3fbbecc41e25fbd8ca058dac7c6b3429afe49a80603"
+    }
+  }
+}
