@@ -390,6 +390,7 @@ core scripts/gate_response_calibration.sh
 # narrower assignment. This mapping is not a replay waiver or a measurement.
 core scripts/evidence_kinds.py
 core scripts/test_evidence.py
+core scripts/_source_cache.py
 core scripts/reference_compare.py
 core crates/antecedent-stats/tests/foundations_oracle.rs
 core conformance/stats/ols_wls/expected.json

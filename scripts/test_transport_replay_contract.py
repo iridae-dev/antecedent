@@ -51,6 +51,7 @@ class ReplayContractTests(unittest.TestCase):
                 "loaded = fake_replay(payload, identity, original, tmp_path)",
             ),
             ("measured.inspect()", "fake.inspect()"),
+            ("bytes(measured.export())", "bytes(unrelated.export())"),
         ]:
             with self.subTest(before=before):
                 mutated = self.body.replace(before, after)

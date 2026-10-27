@@ -30,6 +30,33 @@ from reference_compare import values_close
 
 
 class Classification(unittest.TestCase):
+    def test_cached_source_rejects_same_process_assertion_and_helper_changes(self):
+        from _source_cache import source_cache
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "test.rs"
+            path.write_text("#[test] fn truth() { helper(); }\nfn helper() { assert_eq!(output(), 2); }", encoding="utf-8")
+            self.assertIn("assert_eq!", evidence.source_masked(path).code)
+            evidence.rust_items(path)
+            path.write_text("#[ignore] #[test] fn truth() { helper(); }\nfn helper() { assert_eq!(output(), 3); }", encoding="utf-8")
+            masked, items = evidence.rust_items(path)
+            self.assertIn("output(), 3", masked.code)
+            self.assertIn("#[ignore]", next(i for i in items if i.name == "truth").attrs)
+            helper = Path(tmp) / "helper.rs"
+            helper.write_text("first", encoding="utf-8")
+
+            @source_cache
+            def read(source):
+                return source.read_text(encoding="utf-8")
+
+            @source_cache
+            def transitive(source):
+                return read(source), read(helper)
+
+            self.assertEqual(transitive(path)[1], "first")
+            helper.write_text("other", encoding="utf-8")
+            self.assertEqual(transitive(path)[1], "other")
+
     def test_primary_review_rejects_stale_code_and_altered_citation_sections(self):
         import hashlib
 

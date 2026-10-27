@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import _py_closure
+from _source_cache import source_cache
 import _rust_source as _rust
 import tomllib
 from _repo import REPO_ROOT as ROOT
@@ -152,7 +153,7 @@ def _attrs_before(skel: str, code: str, pos: int) -> list[str]:
     return list(reversed(attrs))
 
 
-@functools.cache
+@source_cache
 def source_masked(path: Path) -> Masked:
     return mask_rust(path.read_text(errors="ignore", encoding="utf-8"))
 
@@ -166,7 +167,7 @@ def module_items(masked: Masked) -> list[RustItem]:
             for m in _MOD_BLOCK.finditer(skel)]
 
 
-@functools.cache
+@source_cache
 def rust_items(path: Path) -> tuple[Masked, tuple[RustItem, ...]]:
     masked = source_masked(path)
     skel, code = masked.skeleton, masked.code
@@ -298,7 +299,7 @@ def _rust_path_attribute(attrs: list[str]) -> str | None:
     return None
 
 
-@functools.cache
+@source_cache
 def target_modules(root_file: Path, boundary: Path | None = None) -> dict[Path, bool]:
     """Every file compiled into the target rooted at `root_file`, mapped to whether it
     is compiled only under `cfg(test)`."""
@@ -317,20 +318,20 @@ def target_files(root_file: Path, boundary: Path | None = None) -> tuple[Path, .
     return tuple(target_modules(root_file, boundary))
 
 
-@functools.cache
+@source_cache
 def target_root(path: Path) -> tuple[Path, str, list[str]] | None:
     """(crate root file, crate name, cargo target args) for a Rust source file."""
     path = path.resolve()
     rel = path.relative_to(ROOT.resolve()).parts
     if rel[0] == "python" and len(rel) >= 3 and rel[1] == "src":
         crate_dir = ROOT / "python"
-        manifest = tomllib.loads((crate_dir / "Cargo.toml").read_text(encoding="utf-8"))
+        manifest = tomllib.loads(_read(crate_dir / "Cargo.toml"))
         return crate_dir / "src/lib.rs", manifest["package"]["name"], ["--lib"]
     if len(rel) < 4 or rel[0] != "crates":
         return None
     crate_dir = ROOT / "crates" / rel[1]
     crate = rel[1]
-    manifest = (crate_dir / "Cargo.toml").read_text(errors="ignore", encoding="utf-8")
+    manifest = _read(crate_dir / "Cargo.toml")
     m = re.search(r'^name\s*=\s*"([^"]+)"', manifest, re.M)
     crate = m.group(1) if m else crate
     if rel[2] == "tests":
@@ -358,7 +359,7 @@ def target_root(path: Path) -> tuple[Path, str, list[str]] | None:
     return None
 
 
-@functools.cache
+@source_cache
 def compiled(path: Path) -> bool:
     root = target_root(path)
     return bool(root) and path.resolve() in target_files(root[0].resolve())
@@ -373,7 +374,7 @@ class StaticTest:
     problems: list[str]
 
 
-@functools.cache
+@source_cache
 def rust_test_declaration_problems(path: Path, name: str) -> list[str]:
     """Declaration checks shared by inventories; no execution claim."""
     problems: list[str] = []
@@ -401,7 +402,7 @@ def rust_test_declaration_problems(path: Path, name: str) -> list[str]:
     return problems
 
 
-@functools.cache
+@source_cache
 def static_rust_test(path: Path, name: str) -> StaticTest:
     """Why a citation is not a compiled, non-ignored test (empty = it is)."""
     problems = list(rust_test_declaration_problems(path, name))
@@ -545,7 +546,7 @@ def _is_pytest_call(node: ast.AST, attr: str) -> bool:
     )
 
 
-@functools.cache
+@source_cache
 def python_test_markers(path: Path) -> dict[str, set[str]]:
     """Explicit pytest markers on module-level tests, using the shared AST reader."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -564,7 +565,7 @@ def python_test_markers(path: Path) -> dict[str, set[str]]:
     }
 
 
-@functools.cache
+@source_cache
 def static_python_test(path: Path, name: str) -> list[str]:
     """Why `name` in `path` is not a collected, runnable pytest function (empty = it is).
 
@@ -624,7 +625,7 @@ def static_python_test(path: Path, name: str) -> list[str]:
     return problems
 
 
-@functools.cache
+@source_cache
 def _python_collection(path: Path, cwd: Path) -> tuple[int, str]:
     rel = path.resolve().relative_to((cwd / "python").resolve())
     # Evidence collection is read-only. CI and local release gates install the
@@ -651,7 +652,7 @@ def _python_collection(path: Path, cwd: Path) -> tuple[int, str]:
     return proc.returncode, proc.stdout + proc.stderr
 
 
-@functools.cache
+@source_cache
 def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
     problems = static_python_test(path, name)
     if problems:
@@ -674,7 +675,7 @@ def _strip_python(text: str) -> str:
     return re.sub(r"(?m)#[^\n]*", "", text)
 
 
-@functools.cache
+@source_cache
 def _rust_index(root_file: Path) -> dict[str, list[tuple[Path, RustItem]]]:
     index: dict[str, list[tuple[Path, RustItem]]] = {}
     for f in target_files(root_file):
@@ -691,12 +692,12 @@ def _rust_index(root_file: Path) -> dict[str, list[tuple[Path, RustItem]]]:
         parts = root_file.relative_to(ROOT).parts
         manifest = (ROOT / "python/Cargo.toml" if parts[0] == "python"
                     else ROOT / "crates" / parts[1] / "Cargo.toml")
-        data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        data = tomllib.loads(_read(manifest))
         dependency = data.get("dev-dependencies", {}).get("antecedent-test-support", {})
         base = manifest.parent
         if isinstance(dependency, dict) and dependency.get("workspace"):
             dependency = (
-                tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
+                tomllib.loads(_read(ROOT / "Cargo.toml"))
                 .get("workspace", {})
                 .get("dependencies", {})
                 .get("antecedent-test-support", {})
@@ -770,7 +771,7 @@ def _declared_module_file(path: Path, name: str) -> Path | None:
     return None
 
 
-@functools.cache
+@source_cache
 def _item_refs(path: Path, start: int) -> tuple[str, str, frozenset[str]]:
     """(code with comments removed, skeleton, referenced identifiers) of one item."""
     masked, items = rust_items(path)
@@ -785,7 +786,7 @@ def rust_closure(path: Path, name: str) -> str:
     return _rust_closure_parts(path, name)[0]
 
 
-@functools.cache
+@source_cache
 def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
     """(code, skeleton) of the closure; offsets agree, so a match in the code can be
     checked against the skeleton to tell code from string-literal contents."""
@@ -843,7 +844,7 @@ def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
     return "\n".join(out), "\n".join(skel_out)
 
 
-@functools.cache
+@source_cache
 def python_closure(path: Path, name: str) -> str:
     try:
         return _py_closure.closure_source(path, name)
@@ -901,7 +902,7 @@ def names_fixture(path: Path, test_name: str, body: str, fixture: str) -> bool:
     return False
 
 
-@functools.cache
+@source_cache
 def _markers(path: Path, name: str) -> tuple[bool, bool]:
     body = closure(path, name)
     return bool(PARSE_MARKERS.search(body)), bool(ASSERT_MARKERS.search(body))
@@ -963,7 +964,7 @@ def consumption_problems(path: Path, name: str, fixture: str) -> list[str]:
     return problems
 
 
-@functools.cache
+@source_cache
 def _read(path: Path) -> str:
     return path.read_text(errors="ignore", encoding="utf-8")
 

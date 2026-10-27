@@ -49,6 +49,32 @@ class PredictiveScoreScopeTest(unittest.TestCase):
     def test_the_repository_agrees(self) -> None:
         self.assertEqual(scope.audit(), [])
 
+    def test_limit_uses_the_complete_initializer_and_ignores_comment_decoys(self) -> None:
+        self.assertEqual(scope.case_limit("pub const MAX_CASES: usize = 1 << 24;"), 2**24)
+        self.assertEqual(scope.case_limit("const MAX_CASES: usize = 102_400;"), 102400)
+        self.assertEqual(scope.case_limit(
+            "// const MAX_CASES: usize = 1;\nconst MAX_CASES: usize = 1 << 24;"
+        ), 2**24)
+        for source in (
+            "const MAX_CASES: usize = 1 + unreviewed();",
+            "// const MAX_CASES: usize = 102_400;",
+            "const MAX_CASES: usize = 1; const MAX_CASES: usize = 2;",
+            "const MAX_CASES: usize = 1 << 1024;",
+        ):
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                scope.case_limit(source)
+
+    def test_a_small_or_unrecognized_product_bound_fails(self) -> None:
+        source = (REPO_ROOT / scope.LAW_FILE).read_text(encoding="utf-8")
+        old = "pub const MAX_CASES: usize = 1 << 24;"
+        self.assertIn(old, source)
+        for new, expected in (
+            ("pub const MAX_CASES: usize = 1 << 8;", "limit_below_design"),
+            ("pub const MAX_CASES: usize = unknown();", "limit_unrecognized"),
+        ):
+            findings = self.audit_with(scope.LAW_FILE, old, new)
+            self.assertTrue(any(f.startswith(expected) for f in findings), findings)
+
     def test_an_unqualified_upward_in_a_release_note_is_found(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

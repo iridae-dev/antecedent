@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from _py_closure import closure_nodes
+from _source_cache import source_cache
 from test_evidence import (
     _attrs_before,
     _is_cfg_test,
@@ -25,8 +26,6 @@ from test_evidence import (
 
 # ------------------------------------------------------------- non-test source
 
-_crate_modules: dict[Path, dict[Path, bool]] = {}
-
 
 def crate_src(path: Path) -> Path | None:
     for parent in path.parents:
@@ -35,24 +34,23 @@ def crate_src(path: Path) -> Path | None:
     return None
 
 
+@source_cache
 def _compiled_test_only(path: Path) -> bool | None:
     """True if every target compiling `path` does so only under cfg(test); None if
     no target of its crate compiles it."""
     src = crate_src(path)
     if src is None:
         return None
-    if src not in _crate_modules:
-        merged: dict[Path, bool] = {}
-        roots = [src / "lib.rs", src / "main.rs", *sorted((src / "bin").glob("*.rs"))]
-        for top in roots:
-            if top.is_file():
-                for mod, test_only in target_modules(top.resolve()).items():
-                    merged[mod] = merged.get(mod, True) and test_only
-        _crate_modules[src] = merged
-    return _crate_modules[src].get(path.resolve())
+    merged: dict[Path, bool] = {}
+    roots = [src / "lib.rs", src / "main.rs", *sorted((src / "bin").glob("*.rs"))]
+    for top in roots:
+        if top.is_file():
+            for mod, test_only in target_modules(top.resolve()).items():
+                merged[mod] = merged.get(mod, True) and test_only
+    return merged.get(path.resolve())
 
 
-_nontest_cache: dict[Path, tuple[str, str]] = {}
+@source_cache
 
 
 def nontest_pair(path: Path, *, in_crate: bool = True) -> tuple[str, str]:
@@ -61,8 +59,6 @@ def nontest_pair(path: Path, *, in_crate: bool = True) -> tuple[str, str]:
     compiled only for tests or not compiled at all. `code` keeps string literals,
     `skeleton` blanks their contents; offsets agree."""
     key = path.resolve()
-    if key in _nontest_cache:
-        return _nontest_cache[key]
     out = ("", "")
     compiled = _compiled_test_only(path) is False if in_crate else True
     if compiled:
@@ -79,7 +75,6 @@ def nontest_pair(path: Path, *, in_crate: bool = True) -> tuple[str, str]:
                         if code[k] != "\n":
                             code[k] = skel[k] = " "
             out = ("".join(code), "".join(skel))
-    _nontest_cache[key] = out
     return out
 
 

@@ -89,10 +89,12 @@ def replay_body_problems(body, assertion, producer):
             for n in test.body
             if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Tuple)
         )
-        assert (
-            ast.unparse(capture)
-            == "payload, identity, original = (measured.export(), measured.expected_identity, measured.inspect())"
-        )
+        assert ast.unparse(capture.targets[0]) == "(payload, identity, original)"
+        assert isinstance(capture.value, ast.Tuple) and len(capture.value.elts) == 3
+        exported, identity, original = map(ast.unparse, capture.value.elts)
+        assert exported in {"measured.export()", "bytes(measured.export())"}
+        assert identity == "measured.expected_identity"
+        assert original == "measured.inspect()"
         assert factory.lineno < capture.lineno < min(deleted.values())
         tree = ast.Module(body=[test, helper], type_ignores=[])
         assert deleted["source_inputs"] < replay.lineno and deleted["measured"] < replay.lineno

@@ -37,6 +37,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT
+from _rust_source import rust_code
 
 ROOT = Path(os.environ.get("PREDICTIVE_SCOPE_ROOT", REPO_ROOT))
 DEPENDENCES = ("iid", "cluster", "serial")
@@ -56,6 +57,23 @@ def read(rel: str) -> str:
 
 def integer(text: str) -> int:
     return int(text.replace(",", "").replace("_", ""))
+
+
+def case_limit(source: str) -> int:
+    """Read the complete literal/shift initializer, never its numeric prefix."""
+    expressions = re.findall(
+        r"\bconst\s+MAX_CASES\s*:\s*usize\s*=\s*([^;]+);", rust_code(source)
+    )
+    if len(expressions) != 1:
+        raise ValueError("requires one unambiguous MAX_CASES constant")
+    expression = re.fullmatch(r"\s*(\d[\d_]*)(?:\s*<<\s*(\d[\d_]*))?\s*", expressions[0])
+    if not expression:
+        raise ValueError("MAX_CASES requires a reviewed integer or left-shift initializer")
+    value = integer(expression.group(1))
+    shift = integer(expression.group(2)) if expression.group(2) else 0
+    if shift >= 64 or value >= 2**64 or value << shift >= 2**64:
+        raise ValueError("MAX_CASES initializer exceeds the supported integer range")
+    return value << shift
 
 
 def span(text: str) -> tuple[int, int] | None:
@@ -159,10 +177,14 @@ def audit() -> list[str]:
             if UPWARD.search(line):
                 findings.append(f"unqualified_upward: {path.relative_to(ROOT)}:{number}")
 
-    limit = re.search(r"MAX_CASES: usize = ([\d_]+)", read(LAW_FILE))
     largest = max((high for _, high in design.values()), default=0)
-    if limit and integer(limit.group(1)) < largest:
-        findings.append(f"limit_below_design: MAX_CASES {limit.group(1)} < {fmt(largest)}")
+    try:
+        limit = case_limit(read(LAW_FILE))
+    except ValueError as error:
+        findings.append(f"limit_unrecognized: {error}")
+    else:
+        if limit < largest:
+            findings.append(f"limit_below_design: MAX_CASES {fmt(limit)} < {fmt(largest)}")
     return findings
 
 
