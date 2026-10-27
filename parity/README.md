@@ -112,6 +112,16 @@ always states where its truth comes from. A pinned upstream run is
 `release.toml`, for a release-process fact no test can execute; its notes name the
 gate or workflow that enforces it.
 
+A fixture mixing independently generated and product-generated fields names its
+`oracle.independent_fields`. A known-truth row must explicitly select a nonempty
+subset as `evidence_fields`; regression outputs cannot borrow another field's
+independence. Retained `oracle.reference_review` records bind the generator,
+transitive comparison helper, environment lock, assertion source and fixture
+payload by digest. Gates reject stale reviews. These receipts preserve the
+scope and limitations of an actual reference review; hashes and source scanning
+alone cannot establish scientific sufficiency, historical exposure or theorem
+correspondence.
+
 A licensed row labelled `frozen_external_oracle` compares **the cell's own
 output** with a pinned upstream run. Most licensed routes instead rest on
 external oracles at the **component** level: the identifier and estimator each

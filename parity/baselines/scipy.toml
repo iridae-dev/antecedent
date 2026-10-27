@@ -1,0 +1,5 @@
+# Fixture comparator only; installed solely in isolated retained tooling.
+project = "scipy"
+version = "1.14.1"
+source = "https://docs.scipy.org/doc/scipy-1.14.1/"
+notes = "Public BSpline basis comparisons only for the mixed GAM fixture; fitted values remain explicitly classified regression pins. Full dependency lock: conformance/stats/ols_wls/reference.py.lock."

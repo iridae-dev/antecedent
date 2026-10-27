@@ -86,10 +86,30 @@ also has a separate timing/RSS receipt in `registry_timings.json`.
 
 The focused ordinary statistical target passes ten tests, retaining its existing
 ignored fixture writer. The new learner point assertion passes. Thirty-nine
-compiled evidence-gate fault controls and nineteen audit/tooling controls pass.
+compiled evidence-gate fault controls and twenty-one audit/tooling controls pass.
 The eight existing independent reference-generator checks pass. The explicit
 DoWhy environment passes all seven public-API comparison tests. These results
 do not grant coverage or license the deferred calibration study.
+
+The retained statsmodels environment now also reproduces conditional-effect,
+binomial-adjustment, temporal-mediation, multiplicity, descriptive-reduction and
+GAM-basis fixtures. The three estimate assertions and three multiplicity
+assertions pass; the ten foundations assertions pass. These are fixed-input
+comparisons. Temporal Sobel uncertainty is checked only under explicit iid
+opt-in, and GAM fit outputs remain product regression pins.
+
+Ten retained reference reviews bind generator, transitive comparison
+helper, lock, assertion source and fixture payload by digest. Gates reject
+changed inputs, expected outputs, tolerances, origins, assertions and helpers
+until reviewed again. Reviews record limited independence, redistribution
+sources and uncertainty about historical exposure. They do not certify primary
+theorem correspondence. A mixed fixture must explicitly name independent
+`evidence_fields`; a GAM fitted-output claim cannot borrow its basis comparison.
+
+Inspection also repaired stale conditional-estimator provenance: the current
+implementation supports joint modifiers and adds modifier-mean sampling
+variance. The fixture checks its coefficient-variance part after removing that
+explicit term; the one-modifier fixture grants no joint-modifier calibration.
 
 ## Work still required before closing the TODO items
 

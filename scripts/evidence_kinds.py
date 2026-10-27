@@ -4,6 +4,10 @@ Calibration is measured evidence with its own scope/commit attestation. No categ
 here, including agreement with an external package, grants a calibration license.
 """
 
+import hashlib
+import json
+from pathlib import Path
+
 EVIDENCE_KINDS = frozenset(
     {
         "implementation_exists",
@@ -44,7 +48,10 @@ def evidence_roles(kind: str | None, activity: str | None = None) -> list[str]:
 
 
 def kind_problems(
-    kind: str, oracle: dict | None, inference: str | None = None
+    kind: str,
+    oracle: dict | None,
+    inference: str | None = None,
+    fields: list[str] | None = None,
 ) -> list[str]:
     """Check claimed *origin*, leaving scientific sufficiency to review/execution."""
     if kind not in EVIDENCE_KINDS:
@@ -54,6 +61,21 @@ def kind_problems(
     if not isinstance(oracle, dict) or oracle.get("kind") not in ORACLE_KINDS:
         return ["known-truth claim requires an oracle with a recognized origin"]
     origin = oracle["kind"]
+    if "independent_fields" in oracle:
+        independent = oracle["independent_fields"]
+        if (
+            not isinstance(independent, list)
+            or not independent
+            or not isinstance(fields, list)
+            or not fields
+            or any(
+                not isinstance(field, str) or field not in independent
+                for field in fields
+            )
+        ):
+            return [
+                "mixed fixture requires explicit evidence_fields restricted to its independent_fields"
+            ]
     if kind in EXTERNAL_KINDS and origin != "external_package":
         return [f"{kind} requires external_package, found {origin}"]
     # A mixed fixture must be checked against the row's inference separately.
@@ -67,6 +89,118 @@ def kind_problems(
     ):
         return ["regression_pin has no independent reference for this inference"]
     return []
+
+
+def fixture_kind_problems(root: Path, row: dict) -> list[str]:
+    """Validate the same fixture origin/field scope in every consumer gate."""
+    if row.get("evidence_kind") not in KNOWN_TRUTH_KINDS:
+        return []
+    fixture = row.get("known_truth_fixture")
+    if not isinstance(fixture, str):
+        return []  # Explicit inline references are validated separately.
+    path = (root / fixture).resolve()
+    if not path.is_relative_to(root.resolve()):
+        return ["known_truth_fixture must remain inside the repository"]
+    if path.suffix in {".rs", ".py"}:
+        return []  # Inline truth is reviewed as source, not a JSON oracle.
+    path = path / "expected.json" if path.is_dir() else path
+    if not path.is_file():
+        return [f"missing fixture: {fixture}"]
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        return [f"invalid fixture {fixture}: {error}"]
+    return fixture_review_problems(root, data) + kind_problems(
+        row["evidence_kind"],
+        data.get("oracle"),
+        row.get("inference"),
+        row.get("evidence_fields"),
+    )
+
+
+def fixture_payload_digest(document: dict) -> str:
+    payload = {**document}
+    if isinstance(document.get("oracle"), dict):
+        payload["oracle"] = {
+            key: value
+            for key, value in document["oracle"].items()
+            if key != "reference_review"
+        }
+    return hashlib.sha256(
+        json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def fixture_review_problems(root: Path, document: dict) -> list[str]:
+    oracle = document.get("oracle", {})
+    problems = reference_review_problems(root, oracle)
+    if (
+        isinstance(oracle, dict)
+        and isinstance(oracle.get("reference_review"), dict)
+        and oracle["reference_review"].get("fixture_payload_sha256")
+        != fixture_payload_digest(document)
+    ):
+        problems.append(
+            "reference_review stale fixture inputs, outputs, tolerances or origin metadata"
+        )
+    return problems
+
+
+def reference_review_problems(root: Path, oracle: dict) -> list[str]:
+    """Check a retained review's integrity, never infer independence from source scanning."""
+    if not isinstance(oracle, dict):
+        return ["oracle must be an object"]
+    review = oracle.get("reference_review")
+    if review is None:
+        return []
+    if not isinstance(review, dict):
+        return ["reference_review must be an object"]
+    problems = []
+    for key in (
+        "scope",
+        "independence_basis",
+        "historical_exposure",
+        "redistribution",
+        "limitations",
+    ):
+        if not isinstance(review.get(key), str) or not review[key].strip():
+            problems.append(f"reference_review lacks {key}")
+    artifacts = review.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        return problems + ["reference_review requires reviewed artifacts"]
+    roles = set()
+    seen = set()
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            problems.append("reference_review artifact must be an object")
+            continue
+        rel = artifact.get("path")
+        role = artifact.get("role")
+        if role not in (
+            "generator",
+            "environment_lock",
+            "assertion_source",
+            "comparison_helper",
+        ):
+            problems.append("reference_review artifact has an unknown role")
+        else:
+            roles.add(role)
+        if not isinstance(rel, str) or rel in seen:
+            problems.append("reference_review requires unique artifact paths")
+            continue
+        seen.add(rel)
+        path = (root / rel).resolve()
+        if not path.is_relative_to(root.resolve()) or not path.is_file():
+            problems.append(f"reference_review missing artifact: {rel}")
+        elif hashlib.sha256(path.read_bytes()).hexdigest() != artifact.get("sha256"):
+            problems.append(f"reference_review stale artifact: {rel}")
+    if not {"generator", "environment_lock", "assertion_source"}.issubset(roles):
+        problems.append(
+            "reference_review must bind generator, environment lock and assertion source"
+        )
+    return problems
 
 
 def inline_reference_problems(row: dict) -> list[str]:

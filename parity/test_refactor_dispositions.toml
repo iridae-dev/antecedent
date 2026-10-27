@@ -3,6 +3,12 @@
 schema = 1
 
 [[case]]
+previous = "crates/antecedent-discovery/tests/multiplicity_oracle.rs::multiplicity_fixture_records_pins_and_no_generator"
+replacement = "crates/antecedent-discovery/tests/multiplicity_oracle.rs::multiplicity_fixture_records_retained_generator_and_historical_pins"
+disposition = "renamed_and_strengthened"
+reason = "Verify the retained generator and environment lock; preserve the old package pins, metadata hashes and original temporary-generator disclosure under historical_oracle. Numerical multiplicity and routing assertions remain unchanged."
+
+[[case]]
 previous = "python/tests/test_dowhy_comparison.py::test_interventional_mean_under_a_hard_set_matches_dowhy"
 replacement = "python/tests/test_dowhy_comparison.py::test_interventional_mean_under_a_hard_set_matches_dowhy"
 disposition = "numerical_and_documentation_assertions_separated"

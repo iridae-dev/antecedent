@@ -1,5 +1,5 @@
 {
-  "atol": 2e-9,
+  "atol": 2e-09,
   "cases": [
     {
       "basis_matrices_rowmajor": [
@@ -255,7 +255,7 @@
         ]
       ],
       "centers": [
-        -2.4718730882382134e-6
+        -2.4718730882382134e-06
       ],
       "coefficients_by_smooth": [
         [
@@ -678,7 +678,7 @@
         ]
       ],
       "centers": [
-        5.856815122544827e-6
+        5.856815122544827e-06
       ],
       "coefficients_by_smooth": [
         [
@@ -1103,15 +1103,15 @@
           [
             0.0,
             0.0,
-            7.104721613613294e-8,
-            0.0000849328329471732,
+            7.104721613613294e-08,
+            8.49328329471732e-05,
             0.02279592970948253,
             0.977119066410354
           ],
           [
             0.0,
             0.0,
-            3.684799144499043e-6,
+            3.684799144499043e-06,
             0.0011662014934108308,
             0.0823770840604108,
             0.9164530296470338
@@ -1119,7 +1119,7 @@
           [
             0.0,
             0.0,
-            0.00003872287679290331,
+            3.872287679290331e-05,
             0.005478148461859624,
             0.1712517519874594,
             0.823231376673888
@@ -1198,7 +1198,7 @@
           ],
           [
             0.0,
-            2.0110740919298346e-7,
+            2.0110740919298346e-07,
             0.161115054917347,
             0.5772788013880911,
             0.2616059425871526,
@@ -1336,7 +1336,7 @@
             0.7648429346195087,
             0.22504708139422103,
             0.010012229821294271,
-            0.00009775416497575762,
+            9.775416497575762e-05,
             0.0,
             0.0
           ],
@@ -1344,7 +1344,7 @@
             0.8718604080466991,
             0.1253196989224475,
             0.002805935935887953,
-            0.00001395709496539041,
+            1.395709496539041e-05,
             0.0,
             0.0
           ]
@@ -1610,8 +1610,19 @@
     }
   ],
   "reference": {
+    "project": "SciPy",
     "available": true,
-    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 python /tmp/antecedent-oracle-gam.py", "generator_retained": false,
+    "version": "1.14.1",
+    "command": "uv run --frozen --script conformance/stats/ols_wls/reference.py --check --fixture gam",
+    "generator_retained": true,
+    "environment_lock": "conformance/stats/ols_wls/reference.py.lock"
+  },
+  "rtol": 2e-09,
+  "tolerance_class": "Numeric",
+  "historical_reference": {
+    "available": true,
+    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 python /tmp/antecedent-oracle-gam.py",
+    "generator_retained": false,
     "generation_location": "temporary external harness; not retained",
     "installed_metadata_sha256": {
       "numpy": "56f003c44b0ee98d6adb1cb49f292d2ef07daaab7c7ba409ab2679c846fe6bf8",
@@ -1625,6 +1636,52 @@
       "scipy": "1.14.1"
     }
   },
-  "rtol": 2e-9,
-  "tolerance_class": "Numeric"
+  "oracle": {
+    "kind": "external_package",
+    "project": "SciPy",
+    "generator": "conformance/stats/ols_wls/reference.py",
+    "limitations": "Only basis matrices are independent external outputs. Fit, coefficients, centers, intercept, edf, iterations and prediction remain self-snapshot regression pins, not numerical truth.",
+    "independent_fields": [
+      "cases[].basis_matrices_rowmajor"
+    ],
+    "reference_review": {
+      "scope": "Retained generator, transitive repository comparison helper, locked public comparator APIs, declared inputs and consuming assertion; not verification of every theorem or every method-family scenario.",
+      "independence_basis": "The retained generator constructs reference results through public NumPy, SciPy and statsmodels APIs on repository-owned deterministic inputs. It imports no Antecedent runtime or algorithm/test helper. The only imported repository helper is reference_compare, which compares documents and computes no reference values. Expected numerical outputs enter comparison only after the public reference call. Product assertion source was separately inspected to identify asserted versus context-only fields.",
+      "historical_exposure": "Historical author exposure and deleted generator authorship cannot be independently established from retained artifacts. Original disclosures and environment metadata remain unchanged in historical_oracle or historical_reference; this review does not certify them.",
+      "redistribution": "Retained harness and deterministic inputs are repository-authored under MIT OR Apache-2.0. Committed outputs are numerical API results and contain no upstream implementation or tests. Comparator packages remain in isolated tooling, outside the product and ordinary CI; their versioned license files are linked for environment redistribution obligations.",
+      "limitations": "Only basis matrices are independent external outputs. Fit, coefficients, centers, intercept, edf, iterations and prediction remain self-snapshot regression pins, not numerical truth.",
+      "sources": [
+        "https://www.statsmodels.org/v0.14.4/generated/statsmodels.regression.linear_model.OLS.html",
+        "https://www.statsmodels.org/v0.14.4/generated/statsmodels.genmod.generalized_linear_model.GLM.html",
+        "https://www.statsmodels.org/v0.14.4/generated/statsmodels.stats.multitest.multipletests.html",
+        "https://docs.scipy.org/doc/scipy-1.14.1/reference/generated/scipy.interpolate.BSpline.html",
+        "https://github.com/statsmodels/statsmodels/blob/v0.14.4/LICENSE.txt",
+        "https://github.com/numpy/numpy/blob/v2.1.3/LICENSE.txt",
+        "https://github.com/scipy/scipy/blob/v1.14.1/LICENSE.txt"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/stats/ols_wls/reference.py",
+          "sha256": "ca9771a799a9d6bfd92c35f1d91ec40190fe30882fa8dd3cf48977f382cd2532"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/stats/ols_wls/reference.py.lock",
+          "sha256": "75e734591814b304813f2e7be52abc0b5c92b10942058f0d5960ece2fb54fb98"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "scripts/reference_compare.py",
+          "sha256": "79904dc8724633c835ca4bcd894bedee2938a1ecbb7d4e4eda02be0b2b27d134"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-stats/tests/foundations_oracle.rs",
+          "sha256": "7afc6376b6cea0e9b96b6da728d16c373901b54c23886bd7b0647b327cc764a1"
+        }
+      ],
+      "fixture_payload_sha256": "b34f694feac898eebd6f532616e92389ca982f9c53f3c8a5c437d087475272e3"
+    }
+  }
 }

@@ -105,6 +105,12 @@ status = "closed"
 
 [[method]]
 id = "foundations.descriptive"
+evidence_kind = "frozen_external_oracle"
+known_truth_fixture = "conformance/stats/descriptive"
+external_oracle = "numpy 2.1.3"
+evidence_test = "crates/antecedent-stats/tests/foundations_oracle.rs"
+evidence_assertion = "descriptive_reductions_match_frozen_numpy_outputs"
+limitations = "NumPy 2.1.3 reductions on five fixed inputs in the retained environment; no general floating-point error bound or inferential claim."
 audit_stage = 2
 audit_row = "Descriptive mean/variance/std"
 oracle_project = "NumPy and SciPy"
@@ -136,6 +142,13 @@ status = "closed"
 
 [[method]]
 id = "foundations.gam"
+evidence_kind = "frozen_external_oracle"
+external_oracle = "scipy 1.14.1"
+known_truth_fixture = "conformance/stats/gam"
+evidence_fields = ["cases[].basis_matrices_rowmajor"]
+evidence_test = "crates/antecedent-stats/tests/foundations_oracle.rs"
+evidence_assertion = "gam_basis_matches_scipy_oracle_and_fit_matches_self_snapshot"
+limitations = "External comparison establishes basis matrices only. Fit, coefficients, centers, intercept, edf, iterations and prediction remain self-snapshot regression pins."
 audit_stage = 2
 audit_row = "GAM B-spline basis (the penalized fit is a self-snapshot regression pin)"
 # Only the basis matrices come from the external SciPy run. The fixture's fit

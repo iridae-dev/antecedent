@@ -123,9 +123,16 @@ fn discovery_family_routing_matches_statsmodels_with_and_without_lag_zero() {
 }
 
 #[test]
-fn multiplicity_fixture_records_pins_and_no_generator() {
+fn multiplicity_fixture_records_retained_generator_and_historical_pins() {
     let fixture = fixture();
     let oracle = &fixture["oracle"];
+    assert_eq!(oracle["version"], "0.14.4");
+    assert_eq!(oracle["generator_retained"], true);
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for field in ["generator", "environment_lock"] {
+        assert!(root.join(oracle[field].as_str().unwrap()).is_file(), "{field}");
+    }
+    let oracle = &fixture["historical_oracle"];
     assert_eq!(oracle["packages"]["statsmodels"]["version"], "0.14.4");
     assert_eq!(oracle["packages"]["numpy"]["version"], "2.1.3");
     assert_eq!(oracle["generation_location"], "temporary external harness; not retained");

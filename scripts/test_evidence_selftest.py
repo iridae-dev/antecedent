@@ -393,7 +393,13 @@ def build(tmp: Path) -> None:
         )
     fixture = tmp / "conformance" / "demo" / "truth"
     fixture.mkdir(parents=True)
-    (fixture / "expected.json").write_text('{"true_effect": 2.0}\n', encoding="utf-8", newline="\n")
+    # A synthetic origin declaration for reader controls, never scientific evidence.
+    # The behavioral-parity controls require an external origin; known-truth rows
+    # can also consume it. Origin/field falsification has separate fault controls.
+    (fixture / "expected.json").write_text(
+        '{"true_effect": 2.0, "oracle": {"kind": "external_package", "project": "selftest_stub"}}\n',
+        encoding="utf-8", newline="\n"
+    )
     (tmp / "python" / "tests").mkdir(parents=True)
     (tmp / "python" / "tests" / "test_demo.py").write_text(PY, encoding="utf-8", newline="\n")
 

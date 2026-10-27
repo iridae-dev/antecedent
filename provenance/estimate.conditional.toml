@@ -10,12 +10,14 @@ papers = [
 ]
 
 implementation_deviations = [
- "Supports exactly one numeric effect modifier in the linear model with intercept, treatment, modifier, treatment-by-modifier interaction, and adjustment-variable main effects; multiple modifiers, nonlinear heterogeneity, and additional treatment interactions are unsupported.",
- "Reports the treatment contrast at the retained sample mean of the modifier rather than a conditional-effect curve or effects at user-specified modifier values.",
- "Uses a homoskedastic OLS delta-method standard error that treats the sample modifier mean as fixed; robust, clustered, and bootstrap uncertainty for this estimator are not implemented.",
+ "Fits numeric modifier main effects and separate treatment-by-modifier interactions, plus adjustment-variable main effects. Joint modifiers are enabled by default; the legacy one-modifier setting refuses several modifiers. Nonlinear heterogeneity and modifier-by-modifier interactions are not fitted by this route.",
+ "Reports the treatment contrast averaged at the retained sample means of the modifiers, for AllObserved; this is not a conditional-effect curve at user-specified modifier coordinates. Joint-modifier uncertainty carries an explicit uncalibrated assumption rather than borrowing one-modifier coverage.",
+ "The analytic variance adds the sampling variance of the modifier-mean contrast to the homoskedastic OLS coefficient delta-method variance. The independent statsmodels fixture checks the coefficient part after removing that explicit modifier-mean term; it does not validate repeated-sampling coverage. Robust and clustered covariance are not established by this reference.",
 ]
 
-upstream_implementations_observed = []
+upstream_implementations_observed = [
+ { project = "statsmodels", exposure = "black-box comparison only" },
+]
 
 test_sources = [
  "in-crate unit tests (crates/antecedent-estimate/src/conditional.rs): noiseless interaction recovery and finite analytic SE under noise",

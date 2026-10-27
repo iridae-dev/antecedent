@@ -42,3 +42,31 @@ The replaced generation command remains in `historical_reference`; retaining
 it does not make the deleted historical harness reproducible. The replacement
 reproduces the numerical values, not the original environment's metadata hashes.
 These fixed-input comparisons establish no repeated-sampling coverage claim.
+
+The retained environment also accepts `--fixture estimate/conditional_effects`,
+`--fixture estimate/glm_adjustment_grid`, `--fixture estimate/temporal_mediation_grid`
+and `--fixture discovery/multiplicity`. The three estimation fixtures reproduce
+their full coefficient, contrast and declared standard-error outputs from the
+recorded deterministic inputs using public OLS/GLM fits. Temporal mediation
+drops the initial lagged row; its homoskedastic and Sobel standard errors are
+model conventions, not evidence for dependence-robust uncertainty.
+
+The multiplicity fixture checks four adjustment methods on ordinary, tied,
+permuted and singleton p-value inputs through public
+[multipletests](https://www.statsmodels.org/v0.14.4/generated/statsmodels.stats.multitest.multipletests.html)
+calls. The empty input is a local contract: statsmodels rejects it. Likewise,
+excluding contemporaneous links from correction is an Antecedent routing
+contract around the external adjusted p-values. These two distinctions are
+retained explicitly rather than attributed to the upstream package.
+
+For these additional fixtures, `--self-test` checks corrupted numerical outputs,
+widened acceptance bounds and altered or missing scenarios. Existing historical
+metadata remains in `historical_oracle`; replacement commands do not claim to
+recover the deleted historical generator or reproduce its environment hashes.
+
+`--fixture descriptive` reproduces the five NumPy reduction cases.
+`--fixture gam` reproduces the three cubic B-spline basis scenarios with SciPy's
+public `BSpline.design_matrix`. The GAM fit outputs remain historical product
+regression pins; the shared evidence gates require claims on this mixed fixture
+to select only its independently computed basis fields. Merely naming the
+fixture cannot turn its fitted values into independent truth.

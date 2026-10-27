@@ -200,8 +200,8 @@ for path in sorted(root.glob("provenance/*.toml")):
 
 # ------------------------------------------- 5. oracle ledger vs fixtures
 # The fixture's own `oracle` block is the authoritative record of where the
-# frozen data came from (packages are never installed in-repo; generation is
-# out-of-repo and the harness is deleted). The ledger must not name an upstream
+# frozen data came from (comparators run in isolated pinned tooling and new
+# generators are retained; historical deletions remain disclosed). The ledger must not name an upstream
 # package the fixture does not record — that turns clean-room known-truth
 # evidence into apparent external-oracle agreement.
 UPSTREAM = [
@@ -238,6 +238,7 @@ def oracle_fixture_has_test(fixture_dir: str) -> bool:
 
 for method in ledger.get("method", []):
     mid = method["id"]
+    fail.extend(f"oracle_closure {mid}: {problem}" for problem in test_evidence.fixture_kind_problems(root, method))
     fixture = root / method["fixture_dir"] / "expected.json"
     if not fixture.exists():
         fail.append(f"oracle_closure {mid}: fixture missing {fixture}")

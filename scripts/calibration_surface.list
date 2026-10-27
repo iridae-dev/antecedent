@@ -398,6 +398,13 @@ core conformance/stats/ols_wls/reference.py.lock
 core conformance/stats/ols_wls_grid/expected.json
 core conformance/stats/sandwich_covariance/expected.json
 core conformance/stats/glm_irls/expected.json
+core conformance/stats/descriptive/expected.json
+core conformance/stats/gam/expected.json
+core conformance/discovery/multiplicity/expected.json
+core crates/antecedent-discovery/tests/multiplicity_oracle.rs
+core conformance/estimate/conditional_effects/expected.json
+core conformance/estimate/glm_adjustment_grid/expected.json
+core conformance/estimate/temporal_mediation_grid/expected.json
 core conformance/estimate/learner_ate/fixture.json
 core conformance/estimate/rd_sharp/reference.py
 core conformance/estimate/path_specific_edge_gformula/reference.py

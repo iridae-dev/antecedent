@@ -22,7 +22,7 @@ BASE_REQUIRED = ("id", "status")
 # The 2026-08 audit found rows whose notes read as external-package agreement
 # while the fixture's own oracle block recorded clean-room enumeration; this
 # field makes the claim strength machine-readable so wording cannot outrun it.
-from evidence_kinds import EVIDENCE_KINDS, EXTERNAL_KINDS, inline_reference_problems
+from evidence_kinds import EVIDENCE_KINDS, EXTERNAL_KINDS, fixture_kind_problems, inline_reference_problems
 
 # An implementation_exists row that produces one of these is a statistical procedure
 # a reader would take as validated; it must say that no numerical truth backs it.
@@ -199,6 +199,7 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
         if fixture is not None and (not isinstance(fixture, str) or not (root / fixture).exists()):
             problems.append(f"{rel}: {label} known_truth_fixture {fixture!r} does not exist")
         problems.extend(f"{rel}: {label}: {p}" for p in inline_reference_problems(row))
+        problems.extend(f"{rel}: {label}: {p}" for p in fixture_kind_problems(root, row))
 
         if kind in EXTERNAL_KINDS:
             if not isinstance(oracle, str) or not oracle.strip():

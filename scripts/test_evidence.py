@@ -39,7 +39,7 @@ import _rust_source as _rust
 import tomllib
 from _repo import REPO_ROOT as ROOT
 from _repo import cargo_target_feature_args
-from evidence_kinds import KNOWN_TRUTH_KINDS
+from evidence_kinds import KNOWN_TRUTH_KINDS, fixture_kind_problems
 
 PARSE_MARKERS = re.compile(
     r"serde_json::from_str|serde_json::from_slice|from_str::<|json\.loads|"
@@ -1177,6 +1177,7 @@ def row_evidence_problems(row: dict) -> list[str]:
     if problems:
         return problems
     fixture = row.get("known_truth_fixture")
+    problems += fixture_kind_problems(ROOT, row)
     if row.get("evidence_kind") in KNOWN_TRUTH_KINDS and isinstance(fixture, str):
         problems += consumption_problems(path.resolve(), str(name), fixture)
     if all(isinstance(row.get(k), str) for k in AXIS_KEYS):

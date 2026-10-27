@@ -19,11 +19,100 @@ import run_dowhy_comparison as comparator
 import test_evidence as evidence
 import tomllib
 import verify_provenance_citations as citations
-from evidence_kinds import evidence_roles, inline_reference_problems, kind_problems
+from evidence_kinds import (
+    evidence_roles,
+    inline_reference_problems,
+    kind_problems,
+    reference_review_problems,
+)
 from reference_compare import values_close
 
 
 class Classification(unittest.TestCase):
+    def test_retained_review_rejects_removed_assertions_and_changed_helpers(self):
+        import hashlib
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifacts = []
+            for role, rel, source in [
+                ("generator", "reference.py", "import numpy\n"),
+                (
+                    "comparison_helper",
+                    "compare.py",
+                    "def compare(x,y): return x == y\n",
+                ),
+                ("environment_lock", "reference.py.lock", "version = 1\n"),
+                (
+                    "assertion_source",
+                    "test_truth.py",
+                    "def test_truth():\n    assert actual() == 2\n",
+                ),
+            ]:
+                path = root / rel
+                path.write_text(source, encoding="utf-8")
+                artifacts.append(
+                    {
+                        "role": role,
+                        "path": rel,
+                        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                    }
+                )
+            review = {
+                key: "reviewed scope, with explicit limits"
+                for key in (
+                    "scope",
+                    "independence_basis",
+                    "historical_exposure",
+                    "redistribution",
+                    "limitations",
+                )
+            }
+            oracle = {"reference_review": {**review, "artifacts": artifacts}}
+            self.assertEqual(reference_review_problems(root, oracle), [])
+            from evidence_kinds import fixture_payload_digest, fixture_review_problems
+
+            document = {"oracle": oracle, "expected": 2.0}
+            oracle["reference_review"]["fixture_payload_sha256"] = (
+                fixture_payload_digest(document)
+            )
+            self.assertEqual(fixture_review_problems(root, document), [])
+            self.assertTrue(
+                fixture_review_problems(root, {**document, "expected": 3.0})
+            )
+            for rel in ["test_truth.py", "compare.py"]:
+                path = root / rel
+                original = path.read_text(encoding="utf-8")
+                path.write_text("# removed or changed\n", encoding="utf-8")
+                self.assertTrue(reference_review_problems(root, oracle))
+                path.write_text(original, encoding="utf-8")
+            oracle["reference_review"]["artifacts"] = []
+            self.assertTrue(reference_review_problems(root, oracle))
+
+    def test_mixed_fixture_cannot_relabel_regression_fields_as_independent_truth(self):
+        mixed = {"kind": "external_package", "independent_fields": ["basis"]}
+        self.assertTrue(kind_problems("frozen_external_oracle", mixed))
+        self.assertTrue(
+            kind_problems("frozen_external_oracle", mixed, fields=["fitted"])
+        )
+        self.assertEqual(
+            kind_problems("frozen_external_oracle", mixed, fields=["basis"]), []
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "expected.json"
+            path.write_text(json.dumps({"oracle": mixed}), encoding="utf-8")
+            row = {
+                "known_truth_fixture": "expected.json",
+                "evidence_kind": "frozen_external_oracle",
+                "evidence_fields": ["fitted"],
+            }
+            self.assertTrue(evidence.fixture_kind_problems(root, row))
+            row["evidence_fields"] = ["basis"]
+            self.assertEqual(evidence.fixture_kind_problems(root, row), [])
+            row["known_truth_fixture"] = "missing.json"
+            self.assertTrue(evidence.fixture_kind_problems(root, row))
+
     def test_external_comparison_requires_each_named_case_and_rejects_skips(self):
         with tempfile.TemporaryDirectory() as tmp:
             report = Path(tmp) / "result.xml"

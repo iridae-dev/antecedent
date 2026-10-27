@@ -26,6 +26,7 @@ from evidence_kinds import (
     EVIDENCE_KINDS,
     KNOWN_TRUTH_KINDS,
     evidence_roles,
+    fixture_review_problems,
     inline_reference_problems,
     kind_problems,
 )
@@ -113,6 +114,7 @@ def fixture_report(root: Path, path: Path) -> dict:
                 if candidate and candidate.is_file():
                     candidates.add(candidate)
     gaps = []
+    gaps.extend(fixture_review_problems(root, data))
     if not oracle.get("kind"):
         gaps.append("oracle_origin_unrecorded")
     if oracle.get("kind") == "external_package" and not candidates:
@@ -137,7 +139,12 @@ def fixture_report(root: Path, path: Path) -> dict:
         "generators": {
             p.relative_to(root).as_posix(): digest(p) for p in sorted(candidates)
         },
-        "independence_review": "pending_source_and_transitive_helper_review",
+        "independence_review": (
+            "recorded_generator_and_assertion_review_with_limits_not_a_method_certification"
+            if oracle.get("reference_review")
+            and not fixture_review_problems(root, data)
+            else "pending_source_and_transitive_helper_review"
+        ),
         "gaps": gaps,
     }
 
@@ -172,6 +179,7 @@ def claim_rows(root: Path) -> list[dict]:
                             "calibration_reason",
                             "calibration_evidence",
                             "known_truth_reference",
+                            "evidence_fields",
                             "evidence_activity",
                             *AXES,
                         )
@@ -226,7 +234,10 @@ def build_report(root: Path) -> dict:
         if fixture and info:
             problems.extend(
                 kind_problems(
-                    claim["evidence_kind"], info["oracle"], claim.get("inference")
+                    claim["evidence_kind"],
+                    info["oracle"],
+                    claim.get("inference"),
+                    claim.get("evidence_fields"),
                 )
             )
         elif claim["evidence_kind"] not in EVIDENCE_KINDS:

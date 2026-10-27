@@ -576,6 +576,45 @@
       "covariance",
       "score",
       "log_likelihood"
-    ]
+    ],
+    "reference_review": {
+      "scope": "Retained generator, transitive repository comparison helper, locked public comparator APIs, declared inputs and consuming assertion; not verification of every theorem or every method-family scenario.",
+      "independence_basis": "The retained generator constructs reference results through public NumPy, SciPy and statsmodels APIs on repository-owned deterministic inputs. It imports no Antecedent runtime or algorithm/test helper. The only imported repository helper is reference_compare, which compares documents and computes no reference values. Expected numerical outputs enter comparison only after the public reference call. Product assertion source was separately inspected to identify asserted versus context-only fields.",
+      "historical_exposure": "Historical author exposure and deleted generator authorship cannot be independently established from retained artifacts. Original disclosures and environment metadata remain unchanged in historical_oracle or historical_reference; this review does not certify them.",
+      "redistribution": "Retained harness and deterministic inputs are repository-authored under MIT OR Apache-2.0. Committed outputs are numerical API results and contain no upstream implementation or tests. Comparator packages remain in isolated tooling, outside the product and ordinary CI; their versioned license files are linked for environment redistribution obligations.",
+      "limitations": "Finite deterministic regression/covariance/GLM cases; no repeated-sampling calibration. Oversized HAC lags require matched effective lag; rank-deficient least squares deliberately refuses in Antecedent.",
+      "sources": [
+        "https://www.statsmodels.org/v0.14.4/generated/statsmodels.regression.linear_model.OLS.html",
+        "https://www.statsmodels.org/v0.14.4/generated/statsmodels.genmod.generalized_linear_model.GLM.html",
+        "https://www.statsmodels.org/v0.14.4/generated/statsmodels.stats.multitest.multipletests.html",
+        "https://docs.scipy.org/doc/scipy-1.14.1/reference/generated/scipy.interpolate.BSpline.html",
+        "https://github.com/statsmodels/statsmodels/blob/v0.14.4/LICENSE.txt",
+        "https://github.com/numpy/numpy/blob/v2.1.3/LICENSE.txt",
+        "https://github.com/scipy/scipy/blob/v1.14.1/LICENSE.txt"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/stats/ols_wls/reference.py",
+          "sha256": "ca9771a799a9d6bfd92c35f1d91ec40190fe30882fa8dd3cf48977f382cd2532"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/stats/ols_wls/reference.py.lock",
+          "sha256": "75e734591814b304813f2e7be52abc0b5c92b10942058f0d5960ece2fb54fb98"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "scripts/reference_compare.py",
+          "sha256": "79904dc8724633c835ca4bcd894bedee2938a1ecbb7d4e4eda02be0b2b27d134"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-stats/tests/foundations_oracle.rs",
+          "sha256": "7afc6376b6cea0e9b96b6da728d16c373901b54c23886bd7b0647b327cc764a1"
+        }
+      ],
+      "fixture_payload_sha256": "ae175ac5f697b1ed2f71c9214bfe35c8dee591c528b66b17ba58b56ea6e4cbda"
+    }
   }
 }

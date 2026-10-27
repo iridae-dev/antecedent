@@ -3,11 +3,65 @@
   "oracle": {
     "kind": "external_package",
     "project": "statsmodels",
-    "versions": {"python": "3.12.7", "numpy": "2.1.3", "scipy": "1.14.1", "pandas": "2.2.3", "statsmodels": "0.14.4"},
-    "installed_metadata_sha256": {"statsmodels": "1f93f27342fb62aef002c7f9ef6bf7f85a94bf7b99459176d156223c33238aaa"},
-    "api": "three independently fitted OLS models and Sobel product variance",
-    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 --with pandas==2.2.3 --with statsmodels==0.14.4 python /tmp/antecedent_estimation_closure_oracle.py", "generator_retained": false,
-    "generation_location": "temporary external harness; deleted after artifact import"
+    "version": "0.14.4",
+    "generator": "conformance/stats/ols_wls/reference.py",
+    "command": "uv run --frozen --script conformance/stats/ols_wls/reference.py --check --fixture estimate/temporal_mediation_grid",
+    "generator_retained": true,
+    "environment_lock": "conformance/stats/ols_wls/reference.py.lock",
+    "inputs": "Declared data specification or p-value arrays in this fixture; no expected outputs are inputs to a fit.",
+    "limitations": "Fixed-input reference comparison only. No repeated-sampling coverage or causal identification claim. OLS standard errors and Sobel variance use the recorded model convention; this does not establish dependence-robust uncertainty.",
+    "asserted_outputs": [
+      "total",
+      "direct",
+      "mediated",
+      "se_mediated_sobel (explicit iid opt-in only)"
+    ],
+    "context_only_outputs": [
+      "a",
+      "b",
+      "se_total",
+      "se_direct"
+    ],
+    "executing_assertion": "crates/antecedent-estimate/src/temporal_mediation.rs::recovers_positive_mediated_effect",
+    "reference_review": {
+      "scope": "Retained generator, transitive repository comparison helper, locked public comparator APIs, declared inputs and consuming assertion; not verification of every theorem or every method-family scenario.",
+      "independence_basis": "The retained generator constructs reference results through public NumPy, SciPy and statsmodels APIs on repository-owned deterministic inputs. It imports no Antecedent runtime or algorithm/test helper. The only imported repository helper is reference_compare, which compares documents and computes no reference values. Expected numerical outputs enter comparison only after the public reference call. Product assertion source was separately inspected to identify asserted versus context-only fields.",
+      "historical_exposure": "Historical author exposure and deleted generator authorship cannot be independently established from retained artifacts. Original disclosures and environment metadata remain unchanged in historical_oracle or historical_reference; this review does not certify them.",
+      "redistribution": "Retained harness and deterministic inputs are repository-authored under MIT OR Apache-2.0. Committed outputs are numerical API results and contain no upstream implementation or tests. Comparator packages remain in isolated tooling, outside the product and ordinary CI; their versioned license files are linked for environment redistribution obligations.",
+      "limitations": "Fixed-input reference comparison only. No repeated-sampling coverage or causal identification claim. OLS standard errors and Sobel variance use the recorded model convention; this does not establish dependence-robust uncertainty.",
+      "sources": [
+        "https://www.statsmodels.org/v0.14.4/generated/statsmodels.regression.linear_model.OLS.html",
+        "https://www.statsmodels.org/v0.14.4/generated/statsmodels.genmod.generalized_linear_model.GLM.html",
+        "https://www.statsmodels.org/v0.14.4/generated/statsmodels.stats.multitest.multipletests.html",
+        "https://docs.scipy.org/doc/scipy-1.14.1/reference/generated/scipy.interpolate.BSpline.html",
+        "https://github.com/statsmodels/statsmodels/blob/v0.14.4/LICENSE.txt",
+        "https://github.com/numpy/numpy/blob/v2.1.3/LICENSE.txt",
+        "https://github.com/scipy/scipy/blob/v1.14.1/LICENSE.txt"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/stats/ols_wls/reference.py",
+          "sha256": "ca9771a799a9d6bfd92c35f1d91ec40190fe30882fa8dd3cf48977f382cd2532"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/stats/ols_wls/reference.py.lock",
+          "sha256": "75e734591814b304813f2e7be52abc0b5c92b10942058f0d5960ece2fb54fb98"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "scripts/reference_compare.py",
+          "sha256": "79904dc8724633c835ca4bcd894bedee2938a1ecbb7d4e4eda02be0b2b27d134"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-estimate/src/temporal_mediation.rs",
+          "sha256": "e81ebbff3de6dc42e07547acde85c398d280420ca65b513f39c8f8d369de7938"
+        }
+      ],
+      "fixture_payload_sha256": "2313a9f7b3c1034ead2474663ed74e078dd50c55e87ff182da5a3d36cd3a2520"
+    }
   },
   "data": {
     "n": 320,
@@ -25,5 +79,25 @@
     "se_direct": 0.03402755595841476,
     "se_mediated_sobel": 0.03387047693965742
   },
-  "acceptance": {"atol": 3e-9}
+  "acceptance": {
+    "atol": 3e-09
+  },
+  "historical_oracle": {
+    "kind": "external_package",
+    "project": "statsmodels",
+    "versions": {
+      "python": "3.12.7",
+      "numpy": "2.1.3",
+      "scipy": "1.14.1",
+      "pandas": "2.2.3",
+      "statsmodels": "0.14.4"
+    },
+    "installed_metadata_sha256": {
+      "statsmodels": "1f93f27342fb62aef002c7f9ef6bf7f85a94bf7b99459176d156223c33238aaa"
+    },
+    "api": "three independently fitted OLS models and Sobel product variance",
+    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 --with pandas==2.2.3 --with statsmodels==0.14.4 python /tmp/antecedent_estimation_closure_oracle.py",
+    "generator_retained": false,
+    "generation_location": "temporary external harness; deleted after artifact import"
+  }
 }

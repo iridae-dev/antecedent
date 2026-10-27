@@ -24,6 +24,8 @@ from pathlib import Path
 
 import numpy as np
 import statsmodels.api as sm
+from scipy.interpolate import BSpline
+from statsmodels.stats.multitest import multipletests
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -157,6 +159,245 @@ def check_glms(document: dict) -> list[str]:
     return problems
 
 
+def check_descriptive(document: dict) -> list[str]:
+    problems = []
+    if document["atol"] != 1e-12 or document["rtol"] != 1e-12:
+        problems.append("descriptive acceptance bounds changed")
+    if {c["name"] for c in document["cases"]} != {
+        "ordinary",
+        "translated",
+        "constant",
+        "two_values",
+        "singleton",
+    } or len(document["cases"]) != 5:
+        problems.append("descriptive scenario grid changed")
+    for case in document["cases"]:
+        values = np.asarray(case["values"])
+        actual = {
+            "mean": float(np.mean(values)),
+            "population_variance": float(np.var(values)),
+            "sample_std": float(np.std(values, ddof=1)) if len(values) > 1 else None,
+        }
+        if not values_close(
+            {key: case[key] for key in actual}, actual, atol=1e-12, rtol=1e-12
+        ):
+            problems.append(f"descriptive {case['name']} differs from NumPy")
+    return problems
+
+
+def check_gam_basis(document: dict) -> list[str]:
+    """Only basis matrices are external evidence; fitted outputs are regression pins."""
+    problems = []
+    if document["atol"] != 2e-9 or document["rtol"] != 2e-9:
+        problems.append("GAM basis acceptance bounds changed")
+    if {c["name"] for c in document["cases"]} != {
+        "single_smooth",
+        "high_penalty",
+        "two_smooths",
+    } or len(document["cases"]) != 3:
+        problems.append("GAM basis scenario grid changed")
+    for case in document["cases"]:
+        matrices = []
+        for spec in case["specs"]:
+            degree = len(spec["knots"]) - spec["n_basis"] - 1
+            if degree != 3:
+                problems.append(f"{case['name']}: unsupported basis degree")
+                continue
+            basis = BSpline.design_matrix(
+                case["x_colmajor"][spec["raw_col"]], spec["knots"], degree
+            ).toarray()
+            matrices.append(basis.tolist())
+        if not values_close(
+            case["basis_matrices_rowmajor"], matrices, atol=2e-9, rtol=2e-9
+        ):
+            problems.append(f"{case['name']}: basis differs from SciPy")
+    return problems
+
+
+def closure_outputs(fixture: str, document: dict) -> dict:
+    """Use public fits on inputs specified by the fixture, never product helpers."""
+    if fixture == "discovery/multiplicity":
+        methods = {
+            "benjamini_hochberg": "fdr_bh",
+            "benjamini_yekutieli": "fdr_by",
+            "bonferroni": "bonferroni",
+            "holm": "holm",
+        }
+        result = {}
+        for case in document["cases"]:
+            outputs = {}
+            for name, method in methods.items():
+                # Upstream rejects zero-width input; this case is a local empty
+                # contract, explicitly not an external algorithm comparison.
+                reject, adjusted = (
+                    ([], [])
+                    if not case["p_values"]
+                    else multipletests(case["p_values"], alpha=0.05, method=method)[:2]
+                )
+                outputs[name] = {
+                    "adjusted": list(map(float, adjusted)),
+                    "reject_at_0_05": list(map(bool, reject)),
+                }
+            result[case["name"]] = outputs
+        routing = document["discovery_routing"]
+        routed = {}
+        for exclude in (True, False):
+            indices = [
+                i
+                for i, lag in enumerate(routing["source_lags"])
+                if not exclude or lag != 0
+            ]
+            reject, adjusted = multipletests(
+                [routing["p_values"][i] for i in indices], alpha=0.05, method="fdr_bh"
+            )[:2]
+            by_link = [None] * len(routing["p_values"])
+            retained = [
+                i
+                for i, lag in enumerate(routing["source_lags"])
+                if exclude and lag == 0 and routing["p_values"][i] <= 0.05
+            ]
+            for i, q, keep in zip(indices, adjusted, reject, strict=True):
+                by_link[i] = float(q)
+                if keep:
+                    retained.append(i)
+            routed[str(exclude).lower()] = {
+                "adjusted_by_link": by_link,
+                "retained_indices": sorted(retained),
+            }
+        return {"cases": result, "routing": routed}
+    if fixture == "estimate/conditional_effects":
+        i = np.arange(document["data"]["n"])
+        t, w = i % 2, i % 7 - 3
+        y = (
+            1.2
+            + 1.8 * t
+            - 0.4 * w
+            + 0.65 * t * w
+            + 0.25 * np.sin(0.31 * i)
+            + 0.1 * np.cos(0.17 * i)
+        )
+        fit = sm.OLS(y, np.column_stack([np.ones(len(i)), t, w, t * w])).fit()
+        contrast = np.array([0, 1, 0, np.mean(w)])
+        return {
+            "coefficients": fit.params.tolist(),
+            "modifier_mean": float(np.mean(w)),
+            "ate_at_modifier_mean": float(contrast @ fit.params),
+            "analytic_se": float(np.sqrt(contrast @ fit.cov_params() @ contrast)),
+        }
+    if fixture == "estimate/glm_adjustment_grid":
+        rows = [
+            (c["treatment"], c["z"], y)
+            for c in document["data"]["cells"]
+            for y, n in [(1, c["successes"]), (0, c["failures"])]
+            for _ in range(n)
+        ]
+        t, z, y = np.asarray(rows).T
+        fit = sm.GLM(
+            y, np.column_stack([np.ones(len(y)), t, z]), family=sm.families.Binomial()
+        ).fit(tol=1e-12, maxiter=500)
+        x0 = np.column_stack([np.ones(len(y)), np.zeros(len(y)), z])
+        x1 = x0.copy()
+        x1[:, 1] = 1
+        return {
+            "coefficients_intercept_t_z": fit.params.tolist(),
+            "all_observed_ate": float(np.mean(fit.predict(x1) - fit.predict(x0))),
+        }
+    if fixture == "estimate/temporal_mediation_grid":
+        i = np.arange(document["data"]["n"])
+        t = np.sin(0.071 * i) + 0.35 * np.cos(0.137 * i)
+        # Lagging drops row zero; it never wraps the final observation around.
+        lag = t[:-1]
+        m = 0.8 * lag + 0.12 * np.sin(0.43 * i[1:])
+        y = 0.25 * lag + 0.55 * m + 0.09 * np.cos(0.29 * i[1:])
+        first = sm.OLS(m, sm.add_constant(lag)).fit()
+        total = sm.OLS(y, sm.add_constant(lag)).fit()
+        direct = sm.OLS(y, np.column_stack([np.ones(len(lag)), lag, m])).fit()
+        a, b = first.params[1], direct.params[2]
+        return {
+            "a": float(a),
+            "b": float(b),
+            "total": float(total.params[1]),
+            "direct": float(direct.params[1]),
+            "mediated": float(a * b),
+            "se_total": float(total.bse[1]),
+            "se_direct": float(direct.bse[1]),
+            "se_mediated_sobel": float(
+                np.sqrt(b * b * first.bse[1] ** 2 + a * a * direct.bse[2] ** 2)
+            ),
+        }
+    raise ValueError(f"unsupported closure fixture {fixture}")
+
+
+def check_closure(fixture: str, document: dict) -> list[str]:
+    if fixture == "discovery/multiplicity":
+        expected = {
+            "cases": {c["name"]: c["outputs"] for c in document["cases"]},
+            "routing": document["discovery_routing"]["exclude_contemporaneous"],
+        }
+        valid_names = {"ordinary", "ties_and_boundaries", "permuted", "single", "empty"}
+        tolerance, rtol = 1e-15, 1e-13
+        valid = {c["name"] for c in document["cases"]} == valid_names and document[
+            "tolerance"
+        ] == {
+            "atol": tolerance,
+            "rtol": rtol,
+        }
+        valid = valid and len(document["cases"]) == len(valid_names)
+        valid = (
+            valid
+            and document["discovery_routing"]["alpha"] == 0.05
+            and document["discovery_routing"]["method"] == "benjamini_hochberg"
+        )
+    else:
+        expected = document["reference"]
+        tolerance, rtol = (
+            (
+                2e-7
+                if fixture.endswith("glm_adjustment_grid")
+                else 3e-9
+                if fixture.endswith("temporal_mediation_grid")
+                else 2e-9
+            ),
+            0,
+        )
+        if fixture == "estimate/conditional_effects":
+            inputs = {
+                "n": 240,
+                "treatment": "i mod 2",
+                "modifier": "(i mod 7)-3",
+                "outcome": "1.2 + 1.8*T - 0.4*W + 0.65*T*W + 0.25*sin(0.31*i) + 0.1*cos(0.17*i)",
+            }
+            acceptance = {"atol": 2e-9}
+        elif fixture == "estimate/temporal_mediation_grid":
+            inputs = {
+                "n": 320,
+                "treatment": "sin(0.071*i)+0.35*cos(0.137*i)",
+                "mediator": "0.8*T[i-1]+0.12*sin(0.43*i)",
+                "outcome": "0.25*T[i-1]+0.55*M[i]+0.09*cos(0.29*i)",
+            }
+            acceptance = {"atol": 3e-9}
+        else:
+            inputs = {
+                "columns": ["treatment", "outcome", "z"],
+                "cells": [
+                    {"z": z, "treatment": t, "successes": s, "failures": 100 - s}
+                    for z, t, s in [(0, 0, 20), (0, 1, 50), (1, 0, 40), (1, 1, 70)]
+                ],
+            }
+            acceptance = {"coefficient_atol": 2e-7, "ate_atol": 2e-7}
+        valid = document["data"] == inputs and document["acceptance"] == acceptance
+    if not valid:
+        return [f"{fixture}: scenario or acceptance bounds differ from reviewed inputs"]
+    actual = closure_outputs(fixture, document)
+    return (
+        []
+        if valid and values_close(expected, actual, atol=tolerance, rtol=rtol)
+        else [
+            f"{fixture}: scenario or reference output differs from pinned public fits"
+        ]
+    )
+
+
 def build_grid() -> dict:
     cases = []
     for n in (12, 32):
@@ -226,9 +467,19 @@ def build_grid() -> dict:
 
 
 def check_grid(document: dict) -> list[str]:
+    # A reference-review receipt describes the comparison; it is not a generated
+    # numerical output. All other fixture inputs, outputs and metadata must match.
+    payload = {
+        **document,
+        "oracle": {
+            key: value
+            for key, value in document["oracle"].items()
+            if key != "reference_review"
+        },
+    }
     return (
         []
-        if values_close(document, build_grid(), rtol=1e-9, atol=1e-9)
+        if values_close(payload, build_grid(), rtol=1e-9, atol=1e-9)
         else [
             "OLS/WLS grid differs from regenerated independent design/output/uncertainty"
         ]
@@ -252,7 +503,18 @@ def main() -> int:
     )
     parser.add_argument(
         "--fixture",
-        choices=("ols_wls", "ols_wls_grid", "sandwich_covariance", "glm_irls"),
+        choices=(
+            "ols_wls",
+            "ols_wls_grid",
+            "sandwich_covariance",
+            "glm_irls",
+            "descriptive",
+            "gam",
+            "discovery/multiplicity",
+            "estimate/conditional_effects",
+            "estimate/glm_adjustment_grid",
+            "estimate/temporal_mediation_grid",
+        ),
         default="ols_wls",
     )
     args = parser.parse_args()
@@ -287,42 +549,87 @@ def main() -> int:
         target.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
         return 0
     document = json.loads(
-        (Path(__file__).parent.parent / args.fixture / "expected.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            (
+                ROOT / "conformance"
+                if "/" in args.fixture
+                else Path(__file__).parent.parent
+            )
+            / args.fixture
+            / "expected.json"
+        ).read_text(encoding="utf-8")
     )
-    checker = {
-        "ols_wls": check,
-        "ols_wls_grid": check_grid,
-        "sandwich_covariance": check_covariances,
-        "glm_irls": check_glms,
-    }[args.fixture]
+    checker = (
+        (lambda doc: check_closure(args.fixture, doc))
+        if "/" in args.fixture
+        else {
+            "ols_wls": check,
+            "ols_wls_grid": check_grid,
+            "sandwich_covariance": check_covariances,
+            "glm_irls": check_glms,
+            "descriptive": check_descriptive,
+            "gam": check_gam_basis,
+        }[args.fixture]
+    )
     problems = checker(document)
     if args.self_test and not problems:
         mutations = []
         changed = copy.deepcopy(document)
-        if args.fixture == "sandwich_covariance":
+        if args.fixture == "descriptive":
+            changed["cases"][0]["mean"] += 0.01
+        elif args.fixture == "gam":
+            changed["cases"][0]["basis_matrices_rowmajor"][0][0][0] += 0.01
+        elif args.fixture == "discovery/multiplicity":
+            changed["cases"][0]["outputs"]["holm"]["adjusted"][0] += 0.01
+        elif "/" in args.fixture:
+            field = next(iter(changed["reference"]))
+            if isinstance(changed["reference"][field], list):
+                changed["reference"][field][0] += 0.01
+            else:
+                changed["reference"][field] += 0.01
+        elif args.fixture == "sandwich_covariance":
             changed["covariances"]["hc1"][0][0] += 0.01
         else:
             changed["cases"][0]["coefficients"][0] += 0.01
         mutations.append(changed)
+        if "/" in args.fixture:
+            changed = copy.deepcopy(document)
+            if args.fixture == "discovery/multiplicity":
+                changed["tolerance"]["atol"] = 1.0
+            else:
+                changed["acceptance"][next(iter(changed["acceptance"]))] = 1.0
+            mutations.append(changed)
+            changed = copy.deepcopy(document)
+            if args.fixture == "discovery/multiplicity":
+                changed["cases"] = []
+            else:
+                changed["data"]["n"] = 1
+            mutations.append(changed)
         if args.fixture == "ols_wls":
             changed = copy.deepcopy(document)
             changed["atol"] = 1.0
             mutations.append(changed)
-        changed = copy.deepcopy(document)
-        changed["covariances" if args.fixture == "sandwich_covariance" else "cases"] = (
-            [] if args.fixture != "sandwich_covariance" else {}
-        )
-        mutations.append(changed)
+        if "/" not in args.fixture:
+            changed = copy.deepcopy(document)
+            changed[
+                "covariances" if args.fixture == "sandwich_covariance" else "cases"
+            ] = [] if args.fixture != "sandwich_covariance" else {}
+            mutations.append(changed)
         for index, mutated in enumerate(mutations):
             if not checker(mutated):
                 problems.append(f"fault control {index} passed incorrectly")
     for problem in problems:
         print(f"FAIL: {problem}")
     if not problems:
-        cases = document.get("cases", document.get("covariances", []))
-        print(f"{args.fixture}: {len(cases)} pinned black-box cases reproduced")
+        cases = document.get(
+            "cases", document.get("covariances", document.get("reference", []))
+        )
+        label = (
+            "output fields"
+            if "/" in args.fixture and args.fixture != "discovery/multiplicity"
+            else "cases"
+        )
+        print(f"{args.fixture}: {len(cases)} pinned black-box {label} reproduced")
     return int(bool(problems))
 
 

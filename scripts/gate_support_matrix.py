@@ -20,7 +20,7 @@ if matrix_shard != "all":
     )
 
 from evidence_kinds import EVIDENCE_KINDS as ALL_EVIDENCE_KINDS
-from evidence_kinds import KNOWN_TRUTH_KINDS
+from evidence_kinds import KNOWN_TRUTH_KINDS, fixture_kind_problems
 
 EVIDENCE_KINDS = ALL_EVIDENCE_KINDS - {"process_attested"}
 
@@ -494,6 +494,7 @@ for i, row in enumerate(cells, 1):
     if row.get("status") is not None:
         fail.append(f"{label}: status is illegal on a matrix cell")
     fixture = row.get("known_truth_fixture")
+    fail.extend(f"{label}: {problem}" for problem in fixture_kind_problems(root, row))
     if kind in KNOWN_TRUTH_KINDS:
         if not isinstance(fixture, str) or not fixture.strip():
             fail.append(f"{label}: {kind} requires known_truth_fixture")

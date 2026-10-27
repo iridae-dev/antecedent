@@ -193,13 +193,15 @@ def command_blocks(obj):
             yield from command_blocks(value)
 
 
-from evidence_kinds import ORACLE_KINDS
+from evidence_kinds import ORACLE_KINDS, fixture_review_problems
 
 for expected in sorted((root / "conformance").glob("**/expected.json")):
     try:
         document = json.loads(expected.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         continue
+    if isinstance(document.get("oracle"), dict):
+        fail.extend(f"{expected}: {problem}" for problem in fixture_review_problems(root, document))
     for block in command_blocks(document):
         command = block["command"]
         if "/tmp/" in command and block.get("generator_retained") is not False:
