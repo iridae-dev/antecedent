@@ -44,7 +44,6 @@ pub(crate) fn grow_window(
     chain_cap: u32,
 ) -> Result<GrownWindow, IdentificationError> {
     let edges = StationaryEdges::from_template(template, variable_count);
-    let truncatable = truncatable_variables(template, variable_count);
     let mut depth = base_history;
     let history = loop {
         let indexer = TemporalIndexer::new(variable_count, depth, horizon)
@@ -54,7 +53,7 @@ pub(crate) fn grow_window(
                 .dense_id(*seed)
                 .map_err(|_| IdentificationError::UnknownVariable { id: seed.variable })?;
         }
-        if !edges.ancestry_touches_boundary(seeds, depth, horizon, &truncatable) {
+        if !edges.ancestry_touches_boundary(seeds, depth, horizon) {
             break depth;
         }
         if depth >= history_cap {
@@ -76,7 +75,14 @@ pub(crate) fn grow_window(
         );
     }
     #[cfg(debug_assertions)]
-    assert_stopped_at_fixed_point(template, seeds, &unfolded, &dense, base_history, &truncatable);
+    assert_stopped_at_fixed_point(
+        template,
+        &edges,
+        seeds,
+        &unfolded,
+        &dense,
+        base_history,
+    );
     Ok(GrownWindow { history, unfolded, dense })
 }
 
@@ -132,46 +138,21 @@ fn history_cap_refusal(history_cap: u32, chain_cap: u32) -> IdentificationError 
     IdentificationError::NotCertified { message }
 }
 
-/// Per-variable flag: `true` when some template edge into that variable spans
-/// strictly backwards in time (parent lag greater than child lag), i.e. when
-/// an unfolded node of the variable at the deepest window slice would have
-/// parents cut off by the truncation.
-fn truncatable_variables(template: &TemporalDag, variable_count: u32) -> Vec<bool> {
-    let mut truncatable = vec![false; variable_count as usize];
-    for edge in template.edges() {
-        let Some((from, to)) = edge.parent_child() else {
-            continue;
-        };
-        let (Some(from_key), Some(to_key)) =
-            (template.temporal_key(from), template.temporal_key(to))
-        else {
-            continue;
-        };
-        if from_key.offset < to_key.offset {
-            if let Some(slot) = truncatable.get_mut(to_key.variable.raw() as usize) {
-                *slot = true;
-            }
-        }
-    }
-    truncatable
-}
-
-/// Whether any ancestor of `nodes` in the unfolded graph sits at the deepest
-/// slice (`offset == -history`) with in-template parents that the truncation
-/// cut off.
+/// Whether any ancestor of `nodes` in the unfolded graph has a template parent
+/// that the truncation to `history` slices cut off.
 #[cfg(debug_assertions)]
 fn ancestry_touches_unfolded(
     unfolded: &UnfoldedTemporalGraph,
+    edges: &StationaryEdges,
     nodes: &[u32],
     history: u32,
-    truncatable: &[bool],
 ) -> bool {
     let dag = &unfolded.dag;
     let mut ancestors = BitSet::with_len(dag.node_count());
     let mut gws = GraphWorkspace::default();
     let dense: Vec<DenseNodeId> = nodes.iter().copied().map(DenseNodeId::from_raw).collect();
     dag.ancestors_of(&dense, &mut ancestors, &mut gws);
-    let boundary = -i64::from(history);
+    let min_off = -i64::from(history);
     for i in 0..dag.node_count() {
         let id = DenseNodeId::from_index(i);
         if !ancestors.contains(id) {
@@ -180,9 +161,7 @@ fn ancestry_touches_unfolded(
         let Ok(key) = unfolded.indexer.key_of(id.raw()) else {
             continue;
         };
-        if i64::from(key.offset) == boundary
-            && truncatable.get(key.variable.raw() as usize).copied().unwrap_or(false)
-        {
+        if edges.has_cut_parent(key.variable.raw(), i64::from(key.offset), min_off) {
             return true;
         }
     }
@@ -227,7 +206,6 @@ impl StationaryEdges {
         seeds: &[TemporalNodeKey],
         history: u32,
         horizon: u32,
-        truncatable: &[bool],
     ) -> bool {
         let min_off = -i64::from(history);
         let max_off = i64::from(horizon) - 1;
@@ -235,8 +213,26 @@ impl StationaryEdges {
             seeds.iter().map(|seed| (seed.variable.raw(), i64::from(seed.offset))),
             |&(var, offset)| self.parents(var, offset, min_off, max_off),
         );
-        reached.into_iter().any(|(var, offset)| {
-            offset == min_off && truncatable.get(var as usize).copied().unwrap_or(false)
+        reached.into_iter().any(|(var, offset)| self.has_cut_parent(var, offset, min_off))
+    }
+
+    /// Whether the node `(var, offset)` has a template parent earlier than `min_off`, which
+    /// the window therefore omits. Any such node, at any slice, leaves the window's ancestry
+    /// open: with template lag `k`, nodes within `k` slices of the boundary lose parents,
+    /// not just the nodes on the boundary slice.
+    fn has_cut_parent(&self, var: u32, offset: i64, min_off: i64) -> bool {
+        let Some(edges) = self.incoming.get(var as usize) else {
+            return false;
+        };
+        edges.iter().any(|&(parent_var, parent_off, child_off)| {
+            let Some(delta) = offset.checked_sub(i64::from(child_off)) else {
+                return false;
+            };
+            let Ok(delta) = i32::try_from(delta) else {
+                return false;
+            };
+            let parent = i64::from(parent_off.saturating_add(delta));
+            parent < min_off && !(parent_var == var && parent == offset)
         })
     }
 
@@ -296,15 +292,15 @@ impl StationaryEdges {
 #[cfg(debug_assertions)]
 fn assert_stopped_at_fixed_point(
     template: &TemporalDag,
+    edges: &StationaryEdges,
     seeds: &[TemporalNodeKey],
     unfolded: &UnfoldedTemporalGraph,
     dense: &[u32],
     base_history: u32,
-    truncatable: &[bool],
 ) {
     let history = unfolded.indexer.history();
     assert!(
-        !ancestry_touches_unfolded(unfolded, dense, history, truncatable),
+        !ancestry_touches_unfolded(unfolded, edges, dense, history),
         "grow_window certified a window whose ancestry still meets the truncated boundary"
     );
     if history == base_history {
@@ -322,7 +318,7 @@ fn assert_stopped_at_fixed_point(
         .map(|seed| previous.indexer.dense_id(*seed).expect("seed stays in the previous window"))
         .collect();
     assert!(
-        ancestry_touches_unfolded(&previous, &previous_dense, history - 1, truncatable),
+        ancestry_touches_unfolded(&previous, edges, &previous_dense, history - 1),
         "grow_window grew past a history that already closed the truncated boundary"
     );
 }

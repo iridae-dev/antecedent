@@ -6,6 +6,8 @@ copied_comments = false
 copied_tests = false
 
 implementation_deviations = [
+ "A finite window is certified only when every ancestor of the treatment and outcome nodes has all of its template parents inside the window; otherwise the window grows to the history cap and the query is refused (an autoregressive edge of any lag makes the ancestry unbounded). The check is on the ancestry of the treatment and outcome, not of each candidate adjustment set.",
+ "Where the window cannot be certified, a single-step pulse may be identified by adjusting for the treatment's own parents when the caller enables that fallback; the parents are read from the unfolded graph and the set is checked against the back-door criterion there.",
  "Extends the cited static back-door criterion to a finite unfolding of a stationary temporal template; stationarity, finite horizon, pulse or sustained policies, and history truncation are implementation assumptions not supplied by the cited source.",
  "Single-step queries use back-door adjustment, while multi-step queries delegate to general ID on the unfolded graph rather than a longitudinal back-door or sequential g-formula algorithm.",
  "The unfolded identifier supports hard Set contrasts and supplies the schedule-level graph identification used by licensed sequential overlays. Multi-step estimation uses estimate.temporal_sequential; soft mean overlays do not create a second identifier.",
@@ -26,3 +28,29 @@ test_sources = [
  "manufacturing-style pressure→defect temporal example",
  "conformance/bayesian/known_truth_mixtures (a stationary autoregressive DBN atom reaches the finite-history certification cap and is retained as unidentified posterior mass rather than certified)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "TemporalBackdoorIdentifier::identify_temporal for single-step pulse, sustained and dynamic queries and the multi-step delegation to the general-ID schedule contrast, plus the window-growth certificate in temporal_window.rs (StationaryEdges closure, history cap and refusal) and the parent-adjustment fallback. The static back-door search on the unfolded graph (backdoor.rs) is read for how candidates and the history-lag filter are applied; it is not re-reviewed as a static identifier. Not a review of estimation, of general ID itself, or of the temporal IV unfolding that reuses the same window helper."
+assumptions = ["The temporal template is a stationary, causally sufficient DAG over observed variables: every edge is replicated at every time shift, there is no latent common cause, and no instantaneous cycle.", "The finite window is exact only if it contains the complete ancestry of the treatment and outcome nodes; the unfolded graph is then the same as the infinite one on that ancestry, so back-door paths into the treatment (which leave through its parents) are the same.", "Back-door adjustment gives the average effect of the declared Set contrast only under positivity of the treatment given the adjustment set and consistency, neither of which the graph shows.", "Single-step sustained and dynamic queries are the same contrast as a pulse at that offset; multi-step schedules rest on sequential identification of the joint treatment nodes, whose estimation is separate."]
+historical_exposure = "Historical author exposure cannot be independently established. The earlier record disclosed no upstream implementation observed (tigramite: none). This review read the product source and wrote its own counting check from the template edges; no upstream implementation or test source was consulted or copied."
+redistribution = "The random-template property check and the lag-two counterexample are repository-authored under MIT OR Apache-2.0 and run inside the crate's unit tests. The cited book is linked by DOI, not redistributed."
+limitations = "Pearl's book (the back-door criterion, Definition 3.3.1 and Theorem 3.3.2) was not re-read in this review; the criterion is applied by the static identifier and the static-to-temporal step is checked against its own stated certificate and an independent count of template parents, not against a published temporal theorem (none is cited for the unfolding, which is an engineering extension). The certificate covers the ancestry of the treatment and outcome nodes only. An adjustment set containing a non-ancestor whose own parent was cut by the window can in principle open a path (for example a collider pair whose common parent lies outside the window) that the finite graph does not show; the identifier's search is not restricted to the closed ancestry in every configuration, so exactness for such sets is not established here and no such counterexample was constructed or ruled out. The random-template check uses three variables and lags up to three; it checks closure, not the adjustment set returned. The sequential identification used for multi-step schedules is not reviewed here. Calibration remains deferred."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["Found and fixed a real defect: the window-growth test flagged a truncated ancestry only when an ancestor sat on the deepest slice, so with a template lag of two the lag-two ancestors of the treatment land one slice above the boundary at odd depths and the window was certified although the ancestry was cut (a lag-two autoregressive treatment reached this at pulse offset 0). The test now flags any reached node having a template parent earlier than the window, at any slice. The debug assertion that re-checks the certificate against the unfolded graph uses the same definition.", "Added an executing counterexample (lag-two autoregressive treatment, pulse offsets 0 and -1, must be refused with the lagged-cycle message) that failed before the change, and a random-template property check over 400 templates (three variables, lags up to three, pulse offsets 0 to -2) asserting that every certified window gives each ancestor of the treatment and outcome all the parents its variable has in the template, with at least 60 certified and 60 refused cases so it cannot pass vacuously. Both fail if the old boundary-slice-only test is restored.", "Verified from the code that multi-step sustained and dynamic queries delegate to the general-ID schedule contrast with both contrast levels, that single-step ones use back-door adjustment (not the empty-adjustment functional), and that mixed Set levels in a schedule are refused rather than collapsed.", "Verified the parent-adjustment fallback: the window holds every template parent of the treatment, the outcome being a parent is refused, a parent beyond max_history_lag is refused, the set is re-checked against the back-door criterion on the mutilated graph, and multi-step schedules are refused.", "Recorded the history-lag filter's treatment of future-offset covariates and the ancestry-only scope of the certificate as limits. Code edits: temporal_window.rs (boundary test and its debug assertion) and new unit tests in temporal_backdoor.rs."]
+record_sha256 = "3a3de991a9a795e99b58b312802e27bedef9eee7282e33ac62a064288a549edc"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/temporal_window.rs"
+sha256 = "b0e4d98e373d8a9427fc7b15934c6efa2bd43077de20f4350432f0ece150b268"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/backdoor.rs"
+sha256 = "53df18f0d16058de42d374e0b2733a0b1a89048c332aa1459e8c7c3669b64d74"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/src/temporal_backdoor.rs"
+sha256 = "c2abc3870dccb8691e71a45e03d5650693dc76e78ed9f0c8b04f3c992a03cb19"

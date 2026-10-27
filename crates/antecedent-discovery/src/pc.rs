@@ -1111,6 +1111,445 @@ mod tests {
         assert!(matches!(out, Err(DiscoveryError::Cancelled)), "{out:?}");
     }
 
+    /// A CI test whose p-value depends only on the pair, whatever the conditioning set.
+    struct PairPCi(Vec<((usize, usize), f64)>);
+
+    impl ConditionalIndependence for PairPCi {
+        fn test_batch(
+            &self,
+            prepared: &PreparedCiTest,
+            request: &CiBatchRequest<'_>,
+            _workspace: &mut CiWorkspace,
+            _ctx: &ExecutionContext,
+        ) -> Result<CiBatchResult, StatsError> {
+            prepared.ensure_compatible(request)?;
+            let request = &prepared.bind_request(request);
+            let results = request
+                .queries
+                .iter()
+                .map(|q| {
+                    let key = (q.x.min(q.y), q.x.max(q.y));
+                    let p_value = self.0.iter().find(|e| e.0 == key).map_or(1.0, |e| e.1);
+                    CiResult { statistic: 1.0 - p_value, p_value, df: 0.0, ci: None }
+                })
+                .collect();
+            Ok(CiBatchResult { results })
+        }
+    }
+
+    /// An adjacency that passes every fixed-alpha test but not the edge-family correction
+    /// leaves the skeleton with no separating set. The two nonadjacent endpoints are then
+    /// undecided, not separated by the empty set, so no collider is inferred around them;
+    /// had the same pair been separated by a test, the collider would be oriented.
+    #[test]
+    fn correction_removed_edge_leaves_its_triple_undecided_not_a_collider() {
+        let data = tabular_n(4, 40);
+        let vars: Vec<VariableId> = (0..4u32).map(VariableId::from_raw).collect();
+        // 0-1 and 1-2 strongly dependent; 0-2 at p = 0.04 (alpha = 0.05, so the skeleton keeps
+        // it); every pair with variable 3 independent. Six edge hypotheses; BH adjusts the
+        // third smallest p to 6 * 0.04 / 3 = 0.08 > 0.05.
+        let table = |p02: f64| {
+            vec![((0, 1), 1e-4), ((1, 2), 1e-4), ((0, 2), p02)]
+        };
+        let run = |p02: f64, fdr: bool| {
+            let pc = Pc::new().with_fdr(fdr).with_ci(Arc::new(PairPCi(table(p02))));
+            let mut ws = DiscoveryWorkspace::default();
+            pc.run(&data, &vars, &mut ws, &ExecutionContext::for_tests(1)).unwrap()
+        };
+        let d = DenseNodeId::from_raw;
+
+        let corrected = run(0.04, true);
+        let g = &corrected.evidence.graph;
+        assert!(!g.has_edge(d(0), d(2)), "the correction removes the borderline adjacency");
+        for (a, b) in [(0, 1), (1, 2)] {
+            let edge = g.edge_between(d(a), d(b)).unwrap();
+            assert!(edge.is_undirected(), "{a}-{b} must stay undirected: no sepset, no collider");
+        }
+        assert!(
+            !corrected.sepsets.contains_key(&(
+                VariableId::from_raw(0),
+                Lag::CONTEMPORANEOUS,
+                VariableId::from_raw(2),
+                Lag::CONTEMPORANEOUS
+            )),
+            "a removed-by-correction pair has no separating set"
+        );
+
+        // Uncorrected, 0-2 stays and the triangle is unoriented.
+        let raw = run(0.04, false);
+        assert!(raw.evidence.graph.has_edge(d(0), d(2)));
+
+        // A pair separated by a test (p above alpha) yields the empty sepset and a collider.
+        let separated = run(0.9, true);
+        let g = &separated.evidence.graph;
+        assert!(!g.has_edge(d(0), d(2)));
+        assert_eq!(g.edge_between(d(0), d(1)).unwrap().parent_child(), Some((d(0), d(1))));
+        assert_eq!(g.edge_between(d(2), d(1)).unwrap().parent_child(), Some((d(2), d(1))));
+    }
+
+    /// Population-level correctness of the skeleton search, collider rule and Meek rules.
+    ///
+    /// The conditional-independence answers come from d-separation in a known DAG (a
+    /// moralised-ancestral-graph check written here, independent of `antecedent-graph`), and
+    /// the expected result is the Markov-equivalence class computed from its definition: the
+    /// acyclic orientations of the skeleton that keep the same unshielded colliders, with an
+    /// edge directed exactly when all of them agree. Neither side uses the orientation rules
+    /// under test.
+    mod d_separation_oracle {
+        use std::collections::{BTreeSet, HashSet};
+        use std::sync::Arc;
+
+        use antecedent_core::{ExecutionContext, VariableId};
+        use antecedent_graph::DenseNodeId;
+        use antecedent_stats::{
+            CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence,
+            PreparedCiTest, StatsError,
+        };
+
+        use super::super::Pc;
+        use crate::constraints::DiscoveryConstraints;
+        use crate::engine::DiscoveryWorkspace;
+        use crate::test_tables::tabular_n;
+
+        /// Parent lists of a DAG on nodes `0..n`.
+        #[derive(Clone)]
+        struct Dag {
+            parents: Vec<Vec<usize>>,
+        }
+
+        impl Dag {
+            fn edges(&self) -> Vec<(usize, usize)> {
+                let mut out = Vec::new();
+                for (child, ps) in self.parents.iter().enumerate() {
+                    for &p in ps {
+                        out.push((p, child));
+                    }
+                }
+                out
+            }
+
+            fn ancestors_of(&self, seeds: &[usize]) -> HashSet<usize> {
+                let mut seen: HashSet<usize> = seeds.iter().copied().collect();
+                let mut stack: Vec<usize> = seeds.to_vec();
+                while let Some(v) = stack.pop() {
+                    for &p in &self.parents[v] {
+                        if seen.insert(p) {
+                            stack.push(p);
+                        }
+                    }
+                }
+                seen
+            }
+
+            /// Lauritzen's criterion: `x ⊥ y | z` iff `z` separates them in the moral graph of
+            /// the ancestral set of `{x, y} ∪ z`.
+            fn d_separated(&self, x: usize, y: usize, z: &[usize]) -> bool {
+                let mut seeds = vec![x, y];
+                seeds.extend_from_slice(z);
+                let keep = self.ancestors_of(&seeds);
+                let mut adj: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); self.parents.len()];
+                for &v in &keep {
+                    let ps: Vec<usize> =
+                        self.parents[v].iter().copied().filter(|p| keep.contains(p)).collect();
+                    for (i, &a) in ps.iter().enumerate() {
+                        adj[a].insert(v);
+                        adj[v].insert(a);
+                        for &b in &ps[i + 1..] {
+                            adj[a].insert(b);
+                            adj[b].insert(a);
+                        }
+                    }
+                }
+                let blocked: HashSet<usize> = z.iter().copied().collect();
+                let mut seen: HashSet<usize> = HashSet::from([x]);
+                let mut stack = vec![x];
+                while let Some(v) = stack.pop() {
+                    for &u in &adj[v] {
+                        if blocked.contains(&u) || !seen.insert(u) {
+                            continue;
+                        }
+                        stack.push(u);
+                    }
+                }
+                !seen.contains(&y)
+            }
+        }
+
+        #[derive(Clone)]
+        struct DSepCi(Dag);
+
+        impl ConditionalIndependence for DSepCi {
+            fn test_batch(
+                &self,
+                prepared: &PreparedCiTest,
+                request: &CiBatchRequest<'_>,
+                _workspace: &mut CiWorkspace,
+                _ctx: &ExecutionContext,
+            ) -> Result<CiBatchResult, StatsError> {
+                prepared.ensure_compatible(request)?;
+                let request = &prepared.bind_request(request);
+                let results = request
+                    .queries
+                    .iter()
+                    .map(|q| {
+                        let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
+                        let independent = self.0.d_separated(q.x, q.y, z);
+                        CiResult {
+                            statistic: if independent { 0.0 } else { 1.0 },
+                            p_value: if independent { 1.0 } else { 0.0 },
+                            df: 0.0,
+                            ci: None,
+                        }
+                    })
+                    .collect();
+                Ok(CiBatchResult { results })
+            }
+        }
+
+        /// Directed edges present in an orientation, keyed `(parent, child)`.
+        type Orientation = Vec<(usize, usize)>;
+
+        fn adjacent(edges: &[(usize, usize)], a: usize, b: usize) -> bool {
+            edges.iter().any(|&(u, v)| (u == a && v == b) || (u == b && v == a))
+        }
+
+        fn unshielded_colliders(n: usize, edges: &[(usize, usize)]) -> BTreeSet<(usize, usize, usize)> {
+            let mut out = BTreeSet::new();
+            for c in 0..n {
+                let ps: Vec<usize> = edges.iter().filter(|e| e.1 == c).map(|e| e.0).collect();
+                for (i, &a) in ps.iter().enumerate() {
+                    for &b in &ps[i + 1..] {
+                        if !adjacent(edges, a, b) {
+                            out.insert((a.min(b), c, a.max(b)));
+                        }
+                    }
+                }
+            }
+            out
+        }
+
+        fn acyclic(n: usize, edges: &[(usize, usize)]) -> bool {
+            let mut indeg = vec![0usize; n];
+            for &(_, v) in edges {
+                indeg[v] += 1;
+            }
+            let mut ready: Vec<usize> = (0..n).filter(|&v| indeg[v] == 0).collect();
+            let mut seen = 0;
+            while let Some(v) = ready.pop() {
+                seen += 1;
+                for &(u, w) in edges {
+                    if u == v {
+                        indeg[w] -= 1;
+                        if indeg[w] == 0 {
+                            ready.push(w);
+                        }
+                    }
+                }
+            }
+            seen == n
+        }
+
+        /// Directions every member of the Markov equivalence class of `dag` agrees on:
+        /// `Some((p, c))` for a compelled edge, `None` for a reversible one.
+        fn class_edges(dag: &Dag) -> Vec<((usize, usize), Option<(usize, usize)>)> {
+            let n = dag.parents.len();
+            let edges = dag.edges();
+            let target = unshielded_colliders(n, &edges);
+            let mut members: Vec<Orientation> = Vec::new();
+            for mask in 0u32..(1 << edges.len()) {
+                let oriented: Orientation = edges
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &(a, b))| if mask >> i & 1 == 0 { (a, b) } else { (b, a) })
+                    .collect();
+                if acyclic(n, &oriented) && unshielded_colliders(n, &oriented) == target {
+                    members.push(oriented);
+                }
+            }
+            edges
+                .iter()
+                .enumerate()
+                .map(|(i, &(a, b))| {
+                    let forward = members.iter().all(|m| m[i] == (a, b));
+                    let backward = members.iter().all(|m| m[i] == (b, a));
+                    let key = (a.min(b), a.max(b));
+                    (key, if forward { Some((a, b)) } else if backward { Some((b, a)) } else { None })
+                })
+                .collect()
+        }
+
+        fn run_pc(dag: &Dag) -> crate::pc::StaticCpdagDiscoveryResult {
+            let n = dag.parents.len();
+            let data = tabular_n(n, 10);
+            let vars: Vec<VariableId> = (0..n as u32).map(VariableId::from_raw).collect();
+            let constraints = DiscoveryConstraints {
+                max_cond_size: n,
+                ..Pc::new().constraints
+            };
+            let pc = Pc::new()
+                .with_fdr(false)
+                .with_constraints(constraints)
+                .with_ci(Arc::new(DSepCi(dag.clone())));
+            let mut ws = DiscoveryWorkspace::default();
+            pc.run(&data, &vars, &mut ws, &ExecutionContext::for_tests(1)).unwrap()
+        }
+
+        fn assert_recovers_class(dag: &Dag, label: &str) {
+            let n = dag.parents.len();
+            let result = run_pc(dag);
+            let graph = &result.evidence.graph;
+            let expected = class_edges(dag);
+            let expected_adj: HashSet<(usize, usize)> = expected.iter().map(|e| e.0).collect();
+            for a in 0..n {
+                for b in (a + 1)..n {
+                    let found = graph
+                        .edge_between(DenseNodeId::from_raw(a as u32), DenseNodeId::from_raw(b as u32));
+                    assert_eq!(
+                        found.is_some(),
+                        expected_adj.contains(&(a, b)),
+                        "{label}: adjacency {a}-{b}; dag edges {:?}",
+                        dag.edges()
+                    );
+                }
+            }
+            for ((a, b), compelled) in expected {
+                let edge = graph
+                    .edge_between(DenseNodeId::from_raw(a as u32), DenseNodeId::from_raw(b as u32))
+                    .unwrap();
+                let got = edge.parent_child().map(|(p, c)| (p.raw() as usize, c.raw() as usize));
+                assert_eq!(got, compelled, "{label}: edge {a}-{b}; dag edges {:?}", dag.edges());
+                if compelled.is_none() {
+                    assert!(edge.is_undirected(), "{label}: edge {a}-{b} must stay undirected");
+                }
+            }
+            // Every recorded separating set really d-separates its pair.
+            for ((x, _, y, _), sep) in &result.sepsets {
+                let z: Vec<usize> = sep.iter().map(|(v, _)| v.raw() as usize).collect();
+                assert!(
+                    dag.d_separated(x.raw() as usize, y.raw() as usize, &z),
+                    "{label}: recorded sepset {z:?} does not separate {x:?},{y:?}"
+                );
+            }
+        }
+
+        fn dag(n: usize, edges: &[(usize, usize)]) -> Dag {
+            let mut parents = vec![Vec::new(); n];
+            for &(p, c) in edges {
+                parents[c].push(p);
+            }
+            Dag { parents }
+        }
+
+        /// The moral-graph oracle itself, on cases with known answers, so the PC tests below
+        /// cannot pass on a degenerate oracle.
+        #[test]
+        fn oracle_matches_textbook_d_separation() {
+            let chain = dag(3, &[(0, 1), (1, 2)]);
+            assert!(!chain.d_separated(0, 2, &[]));
+            assert!(chain.d_separated(0, 2, &[1]));
+            let collider = dag(3, &[(0, 1), (2, 1)]);
+            assert!(collider.d_separated(0, 2, &[]));
+            assert!(!collider.d_separated(0, 2, &[1]));
+            // Conditioning on a descendant of a collider opens it.
+            let descendant = dag(4, &[(0, 1), (2, 1), (1, 3)]);
+            assert!(!descendant.d_separated(0, 2, &[3]));
+            let fork = dag(3, &[(1, 0), (1, 2)]);
+            assert!(!fork.d_separated(0, 2, &[]));
+            assert!(fork.d_separated(0, 2, &[1]));
+        }
+
+        /// Hand-checked classes: Meek R1 (compelled propagation past a collider), R2 and R3
+        /// all fire here, plus a class with no compelled edge.
+        #[test]
+        fn known_equivalence_classes_are_recovered() {
+            // Reversible chain: nothing compelled.
+            assert_recovers_class(&dag(3, &[(0, 1), (1, 2)]), "chain");
+            // Collider 0→2←1 then 2→3 is compelled by R1.
+            assert_recovers_class(&dag(4, &[(0, 2), (1, 2), (2, 3)]), "r1");
+            // Diamond: only the collider at 3 is compelled.
+            assert_recovers_class(&dag(4, &[(0, 1), (0, 2), (1, 3), (2, 3)]), "diamond");
+            // R3: 0-1, 0-2, 0-3 with 1→3←2 forces 0→3.
+            assert_recovers_class(&dag(4, &[(0, 1), (0, 2), (0, 3), (1, 3), (2, 3)]), "r3");
+            // R1 compels 1→2 (3→1—2, 3 not adjacent to 2), then R2 compels 0→2 (0→1→2, 0—2).
+            assert_recovers_class(
+                &dag(5, &[(3, 1), (4, 1), (1, 2), (0, 1), (0, 2)]),
+                "r2-shape",
+            );
+        }
+
+        /// The documented depth bound is a real limit, not an inert default: x and y share four
+        /// parents and are separated only by all four. Capped at three the pair stays adjacent
+        /// (a spurious edge); the uncapped search removes it with that set.
+        #[test]
+        fn conditioning_size_cap_leaves_a_spurious_edge_until_it_is_raised() {
+            let shared = dag(
+                6,
+                &[(0, 4), (1, 4), (2, 4), (3, 4), (0, 5), (1, 5), (2, 5), (3, 5)],
+            );
+            let n = 6;
+            let data = tabular_n(n, 10);
+            let vars: Vec<VariableId> = (0..n as u32).map(VariableId::from_raw).collect();
+            let run_with = |cap: usize| {
+                let constraints =
+                    DiscoveryConstraints { max_cond_size: cap, ..Pc::new().constraints };
+                let pc = Pc::new()
+                    .with_fdr(false)
+                    .with_constraints(constraints)
+                    .with_ci(Arc::new(DSepCi(shared.clone())));
+                let mut ws = DiscoveryWorkspace::default();
+                pc.run(&data, &vars, &mut ws, &ExecutionContext::for_tests(1)).unwrap()
+            };
+            let (x, y) = (DenseNodeId::from_raw(4), DenseNodeId::from_raw(5));
+            assert!(run_with(3).evidence.graph.has_edge(x, y), "cap 3 cannot reach the sepset");
+            let full = run_with(4);
+            assert!(!full.evidence.graph.has_edge(x, y));
+            let sep = &full.sepsets[&(
+                VariableId::from_raw(4),
+                antecedent_core::Lag::CONTEMPORANEOUS,
+                VariableId::from_raw(5),
+                antecedent_core::Lag::CONTEMPORANEOUS,
+            )];
+            let mut found: Vec<u32> = sep.iter().map(|(v, _)| v.raw()).collect();
+            found.sort_unstable();
+            assert_eq!(found, vec![0, 1, 2, 3]);
+        }
+
+        /// Random DAGs on five and six nodes, with node ids not tied to topological order.
+        #[test]
+        fn random_dags_recover_their_markov_equivalence_class() {
+            let mut state = 0x9E37_79B9_7F4A_7C15u64;
+            let mut next = move || {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                state
+            };
+            let mut checked = 0;
+            for trial in 0..160u32 {
+                let n = 5 + (trial as usize % 2);
+                // Random topological order, then each forward pair is an edge with prob ~0.45.
+                let mut order: Vec<usize> = (0..n).collect();
+                for i in (1..n).rev() {
+                    order.swap(i, (next() % (i as u64 + 1)) as usize);
+                }
+                let mut edges = Vec::new();
+                for i in 0..n {
+                    for j in (i + 1)..n {
+                        if next() % 100 < 45 {
+                            edges.push((order[i], order[j]));
+                        }
+                    }
+                }
+                if edges.is_empty() || edges.len() > 11 {
+                    continue;
+                }
+                assert_recovers_class(&dag(n, &edges), &format!("trial {trial}"));
+                checked += 1;
+            }
+            assert!(checked >= 100, "only {checked} usable random DAGs");
+        }
+    }
+
     /// Background knowledge on static PC. The dependent pairs of `OracleCi` are the adjacent
     /// pairs, and a non-adjacent pair is independent given the empty set (so every unshielded
     /// triple is a collider); the single-edge and triangle graphs below have none.

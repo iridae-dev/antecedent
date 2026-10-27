@@ -13,6 +13,7 @@ implementation_deviations = [
  "This is primarily a caller-labelled per-regime PCMCI+ wrapper, whereas Regime-PCMCI jointly learns persistent latent regime assignments and per-regime PCMCI graphs.",
  "Optional assignment refinement fits an intercept and all retained positive-lag parents for every variable under each regime, sums squared prediction errors standardized by each variable's variance, and chooses a hard label path by Viterbi with a caller-configured switch penalty. Intercept-only variables remain in the score; contemporaneous parents are excluded. This persistence penalty is implemented, but is not the paper's full regime-learning optimization or evidence of equivalence to it.",
  "Short regimes are skipped under a fixed minimum-length policy, and failed refinement retains the preceding labelled result.",
+ "Per-regime discovery keeps a time point only when its whole lag window of 2 * max_lag + 1 consecutive rows carries that regime's label, so regime graphs are fit on masked effective windows of the full series rather than on spliced rows; labels refined from the same data add a post-selection diagnostic stating that the reported p-values are conditional on data-driven labels.",
 ]
 
 upstream_implementations_observed = [
@@ -25,3 +26,29 @@ test_sources = [
  "conformance/discovery/rpcmci_two_regime (library structure pin; external RPCMCI unavailable on the pinned version)",
  "conformance/discovery/rpcmci_fixed_regime_matrix (Tigramite PCMCI+ per fixed regime; not RPCMCI regime-inference parity)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Rpcmci::run in crates/antecedent-discovery/src/rpcmci.rs: the caller-labelled per-regime masked PCMCI+ discovery (window mask, minimum-length policy, frame depth) and the optional alternating label refinement (per-regime lagged least-squares equations, variance-standardised one-step cost, Viterbi minimum-cost label path with a switch penalty, stopping and rejection rules, post-selection diagnostic). Not a review of PCMCI+ itself, which each regime graph delegates to, and not of the regime-learning optimisation of the cited method, which this code does not implement."
+assumptions = ["Within each regime the process is stationary, causally sufficient and (for the per-regime PCMCI+ tests) has CI-test assumptions of the chosen test; regime labels are either known to the caller or taken as the minimum-cost path under the refinement's fitted linear lagged models.", "Label refinement scores only linear lagged equations with each regime's retained positive-lag parents; nonlinear, contemporaneous or latent-driver regime differences do not enter the cost.", "A hard label path is chosen by minimum total cost; the switch penalty is a tuning constant in standardised-variance units, not an estimated persistence probability.", "Reported per-regime p-values are conditional on the labels; for refined labels they are not valid frequentist p-values (the code states this)."]
+historical_exposure = "Historical author exposure cannot be independently established. The earlier record disclosed black-box tigramite comparison only, with the upstream RPCMCI unavailable on the pinned version; no upstream RPCMCI implementation or test source was consulted or copied in this review."
+redistribution = "The exhaustive path-enumeration test is repository-authored under MIT OR Apache-2.0 and runs inside the crate's unit tests. The cited paper is linked by DOI, not redistributed. Existing fixtures are unchanged."
+limitations = "The cited paper (Saggioro et al., Chaos 2020) was not re-read in this review (not reachable here); this is a code-versus-rule review of the label-path search and mask logic with an executing exhaustive reference, not a comparison with the published regime-learning algorithm, which jointly optimises regime assignments and per-regime parents and which this implementation does not reproduce. The Viterbi check covers the path search as a pure function of step costs for up to four regimes and seven steps; it does not test that the step costs (lagged-equation fits, standardisation) estimate what the regime model intends beyond the existing unit tests. The external fixtures compare only fixed-label per-regime PCMCI+, not regime inference. No claim about recovery of true regimes, convergence of the alternating scheme to a global optimum, or false-discovery control after refinement. Calibration remains deferred."
+sources = ["https://doi.org/10.1063/5.0020538"]
+findings_resolved = ["Isolated the label-path search into a pure function with the original tie rules (staying preferred on a tie, earliest regime at the last step, non-finite step costs scored as zero) and checked it against exhaustive enumeration of all k^T label paths for 300 random cost tables with two to four regimes, up to seven steps, four switch penalties and injected non-finite costs: the returned path costs exactly the minimum, and at least 30 optimal paths switch label so the comparison is not trivially a constant path.", "Added executing checks of the penalty semantics: equal costs never switch, and a one-step advantage is smoothed over when two switches cost more than the saving and taken when they cost less.", "Verified from the code that the mask keeps a time point only when its whole 2 * max_lag + 1 window lies in the regime (so the conditioning sets of the MCI step see no spliced rows), that regimes are scored only if every equation is identified on their current rows, that contemporaneous parents are excluded from the cost, that failed re-discovery after refinement keeps the previous assignment, and that refined labels add the post-selection diagnostic.", "Refactored without behaviour change: the Viterbi block of the reassignment sweep moved into min_cost_label_path; the existing reassignment tests and fixed-label oracle tests were not changed. No logic defect was found in the search; the structural difference from the cited method remains recorded as a deviation."]
+record_sha256 = "4d70cf1cd69173205e09a396f29789f76115d69d5ffc6943680e7122b6fd28a1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/rpcmci.rs"
+sha256 = "6232859d95685a9b748ca0ffcbcabe3d005fb6254c00e11c6beb7b45e48a1409"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs"
+sha256 = "5546059ed8f3e1b8a3bdda3d0ea4a950e5416a83cda6c57b5114da638c1feaf6"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/discovery/rpcmci_fixed_regime_matrix/expected.json"
+sha256 = "52db0650a8c85938661635cb6e55109a6d28fc24a4f86a9f99293caf6e9059ca"

@@ -12,7 +12,10 @@ papers = [
 
 implementation_deviations = [
  "Skeleton search is bounded by max_cond_size, which defaults to 3, so higher-order separating sets are not considered by default.",
- "The default applies Benjamini-Hochberg adjustment over the accumulated CI-test family, whereas the cited PC procedure uses fixed-alpha conditional-independence decisions.",
+ "The default applies Benjamini-Hochberg adjustment after the fixed-alpha skeleton search, whereas the cited PC procedure uses fixed-alpha conditional-independence decisions. The family is one hypothesis per tested adjacency (the largest p-value over every conditioning set it faced, removed adjacencies included), not one per test; an adjacency whose adjusted p exceeds alpha is dropped without a separating set.",
+ "For each adjacency the candidate conditioning sets are the size-k subsets of the current neighbours of either endpoint, scanned in ascending order and merged without repeats. The original procedure takes the neighbours of x and of y as two ordered passes; the set of candidates is the same but the first separating set found, and thus the recorded one, can differ. Adjacency is updated in place, so the skeleton is order dependent (not PC-stable); the traversal is the fixed sorted-id order.",
+ "Unshielded triples are oriented as colliders when the recorded separating set of the endpoints omits the centre. A triple whose endpoints are non-adjacent without a recorded separating set (adjacency removed by multiplicity correction, a parent limit or forbidden-edge knowledge) is marked ambiguous and neither oriented as a collider nor used as a non-collider premise by Meek R1 and R3, which is more conservative than the cited procedure and not part of it. The Meek rules are R1-R4; R4 is only reachable through background knowledge, which is applied before colliders.",
+ "A conditioning query the CI test cannot answer (constant or collinear columns) is missing information: it does not separate, and joins no multiplicity family.",
 ]
 
 upstream_implementations_observed = []
@@ -22,3 +25,39 @@ test_sources = [
  "crates/antecedent-discovery/tests/discovery_pc_parcorr.rs",
  "crates/antecedent-discovery/src/orientation_tests.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Pc::run in crates/antecedent-discovery/src/pc.rs for static tabular data with a pluggable CI test: the adjacency search in static_skeleton.rs (candidate conditioning sets, depth schedule, separating-set recording, weakest-evidence scoring), the edge-family multiplicity step in evidence.rs, and the collider and Meek R1-R4 orientation in orientation.rs. Not a review of any concrete CI test's validity (partial correlation, kernel or Bayesian tests), of the parent-limit and background-knowledge features beyond the points listed, or of FCI/RFCI, which share the skeleton."
+assumptions = ["Causal sufficiency, faithfulness and an acyclic data-generating graph; with a CI oracle satisfying these, the output is the CPDAG of the true Markov equivalence class (consistency of PC, with Meek completeness for the orientation step). Finite-sample CI errors propagate into the skeleton and into colliders, and PC offers no error control on the final graph.", "The conditioning-set size cap (default 3) is a hard limit: an adjacency whose only separating sets are larger is left in the skeleton as a spurious edge.", "Skeleton order dependence is documented and deterministic (sorted ids) but the output is not invariant to relabelling variables.", "Multiplicity correction treats the per-edge maximum p-value as the p-value of the intersection null 'some conditioning set separates the pair'. The adaptive, data-dependent choice of which sets are tested means the BH/BY guarantee of the cited theorems for fixed families is not established for the final graph."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote its own population oracle (a d-separation check by the moralised ancestral graph and a Markov-equivalence class enumerated from its definition); no upstream PC implementation or test source was consulted or copied."
+redistribution = "The d-separation oracle, the enumeration of equivalence classes and the pair-p-value CI stub are repository-authored under MIT OR Apache-2.0 and run inside the crate's own unit tests. The Meek paper is linked, not redistributed."
+limitations = "The Meek paper (arXiv 1302.4972) was read for its orientation rules, Theorem 2 (soundness of rules R1-R4) and Theorem 3 (completeness of R1-R3 on patterns of DAGs); the Spirtes-Glymour paper is paywalled and was not re-read, so the skeleton-search description is checked against the standard algorithm and the oracle rather than against that text. The executing oracle comparison covers DAGs on five and six nodes with at most eleven edges and the specific motifs listed; it establishes population correctness of the search and orientation code on those sizes, not behavior at larger sizes, with finite-sample tests, with latent variables or under faithfulness violations. No statement about the finite-sample false-positive rate (the null-calibration test is ignored by default and was not run). The mixed-order candidate scan and the ambiguity rule for correction-removed adjacencies are deliberate departures documented above. Calibration remains deferred."
+sources = ["https://doi.org/10.1177/089443939100900106", "https://arxiv.org/abs/1302.4972", "https://doi.org/10.48550/arXiv.1302.4972"]
+findings_resolved = ["Replaced an executing check that could not test conditioning (the marginal-pair OracleCi only encodes which pairs are dependent whatever the conditioning set) with a d-separation oracle over random labelled DAGs on five and six nodes: the adjacencies and every compelled or reversible edge equal the equivalence class computed from its definition (same skeleton, same unshielded colliders, acyclic orientations, edge directed iff all members agree). Every recorded separating set is verified to d-separate its pair. This exercises the candidate-set scan, the depth schedule, the collider rule and R1-R3 together.", "Added hand-built classes for the chain (no compelled edge), R1 propagation, the diamond, R3 and an R1-then-R2 chain, and textbook checks of the oracle itself so that the comparison cannot pass on a degenerate oracle.", "Added a counterexample for the depth cap: two nodes with four common parents are separated only by all four; capped at three the spurious edge remains, with the cap raised it is removed and the recorded separating set is exactly the four parents.", "Added an executing check of the multiplicity policy: an adjacency that passes the fixed-alpha test but whose edge-family BH adjustment exceeds alpha is dropped with no separating set, and the triple around it is left undirected rather than inferred a collider, whereas the same pair separated by a test yields the collider.", "Corrected the earlier deviation text, which described the family as the accumulated CI tests; the code adjusts one p-value per adjacency (the maximum over its tests, including adjacencies later removed), and the record now says so.", "Verified from the code that the Meek rules R1-R4 match the cited schematics (R3 requires the two mediators undirected from a and directed into b; R4 requires a-c undirected, c to d to b, a adjacent d, c not adjacent b), that collider orientation re-reads edge state so pairs that share a leg do not double-orient, and that the stop test on remaining degree is a valid bound. No logic defect requiring a change to the search or orientation code was found; code edits are limited to new unit tests in pc.rs."]
+record_sha256 = "c36453704a7bc2f1f9cf6d7be30f91bde2d4a63723c5082d0a08f37e0dfe1811"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/pc.rs"
+sha256 = "a786197bf75389ec7e81b31fe24363d0961bc2a56af13b7f7cfbd1e6ce5028a9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/static_skeleton.rs"
+sha256 = "66309b7cd26bc5fbd33c08fcb7bc40a13ed2f21df48221eeb13fa8ed504b5bb1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/orientation.rs"
+sha256 = "249ef3a38d0f3fd66d5ee18f3640e40fb4926320e788bb97a144021327f50231"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/evidence.rs"
+sha256 = "6ad77382c73879b173d20b5a5f7aa024afb49f40159bde2c1942c3f6a6a8ab3d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/src/orientation_tests.rs"
+sha256 = "0f8d7b066088970e40675a4e2501a6a39c53382005c9948a4319c57fef807bf4"

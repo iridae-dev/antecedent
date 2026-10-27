@@ -854,6 +854,124 @@ mod tests {
         }
     }
 
+    /// A lag-two autoregressive treatment `X@2 -> X@0` has unbounded ancestry exactly as the
+    /// lag-one chain does, for every query offset and at every window depth. The boundary
+    /// test must therefore look at any ancestor whose template parent falls outside the
+    /// window, not only at ancestors sitting on the deepest slice: at an odd depth the lag-two
+    /// ancestors land one slice above the boundary and would otherwise certify a window whose
+    /// ancestry is cut.
+    #[test]
+    fn lag_two_autoregressive_ancestry_never_certifies() {
+        let mut template = TemporalDag::empty();
+        let x_lag = template.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+        let x_now = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(x_lag, x_now).unwrap();
+        template.insert_directed(x_now, y).unwrap();
+        for offset in [0, -1] {
+            let query =
+                TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                    .with_policy(TemporalPolicy::pulse(offset))
+                    .with_horizon_steps(1);
+            let outcome = TemporalBackdoorIdentifier::new().identify_temporal(&template, &query);
+            let Err(IdentificationError::NotCertified { message }) = outcome else {
+                panic!("pulse({offset}) on a lag-two autoregressive chain must not certify");
+            };
+            assert!(message.contains("lagged cycle"), "{message}");
+        }
+    }
+
+    /// Whatever the lags of the template, a window that is certified holds the complete
+    /// ancestry of the treatment and outcome: every ancestor of either node in the unfolded
+    /// DAG has as many parents as its variable has template parents. The count is taken from
+    /// the template edges, not from the code that decides certification. Random templates
+    /// with lags up to three and several variables must produce both certified and refused
+    /// queries, so the property cannot hold vacuously.
+    #[test]
+    fn certified_windows_hold_every_ancestor_with_all_its_template_parents() {
+        use std::collections::HashMap;
+
+        use antecedent_graph::{BitSet, GraphWorkspace};
+
+        let mut state = 0xD1B5_4A32_D192_ED03u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let (mut certified, mut refused) = (0, 0);
+        for trial in 0..400 {
+            let mut template = TemporalDag::empty();
+            let mut nodes: HashMap<(u32, u32), antecedent_graph::DenseNodeId> = HashMap::new();
+            let mut node = |template: &mut TemporalDag, var: u32, lag: u32| {
+                *nodes.entry((var, lag)).or_insert_with(|| {
+                    template.add_lagged(VariableId::from_raw(var), Lag::from_raw(lag)).unwrap()
+                })
+            };
+            // Template parents (variable, lag) of each lag-0 node, deduplicated.
+            let mut template_parents: Vec<Vec<(u32, u32)>> = vec![Vec::new(); 3];
+            for var in 0..3u32 {
+                node(&mut template, var, 0);
+            }
+            for child in 0..3u32 {
+                for parent in 0..3u32 {
+                    for lag in 0..=3u32 {
+                        if lag == 0 && parent >= child {
+                            continue;
+                        }
+                        if next() % 100 >= 14 {
+                            continue;
+                        }
+                        let from = node(&mut template, parent, lag);
+                        let to = node(&mut template, child, 0);
+                        template.insert_directed(from, to).unwrap();
+                        template_parents[child as usize].push((parent, lag));
+                    }
+                }
+            }
+            let query =
+                TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(2), 1.0)
+                    .with_policy(TemporalPolicy::pulse(-((next() % 3) as i32)))
+                    .with_horizon_steps(1);
+            let outcome = TemporalBackdoorIdentifier::new().identify_temporal(&template, &query);
+            let identified = match outcome {
+                Ok(identified) => identified,
+                Err(IdentificationError::NotCertified { .. }) => {
+                    refused += 1;
+                    continue;
+                }
+                Err(_) => continue,
+            };
+            certified += 1;
+            let dag = &identified.unfolded.dag;
+            let seeds: Vec<antecedent_graph::DenseNodeId> = [identified.treatment_key, identified.outcome_key]
+                .iter()
+                .map(|key| {
+                    antecedent_graph::DenseNodeId::from_raw(
+                        identified.indexer.dense_id(*key).unwrap(),
+                    )
+                })
+                .collect();
+            let mut ancestors = BitSet::with_len(dag.node_count());
+            dag.ancestors_of(&seeds, &mut ancestors, &mut GraphWorkspace::default());
+            for i in 0..dag.node_count() {
+                let id = antecedent_graph::DenseNodeId::from_index(i);
+                if !ancestors.contains(id) {
+                    continue;
+                }
+                let key = identified.indexer.key_of(id.raw()).unwrap();
+                assert_eq!(
+                    dag.parents(id).len(),
+                    template_parents[key.variable.raw() as usize].len(),
+                    "trial {trial}: ancestor {key:?} lost parents to the window"
+                );
+            }
+        }
+        assert!(certified >= 60, "only {certified} certified templates");
+        assert!(refused >= 60, "only {refused} refused templates");
+    }
+
     /// `T@1 -> T@0` (autoregressive), `Z@1 -> T@0`, `Z@2 -> Y@0`, `T@1 -> Y@0`,
     /// with variables `T = 0`, `Y = 1`, `Z = 2`. For the pulse on `T[-1]` and
     /// `Y[0]`, `Z[-2]` confounds, and the treatment's ancestry is unbounded.

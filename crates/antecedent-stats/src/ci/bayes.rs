@@ -1005,6 +1005,111 @@ mod tests {
         }
     }
 
+    /// Derive the g-prior Bayes factor by brute-force quadrature, not from its closed form.
+    ///
+    /// With a flat prior on the intercept and `Z` coefficients, projecting them out leaves the
+    /// `ν = n − 1 − |Z|` dimensional model `ỹ = β x̃ + ε`, `ε ~ N(0, σ² I)`, with the same
+    /// projection factor in both models. The dependence model adds `β | σ² ~ N(0, g σ² / x̃'x̃)`
+    /// with `g = n`, and both models take the scale prior `p(σ²) ∝ 1/σ²`. The marginals over
+    /// `(β, ln σ²)` are summed on a grid in log space and their ratio compared with the
+    /// implementation (which uses `−½ ln(1+g) − ½ ν ln(1 − g r²/(1+g))`).
+    #[test]
+    fn bayes_factor_matches_numerical_integration_of_its_prior() {
+        fn residualise(basis: &[Vec<f64>], v: &[f64]) -> Vec<f64> {
+            // Modified Gram-Schmidt against the columns of `basis`.
+            let mut q: Vec<Vec<f64>> = Vec::new();
+            for b in basis {
+                let mut u = b.clone();
+                for e in &q {
+                    let c: f64 = u.iter().zip(e).map(|(a, b)| a * b).sum();
+                    for (ui, ei) in u.iter_mut().zip(e) {
+                        *ui -= c * ei;
+                    }
+                }
+                let norm = u.iter().map(|a| a * a).sum::<f64>().sqrt();
+                q.push(u.iter().map(|a| a / norm).collect());
+            }
+            let mut out = v.to_vec();
+            for e in &q {
+                let c: f64 = out.iter().zip(e).map(|(a, b)| a * b).sum();
+                for (oi, ei) in out.iter_mut().zip(e) {
+                    *oi -= c * ei;
+                }
+            }
+            out
+        }
+        fn log_sum_exp(values: &[f64]) -> f64 {
+            let m = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            m + values.iter().map(|v| (v - m).exp()).sum::<f64>().ln()
+        }
+
+        for (n, nz) in [(9usize, 0usize), (14, 1), (16, 2)] {
+            let z: Vec<Vec<f64>> = (0..nz)
+                .map(|j| (0..n).map(|i| ((i as f64) * (0.41 + 0.3 * j as f64)).sin()).collect())
+                .collect();
+            let x: Vec<f64> = (0..n)
+                .map(|i| ((i as f64) * 0.93).cos() + z.first().map_or(0.0, |c| 0.5 * c[i]))
+                .collect();
+            let y: Vec<f64> = (0..n)
+                .map(|i| 0.6 * x[i] + ((i as f64) * 1.7 + 0.2).sin() + z.last().map_or(0.0, |c| c[i]))
+                .collect();
+
+            let mut basis = vec![vec![1.0; n]];
+            basis.extend(z.iter().cloned());
+            let (xt, yt) = (residualise(&basis, &x), residualise(&basis, &y));
+            let a: f64 = yt.iter().map(|v| v * v).sum();
+            let b: f64 = xt.iter().zip(&yt).map(|(p, q)| p * q).sum();
+            let c: f64 = xt.iter().map(|v| v * v).sum();
+            let nu = (n - 1 - nz) as f64;
+            let g = n as f64;
+
+            let centre = (a / nu).ln();
+            let (du, dt) = (0.005, 0.01);
+            let us: Vec<f64> = (-1200..=1200).map(|k| centre + du * f64::from(k)).collect();
+            let ts: Vec<f64> = (-1000..=1000).map(|k| dt * f64::from(k)).collect();
+            let half_ln_2pi = 0.5 * (2.0 * std::f64::consts::PI).ln();
+            let mut m0 = Vec::with_capacity(us.len());
+            let mut m1 = Vec::with_capacity(us.len());
+            for &u in &us {
+                let sigma2 = u.exp();
+                let base = -0.5 * nu * (u + 2.0 * half_ln_2pi);
+                m0.push(base - a / (2.0 * sigma2));
+                let s = (g * sigma2 / c).sqrt();
+                let inner: Vec<f64> = ts
+                    .iter()
+                    .map(|&t| {
+                        let beta = s * t;
+                        -0.5 * t * t - half_ln_2pi + dt.ln() + base
+                            - (a - 2.0 * beta * b + beta * beta * c) / (2.0 * sigma2)
+                    })
+                    .collect();
+                m1.push(log_sum_exp(&inner));
+            }
+            let quadrature = log_sum_exp(&m1) - log_sum_exp(&m0);
+
+            let mut columns: Vec<&[f64]> = vec![&x, &y];
+            columns.extend(z.iter().map(Vec::as_slice));
+            let z_flat: Vec<usize> = (2..2 + nz).collect();
+            let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: nz }];
+            let req = CiBatchRequest {
+                columns: &columns,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::None,
+            };
+            let mut ws = CiWorkspace::default();
+            let ctx = ExecutionContext::for_tests(5);
+            let got = BayesFactorCi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0]
+                .statistic;
+            assert!(
+                (got - quadrature).abs() < 1e-5,
+                "n={n} |Z|={nz}: closed form {got} vs quadrature {quadrature}"
+            );
+            assert!(quadrature.abs() > 0.05, "case must discriminate: log BF {quadrature}");
+        }
+    }
+
     #[test]
     fn chol_log_det_in_nig_path() {
         let a = [2.0, 0.5, 0.5, 3.0];
