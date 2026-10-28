@@ -15,7 +15,9 @@ use std::collections::HashMap;
 
 use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
 
-use super::block_shuffle::{add_one_pvalue, permutation_null_exceedances, query_stream_salt};
+use super::block_shuffle::{
+    add_one_pvalue, null_reaches_observed, permutation_null_exceedances, query_stream_salt,
+};
 use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
@@ -95,7 +97,7 @@ impl ConditionalIndependenceTest for GSquared {
                         |permuted| {
                             let (g_null, _) =
                                 g_squared_from_parts(&xi, permuted, &strata, workspace, policy)?;
-                            Ok::<_, StatsError>(g_null >= g)
+                            Ok::<_, StatsError>(null_reaches_observed(g_null, g))
                         },
                     )?;
                     add_one_pvalue(null_ge, n_perm)

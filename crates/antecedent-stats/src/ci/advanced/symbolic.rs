@@ -2,7 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::ci::block_shuffle::{add_one_pvalue, permutation_null_exceedances, query_stream_salt};
+use crate::ci::block_shuffle::{
+    add_one_pvalue, null_reaches_observed, permutation_null_exceedances, query_stream_salt,
+};
 use crate::ci::gsquared::{
     discrete_strata, encode_categories, ensure_finite_categories, ensure_permutation_support,
 };
@@ -77,7 +79,10 @@ impl ConditionalIndependenceTest for SymbolicCmi {
                 block_size,
                 &mut rng,
                 |permuted| {
-                    Ok::<_, StatsError>(conditional_symbolic_mi(&xi, permuted, &strata) >= mi)
+                    Ok::<_, StatsError>(null_reaches_observed(
+                        conditional_symbolic_mi(&xi, permuted, &strata),
+                        mi,
+                    ))
                 },
             )?;
             let p = add_one_pvalue(null_ge, n_perm);

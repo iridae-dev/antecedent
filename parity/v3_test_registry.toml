@@ -18044,3 +18044,24 @@ crate = "antecedent-identify"
 cargo_target = "cpdag_adjustment_envelope_exhaustive"
 path = "crates/antecedent-identify/tests/cpdag_adjustment_envelope_exhaustive.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-ancova-reference"
+crate = "antecedent-estimate"
+cargo_target = "ancova_reference"
+path = "crates/antecedent-estimate/tests/ancova_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-policy-value-reference"
+crate = "antecedent-estimate"
+cargo_target = "policy_value_reference"
+path = "crates/antecedent-estimate/tests/policy_value_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-symbolic-cmi-reference"
+crate = "antecedent-stats"
+cargo_target = "symbolic_cmi_reference"
+path = "crates/antecedent-stats/tests/symbolic_cmi_reference.rs"
+gates = ["inventory", "named"]

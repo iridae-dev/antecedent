@@ -18,6 +18,38 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-estimate/tests/policy_value_reference.rs (exact rational binary, multi-action, uplift and regret scores)",
  "crates/antecedent-estimate/src/policy_value.rs",
  "crates/antecedent/tests/policy_value_route.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "evaluate_multi_action_policy_value_scores, evaluate_multi_action_ipw_policy and evaluate_multi_action_cate in crates/antecedent-estimate/src/policy_value.rs: the multi-action Horvitz-Thompson row score 1{T = a} y / pi_{row, T} net of the per-action cost, the policy, reference and paired means and standard errors, the non-control rate, the point-only values, and the fixed-stratum action-against-control contrast (action score minus control score over the stratum's rows) with its standard error, row counts and interval floor. Not capacity, budget and availability coupling, or the intervals' coverage."
+assumptions = ["Known action probabilities, frozen recommendations and strata fixed before the evaluation outcomes; independent subjects.", "A stratum effect is conditional on the fixed stratum and on the randomization within it."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), fractions from the Python standard library, imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Dyadic-rational inputs (so the binary64 inputs are the exact rationals), tables of 2 to 14 rows for the scores and 400 rows for regret; propensities 1/1024 to 1023/1024 and an outcome offset of 1e7 are included. Values are asserted to 1e-10 relative. The cases check the formulas, not the validity of the interval: the 120-row/10-match gate for the policy interval, the 300-row/50-arm gate for stratum and bin intervals, the independence of subjects and the fixed-recommendation requirement are caller declarations and are not tested by a simulation here. Capacity, budget and availability refusals are not re-examined. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1080/01621459.1952.10483446", "https://mpmath.org/"]
+findings_resolved = ["No defect found: with three actions, probabilities from 1/8 to 3/4 and two strata, the policy, reference and paired values and standard errors, the point-only values and every stratum-by-action effect, standard error and arm count equal exact rational scores; the uplift-by-bin contrast (y/e treated, -y/(1-e) control) equals the exact bin means and a singleton bin has the documented zero error while the interval form refuses it, and the finite-class regret value, contrast standard errors and clipped Bonferroni interval equal the 50-digit reference."]
+record_sha256 = "74d7999a61056d9fd70a43a7e33d3c7fab7111c221ee4ee0fea163b9af1b7853"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/policy_value.rs"
+sha256 = "30c30b8431e8ffdb18c11aea063d05df3a6be3821345a5650c2efda77d4728be"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/policy_value_reference.rs"
+sha256 = "e471fe06c0f39479d37d4b274477b1cbd4f6223678f2c233056b1da008c09bbb"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/policy_value_reference.py"
+sha256 = "13a71fa5583500dbddc851da8697c8c683dca9f1275b1eedf5bff2134002ccd8"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/policy_value_reference.json"
+sha256 = "dc5a10547c7b8d03051c3c0dd50e2f8fd687e6b276889cc32fa1b9e7219446a8"

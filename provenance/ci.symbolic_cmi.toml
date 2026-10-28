@@ -20,5 +20,42 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-stats/tests/symbolic_cmi_reference.rs (statistic and permutation p-value against an exactly enumerated within-stratum null, with ties)",
  "crates/antecedent-stats/src/ci/advanced.rs (SymbolicCmi)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "SymbolicCmi in crates/antecedent-stats/src/ci/advanced/symbolic.rs: integer coding of the symbols, stratification by the conditioning symbols, the stratum-size-weighted mean over strata of at least two rows of the plug-in mutual information, the Y-within-stratum permutation null, the tie rule when a permuted statistic equals the observed one (null_reaches_observed in ci/block_shuffle.rs), the add-one p-value, and the refusal when no stratum varies in both X and Y. Not the block-permutation null for serial data, continuous binning, or the asymptotic G-squared chi-square reference the cited paper gives (which this test does not use)."
+assumptions = ["Rows are exchangeable within each conditioning stratum under the null (the permutation argument); no serial dependence unless the caller requests a block shuffle with an empty conditioning set.", "The statistic is the plug-in (maximum-likelihood) mutual information, which is biased upward in small strata; the permutation null shares that bias, so the test is valid but its power is not examined here."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), fractions and itertools from the Python standard library, imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Six tables of 8 to 9 rows (binary, ternary, negative and large symbol values, two strata, a singleton stratum) for the symbolic statistic with the exact enumeration of every within-stratum arrangement, and three hypergeometric 2x2 tables of 20 to 24 rows for the G-squared permutation null. The Monte Carlo p-value is compared with its exact expectation at 20000 replicates within five binomial standard errors, so a bias smaller than about 0.01 to 0.02 would not be detected; ties are the target. The statistic is asserted to 1e-12. Larger tables are not enumerated; the sparse-table G-squared guard prevents small tables from being used for G-squared. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1214/aoms/1177732360", "https://mpmath.org/"]
+findings_resolved = ["Defect repaired: the permutation null counted a permuted statistic only when it was at least the observed one in floating point. A permuted table that is a relabeling or transposition of the observed count table has the same statistic as a real number but sums its terms in a different order, so the two differed in the last bits and the tie counted for or against at random; on an 8-row balanced binary table the p-value was 0.254 against an exact 0.486 and a Monte Carlo expectation of 0.486 (the tie class is about half the null). The comparison now allows a relative slack of 1e-12 (null_reaches_observed), shared with the G-squared permutation null, which had the same defect (0.0226 against an exact 0.0391 on a 24-row table in which [[9,3],[3,9]] and its mirror tie).", "The statistic equals the 60-digit plug-in mutual information on every table, with singleton strata excluded from the weights, and the p-value equals the exactly enumerated null on all six tables."]
+record_sha256 = "7a80a418f27af3c98e7dc769829316a7b2c15ce1c35b260aa2034ebe5278fae7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/advanced/symbolic.rs"
+sha256 = "4ed2aea5c05703bdec8dc098cd730a38502783865054b0bb916dfa84c0d0b17a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/block_shuffle.rs"
+sha256 = "49abbb5e641ca4e86c4409a5c83fb00b19fd42479b9ddf4104a8c2e6b86d55f0"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/symbolic_cmi_reference.rs"
+sha256 = "1b7298cd289a23e99189daa9db4c1a97ab4b01383ec9d5321ebf9f0ba8a46b2c"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/symbolic_cmi_reference.py"
+sha256 = "54d541530d64f201d1d1984748d644554f54311aff8f06754b5e63e52e681345"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/symbolic_cmi_reference.json"
+sha256 = "15800e944e3039c2b8ce271e227b0f0e19117d30006c3f9146810a13789d793d"

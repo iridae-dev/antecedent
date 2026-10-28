@@ -22,6 +22,7 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "crates/antecedent-stats/tests/symbolic_cmi_reference.rs (G-squared permutation p-value against the exactly enumerated hypergeometric null, with tied tables)",
  "crates/antecedent-stats/src/ci/gsquared.rs unit tests",
  "crates/antecedent-stats/tests/ci_exact_reference.rs (statistic, degrees of freedom and p-value against exact integer-count contingency arithmetic, including stratified tables, a constant-Y stratum and a p-value of 1e-266)",
  "conformance/discovery/ci_stats (gsquared_dep / gsquared_ind, black-box comparison against pinned Tigramite baseline)",
@@ -35,13 +36,13 @@ historical_exposure = "Historical author exposure to upstream implementations ca
 redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
 limitations = "Eight table configurations from 2x2 to a 56-degree-of-freedom 8x9 table, up to five strata, counts up to about 5,000 per cell, plus the sparse and zero-degree-of-freedom refusals and a two-column conditioning set. Strata are tables of integer counts, so the reference does not test category encoding of non-integer labels. The reference script declares mpmath==1.3.0 in inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test. Worst agreement: statistic 4.5e-15 relative, p-value 1.2e-13 relative (p = 1e-266). The Wilks asymptotic result itself, and the validity of the summed-stratum statistic as a conditional-independence test with few observations per stratum, are not established by this review."
 sources = ["https://doi.org/10.1214/aoms/1177732360", "https://mpmath.org/doc/1.3.0/"]
-findings_resolved = ["Statistic, degrees of freedom and chi-square p-value agree with exact arithmetic on every configuration, including the stratum with a constant Y (zero degrees of freedom, zero contribution) and the extreme tail, which depends on the incomplete-gamma correction made in the special-function review.", "Strata were keyed by a 64-bit FNV hash of the conditioning codes alone, so a hash collision would silently merge two strata. They are now keyed by the exact code vector and ordered by the hash, preserving the established order of seeded draws; an equivalence check addresses the same strata through one and two conditioning columns.", "The refusal paths behave as recorded: an expected cell count below 5 and a table with no positive degrees of freedom both return Unsupported rather than a p-value."]
-record_sha256 = "3ec38341dc2f4a47faaa6590312b6b37fac7e67b4f5743c7e6185a9918cb5da0"
+findings_resolved = ["Statistic, degrees of freedom and chi-square p-value agree with exact arithmetic on every configuration, including the stratum with a constant Y (zero degrees of freedom, zero contribution) and the extreme tail, which depends on the incomplete-gamma correction made in the special-function review.", "Strata were keyed by a 64-bit FNV hash of the conditioning codes alone, so a hash collision would silently merge two strata. They are now keyed by the exact code vector and ordered by the hash, preserving the established order of seeded draws; an equivalence check addresses the same strata through one and two conditioning columns.", "The refusal paths behave as recorded: an expected cell count below 5 and a table with no positive degrees of freedom both return Unsupported rather than a p-value.", "Outside the reviewed statistic scope, found while building the permutation-null reference in ci.symbolic_cmi: the permutation null counted a permuted statistic only when it was at least the observed one in floating point, so permutations whose table ties the observed one (a relabeled or transposed count table, summed in a different order) fell below it at random and the p-value was too small (0.0226 against an exact 0.0391 on a 24-row table in which [[9,3],[3,9]] and its mirror [[3,9],[9,3]] tie). The comparison now allows a 1e-12 relative slack; the stratified G-squared permutation p-value matches the enumerated null in symbolic_cmi_reference.rs."]
+record_sha256 = "8309dc7fab2d9df28fac4091f357d8decbdbd52235c6efc6bff54acaf32687ba"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/gsquared.rs"
-sha256 = "5e9d2e9724c3fba98175aadb9a08bf3a9cd9980863cdafa6c4901f0a5579ce42"
+sha256 = "952f446d347e8897daf53ebb049e2166e4fc3094ec637540e994544d883a3f47"
 
 [[method_review.artifacts]]
 role = "implementation"

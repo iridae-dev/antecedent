@@ -20,8 +20,45 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-estimate/tests/ancova_reference.rs (exact rational HC0, HC2 and degrees of freedom on seven tables)",
  "crates/antecedent-stats/src/covariance.rs",
  "crates/antecedent-estimate/src/ancova.rs",
  "crates/antecedent/tests/randomized_interval_calibration.rs",
  "crates/antecedent/tests/randomized_precision_intervals.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "small_arm_interval_95 and small_arm_interval_any_covariates_95 in crates/antecedent-estimate/src/ancova.rs with hc2_coefficient_bell_mccaffrey in crates/antecedent-stats/src/covariance.rs: the assignment coefficient from the QR fit, the HC2 variance (squared residual over 1 - h_i, with w = X (X'X)^-1 e_T), the Bell-McCaffrey Satterthwaite degrees of freedom (tr A)^2 / tr(A^2) for A = M D M, the Student 97.5% quantile at those degrees of freedom, the two-row-per-arm minimum, the zero-variance refusal and the refusal at a row of leverage one. Not the interval's coverage, the 100-row route floor, or the Student quantile function beyond the values it returns here."
+assumptions = ["Homoskedastic errors for the Satterthwaite approximation, as the cited papers state; the reference does not depend on the realized residuals for the degrees of freedom.", "Independent rows and a fixed design; the interval conditions on the realized arm sizes.", "The Student reference is an approximation whose coverage is a simulation matter."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), fractions from the Python standard library, imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Seven finite tables of 8 to 16 rows with up to two covariates: a difference in means, a balanced 6/6 trial, 2 treated against 14 control rows, a covariate value of leverage near one, an outcome offset of 1e7 with a covariate offset of 1e3 at scale 250, two covariates correlated to about 1e-3 apart, and a design with a row of leverage exactly one. Point estimates, HC0 and HC2 variances and degrees of freedom are asserted to 1e-9 relative (1e-6 for the near-collinear and 1e-5 for the offset table, where the product's QR solve loses digits to the data, not the formula). The reference forms the n-by-n matrix M D M and its traces explicitly, so the product's p-by-p trace identity is checked against the definition on tables up to 16 rows; larger designs rely on the identity, not on a direct comparison. The Student quantile is asserted to 1e-8 relative on the interval half-width; the quantile function itself is covered by its own tests. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1162/REST_a_00552", "https://mpmath.org/"]
+findings_resolved = ["No defect found: the HC2 variance, the Bell-McCaffrey degrees of freedom and the interval half-width equal the exact rational variance, the explicit trace ratio and a 50-digit Student quantile on every table, including 2 treated against 14 control rows (about 1.79 degrees of freedom), a high-leverage covariate and two covariates that differ by about 1e-3; the no-covariate case equals Welch's interval with the equal-variance degrees of freedom 512/118 for 3 and 5 rows.", "A row of leverage exactly one yields no interval rather than an infinite or NaN variance."]
+record_sha256 = "00c679ec2b98ebbae955917a1d9f4d2d3ff2eb1e3ba4845925e43c3f1d3aab37"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/ancova.rs"
+sha256 = "41cc4ad34288ac4554fb1f4c407875124a396cfbd0b8e2852be282abd1edb5a1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/covariance.rs"
+sha256 = "8b89dbcbeb460141c47caa8b088def99108d00594844e6eeb91ce1c8a794b66c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/ancova_reference.rs"
+sha256 = "46337660cafc102642b89bb49835ae9256b1c9d721d072bee01692947b9b012b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/ancova_reference.py"
+sha256 = "0dcbcc14674512ab3e843ce59ae424cae18380ec800431da23d6124b6d53bad5"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/ancova_reference.json"
+sha256 = "6532961d47eb9972a8afd91202b33f8fcde7b1ac15375312d1e68cadbc18ca7a"

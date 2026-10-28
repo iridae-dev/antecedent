@@ -94,6 +94,19 @@ pub(crate) fn block_permute_contiguous<T: Copy>(
     }
 }
 
+/// Whether a permuted discrete-table statistic reaches the observed one.
+///
+/// Two count tables that differ only by relabeling or transposition have the same statistic as a
+/// real number but sum their terms in a different order, so the floating-point values can differ
+/// in the last bits. Counted strictly, the permutations that tie the observed table (often a large
+/// share of a small table's null) fall below it at random and the p-value is too small. A relative
+/// slack of `1e-12` is far above summation rounding and far below the gap between the statistics
+/// of genuinely different tables at any realistic sample size.
+#[must_use]
+pub(crate) fn null_reaches_observed(null: f64, observed: f64) -> bool {
+    null >= observed - 1e-12 * observed.abs().max(1.0)
+}
+
 /// Add-one permutation p-value `(1 + #{null ≥ observed}) / (1 + replicates)`.
 pub(crate) fn add_one_pvalue(exceedances: u32, replicates: usize) -> f64 {
     (1.0 + f64::from(exceedances)) / (1.0 + replicates as f64)

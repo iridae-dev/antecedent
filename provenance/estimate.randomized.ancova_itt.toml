@@ -19,6 +19,43 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-estimate/tests/ancova_reference.rs (exact rational HC0, HC2 and degrees of freedom on seven tables)",
  "crates/antecedent-estimate/src/ancova.rs",
  "crates/antecedent/tests/randomized_precision_intervals.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_ancova, AncovaFit and the HC0 variance in crates/antecedent-estimate/src/ancova.rs: the coefficient on realized assignment in an ordinary least-squares regression on an intercept, the assignment and one or more pre-assignment covariates (QR solve), the covariate coefficients, and the independent-row HC0 sandwich variance for the assignment coefficient built from the shared (X'X)^-1. calibrated_bernoulli_interval_95 is read only for its support gate. Not the Bernoulli interval's coverage, the Neyman variance of the unadjusted difference, the design-based (finite-population) justification, or interactions."
+assumptions = ["Pre-assignment covariates and independent rows; assignment independent of potential outcomes given the design is a design assumption taken as given.", "The estimand is the regression coefficient on assignment (Lin's ATE_adj), which is consistent for the sample average effect under the Neyman model only through the design-based argument the paper gives; this review does not re-prove it.", "HC0 is the asymptotic sandwich; its finite-sample behaviour is the subject of the repository's calibration records, not this review."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), fractions from the Python standard library, imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Seven finite tables of 8 to 16 rows with up to two covariates: a difference in means, a balanced 6/6 trial, 2 treated against 14 control rows, a covariate value of leverage near one, an outcome offset of 1e7 with a covariate offset of 1e3 at scale 250, two covariates correlated to about 1e-3 apart, and a design with a row of leverage exactly one. Point estimates, HC0 and HC2 variances and degrees of freedom are asserted to 1e-9 relative (1e-6 for the near-collinear and 1e-5 for the offset table, where the product's QR solve loses digits to the data, not the formula). The calibrated interval's coverage (20 cells of 150 to 600 rows) is not re-examined; this review establishes that the variance it uses is the HC0 sandwich of the stated regression, not that a normal interval on it covers. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1214/12-AOAS583", "https://mpmath.org/"]
+findings_resolved = ["No defect found: the assignment coefficient, the covariate coefficients and the HC0 variance sum_i (w_i e_i)^2 with w = X (X'X)^-1 e_T equal exact rational least squares on every table, including the offset table and nearly collinear covariates, and a design with a row of leverage one still gives the exact HC0 (that row's residual is zero).", "A rank-deficient covariate set is refused scale-free (existing unit test) rather than returning an arbitrary coefficient."]
+record_sha256 = "8022cd0d6aa501904f8406d03d9dde4fc17d32e80b0940e533cef6455eb37df9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/ancova.rs"
+sha256 = "41cc4ad34288ac4554fb1f4c407875124a396cfbd0b8e2852be282abd1edb5a1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/covariance.rs"
+sha256 = "8b89dbcbeb460141c47caa8b088def99108d00594844e6eeb91ce1c8a794b66c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/ancova_reference.rs"
+sha256 = "46337660cafc102642b89bb49835ae9256b1c9d721d072bee01692947b9b012b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/ancova_reference.py"
+sha256 = "0dcbcc14674512ab3e843ce59ae424cae18380ec800431da23d6124b6d53bad5"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/ancova_reference.json"
+sha256 = "6532961d47eb9972a8afd91202b33f8fcde7b1ac15375312d1e68cadbc18ca7a"
