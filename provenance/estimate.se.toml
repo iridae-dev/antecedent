@@ -13,8 +13,8 @@ papers = [
 ]
 
 implementation_deviations = [
- "For influence-function estimators, HC0, HC1, HC2, and HC3 all dispatch to the same demeaned sample-variance formula; leverage-corrected HC2 and HC3 and the HC0 versus HC1 finite-sample distinction are therefore not implemented despite the distinct public variants.",
- "PanelClusterHac with positive lag is a custom within-unit Bartlett HAC calculation, not Arellano's arbitrary within-unit cluster covariance; only the special lag-zero branch equals the ordinary cluster estimator.",
+ "For influence-function estimators (influence_se_under) HC1 is the demeaned sample variance over n (n - 1) and HC0 drops the n/(n - 1) factor (sum of squares over n^2); the leverage-corrected HC2 and HC3 have no influence-value analogue and are refused with estimator_inference_mismatch rather than computed as HC1. For coefficient sandwiches (OLS, 2SLS, score sandwiches) the HC0 to HC3 kinds are resolved to the matching antecedent-stats sandwich.",
+ "PanelClusterHac with positive lag is a custom within-unit Bartlett HAC calculation, not Arellano's arbitrary within-unit cluster covariance; the lag-zero branch is by convention the full cluster meat (every within-cluster cross product at weight one), so lag 1 reports less dependence than lag 0 and the standard error is not monotone in the lag at that step.",
  "Newey-West bandwidth is entirely caller supplied, with no automatic bandwidth selection or prewhitening.",
  "Multiway clustering is limited to four dimensions and applies a particular subset-specific finite-sample correction; alternative corrections discussed in the clustering literature are unsupported.",
 ]
@@ -25,4 +25,41 @@ test_sources = [
  "conformance/estimate/uncertainty_routing (self-authored routing-contract fixture; numeric assertions are explicitly deferred to conformance/stats/sandwich_covariance)",
  "conformance/stats/sandwich_covariance (statsmodels 0.14.4 coefficient-covariance oracle consumed by crates/antecedent-stats/tests/foundations_oracle.rs)",
  "in-crate unit tests (crates/antecedent-estimate/src/se.rs): one/multiway/panel-HAC IF-vs-sandwich implementation parity, demeaning correctness, dimension-permutation and relabeling invariance",
+ "crates/antecedent-estimate/tests/influence_se_reference.rs (exact rational variance of a mean of influence values for homoskedastic, HC0, HC1, cluster, two- and three-way multiway, index and calendar Newey-West and panel HAC, with the HC2 and HC3 refusals and the negative multiway refusal)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "influence_se_under and its dispatcher influence_se_kind with the scalar helpers of crates/antecedent-estimate/src/se.rs (hetero_influence_se, cluster_influence_se, multiway_influence_se, newey_west_influence_se, newey_west_influence_se_at_times, panel_cluster_hac_influence_se) and the antecedent-stats meats they call (cluster_meat_scalar, newey_west_meat_scalar, panel_hac_meat_scalar, bartlett_weight, effective_nw_lag, combine_inclusion_exclusion): the standard error of a mean of influence values under each declared dependence, the refusal of HC2 and HC3 for influence values, the requirement of labels for the clustered and panel kinds, and the refusal of a materially negative multiway variance. Not the coefficient sandwich of OLS, 2SLS and score estimators (resolved to antecedent-stats coefficient_covariance and checked by the statsmodels sandwich fixture of that crate), the few-cluster t reference, bandwidth choice, or repeated-sampling coverage."
+assumptions = ["Influence values are first-order linearisations with mean the estimate; the variance of their mean is estimated with the declared dependence structure; clusters are independent; the Bartlett kernel is truncated at min(lag, available span).", "Panel lag zero is, by the declared convention of the stats crate, the full cluster meat, not a lag-zero Bartlett sum; positive lags give Bartlett-weighted within-cluster sums with the widest within-cluster span as the cap.", "Multiway uses the Cameron-Gelbach-Miller inclusion-exclusion with each subset's own G/(G-1); a negative combination is not repaired beyond a rounding tolerance.", "Accuracy is stated against exact rational recomputation from these definitions."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with exact rational variances written from each estimator's definition written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to take the final square root of the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One twelve-row influence vector with four clusters, a two- and a three-dimension label set, irregular calendar labels (a repeated label and a gap wider than the bandwidth) and unique (cluster, time) panel labels with a gap in one cluster. All of homoskedastic, HC0, HC1, cluster, three-way, Newey-West at lags 0, 1, 3, 20 (the last beyond the row count), calendar Newey-West at lags 0, 2, 5, 30 and panel HAC at lags 0, 1, 2, 9 agree with the reference to 1e-12 relative. The reference two-way variance is negative and the product refuses it. Not exercised: very large clusters, many dimensions, rank-deficient or tiny-cluster cases beyond the two-cluster refusal covered by the in-module tests, the coefficient sandwich, and coverage. The cited publications were not retrieved."
+sources = ["https://doi.org/10.2307/1912934", "https://doi.org/10.2307/1913610", "https://doi.org/10.1111/j.1468-0084.1987.mp49004006.x", "https://doi.org/10.1198/jbes.2010.07136"]
+findings_resolved = ["The record's first deviation was stale: it said HC0, HC1, HC2 and HC3 dispatch to the same formula for influence values. The code (and now a test) distinguishes HC0 (sum of squares over n^2) from HC1 (over n (n - 1)) and refuses HC2/HC3 with estimator_inference_mismatch; the deviation text now says so.", "The panel lag-zero convention makes the standard error discontinuous in the lag (lag 1 reports less dependence than lag 0); the deviation text states it and the reference pins it, rather than treating it as a silent equivalence with the cluster estimator at positive lag.", "No numerical defect was found in the cluster, multiway, Newey-West (index and calendar) or panel forms."]
+record_sha256 = "517489b42f55f4a30b94f3e87b0eee60ba6bdf0d32e3df5675a1470b759c074d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/se.rs"
+sha256 = "8ee2d97b92007b867b90338745851a2849b064b839fa71dfab523681bd8b6ebf"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/cluster.rs"
+sha256 = "9607cb41faa47dd68e68101cc508121aeabcced372990b2c31946e62f4e977e2"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/influence_se_reference.rs"
+sha256 = "7143819a354c78185a55af23b9651f2126a909b922ce4088d2a5d1c85765791d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/influence_se_reference.py"
+sha256 = "e617c0e6fe0c5f12ec72e618aa14ce35a06f90883f31b103086782e13e400c82"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/influence_se_reference.json"
+sha256 = "e1df4052fa37f32c68f43e49648af1a09d5113823a590ec5a0345831af995057"

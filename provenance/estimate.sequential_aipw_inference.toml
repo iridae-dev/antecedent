@@ -23,4 +23,41 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent/tests/unlicensed_design_routes.rs",
+  "crates/antecedent-estimate/tests/sequential_contrast_reference.rs (exact Wald interval at four coverages and exact Dirichlet-weighted laws of the active, control and shared-weight contrast scores)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "sequential_contrast_wald_interval and bayesian_sequential_contrast of crates/antecedent-estimate/src/sequential_aipw_inference.rs, given the per-subject active, control and contrast scores of a SequentialContrast, with the Dirichlet-weighted score mean of score_posterior.rs: the Wald standard error sqrt(sum (d_i - mean)^2 / (n (n - 1))), the normal interval at a declared coverage, its refusals (coverage outside (0, 1), fewer than two or non-finite scores, no spread), the calibration_measured = false flag, and the joint posterior of the active value, the control value and their contrast sharing one Dirichlet(1, ..., 1) weight vector per draw. Route-specific content: the contrast posterior is the posterior of the differenced scores (shared weights), not of independent regimes. Not the cross-fit construction of the scores (sequential_crossfit.rs: propensity fits, iterated conditional means, the in-sample nested pseudo-outcome), the o(n^-1/2) product-rate condition, nuisance uncertainty (held fixed by design) or interval coverage."
+assumptions = ["Scores are the sequential augmented inverse-probability scores of cross-fit fits; subjects are independent, and sequential exchangeability, positivity, consistency and no interference are identification assumptions taken as given.", "The Wald interval is normal around the mean score with the sample variance of the scores; its calibration is unmeasured and the flag says so.", "The posterior is the Dirichlet-process-limit posterior of the score mean with the nuisance fits held at their fitted values (modular).", "Accuracy is stated against exact rational and 40-digit references of these formulas for given scores."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with an exact Wald interval (40-digit normal quantile) and exact rational Dirichlet-weighted score laws written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Ten given score pairs (distinct in every column), four Wald coverages (0.5 to 0.99) agreeing to 1e-9 relative with the exact standard error and normal quantile, and 200,000 posterior draws at one seed: thirteen grid points in each of the active, control and contrast laws within five binomial standard errors of the exact rational B-spline laws, the plain score means to 1e-12 and 200 draw triples satisfying contrast = active - control. Not exercised: the scores' construction from a panel (the existing noisy-panel reference test covers that route under the cross-fit record), tied scores, small n, nuisance-fit uncertainty, and repeated-sampling coverage of either interval. The cited publications were not retrieved."
+sources = ["https://doi.org/10.1214/aos/1176345338", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect was found: the standard error uses the (n - 1) n divisor, the interval is symmetric normal at the stated coverage, and the shared-weight contrast follows the exact law of the differenced scores."]
+record_sha256 = "7c5bce33bdf6761d0d835190caac84280c5d4016fc8f42394fcd45cfc0af5d11"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/sequential_aipw_inference.rs"
+sha256 = "5efd6be42fca0a9b3c726b0eff723d64f7117a46648daf5419b54199e66d8916"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/score_posterior.rs"
+sha256 = "ac11546d4d6634c669f0daf2d27f7371dda72fe78041527cb3f430b27dde8933"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/sequential_contrast_reference.rs"
+sha256 = "1fb73f46fa7b70e5a0a1a0a28e57487830ac4693923f9e5f245b7da39bcbc65d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/sequential_contrast_reference.py"
+sha256 = "9b08938e1b768e6feef202fe862da5a0abee155e2fb1e094b45c8d67442818b5"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/sequential_contrast_reference.json"
+sha256 = "9d9e249804f09ee5994a86abf7fd09f47c773df8dc4d70f38a7f1e1d9f6cf640"

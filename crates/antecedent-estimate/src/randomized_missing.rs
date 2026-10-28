@@ -233,16 +233,28 @@ fn observation_probabilities(
         OBSERVATION_PROBABILITY_FLOOR,
     )
     .map_err(crate::observation::observation_fit_error)?;
-    let at_floor = (0..n).any(|i| {
-        observed[i] && fit.probabilities[i] <= OBSERVATION_PROBABILITY_FLOOR * (1.0 + 1e-9)
-    });
+    // The fitted probabilities are used unclipped: the stats fit clips them to
+    // `[floor, 1 - floor]`, and a clip at the upper end would move the weights of the most
+    // likely responders (a probability of 0.99 becoming 0.98) for no positivity reason. The
+    // lower end is refused below, never clipped, because clipping changes the estimand.
+    let probabilities: Vec<f64> = (0..n)
+        .map(|i| {
+            let eta = fit.coefficients[0]
+                + (0..ncov)
+                    .map(|c| fit.coefficients[c + 1] * covariates_colmajor[c * n + i])
+                    .sum::<f64>();
+            1.0 / (1.0 + (-eta).exp())
+        })
+        .collect();
+    let at_floor = (0..n)
+        .any(|i| observed[i] && probabilities[i] <= OBSERVATION_PROBABILITY_FLOOR * (1.0 + 1e-9));
     if at_floor {
         return Err(EstimationError::unsupported_coded(
             antecedent_core::reason_code!("positivity_violated"),
             "responder weighting has an observation probability at the positivity floor",
         ));
     }
-    Ok(fit.probabilities)
+    Ok(probabilities)
 }
 
 /// Inverse-probability-of-observation pseudo-outcomes `R Y / pi` for designs whose own

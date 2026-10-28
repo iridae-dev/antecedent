@@ -22,4 +22,41 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent/tests/bayesian_design_routes.rs",
+  "crates/antecedent-estimate/tests/bayesian_event_study_reference.rs (40-digit Student-t references for all eight cohort-by-period contrasts of an unbalanced staggered panel)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_bayesian_event_study of crates/antecedent-estimate/src/bayesian_staggered_event_study.rs with the balanced-panel assembly (balanced_panel, change_score) and the shared fit_nig/summarize of bayesian_panel_did.rs (the conjugate sampler is reviewed under prob.conjugate_gaussian; this record relies on it): the per-subject keying of rows by subject and period, never-treated controls (cohort 0), the cohort reference period g - 1, the change score y_t - y_{g-1} for every period other than g - 1 over the controls and that cohort only, the group coefficient of (1, 1{cohort = g}) as the contrast, the event time t - g, the group sizes and the per-contrast seed offsets. Route-specific content: the cohort and baseline selection and the omission of event time -1. Not the frequentist estimator (estimate.staggered_event_study), simultaneous inference across the curve, anticipation or the plausibility of parallel trends, or interval coverage."
+assumptions = ["Parallel untreated trends and no anticipation against never-treated subjects; independent subjects with one common change-score variance within each contrast, a Normal-Inverse-Gamma prior with declared scale.", "Each contrast is a pointwise marginal; contrasts share the never-treated subjects and are dependent.", "Accuracy is stated against exact 40-digit Student-t summaries; the sampler is compared at Monte Carlo tolerances."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with a 40-digit exact Normal-Inverse-Gamma Student-t reference for every cohort-by-period contrast written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One balanced panel of 19 subjects over five periods (8 never-treated, cohorts of 6 and 5 adopting in periods 3 and 4), one informative prior (3, 2, 1.5), 200,000 draws per contrast at one seed: eight cohort-by-period contrasts, mean within five Monte Carlo standard errors, sd within 2%, interval ends within 3% of the exact sd, and the group counts and event times exact. Rows are supplied in reverse order. Not exercised: unbalanced or thin cohorts (refused by the module, covered by the in-module refusal tests only), a cohort with no observed g - 1, or many cohorts, and no coverage is measured. The cited publications were not retrieved."
+sources = ["https://doi.org/10.1016/j.jeconom.2020.12.001", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect was found: the reference period, the change-score construction, the group coefficient, the event-time labels and the group counts agree with the exact posterior for both cohorts, including the pre-adoption leads."]
+record_sha256 = "ad2fac59ba73f0fd1850330aedbf2f997328bd20069f7bd510670626f4f2889f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/bayesian_staggered_event_study.rs"
+sha256 = "956e3ac5f7542dbfd37fcadf19a56ba5e6ba796c2bd23c28154cd861f8a01b30"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/bayesian_panel_did.rs"
+sha256 = "2f92db6feaded2e0331dc3cece46c23221e6e592ad447bcd1f0e662d48ec0e25"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/bayesian_event_study_reference.rs"
+sha256 = "c6d0332312a72c4ae4173ae98e98f6c7605ed74f7777940c9027ee456cfcf4d9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_event_study_reference.py"
+sha256 = "87641f82cbd43d0d500b9a261a891cc40ae5bc8b9d19f9d8bf8667b56e4c7fd6"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_event_study_reference.json"
+sha256 = "55301838d71d1239e17c6997da87dd49c8d5e83beed453c70f8fc4fb00824837"

@@ -21,4 +21,41 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent/tests/bayesian_policy_regime_routes.rs",
+  "crates/antecedent-estimate/tests/policy_value_posterior_reference.rs (exact rational laws of the Dirichlet-weighted policy, reference and paired difference scores)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "bayesian_binary_policy_value of crates/antecedent-estimate/src/policy_value_posterior.rs with the row scores it takes from binary_policy_row_scores (policy_value.rs; the score arithmetic itself is covered by the policy-value reference reviews of estimate.policy_value.doubly_robust) and the Bayesian-bootstrap functional of score_posterior.rs: the three columns policy, reference and their paired difference sharing one Dirichlet(1, ..., 1) weight vector per draw, and the resulting posterior laws. Route-specific content: sharing of draws across the three columns so the incremental posterior is the posterior of the differenced scores. bayesian_sequential_regime_value only applies the same functional to the subject scores of the sequential doubly robust evaluator in antecedent-stats and its score construction is not reviewed here. Not a design with fitted probabilities (estimate.sequential_aipw_inference), the choice of the policy, or interval coverage."
+assumptions = ["Known randomized assignment probabilities and frozen held-out outcome predictions; subjects are independent.", "The posterior is the Dirichlet-weighted mean of the augmented row score, the posterior of the policy value under a Dirichlet-process prior of vanishing concentration; it does not impose the randomization, the declared probabilities do.", "Accuracy is stated against exact rational distribution functions of the Dirichlet-weighted score means."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with exact rational B-spline laws of the Dirichlet-weighted policy, reference and differenced scores written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One nine-row table with row-varying dyadic probabilities, costs for the policy and its complement as reference, and distinct nuisance predictions (the exact formula needs distinct scores), 200,000 draws at one seed: thirteen grid points for each of the policy, reference and incremental laws are within five binomial standard errors, the score means equal the exact rationals to 1e-12, and 200 draws pairs satisfy incremental = policy - reference. Not exercised: the inverse-probability form without nuisances (scores tie, so the closed form does not apply), ties generally, the sequential regime posterior, larger tables, or interval coverage. The cited publication was not retrieved."
+sources = ["https://doi.org/10.1214/aos/1176345338"]
+findings_resolved = ["No defect was found: the shared-weight paired difference follows the law of the differenced scores, and the policy and reference laws follow the exact Dirichlet-weighted score laws."]
+record_sha256 = "c3b8c88d9551acfeed31e515f5f2d839c42db0a3a00ed2d45183967f0bf31930"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/policy_value_posterior.rs"
+sha256 = "20f87e32556fac1d3758bec89329d380036548ba668c02e251ee1555e9d062bf"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/score_posterior.rs"
+sha256 = "ac11546d4d6634c669f0daf2d27f7371dda72fe78041527cb3f430b27dde8933"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/policy_value_posterior_reference.rs"
+sha256 = "2d9db84b9e8cb0c060ab68f8549be56737471321be7d6b7ecbd86a6a5dcf8dd4"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/policy_value_posterior_reference.py"
+sha256 = "f11a3ea4e53d9da601d9933a778956a6e4277134c554dc849977a11b2cf8caef"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/policy_value_posterior_reference.json"
+sha256 = "0dcce78fca40fbc29e310486f64482d87292a00602d4dc88610ceaf7f74cd5de"

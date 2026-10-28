@@ -2,7 +2,10 @@
 //!
 //! The effect is the posterior distribution of the jump at the cutoff for a fixed rectangular
 //! bandwidth. The model is `Y ~ 1 + T + (R-c) + T(R-c)` with independent zero-centered Normal
-//! coefficient priors and a plug-in residual variance. These claims apply only to this model and
+//! coefficient priors whose scale is `prior_sd` residual standard deviations (the prior covariance
+//! is `v prior_sd^2 I` for the plug-in residual variance `v`, so rescaling the outcome rescales
+//! the posterior) and a plug-in residual variance taken from the residuals of the posterior-mean
+//! fit, which a tight prior therefore inflates. These claims apply only to this model and
 //! declared bandwidth; bandwidth comparisons are an explicit sensitivity analysis.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -23,7 +26,8 @@ pub struct BayesianRdEstimate {
     pub upper: f64,
     /// Fixed bandwidth used in this fit.
     pub bandwidth: f64,
-    /// Prior standard deviation for each local-linear coefficient.
+    /// Prior standard deviation of each local-linear coefficient in units of the plug-in
+    /// residual standard deviation.
     pub prior_sd: f64,
     /// Number of observations in the window.
     pub n_window: usize,

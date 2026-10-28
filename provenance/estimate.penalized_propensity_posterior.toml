@@ -21,4 +21,41 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent/tests/treatment_score_product.rs",
+  "crates/antecedent-estimate/tests/propensity_posterior_reference.rs (40-digit Newton mode, Laplace covariance and exact score mean, spread and out-of-band probability on an 80-row two-covariate design under three prior scales)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "PropensityCoefficientPrior::fit and PropensityCoefficientPosterior::score_at of crates/antecedent-estimate/src/penalized_propensity_posterior.rs with the Laplace logistic fit of antecedent-prob it calls (fit_laplace_glm_owned): the independent N(0, prior_sd^2) prior on every coefficient including the intercept, the posterior mode (the ridge fit with penalty 1/prior_sd^2), the Laplace Normal draws around it, the per-row score summaries (mean of the inverse link over the draws, value at the mode, standard deviation, probability of lying outside [clip, 1 - clip]), the design and prior validation, and the standing refusal of a weighting-effect posterior from propensity draws. Not the cross-fitted standardized penalized propensity (estimate.penalized_propensity_aipw), the non-Gaussianity of the true posterior (the Laplace approximation is the stated model), or any effect posterior."
+assumptions = ["The propensity is logistic in the declared design with an intercept; coefficients have independent zero-mean Normal priors of one declared standard deviation; the posterior is the Laplace Normal at the mode with the inverse Hessian covariance.", "A posterior of the propensity is a posterior of a nuisance only; propensity draws pushed through the weighting identity are not an effect posterior and are refused.", "Accuracy is stated against the exact mode and the exact Normal-linear-predictor summaries of the Laplace posterior, not against the true posterior of the logistic model."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with a 40-digit Newton mode and exact Laplace-posterior score summaries written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One 80-row design (intercept, a continuous covariate, a binary covariate) with three prior scales (0.5, 2 and 10) and four probe rows, 200,000 draws at one seed: the mode agrees to 1e-6, the score at the mode to 1e-6, the posterior mean score within five Monte Carlo standard errors, the spread within 1% and the out-of-band probability within five binomial standard errors of the exact Laplace-posterior quantities (quadrature against the Normal linear predictor). The Laplace approximation itself is not compared with the true logistic posterior, which differs when the data are sparse or a prior is wide relative to the information. Not exercised: separated data (the prior regularizes it), many covariates, and the cancellation path. The cited book was not retrieved."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect was found: the mode includes the intercept in the penalty as the module states, the Laplace covariance is the inverse of the Hessian plus the prior precision, and the score mean, spread and out-of-band probability follow the exact Normal-predictor values.", "The module documents that the posterior mean score is not the penalized-fit score; the reference confirms the gap (mean 0.285 against mode 0.276 for the first probe at prior scale 2)."]
+record_sha256 = "d834a1b64a980bcb9ef2ec959b3c3d82abcfeb49023d16b9b3416a52a96bd526"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/penalized_propensity_posterior.rs"
+sha256 = "117e35eceefca270e922c9e24712b5bc2d6d41487964c41e002d2b3458857213"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/laplace.rs"
+sha256 = "32eb9e61f5484cd1025650db64f4d571bbe9926a99db9d552ebd6f0f2339accf"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/propensity_posterior_reference.rs"
+sha256 = "2f86cbc2d104cd1a5263acad62715a5855290e17fa4c2fecc41424ededf3c301"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/propensity_posterior_reference.py"
+sha256 = "d8e45a628b1d3a96ad9d01976f222f20da18d48e4b0a4d1e6278e8712b8e7fcd"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/propensity_posterior_reference.json"
+sha256 = "55082e69b0926b020e3ae38b54f732f7c7c3b841566c4d363bcf76581a2471f6"

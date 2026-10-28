@@ -25,4 +25,36 @@ upstream_implementations_observed = []
 
 test_sources = [
  "in-crate unit tests (crates/antecedent-estimate/src/overlap.rs): clip-sensitivity ESS grid matches production IPW weights, ATT/ATC label-flip symmetry, tiny-clip parity with production clamp_scores, Custom observation-weight grid",
+ "crates/antecedent-estimate/tests/overlap_reference.rs (exact rational recomputation of the clip-sensitivity grid, Kish sizes, extreme counts, support and trimming shares for ATE, ATT, ATC and observation-weighted targets, and the default policy)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "OverlapReport::from_propensities, IpwTarget::weight, observed_ipw_weights and the clip-sensitivity grid of crates/antecedent-estimate/src/overlap.rs: the propensity minimum and maximum, the common-support share (inside [clip, 1 - clip], or [trim, 1 - trim] without a clip), the excluded share (strictly outside [trim, 1 - trim]), the estimand-specific observed-arm IPW weights (ATE, ATT, ATC, observation-weighted custom) at a clipped propensity, the Kish effective size over all, treated and control rows, the count of weights above 10, the grid {clip / 2, clip, min(2 clip, 0.49)} with consecutive duplicates dropped, and the undeclared default computing as the declared one-percent clip. Not the weighted-support gate of retargeting (arm Kish size at least 10, raw propensities inside (1e-6, 1 - 1e-6), at most 10% of target weight outside [0.01, 0.99]), which is a library choice with no reference here, the Kish effective size of weights supplied by the caller (a plain (sum w)^2 / sum w^2, not separately checked), the choice of a clip or trim, or inferential overlap analysis."
+assumptions = ["Propensities are fitted values in [0, 1]; a binary treatment indicator coded 0 or 1 selects the arm; clipping retains rows and changes weights, trimming is only reported here.", "The clip-sensitivity grid reports weights and effective sizes only; it does not re-estimate effects.", "Accuracy is stated against exact rational recomputation from these definitions."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with an exact rational recomputation of the clipped weights, Kish sizes, grid, support and trimming shares written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Six tables of 40 to 80 units with propensities from a Beta law including extremes (shape 0.2 for the tiny-clip case, producing weights above 10): ATE with the default clip 0.01, ATT with clip and trim 0.05, ATC with clip 0.3 (so the upper grid point is capped at 0.49), observation-weighted custom with clip 0.02, ATE with clip 0.004 and a trim-only policy (no grid). Every grid point's overall, treated and control Kish sizes agree to 1e-12 relative, the extreme counts are equal, and the support, excluded share and extremes agree. The clamp 1 - clip is computed in binary64 by the product, in rationals by the reference, which is within the tolerance. Not exercised: empty inputs, treatment values other than 0/1, observation weights of unequal length, and trimmed rows removed from estimation (the report only measures them). The cited publication was not retrieved and Kish (1965) has no resolving identifier."
+sources = ["https://doi.org/10.1093/biomet/asn055"]
+findings_resolved = ["No defect was found: the weights, Kish sizes, grid, support and excluded shares agree with the exact recomputation, and the undeclared default reports the same grid as the declared one-percent clip."]
+record_sha256 = "386c11989cd9b86ef1e11addc32d549a64a479a81eabbb912edea796bf1af935"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/overlap.rs"
+sha256 = "f6b1c0512e9cb361e26f92b788233c4ba412eb2cefe6f31414eaab783054acb5"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/overlap_reference.rs"
+sha256 = "986790b8ce1aff4e9449097624f6d4839bbc28b8f0e7a13fb89627b5d46c3ca7"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/overlap_reference.py"
+sha256 = "6847effdd2cb1759c75db57c851d166329ad3e66d61fec34502c4819b38cf185"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/overlap_reference.json"
+sha256 = "8f2319a72cec32bd0645858b3cba7f3345aa348e85089863fb44164a1c8d3139"

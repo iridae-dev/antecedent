@@ -18307,3 +18307,101 @@ crate = "antecedent-stats"
 cargo_target = "local_quadratic_precision_reference"
 path = "crates/antecedent-stats/tests/local_quadratic_precision_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-panel-did-reference"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_panel_did_reference"
+path = "crates/antecedent-estimate/tests/bayesian_panel_did_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-rd-reference"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_rd_reference"
+path = "crates/antecedent-estimate/tests/bayesian_rd_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-event-study-reference"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_event_study_reference"
+path = "crates/antecedent-estimate/tests/bayesian_event_study_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "complier-posterior-reference"
+crate = "antecedent-estimate"
+cargo_target = "complier_posterior_reference"
+path = "crates/antecedent-estimate/tests/complier_posterior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "policy-value-posterior-reference"
+crate = "antecedent-estimate"
+cargo_target = "policy_value_posterior_reference"
+path = "crates/antecedent-estimate/tests/policy_value_posterior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "randomized-posterior-reference"
+crate = "antecedent-estimate"
+cargo_target = "randomized_posterior_reference"
+path = "crates/antecedent-estimate/tests/randomized_posterior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "sequential-contrast-reference"
+crate = "antecedent-estimate"
+cargo_target = "sequential_contrast_reference"
+path = "crates/antecedent-estimate/tests/sequential_contrast_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "overlap-reference"
+crate = "antecedent-estimate"
+cargo_target = "overlap_reference"
+path = "crates/antecedent-estimate/tests/overlap_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "influence-se-reference"
+crate = "antecedent-estimate"
+cargo_target = "influence_se_reference"
+path = "crates/antecedent-estimate/tests/influence_se_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "survival-posterior-reference"
+crate = "antecedent-estimate"
+cargo_target = "survival_posterior_reference"
+path = "crates/antecedent-estimate/tests/survival_posterior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-local-ratio-reference"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_local_ratio_reference"
+path = "crates/antecedent-estimate/tests/bayesian_local_ratio_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "responder-weighted-reference"
+crate = "antecedent-estimate"
+cargo_target = "responder_weighted_reference"
+path = "crates/antecedent-estimate/tests/responder_weighted_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "knn-distance-matching-reference"
+crate = "antecedent-estimate"
+cargo_target = "knn_distance_matching_reference"
+path = "crates/antecedent-estimate/tests/knn_distance_matching_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "propensity-posterior-reference"
+crate = "antecedent-estimate"
+cargo_target = "propensity_posterior_reference"
+path = "crates/antecedent-estimate/tests/propensity_posterior_reference.rs"
+gates = ["inventory", "named"]

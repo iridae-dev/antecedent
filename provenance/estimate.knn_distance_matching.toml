@@ -23,5 +23,46 @@ upstream_implementations_observed = [
 
 test_sources = [
  "crates/antecedent-estimate/src/propensity/knn.rs (independent exhaustive-search oracle for the three-neighbour estimate, bias correction, caliper rule and donor-reuse standard error; one neighbour equals estimate.distance_matching bit for bit)",
- "crates/antecedent-estimate/tests/knn_matching_calibration.rs (knn_matching_interval_ci_coverage, a 95 percent coverage design at 10,000, 25,000 and 100,000 rows with eight covariates)",
+ "crates/antecedent-estimate/tests/knn_matching_calibration.rs (knn_matching_interval_ci_coverage, a 95 percent coverage design at 10,000, 25,000 and 100,000 rows with eight covariates)", "crates/antecedent-estimate/tests/knn_distance_matching_reference.rs (exhaustive 60-digit M-nearest search for M of 2 to 5 with a caliper, duplicated tied rows, covariate units of 1e14 and a small table; effect, donor-reuse standard error and matched count for the ATT, ATC and ATE)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "KnnDistanceMatching::fit (via DistanceMatching::fit_with_matches) of crates/antecedent-estimate/src/propensity/knn.rs with the shared matching helpers of propensity/matching.rs and the donor-arm linear bias term of propensity/distance.rs that it calls: z-scoring, the M nearest donors by Euclidean distance with ties broken to the lowest donor position, the caliper applied to the M-th nearest donor (a distance equal to the caliper matches), the within-arm least-squares bias correction applied to the mean of the M donors, the matched effects for ATT, ATC and ATE, and the Abadie-Imbens donor-reuse variance for M matches (use count over M, noise Var(effect) / (1 + 1/M)). Not the single-neighbour estimator's own review (estimate.distance_matching, which this agrees with at M = 1 per the in-module equality test), the bootstrap (refused), sampling weights, the population-variance option, or the 95 percent coverage designs of the calibration test."
+assumptions = ["Unconfoundedness given the adjustment covariates and positivity are identification assumptions taken as given; rows are independent.", "Matching is with replacement on the z-scored covariates, so every covariate counts equally whatever its units; the within-arm linear bias term is fitted on the donor arm.", "The variance is the constant-effect homoskedastic donor-reuse form for M matches, not the conditional-residual estimator of the paper; the record states this deviation.", "Accuracy is stated against an exhaustive 60-digit search."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with an exhaustive 60-digit M-nearest-neighbour search and the M-match donor-reuse variance written from their definitions written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Seven tables of 24 to 60 units (two to three covariates) with M of 2, 3, 4 and 5: a plain case, a caliper of 0.8 on the z-scale (matched counts 8, 16 and 16 for ATT, ATC and ATE), duplicated rows so many donors tie in distance for M = 3 and 4, a covariate in units of 1e14, a three-covariate M = 5 case and a 24-row M = 2 case. The ATT, ATC and ATE effects agree to 1e-8 relative, the standard errors to 1e-6 relative and the matched counts exactly. The coverage of the interval is measured by its own calibration designs and not reproduced here. Not exercised: sampling weights, the population-variance option, a donor arm with fewer than M rows (refused by the module), many covariates and near-collinear covariates (covered for M = 1 by the single-neighbour reference). The cited publications were not retrieved."
+sources = ["https://doi.org/10.1111/j.1468-0262.2006.00655.x", "https://doi.org/10.3982/ECTA6474", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect was found: the M nearest donors with the lowest-position tie rule, the M-th-neighbour caliper, the bias correction on the donor mean and the M-match donor-reuse variance agree with the exhaustive reference for every target."]
+record_sha256 = "121aeb7a985a2808f4d3e66d438ab09b4157924af79579a7454d85cb3eeff1d9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/knn.rs"
+sha256 = "1a176d9faaab79843689fa0ff00e631e1b81a9c19ee6a475e7291b81da3ea5e2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/matching.rs"
+sha256 = "0c49a05d567d8277692a6135f535560e652371f628a3c28d005584b9889061be"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/distance.rs"
+sha256 = "735ad21b6993d77d75a54964d0051e72e90e88fa2edf86c5315efe8a488289f9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/knn_distance_matching_reference.rs"
+sha256 = "9db3b774694e1ad11927b885e975dad7e79b451aa1be754b43ac87d20999aefd"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/knn_distance_matching_reference.py"
+sha256 = "33f95ec453a7c73c57301dc65c6f8d7a926a50ca909942adc0b5265ba7a64963"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/knn_distance_matching_reference.json"
+sha256 = "2580ba0cbd1249b114e6118836886322f8de8f2494014c43c993c0e203cabc77"

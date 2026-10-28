@@ -10,7 +10,9 @@
 //! The outcome model is the fixed-bandwidth local-linear Gaussian model of the sharp posterior in
 //! [`crate::bayesian_rd`], fitted to the outcome and to the treatment on the same design
 //! `1 + A + (R-c) + A (R-c)` with `A = 1{R >= c}`, independent zero-centered Normal coefficient
-//! priors and a plug-in 2x2 residual covariance. The two numerator and denominator coefficients
+//! priors whose scale is in residual standard deviations of the respective response (the prior
+//! covariance of a response's coefficients is that response's residual variance times
+//! `prior_sd^2`) and a plug-in 2x2 residual covariance. The two numerator and denominator coefficients
 //! are drawn jointly from their bivariate Normal posterior, so the draws of the ratio carry the
 //! outcome-treatment residual correlation.
 //!
@@ -63,7 +65,8 @@ pub struct LocalRatioSpec {
     pub cutoff: f64,
     /// Fixed rectangular bandwidth.
     pub bandwidth: f64,
-    /// Prior standard deviation of every local-linear coefficient.
+    /// Prior standard deviation of every local-linear coefficient, in residual standard
+    /// deviations of the response it belongs to.
     pub prior_sd: f64,
     /// Absolute denominator magnitude below which the ratio is treated as unidentified.
     pub first_stage_floor: f64,

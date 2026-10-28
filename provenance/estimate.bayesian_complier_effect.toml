@@ -21,4 +21,41 @@ upstream_implementations_observed = []
 test_sources = [
  "unit tests in crates/antecedent-estimate/src/complier_posterior.rs",
  "crates/antecedent/tests/bayesian_randomized_routes.rs",
+ "crates/antecedent-estimate/tests/complier_posterior_reference.rs (exact rational B-spline laws of the intention-to-treat mean and the Wald ratio under Dirichlet weights, known and row-varying probabilities)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "bayesian_complier_effect of crates/antecedent-estimate/src/complier_posterior.rs with the Bayesian-bootstrap score posterior it calls (bayesian_bootstrap_score_posteriors, summarize in score_posterior.rs and the Dirichlet weights of antecedent-kernels): the intention-to-treat score s_i y_i and the receipt score s_i d_i with s_i = 1/p_i for assigned rows and -1/(1 - p_i) otherwise, the shared per-draw Dirichlet(1, ..., 1) weights, the draw-wise ratio, the plain score means (the Wald point), and the weak-first-stage refusal when a first-stage draw is not positive. Route-specific content: the signed inverse-probability scores with row-varying known probabilities and the draw-wise ratio of two draws sharing weights. Not exclusion or monotonicity, the posterior moments of the ratio (it can lack finite moments), the refusal's calibration or interval coverage."
+assumptions = ["Known assignment probabilities strictly inside (0, 1); exclusion and monotonicity are declared, not tested.", "The Dirichlet(1, ..., 1) weights on the rows are the posterior of the row law (Dirichlet-process prior of vanishing concentration); the prior identifies nothing.", "For one-sided receipt scores (nonnegative, one positive) the first-stage draw is positive for every weight vector, so the refusal is not reached and the exact ratio law is P(R <= r) = P(sum omega_i (a_i - r b_i) <= 0).", "Accuracy is stated against exact rational distribution functions."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with exact rational B-spline laws of Dirichlet-weighted score means and of the Wald ratio written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Two ten-row tables (a known probability of one half and ten row-varying probabilities from 0.25 to 0.8) with one-sided receipt, 200,000 draws at one seed. The empirical distribution functions of the ratio at thirteen points and of the intention-to-treat mean at nine points are within five binomial standard errors of the exact rational B-spline laws, the exact 2.5% and 97.5% points of the ratio are crossed at 2.5% and 97.5% of the draws within the same tolerance, and the plain score means (Wald point) equal the exact rationals to 1e-12. The exact formula needs distinct scores, so the first-stage column (which repeats zeros) is checked only through the ratio, not on its own. Not exercised: two-sided receipt (the first stage can then be non-positive and the refusal fires), larger tables, other seeds, and coverage of the interval. The weak-first-stage refusal is a finite-draw guard, as the module states, not a support certificate. The cited publications were not retrieved."
+sources = ["https://doi.org/10.1214/aos/1176345338", "https://doi.org/10.1080/01621459.1996.10476902"]
+findings_resolved = ["No defect was found: the signed scores, the shared weights and the draw-wise ratio reproduce the exact laws, including with row-varying probabilities.", "The exact law of the ratio under Dirichlet weights is not in the module documentation; the reference derives it and the review records that the sampler's weights follow the Dirichlet(1, ..., 1) law at n = 10."]
+record_sha256 = "ae1a51b7eea4520d385419c21e57847344a600230009020efb6e5e91843b5e7b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/complier_posterior.rs"
+sha256 = "183f7b17e7dba637c522fa4df5a424503a960d2fe033a7c8ef624b3b0664b1b1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/score_posterior.rs"
+sha256 = "ac11546d4d6634c669f0daf2d27f7371dda72fe78041527cb3f430b27dde8933"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/complier_posterior_reference.rs"
+sha256 = "c4e8c13ec582ff3d7d062180d12328a7a73de7f4372ab73836639e6b49b66b01"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/score_posterior_reference.py"
+sha256 = "df7dabe0c529d2aaf0a925c84ae714d3d3d67524385c0d6124460d044fff2f35"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/score_posterior_reference.json"
+sha256 = "a9807532be33b60bb1df0725d5d099b9155f0416efe605c921ced31631946914"

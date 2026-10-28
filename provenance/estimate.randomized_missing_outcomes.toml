@@ -32,6 +32,42 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-estimate/src/randomized_missing.rs (independent post-stratified closed form for a saturated binary covariate; simulated truth; reported standard error against the sampling spread over 300 replications)",
- "crates/antecedent/tests/missing_data_routes.rs (known-truth additive panel; exact hand-computed slope on a series with gaps that a compressed series does not reproduce)",
+ "crates/antecedent/tests/missing_data_routes.rs (known-truth additive panel; exact hand-computed slope on a series with gaps that a compressed series does not reproduce)", "crates/antecedent-estimate/tests/responder_weighted_reference.rs (40-digit logistic fit, Hajek mean and stacked M-estimation sandwich variance for each arm, including a fitted observation probability above the former upper clip and an arm in which everyone responds)",
 ]
 limitations = "Two-arm Bernoulli and completely randomized designs without CUPED, ANCOVA or receipt adjustment; logistic observation model on complete covariates; outcomes missing at random given arm and the declared covariates. The exact normal endpoint constructions have collected records under estimate.uncertainty; other designs or missingness settings have no inherited coverage."
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "responder_weighted_itt (and the shared observation_probabilities, weighted_arm and score_terms) of crates/antecedent-estimate/src/randomized_missing.rs with the logistic observation fit of antecedent-stats (fit_observation_logistic): within each arm, the logistic fit of the observation indicator on the declared covariates, the inverse-probability Hajek mean over responders with the whole arm as the denominator of the score, the influence-function variance that subtracts the estimated-probability term h' I^-1 s_i, the sample-variance divisor n - 1, the positivity refusal for a responder at the 0.02 floor, the arm Kish size of the responder weights, the arm in which everyone responds (probability one, no estimation term) and the contrast. Not responder_pseudo_outcomes (it reuses the same fit and score term but its design-level variances belong to the other randomized records), complete-case averaging, the choice of covariates, missingness not at random, or coverage."
+assumptions = ["Outcomes are missing at random given the arm and the declared complete covariates; assignment is randomized so each arm's mean is the intention-to-treat mean of the arm; arms are independent.", "The observation probability is logistic in the declared covariates with an intercept; its correctness is an assumption. Fitted probabilities are used unclipped; a responder at or below 0.02 is refused as a positivity failure.", "The variance is the influence-function sample variance over n - 1 with the estimated-probability term included, equal to n/(n - 1) times the stacked M-estimation sandwich variance.", "Accuracy is stated against a 40-digit Newton logistic fit and the exact stacked sandwich."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with a 40-digit Newton logistic fit and an exact stacked M-estimation sandwich written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three trials (60 and 60, 45 and 45, 40 and 40 assigned units; 26 to 40 responders per arm) with two covariates and an observation probability that depends on both; the third trial has every control unit observed. The Hajek means agree to 1e-9 relative, the arm variances to 1e-6 relative, the minimum fitted responder probability and the Kish size to 1e-8, and the contrast and its variance to the same tolerances. The logistic fit is the maximum-likelihood fit (coefficients agree with an independent Newton iteration to 1e-15). Not exercised: more than two covariates, near-separated or near-floor fits, tiny arms (the three-participant minimum is covered by the in-module refusals), covariate interactions and coverage; the 300-replication spread check of the in-module test remains the only repeated-sampling evidence. The cited publications were not retrieved."
+sources = ["https://doi.org/10.1080/01621459.1994.10476818", "https://doi.org/10.1177/0962280210395740", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect repaired: the stats fit clips fitted observation probabilities symmetrically to [0.02, 0.98], and the module used the clipped values. A responder with a fitted probability of 0.991 therefore received weight 1/0.98 instead of 1/0.991, shifting the Hajek mean (1.10565 against 1.10520 on the first reference arm, 4e-4 relative) and distorting the information and score terms, although the record's own rule is that clipping changes the estimand and so only the lower end is refused. The module now uses the unclipped logistic probabilities from the fitted coefficients and keeps the lower-floor refusal.", "With unclipped probabilities the means, the influence-function variances (including the estimated-probability term) and the weight diagnostics agree with the exact stacked estimator."]
+record_sha256 = "db9060329d9108b22f18da7d90b6074d2f2ca6174bfd8665bbcf39558e3c151a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/randomized_missing.rs"
+sha256 = "e5449c8a5a1259a34cc47bf136474fe7543ad08101460d6a314c79a8e6ec6dc9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/observation.rs"
+sha256 = "201a0a18f916ba476a17ec73ee8957243c2a012edfa8d5c7363497ee41c582af"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/responder_weighted_reference.rs"
+sha256 = "49f04d051100d2be3cb2ea50707781626d474ed4eb37e1e053c79e1e3ee551a9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/responder_weighted_reference.py"
+sha256 = "0b2e838d1cc727bff670eb4719892db88b8b7395e95b4a5f2e7da078c2c9f63b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/responder_weighted_reference.json"
+sha256 = "55bd1bdf72c8b1dd5cd2ce6c29856fc650c73f746813dcdcb1f8cc93942987e0"

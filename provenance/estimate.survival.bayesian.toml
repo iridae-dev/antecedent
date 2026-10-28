@@ -22,4 +22,36 @@ upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent/tests/bayesian_design_posterior_routes.rs",
+  "crates/antecedent-estimate/tests/survival_posterior_reference.rs (exact exposures, conjugate parameters, closed-form means and exact first and second moments of horizon survival and restricted mean survival time, with delayed entry and an informative prior)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "randomized_piecewise_survival_posterior of crates/antecedent-estimate/src/survival_posterior.rs: the per-arm, per-interval events and exact time at risk (entry truncating from the left, exit from the right), the Gamma(shape + events, rate + exposure) hazard posteriors, the closed-form posterior means of the horizon survival (product of (rate / (rate + length))^shape) and of the restricted mean survival time (the interval area integral with its shape-one branch), the seeded gamma draws of both arms behind the survival and restricted-mean differences, and the validation refusals. Not the competing-risk cumulative incidence (refused), the choice of cut points or prior, informative censoring or entry, the product-limit summary it is compared with in the record, the equal-tailed interval convention beyond its use of the draws, or coverage."
+assumptions = ["Hazards are constant on each declared interval with independent Gamma priors; subjects are independent; censoring and entry are non-informative given the arm; arms are randomized.", "Events coded 0 or 1; an event at t counts in the interval with c_{k-1} < t <= c_k; time at risk is min(t, c_k) - max(entry, c_{k-1}) clipped at zero.", "Accuracy is stated against exact gamma moments in 40-digit arithmetic."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with 40-digit exact moments of the independent gamma hazards (survival and restricted mean survival time) written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three tables of 12 and 14 subjects: a flat Gamma(1, 1) prior and an informative Gamma(4.5, 6) prior on three intervals, and a four-interval partition with delayed entry (including entry in a later interval) under Gamma(2, 3), 200,000 draws at one seed. The events, exposures and Gamma parameters agree to 1e-12, the closed-form means of survival and restricted mean survival time to 1e-8 or better, and the sampler's mean agrees within five Monte Carlo standard errors and its standard deviation within 1.5% of the exact first and second moments of the survival difference and the restricted-mean difference. The credible interval ends and the probability that treated survives longer have no exact reference here (their distribution is not a closed form); they are checked by the in-module simulation agreement only. Not exercised: very sparse intervals, many intervals, tiny or huge priors, other seeds. The cited publications were not retrieved."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect was found: exposure with delayed entry, the interval event convention, the conjugate update, the closed-form survival and restricted-mean means (including the second-moment structure used to validate the sampler) and the paired draws agree with the exact reference.", "The exact variances of the survival and restricted-mean differences, derived here from the independent-interval product structure, are new evidence for the draws; the hand and numpy constants of the in-module tests remain the only reference for the interval ends."]
+record_sha256 = "bc25f4e2001fb1b3c59a9aec5c72daed592d03743b2edf095a0eb01e194ec239"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/survival_posterior.rs"
+sha256 = "9b00d79a60d7a66d29164177951c57158c8c61b54f09397eda6748d54fa21e6c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/survival_posterior_reference.rs"
+sha256 = "69225072be56048c20c6dc5f0d6d68cff05008501518ae13d228e8ffdb2a18e8"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/survival_posterior_reference.py"
+sha256 = "523d3b91a4f2aad0fc4cb5eeea453ef90e1b626aa6c860d6c78be1087dd3d0ee"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/survival_posterior_reference.json"
+sha256 = "db16a9f277001a81afbedf0b70730d7d5b85e745d06a33c0c37ff9c4b48299dc"
