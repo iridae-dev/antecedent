@@ -22,4 +22,26 @@ test_sources = [
  "inline unit tests (crates/antecedent-graph/src/projection.rs)",
  "clean-room independent latent-only path enumeration oracle (conformance/graph/latent_projection)",
  "crates/antecedent-graph/tests/oracle_closure.rs",
+ "exhaustive separation-preservation check: for every four-node DAG (over the fixed order) and every observed subset of two or more nodes listed in descending order, and for a stride of the five-node DAGs, the m-separation of the projected ADMG equals d-separation in the DAG for every pair and conditioning set of observed nodes, against a path-definition oracle (crates/antecedent-graph/tests/admg_msep_exhaustive.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "latent_project in crates/antecedent-graph/src/projection.rs: projecting a DAG onto an observed subset as a directed-bidirected ADMG, judged by whether the projected graph's m-separation statements over the observed nodes equal the DAG's d-separation statements. Not a review of projection_preserves_msep_sample, of conditioning or selection projection, or of projection from ADMGs, MAGs or PAGs, which are not implemented."
+assumptions = ["The input is a DAG; latent nodes are the nodes not listed as observed, and every observed node is listed once.", "Projection edges: a directed edge for each directed path whose interior nodes are all latent, a bidirected edge for each pair of observed nodes reached from a common latent by latent-only directed paths.", "Equivalence is judged on separation statements among observed nodes only, using an oracle that restates the path definition independently of the product."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied. none listed in the earlier record"
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI where one exists and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard textbook statements, so a mistake in how a record or this reference states a theorem would not be detected here. Exhaustive over four-node DAGs (all observed subsets, observed nodes in reverse order so projected ids differ from original ids) and a stride of the five-node DAGs (79 of 1024 order-compatible graphs, all observed subsets); the existing seeded path-enumeration and random comparisons on larger DAGs are not re-run as part of this review. Separation preservation is necessary but is not alone a proof that the edge set is the minimal projection. The paper cited by the record carries no recorded section locator; the construction is checked against the standard latent-projection definition. No claim about downstream identification or calibration. Calibration remains deferred."
+sources = ["Latent projection of a DAG onto an observed subset (standard construction; the earlier record names no section locator or DOI for its single listed source)"]
+findings_resolved = ["Added an exhaustive executing comparison of projected m-separation against DAG d-separation for every pair and conditioning set among observed nodes, for all four-node DAGs and every observed subset, and for a stride of five-node DAGs; hundreds of thousands of statements agree, with both connected and separated outcomes common.", "No defect found and no change to projection code. Code edits: tests added to crates/antecedent-graph/tests/admg_msep_exhaustive.rs (registered as its own test target)."]
+record_sha256 = "5895af7860964f2324fa0dbfc45d07efde6deb5249d946bdb71d82faba0907b2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/projection.rs"
+sha256 = "703dbd13834af5b53cff2ec183594d7d763671cac3089ce7e99797e4dd4dace9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-graph/tests/admg_msep_exhaustive.rs"
+sha256 = "4e6e6a846a2a37a53a6dd2577c0ec060630f7ee51e73547f0404c48efb7a6cf0"

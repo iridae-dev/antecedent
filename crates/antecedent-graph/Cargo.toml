@@ -49,3 +49,11 @@ harness = false
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "admg_msep_exhaustive"
+path = "tests/admg_msep_exhaustive.rs"
+
+[[test]]
+name = "cpdag_mec_exhaustive"
+path = "tests/cpdag_mec_exhaustive.rs"

@@ -8,6 +8,7 @@ copied_tests = false
 implementation_deviations = [
  "The hedge certificate stores only the two node sets (F, F') returned at ID line 5, not the edge subgraphs of the two C-forests. HedgeCertificate::verify checks the definition existentially over edge subsets: F' within F, F meets X, F' avoids X, both induced subgraphs bidirected-connected, and both ancestral to the shared root set R = F' intersected with An(Y) in G with edges into X removed.",
  "The certificate does not name the sub-query (X', Y') for which line 5 fired; verification is against the original query.",
+ "Non-identification is equivalent to a hedge for the full treatment set X and some non-empty sub-outcome Y' of Y (checked exhaustively on small graphs). A hedge for a proper subset of X does not by itself imply non-identification: in x0 -> x1 -> y with x0 <-> x1, P(y | do(x0)) has a hedge but P(y | do(x0, x1)) is identified.",
 ]
 
 papers = [
@@ -24,4 +25,36 @@ test_sources = [
  "hedge_not_identified (crates/antecedent-identify/src/id.rs)",
  "hand-derived hedge node sets for bow arc, confounded-mediator front-door and a joint-treatment query, plus negative mutations of the certificate (conformance/identify/id_completeness; crates/antecedent-identify/tests/id_completeness.rs)",
  "every non-identified query of the exhaustive <=4-node sweep (9163) and of the seeded 5-6 node joint sample is checked against the hedge definition (crates/antecedent-identify/tests/id_completeness.rs)",
+ "definition check of the hedge verifier and of ID's refusal decision: HedgeCertificate::verify against the R-rooted C-forest definition enumerated over node sets, root sets and edge subsets for every pair F' within F on every three-node ADMG and a stride of four-node ADMGs, and ID's NotIdentified status against the existence of a hedge for the full treatment set and some non-empty sub-outcome on every three-node ADMG, every four-node single-treatment single-outcome query and a stride of four-node joint queries (crates/antecedent-identify/tests/hedge_definition_enumeration.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "HedgeCertificate::verify and the hedge produced at ID line 5 in crates/antecedent-identify/src/hedge.rs and crates/antecedent-identify/src/id.rs, for unconditional interventional-distribution queries on ADMGs: whether the verifier accepts exactly the node-set pairs for which the Shpitser-Pearl definition of a hedge has an edge-subset realisation, and whether ID refuses exactly the queries for which a hedge exists. Not a review of the ID recursion's soundness on identified queries (record identify.id), of IDC, of larger-than-four-node graphs, or of the emitted certificate's rendering."
+assumptions = ["ADMG whose bidirected edges stand for unmeasured common causes and whose nodes are measured.", "Definition of a hedge for P_x(y): R-rooted C-forests F' within F (each bidirected-connected, every node with at most one child, the childless nodes exactly R), F meets X, F' does not, and R is contained in An(Y) after cutting the arrows into X.", "Non-identification of P_x(y) is equivalent to the existence of such a hedge for the full X and some sub-outcome (the completeness direction is established by the reference comparison on small graphs, not re-derived)."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied. dowhy (black-box comparison only)"
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI where one exists and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard textbook statements, so a mistake in how a record or this reference states a theorem would not be detected here. The reference enumerates node sets and edge subsets, so it is exhaustive but confined to graphs of at most four nodes (the verifier on a stride of the four-node graphs); larger graphs are not checked by this reference, though the seeded five- and six-node joint sample in id_completeness.rs verifies each returned certificate with the shipped verifier, which this review shows equal to the definition on the small graphs. The certificate stores node sets only and does not name the sub-outcome Y' at which line 5 fired. No claim about queries with conditioning or about calibration. Calibration remains deferred."
+sources = ["Shpitser and Pearl (2006), Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models, Definition of a hedge and Algorithm ID line 5; no DOI recorded in the earlier record"]
+findings_resolved = ["Added an independent verifier reference from the definition (node sets, root sets and edge subsets, with the subgraph containment of F' in F enforced on edges) and showed the shipped existential-over-induced-subgraph check equals it on every pair F' within F, every treatment/outcome set pair, for every three-node ADMG and a stride of four-node ADMGs, with both accepted and rejected pairs occurring many times.", "Previously id_completeness.rs validated every refusal with HedgeCertificate::verify, the shipped function, so the refusal evidence was not independent of the verifier. The new comparison removes that dependence: ID refuses exactly when the independent reference finds a hedge, on every three-node ADMG with every treatment/outcome set pair, every four-node single-treatment single-outcome query, and a stride of four-node joint queries.", "The comparison showed that the hedge criterion must be taken with the full treatment set: a hedge for a proper subset of X (the earlier reading of Shpitser and Pearl's theorem) exists in graphs where ID correctly identifies the query, so ID was right and the draft criterion was wrong; the record now states the full-X, sub-outcome form.", "No defect in the product was found; no change to identification code. Code edits: a new integration test (crates/antecedent-identify/tests/hedge_definition_enumeration.rs) registered as its own test target."]
+record_sha256 = "0eef605b48c40c9b4c5378e621d0a73b923a13632bde0e4a84b8f37b92194f5c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/hedge.rs"
+sha256 = "cb7acd4018e438beedf643424287d661b5c494117ab0cb88b0da8f855348b5cd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/id.rs"
+sha256 = "70930332d6cd257d7c3feff349978e965da25665c07005050400f1a9292f0ff0"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/hedge_definition_enumeration.rs"
+sha256 = "8a2fb8d8664e894dbfc8640f1e2ec4c4d632e1828a41c4702488eba6ad25539d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/id_completeness.rs"
+sha256 = "6d472237e8f2ff73147b23c7808af1d4eb4c416333f16a929974c3b6d035c3de"

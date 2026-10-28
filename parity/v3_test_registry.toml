@@ -17743,3 +17743,31 @@ crate = "antecedent-validate"
 cargo_target = "lib"
 path = "crates/antecedent-validate/src/evalue_oracle_tests.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-identify-src-adjustment-enumeration-tests-rs"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/adjustment_enumeration_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "hedge-definition-enumeration"
+crate = "antecedent-identify"
+cargo_target = "hedge_definition_enumeration"
+path = "crates/antecedent-identify/tests/hedge_definition_enumeration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "admg-msep-exhaustive"
+crate = "antecedent-graph"
+cargo_target = "admg_msep_exhaustive"
+path = "crates/antecedent-graph/tests/admg_msep_exhaustive.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cpdag-mec-exhaustive"
+crate = "antecedent-graph"
+cargo_target = "cpdag_mec_exhaustive"
+path = "crates/antecedent-graph/tests/cpdag_mec_exhaustive.rs"
+gates = ["inventory", "named"]

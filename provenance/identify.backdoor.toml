@@ -8,6 +8,7 @@ copied_tests = false
 implementation_deviations = [
   "Adjustment-set enumeration supports single-treatment, single-outcome AverageEffect queries with hard Set contrasts on static DAGs. The checked joint-adjustment API validates a caller-supplied common set for simultaneous treatments on a static DAG: no treatment descendant may be adjusted for, and each treatment must be d-separated from the outcome given the set after deleting outgoing arrows of the entire intervention set. This sufficient joint backdoor certificate performs no search and grants no parametric fit or positivity guarantee.",
   "Adjustment-set search is bounded: exhaustive enumeration stops above 40 candidates and results default to 64; larger problems use only an ancestral screen and an O-set-like fallback.",
+  "The criterion implemented is Pearl's back-door criterion, which excludes every descendant of the treatment from the adjustment set. It is not the adjustment criterion of Shpitser, VanderWeele and Robins, whose admissible class can be larger, so NotIdentified from this module is relative to the back-door class and is not a claim that no adjustment set exists; general ID answers the remaining cases.",
 ]
 
 papers = [
@@ -23,4 +24,31 @@ test_sources = [
   "consumed black-box identify() status/estimand-family comparison against pinned DoWhy 0.14 baseline (conformance/identify/general_id_backdoor_chain)",
   "confounding_requires_z (crates/antecedent-identify/src/backdoor.rs)",
   "crates/antecedent/tests/recalc_adjusted.rs",
+  "exhaustive definition check: every labelled four-node DAG (543) and a stride of the five-node DAGs, every ordered treatment/outcome pair and every subset of the other nodes against Pearl's back-door conditions restated with a moral-graph d-separation, for the all-sets, inclusion-minimal, inclusion-maximal, single-forbidden-variable and forced-fallback (max_candidates = 0) configurations, with a numerical adjustment-formula check against an exact binary SCM (crates/antecedent-identify/src/adjustment_enumeration_tests.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "BackdoorIdentifier::identify in crates/antecedent-identify/src/backdoor.rs for a single-treatment, single-outcome AverageEffect query on a known DAG: the back-door admissibility test of a candidate set, the exhaustive enumeration with its inclusion-minimal and inclusion-maximal filters and forbidden-variable exclusion, the existence decision by one separation test on the ancestral set, and the certified fallback taken when the enumeration is not funded or a candidate ceiling is declared. Not a review of the temporal-lag and measurement-cost orderings, of the work-budget accounting, of the joint-adjustment checker check_joint_adjustment, or of estimators."
+assumptions = ["Known DAG whose directed edges are complete and whose nodes are all measured.", "Back-door criterion (Pearl, Causality, Definition 3.3.1): Z contains no descendant of T and blocks every path from T to Y that starts with an arrow into T, tested as d-separation of T and Y given Z after deleting T's outgoing arrows.", "The adjustment formula is a statement about the population law; positivity of every (t,z) cell is not implied by the graph."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied. dowhy (black-box comparison only)"
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI where one exists and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard textbook statements, so a mistake in how a record or this reference states a theorem would not be detected here. The exhaustive comparison covers all four-node DAGs and a stride of one in 11 five-node DAGs, with the default result limit lifted so that truncation does not mask a missing set; the examination budget and result limit are not exercised by it (separate unit tests exist). The numerical check uses binary variables and one seeded parameterization on four nodes and checks that the formula recovers the interventional law when the criterion holds. The in-crate five-node test minimal_sets_match_exhaustive_all_sets_on_every_five_node_ordered_dag compares the identifier's minimal filter with its own exhaustive mode and is a consistency check, not an independent reference; this review's definition-based comparison supplies the independent evidence. Cost and lag orderings, joint-treatment adjustment and the fallback for graphs beyond a declared candidate ceiling are only partially covered (the fallback is checked for status and admissibility of what it returns, not for optimality). No claim about estimator behavior or calibration. Calibration remains deferred."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["Added an exhaustive executing comparison: for every one of the 543 labelled four-node DAGs and every ordered treatment/outcome pair, the sets returned with minimal_only disabled equal exactly the subsets accepted by an independent definition-based reference; the default (inclusion-minimal) search equals the reference's inclusion-minimal subsets; maximal_only equals its inclusion-maximal subsets; the status is NotIdentified exactly when the reference accepts nothing. The same holds on a stride of the 29281 five-node DAGs.", "Verified that the existence shortcut (one separation test on the ancestral set) agrees with the reference: with a candidate ceiling of zero the fallback reports the same status as the exhaustive search on every graph and every set it returns is admissible per the reference.", "Verified that every single forbidden variable is excluded from every returned set and that the decision follows the reference restricted to sets avoiding it.", "Added a semantic check: for every admissible set the adjustment formula evaluated on the observational joint of a seeded binary SCM Markov to the DAG equals the exact truncated-factorisation P(y|do(t)) for both treatment levels to 1e-10. Counterexamples (descendant adjustment, M-bias collider, unadjusted confounder) are asserted against the reference.", "Recorded that the criterion is Pearl's, not the larger adjustment criterion. No logic defect requiring a change to the identifier was found. Code edits: a new unit-test module only (crates/antecedent-identify/src/adjustment_enumeration_tests.rs, included from backdoor.rs); no change to identification code."]
+record_sha256 = "d03c676212f82041baad72dbc848157d46ae1f10d32d79f65e2af5cde2624695"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/backdoor.rs"
+sha256 = "46031a290c8c1e1aaef573fc068f01bfe86459027d5e6f670c5b46c0124970b2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/dsep.rs"
+sha256 = "354cadc168387afa5e95cebc2b842af31cac5b1ccae069363d523e115ea970a0"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/src/adjustment_enumeration_tests.rs"
+sha256 = "2cbff9c09f8b50051bb4edd89525177bc03ca2c2074320764e5aaa770dcc5c9e"

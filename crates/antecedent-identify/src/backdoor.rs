@@ -1857,3 +1857,7 @@ pub fn check_joint_adjustment(
         },
     )
 }
+
+#[cfg(test)]
+#[path = "adjustment_enumeration_tests.rs"]
+mod enumeration_tests;

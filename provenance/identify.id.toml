@@ -28,4 +28,36 @@ test_sources = [
  "hand-derived worked examples: napkin, nested napkin, front-door, confounded-mediator hedge, bow arc, joint-treatment hedge (conformance/identify/id_completeness)",
  "exact enumeration of latent binary SCMs: all 49544 single-treatment single-outcome queries on 2-4 node ADMGs and 1500 seeded 5-6 node joint queries, each identified-and-numerically-correct or refuted by a definition-checked hedge (crates/antecedent-identify/tests/id_completeness.rs)",
  "conformance/estimate/admg_frontdoor_functional (frozen binary front-door law on the general_id_frontdoor ADMG: pins the FunctionalEffect number returned after general ID, on fresh and prepared paths)",
+ "definition check of ID's refusal decision against an independently enumerated hedge criterion on every three-node ADMG and the four-node queries listed for identify.hedge (crates/antecedent-identify/tests/hedge_definition_enumeration.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "IdIdentifier::identify for unconditional Distribution queries (and AverageEffect contrasts through identify_ate) with hard Set interventions on ADMGs, in crates/antecedent-identify/src/id.rs: soundness of every identified functional against exact interventional laws of finite binary SCMs, and completeness of the refusal against the hedge criterion. Not a review of IDC, of conditional queries, of continuous-domain functionals, of the expression arena's evaluation beyond what the SCM comparison exercises, or of graphs beyond the sizes listed in limitations."
+assumptions = ["ADMG whose bidirected edges stand for unmeasured common causes; every node is measured and discrete for the functional to be evaluated.", "Hard Set interventions and distinct outcome and intervention variables; overlapping queries are refused.", "The product's identified functional is checked by evaluating it on the observational joint of a fully specified finite SCM and comparing with the exact truncated factorisation of that same SCM, so the SCM generator, not ID, supplies the truth."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied. dowhy (black-box comparison only)"
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI where one exists and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard textbook statements, so a mistake in how a record or this reference states a theorem would not be detected here. Soundness is exercised on binary SCMs: every single-treatment single-outcome query on every ADMG of two to four nodes with two seeded parameterizations (49544 queries, tolerance 1e-9) and a seeded sample of five- and six-node joint queries; a bug that only appears with larger domains, more than six nodes, or particular non-generic parameter values would not be found. Completeness is compared with a reference confined to graphs of at most four nodes. Conditional queries, continuous domains and the emitted expression text are out of scope. No claim about estimators or calibration. Calibration remains deferred."
+sources = ["Shpitser and Pearl (2006), Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models, Algorithm ID; no DOI recorded in the earlier record"]
+findings_resolved = ["Re-ran the existing exact-SCM soundness suite (id_completeness.rs: 10 tests) in this session; every identified query reproduces the exact interventional law, including the napkin, nested napkin and front-door-with-confounded-mediator cases.", "Closed the dependence of the completeness evidence on the shipped hedge verifier: the new comparison establishes that ID refuses exactly when an independently enumerated hedge for the full treatment set and some sub-outcome exists (three-node ADMGs exhaustively with all set queries, four-node single queries exhaustively, four-node joint queries on a stride), and that the shipped verifier equals the definition.", "No defect found in ID and no change to identification code. The earlier record's deviations about conditionals formed from ratios of marginals after line-2 marginalization, refused overlapping queries and free line-3 variables were re-read against id.rs lines 1076-1240 and the SCM suite, and stand."]
+record_sha256 = "1f8174df72e821b0ed5e449b1076d42a71310ccbce0b0a6602c1902a8eacd937"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/id.rs"
+sha256 = "70930332d6cd257d7c3feff349978e965da25665c07005050400f1a9292f0ff0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/hedge.rs"
+sha256 = "cb7acd4018e438beedf643424287d661b5c494117ab0cb88b0da8f855348b5cd"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/id_completeness.rs"
+sha256 = "6d472237e8f2ff73147b23c7808af1d4eb4c416333f16a929974c3b6d035c3de"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/hedge_definition_enumeration.rs"
+sha256 = "8a2fb8d8664e894dbfc8640f1e2ec4c4d632e1828a41c4702488eba6ad25539d"

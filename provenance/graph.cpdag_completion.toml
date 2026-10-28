@@ -22,4 +22,31 @@ test_sources = [
  "inline unit tests (crates/antecedent-graph/src/cpdag_completion.rs)",
  "clean-room exhaustive small-DAG MEC enumeration oracle (conformance/graph/cpdag_operations)",
  "crates/antecedent-graph/tests/oracle_closure.rs",
+ "exhaustive Markov-equivalence check: the labelled DAGs of three, four and a stride of five nodes grouped by skeleton and unshielded colliders, each class's CPDAG built from the definition (an edge is directed when all members agree), then CpdagCompletionSampler must stream exactly the members and is_mec_member must accept exactly them among all DAGs of that size (crates/antecedent-graph/tests/cpdag_mec_exhaustive.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "CpdagCompletionSampler and is_mec_member in crates/antecedent-graph/src/cpdag_completion.rs (with the shared pruning search in mec_search.rs) applied to CPDAGs that are the true CPDAG of a Markov equivalence class: the set of DAGs streamed equals the class, with no repeats, and membership agrees. Not a review of completion of inputs that are not CPDAGs, of the budgeted-stop and memory-accounting behavior, of the temporal sampler, or of PAG/MAG completion (graph.completion)."
+assumptions = ["The input is a CPDAG of a Markov equivalence class of DAGs (the sampler does not derive or validate Meek closure, per the record's deviation).", "Equivalence per Verma and Pearl: same skeleton and same unshielded colliders; a CPDAG edge is directed exactly when every class member orients it identically.", "Enumeration is complete only when the cap and search budget are not reached; the reference runs with a cap far above the class sizes."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied. none listed in the earlier record"
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI where one exists and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard textbook statements, so a mistake in how a record or this reference states a theorem would not be detected here. Exhaustive over all 11 three-node and all 185 four-node classes; five-node classes are sampled (every 17th class, membership against a stride of the 29281 DAGs plus all true members). Classes with six or more nodes, capped enumeration beyond a distinctness and subset check on a small star, and inputs that are not valid CPDAGs are not covered. No claim about the discovery algorithms that produce CPDAGs or about calibration. Calibration remains deferred."
+sources = ["https://doi.org/10.1214/aos/1031833662", "https://doi.org/10.48550/arXiv.1302.4972"]
+findings_resolved = ["Added an exhaustive executing comparison against brute-force Markov equivalence classes: for every class on three and four nodes and a stride of five-node classes, the streamed completions equal the class as a set, and is_mec_member is true exactly for the class members among all labelled DAGs of that size (all of them for n <= 4). The reference builds each CPDAG from the definition rather than by orientation rules, so it does not share Meek-rule code with the product or with discovery.", "Checked that a capped run returns distinct members of the full completion set.", "No defect found and no change to graph code. Code edits: a new integration test (crates/antecedent-graph/tests/cpdag_mec_exhaustive.rs) registered as its own test target."]
+record_sha256 = "7393100b912aaa8f218202f2de869d546d6893cd36f2417f38963ab767ee600d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/cpdag_completion.rs"
+sha256 = "73ccbd6ec1007e2965230252ba912c1fe4136633983c909b2da2d2741c4839d9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/mec_search.rs"
+sha256 = "9d3930bb942b18a635f5101a1930cf4ef723e7763d935f43d50ff68097a19752"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-graph/tests/cpdag_mec_exhaustive.rs"
+sha256 = "fd1130611c792416cac2f5210299c2b7ee4ce15be5f4638a278865c32c77fd9b"

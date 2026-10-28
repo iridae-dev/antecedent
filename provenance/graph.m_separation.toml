@@ -16,6 +16,7 @@ implementation_deviations = [
  "The PAG query is a statement about every MAG the completion audit enumerates, with three outcomes (separated, connected, undetermined). Definite status follows Zhang (2008): collider, a tail at the node, or an unshielded circle-circle triple. A definite-status active path proves connection in every member; absence of any possibly-active path (marks judged node by node, colliders opened by possible descendants) proves separation; otherwise the member MAGs are enumerated. This is not Zhang's lemma for complete PAGs, which the code cannot assume of a hand-built PAG.",
  "PAG search is bounded by caller-supplied maximum path count and path length and fails on exhausted or truncated budgets; it is not an unbounded complete orientation or completion procedure.",
  "As with d-separation, the endpoint API is singleton-to-singleton and treats conditioning on an endpoint as connected rather than enforcing disjoint query sets.",
+ "The boolean ADMG query and the set query are answered by a Bayes-ball traversal over directed and bidirected rows, not by the moralization of the ancestral subgraph named in the cited section; the witness form uses the moral-graph construction. The two are checked equal to the path definition and to each other on every graph below.",
 ]
 
 upstream_implementations_observed = [
@@ -27,4 +28,31 @@ test_sources = [
  "PAG definite-status path tests (crates/antecedent-graph/src/pag.rs) and class-wide m-separation tests (crates/antecedent-graph/src/msep.rs)",
  "brute force against every enumerated member MAG: all mark assignments on 3 nodes, strided samples on 4 and 5 nodes (2637 PAGs with members, 80312 queries), mark-only certificates checked separately from the enumeration fallback (msep::pag_msep_tests::class_wide_answers_match_every_member_on_small_graphs)",
  "clean-room path-status enumeration oracle with hand-enumerated circle-mark, shielded-path and conflict-mark cases (conformance/graph/definite_status_separation)",
+ "exhaustive path-definition check of ADMG m-separation: every four-node ADMG (4^6 graphs over the ordered pairs), a stride of five-node ADMGs, every pair and conditioning set in both argument orders, the witness form and the set form, against an adjacency-matrix path walk with an ancestor closure (crates/antecedent-graph/tests/admg_msep_exhaustive.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Admg::is_m_separated, is_m_separated_sets and m_separation in crates/antecedent-graph/src/msep.rs (with the Bayes-ball traversal and the moral-graph witness in dsep.rs) for ADMGs with directed and bidirected edges. The class-wide PAG queries in the same file keep their separate recorded brute-force evidence against every member MAG and are not re-reviewed here."
+assumptions = ["ADMG with directed edges forming no directed cycle and bidirected edges for unmeasured common causes; a pair may carry both a directed and a bidirected edge.", "m-separation as the path definition: x and y are m-connected given Z when some simple path has every non-collider outside Z and every collider an ancestor of Z (a member of Z counts as its own ancestor); a query with x equal to y or an endpoint in Z is reported as not separated by the product's convention.", "The verdict is a statement about the graph, not about faithfulness of any data."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied. tigramite (black-box comparison only)"
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI where one exists and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard textbook statements, so a mistake in how a record or this reference states a theorem would not be detected here. The exhaustive sweep covers all four-node ADMGs and a stride of one in 331 five-node graphs (about 3000 graphs); larger graphs rely on the same traversal. Undirected selection edges are unsupported by design. The oracle enumerates simple paths, so it does not exercise performance. No claim about conditional-independence testing, discovery or calibration. Calibration remains deferred."
+sources = ["https://doi.org/10.1111/1467-9469.00323", "https://doi.org/10.1214/aos/1031689015"]
+findings_resolved = ["Added an exhaustive executing comparison with a path-definition oracle that shares no traversal, bitset or ancestor code with the product: all 4096 four-node ADMGs (every pair carrying none, a directed, a bidirected, or both edges), every pair and every conditioning set (98304 queries, both argument orders, of which most are connected and about 10000 separated), the witness-returning form, and the set form on every assignment of nodes to sources, targets, conditioning and unused.", "The first version of the oracle conflated a directed and a parallel bidirected edge between one pair into a single arrowhead and disagreed with the product on 3-node graphs; the oracle was wrong (each parallel edge is a separate step with its own marks) and was corrected. The product agreed with the corrected oracle on every graph; no product defect was found.", "No change to graph code. Code edits: a new integration test (crates/antecedent-graph/tests/admg_msep_exhaustive.rs) registered as its own test target."]
+record_sha256 = "2cf0ae9371f8174c151e1588e3a221318ba26711bbdbdb5c0d29ffdda30f8f97"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/msep.rs"
+sha256 = "5d4513ee24b4b6d93fd3f6cadc8ab15d0d9039e17140cac54d0d5315f86694ab"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/dsep.rs"
+sha256 = "354cadc168387afa5e95cebc2b842af31cac5b1ccae069363d523e115ea970a0"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-graph/tests/admg_msep_exhaustive.rs"
+sha256 = "4e6e6a846a2a37a53a6dd2577c0ec060630f7ee51e73547f0404c48efb7a6cf0"
