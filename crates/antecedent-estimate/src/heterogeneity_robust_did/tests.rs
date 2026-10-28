@@ -294,6 +294,51 @@ fn sun_abraham_on_an_unbalanced_panel_matches_the_full_dummy_regression_referenc
 }
 
 #[test]
+fn sun_abraham_on_an_unbalanced_panel_matches_the_fixest_sunab_regression() {
+    // The same panel through the black-box `fixest::feols(y ~ sunab(cohort, period) | unit +
+    // period)` reference. The reference's standard errors are analytic unit-clustered and are
+    // recorded there only; this fit's uncertainty is a whole-procedure bootstrap that this
+    // fixture does not freeze, so only the point estimates are asserted here.
+    let (sim, _) = interacted_reference();
+    let fixest: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../conformance/estimate/interacted_did_unbalanced_panel_fixest/expected.json"
+    ))
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(3);
+    let fit = estimate_rollout_did(
+        &sim.panel(),
+        &spec(RolloutDidEstimator::SunAbraham, DidComparisonGroup::NeverTreated),
+        None,
+        &ctx,
+    )
+    .unwrap();
+    let reference = &fixest["reference"];
+    let cells = reference["cells"].as_array().unwrap();
+    assert!(!cells.is_empty());
+    for cell in cells {
+        let (group, period) = (cell["cohort"].as_i64().unwrap(), cell["period"].as_i64().unwrap());
+        let expected = cell["estimate"].as_f64().unwrap();
+        if period >= group {
+            let effect = fit
+                .group_time
+                .iter()
+                .find(|effect| effect.group == Some(group) && effect.period == Some(period))
+                .unwrap_or_else(|| panic!("cell ({group}, {period}) missing"));
+            assert!((effect.estimate - expected).abs() < 1e-8, "{group} {period}: {effect:?}");
+        }
+    }
+    let product = &reference["product_convention"];
+    assert_eq!(fit.leads.len(), product["leads_by_event"].as_object().unwrap().len());
+    for lead in &fit.leads {
+        let expected = product["leads_by_event"][lead.event_time.unwrap().to_string()]["estimate"]
+            .as_f64()
+            .unwrap();
+        assert!((lead.estimate - expected).abs() < 1e-8, "{lead:?}");
+    }
+    assert!((fit.overall.estimate - product["simple"]["estimate"].as_f64().unwrap()).abs() < 1e-8);
+}
+
+#[test]
 fn removing_one_comparison_row_moves_the_interacted_fit_only_within_sampling_noise() {
     // A balanced panel is read through its 2×2 contrasts; removing one observed row sends the
     // same panel through the regression, which must stay within sampling noise of the 2×2 fit.

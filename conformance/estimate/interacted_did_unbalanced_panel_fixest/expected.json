@@ -1,0 +1,257 @@
+{
+  "oracle": {
+    "kind": "external_package",
+    "executed_here": true,
+    "note": "Every value under reference was produced by running the pinned released package on the retained panel and recorded unchanged; the generator regenerates it and compares with this file, and compares the estimates with the committed full-dummy numpy fixture, without rewriting either.",
+    "sources": {
+      "fixest": "https://cran.r-project.org/package=fixest"
+    },
+    "generation": {
+      "script": "conformance/estimate/interacted_did_unbalanced_panel_fixest/reference.R",
+      "command": [
+        "python3 -I conformance/estimate/interacted_did_unbalanced_panel_fixest/export_panel.py --check",
+        "Rscript --vanilla conformance/estimate/interacted_did_unbalanced_panel_fixest/prepare.R",
+        "Rscript --vanilla conformance/estimate/interacted_did_unbalanced_panel_fixest/reference.R --check --self-test"
+      ],
+      "environment_lock": [
+        "conformance/estimate/interacted_did_unbalanced_panel_fixest/renv.lock"
+      ],
+      "generator_retained": true,
+      "reproducible_from_repo": true,
+      "script_note": "reference.R fits fixest::feols(outcome ~ sunab(cohort, period) | unit + period) with unit-clustered variance on the panel rows of panel.csv that have a never-treated unit at their period, reads the cohort-by-period coefficients with summary(agg = FALSE), builds the cohort-size-weighted simple and event-time aggregates from them with the clustered covariance, and records fixest's own observation-weighted ATT and event-time aggregates beside them. It never imports the product."
+    },
+    "generator": "conformance/estimate/interacted_did_unbalanced_panel_fixest/reference.R",
+    "environment_lock": "conformance/estimate/interacted_did_unbalanced_panel_fixest/renv.lock",
+    "reference": [
+      {
+        "project": "fixest",
+        "available": true,
+        "version": "0.14.2",
+        "commit": null,
+        "runtime": "R 4.6.1 (2026-06-24) on macOS arm64; CRAN source install by renv 1.3.1 into target/reference-environments/r-oracles/fixest/library with Formula 1.2-6, Rcpp 1.1.2, dreamerr 1.5.0, jsonlite 2.0.0, numDeriv 2016.8-1.1, sandwich 3.1-3, stringmagic 1.3.0, zoo 1.9-1; nlme 3.1.169 and lattice 0.22.9 come from the R distribution",
+        "note": "black-box execution only; the CRAN release does not record a source commit"
+      }
+    ],
+    "intentional_deviations": [
+      {
+        "item": "standard errors",
+        "product": "the product's uncertainty for this estimator is a whole-procedure cluster bootstrap (interquartile standard error); no standard error of this fit is frozen in any fixture",
+        "reference": "fixest reports an analytic unit-clustered (CRV1, small-sample adjusted) sandwich standard error, and an iid standard error for contrast",
+        "handling": "standard errors are recorded as reference observations and are not compared with any product output; no tolerance was widened and no product standard error is claimed to agree"
+      },
+      {
+        "item": "aggregation weights",
+        "product": "cohort-size (units per cohort) weights over the supported cells",
+        "reference": "fixest's own aggregates (summary default and agg = 'att') weight by observed cell counts, so they differ from the product's",
+        "handling": "the product-convention aggregates are recomputed from fixest's disaggregated cell coefficients with the product's weights and are the ones compared; fixest's own aggregates are recorded separately and not compared"
+      },
+      {
+        "item": "unsupported period",
+        "product": "cells at a period without any comparison unit are not estimated and their rows are counted as dropped",
+        "reference": "fixest would report a coefficient collinear with the period effect",
+        "handling": "the same rows are removed before fitting, declared in specification.preprocessing"
+      }
+    ],
+    "reference_review": {
+      "scope": "One retained 544-row unbalanced staggered panel (cohorts 0, 3, 5 of 40 units each, periods 1-6, period 6 without a never-treated unit) and one public call, fixest::feols(outcome ~ sunab(cohort, period) | unit + period) with unit-clustered variance. Compared: the eight cohort-by-period coefficients, the cohort-size-weighted simple aggregate and the event-time leads against the committed full-dummy numpy fixture the product test asserts, and the product test's own point-estimate assertions against this fixture. Standard errors are recorded, not compared.",
+      "independence_basis": "fixest is a published CRAN estimator (0.14.2) executed as a black box on a panel written to CSV; the cell coefficients come from its absorbed-fixed-effects least squares and sunab interaction machinery, not from the repository's full-dummy numpy solve or from the product's swept-unit weighted least squares. The harness pins the formula, vcov, reference period, never-treated coding and preprocessing itself, calls only public functions (feols, sunab, summary(agg = FALSE), vcov), imports no product code, reads no product output and read no fixest source or test file. The panel and the numpy comparison target come from the repository author's own earlier simulator, so the data-generating process and the preprocessing choice (drop rows at periods with no never-treated unit, taken from the numpy fixture's support rule) are the repository's; fixest is independent of the estimation, not of the estimand's definition. The cohort-size aggregation is computed by this harness from fixest's disaggregated coefficients, so the aggregate comparison checks the weighting arithmetic that the harness and the product both implement from the same stated rule. The fixest 0.14.2 package and its dependencies (Formula 1.2-6, Rcpp 1.1.2, dreamerr 1.5.0, jsonlite 2.0.0, numDeriv 2016.8-1.1, sandwich 3.1-3, stringmagic 1.3.0, zoo 1.9-1, with renv 1.3.1 as installer) were installed from CRAN source by the authoring session, with explicit user authorization, into an isolated library under target/reference-environments/r-oracles/fixest/library; the global R library was not modified. Measured agreement: every cell estimate, the simple aggregate and the leads match the numpy reference to about 1e-14 against a declared 1e-8; that agreement is of estimates only.",
+      "historical_exposure": "export_panel.py, panel.csv and prepare.R were started by an earlier session whose exposure to fixest is unrecorded. The completing session wrote reference.R, the lock and this review from the package's public interface and its own printed output; no upstream algorithm, source or test file was consulted or copied, but the author's prior familiarity with the Sun-Abraham method and with fixest's interface cannot be excluded.",
+      "redistribution": "fixest is GPL-3 and its locked dependencies carry GPL or MIT licenses; they remain isolated tooling outside the product runtime and ordinary CI. The repository retains its MIT OR Apache-2.0 harness, lock, panel, scenario coordinates and the numeric outputs the package produced, with no upstream source or tests.",
+      "limitations": "One simulated panel with three cohorts. The standard errors are analytic unit-clustered sandwich values and are not compared with the product, whose uncertainty is a whole-procedure cluster bootstrap that no fixture freezes, so nothing here supports a standard-error, interval or coverage claim. fixest's own observation-weighted aggregates differ from the product's cohort-size weights and are recorded but not compared. The agreement is on point estimates of a saturated regression that the numpy fixture already determines, so this adds an independent software confirmation of that regression, not a new scientific truth. The check needs the R environment prepared locally and is not part of ordinary CI.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/interacted_did_unbalanced_panel_fixest/reference.R",
+          "sha256": "839c7db1cb561e63cd4142c5cc8de63ec49c6e3adbd4b70605558e93139565d5"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/interacted_did_unbalanced_panel_fixest/renv.lock",
+          "sha256": "d191e9ad9dff433395b7ce6f1336808e047e1f22bb379100898a763b15a12459"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "conformance/estimate/interacted_did_unbalanced_panel_fixest/prepare.R",
+          "sha256": "a1319465f3dd302418f3f501c1df1fec27bca0f469a3a327b45cfc949986d18a"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "conformance/estimate/interacted_did_unbalanced_panel_fixest/export_panel.py",
+          "sha256": "15be0c566ee27cb2e7cccf760c4e0069813dfa9cb44586491a241dbb283852f6"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/estimate/interacted_did_unbalanced_panel_fixest/panel.csv",
+          "sha256": "cd2a963e1aebf2b9b93fc5f00854df4f8e92375662cb44d0ac6373b81748518a"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/estimate/interacted_did_unbalanced_panel/expected.json",
+          "sha256": "db8039a7d465fc0d8638f80377fd1cc94499f8acc4edab12f18c1c2d93bbca4b"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-estimate/src/heterogeneity_robust_did/tests.rs",
+          "sha256": "e3414f75f92b94bf7ca50ac8428f5e298bbb027668e952c5ee843587916b8ce3"
+        }
+      ],
+      "fixture_payload_sha256": "39e0152ec777709cb586a8e53382ea2ac49856f5c1ee31346597aaf87a143127"
+    }
+  },
+  "schema_version": 1,
+  "case": "interacted_did_unbalanced_panel_fixest",
+  "specification": {
+    "formula": "outcome ~ sunab(cohort_inf, period) | unit + period",
+    "never_treated_coding": "cohort 0 is passed to sunab as Inf",
+    "reference_period": "sunab default ref.p = c(-1, -Inf): the period before adoption of each cohort",
+    "vcov": "~unit (cluster-robust by unit, CRV1)",
+    "ssc": "fixest default: adj=TRUE, fixef.K=nonnested, cluster.adj=TRUE, cluster.df=min, t.df=min",
+    "fixef_tol": 1e-11,
+    "preprocessing": "rows at periods in which no never-treated unit is observed are removed before fitting (a treated cell at such a period is collinear with the period effect)"
+  },
+  "tolerances": {
+    "estimate_vs_numpy_reference": 1e-08,
+    "regenerated_vs_frozen": 1e-09,
+    "standard_error": 1e-08
+  },
+  "input": {
+    "rows": 544,
+    "rows_used": 479,
+    "dropped_rows_by_cohort": {
+      "3": 34,
+      "5": 31
+    },
+    "periods_without_comparison": [
+      6
+    ],
+    "units_per_cohort": {
+      "0": 40,
+      "3": 40,
+      "5": 40
+    }
+  },
+  "reference": {
+    "cells": [
+      {
+        "cohort": 3,
+        "period": 1,
+        "event_time": -2,
+        "estimate": -0.018212831393711028,
+        "std_error_cluster_unit": 0.017358396048608234,
+        "std_error_iid": 0.01682501909069682
+      },
+      {
+        "cohort": 3,
+        "period": 3,
+        "event_time": 0,
+        "estimate": 1.0157719734269626,
+        "std_error_cluster_unit": 0.01704219454234023,
+        "std_error_iid": 0.017340839305830337
+      },
+      {
+        "cohort": 3,
+        "period": 4,
+        "event_time": 1,
+        "estimate": 2.015602952093487,
+        "std_error_cluster_unit": 0.01776091704444638,
+        "std_error_iid": 0.01715687954918562
+      },
+      {
+        "cohort": 3,
+        "period": 5,
+        "event_time": 2,
+        "estimate": 2.981171045362757,
+        "std_error_cluster_unit": 0.016920205418577115,
+        "std_error_iid": 0.017536892916965474
+      },
+      {
+        "cohort": 5,
+        "period": 1,
+        "event_time": -4,
+        "estimate": -0.01849766892665108,
+        "std_error_cluster_unit": 0.01808595839938794,
+        "std_error_iid": 0.017484383427030018
+      },
+      {
+        "cohort": 5,
+        "period": 2,
+        "event_time": -3,
+        "estimate": 0.0014084362179804027,
+        "std_error_cluster_unit": 0.017910939966632827,
+        "std_error_iid": 0.017933694618809844
+      },
+      {
+        "cohort": 5,
+        "period": 3,
+        "event_time": -2,
+        "estimate": 0.003124643057891928,
+        "std_error_cluster_unit": 0.017069413374482437,
+        "std_error_iid": 0.017979852315653244
+      },
+      {
+        "cohort": 5,
+        "period": 5,
+        "event_time": 0,
+        "estimate": 1.9626918297589437,
+        "std_error_cluster_unit": 0.015840007962131288,
+        "std_error_iid": 0.018197183299372394
+      }
+    ],
+    "product_convention": {
+      "simple": {
+        "estimate": 1.9938094501605375,
+        "std_error_cluster_unit": 0.01147915821448753
+      },
+      "leads_by_event": {
+        "-4": {
+          "estimate": -0.01849766892665108,
+          "std_error_cluster_unit": 0.01808595839938794
+        },
+        "-3": {
+          "estimate": 0.0014084362179804027,
+          "std_error_cluster_unit": 0.017910939966632827
+        },
+        "-2": {
+          "estimate": -0.00754409416790955,
+          "std_error_cluster_unit": 0.011543894591230834
+        }
+      }
+    },
+    "fixest_convention": {
+      "att": {
+        "estimate": 1.987048091772441,
+        "std_error_cluster_unit": 0.011592063441694169
+      },
+      "event_time": {
+        "-4": {
+          "estimate": -0.01849766892665108,
+          "std_error_cluster_unit": 0.01808595839938794
+        },
+        "-3": {
+          "estimate": 0.0014084362179804027,
+          "std_error_cluster_unit": 0.017910939966632827
+        },
+        "-2": {
+          "estimate": -0.00754409416790955,
+          "std_error_cluster_unit": 0.011543894591230834
+        },
+        "0": {
+          "estimate": 1.466686190727906,
+          "std_error_cluster_unit": 0.012118884822622413
+        },
+        "1": {
+          "estimate": 2.015602952093487,
+          "std_error_cluster_unit": 0.01776091704444638
+        },
+        "2": {
+          "estimate": 2.981171045362757,
+          "std_error_cluster_unit": 0.016920205418577115
+        }
+      }
+    }
+  },
+  "comparison": {
+    "max_abs_cell_estimate_difference_to_numpy_reference": 1.2802259252708836e-14,
+    "max_abs_simple_difference_to_numpy_reference": 1.7763568394002505e-15
+  }
+}
