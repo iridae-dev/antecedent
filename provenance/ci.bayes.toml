@@ -36,7 +36,7 @@ record_sha256 = "ef769e49e7758734fa8adb4b4a46a2290d4b95b078fee8fd6dd8dae705b7f21
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/bayes.rs"
-sha256 = "068f05159809e3a34817a67df6d07ae3ecfcf1631aa18ed5abcb83188288dc67"
+sha256 = "41660d28c4fd2b056d884328b73812a2df7265d56199a508d082985160c3dc93"
 
 [[method_review.artifacts]]
 role = "assertion"

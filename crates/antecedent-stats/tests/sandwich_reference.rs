@@ -12,8 +12,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, MEstimateOptions, fit_huber_m, SandwichKind, coefficient_covariance,
-    StatsError, hc2_coefficient_bell_mccaffrey, iid_se, mean_and_se, score_coefficient_covariance,
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, MEstimateOptions, SandwichKind,
+    StatsError, coefficient_covariance, fit_huber_m, hc2_coefficient_bell_mccaffrey, iid_se,
+    mean_and_se, score_coefficient_covariance,
 };
 use serde_json::Value;
 
@@ -24,11 +25,7 @@ fn floats(v: &Value) -> Vec<f64> {
 }
 
 fn ints<T: TryFrom<i64>>(v: &Value) -> Vec<T> {
-    v.as_array()
-        .unwrap()
-        .iter()
-        .map(|x| T::try_from(x.as_i64().unwrap()).ok().unwrap())
-        .collect()
+    v.as_array().unwrap().iter().map(|x| T::try_from(x.as_i64().unwrap()).ok().unwrap()).collect()
 }
 
 /// Largest entry-wise error relative to the largest expected entry of the matrix.
@@ -71,16 +68,10 @@ fn sandwich_covariances_match_exact_arithmetic() {
             "cluster" | "cluster_alt" => {
                 coefficient_covariance(&x, n, p, &e, SandwichKind::Cluster { groups: &groups })
             }
-            "multiway" => coefficient_covariance(
-                &x,
-                n,
-                p,
-                &e,
-                SandwichKind::Multiway { dimensions: &dims },
-            ),
-            "newey_west" => {
-                coefficient_covariance(&x, n, p, &e, SandwichKind::NeweyWest { lag })
+            "multiway" => {
+                coefficient_covariance(&x, n, p, &e, SandwichKind::Multiway { dimensions: &dims })
             }
+            "newey_west" => coefficient_covariance(&x, n, p, &e, SandwichKind::NeweyWest { lag }),
             "panel_hac" | "panel_hac_lag0" => coefficient_covariance(
                 &x,
                 n,
@@ -106,7 +97,8 @@ fn sandwich_covariances_match_exact_arithmetic() {
             // ill-conditioned the columns are, rather than return the indefinite matrix.
             if ratio < -1e-12 {
                 if !matches!(got, Err(StatsError::NonPositiveVariance { .. })) {
-                    failures.push(format!("{label}: indefinite (ratio {ratio:.2e}) but got {got:?}"));
+                    failures
+                        .push(format!("{label}: indefinite (ratio {ratio:.2e}) but got {got:?}"));
                 }
                 continue;
             }
@@ -131,7 +123,8 @@ fn sandwich_covariances_match_exact_arithmetic() {
         };
         let tol = 1e-13 + 2e-15 * cond + leverage_term;
         if norm.max(diag) > tol {
-            failures.push(format!("{label}: cond {cond:.3e} error {:.3e} > {tol:.1e}", norm.max(diag)));
+            failures
+                .push(format!("{label}: cond {cond:.3e} error {:.3e} > {tol:.1e}", norm.max(diag)));
         }
     }
     for (label, cond, err) in &worst {
@@ -153,7 +146,10 @@ fn bell_mccaffrey_variance_and_degrees_of_freedom_match_the_dense_definition() {
         let label = format!("{}/coef{coef}", case["design"].as_str().unwrap());
         match hc2_coefficient_bell_mccaffrey(&x, n, p, &e, coef) {
             Ok(fit) => {
-                let (ev, ed) = (((fit.variance - var) / var).abs(), ((fit.degrees_of_freedom - df) / df).abs());
+                let (ev, ed) = (
+                    ((fit.variance - var) / var).abs(),
+                    ((fit.degrees_of_freedom - df) / df).abs(),
+                );
                 eprintln!("{label:30} cond {cond:9.2e} var {ev:.2e} df {ed:.2e}");
                 // The degrees of freedom subtract two terms of order `d_i^2` that nearly cancel
                 // when a leverage approaches one, hence the `eps / (1 - h)^2` allowance.
@@ -183,22 +179,29 @@ fn least_squares_solves_match_exact_normal_equations() {
         let cond = case["cond"].as_f64().unwrap();
         let design = case["design"].as_str().unwrap();
         let mut ws = LeastSquaresWorkspace::default();
-        let mut check = |what: &str, got: Result<Vec<f64>, antecedent_stats::StatsError>, want: &[f64]| {
-            match got {
-                Ok(g) => {
-                    let err = normwise(&g, want);
-                    eprintln!("{what:12} {design:22} cond {cond:9.2e} err {err:.2e}");
-                    // Column-equilibrated QR: the error is a few hundred rounding units per unit
-                    // of condition number (the residual part of the error carries cond^2).
-                    let tol = 1e-13 * (1.0 + cond);
-                    if err > tol {
-                        failures.push(format!("{what}/{design}: cond {cond:.2e} err {err:.2e} > {tol:.1e}"));
+        let mut check =
+            |what: &str, got: Result<Vec<f64>, antecedent_stats::StatsError>, want: &[f64]| {
+                match got {
+                    Ok(g) => {
+                        let err = normwise(&g, want);
+                        eprintln!("{what:12} {design:22} cond {cond:9.2e} err {err:.2e}");
+                        // Column-equilibrated QR: the error is a few hundred rounding units per unit
+                        // of condition number (the residual part of the error carries cond^2).
+                        let tol = 1e-13 * (1.0 + cond);
+                        if err > tol {
+                            failures.push(format!(
+                                "{what}/{design}: cond {cond:.2e} err {err:.2e} > {tol:.1e}"
+                            ));
+                        }
                     }
+                    Err(e) => failures.push(format!("{what}/{design}: refused ({e})")),
                 }
-                Err(e) => failures.push(format!("{what}/{design}: refused ({e})")),
-            }
-        };
-        check("ols", FaerBackend.least_squares(&x, n, p, &y, &mut ws).map(|f| f.coefficients), &coef);
+            };
+        check(
+            "ols",
+            FaerBackend.least_squares(&x, n, p, &y, &mut ws).map(|f| f.coefficients),
+            &coef,
+        );
         check(
             "ols_min_norm",
             FaerBackend.least_squares_or_min_norm(&x, n, p, &y, &mut ws).map(|f| f.coefficients),
@@ -211,7 +214,9 @@ fn least_squares_solves_match_exact_normal_equations() {
         // with the same relative perturbation bound: sqrt rounding is 1.1e-16 relative.
         check(
             "wls",
-            FaerBackend.row_scaled_least_squares(&x, n, p, &root, &yw, &mut ws).map(|f| f.coefficients),
+            FaerBackend
+                .row_scaled_least_squares(&x, n, p, &root, &yw, &mut ws)
+                .map(|f| f.coefficients),
             &coef_w,
         );
     }
@@ -236,7 +241,8 @@ fn rank_deficient_designs_are_refused_or_solved_to_the_exact_minimum_norm() {
                 let err = normwise(&fit.coefficients, &coef);
                 eprintln!("rank-deficient case {k}: rank {} err {err:.2e}", fit.rank);
                 if fit.rank != rank || err > 1e-12 {
-                    failures.push(format!("case {k}: rank {} (want {rank}), err {err:.2e}", fit.rank));
+                    failures
+                        .push(format!("case {k}: rank {} (want {rank}), err {err:.2e}", fit.rank));
                 }
             }
             Err(e) => failures.push(format!("case {k}: min-norm refused ({e})")),
@@ -287,7 +293,10 @@ fn huber_regression_reaches_the_exact_fixed_point_of_its_estimating_equation() {
         let fit = fit_huber_m(&x, n, p, &y, &options, &FaerBackend, &mut ws).unwrap();
         let err = normwise(&fit.coefficients, &want);
         let scale_err = ((fit.scale - want_scale) / want_scale).abs();
-        eprintln!("huber {name}: coef {err:.2e} scale {scale_err:.2e} fallback {} iterations {}", fit.scale_fallback, fit.iterations);
+        eprintln!(
+            "huber {name}: coef {err:.2e} scale {scale_err:.2e} fallback {} iterations {}",
+            fit.scale_fallback, fit.iterations
+        );
         // The reference iteration is run to a 1e-40 step, so it sits on the fixed point; the
         // product stops at a relative step of 1e-9 of a linearly convergent iteration.  (An
         // absolute step criterion could not be met for the offset design: its intercept is
@@ -314,7 +323,12 @@ fn a_dependent_or_underdetermined_design_has_no_sandwich() {
     // An exactly duplicated column, an all-zero column and an exact multiple.
     let dup: Vec<f64> = ones.iter().chain(&u).chain(&u).copied().collect();
     let zero: Vec<f64> = ones.iter().chain(&[0.0; 6]).copied().collect();
-    let multiple: Vec<f64> = ones.iter().chain(&u).chain(u.iter().map(|v| v * 2.0).collect::<Vec<_>>().iter()).copied().collect();
+    let multiple: Vec<f64> = ones
+        .iter()
+        .chain(&u)
+        .chain(u.iter().map(|v| v * 2.0).collect::<Vec<_>>().iter())
+        .copied()
+        .collect();
     for (x, p) in [(&dup, 3), (&zero, 2), (&multiple, 3)] {
         for kind in [SandwichKind::Hc0, SandwichKind::Hc3, SandwichKind::Homoskedastic] {
             assert!(coefficient_covariance(x, 6, p, &e, kind).is_err(), "p {p} {kind:?}");

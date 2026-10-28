@@ -33,8 +33,13 @@ fn fit_case(case: &Value, auto: bool) -> (GamFit, Vec<f64>, usize) {
         .iter()
         .enumerate()
         .map(|(j, s)| {
-            let (col, k) = (s["raw_col"].as_u64().unwrap() as usize, s["n_basis"].as_u64().unwrap() as usize);
-            if auto { SmoothSpec::auto(col, k) } else { SmoothSpec::new(col, k, lambdas.as_ref().unwrap()[j]) }
+            let (col, k) =
+                (s["raw_col"].as_u64().unwrap() as usize, s["n_basis"].as_u64().unwrap() as usize);
+            if auto {
+                SmoothSpec::auto(col, k)
+            } else {
+                SmoothSpec::new(col, k, lambdas.as_ref().unwrap()[j])
+            }
         })
         .collect();
     let weights = (!case["weights"].is_null()).then(|| vec_f(&case["weights"]));
@@ -52,7 +57,10 @@ fn fit_case(case: &Value, auto: bool) -> (GamFit, Vec<f64>, usize) {
 }
 
 fn close(got: f64, want: f64, rel: f64, what: &str) {
-    assert!((got - want).abs() <= rel * want.abs().max(1e-300) + rel * 1e-12, "{what}: {got} vs {want}");
+    assert!(
+        (got - want).abs() <= rel * want.abs().max(1e-300) + rel * 1e-12,
+        "{what}: {got} vs {want}"
+    );
 }
 
 #[test]
@@ -66,7 +74,12 @@ fn fixed_lambda_fits_equal_the_exact_joint_penalized_solution() {
         // The large-lambda case solves a system whose condition number grows with lambda.
         let rel = if name == "large_lambda" { 1e-6 } else { 1e-8 };
         for r in 0..nrows {
-            assert!((fit.fitted[r] - want[r]).abs() <= rel * scale, "{name} row {r}: {} vs {}", fit.fitted[r], want[r]);
+            assert!(
+                (fit.fitted[r] - want[r]).abs() <= rel * scale,
+                "{name} row {r}: {} vs {}",
+                fit.fitted[r],
+                want[r]
+            );
         }
         if !case["xnew"].is_null() {
             let xn: Vec<Vec<f64>> = case["xnew"].as_array().unwrap().iter().map(vec_f).collect();
@@ -85,7 +98,8 @@ fn quantile_knots_are_the_type_seven_quantiles() {
         let cols: Vec<Vec<f64>> = case["x_cols"].as_array().unwrap().iter().map(vec_f).collect();
         for (j, s) in case["specs"].as_array().unwrap().iter().enumerate() {
             let k = s["n_basis"].as_u64().unwrap() as usize;
-            let (_, knots) = expand_bspline(&cols[s["raw_col"].as_u64().unwrap() as usize], k, None).unwrap();
+            let (_, knots) =
+                expand_bspline(&cols[s["raw_col"].as_u64().unwrap() as usize], k, None).unwrap();
             let want = vec_f(&case["knots"][j]);
             assert_eq!(knots.len(), want.len());
             let span = want[want.len() - 1] - want[0];
@@ -118,7 +132,13 @@ fn edf_is_the_hat_trace_for_one_smooth_and_the_sum_of_single_traces_for_several(
 
 #[test]
 fn very_large_lambda_collapses_to_a_straight_line_only_on_equally_spaced_knots() {
-    let case = fixture()["cases"].as_array().unwrap().iter().find(|c| c["name"] == "large_lambda").unwrap().clone();
+    let case = fixture()["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["name"] == "large_lambda")
+        .unwrap()
+        .clone();
     let x = vec_f(&case["x_cols"][0]);
     let y = vec_f(&case["y"]);
     let n = x.len() as f64;
@@ -141,7 +161,10 @@ fn very_large_lambda_collapses_to_a_straight_line_only_on_equally_spaced_knots()
         )
         .unwrap()
     };
-    let (lo, hi) = (x.iter().cloned().fold(f64::INFINITY, f64::min), x.iter().cloned().fold(f64::NEG_INFINITY, f64::max));
+    let (lo, hi) = (
+        x.iter().cloned().fold(f64::INFINITY, f64::min),
+        x.iter().cloned().fold(f64::NEG_INFINITY, f64::max),
+    );
     // Unclamped equally spaced knots: the Greville abscissae are then equally spaced as well,
     // so coefficients linear in their index give a straight line in x.
     let h = (hi - lo) / 5.0;
@@ -154,7 +177,11 @@ fn very_large_lambda_collapses_to_a_straight_line_only_on_equally_spaced_knots()
     // The penalty acts on coefficient differences, so its null space is a line in the knot
     // index. Sample-quantile knots are unevenly spaced and the limit is a curve in x.
     let quantile = fit_with(None);
-    let worst = x.iter().enumerate().map(|(r, v)| (quantile.fitted[r] - line(*v)).abs()).fold(0.0, f64::max);
+    let worst = x
+        .iter()
+        .enumerate()
+        .map(|(r, v)| (quantile.fitted[r] - line(*v)).abs())
+        .fold(0.0, f64::max);
     assert!(worst > 1e-3, "quantile-knot limit is not a straight line: {worst}");
     assert!((quantile.edf_approx - 2.0).abs() < 1e-3, "{}", quantile.edf_approx);
 }
@@ -171,12 +198,19 @@ fn gcv_picks_the_grid_minimiser_of_the_exact_score() {
         let lambda = fit.smooths[0].lambda;
         let scores = vec_f(&g["scores_with_intercept"]);
         let grid = vec_f(&fixture()["grid"]);
-        let i = grid.iter().position(|v| (v - lambda).abs() <= 1e-12 * v).expect("lambda is a grid point");
+        let i = grid
+            .iter()
+            .position(|v| (v - lambda).abs() <= 1e-12 * v)
+            .expect("lambda is a grid point");
         let best = scores.iter().cloned().fold(f64::INFINITY, f64::min);
         // Two conventions for the degrees of freedom (with and without the intercept's one) pick
         // the same grid point on every case here; require a score within a relative 1e-9 of the
         // exact minimum so a near tie cannot fail on rounding.
-        assert!(scores[i] <= best * (1.0 + 1e-9), "{name}: picked {lambda} (score {}) vs minimum {best}", scores[i]);
+        assert!(
+            scores[i] <= best * (1.0 + 1e-9),
+            "{name}: picked {lambda} (score {}) vs minimum {best}",
+            scores[i]
+        );
         let at_edge = i == 0 || i == grid.len() - 1;
         assert_eq!(fit.boundary_lambda_smooths.contains(&0), at_edge, "{name}");
     }

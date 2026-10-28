@@ -44,7 +44,7 @@ sha256 = "b663d754fa1eb1fc6c23100572fe66d32554597596d739324253f7ce1ef18c39"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/twosls_reference.rs"
-sha256 = "5c52d34b652e0158357394f54e70434906aadff590d967b49c2cee046162e9bf"
+sha256 = "4c382ddae43cb63651603a248c6b1d803c731b6f95086a3a2a63518402146bd3"
 
 [[method_review.artifacts]]
 role = "reference"

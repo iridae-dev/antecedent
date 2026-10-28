@@ -48,7 +48,7 @@ sha256 = "ff86829ed0a2ce68fd09229c3155dd0bc7a6de0fac69345df59c4734d08709d8"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/gam_reference.rs"
-sha256 = "3d81a520687d5a94a1424aed3484fa2193d0f988eec9ad6e6f35f5210d5f58b6"
+sha256 = "167c6b706981e7c8886223869edd81288cfb0c439406f95907ffb3dc327b2eaf"
 
 [[method_review.artifacts]]
 role = "reference"

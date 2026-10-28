@@ -55,7 +55,7 @@ sha256 = "36efdcafee671dbaeaf55961be51d4b38ec87e17aaded9756644b5129b55a685"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/gaussian_observation_reference.rs"
-sha256 = "082542fb879d3399716296f68f8e656ee1f0639edd83c564ead7d3aa40091810"
+sha256 = "ac8161772feea0fb4e779c1a6729137f2037fae744801c26a4fe629d952ceb6e"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -238,8 +238,7 @@ fn sandwich_from_multipliers(
             Ok(congruence(bread, &identity(ncols), ncols).iter().map(|v| v * sigma2).collect())
         }
         SandwichKind::Hc0 | SandwichKind::Hc1 | SandwichKind::Hc2 | SandwichKind::Hc3 => {
-            let meat =
-                hc_meat(x_colmajor, nrows, ncols, multipliers, &hat, kind)?;
+            let meat = hc_meat(x_colmajor, nrows, ncols, multipliers, &hat, kind)?;
             Ok(congruence(bread, &meat, ncols))
         }
         SandwichKind::Cluster { groups } => {

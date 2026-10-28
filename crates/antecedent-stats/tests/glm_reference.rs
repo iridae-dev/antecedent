@@ -11,8 +11,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
-    FaerBackend, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, GlmRefusalKind, LeastSquaresWorkspace,
-    NbAlphaPolicy, StatsError, fit_glm, fit_glm_ridge, fit_glm_ridge_weighted, fit_glm_weighted,
+    FaerBackend, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, GlmRefusalKind,
+    LeastSquaresWorkspace, NbAlphaPolicy, StatsError, fit_glm, fit_glm_ridge,
+    fit_glm_ridge_weighted, fit_glm_weighted,
 };
 use serde_json::Value;
 
@@ -125,7 +126,8 @@ fn default_options_reach_the_same_estimates_as_tight_tolerances() {
             continue;
         }
         let weights = optional_floats(&case["w"]);
-        let fit = fit_case(family_of(family_name), case, weights.as_deref(), &GlmOptions::default());
+        let fit =
+            fit_case(family_of(family_name), case, weights.as_deref(), &GlmOptions::default());
         let want = floats(&case["coef"]);
         match fit {
             Ok(f) => {
@@ -152,7 +154,8 @@ fn negative_binomial_dispersion_policies_match_their_definitions() {
     for case in doc["fits"].as_array().unwrap().iter().filter(|c| c["family"] == "nb") {
         let weights = optional_floats(&case["w"]);
         let options = GlmOptions { nb_alpha: NbAlphaPolicy::MethodOfMoments, ..tight() };
-        let fit = fit_case(GlmFamily::NegativeBinomial, case, weights.as_deref(), &options).unwrap();
+        let fit =
+            fit_case(GlmFamily::NegativeBinomial, case, weights.as_deref(), &options).unwrap();
         let want = case["mom_alpha"].as_f64().unwrap();
         let got = fit.nb_alpha.unwrap();
         eprintln!("method of moments: alpha {got:.10} want {want:.10}");
@@ -167,14 +170,19 @@ fn negative_binomial_dispersion_policies_match_their_definitions() {
             nb_alpha: NbAlphaPolicy::NestedMle { max_outer: 200, tol_alpha: 1e-10 },
             ..tight()
         };
-        let fit = fit_case(GlmFamily::NegativeBinomial, case, weights.as_deref(), &options).unwrap();
+        let fit =
+            fit_case(GlmFamily::NegativeBinomial, case, weights.as_deref(), &options).unwrap();
         let (want_alpha, want) = (case["alpha"].as_f64().unwrap(), floats(&case["coef"]));
         let alpha_err = ((fit.nb_alpha.unwrap() - want_alpha) / want_alpha).abs();
         let coef_err = coefficient_error(&fit.coefficients, &want);
-        eprintln!("nested MLE #{index}: alpha {alpha_err:.2e} coef {coef_err:.2e} converged {}", fit.converged);
+        eprintln!(
+            "nested MLE #{index}: alpha {alpha_err:.2e} coef {coef_err:.2e} converged {}",
+            fit.converged
+        );
         // The reference alpha is a 30-step golden-section optimum of a flat profile.
         if !fit.converged || alpha_err > 1e-3 || coef_err > 1e-3 {
-            failures.push(format!("nested MLE #{index}: alpha {alpha_err:.2e}, coef {coef_err:.2e}"));
+            failures
+                .push(format!("nested MLE #{index}: alpha {alpha_err:.2e}, coef {coef_err:.2e}"));
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
@@ -195,16 +203,27 @@ fn ridge_fits_match_the_exact_penalised_maximiser() {
         let mut ws = LeastSquaresWorkspace::default();
         let options = GlmOptions::new(500, 1e-12);
         let fit = match &weights {
-            Some(w) => fit_glm_ridge_weighted(family, design, w, &FaerBackend, &mut ws, &options, lambda),
+            Some(w) => {
+                fit_glm_ridge_weighted(family, design, w, &FaerBackend, &mut ws, &options, lambda)
+            }
             None => fit_glm_ridge(family, design, &FaerBackend, &mut ws, &options, lambda),
         };
-        let label = format!("#{index} {}/lambda {lambda:e}/separated {}", case["family"], case["separated_data"]);
+        let label = format!(
+            "#{index} {}/lambda {lambda:e}/separated {}",
+            case["family"], case["separated_data"]
+        );
         match fit {
             Ok(f) => {
                 let err = coefficient_error(&f.coefficients, &want);
-                eprintln!("{label}: coef {err:.2e} converged {} iterations {}", f.converged, f.iterations);
+                eprintln!(
+                    "{label}: coef {err:.2e} converged {} iterations {}",
+                    f.converged, f.iterations
+                );
                 if !f.converged || !f.penalized || err > 1e-7 {
-                    failures.push(format!("{label}: converged {} penalized {} err {err:.2e}", f.converged, f.penalized));
+                    failures.push(format!(
+                        "{label}: converged {} penalized {} err {err:.2e}",
+                        f.converged, f.penalized
+                    ));
                 }
             }
             Err(e) => failures.push(format!("{label}: refused ({e})")),
@@ -221,26 +240,54 @@ fn separated_logistic_fits_are_flagged_refused_and_ridge_refit_on_request() {
         let name = case["name"].as_str().unwrap();
         let exists = case["mle_exists"].as_bool().unwrap();
         // Without the ridge fallback the verdict is on the unpenalised iteration.
-        let fit = fit_case(GlmFamily::BinomialLogit, case, None, &GlmOptions { ridge_on_separation: None, ..GlmOptions::new(50, 1e-8) }).unwrap();
+        let fit = fit_case(
+            GlmFamily::BinomialLogit,
+            case,
+            None,
+            &GlmOptions { ridge_on_separation: None, ..GlmOptions::new(50, 1e-8) },
+        )
+        .unwrap();
         let refused = fit.require_ok();
-        eprintln!("{name}: mle_exists {exists} separated {} converged {} refused {:?}", fit.separated, fit.converged, refused.as_ref().err().map(|e| e.to_string()));
+        eprintln!(
+            "{name}: mle_exists {exists} separated {} converged {} refused {:?}",
+            fit.separated,
+            fit.converged,
+            refused.as_ref().err().map(|e| e.to_string())
+        );
         if exists {
             if fit.separated || refused.is_err() {
-                failures.push(format!("{name}: a finite MLE exists but the fit was flagged or refused"));
+                failures.push(format!(
+                    "{name}: a finite MLE exists but the fit was flagged or refused"
+                ));
             }
         } else {
             if !fit.separated {
-                failures.push(format!("{name}: no finite MLE exists but the fit was not flagged separated"));
+                failures.push(format!(
+                    "{name}: no finite MLE exists but the fit was not flagged separated"
+                ));
             }
             match refused {
-                Err(StatsError::GlmRefused { kind: GlmRefusalKind::Separated | GlmRefusalKind::NonConverged | GlmRefusalKind::BoundarySaturated, .. }) => {}
+                Err(StatsError::GlmRefused {
+                    kind:
+                        GlmRefusalKind::Separated
+                        | GlmRefusalKind::NonConverged
+                        | GlmRefusalKind::BoundarySaturated,
+                    ..
+                }) => {}
                 other => failures.push(format!("{name}: expected a refusal, got {other:?}")),
             }
             // With the default ridge fallback the coefficients are finite and penalised, yet the
             // unpenalised verdict is kept, so estimation paths still refuse.
-            let ridge = fit_case(GlmFamily::BinomialLogit, case, None, &GlmOptions::default()).unwrap();
-            if !ridge.penalized || !ridge.separated || ridge.require_ok().is_ok() || ridge.coefficients.iter().any(|b| !b.is_finite()) {
-                failures.push(format!("{name}: ridge fallback must be finite, penalised, still flagged and refused"));
+            let ridge =
+                fit_case(GlmFamily::BinomialLogit, case, None, &GlmOptions::default()).unwrap();
+            if !ridge.penalized
+                || !ridge.separated
+                || ridge.require_ok().is_ok()
+                || ridge.coefficients.iter().any(|b| !b.is_finite())
+            {
+                failures.push(format!(
+                    "{name}: ridge fallback must be finite, penalised, still flagged and refused"
+                ));
             }
         }
     }
@@ -251,7 +298,13 @@ fn separated_logistic_fits_are_flagged_refused_and_ridge_refit_on_request() {
 fn an_iteration_limit_is_reported_as_non_convergence() {
     let doc: Value = serde_json::from_str(REFERENCE).unwrap();
     let case = &doc["fits"][0];
-    let fit = fit_case(GlmFamily::BinomialLogit, case, None, &GlmOptions { ridge_on_separation: None, ..GlmOptions::new(1, 1e-12) }).unwrap();
+    let fit = fit_case(
+        GlmFamily::BinomialLogit,
+        case,
+        None,
+        &GlmOptions { ridge_on_separation: None, ..GlmOptions::new(1, 1e-12) },
+    )
+    .unwrap();
     assert!(!fit.converged);
     assert!(matches!(
         fit.require_ok(),
@@ -269,14 +322,46 @@ fn invalid_outcomes_and_weights_are_refused() {
     let mut y = floats(&case["y"]);
     y[0] = 0.5;
     let design = GlmDesignRef { x_colmajor: &x, nrows: n, ncols: p, y: &y };
-    assert!(fit_glm(GlmFamily::BinomialLogit, design, &FaerBackend, &mut ws, &GlmOptions::default()).is_err());
-    assert!(fit_glm(GlmFamily::PoissonLog, GlmDesignRef { y: &[-1.0; 60], ..design }, &FaerBackend, &mut ws, &GlmOptions::default()).is_err());
+    assert!(
+        fit_glm(GlmFamily::BinomialLogit, design, &FaerBackend, &mut ws, &GlmOptions::default())
+            .is_err()
+    );
+    assert!(
+        fit_glm(
+            GlmFamily::PoissonLog,
+            GlmDesignRef { y: &[-1.0; 60], ..design },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::default()
+        )
+        .is_err()
+    );
     let y = floats(&case["y"]);
     let design = GlmDesignRef { x_colmajor: &x, nrows: n, ncols: p, y: &y };
     for bad in [-1.0, f64::NAN, f64::INFINITY] {
         let mut w = vec![1.0; n];
         w[3] = bad;
-        assert!(fit_glm_weighted(GlmFamily::BinomialLogit, design, &w, &FaerBackend, &mut ws, &GlmOptions::default()).is_err());
+        assert!(
+            fit_glm_weighted(
+                GlmFamily::BinomialLogit,
+                design,
+                &w,
+                &FaerBackend,
+                &mut ws,
+                &GlmOptions::default()
+            )
+            .is_err()
+        );
     }
-    assert!(fit_glm_weighted(GlmFamily::BinomialLogit, design, &vec![1.0; n - 1], &FaerBackend, &mut ws, &GlmOptions::default()).is_err());
+    assert!(
+        fit_glm_weighted(
+            GlmFamily::BinomialLogit,
+            design,
+            &vec![1.0; n - 1],
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::default()
+        )
+        .is_err()
+    );
 }

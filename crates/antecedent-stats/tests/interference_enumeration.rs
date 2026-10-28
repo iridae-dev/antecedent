@@ -141,7 +141,8 @@ fn horvitz_thompson_is_unbiased_and_its_variance_bound_dominates_over_the_whole_
             } else {
                 let m = randomization_mean(&outcomes, &observed, &pi, level).unwrap();
                 assert_eq!(m.exposed_units, exposed.len());
-                let direct: f64 = exposed.iter().map(|&i| outcomes[i] / pi[i]).sum::<f64>() / N as f64;
+                let direct: f64 =
+                    exposed.iter().map(|&i| outcomes[i] / pi[i]).sum::<f64>() / N as f64;
                 assert!((m.horvitz_thompson - direct).abs() <= 1e-12);
                 let hajek = exposed.iter().map(|&i| outcomes[i] / pi[i]).sum::<f64>()
                     / exposed.iter().map(|&i| 1.0 / pi[i]).sum::<f64>();
@@ -156,8 +157,8 @@ fn horvitz_thompson_is_unbiased_and_its_variance_bound_dominates_over_the_whole_
         }
         assert!((e_ht - truth).abs() <= 1e-10, "{name}: E[HT] {e_ht} vs {truth}");
         let true_var = e_ht2 - e_ht * e_ht;
-        let diagonal: f64 = (0..N).map(|i| (1.0 - pi[i]) / pi[i] * y_level[i].powi(2)).sum::<f64>()
-            / N as f64;
+        let diagonal: f64 =
+            (0..N).map(|i| (1.0 - pi[i]) / pi[i] * y_level[i].powi(2)).sum::<f64>() / N as f64;
         assert!(
             (e_var - diagonal).abs() <= 1e-9 * diagonal,
             "{name}: E[variance estimate] {e_var} vs sum Var(X_i)/n {diagonal}"
@@ -168,8 +169,10 @@ fn horvitz_thompson_is_unbiased_and_its_variance_bound_dominates_over_the_whole_
         );
         // The Hajek ratio is only consistent, not unbiased, but it must lie in the outcome range.
         let hajek_mean = e_hajek_num / mass_present;
-        let (lo, hi) = (y_level.iter().cloned().fold(f64::INFINITY, f64::min),
-            y_level.iter().cloned().fold(f64::NEG_INFINITY, f64::max));
+        let (lo, hi) = (
+            y_level.iter().cloned().fold(f64::INFINITY, f64::min),
+            y_level.iter().cloned().fold(f64::NEG_INFINITY, f64::max),
+        );
         assert!(hajek_mean > lo - 5.0 && hajek_mean < hi + 5.0);
     }
 }
@@ -182,10 +185,8 @@ fn contrast_combines_means_and_doubles_the_summed_variance_bound() {
     let observed = exposures(&a, &net, &ExposureMapping::NeighborCount).unwrap();
     let outcomes: Vec<f64> =
         (0..N).map(|i| potential(i, observed[i].own, observed[i].neighbors)).collect();
-    let levels = [
-        ExposureLevel { own: 1.0, neighbors: 1.0 },
-        ExposureLevel { own: 0.0, neighbors: 1.0 },
-    ];
+    let levels =
+        [ExposureLevel { own: 1.0, neighbors: 1.0 }, ExposureLevel { own: 0.0, neighbors: 1.0 }];
     let mut means = Vec::new();
     for level in levels {
         let pi = exposure_probabilities(&d, &net, &ExposureMapping::NeighborCount, level, 1, 0)
@@ -194,12 +195,16 @@ fn contrast_combines_means_and_doubles_the_summed_variance_bound() {
         means.push(randomization_mean(&outcomes, &observed, &pi, level).unwrap());
     }
     let c = randomization_contrast(means[0], means[1]);
-    assert!((c.horvitz_thompson - (means[1].horvitz_thompson - means[0].horvitz_thompson)).abs() < 1e-15);
+    assert!(
+        (c.horvitz_thompson - (means[1].horvitz_thompson - means[0].horvitz_thompson)).abs()
+            < 1e-15
+    );
     assert!((c.hajek - (means[1].hajek - means[0].hajek)).abs() < 1e-15);
     // Var(B - A) <= 2 (Var A + Var B) because Cov(A, B) >= -sqrt(Var A Var B) and
     // 2 sqrt(ab) <= a + b.
     assert!(
-        (c.conservative_variance - 2.0 * (means[0].conservative_variance + means[1].conservative_variance))
+        (c.conservative_variance
+            - 2.0 * (means[0].conservative_variance + means[1].conservative_variance))
             .abs()
             < 1e-12
     );
@@ -210,9 +215,16 @@ fn unreachable_exposure_for_some_unit_is_refused_not_averaged_in() {
     // Unit 2 has a single in-neighbour, so two treated in-neighbours is impossible for it.
     let net = network();
     let level = ExposureLevel { own: 1.0, neighbors: 2.0 };
-    let pi = exposure_probabilities(&design("bernoulli"), &net, &ExposureMapping::NeighborCount, level, 1, 0)
-        .unwrap()
-        .probabilities;
+    let pi = exposure_probabilities(
+        &design("bernoulli"),
+        &net,
+        &ExposureMapping::NeighborCount,
+        level,
+        1,
+        0,
+    )
+    .unwrap()
+    .probabilities;
     assert_eq!(pi[2], 0.0);
     let a = [true, true, true, true, true, true];
     let observed = exposures(&a, &net, &ExposureMapping::NeighborCount).unwrap();

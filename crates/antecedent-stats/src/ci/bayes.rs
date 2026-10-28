@@ -1051,7 +1051,9 @@ mod tests {
                 .map(|i| ((i as f64) * 0.93).cos() + z.first().map_or(0.0, |c| 0.5 * c[i]))
                 .collect();
             let y: Vec<f64> = (0..n)
-                .map(|i| 0.6 * x[i] + ((i as f64) * 1.7 + 0.2).sin() + z.last().map_or(0.0, |c| c[i]))
+                .map(|i| {
+                    0.6 * x[i] + ((i as f64) * 1.7 + 0.2).sin() + z.last().map_or(0.0, |c| c[i])
+                })
                 .collect();
 
             let mut basis = vec![vec![1.0; n]];
@@ -1100,8 +1102,9 @@ mod tests {
             };
             let mut ws = CiWorkspace::default();
             let ctx = ExecutionContext::for_tests(5);
-            let got = BayesFactorCi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0]
-                .statistic;
+            let got = BayesFactorCi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results
+                [0]
+            .statistic;
             assert!(
                 (got - quadrature).abs() < 1e-5,
                 "n={n} |Z|={nz}: closed form {got} vs quadrature {quadrature}"

@@ -7,7 +7,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
-    LassoFit, LassoOptions, RidgeIntercept, fit_lasso, fit_ridge_with, predict_lasso, soft_threshold,
+    LassoFit, LassoOptions, RidgeIntercept, fit_lasso, fit_ridge_with, predict_lasso,
+    soft_threshold,
 };
 use serde_json::Value;
 
@@ -124,7 +125,9 @@ fn default_tolerance_holds_fitted_values_near_the_exact_solution_on_correlated_d
 
 #[test]
 fn soft_threshold_is_the_proximal_operator_of_the_l1_norm() {
-    for &(z, g, want) in &[(3.0, 1.0, 2.0), (-3.0, 1.0, -2.0), (0.5, 1.0, 0.0), (-1.0, 1.0, 0.0), (1.0, 0.0, 1.0)] {
+    for &(z, g, want) in
+        &[(3.0, 1.0, 2.0), (-3.0, 1.0, -2.0), (0.5, 1.0, 0.0), (-1.0, 1.0, 0.0), (1.0, 0.0, 1.0)]
+    {
         assert_eq!(soft_threshold(z, g), want);
     }
 }

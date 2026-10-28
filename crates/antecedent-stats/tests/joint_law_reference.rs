@@ -71,11 +71,19 @@ fn coupling_extremes_match_exhaustive_table_enumeration() {
                 assert!(got.is_err(), "{name}/{key}: lattice sign fails, must refuse");
                 refused += 1;
             } else {
-                bounds(got.unwrap_or_else(|e| panic!("{name}/{key}: {e}")), want, &format!("{name}/{key}"));
+                bounds(
+                    got.unwrap_or_else(|e| panic!("{name}/{key}: {e}")),
+                    want,
+                    &format!("{name}/{key}"),
+                );
                 accepted += 1;
             }
         }
-        bounds(product_moment_envelope(&x, &y, &token).expect("product"), &case["product_moment"], name);
+        bounds(
+            product_moment_envelope(&x, &y, &token).expect("product"),
+            &case["product_moment"],
+            name,
+        );
         bounds(covariance_envelope(&x, &y, &token).expect("cov"), &case["covariance"], name);
         let (a, b) = (f(&case["a"]), f(&case["b"]));
         bounds(
@@ -106,14 +114,16 @@ fn coupling_extremes_match_exhaustive_table_enumeration() {
 fn linear_mixture_and_correlation_moments_match_definitions() {
     let r = reference();
     for case in r["linear"].as_array().expect("linear") {
-        let got = linear_combination_moments(&fs(&case["coef"]), &fs(&case["mean"]), &fs(&case["cov"]))
-            .expect("moments");
+        let got =
+            linear_combination_moments(&fs(&case["coef"]), &fs(&case["mean"]), &fs(&case["cov"]))
+                .expect("moments");
         near(got.mean, f(&case["want_mean"]), "linear mean");
         near(got.variance, f(&case["want_variance"]), "linear variance");
     }
     for case in r["mixtures"].as_array().expect("mixtures") {
-        let got = mixture_moments(&fs(&case["weights"]), &fs(&case["means"]), &fs(&case["variances"]))
-            .expect("mixture");
+        let got =
+            mixture_moments(&fs(&case["weights"]), &fs(&case["means"]), &fs(&case["variances"]))
+                .expect("mixture");
         near(got.mean, f(&case["mean"]), "mixture mean");
         near(got.within, f(&case["within"]), "within");
         near(got.between, f(&case["between"]), "between");
@@ -157,7 +167,12 @@ fn draw_spread_exceedance_band_and_normal_interval_match_definitions() {
         .expect("decision");
         near(got.probability, f(&case["probability"]), "exceedance probability");
         // The quantile routine is a rational approximation; the band is checked to 1e-9.
-        assert!((got.standard_error - f(&case["se"])).abs() < 1e-9, "se {} vs {}", got.standard_error, case["se"]);
+        assert!(
+            (got.standard_error - f(&case["se"])).abs() < 1e-9,
+            "se {} vs {}",
+            got.standard_error,
+            case["se"]
+        );
         assert!((got.band - f(&case["band"])).abs() < 1e-9, "band");
         let verdict = match case["verdict"].as_str().expect("verdict") {
             "act" => DecisionVerdict::Act,
@@ -167,12 +182,23 @@ fn draw_spread_exceedance_band_and_normal_interval_match_definitions() {
         assert_eq!(got.verdict, verdict, "verdict for {}", case["threshold"]);
     }
     for case in r["normal_interval"].as_array().expect("normal") {
-        let got = normal_interval_candidate(f(&case["mean"]), f(&case["variance"]), f(&case["level"]))
-            .expect("interval");
+        let got =
+            normal_interval_candidate(f(&case["mean"]), f(&case["variance"]), f(&case["level"]))
+                .expect("interval");
         let sd = f(&case["variance"]).sqrt();
         let tol = 1e-9 * (1.0 + sd);
-        assert!((got.lower - f(&case["lower"])).abs() < tol, "lower {} vs {}", got.lower, case["lower"]);
-        assert!((got.upper - f(&case["upper"])).abs() < tol, "upper {} vs {}", got.upper, case["upper"]);
+        assert!(
+            (got.lower - f(&case["lower"])).abs() < tol,
+            "lower {} vs {}",
+            got.lower,
+            case["lower"]
+        );
+        assert!(
+            (got.upper - f(&case["upper"])).abs() < tol,
+            "upper {} vs {}",
+            got.upper,
+            case["upper"]
+        );
     }
 }
 
@@ -180,7 +206,8 @@ fn draw_spread_exceedance_band_and_normal_interval_match_definitions() {
 fn mixture_marginal_quantile_interval_and_exceedance_match_enumeration() {
     for case in reference()["mixture_marginal"].as_array().expect("mixtures") {
         let weights = fs(&case["weights"]);
-        let comps: Vec<Vec<f64>> = case["components"].as_array().expect("c").iter().map(fs).collect();
+        let comps: Vec<Vec<f64>> =
+            case["components"].as_array().expect("c").iter().map(fs).collect();
         let refs: Vec<&[f64]> = comps.iter().map(Vec::as_slice).collect();
         let marginal = mixture_marginal(&weights, &refs).expect("mixture marginal");
         let atoms = case["atoms"].as_array().expect("atoms");
@@ -194,7 +221,8 @@ fn mixture_marginal_quantile_interval_and_exceedance_match_enumeration() {
         near(marginal.variance(), f(&case["variance"]), "mixture marginal variance");
         let interval = marginal_interval_candidate(&marginal, f(&case["level"])).expect("interval");
         assert_eq!((interval.lower, interval.upper), (f(&case["lower"]), f(&case["upper"])));
-        let (p, se) = mixture_exceedance(&weights, &refs, f(&case["threshold"])).expect("exceedance");
+        let (p, se) =
+            mixture_exceedance(&weights, &refs, f(&case["threshold"])).expect("exceedance");
         near(p, f(&case["exceedance"]), "mixture exceedance");
         near(se, f(&case["exceedance_se"]), "mixture exceedance se");
     }

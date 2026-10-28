@@ -136,7 +136,8 @@ fn advanced_ci_fixture_has_pinned_reproducible_provenance() {
     assert_eq!(oracle["generator_retained"], true, "the generator must be retained");
     assert_eq!(oracle["generator"], "conformance/discovery/advanced_ci/reference.py");
     assert_eq!(
-        fixture["historical_oracle"]["generation_location"], "temporary external harness; not retained",
+        fixture["historical_oracle"]["generation_location"],
+        "temporary external harness; not retained",
         "the historical deleted-generator disclosure must be preserved"
     );
     assert_eq!(oracle["packages"]["tigramite"]["version"], "5.2.1.30");

@@ -42,7 +42,7 @@ sha256 = "f5f238f49ffcf5ee1fc44288e92f23f547f7889f1997226b045be560cf4b72cc"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/regularized_reference.rs"
-sha256 = "7be46fa6c916d0079753d41fe013cf23529b4102dd0a7e9f338068d05ff38d6b"
+sha256 = "2d4a9d40257ee93903a3bdb32cc319c5363919f74c673be3656c51bff4f96010"
 
 [[method_review.artifacts]]
 role = "reference"

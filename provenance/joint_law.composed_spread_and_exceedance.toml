@@ -47,7 +47,7 @@ sha256 = "1c2d81bd05e56dc76d388e02fb2fa176bdf384d8c7b93b3db7e3a5a9185bddcb"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/joint_law_reference.rs"
-sha256 = "987cc5ba9ba6b19b2a0d29b0838af6699cd5662b8aac207fae73770ece1773d9"
+sha256 = "0320838f3621f0f78a0b2699a56e476abac68b8cc40e4eb171723a7403828984"
 
 [[method_review.artifacts]]
 role = "reference"

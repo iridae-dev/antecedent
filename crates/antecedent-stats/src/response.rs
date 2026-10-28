@@ -641,9 +641,8 @@ fn fit_local_quadratic(
     // because the weighted hat map is a W-orthogonal projection. The divisor equals
     // `weight_sum - 3` only when every kernel weight is 0 or 1; with fractional Gaussian
     // weights the latter overstates sigma^2.
-    let weighted_hat_trace: f64 = (0..3)
-        .map(|j| (0..3).map(|k| inverse[j][k] * squared_gram[k][j]).sum::<f64>())
-        .sum();
+    let weighted_hat_trace: f64 =
+        (0..3).map(|j| (0..3).map(|k| inverse[j][k] * squared_gram[k][j]).sum::<f64>()).sum();
     let residual_weight = weight_sum - weighted_hat_trace;
     if !residual_weight.is_finite() || residual_weight <= 0.0 {
         return Err(StatsError::Backend(

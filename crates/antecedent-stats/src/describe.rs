@@ -71,11 +71,8 @@ const SCALED_ABOVE: f64 = 1e140;
 fn centered_variance(values: &[f64], mean: f64, n: f64) -> (f64, f64) {
     let widest = values.iter().fold(0.0_f64, |m, v| m.max((v - mean).abs()));
     // Scale to keep the squares normal; 1 (no scaling) in the ordinary range.
-    let scale = if widest > 0.0 && (widest < SCALED_BELOW || widest > SCALED_ABOVE) {
-        widest
-    } else {
-        1.0
-    };
+    let scale =
+        if widest > 0.0 && (widest < SCALED_BELOW || widest > SCALED_ABOVE) { widest } else { 1.0 };
     let (mut squares, mut total) = (0.0_f64, 0.0_f64);
     for v in values {
         let d = (v - mean) / scale;

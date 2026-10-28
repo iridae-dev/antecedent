@@ -46,7 +46,7 @@ sha256 = "7f383d786158a103f2adcbb2ed2008f74774bda85a676ec18aedfd74293fc20d"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/interference_enumeration.rs"
-sha256 = "5d8545f48342adcf7da14bd22cf031337468bfc7649c83d5710bb6986d8f763b"
+sha256 = "d644198c745e742e943769bfbc9256968bf134442064dcc897a2c788a3723692"
 
 [[method_review.artifacts]]
 role = "fixture"

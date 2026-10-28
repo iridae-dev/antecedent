@@ -27,10 +27,25 @@ fn exact_and_censored_terms_match_the_reference_including_deep_tails() {
     assert_close(one(G::Exact(1.3), 0.4, 0.8), -1.328_607_481_890_463, 1e-13, "exact");
     assert_close(one(G::Exact(-50.0), 0.0, 1.0), -1_250.918_938_533_204_7, 1e-13, "exact tail");
     assert_close(one(G::LeftCensored(0.5), 1.0, 2.0), -0.913_061_764_811_135_06, 1e-13, "left");
-    assert_close(one(G::LeftCensored(-40.0), 0.0, 1.0), -804.608_442_013_753_79, 1e-13, "left tail");
-    assert_close(one(G::LeftCensored(9.0), 0.0, 1.0), -1.128_588_405_953_840_6e-19, 1e-13, "left top");
+    assert_close(
+        one(G::LeftCensored(-40.0), 0.0, 1.0),
+        -804.608_442_013_753_79,
+        1e-13,
+        "left tail",
+    );
+    assert_close(
+        one(G::LeftCensored(9.0), 0.0, 1.0),
+        -1.128_588_405_953_840_6e-19,
+        1e-13,
+        "left top",
+    );
     assert_close(one(G::RightCensored(0.5), 1.0, 2.0), -0.512_984_075_409_430_43, 1e-13, "right");
-    assert_close(one(G::RightCensored(40.0), 0.0, 1.0), -804.608_442_013_753_79, 1e-13, "right tail");
+    assert_close(
+        one(G::RightCensored(40.0), 0.0, 1.0),
+        -804.608_442_013_753_79,
+        1e-13,
+        "right tail",
+    );
 }
 
 #[test]
@@ -55,18 +70,34 @@ fn interval_masses_keep_precision_for_narrow_straddling_and_tail_intervals() {
     ];
     for (lower, upper, mean, sigma, expected) in cases {
         let got = one(G::IntervalCensored { lower, upper }, mean, sigma);
-        assert_close(got, expected, 1e-12, &format!("[{lower}, {upper}] mean {mean} sigma {sigma}"));
+        assert_close(
+            got,
+            expected,
+            1e-12,
+            &format!("[{lower}, {upper}] mean {mean} sigma {sigma}"),
+        );
     }
 }
 
 #[test]
 fn truncated_terms_divide_by_the_interval_mass() {
-    let t = |value, lower, upper, mean, sigma| one(G::Truncated { value, lower, upper }, mean, sigma);
+    let t =
+        |value, lower, upper, mean, sigma| one(G::Truncated { value, lower, upper }, mean, sigma);
     assert_close(t(0.3, -1.0, 2.0, 0.5, 1.5), -0.951_577_383_899_599_94, 1e-13, "interior");
     assert_close(t(0.0, -1e-12, 1e-12, 0.0, 1.0), 26.937_873_935_368_603, 1e-12, "narrow");
     assert_close(t(10.5, 10.0, 11.0, 0.0, 1.0), -2.812_628_307_621_547_9, 1e-12, "tail");
-    assert_close(t(0.2, f64::NEG_INFINITY, 1.0, 0.0, 1.0), -0.766_184_754_181_222_85, 1e-13, "no lower");
-    assert_close(t(0.2, -1.0, f64::INFINITY, 0.0, 1.0), -0.766_184_754_181_222_85, 1e-13, "no upper");
+    assert_close(
+        t(0.2, f64::NEG_INFINITY, 1.0, 0.0, 1.0),
+        -0.766_184_754_181_222_85,
+        1e-13,
+        "no lower",
+    );
+    assert_close(
+        t(0.2, -1.0, f64::INFINITY, 0.0, 1.0),
+        -0.766_184_754_181_222_85,
+        1e-13,
+        "no upper",
+    );
 }
 
 #[test]

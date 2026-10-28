@@ -44,7 +44,7 @@ sha256 = "015eda9e238cda1dd4a531a20098389c4f77cc648d225ff2a67b899e9f841c22"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/parcorr_variants_reference.rs"
-sha256 = "51baf87f0eccb52703ca2dedf33438fcb6d599c13963b1d89dffd29a1dd16e6c"
+sha256 = "6accbda3a23ef46337e6c6f34549d5d7bf2c528e4e8ea7bf21c01286a395d58a"
 
 [[method_review.artifacts]]
 role = "reference"

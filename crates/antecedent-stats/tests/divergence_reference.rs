@@ -27,10 +27,7 @@ fn vec_f(v: &Value) -> Vec<f64> {
 }
 
 fn close(got: f64, want: f64, rel: f64, abs: f64, what: &str) {
-    assert!(
-        (got - want).abs() <= rel * want.abs() + abs,
-        "{what}: got {got:e}, want {want:e}"
-    );
+    assert!((got - want).abs() <= rel * want.abs() + abs, "{what}: got {got:e}, want {want:e}");
 }
 
 #[test]

@@ -44,7 +44,7 @@ sha256 = "be11ced6140340247662351d504432e6674464ed05aecbb236033ba94eb76be3"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/divergence_reference.rs"
-sha256 = "c507ec86d9b3dff9b503113a009672431d6c59019f70067b2d267d227c3975ce"
+sha256 = "32983cffd3da03b30300bbac9c4953591720f6181e2d0791c292bb27d6a34663"
 
 [[method_review.artifacts]]
 role = "reference"

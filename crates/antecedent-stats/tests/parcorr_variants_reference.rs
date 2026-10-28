@@ -8,8 +8,8 @@
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{
-    BlockTest, CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependenceTest,
-    ConfidenceMethod, MultivariatePartialCorrelation, RobustPartialCorrelation, SignificanceMethod,
+    BlockTest, CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependenceTest, ConfidenceMethod,
+    MultivariatePartialCorrelation, RobustPartialCorrelation, SignificanceMethod,
     WeightedPartialCorrelation,
 };
 use serde_json::Value;
@@ -69,10 +69,8 @@ fn weighted_partial_correlation_matches_weighted_least_squares_and_kish_df() {
     for case in doc()["weighted"].as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
         let (x, y, z) = (floats(&case["x"]), floats(&case["y"]), columns(&case["Z"]));
-        let all: Vec<&[f64]> = [x.as_slice(), y.as_slice()]
-            .into_iter()
-            .chain(z.iter().map(Vec::as_slice))
-            .collect();
+        let all: Vec<&[f64]> =
+            [x.as_slice(), y.as_slice()].into_iter().chain(z.iter().map(Vec::as_slice)).collect();
         let z_flat: Vec<usize> = (2..all.len()).collect();
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() }];
         let req = CiBatchRequest {
@@ -98,10 +96,8 @@ fn robust_partial_correlation_matches_van_der_waerden_scores() {
     for case in doc()["robust"].as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
         let (x, y, z) = (floats(&case["x"]), floats(&case["y"]), columns(&case["Z"]));
-        let all: Vec<&[f64]> = [x.as_slice(), y.as_slice()]
-            .into_iter()
-            .chain(z.iter().map(Vec::as_slice))
-            .collect();
+        let all: Vec<&[f64]> =
+            [x.as_slice(), y.as_slice()].into_iter().chain(z.iter().map(Vec::as_slice)).collect();
         let z_flat: Vec<usize> = (2..all.len()).collect();
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() }];
         let req = CiBatchRequest {
@@ -116,8 +112,18 @@ fn robust_partial_correlation_matches_van_der_waerden_scores() {
             .unwrap()
             .results
             .remove(0);
-        assert!((got.statistic - case["r"].as_f64().unwrap()).abs() < 1e-9, "{name}: r {} vs {}", got.statistic, case["r"]);
+        assert!(
+            (got.statistic - case["r"].as_f64().unwrap()).abs() < 1e-9,
+            "{name}: r {} vs {}",
+            got.statistic,
+            case["r"]
+        );
         assert_eq!(got.df, case["df"].as_f64().unwrap(), "{name}");
-        assert!(rel(got.p_value, case["p"].as_f64().unwrap()) < 1e-6, "{name}: p {} vs {}", got.p_value, case["p"]);
+        assert!(
+            rel(got.p_value, case["p"].as_f64().unwrap()) < 1e-6,
+            "{name}: p {} vs {}",
+            got.p_value,
+            case["p"]
+        );
     }
 }
