@@ -20,4 +20,41 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-validate/src/conflict.rs unit tests",
  "conformance/bayesian/prior_bank_conflict_shrink",
+ "crates/antecedent-validate/tests/conflict_policy_reference.rs (80-digit alpha shrink, shrink-then-compose and Gaussian divergence)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ConflictPolicy::shrink_alpha and apply_conflict_and_compose in crates/antecedent-validate/src/conflict.rs, with the Gaussian divergence gaussian_kl of crates/antecedent-stats/src/divergence.rs that supplies the KL signal: the repository-defined update alpha' = alpha * 1{p > p_min} * exp(-kl_scale * kl) with absent signals contributing one, the bookkeeping of requested and applied alphas, and the shrink-then-compose result for one-parameter Gaussian priors under the precision-add (power prior) composition. Not the prior-predictive Monte Carlo p-value (estimate_conflict_signals and compose_with_conflict_policy are not exercised), the mixture or dense-correlation compositions, or the statistical properties of the Evans-Moshonov conflict check, which the policy does not implement."
+assumptions = ["The alpha update is a repository policy, not a result of the cited paper; this review checks the code against the stated formula, not the formula against any decision-theoretic criterion.", "A p-value is a number in [0, 1] and a divergence a non-negative number; a signal that is present but outside those ranges is a failed diagnostic.", "Power-prior composition adds the baseline precision and each source's alpha-weighted precision and takes the precision-weighted mean; composed variances are floored at 1e-12."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated formulas at 80 digits (exp, the precision-weighted mean, and the Gaussian divergence in closed form); no upstream implementation was consulted. The cited paper was not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited paper is linked, not redistributed."
+limitations = "The Evans and Moshonov paper was not retrieved for this review (nothing downloaded, no local copy), and the record's statement that the policy departs from it rests on the code and the existing record. The comparison covers 504 alpha, p-value, divergence and setting combinations (alpha 0, 0.3, 1; p absent, 0, exactly the threshold, just above it, 0.5, 1; divergence absent, 0, 1e-12 to 800; four threshold and scale settings), four one-parameter compositions with up to three sources, and thirteen divergence cases with variance ratios from 1e-9 to 1e9 and relative variance differences down to 4e-16, at 1e-12 relative. It does not run the prior-predictive Monte Carlo that produces the p-values, does not show that the policy protects against conflicting priors in finite samples, and uses a Dirac-at-the-observed-mean divergence that is a z-score squared over two, not a Bayesian conflict measure. Calibration of the thresholds is not examined."
+sources = ["https://doi.org/10.1214/06-BA129", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect fixed: a present but invalid signal was treated as absent. A NaN or infinite p-value, a p-value outside [0, 1], or a NaN, infinite or negative divergence skipped its factor, so a failed diagnostic left the external prior at full requested weight; such a signal now drops the source (alpha 0), while genuinely absent signals remain a no-op as documented.", "Defect fixed in gaussian_kl: for variances within about 1e-4 of each other the term r - ln(1 + r) with r = (v0 - v1)/v1 cancelled to order r^2 and was computed with relative error about 1e-8 at r = 1e-9 (and worse as r shrank), because log1p only removes the cancellation inside the logarithm. It is now evaluated by the atanh series of ln(1 + r), which has no cancellation; the divergence agrees with 80-digit values to 1e-12 relative on all thirteen cases.", "The shrink formula, the clamp to [0, alpha], the indicator at p exactly equal to p_min (zeroed), the applied-alpha bookkeeping and the composed mean and variance agree with the reference on every combination."]
+record_sha256 = "5b387af4fd846f6fb58bfad5222ed1db8df9420b0dd41f13007c4779465170e6"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/conflict.rs"
+sha256 = "59d91872f78ed4b67937ec23c6ebe6d800fa4a712c5980b931a217fa4ac2082e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/divergence.rs"
+sha256 = "be11ced6140340247662351d504432e6674464ed05aecbb236033ba94eb76be3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/conflict_policy_reference.rs"
+sha256 = "a80a4ad62c6b06be8b7ebbe18c9a2261a1efac9dd8002034d61b2a3e3e2516e6"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/conflict_policy_reference.py"
+sha256 = "2db546496ecb3798a3957adec2457edbf5067e40f3ed14fe52e93e2ba1353a33"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/conflict_policy_reference.json"
+sha256 = "a99ac56fbbb4286e51dba6d9b7a5bfeba256bce5de4c7996a3238f8e94e04022"

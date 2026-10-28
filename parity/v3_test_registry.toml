@@ -17624,3 +17624,52 @@ crate = "antecedent-estimate"
 cargo_target = "dependence_aipw_hac"
 path = "crates/antecedent-estimate/tests/dependence_aipw_hac.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "evsi-conjugate-reference"
+crate = "antecedent-design"
+cargo_target = "evsi_conjugate_reference"
+path = "crates/antecedent-design/tests/evsi_conjugate_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-entropy-channel-reference"
+crate = "antecedent-design"
+cargo_target = "graph_entropy_channel_reference"
+path = "crates/antecedent-design/tests/graph_entropy_channel_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "model-distinguish-reference"
+crate = "antecedent-design"
+cargo_target = "model_distinguish_reference"
+path = "crates/antecedent-design/tests/model_distinguish_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "conflict-policy-reference"
+crate = "antecedent-validate"
+cargo_target = "conflict_policy_reference"
+path = "crates/antecedent-validate/tests/conflict_policy_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "product-limit-reference"
+crate = "antecedent-estimate"
+cargo_target = "product_limit_reference"
+path = "crates/antecedent-estimate/tests/product_limit_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "neyman-randomization-enumeration"
+crate = "antecedent-estimate"
+cargo_target = "neyman_randomization_enumeration"
+path = "crates/antecedent-estimate/tests/neyman_randomization_enumeration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "randomized-scores-enumeration"
+crate = "antecedent-estimate"
+cargo_target = "randomized_scores_enumeration"
+path = "crates/antecedent-estimate/tests/randomized_scores_enumeration.rs"
+gates = ["inventory", "named"]

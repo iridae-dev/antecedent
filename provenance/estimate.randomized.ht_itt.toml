@@ -20,4 +20,26 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-estimate/src/randomized_scores.rs",
  "crates/antecedent/tests/randomized_trial_route.rs",
+ "crates/antecedent-estimate/tests/randomized_scores_enumeration.rs (exact enumeration of independent assignment for the two- and three-action contrast)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "independent_action_contrast in crates/antecedent-estimate/src/randomized_scores.rs: the Horvitz-Thompson contrast of two actions under independent assignment with known row-wise probabilities, its sample-score sandwich variance, and the action and reference supports, for a two-action table and for contrasts selected among three actions. Compared with the exact distribution of independent assignment for fixed potential outcomes by enumerating every assignment vector. Not the interval support floors, the Bernoulli exact randomization test, the CUPED variant, or interval coverage."
+assumptions = ["Potential outcomes are fixed; rows are assigned independently with the stated positive probabilities, consistency and no interference hold.", "The row score is I(A = action) Y / p_action - I(A = reference) Y / p_reference; actions other than the two contrasted contribute zero.", "An assignment with an empty contrasted arm leaves the estimator undefined and the function returns nothing."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference by enumeration: 2^10 assignments of ten rows with unequal probabilities, and 3^7 assignments among three actions for three contrasts, each estimator recomputed from the score definition. No upstream implementation was consulted and the 1952 paper was not retrieved."
+redistribution = "The enumeration reference is repository-authored under MIT OR Apache-2.0 and lives in the integration test. The cited paper is linked, not redistributed."
+limitations = "Horvitz and Thompson's paper was not retrieved for this review (nothing downloaded, no local copy); the identities checked are the standard design-based properties of the inverse-probability contrast. Rows are few (7 or 10) and probabilities lie in [0.1, 0.8]; extreme probabilities, large samples, interval coverage and the arm-support floors are not examined here. The conditional behavior given a non-empty arm is not studied: the function's refusal for an empty arm means the estimator is only unbiased unconditionally in the reference, as the enumeration treats those assignments through the definition."
+sources = ["https://doi.org/10.1080/01621459.1952.10483446"]
+findings_resolved = ["No numerical defect was found: on every enumerated assignment the product's effect and variance equal the score definitions, the action and reference supports equal the assignment counts, and a refusal occurs only for an empty contrasted arm.", "On the reference law the contrast is exactly unbiased and the mean sandwich variance exceeds the exact variance by exactly the sum of squared deviations of the unit effects over n(n-1), confirming the record's statement that between-row effect variation is the source of conservatism."]
+record_sha256 = "d8344b6b59e13d3025f3d625860070bb1d0f8189411c49cdf74ed93b1d8532ec"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/randomized_scores.rs"
+sha256 = "76e97dfc9b2f0fba13b67732f8cbf949bd5ec490e5d735e62113288f46817e3f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/randomized_scores_enumeration.rs"
+sha256 = "576de0f38dd69d2e82805c0023688a9fe67760859ae04166cc827ec9c57a6808"

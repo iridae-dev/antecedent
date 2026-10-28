@@ -25,4 +25,26 @@ test_sources = [
  "python/tests/test_design_objectives.py (test_model_distinction_matches_independent_constant_loglik_gap)",
 
  "crates/antecedent-design/src/ranker.rs unit tests (model_distinguish_score_matches_closed_form_two_models, model_distinguish_score_zero_for_single_model)",
+ "crates/antecedent-design/tests/model_distinguish_reference.rs (enumerated pairwise gap and refusal of unscoreable contexts)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "DesignObjective::DistinguishModels with model_distinguish_score, model_pair_rows and the model-distinction branch of validate_channel_context in crates/antecedent-design/src/ranker.rs: the design's declared reliability times the mean absolute pairwise log-likelihood gap over the requested model pairs, averaged over the equally likely draws of the log-likelihood table, and the refusal of contexts that cannot be scored. Not the Box-Hill expected symmetric divergence (a documented departure), posterior model probabilities, or the Python typing layer."
+assumptions = ["The log-likelihood table rows are indexed by the model ids listed in the table, the requested models are a subset in any order, and each draw column is an equally likely joint draw for all models.", "The reliability of a design is the repository's heuristic map; the score is a heuristic gap, not a Bayes factor or an expected information gain.", "All requested models are distinct and present, and all table entries are finite."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference by direct enumeration of draws and pairs; Box and Hill's paper was not consulted and no upstream implementation was read."
+redistribution = "The reference is repository-authored under MIT OR Apache-2.0 and lives in the integration test. The cited paper is linked, not redistributed."
+limitations = "The Box and Hill paper was not retrieved for this review (nothing downloaded, no local copy), so the stated departure from its criterion is taken from the existing record and the code, not from a reading of the paper; the heuristic score is not claimed to approximate that criterion. The enumeration covers one 4-model, 5-draw table (including a gap of order 1e4) with three requested models given out of table order, three designs, and the Monte Carlo mean within five reported standard errors; it does not cover large tables or more models."
+sources = ["https://doi.org/10.1080/00401706.1967.10490441"]
+findings_resolved = ["Defect fixed: a requested model with no row in the log-likelihood table silently dropped its pairs from the average (all pairs missing scored exactly 0.0), a repeated model id added a zero-gap pair that diluted the mean, and a non-finite log-likelihood produced a NaN or infinite score; the context validator now refuses all three with a configuration error instead of returning a score that looks exact.", "The score for a valid request equals reliability times the enumerated mean pairwise gap within five standard errors for three designs, with the requested models listed in a different order from the table rows."]
+record_sha256 = "ba196d5a11a0c5e09768b8bc0ac56933d3fe26f343cc6512856a0e5f553de2b1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker.rs"
+sha256 = "9f4bdd2b680b9f3b3a0b733b098e74a05b229684305d5da7a8d33819f909b4a9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/model_distinguish_reference.rs"
+sha256 = "767a454b4d4e610db08cf0ea53ce2b05c3849a8f22be447ae91c908456373c74"

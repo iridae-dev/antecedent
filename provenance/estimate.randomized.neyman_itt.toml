@@ -20,4 +20,26 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-estimate/src/randomized_neyman.rs",
  "crates/antecedent/tests/randomized_trial_route.rs",
+ "crates/antecedent-estimate/tests/neyman_randomization_enumeration.rs (exact randomization-law enumeration of the complete, blocked, cluster, factorial and Hajek contrasts)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "complete_unit_itt, weighted_itt (with constant arm probabilities and unit weights), blocked_unit_itt, complete_cluster_itt and factorial_2x2 in crates/antecedent-estimate/src/randomized_neyman.rs: the difference-in-means point estimates and the conservative Neyman variance bounds under complete randomization of units, of units within fixed blocks, of clusters through their outcome totals, and of units into four fixed-size factorial cells. The estimators are compared with the exact randomization law of a finite population by enumerating every assignment. Not the interval support floors, stratified_neyman_effect, the normal-approximation coverage, or sampling-weighted Hajek contrasts with unequal probabilities."
+assumptions = ["Potential outcomes are fixed (finite-population inference); the assignment is a complete randomization with the stated group sizes, independent across blocks and clusters, with no interference and perfect compliance.", "The variance bound is the sum of arm sampling variances over arm sizes, which exceeds the exact variance by the unobservable effect variance S_tau^2 / N.", "Cluster outcomes are totals attributed to the cluster, and the effect is per outcome row."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference: it enumerates all assignments of a nine-unit population (group sizes 2, 3, 4 and 7), of blocks of five and six units, of seven clusters, and of eight units into four cells of two (2520 assignments), and compares with the finite-population moments computed from the potential outcomes. No upstream implementation was consulted and the 1923 essay was not retrieved."
+redistribution = "The enumeration reference is repository-authored under MIT OR Apache-2.0 and lives in the integration test. The cited essay is linked, not redistributed."
+limitations = "Neyman's essay was not retrieved for this review (nothing downloaded, no local copy); the identities checked are the standard finite-population results for the difference in means, not a section-level reading. The populations are small (up to 11 units, 7 clusters and 8 factorial units) with heterogeneous effects, a skewed control outcome and unequal group sizes; large-sample behavior, interval coverage, the 30-unit support floors and the Hajek variance with unequal probabilities are not examined. The factorial variance bound is checked as an upper bound on the exact variance and by its exact mean, not against a closed form for the exact variance."
+sources = ["https://doi.org/10.1214/ss/1177012031"]
+findings_resolved = ["No numerical defect was found: over every enumerated assignment each estimator is exactly unbiased for its finite-population target (including the per-row cluster effect and the factorial main effects and interaction), the exact variance equals S1^2/n1 + S0^2/n0 - S_tau^2/N for complete randomization (and its block-weighted sum for blocks, and the cluster-total analogue), and the mean of the reported variance bound equals S1^2/n1 + S0^2/n0, so the bound exceeds the truth by exactly the effect variation.", "The Hajek estimator with a constant arm probability and unit weights reproduces the complete-randomization contrast and variance on every assignment."]
+record_sha256 = "9915f965ba20aeb8afdbafc4c962dd498fc39ec44a42fff60b6ce4dc7744f25c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/randomized_neyman.rs"
+sha256 = "237d085fe6252879eed5a01fc63e9154eb6f7a6b312dc61fc5c786492fb6839a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/neyman_randomization_enumeration.rs"
+sha256 = "2a0f0a5e9b0cc46f7f2841b3d6b5ae0f21f951e59170b12f73508df48a8b3c05"

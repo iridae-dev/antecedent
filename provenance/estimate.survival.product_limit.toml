@@ -21,4 +21,36 @@ test_sources = [
  "crates/antecedent-estimate/src/survival.rs",
  "crates/antecedent/src/analysis/execute/checked_survival.rs",
  "crates/antecedent/tests/survival_route.rs",
+ "crates/antecedent-estimate/tests/product_limit_reference.rs (exact-rational Kaplan-Meier, Aalen-Johansen and restricted mean over 39 seeded datasets)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "randomized_survival_summary and its arm_curve helper in crates/antecedent-estimate/src/survival.rs: arm-stratified Kaplan-Meier survival with the risk set R(t) = #{entry < t <= exit}, restricted mean survival time as the exact step integral to the horizon, the Aalen-Johansen cumulative incidence of one declared cause among competing causes, the merged event-time grid, and the smallest event risk set. Not the inverse-probability-of-censoring variant (randomized_survival_ipcw_summary), the bootstrap intervals or difference band, the unmeasured independent-censoring and entry assumptions, or any variance of the product-limit estimator (none is produced)."
+assumptions = ["Censoring is independent of the event process given arm, and left truncation is marginally independent; the module cannot test either.", "Event codes are 0 (censored), 1 (the event) for survival, and positive causes for competing risks; ties between events and censorings at one time keep the censored subject in that time's risk set.", "The horizon tau is within the follow-up of at least one subject in each arm; events at exactly tau are included."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference: the risk-set definitions evaluated in exact rational arithmetic (fractions.Fraction, no rounding) on seeded integer-quarter data, rounded once to binary64. No upstream implementation (lifelines, survival) was consulted and the paper was not retrieved."
+redistribution = "The reference script and its frozen output are repository-authored under MIT OR Apache-2.0 and use only the Python standard library. The cited paper is linked, not redistributed."
+limitations = "Kaplan and Meier's paper was not retrieved for this review (nothing downloaded, no local copy); the check is against the standard definitions of the product-limit, Aalen-Johansen and restricted-mean quantities, not a section-level reading. The comparison covers 39 seeded datasets of 14 to 43 subjects in two arms (13 with delayed entry, 19 with a second competing cause) with tied event times, ties between events and censorings, events exactly at the horizon and censoring before it, at 1e-14 on curves and 1e-13 on restricted means. It does not cover large samples, weights, the censoring-weighted variant, or intervals; no variance or interval from the paper exists in this module. Left-truncated risk sets that are very small early on yield valid but highly variable curves and are not otherwise screened here."
+sources = ["https://doi.org/10.1080/01621459.1958.10501452", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["No numerical defect was found: curves on the merged grid, restricted means, cumulative incidence (using the survival function just before each event time), the left-truncation risk set and the smallest event risk set agree with exact rational arithmetic on every dataset.", "The record's description of the module as Kaplan-Meier plus an Aalen-Johansen option, with no analytic variance, was confirmed against the code."]
+record_sha256 = "98779fb6f9837f81596e8d20d6a78a39d7f277596adb00109df1d5a216408128"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/survival.rs"
+sha256 = "4a7b82bc1c7dd37d62a3599a3e876a2e9d1503dd6b371c6c6dc32b8b13ddb15c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/product_limit_reference.rs"
+sha256 = "a211a4fcf6169dcd3d704b139aa617e0b6dc8c9c0ca4a7221b89099990433610"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/product_limit_reference.py"
+sha256 = "5b90d99c77d89f9fd5033450d4fbb402f7c681b2a11206e6ebedcb53041ecc6b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/product_limit_reference.json"
+sha256 = "10ff49f466da04b19b608902354ecb08c64de59d0b9310fc2dd36ecfe24b0e84"

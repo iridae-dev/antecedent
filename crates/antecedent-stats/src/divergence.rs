@@ -60,6 +60,29 @@ pub fn likelihood_ratio_permutations(n_left: usize, n_right: usize) -> Option<us
     (n_left.min(n_right) < LR_ASYMPTOTIC_MIN_SEGMENT).then_some(DEFAULT_MECHANISM_PERMUTATIONS)
 }
 
+/// `x - ln(1 + x)` for `|x| < 1/2` without cancellation.
+///
+/// With `z = x / (2 + x)`, `ln(1 + x) = 2 atanh z`, so
+/// `x - ln(1 + x) = x z - 2 (z^3/3 + z^5/5 + ...)`, where `x z = x^2 / (2 + x)` is exact to
+/// rounding and the series is a small correction (`|z| <= 1/3`).
+fn x_minus_ln1p(x: f64) -> f64 {
+    let z = x / (2.0 + x);
+    let z2 = z * z;
+    let mut power = z * z2;
+    let mut series = 0.0;
+    let mut k = 3.0;
+    for _ in 0..40 {
+        let term = power / k;
+        series += term;
+        if term.abs() <= 1e-18 * series.abs() {
+            break;
+        }
+        power *= z2;
+        k += 2.0;
+    }
+    x * z - 2.0 * series
+}
+
 /// Gaussian KL divergence `KL(N(μ0,σ0²) ‖ N(μ1,σ1²))`.
 ///
 /// # Errors
@@ -79,8 +102,9 @@ pub fn gaussian_kl(mu0: f64, var0: f64, mu1: f64, var1: f64) -> Result<f64, Stat
     }
     let relative_change = (var0 - var1) / var1;
     let variance_term = if relative_change.abs() < 0.5 {
-        // log1p avoids cancellation of the log ratio close to equal variances.
-        relative_change - relative_change.ln_1p()
+        // `x - ln(1 + x)` cancels to order x^2 near equal variances, so a plain log1p loses
+        // about log10(1/x) digits; the atanh series below has no cancellation.
+        x_minus_ln1p(relative_change)
     } else {
         var0 / var1 - 1.0 + var1.ln() - var0.ln()
     };

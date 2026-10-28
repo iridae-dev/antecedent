@@ -841,7 +841,7 @@ pub(crate) fn validate_channel_context<A, O>(
             };
             baseline_treatment_se(ew)?;
         }
-        ObjectiveChannel::ModelDistinction { .. } => {
+        ObjectiveChannel::ModelDistinction { models } => {
             let Some(ll) = ctx.model_loglik else {
                 return Err(DesignError::Config(
                     "DistinguishModels requires model_loglik context".into(),
@@ -854,6 +854,25 @@ pub(crate) fn validate_channel_context<A, O>(
                     ll.models.len(),
                     ll.n_draws
                 )));
+            }
+            // A requested model without a table row would silently drop its pairs from the
+            // average (or score zero), and a repeated id would add a zero gap pair.
+            for (i, model) in models.iter().enumerate() {
+                if !ll.models.contains(model) {
+                    return Err(DesignError::Config(format!(
+                        "DistinguishModels model {model:?} has no row in model_loglik"
+                    )));
+                }
+                if models[..i].contains(model) {
+                    return Err(DesignError::Config(format!(
+                        "DistinguishModels model {model:?} is listed more than once"
+                    )));
+                }
+            }
+            if ll.loglik.iter().any(|v| !v.is_finite()) {
+                return Err(DesignError::Config(
+                    "model_loglik contains a non-finite log-likelihood".into(),
+                ));
             }
         }
         ObjectiveChannel::Decision { .. } => {}

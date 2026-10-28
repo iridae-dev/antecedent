@@ -33,4 +33,41 @@ test_sources = [
   "crates/antecedent-design/tests/evsi.rs",
   "crates/antecedent-design/tests/design_ranking_artifact.rs",
   "python/tests/test_design_ranking.py",
+ "crates/antecedent-design/tests/evsi_conjugate_reference.rs (60-digit quadrature of the conjugate normal EVSI over eleven designs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "FutureStudyProgram in crates/antecedent-design/src/evsi.rs with the expected_max_affine routine of preposterior.rs it calls: for a scalar state with a normal belief, n independent normal observations of known variance, and any number of terminal actions with utility alpha_a + beta_a * theta, the conjugate update (posterior mean and variance after a sample mean), the Bayes action after the update, the gross EVSI E[max_a E[U_a | ybar]] - max_a E[U_a], the preposterior and prior expected utilities, and the net value with a declared cost. Not the finite-enumeration route, the externally supplied decision-value route, the Monte Carlo route, the cost-to-utility map, source-overlap diagnostics or the ranking artifact."
+assumptions = ["The state prior is normal, the sample mean is normal given the state with variance noise_variance / n, and the terminal action set is the same before and after the study; utilities are exactly affine in the state.", "Gross EVSI is the preposterior expectation of the best posterior expected utility minus the best prior expected utility; it is non-negative for this model by Jensen's inequality.", "A declared study cost is already in utility units; an absent cost yields no net value."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference: it integrates the best posterior expected utility against the marginal normal density of the sample mean by adaptive quadrature at 60 digits, split at every pairwise break-even point, and does not use the preposterior-variance closed form or the linear-loss integral of the product. No upstream implementation was consulted."
+redistribution = "The reference script and its frozen output are repository-authored under MIT OR Apache-2.0; mpmath is used only to produce the frozen values and is not a product dependency. The cited books are referenced, not redistributed."
+limitations = "Neither cited book was retrieved for this review; the correspondence is between the product code and the standard definitions of EVSI and EVPI, verified numerically, not a page-level reading. The comparison covers eleven one-parameter cases (one to six actions, a dominated action, equal slopes with different intercepts, utility offsets of 1e9, information ratios n*tau^2/sigma^2 from 1e-12 to 1e12, a prior far from, at and tightly concentrated around the break-even state) at relative 1e-9 with an absolute floor of 1e-15 times the utility scale; it does not exercise vector states, non-affine utilities, correlated data or the other integration routes. The Monte Carlo route, its coverage and its rank guarantee are not examined here and stay unmeasured. The existing independent constant for the two-action case (EVSI 0.04165773529384315) is retained and is reproduced by the new reference."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No numerical defect was found. The gross EVSI, prior and preposterior expected utilities and the posterior mean, variance and Bayes action agree with 60-digit quadrature across all eleven cases, including the small-information and large-offset regimes where a direct closed form subtracts nearly equal quantities (the product avoids that cancellation with gap lines and a preposterior-spread closed form, and the comparison confirms it).", "The deviation text said the Gaussian closed form had no independent check beyond one constant. It now has a general independent reference; the consumer-reuse caveat for the artifact path is unchanged.", "Net value equals gross EVSI minus the declared cost, and an absent cost gives no net value, asserted directly."]
+record_sha256 = "4ed3b7811714c8587a16f176a6b9c8908e6691608f5eaf9264c727b130c815e0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/evsi.rs"
+sha256 = "9b58bac40b2989c5fe86f7460266212d0f714ffb0dd8004f0f544eae6ef36be2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/preposterior.rs"
+sha256 = "581d045978b048ef2df00330e850cb3af74dd10bbb36ec2d2ec84920722ef725"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/evsi_conjugate_reference.rs"
+sha256 = "94728d8283efe8ff5c504aec1fb7e182f1dd1354e57806ef2f709f69a17a762f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/evsi_conjugate_reference.py"
+sha256 = "8483ac5e8d5fa4be60fdf06d58a6ae0470b7795fc24c5b66264808d5a53ede4c"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/evsi_conjugate_reference.json"
+sha256 = "a85bac25ef63ba00274a2815720f2439d433084ac0c944fd42f3fa0c6df286e8"

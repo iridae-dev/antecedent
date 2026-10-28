@@ -61,3 +61,7 @@ path = "tests/target_native.rs"
 [[test]]
 name = "sensitivity_bounds"
 path = "tests/sensitivity_bounds.rs"
+
+[[test]]
+name = "conflict_policy_reference"
+path = "tests/conflict_policy_reference.rs"

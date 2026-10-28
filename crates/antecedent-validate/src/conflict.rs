@@ -62,20 +62,28 @@ impl ConflictPolicy {
 
     /// Shrink one alpha given optional conflict signals.
     ///
-    /// Missing `p` / `kl` skip that factor (treated as no evidence of conflict).
+    /// Missing `p` / `kl` skip that factor (treated as no evidence of conflict). A present
+    /// but invalid signal (NaN, infinite, `p` outside `[0, 1]`, negative `kl`) zeroes alpha.
     #[must_use]
     pub fn shrink_alpha(self, alpha: f64, p: Option<f64>, kl: Option<f64>) -> f64 {
         if !(0.0..=1.0).contains(&alpha) || !alpha.is_finite() {
             return 0.0;
         }
+        // A signal that is present but not a valid p-value (non-finite, outside [0, 1]) or
+        // not a valid divergence (non-finite, negative) is a failed diagnostic, not an
+        // absent one: it carries no evidence of agreement, so the source is dropped.
+        if p.is_some_and(|v| !(0.0..=1.0).contains(&v)) || kl.is_some_and(|v| !(v >= 0.0 && v.is_finite()))
+        {
+            return 0.0;
+        }
         let mut factor = 1.0;
         if let Some(pval) = p {
-            if pval.is_finite() && pval <= self.p_min {
+            if pval <= self.p_min {
                 factor = 0.0;
             }
         }
         if let Some(k) = kl {
-            if k.is_finite() && k > 0.0 && self.kl_scale > 0.0 {
+            if k > 0.0 && self.kl_scale > 0.0 {
                 factor *= (-self.kl_scale * k).exp();
             }
         }

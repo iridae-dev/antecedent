@@ -67,3 +67,15 @@ path = "tests/suite_01.rs"
 [[test]]
 name = "suite_02"
 path = "tests/suite_02.rs"
+
+[[test]]
+name = "evsi_conjugate_reference"
+path = "tests/evsi_conjugate_reference.rs"
+
+[[test]]
+name = "graph_entropy_channel_reference"
+path = "tests/graph_entropy_channel_reference.rs"
+
+[[test]]
+name = "model_distinguish_reference"
+path = "tests/model_distinguish_reference.rs"

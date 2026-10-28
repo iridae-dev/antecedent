@@ -20,4 +20,26 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-estimate/src/randomized_scores.rs",
  "crates/antecedent/src/analysis/execute/checked_randomized.rs",
+ "crates/antecedent-estimate/tests/randomized_scores_enumeration.rs (exact enumeration of assignment for the Wald ratio and its delta-method variance)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "complier_wald_effect in crates/antecedent-estimate/src/randomized_scores.rs: the Horvitz-Thompson intention-to-treat outcome contrast, the receipt first stage, their ratio, and the independent-unit influence-function variance of the ratio, for randomized encouragement with known row probabilities and one-sided noncompliance, compared with the exact assignment law of an eight-row population (all 256 assignments). Not the interval support floors or the first-stage guard, instrument validity (exclusion and monotonicity are declared), finite-sample behavior of the ratio, or weak-instrument-robust inference."
+assumptions = ["Encouragement is randomized independently with the known row probabilities; exclusion, monotonicity and (for the treatment-on-treated reading) one-sidedness are declared and cannot be tested from the data.", "The ratio is the CACE only when the first stage is bounded away from zero; the ITT numerator and the first stage are separately unbiased.", "The variance is the delta-method influence-function variance with sample moments of the two Horvitz-Thompson score columns."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference: for every assignment it recomputes the two score columns, the ITT and first stage from their definitions, and the variance as (s_YY - 2 b s_YD + b^2 s_DD) / (n F^2) from the sample moments of the score columns, a different expression from the product's per-row influence values. No upstream implementation was consulted and the paper was not retrieved."
+redistribution = "The enumeration reference is repository-authored under MIT OR Apache-2.0 and lives in the integration test. The cited paper is linked, not redistributed."
+limitations = "Imbens and Angrist's paper was not retrieved for this review (nothing downloaded, no local copy), so the identification theorem is taken as the standard Wald-ratio statement, not read. Eight rows with potential receipts in the treated arm only; two-sided noncompliance, covariates, large samples, the ratio's finite-sample bias (it is unbiased only for the numerator and denominator separately), interval coverage and the first-stage guard are not examined. The ratio is undefined for assignments with a non-positive first stage, which the function refuses."
+sources = ["https://doi.org/10.2307/2951620"]
+findings_resolved = ["No numerical defect was found: for every assignment with a positive first stage the product's ITT, first stage, ratio and variance agree with the reference to 1e-11, and the enumerated mean of the ITT and of the first stage equal the population values exactly.", "The refusal for a non-positive first stage was confirmed to occur only when the first stage is at or below machine epsilon."]
+record_sha256 = "0622679b3531e112d0116cb4cfe2f8f6c54a7a502d08b203b2a7915c086c4dd4"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/randomized_scores.rs"
+sha256 = "76e97dfc9b2f0fba13b67732f8cbf949bd5ec490e5d735e62113288f46817e3f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/randomized_scores_enumeration.rs"
+sha256 = "576de0f38dd69d2e82805c0023688a9fe67760859ae04166cc827ec9c57a6808"
