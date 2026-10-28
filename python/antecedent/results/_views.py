@@ -821,6 +821,7 @@ class ImputationView(ResultModel):
     iterations: int
     seed: int
     assumption: str
+    bootstrap_replicates: int
     unit: str
     units: int
     imputed_cells: Mapping[str, int]

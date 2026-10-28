@@ -123,6 +123,9 @@ pub use super::{
     LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
 };
 pub use super::{
+    GraphSelectionPerImputation, estimate_with_graph_selection_per_imputation,
+};
+pub use super::{
     MissingInference, MissingModality, MissingRouteCell, MissingRouteSupport,
     missing_support_table, route_missing_support,
 };

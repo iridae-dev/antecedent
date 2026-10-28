@@ -18453,6 +18453,7 @@ refusals = [
   { code = "missing_policy_not_applicable", detail = "multiple_imputation.graph_posterior_series", when = "A multiple-imputation declaration is made on a series graph posterior, whose per-table answers are per-horizon and per-atom structures with no single effect posterior to stack." },
   { code = "missing_policy_not_applicable", detail = "multiple_imputation.graph_posterior_query", when = "A multiple-imputation declaration is made on a graph posterior whose query is answered atom by atom (response, mediation, counterfactual, transport, attribution), so its per-table answer is not one mixture of effect draws." },
   { code = "missing_policy_not_applicable", detail = "multiple_imputation.graph_posterior_atoms", when = "A multiple-imputation declaration is made on a graph posterior of classes, partial ancestral graphs or latent-confounded graphs, whose per-table answer is not one effect posterior to stack." },
+  { code = "missing_policy_not_applicable", detail = "multiple_imputation.multi_horizon_posterior_not_joint", when = "A multiple-imputation declaration is made on a multi-horizon Bayesian mediation, whose result keeps per-horizon posterior summaries with no joint draw set across horizons to stack." },
 ]
 routes = [{ name = "antecedent.missing.declared_policy", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["coerce_missing", "MissingPolicyName"] }]
 fixtures = [

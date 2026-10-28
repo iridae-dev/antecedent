@@ -90,13 +90,34 @@ draws carry the declared graph weights and the pooling rule is reported as
 `stacked_graph_posterior`. The declared graph posterior is held fixed: it is not re-learned on
 each completed table, so it is the posterior of the structure you supplied, and a posterior that
 was itself learned from the incomplete rows is a separate declaration. The claim says so
-(`missing_imputation_structure:graph_posterior_held_fixed:weights_preserved`). Constructions with
+(`missing_imputation_structure:graph_posterior_held_fixed:weights_preserved`).
+
+To carry graph-selection uncertainty, re-run the search on every completed table instead:
+`antecedent::estimate_with_graph_selection_per_imputation(data, spec, &selection, ctx, build)`
+imputes the table, searches each completed table for its own DAG posterior
+(`GraphSelectionPerImputation`), runs the Bayesian effect study that `build` returns on that
+table and posterior, and stacks the effect posteriors with equal weight (pooling
+`stacked_graph_posterior_rerun`; claim entry
+`missing_imputation_structure:graph_selection_rerun_per_imputation:weights_preserved`). It runs
+at the top level because a study's dispatch may not build and run another study. It needs a
+table of float columns searched in column order and a study that runs `bayesian.gcomp`. Constructions with
 no justified pooling rule are refused with their own detail: a frequentist study
 (`multiple_imputation.graph_posterior_frequentist`), a series posterior
 (`multiple_imputation.graph_posterior_series`), a query answered atom by atom, such as a response,
 mediation, counterfactual, transport or attribution (`multiple_imputation.graph_posterior_query`),
 and a class, partial-ancestral or latent-confounded atom kind whose per-table answer is not one
 effect posterior (`multiple_imputation.graph_posterior_atoms`).
+
+**Static mediation.** A static mediation decomposition publishes no analytic variance, so its
+within-imputation variance is a bootstrap run inside each completed table (the whole
+decomposition refit on every resample). The replicate count is the imputation's own setting,
+`ImputationSpec.bootstrap_replicates` (`MissingPolicy.multiple_imputation(...,
+bootstrap_replicates=200)`), and is used in place of the study's global `bootstrap_replicates`
+for those tables. With neither set the route is refused for want of a variance to pool. A
+multi-horizon Bayesian mediation is refused with
+`multiple_imputation.multi_horizon_posterior_not_joint`: its result keeps per-horizon summaries
+(`joint_posterior = false`, no draws), so there is no joint draw set to stack; one horizon
+stacks as usual.
 
 **What a pooled claim says, kept apart.** The claim names the missingness mechanism as a declared
 assumption the data cannot test (`missing_imputation_mechanism:missing_at_random:declared:untestable`),

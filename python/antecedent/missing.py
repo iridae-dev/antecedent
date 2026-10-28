@@ -81,6 +81,10 @@ class ImputationSpec:
       result does not depend on threads.
     * ``assumption``: ``"missing_at_random"``. ``"missing_not_at_random"`` is refused with a
       sensitivity analysis named as the next attempt.
+    * ``bootstrap_replicates``: bootstrap replicates run inside every completed table by an
+      estimator that publishes no analytic variance (a static mediation decomposition), as that
+      table's within-imputation variance (default 0: such an estimator is then refused).
+      Estimators with an analytic variance ignore it.
     """
 
     model: str = "chained_equations"
@@ -88,6 +92,7 @@ class ImputationSpec:
     iterations: int = 10
     seed: int = 0
     assumption: str = "missing_at_random"
+    bootstrap_replicates: int = 0
 
     def __post_init__(self) -> None:
         if self.model not in _MODELS:
@@ -101,7 +106,7 @@ class ImputationSpec:
                 f"{list(_ASSUMPTIONS)}",
                 reason_code="invalid_argument",
             )
-        for name in ("imputations", "iterations", "seed"):
+        for name in ("imputations", "iterations", "seed", "bootstrap_replicates"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise CausalTypeError(
@@ -110,13 +115,16 @@ class ImputationSpec:
 
     def to_native(self) -> dict[str, Any]:
         """The ``imputation`` member of the native ``missing`` option."""
-        return {
+        native: dict[str, Any] = {
             "model": self.model,
             "imputations": self.imputations,
             "iterations": self.iterations,
             "seed": self.seed,
             "assumption": self.assumption,
         }
+        if self.bootstrap_replicates:
+            native["bootstrap_replicates"] = self.bootstrap_replicates
+        return native
 
 
 @dataclass(frozen=True, slots=True)
@@ -235,12 +243,15 @@ class MissingPolicy:
         seed: int = 0,
         assumption: str = "missing_at_random",
         auxiliary: Iterable[str] = (),
+        bootstrap_replicates: int = 0,
     ) -> MissingPolicy:
         """Impute the missing cells ``imputations`` times, fit every completed table, pool."""
         return cls(
             "multiple_imputation",
             tuple(auxiliary),
-            ImputationSpec(model, imputations, iterations, seed, assumption),
+            ImputationSpec(
+                model, imputations, iterations, seed, assumption, bootstrap_replicates
+            ),
         )
 
 

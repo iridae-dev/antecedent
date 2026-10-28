@@ -222,6 +222,10 @@ name = "missing_imputation_routes"
 path = "tests/missing_imputation_routes.rs"
 
 [[test]]
+name = "missing_imputation_estimator_families"
+path = "tests/missing_imputation_estimator_families.rs"
+
+[[test]]
 name = "observational_survival_policy_routes"
 path = "tests/observational_survival_policy_routes.rs"
 

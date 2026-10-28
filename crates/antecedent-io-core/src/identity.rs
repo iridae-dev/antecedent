@@ -1872,6 +1872,11 @@ pub struct MissingPolicyWire {
     pub imputation: Option<ImputationSpecWire>,
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref, reason = "serde skip predicates take a reference")]
+const fn imputation_replicates_unset(replicates: &u32) -> bool {
+    *replicates == 0
+}
+
 /// The declared inputs of a multiple-imputation analysis: each enters the data-snapshot
 /// identity, so two analyses that differ in any of them are different claims.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -1888,6 +1893,10 @@ pub struct ImputationSpecWire {
     pub assumption: String,
     /// Sampling unit the parameter draws resample (`row`, `group`).
     pub unit: String,
+    /// Bootstrap replicates run inside each completed table by an estimator with no analytic
+    /// variance. Absent when zero, so earlier digests are unchanged.
+    #[serde(default, skip_serializing_if = "imputation_replicates_unset")]
+    pub bootstrap_replicates: u32,
     /// Digest (hex) of the model and design assumptions the imputation rests on: the model,
     /// tables, sweeps, seed, missingness assumption, resampling unit, declared sampling design,
     /// the neighbouring steps of a series and every variable's kind and imputed-cell count.

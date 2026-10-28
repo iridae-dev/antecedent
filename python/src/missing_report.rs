@@ -67,6 +67,7 @@ fn imputation_json(report: &antecedent::result::ImputationReport) -> serde_json:
         "iterations": report.spec.iterations,
         "seed": report.spec.seed,
         "assumption": report.spec.assumption.name(),
+        "bootstrap_replicates": report.spec.bootstrap_replicates,
         "unit": report.unit.as_ref(),
         "units": report.units,
         "imputed_cells": report
@@ -181,6 +182,9 @@ fn parse_imputation(value: &Bound<'_, PyAny>) -> PyResult<ImputationSpec> {
     }
     if let Some(seed) = dict.get_item("seed")? {
         spec.seed = seed.extract()?;
+    }
+    if let Some(replicates) = dict.get_item("bootstrap_replicates")? {
+        spec.bootstrap_replicates = replicates.extract()?;
     }
     if let Some(assumption) = dict.get_item("assumption")? {
         let name = assumption.extract::<String>()?;

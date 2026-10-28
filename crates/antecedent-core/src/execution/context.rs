@@ -41,6 +41,10 @@ pub struct ExecutionContext {
     /// Clones carry it into workers. Private, so a context cannot be rebuilt field
     /// by field outside this crate and silently lose it.
     pub(super) lowered_scope: Option<crate::identity::SemanticDigest>,
+    /// Bootstrap replicates a multiple-imputation run asks of an estimator that publishes no
+    /// analytic variance, inside each completed table. Private, set by
+    /// [`Self::with_imputation_bootstrap`]; every constructor leaves it unset.
+    pub(super) imputation_bootstrap: Option<u32>,
 }
 
 impl ExecutionContext {
@@ -55,6 +59,21 @@ impl ExecutionContext {
         let mut scoped = self.clone();
         scoped.lowered_scope = Some(program);
         scoped
+    }
+
+    /// This context asking an estimator with no analytic variance for `replicates` bootstrap
+    /// replicates inside each completed table of a multiple-imputation run; `0` clears it.
+    #[must_use]
+    pub fn with_imputation_bootstrap(&self, replicates: u32) -> Self {
+        let mut scoped = self.clone();
+        scoped.imputation_bootstrap = (replicates > 0).then_some(replicates);
+        scoped
+    }
+
+    /// The bootstrap replicates a multiple-imputation run asked for, if it did.
+    #[must_use]
+    pub const fn imputation_bootstrap(&self) -> Option<u32> {
+        self.imputation_bootstrap
     }
 
     /// The lowered program whose dispatch this context runs inside, if any.
@@ -88,6 +107,7 @@ impl ExecutionContext {
             adaptive_bootstrap: AdaptiveBootstrapBudget::disabled(),
             adaptive_draws: AdaptiveDrawBudget::disabled(),
             lowered_scope: None,
+            imputation_bootstrap: None,
         }
     }
 
@@ -128,6 +148,7 @@ impl ExecutionContext {
             adaptive_bootstrap: AdaptiveBootstrapBudget::disabled(),
             adaptive_draws: AdaptiveDrawBudget::disabled(),
             lowered_scope: None,
+            imputation_bootstrap: None,
         }
     }
 
@@ -284,6 +305,7 @@ impl core::fmt::Debug for ExecutionContext {
             .field("adaptive_bootstrap", &self.adaptive_bootstrap)
             .field("adaptive_draws", &self.adaptive_draws)
             .field("lowered_scope", &self.lowered_scope)
+            .field("imputation_bootstrap", &self.imputation_bootstrap)
             .field("admission", &self.admission())
             .finish()
     }

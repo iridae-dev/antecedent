@@ -2013,7 +2013,7 @@ impl super::Study {
                     graph,
                     query,
                     assumptions,
-                    self.settings.bootstrap_replicates,
+                    ctx.imputation_bootstrap().unwrap_or(self.settings.bootstrap_replicates),
                     &[],
                     ctx,
                 )?,

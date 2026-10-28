@@ -40,9 +40,10 @@ use antecedent_estimate::multiple_imputation::{
     VectorImputationFit,
 };
 use antecedent_estimate::{
-    AtomUncertainty, BootstrapAccounting, EffectEstimate, InterventionalDistributionEstimate,
-    JointCovariance, ProbabilityInterval, TemporalMediationEstimate, TemporalMediationGrid,
-    TemporalMediationUncertainty, logit_probability_interval,
+    AtomUncertainty, BootstrapAccounting, EffectEstimate, EstimationError,
+    InterventionalDistributionEstimate, JointCovariance, ProbabilityInterval,
+    TemporalMediationEstimate, TemporalMediationGrid, TemporalMediationUncertainty,
+    logit_probability_interval,
 };
 use antecedent_prob::PosteriorQuantityKind;
 
@@ -187,8 +188,9 @@ fn square(covariance: &JointCovariance, p: usize) -> Vec<f64> {
 
 fn no_variance(what: &str) -> CausalError {
     refused(format!(
-        "{what} publishes no finite standard error to pool; request the route's resampled \
-         uncertainty (a bootstrap replicate count) or declare complete_case"
+        "{what} publishes no finite standard error to pool; declare `bootstrap_replicates` on \
+         the imputation specification (replicates run inside each completed table), request the \
+         route's own bootstrap, or declare complete_case"
     ))
 }
 
@@ -496,11 +498,15 @@ fn randomized_coordinates(
 fn extract_bayesian(result: &StudyResult) -> Result<ExtractedDraws, CausalError> {
     if let ResultPayload::Mediation { grid: Some(grid), .. } = &result.payload {
         if grid.slices.len() > 1 {
-            return Err(refused(
-                "a multi-horizon Bayesian mediation reports a separate posterior per horizon and \
-                 defines no joint posterior over horizons to stack; request one horizon or declare \
-                 complete_case",
-            ));
+            return Err(CausalError::Estimate(EstimationError::refused_detail(
+                antecedent_core::reason_code!("missing_policy_not_applicable"),
+                "multiple_imputation.multi_horizon_posterior_not_joint",
+                "a multi-horizon Bayesian mediation retains only per-horizon posterior summaries \
+                 (the grid reports `joint_posterior = false` and no draws), so there is no joint \
+                 draw set across horizons to stack and a per-horizon summary cannot be mixed \
+                 across completed tables; request one horizon (whose posterior draws stack) or \
+                 declare `complete_case`",
+            )));
         }
     }
     if let ResultPayload::Response(response) = &result.payload {
@@ -1464,6 +1470,10 @@ where
         .filter(|row| row.supports(declaration.policy))
         .ok_or_else(|| refused("this route cell does not execute multiple imputation"))?;
     let bayesian = study.settings.inference.is_bayesian();
+    // An estimator with no analytic variance (a static mediation decomposition) resamples
+    // inside each completed table with the replicates the imputation declares.
+    let scoped = ctx.with_imputation_bootstrap(spec.bootstrap_replicates);
+    let ctx = &scoped;
     let RandomizedImputationDesign { columns: extra, groups } =
         randomized_design(study, data.row_count())?;
     let (imputer, ids) = build_imputer_with(study, declaration, spec, data, extra, groups)?;

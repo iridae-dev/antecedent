@@ -132,6 +132,11 @@ pub struct ImputationSpec {
     pub seed: u64,
     /// Declared missingness mechanism.
     pub assumption: MissingnessAssumption,
+    /// Bootstrap replicates run inside every completed table by an estimator that publishes
+    /// no analytic variance (a static mediation decomposition), as that table's
+    /// within-imputation variance. Zero asks for none, and such an estimator is then refused
+    /// for want of a variance to pool. Estimators with an analytic variance ignore it.
+    pub bootstrap_replicates: u32,
 }
 
 impl ImputationSpec {
@@ -151,6 +156,7 @@ impl ImputationSpec {
             iterations: Self::DEFAULT_ITERATIONS,
             seed: 0,
             assumption: MissingnessAssumption::MissingAtRandom,
+            bootstrap_replicates: 0,
         }
     }
 
@@ -179,6 +185,14 @@ impl ImputationSpec {
     #[must_use]
     pub const fn with_seed(mut self, seed: u64) -> Self {
         self.seed = seed;
+        self
+    }
+
+    /// With `replicates` bootstrap replicates inside each completed table, for an estimator
+    /// that publishes no analytic variance.
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
         self
     }
 

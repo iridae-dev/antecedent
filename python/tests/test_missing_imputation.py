@@ -149,3 +149,15 @@ def test_an_estimator_without_a_pooled_variance_is_refused_with_the_next_attempt
         _analyze_with(data, MissingPolicy.multiple_imputation(seed=1), "dml")
     assert getattr(refused.value, "reason_code", None) == "missing_policy_not_applicable"
     assert "next attempt: declare `complete_case`" in str(refused.value)
+
+
+def test_the_within_table_bootstrap_setting_is_declared_and_carried_to_the_native_option():
+    policy = MissingPolicy.multiple_imputation(imputations=4, bootstrap_replicates=60)
+    assert policy.imputation == ImputationSpec(imputations=4, bootstrap_replicates=60)
+    native = native_declaration(policy, ["t", "y"])
+    assert native["imputation"]["bootstrap_replicates"] == 60
+    # Absent when unset, so the native option of an ordinary declaration is unchanged.
+    plain = native_declaration(MissingPolicy.multiple_imputation(), ["t", "y"])
+    assert "bootstrap_replicates" not in plain["imputation"]
+    with pytest.raises(CausalTypeError):
+        ImputationSpec(bootstrap_replicates=-1)

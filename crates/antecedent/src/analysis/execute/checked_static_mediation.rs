@@ -177,7 +177,9 @@ impl CheckedStaticMediationOperation {
             &bound.graph,
             &bound.query,
             bound.cache.identification.required_assumptions.clone(),
-            bound.bootstrap_replicates,
+            // A multiple-imputation run states its own within-table replicates; they are not
+            // forced through the study's global setting.
+            ctx.imputation_bootstrap().unwrap_or(bound.bootstrap_replicates),
             &[],
             ctx,
         )?;

@@ -188,7 +188,7 @@ fn treatment_modifier_pairs(
 }
 
 /// One completed table's fit, read from the route's result.
-fn fit_of(result: &StudyResult, bayesian: bool) -> Result<ImputationFit, CausalError> {
+pub(super) fn fit_of(result: &StudyResult, bayesian: bool) -> Result<ImputationFit, CausalError> {
     if bayesian {
         let posterior = result.posterior.as_ref().ok_or_else(|| {
             refused("the Bayesian fit of a completed table returned no posterior")
@@ -516,10 +516,15 @@ pub(crate) fn evidence_entries(report: &ImputationReport) -> Vec<String> {
         format!("missing_imputation_pool:{}:total={:e}", report.pooling, report.total),
         format!("missing_imputation_assumptions:{}", report.assumptions_digest),
     ];
-    if report.pooling.as_ref() == "stacked_graph_posterior" {
-        entries.push(
+    match report.pooling.as_ref() {
+        "stacked_graph_posterior" => entries.push(
             "missing_imputation_structure:graph_posterior_held_fixed:weights_preserved".to_owned(),
-        );
+        ),
+        "stacked_graph_posterior_rerun" => entries.push(
+            "missing_imputation_structure:graph_selection_rerun_per_imputation:weights_preserved"
+                .to_owned(),
+        ),
+        _ => {}
     }
     entries
 }

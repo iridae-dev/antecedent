@@ -15,13 +15,15 @@
     reason = "integration test with deterministic fixtures and a hand-written reference"
 )]
 
+use antecedent::discovery::BayesianDiscoverParams;
 use antecedent::result::ImputationReport;
 use antecedent::{
-    BayesianConfig, CausalError, EstimatorId, InferenceMode, RefuteSuite, Study, StudyResult,
+    BayesianConfig, CausalError, EstimatorId, GraphSelectionPerImputation, InferenceMode,
+    RefuteSuite, Study, StudyResult, estimate_with_graph_selection_per_imputation,
 };
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ExecutionContext, MediationContrast, MediationQuery,
-    VariableId,
+    AverageEffectQuery, CausalQuery, ExecutionContext, Intervention, MediationContrast,
+    MediationQuery, Value, VariableId,
 };
 use antecedent_data::{ImputationSpec, MissingDeclaration, MissingPolicy, TabularData};
 use antecedent_discovery::adjacency_mask::set_edge;
@@ -410,4 +412,210 @@ fn a_graph_posterior_without_a_justified_pooling_rule_is_refused_with_its_own_de
         .unwrap_err();
     let text = refusal(&by_atom);
     assert!(text.contains("multiple_imputation.graph_posterior_query"), "{text}");
+}
+
+// ------------------------------------------------------------------ static mediation
+
+const MEDIATION_NAMES: [&str; 4] = ["t", "m", "y", "z"];
+
+/// `z -> t, m, y`; `t -> m, y`; `m -> y`: the mediated effect is `0.6 * 0.5 = 0.3`. `y` is
+/// missing with probability rising in `z`, `m` for about one row in twelve.
+fn mediation_values(n: usize, seed: u64) -> Vec<Vec<f64>> {
+    let mut rng = Stream(seed);
+    let (mut t, mut m, mut y, mut z) = (vec![], vec![], vec![], vec![]);
+    for _ in 0..n {
+        let zi = rng.normal();
+        let ti = 0.5 * zi + rng.normal();
+        let mi = 0.6 * ti + 0.2 * zi + 0.3 * rng.normal();
+        let yi = 0.4 * ti + 0.5 * mi + 0.3 * zi + 0.2 * rng.normal();
+        y.push(if rng.next() < 1.0 / (1.0 + (-(zi - 0.8)).exp()) { f64::NAN } else { yi });
+        m.push(if rng.next() < 0.08 { f64::NAN } else { mi });
+        t.push(ti);
+        z.push(zi);
+    }
+    vec![t, m, y, z]
+}
+
+fn mediation_table(values: &[Vec<f64>]) -> TabularData {
+    TabularData::from_f64_columns(
+        MEDIATION_NAMES.iter().zip(values).map(|(name, column)| (*name, column.as_slice())),
+    )
+    .unwrap()
+}
+
+fn mediation_completed(values: &[Vec<f64>], spec: ImputationSpec) -> Vec<TabularData> {
+    let columns: Vec<ImputationColumn> = MEDIATION_NAMES
+        .iter()
+        .zip(values)
+        .map(|(name, column)| ImputationColumn::new(*name, column.clone()))
+        .collect();
+    let imputer = Imputer::new(columns, spec, ImputationUnits::Rows).unwrap();
+    let ctx = ctx();
+    (0..spec.imputations)
+        .map(|j| {
+            let table = imputer.impute(j, &ctx).unwrap();
+            let completed: Vec<Vec<f64>> =
+                table.columns().iter().take(4).map(|c| c.to_vec()).collect();
+            mediation_table(&completed)
+        })
+        .collect()
+}
+
+fn run_mediation(
+    data: &TabularData,
+    study_bootstrap: u32,
+    missing: Option<MissingDeclaration>,
+) -> Result<StudyResult, CausalError> {
+    let mut dag = antecedent_graph::Dag::with_variables(4);
+    for (a, b) in [(3, 0), (3, 1), (3, 2), (0, 1), (0, 2), (1, 2)] {
+        dag.insert_directed(
+            antecedent_graph::DenseNodeId::from_raw(a),
+            antecedent_graph::DenseNodeId::from_raw(b),
+        )
+        .unwrap();
+    }
+    let mut query = MediationQuery::binary(v(0), v(2), [v(1)], MediationContrast::Mediated);
+    query.control = Intervention::set(v(0), Value::f64(0.0));
+    query.active = Intervention::set(v(0), Value::f64(1.0));
+    let mut builder = Study::tabular(data.clone())
+        .graph(dag)
+        .query(CausalQuery::Mediation(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(study_bootstrap);
+    if let Some(missing) = missing {
+        builder = builder.missing(missing);
+    }
+    builder.build()?.prepare(&ctx())?.estimate(data, &ctx())
+}
+
+#[test]
+fn a_static_mediation_pools_the_bootstrap_the_imputation_declares_inside_each_table() {
+    let values = mediation_values(1_000, 53);
+    let data = mediation_table(&values);
+    let declared = spec().with_bootstrap_replicates(60);
+    // The study itself asks for no replicates: the imputation's setting drives the resampling.
+    let result = run_mediation(
+        &data,
+        0,
+        Some(MissingDeclaration::new(MissingPolicy::MultipleImputation(declared))),
+    )
+    .unwrap();
+    let report = report_of(&result);
+    assert_eq!(report.spec.bootstrap_replicates, 60);
+
+    // The reference: the whole decomposition and its 60-replicate bootstrap on each table.
+    let mut points = Vec::new();
+    let mut variances = Vec::new();
+    for table in mediation_completed(&values, declared) {
+        let fit = run_mediation(&table, 60, None).unwrap();
+        let effect = fit.estimate().as_effect().unwrap();
+        let se = effect.uncertainty.bootstrap.se.expect("a bootstrap standard error");
+        points.push(effect.ate);
+        variances.push(se * se);
+    }
+    let (point, within, between, total, _) = rubin(&points, &variances);
+    assert_eq!(report.pooling.as_ref(), "rubin");
+    assert!(close(report.within, within, 1e-8), "within {} against {within}", report.within);
+    assert!(close(report.between, between, 1e-8), "between");
+    assert!(close(report.total, total, 1e-8), "total");
+    assert!(close(result.estimate().as_effect().unwrap().ate, point, 1e-8), "pooled point");
+    assert!((point - 0.3).abs() < 0.1, "pooled mediated effect {point}");
+
+    // With no replicates anywhere there is no variance to pool: refused, naming the setting.
+    let error = run_mediation(
+        &data,
+        0,
+        Some(MissingDeclaration::new(MissingPolicy::MultipleImputation(spec()))),
+    )
+    .unwrap_err();
+    let text = refusal(&error);
+    assert!(text.contains("standard error") && text.contains("bootstrap_replicates"), "{text}");
+}
+
+// ------------------------------------------------------------------ graph selection per table
+
+fn selection_study(table: &TabularData, posterior: GraphPosterior) -> antecedent::StudyBuilder {
+    Study::tabular(table.clone())
+        .graph_posterior(posterior)
+        .query(query())
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(300).prior_scale(30.0),
+        ))
+        .refute(RefuteSuite::None)
+}
+
+#[test]
+fn graph_selection_is_rerun_on_every_completed_table_and_the_posteriors_are_stacked() {
+    // `[t, y, z]` only: three variables are enumerated exactly.
+    let values: Vec<Vec<f64>> = raw_columns(700, 59).into_iter().take(3).collect();
+    let names = ["t", "y", "z"];
+    let data = TabularData::from_f64_columns(
+        names.iter().zip(&values).map(|(name, column)| (*name, column.as_slice())),
+    )
+    .unwrap();
+    let variables = vec![v(0), v(1), v(2)];
+    let selection =
+        GraphSelectionPerImputation::new(BayesianDiscoverParams::default(), variables.clone());
+    let result = estimate_with_graph_selection_per_imputation(
+        &data,
+        spec(),
+        &selection,
+        &ctx(),
+        selection_study,
+    )
+    .unwrap();
+    let report = report_of(&result);
+    assert_eq!(report.pooling.as_ref(), "stacked_graph_posterior_rerun");
+    assert_eq!(report.estimator.as_ref(), "bayesian.gcomp");
+    assert_eq!(report.points.len(), IMPUTATIONS as usize);
+
+    // The reference: the search and the effect study run separately on each completed table.
+    let columns: Vec<ImputationColumn> = names
+        .iter()
+        .zip(&values)
+        .map(|(name, column)| ImputationColumn::new(*name, column.clone()))
+        .collect();
+    let imputer = Imputer::new(columns, spec(), ImputationUnits::Rows).unwrap();
+    let mut means = Vec::new();
+    let mut table_draws = 0;
+    for j in 0..spec().imputations {
+        let table = imputer.impute(j, &ctx()).unwrap();
+        let completed: Vec<Vec<f64>> = table.columns().iter().map(|c| c.to_vec()).collect();
+        let completed = TabularData::from_f64_columns(
+            names.iter().zip(&completed).map(|(name, column)| (*name, column.as_slice())),
+        )
+        .unwrap();
+        let posterior = antecedent::discovery::discover_exact_dag_posterior(
+            &completed,
+            &variables,
+            &BayesianDiscoverParams::default(),
+            &ctx(),
+        )
+        .unwrap();
+        let fit = selection_study(&completed, posterior).build().unwrap().run(&ctx()).unwrap();
+        let (mean, _, draws) = effect_summary(&fit);
+        table_draws = draws;
+        means.push(mean);
+    }
+    let (pooled_mean, pooled_sd, pooled_draws) = effect_summary(&result);
+    assert_eq!(pooled_draws, table_draws * IMPUTATIONS as usize);
+    let reference = means.iter().sum::<f64>() / means.len() as f64;
+    let mc = 8.0 * pooled_sd / (pooled_draws as f64).sqrt();
+    assert!((pooled_mean - reference).abs() < mc, "stacked {pooled_mean} against {reference}");
+    assert!(report.between >= 0.0 && report.total >= report.within);
+
+    // Variables out of column order cannot index the posterior's atoms.
+    let shuffled = GraphSelectionPerImputation::new(
+        BayesianDiscoverParams::default(),
+        vec![v(1), v(0), v(2)],
+    );
+    let error = estimate_with_graph_selection_per_imputation(
+        &data,
+        spec(),
+        &shuffled,
+        &ctx(),
+        selection_study,
+    )
+    .unwrap_err();
+    refusal(&error);
 }

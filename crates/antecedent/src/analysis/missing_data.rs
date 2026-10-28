@@ -404,6 +404,7 @@ pub(crate) fn policy_wire(
             iterations: spec.iterations,
             seed: spec.seed,
             assumption: spec.assumption.name().to_owned(),
+            bootstrap_replicates: spec.bootstrap_replicates,
             unit: if series {
                 "group"
             } else {
