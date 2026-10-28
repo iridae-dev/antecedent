@@ -11,7 +11,10 @@ use crate::twosls::fit_wls;
 pub struct MEstimateOptions {
     /// Maximum outer IRLS iterations.
     pub max_iter: u32,
-    /// Coefficient change tolerance.
+    /// Coefficient change tolerance, relative to the coefficients' own magnitude:
+    /// `max |Δβ| ≤ tol · (1 + max |β|)`. An absolute criterion cannot be met once a coefficient
+    /// is large enough that one rounding unit exceeds `tol` (an intercept against a covariate
+    /// with a large offset).
     pub tol: f64,
     /// Huber tuning constant (default 1.345 ≈ 95% efficiency under Gaussian).
     pub c: f64,
@@ -106,11 +109,13 @@ pub fn fit_huber_m(
         }
         let fit = fit_wls(x_colmajor, nrows, ncols, y, &weights, backend, workspace)?;
         let mut max_delta = 0.0_f64;
+        let mut max_beta = 0.0_f64;
         for c in 0..ncols {
             max_delta = max_delta.max((fit.coefficients[c] - beta[c]).abs());
             beta[c] = fit.coefficients[c];
+            max_beta = max_beta.max(beta[c].abs());
         }
-        if max_delta < options.tol {
+        if max_delta <= options.tol * (1.0 + max_beta) {
             converged = true;
             break;
         }

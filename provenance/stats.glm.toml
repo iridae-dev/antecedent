@@ -14,6 +14,7 @@ implementation_deviations = [
  "Binomial logit and probit fits use probability clamps and optionally replace a separated fit with a ridge-penalized refit using default lambda 1e-4.",
  "Negative-binomial dispersion is selected by a repository policy: fixed alpha, a Poisson-based method-of-moments estimate, or a safeguarded nested one-dimensional MLE.",
  "Convergence, separation, iteration limits, and numerical clamps are implementation policies rather than claims of reproducing one algorithm from the cited sources.",
+ "The IRLS iteration is damped by step halving on the deviance, so it is Fisher scoring with a line search rather than the plain recursion of the cited sources; the ridge refit is undamped Fisher scoring on the penalised objective. Prior weights, the zero-weight handling, the always-on ridge (lambda/2 |beta|^2 with an unpenalised constant first column) and the reported weighted-fit deviance (unweighted except for Gaussian) are repository definitions."
 ]
 
 upstream_implementations_observed = [
@@ -22,4 +23,51 @@ upstream_implementations_observed = [
 
 test_sources = [
  "conformance/stats/glm_irls (exercised via crates/antecedent-stats/tests/foundations_oracle.rs)",
+ "crates/antecedent-stats/tests/glm_reference.rs (coefficients, deviance, NB2 dispersion, ridge refits and separation verdicts against 50-digit maximum-likelihood references)"
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_glm, fit_glm_weighted, fit_glm_ridge and fit_glm_ridge_weighted in glm.rs and glm/ for the binomial logit and probit, Gaussian identity, Poisson log and negative-binomial (NB2) families: the damped IRLS loop and its convergence rule, prior weights including zeros, the Poisson, negative-binomial and binomial deviance, the Pearson method-of-moments and nested maximum-likelihood NB2 dispersion, the separation and boundary-saturation verdicts with require_ok, and the always-on and separation-fallback ridge refit. Not the multinomial logit, fit_logit_laplace's covariance, or the out-of-core reduction built on logit_working_row. The API has no linear-predictor offset argument, so only an offset covariate column is exercised."
+assumptions = ["Outcomes are coded 0/1 for binomial and non-negative for count families; prior weights are non-negative case weights, and the estimand is the maximiser of the weighted log-likelihood.", "A ridge penalty is (lambda/2)|beta|^2 on every coefficient except a constant first column.", "The weighted fit's reported deviance is the unweighted deviance at the weighted maximiser for every family except Gaussian (weighted residual sum of squares); it is a diagnostic, not the minimised objective.", "Accuracy is stated against the exact maximiser of the stated objective for the binary64 data."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "Seventeen unpenalised fits (logit, probit, Poisson, NB2 with fixed dispersion, Gaussian), eight of them with prior weights spanning nine decades including an exact zero; designs with a covariate offset of 1e3 and 1e5, columns eight decades apart, counts near 1e4 and mostly-zero counts; three NB2 maximum-likelihood dispersion fits; six penalised fits, four of them on completely separated data, down to lambda 1e-8; three one-covariate separation configurations whose existence of a finite maximum-likelihood estimate is decided by exact enumeration. Worst coefficient error 2.3e-10 (probit ridge) and 2.2e-10 (weighted probit), 6e-11 elsewhere; deviance 5e-11; the NB2 dispersion agrees with a 30-step golden-section search of the exact profile likelihood only to 1.3e-6 relative, the limit of that reference. Not exercised: designs wider than three columns, n beyond 150, NB2 dispersion near the 1e-8 and 1e4 clamps or theta outside [1e-4, 1e6], overdispersion so large the Poisson start diverges, and non-integer count outcomes in the NB2 dispersion step. The binomial working weight keeps the fitted probability 1e-9 from 0 and 1 in the unpenalised iteration (fits that saturate are refused by require_ok, so the effect is not reachable by an accepted fit). The reference scripts declare their dependencies in inline script metadata but are not run in a locked, isolated environment and are not wired into any gate. The cited publications were not retrieved."
+sources = ["https://doi.org/10.2307/2344614", "https://doi.org/10.1007/978-1-4899-3242-6", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The ridge-penalised binomial iteration formed its working residual from a probability clamped to [1e-9, 1-1e-9]. A fixed point satisfies X'(y - mu) = Lambda beta, so the clamp biased the penalised maximiser by about 1e-9 / lambda once fitted probabilities saturate: 9.5e-6 relative at the default separation-fallback lambda 1e-4 and 3.4e-3 (not converged in 500 iterations) at lambda 1e-8 on separated data; the probit tail also used a density floored at 1e-12. The residual is now formed from the tail probability (and the probit score as an inverse Mills ratio), the weight alone stays clamped, and the penalised logit agrees to 2e-14 at lambda 1e-4 and 2e-15 (46 iterations) at 1e-8, the probit to 2.3e-10.", "The unpenalised IRLS (logit, probit, Poisson, NB2 fixed dispersion, Gaussian) reproduces the exact maximum-likelihood coefficients to at most 2.2e-10 and the deviance to 5e-11 on every regime tried, including a covariate offset of 1e5 and column scales eight decades apart; no defect was found. The default convergence rule (change of the linear predictor below 1e-8 relative to its size) leaves the coefficients within 1e-6 of the exact values on every case.", "Separation verdicts agree with exact enumeration: complete and quasi-complete configurations are flagged separated (non-converged within the iteration limit) and refused by require_ok, with or without the ridge refit, which keeps the unpenalised verdict; an overlapping configuration is not flagged. Weighted fits report an unweighted deviance for every family but Gaussian; this is recorded here as an assumption; the fit_glm_weighted documentation still states only that the Gaussian deviance is weighted, and glm.rs was left unchanged because another record binds its digest."]
+record_sha256 = "cd5e352093a4bc707adc82d77557178bb7b6cd31ce423080b1f403967f1df9e2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/glm.rs"
+sha256 = "de469faef1d5757bac03d7fb7707654b018eef37a50f85ac944626c6955df047"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/glm/binomial.rs"
+sha256 = "16bbafc3258caf50adb9f830e3c3a015e14fdd2ca87d25ade37a0ead25735ee3"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/glm/count.rs"
+sha256 = "30a9eee05f4113fd37c332793af36e9656d27e69e25b9e01060b0b8cf6c9fb31"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/glm/gaussian.rs"
+sha256 = "aa3472a7f5139bb79b3ed6b7985238ebbe8eab607c2f64b0e94c47c7395847d3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/glm_reference.rs"
+sha256 = "cb0253aa6459195060816399b0d98ff540c3df954412eef6d4abf102aff17949"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/glm_reference.py"
+sha256 = "018d64b647d7ffb641521a52ddd419dacde908404fac894fe457c0f3fbf9eee7"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/glm_reference.json"
+sha256 = "57be4adfcaab6afce4de6bf9373cb56dc8080deb70f64d2a7037144db3d3cd8a"

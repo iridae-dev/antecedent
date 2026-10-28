@@ -9,10 +9,49 @@ papers = [
  { title = "A Generalized Classical Method of Linear Estimation of Coefficients in a Structural Equation", doi = "10.2307/1907743", sections = ["two-stage least squares"] },
 ]
 
-implementation_deviations = []
+implementation_deviations = [
+ "The module also implements a homoskedastic Anderson-Rubin statistic, its finite-sample F critical value and its confidence-set inversion; these are not in the cited 2SLS paper and the primary Anderson-Rubin source is not recorded or retrieved here.",
+]
 
 upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-stats/src/twosls.rs unit tests",
+ "crates/antecedent-stats/tests/twosls_reference.rs (2SLS, first-stage F, F critical value, Anderson-Rubin statistic and set against exact and 50-digit references)"
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_2sls (first stage on the excluded instruments and included exogenous block, second stage on the fitted endogenous column, structural residual sum of squares at the actual endogenous values), its first-stage partial F-test and partial R-squared, fit_2sls_from_moments, anderson_rubin_statistic, f_critical and anderson_rubin_confidence_set in twosls.rs. Not fit_joint_2sls, the moment-based Anderson-Rubin set, or any two-stage standard error."
+assumptions = ["Homoskedastic errors for the Anderson-Rubin statistic and set, which uses the finite-sample F reference with k excluded instruments and n - k - p_x denominator degrees of freedom.", "The exogenous block carries the intercept (in exactly one block).", "The structural coefficient of the endogenous column is the first second-stage coefficient."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0); Python's fractions module is used only to produce the frozen values and is not a product dependency; mpmath (used for the F quantile) is not a product dependency."
+limitations = "Six designs of 40 to 60 rows: one, two and three excluded instruments, an included covariate, a covariate offset by 1e5, and two weak-instrument designs whose Anderson-Rubin set is a union of two rays and the whole line. The F critical value is the 50-digit root of the regularised incomplete beta; the statistic, set endpoints and first-stage F are exact rational arithmetic. The moment-based entry point squares the condition number (documented in the code) and is held to 1e-8 on well-conditioned designs and 1e-3 on the offset design, where it is observed at 3.8e-6. Not exercised: heteroskedasticity-robust inference, more than three instruments, n beyond 60, an intercept-free exogenous block, singular first stages, and the near-tangent quadratic classification thresholds. The primary Anderson-Rubin source is not in the record's paper list and was not retrieved; the Anderson-Rubin set is reviewed against its stated definition only. The reference scripts are not run in a locked, isolated environment and are not wired into any gate."
+sources = ["https://doi.org/10.2307/1907743", "https://mpmath.org/doc/1.3.0/", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["No defect was found: coefficients, structural residual sum of squares, first-stage F and partial R-squared agree with exact arithmetic to 1.2e-11 (offset design) and 5e-15 elsewhere; the F critical value agrees with the 50-digit quantile to 8e-16; the Anderson-Rubin statistic to 1.3e-11; and the set endpoints, interval, union and whole-line classifications match the exact quadratic.", "The record cited only the 2SLS estimator; the Anderson-Rubin statistic, finite-sample F reference and confidence-set inversion that this module also implements have no primary source in it. A deviation entry now says so rather than implying the cited paper covers them."]
+record_sha256 = "8ee54999f9a3dea19e8894b0fe8b59838f17a501fa91a4fe2ea76d302f7f1bdc"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/twosls.rs"
+sha256 = "3a147c9cf6e1f4248932e4360baab9c3cde8bf2f247b8fcac0f360595f03d095"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/special.rs"
+sha256 = "b663d754fa1eb1fc6c23100572fe66d32554597596d739324253f7ce1ef18c39"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/twosls_reference.rs"
+sha256 = "5c52d34b652e0158357394f54e70434906aadff590d967b49c2cee046162e9bf"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/twosls_reference.py"
+sha256 = "83c2f6dfaced7d866b234d28a7dd9e1852275110d878ebd3ff243beed1d66461"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/twosls_reference.json"
+sha256 = "29c3563be815e707ebb483ac1281f2485871cdd546a6924920068c50f7bb1940"

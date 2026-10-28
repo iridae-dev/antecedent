@@ -1283,3 +1283,21 @@ previous = "crates/antecedent-estimate/src/response/tests.rs::plugin_derivatives
 replacement = "crates/antecedent-estimate/src/response/tests.rs::plugin_derivatives_serve_more_than_two_treatments"
 disposition = "assertion_strengthened_without_case_removal"
 reason = "The test documented one partial per coordinate for three treatments but dropped both results unread, so it established only that estimation returned Ok. It keeps both requests and now requires a point-identified Jacobian of one outcome by three treatments with three finite partials, and that the directional derivative along the first axis equals the first partial of the same additive fit. Data and queries are unchanged. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/temporal_observation.rs::observation_adjusted_sequence_refuses_a_lagged_outcome_regressor"
+replacement = "crates/antecedent/tests/temporal_observation.rs::observation_adjusted_sequence_refuses_an_autoregressive_outcome"
+disposition = "renamed_and_strengthened"
+reason = "The lag-two autoreg outcome graph reached the observation layer only because the window-growth certificate accepted a cut ancestry at an even depth; the certificate now refuses any lagged cycle, so the same graph is refused earlier with the history-cap message. The test now asserts that refusal for the full-sample fit and the 24-replicate bootstrap. The observation-layer lagged-outcome refusal stays covered by the direct estimator test in this file and by the helper test in the estimator crate. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent-estimate/src/glm_adjustment/tests.rs::family_mean_matches_the_historical_link_expressions_bit_for_bit"
+replacement = "crates/antecedent-estimate/src/glm_adjustment/tests.rs::family_mean_matches_the_historical_link_expressions_bit_for_bit"
+disposition = "assertion_changed_to_justified_tolerance"
+reason = "The probit mean is antecedent_kernels::norm_cdf, which the tail-precision fix made correctly rounded; the pinned historical expression 0.5 * erfc(-eta / sqrt2) differs from it by one ulp at eta = -1, so the bit-exact probit equality compared two roundings of the same value. Probit is now held, for the product value and for the historical expression separately, to within 4 epsilon (relative) of the 60-digit mpmath Phi(eta) at all nine etas, a stronger statement than agreement with the old expression. The logit bit-exact pin and the Gaussian, Poisson and negative-binomial pins are unchanged. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent-estimate/src/adjustment/tests.rs::source_cluster_labels_follow_their_rows_through_the_population_mask"
+replacement = "crates/antecedent-estimate/src/adjustment/tests.rs::source_cluster_labels_follow_their_rows_through_the_population_mask"
+disposition = "assertion_premise_corrected"
+reason = "The labels were (5 i) mod 7, an arithmetic progression, so the 'misaligned' slice labels[..60] is the aligned slice labels[10..70] with the ids cyclically renamed: the same partition, hence an identical cluster covariance in exact arithmetic that previously differed only by summation order. The test now uses non-progression labels so a misaligned slice is a different partition; the equality of source-label and aligned-label fits and the inequality with the misaligned fit are unchanged. Executed: passes."

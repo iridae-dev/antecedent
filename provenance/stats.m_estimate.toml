@@ -13,10 +13,53 @@ implementation_deviations = [
  "Extends the cited location M-estimator to multivariable linear regression using an OLS warm start and iteratively reweighted least squares.",
  "Re-estimates scale on every iteration with 1.4826 times the residual MAD and defaults to c=1.345; that full regression algorithm is not established by the cited 1964 location-parameter paper alone.",
  "Returns coefficients and convergence diagnostics but no robust covariance or inferential result.",
+ "The fixed point of the iteration (scale re-estimated each step from the current residuals) is the root of sum psi_c(r_i/s(beta)) x_i = 0 with a residual-dependent scale; this is a repository-defined scheme whose properties are not those of Huber's location M-estimator with a fixed or jointly estimated scale."
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-stats/src/m_estimate.rs unit tests",
+ "crates/antecedent-stats/tests/sandwich_reference.rs (huber_regression_reaches_the_exact_fixed_point_of_its_estimating_equation, against a 60-digit fixed point)"
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_huber_m in m_estimate.rs: the OLS start, the residual scale (1.4826 times the median absolute deviation about the median, or sqrt(pi/2) times the mean absolute deviation when the MAD is below rounding noise), the Huber weights min(1, c/|r/s|) with c = 1.345, the weighted least-squares update through fit_wls and the convergence rule. Not an inferential result: the function returns coefficients and diagnostics only, and nothing here establishes breakdown point, influence or efficiency."
+assumptions = ["The scale is re-estimated from the current residuals at every iteration, so the fixed point solves sum psi_c(r_i / s(beta)) x_i = 0 with the MAD of the fixed-point residuals; the objective is not convex in general, and uniqueness of the fixed point and convergence from the OLS start are not proved.", "1.4826 is the repository's truncated constant (the exact reciprocal of the normal 0.75 quantile is 1.482602218505602, a relative difference of 1.5e-6); the sqrt(pi/2) fallback constant is exact.", "The convergence tolerance applies to max |change of beta| relative to 1 + max |beta|."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "Four designs of 60 rows: clean data, six outliers at plus or minus 40, an intercept against a covariate offset by 1e6 (intercept about -2e6) and an intercept-only discrete outcome that triggers the mean-absolute-deviation fallback. The reference runs the same iteration (OLS start, MAD scale, Huber weights, weighted least squares) at 60 digits to a step of 1e-40 and reports the estimating-equation residual sum psi_c(r_i/s) x_i, at most 2.2e-39 on the fixed points reached, which is independent evidence that they are roots; agreement is at most 3.8e-10 in the coefficients and 3.2e-9 in the scale at a relative stopping tolerance of 1e-9, so the test establishes that the arithmetic and stopping rule reach the fixed point of the stated scheme, not that the scheme is the best robust regression. The reference is not independent of the iteration structure. Not exercised: more than two columns, weights, ties in the residual median, designs where the iteration cycles, c other than 1.345. The cited 1964 paper defines a location M-estimator; the regression extension, c = 1.345 and the MAD scale are later conventions not derived from it and not retrieved here."
+sources = ["https://doi.org/10.1214/aoms/1177703732", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The convergence test compared the absolute change of the coefficients with the tolerance. With a large covariate offset the intercept is large (-2e6 here) and its rounding noise across iterations (about 5e-5) exceeds any absolute tolerance below that, so the loop ran to max_iter and reported non-convergence although the estimate was accurate to 2e-11 relative: any intercept above tol / epsilon (4.5e7 at the default 1e-8, 4.5e3 at 1e-12) could never converge. The criterion is now relative to 1 + max |beta|, the offset design converges in 9 iterations, and the option documentation says so.", "On clean data, outliers, the offset design and the fallback case the fit agrees with the 60-digit fixed point and takes the fallback exactly when the MAD is zero; no further defect was found."]
+record_sha256 = "75f5c568cf0b78b84e0ded4b6ee497464d87f9cd037f8360aaf4c831be0880f9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/m_estimate.rs"
+sha256 = "25dfbebac5c3a524ac281c33c83e4eed33056c8a3bdb1d57dbaa54e1a73b8217"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/quantile.rs"
+sha256 = "6819e192ae75a9455d9813381f52190924bdaeecd987b8f582847001c6df3d47"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/twosls.rs"
+sha256 = "3a147c9cf6e1f4248932e4360baab9c3cde8bf2f247b8fcac0f360595f03d095"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/sandwich_reference.rs"
+sha256 = "b548a94688dea6a3ef198808cc8a3eb4f9efb3e2561ae102761c8858664e167a"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/sandwich_reference.py"
+sha256 = "9cb41b9c4a9a43d2a9d58ad5535565c126af263ea4bbb8fd0fd9e52d6fcf26b4"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/sandwich_reference.json"
+sha256 = "12e3b204d6355c211383e7a62e0e992ad52fcd49e7c27887595c9c4df542ce0d"

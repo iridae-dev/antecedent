@@ -415,17 +415,30 @@ fn fit_binomial_penalized(
         for r in 0..nrows {
             let eta_r = eta[r];
             let (w_fisher, working) = match family {
+                // The clamp keeps the working weight away from zero. The residual `y - mu`
+                // is formed from the tail probability instead of a clamped mean: the weight
+                // cancels out of a fixed point (`X'(y - mu) = Λβ`), so clamping the residual
+                // would bias the penalised maximiser by about `1e-9 / λ` once fitted
+                // probabilities saturate, which is exactly the separated case this serves.
                 GlmFamily::BinomialLogit => {
                     let mu = sigmoid(eta_r).clamp(PROB_CLIP, 1.0 - PROB_CLIP);
                     let w = mu * (1.0 - mu);
-                    let z = eta_r + (y[r] - mu) / w.max(MEAN_FLOOR);
+                    let residual = if y[r] > 0.0 { sigmoid(-eta_r) } else { -sigmoid(eta_r) };
+                    let z = eta_r + residual / w.max(MEAN_FLOOR);
                     (w, z)
                 }
                 GlmFamily::BinomialProbit => {
                     let mu = norm_cdf(eta_r).clamp(PROB_CLIP, 1.0 - PROB_CLIP);
                     let phi = norm_pdf(eta_r).max(MEAN_FLOOR);
                     let w = (phi * phi) / (mu * (1.0 - mu)).max(MEAN_FLOOR);
-                    let z = eta_r + (y[r] - mu) / phi;
+                    // Score `φ (y - μ) / (μ (1 - μ))` as an inverse Mills ratio, `φ/Φ(η)` for
+                    // `y = 1` and `-φ/Φ(-η)` otherwise, which stays exact in the tails.
+                    let score = if y[r] > 0.0 {
+                        norm_pdf(eta_r) / norm_cdf(eta_r).max(f64::MIN_POSITIVE)
+                    } else {
+                        -norm_pdf(eta_r) / norm_cdf(-eta_r).max(f64::MIN_POSITIVE)
+                    };
+                    let z = eta_r + score / w.max(MEAN_FLOOR);
                     (w, z)
                 }
                 _ => unreachable!("ridge fallback is binomial-only"),

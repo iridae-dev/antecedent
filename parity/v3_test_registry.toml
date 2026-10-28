@@ -17554,3 +17554,24 @@ crate = "antecedent"
 cargo_target = "static_route_table_weights"
 path = "crates/antecedent/tests/static_route_table_weights.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "sandwich-reference"
+crate = "antecedent-stats"
+cargo_target = "sandwich_reference"
+path = "crates/antecedent-stats/tests/sandwich_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "glm-reference"
+crate = "antecedent-stats"
+cargo_target = "glm_reference"
+path = "crates/antecedent-stats/tests/glm_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "twosls-reference"
+crate = "antecedent-stats"
+cargo_target = "twosls_reference"
+path = "crates/antecedent-stats/tests/twosls_reference.rs"
+gates = ["inventory", "named"]

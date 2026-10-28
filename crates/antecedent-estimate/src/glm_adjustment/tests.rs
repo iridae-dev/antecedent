@@ -573,10 +573,23 @@ fn hc1_sandwich_se_finite_without_bootstrap() {
     assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
 }
 
+/// `Φ(eta)` at 60 digits (mpmath `ncdf`), rounded once, for the `etas` of the test below.
+const PROBIT_MPMATH: [f64; 9] = [
+    0.0,
+    0.0,
+    0.15865525393145705,
+    0.49999999999960104,
+    0.5,
+    0.5000000000003989,
+    0.8413447460685429,
+    1.0,
+    1.0,
+];
+
 #[test]
 fn family_mean_matches_the_historical_link_expressions_bit_for_bit() {
-    // The adjustment-resume mean used these expressions. `mean_from_eta` is the same
-    // evaluation: stable sigmoid, and Φ via `0.5 * erfc(-η / sqrt(2))`.
+    // The adjustment-resume mean used these expressions. The logit is the same evaluation
+    // (stable sigmoid) and stays bit-exact; the probit is held to a tolerance, see below.
     let etas = [-700.0, -40.0, -1.0, -1e-12, 0.0, 1e-12, 1.0, 40.0, 700.0];
     for eta in etas {
         let historical_logit = if eta >= 0.0 {
@@ -590,12 +603,17 @@ fn family_mean_matches_the_historical_link_expressions_bit_for_bit() {
             GlmFamily::BinomialLogit.mean_from_eta(eta).to_bits(),
             "logit {eta}"
         );
+        // The probit mean is the kernel normal CDF, which since the tail-precision fix is
+        // correctly rounded to a few ulps; the old `0.5 * erfc(-eta / sqrt2)` expression is
+        // only a close neighbour of it (it differs by one ulp at eta = -1). Both are held to
+        // the 60-digit mpmath value instead of to each other bit for bit.
         let historical_probit = 0.5 * antecedent_kernels::erfc(-eta / std::f64::consts::SQRT_2);
-        assert_eq!(
-            historical_probit.to_bits(),
-            GlmFamily::BinomialProbit.mean_from_eta(eta).to_bits(),
-            "probit {eta}"
-        );
+        let probit = GlmFamily::BinomialProbit.mean_from_eta(eta);
+        let exact = PROBIT_MPMATH[etas.iter().position(|e| *e == eta).unwrap()];
+        for (name, got) in [("product", probit), ("historical", historical_probit)] {
+            let tol = 4.0 * f64::EPSILON * exact.abs().max(f64::MIN_POSITIVE);
+            assert!((got - exact).abs() <= tol, "probit {name} {eta}: {got:e} vs {exact:e}");
+        }
         assert_eq!(eta.to_bits(), GlmFamily::GaussianIdentity.mean_from_eta(eta).to_bits());
         assert_eq!(eta.exp().to_bits(), GlmFamily::PoissonLog.mean_from_eta(eta).to_bits());
         assert_eq!(eta.exp().to_bits(), GlmFamily::NegativeBinomial.mean_from_eta(eta).to_bits());

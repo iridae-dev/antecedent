@@ -19,8 +19,8 @@ pub fn mean_and_se(values: &[f64]) -> Option<(f64, f64)> {
     if values.iter().any(|v| !v.is_finite()) {
         return None;
     }
-    let (mean, variance) = mean_and_sample_variance(values)?;
-    let se = (variance / values.len() as f64).sqrt();
+    let (mean, scaled, scale) = mean_and_scaled_variance(values)?;
+    let se = (scaled / values.len() as f64).sqrt() * scale;
     se.is_finite().then_some((mean, se))
 }
 
@@ -36,10 +36,56 @@ pub fn mean_and_sample_variance(values: &[f64]) -> Option<(f64, f64)> {
     if values.len() < 2 {
         return None;
     }
+    let (mean, scaled, scale) = mean_and_scaled_variance(values)?;
+    Some((mean, scaled * scale * scale))
+}
+
+/// Mean, and the variance as `scaled · scale²` (so a standard error can take its square root
+/// before the scale is applied and stay representable); `None` for fewer than two values.
+fn mean_and_scaled_variance(values: &[f64]) -> Option<(f64, f64, f64)> {
+    if values.len() < 2 {
+        return None;
+    }
     let n = values.len() as f64;
     let mean = values.iter().sum::<f64>() / n;
-    let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
-    Some((mean, variance))
+    let (scaled, scale) = centered_variance(values, mean, n);
+    Some((mean, scaled, scale))
+}
+
+/// Deviations beyond these magnitudes square to a subnormal or overflow, so the sum of squares
+/// is formed on deviations divided by their largest magnitude instead.
+const SCALED_BELOW: f64 = 1e-140;
+const SCALED_ABOVE: f64 = 1e140;
+
+/// `Σ(v − mean)² / (n − 1)` by the corrected two-pass formula
+/// `(Σd² − (Σd)²/n) / (n − 1)`, `d = v − mean`.
+///
+/// The computed mean carries a rounding error `δ` (the sum of `n` values of magnitude `|mean|`
+/// is rounded `n` times, and for two values one ulp apart the exact mean is not representable at
+/// all); the plain sum of squares is then too large by `n δ²`, which is not small against the
+/// variance once `|mean| / sd` approaches `1 / sqrt(n ε)`. The second term removes exactly that
+/// excess. For samples whose mean is small against their spread `(Σd)²/n` is far below the last
+/// bit of `Σd²` and the result is bit-identical to the plain two-pass sum. The result is
+/// clamped at zero (the correction can only round to a tiny negative for a constant sample).
+/// Returns the variance divided by `scale²` and the scale.
+fn centered_variance(values: &[f64], mean: f64, n: f64) -> (f64, f64) {
+    let widest = values.iter().fold(0.0_f64, |m, v| m.max((v - mean).abs()));
+    // Scale to keep the squares normal; 1 (no scaling) in the ordinary range.
+    let scale = if widest > 0.0 && (widest < SCALED_BELOW || widest > SCALED_ABOVE) {
+        widest
+    } else {
+        1.0
+    };
+    let (mut squares, mut total) = (0.0_f64, 0.0_f64);
+    for v in values {
+        let d = (v - mean) / scale;
+        squares += d * d;
+        total += d;
+    }
+    // Not `f64::max(0.0)`: that would turn a NaN variance into a confident zero.
+    let corrected = squares - total * total / n;
+    let corrected = if corrected < 0.0 { 0.0 } else { corrected };
+    (corrected / (n - 1.0), scale)
 }
 
 /// Standard error of the mean of independent scores (an influence-function SE):
@@ -51,10 +97,10 @@ pub fn mean_and_sample_variance(values: &[f64]) -> Option<(f64, f64)> {
 /// [`mean_and_se`] for the refusing form that returns `None` instead.
 #[must_use]
 pub fn iid_se(values: &[f64]) -> f64 {
-    let Some((_, var)) = mean_and_sample_variance(values) else {
+    let Some((_, scaled, scale)) = mean_and_scaled_variance(values) else {
         return f64::NAN;
     };
-    (var / values.len() as f64).sqrt()
+    (scaled / values.len() as f64).sqrt() * scale
 }
 
 #[cfg(test)]

@@ -17,6 +17,8 @@ implementation_deviations = [
  "Ordinary Newey-West HAC caps an oversized requested lag to n-1 and uses that effective lag in the Bartlett denominator. statsmodels uses the requested lag even beyond n-1; the retained oracle compares matched effective lags and separately asserts the raw requested-lag difference.",
  "Multiway clustering is limited to four dimensions, applies a G/(G-1) correction separately to each inclusion-exclusion subset, and rejects materially negative combined meat; these are explicit finite-sample and numerical policies.",
  "Panel HAC combines within-unit score products with explicit integer-time Bartlett lags and a global effective lag. This is a repository-defined cluster-plus-HAC construction, not the within-groups covariance estimator stated in the Arellano citation.",
+ "The sandwich bread, leverages and meat are formed in coordinates orthogonalised by a Householder QR of the column-equilibrated design (reference estimators invert XtX); the estimators are algebraically the same, and the choice avoids squaring the condition number.",
+ "HC1 is n/(n-p) times HC0; HC2 and HC3 divide the squared residual by (1-h) and (1-h)^2 and refuse a leverage within 1e-8 of 1; the one-way cluster factor is G/(G-1) (n-1)/(n-p); the Bartlett weight is 1 - l/(L+1) with no finite-sample factor on Newey-West. These are the declared conventions the review checked, not statements of the cited papers' sections, which were not retrieved."
 ]
 
 upstream_implementations_observed = [
@@ -26,4 +28,41 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-stats/src/cluster.rs unit tests",
  "conformance/stats/sandwich_covariance (exercised via crates/antecedent-stats/tests/foundations_oracle.rs)",
+ "crates/antecedent-stats/tests/sandwich_reference.rs (sandwich covariances, Bell-McCaffrey degrees of freedom and dependent-design refusals against exact rational arithmetic on offset, near-collinear, high-leverage and badly scaled designs)"
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "coefficient_covariance, score_coefficient_covariance and hc2_coefficient_bell_mccaffrey in covariance.rs with the one-way cluster, multiway inclusion-exclusion, Bartlett Newey-West and panel cluster-plus-HAC meats of cluster.rs: classical, HC0-HC3, cluster, two-way cluster, Newey-West and panel HAC covariances from supplied residuals, with and without Fisher weights, the orthogonalised bread and leverages they share, the positive-semidefiniteness refusal for inclusion-exclusion, and the dependent-design refusal. Not the scalar meat helpers (cluster_meat_scalar, newey_west_meat_scalar, panel_hac_meat_scalar), few_cluster_t_ratio, symmetric_eigen, or the coverage of intervals built from these covariances."
+assumptions = ["Residuals (or score multipliers) are supplied; the estimators never refit, so they are as valid as the residuals and the dependence structure the caller declares.", "The finite-sample factors are the declared repository conventions: HC1 n/(n-p), cluster G/(G-1) (n-1)/(n-p) applied separately to every inclusion-exclusion subset and to the panel unit count, no factor for Newey-West, Bartlett weight 1 - l/(L+1) with L = min(lag, span).", "HC2 and HC3 are undefined for a row of leverage within 1e-8 of 1 and refuse it.", "Accuracy is stated against the exact function of the binary64 inputs."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0); Python's fractions module is used only to produce the frozen values and is not a product dependency; mpmath (used for the definiteness measure) is not a product dependency."
+limitations = "One hundred and thirty-six covariance cases on eight designs of 24 rows (well conditioned, large offsets 1e4, 1e6 and 1e8, near-collinear columns at 1e-5 and 1e-7, a leverage-0.99999 row, columns six decades apart): condition numbers of the equilibrated design up to 1.6e8; the worst observed error is 3.8e-16 times the condition number (normwise, relative to the largest entry; diagonal entries are checked relatively). Eleven Bell-McCaffrey cases against the dense A = M D M definition. Two clustering dimensions only (the code allows four), at most six clusters, a single time gap in one unit for panel HAC, lags 0, 1, 2, 3, 9 and 40 only, and Fisher weights spanning six decades on the same designs. HC2/HC3 carry an unavoidable eps/(1-h) rounding term from forming 1-h, and the Bell-McCaffrey degrees of freedom subtract two nearly equal terms as a leverage approaches one (relative error 5.9e-6 at 1-h = 2.2e-6). Not exercised: n beyond 60, p beyond 4, three- and four-way clustering, the multiway work cap, and weights with exact zeros in the HC2/HC3 path. The reference scripts declare their dependencies in inline script metadata but are not run in a locked, isolated environment and are not wired into any gate; their output is frozen in the JSON file and compared by the tests. The cited publications were not retrieved."
+sources = ["https://doi.org/10.2307/1912934", "https://doi.org/10.1016/0304-4076(85)90158-7", "https://doi.org/10.1198/jbes.2010.07136", "https://doi.org/10.2307/1913610", "https://doi.org/10.1111/j.1468-0084.1987.mp49004006.x", "https://docs.python.org/3/library/fractions.html", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The bread (XtX)^-1 was formed by explicitly inverting the Gram matrix, which squares the condition number. Sandwich errors were 2e-8 at condition number 1e4, 1.5e-4 at 1.2e6 and 2.5 (no correct digit, silently) at 1.6e8, for a design with a covariate offset by 1e8. The covariances now come from a Householder QR of the column-equilibrated, weight-scaled design (the meat is formed in orthogonalised coordinates, where it is not ill conditioned), and the error is at most 3.8e-16 times the condition number on every case; a dependent column (duplicate, multiple, zero) or fewer rows than columns still has no sandwich.", "The multiway inclusion-exclusion matrix is refused when materially indefinite. That test measured its tolerance against the diagonal in the original coordinates, so for an ill-conditioned design (offset 1e8) a matrix whose exact smallest generalised eigenvalue is -0.025 of the largest was returned as a covariance. The test now runs in the orthogonalised coordinates and refuses it; a design with an exactly computed negative value at offset 1e4 is refused as before, and the positive-semidefinite cases agree with the exact value.", "No formula defect was found: HC0, HC1, HC2, HC3, classical, one-way cluster, two-way cluster, Newey-West at three lags (including a lag beyond n-1, capped), panel HAC with gaps and the Fisher-weighted score variants agree with exact rational arithmetic to a few times 1e-16 on well-conditioned designs, and HC2 agrees with the dense Bell-McCaffrey variance."]
+record_sha256 = "be0ffb3834d4fb137bc64fd5ae73054078613ae428df2b9bf9e77b0513b4e589"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/covariance.rs"
+sha256 = "14684c1b1f5e9c5c1e3b6283fd27a80d7264033ca7cfc38853c46f7d7363869a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/cluster.rs"
+sha256 = "9607cb41faa47dd68e68101cc508121aeabcced372990b2c31946e62f4e977e2"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/sandwich_reference.rs"
+sha256 = "b548a94688dea6a3ef198808cc8a3eb4f9efb3e2561ae102761c8858664e167a"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/sandwich_reference.py"
+sha256 = "9cb41b9c4a9a43d2a9d58ad5535565c126af263ea4bbb8fd0fd9e52d6fcf26b4"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/sandwich_reference.json"
+sha256 = "12e3b204d6355c211383e7a62e0e992ad52fcd49e7c27887595c9c4df542ce0d"

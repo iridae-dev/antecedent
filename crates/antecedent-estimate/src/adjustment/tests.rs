@@ -540,7 +540,9 @@ fn source_cluster_labels_follow_their_rows_through_the_population_mask() {
         .with_target_population(TargetPopulation::Predicate(PredicateExpr::rows(
             (10..70).collect::<Vec<_>>(),
         )));
-    let labels: Vec<u32> = (0..100u32).map(|i| (i * 5) % 7).collect();
+    // Not an arithmetic progression mod 7: for those, every shifted or reversed copy is the same
+    // partition under renamed ids (same cluster SE), so it would not detect misalignment.
+    let labels: Vec<u32> = (0..100u32).map(|i| (i * i / 3 + i) % 7).collect();
     let se_of = |est: LinearAdjustmentAte| {
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = EstimationWorkspace::default();
