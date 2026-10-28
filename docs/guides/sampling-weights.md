@@ -35,8 +35,8 @@ randomized and panel routes read the table's observation weights
 
 Only the average effect reads weights declared on its estimator. The other static effect routes
 (conditional effect, natural-direct mediation, counterfactual, mean curve, average derivative,
-intervention response, continuous dose response, regression discontinuity and the temporal
-designs) have no weighted construction: a table that carries observation weights, or weights
+intervention response, continuous dose response, regression discontinuity, the prepared temporal
+designs, synthetic control and observational survival) have no weighted construction: a table that carries observation weights, or weights
 declared on an estimator such a route does not run, is refused with `option_not_applicable`
 (`sampling_weights.route_unsupported`) when the study is prepared or a table is rebound, never
 estimated as if the rows were unweighted. The average effect on a Dag or an ADMG with weights
@@ -173,7 +173,10 @@ diagnostic.
   window of any length: each lag window is weighted by the observation it ends at, and a
   multi-step sustained contrast is the weighted least squares of every mechanism on its unfolded
   windows (the block bootstrap carries each window's weight with it). Conditional effects,
-  Bayesian fits, refuters and series with gaps refuse.
+  Bayesian fits, refuters and series with gaps refuse, as do the prepared contrast designs,
+  modifiers and level evaluations of the temporal routes. Weights are read by the frequentist
+  route only. In Python, `PulseEffect(weights="w")` declares them; `SustainedEffect` has no
+  `weights` argument, so a multi-step sustained window is weighted from Rust.
 - A time series with zero-weight lag windows keeps them in the design so the windows stay
   consecutive; they contribute no score, and the block length is sized on the windows of
   positive weight.

@@ -282,6 +282,22 @@ Python's `dose_grid_posterior` and `consume_dose_grid_posterior_artifact` take a
 
 `mean_source`, `law_source` and `project_*_source` carry scientific permission into decision and search use; `numerical_*` accessors expose values without that permission. Frozen-fit replay keeps aligned draw slots and failures. Retained and returned results hold their memory reservations until their last owner is dropped; these are allocation quotes, not process memory measurements.
 
+## Behaviour changes that can alter an answer or turn it into a refusal
+
+These corrections change a number you got before, or replace a silently wrong answer with a typed refusal. Rerun affected studies and read the refusal's next attempt.
+
+| Area | Before | Now |
+| --- | --- | --- |
+| Table weights on static routes | A weighted table was answered unweighted on conditional-effect, mediation, counterfactual, curve, derivative, intervention-response, dose, regression-discontinuity, temporal-design, synthetic-control and survival routes. | Refused (`option_not_applicable`, `sampling_weights.route_unsupported`), as are weights declared on an estimator the route does not run. Declare the weights on an average-effect estimator, or drop them. A multi-step sustained temporal window (frequentist) now reads weights. See [sampling weights](guides/sampling-weights.md). |
+| Treatment with undeclared extra levels | Linear and GLM adjustment and instrumental fits read `0/1/2` as a dose (a slope, not the contrast of two levels). | Refused as `treatment_level_undeclared`. Rust regressions can declare `OtherLevels::ExcludeUndeclared`; Python `LinearAdjustment`, `GlmAdjustment` and the instrumental estimators have no such argument, so recode the treatment. See [treatment levels](guides/treatment-levels.md). |
+| Declared dependence | The equivalence-class average-effect route used the plain HC1 error; a study-level `sampling_design="clustered_panel"` or `"dependent_time_series"` with the bootstrap off was recorded but not read. | The route applies a declared cluster or Newey-West error. With the bootstrap off, the design is honoured only where the estimator's standard error reads it (cluster, multiway or panel-HAC; Newey-West or panel-HAC); otherwise, and for matching and instrumental estimators, it is refused. |
+| Multi-treatment derivatives | A Jacobian or directional derivative over several treatments could be answered from pairwise sets. | Identified jointly on Dag, Admg, Cpdag and Pag; not identified when no common joint adjustment set exists. Joint identification through the general ID algorithm is not wired. |
+| Numerics | See the list below. | Estimates, standard errors or intervals can move. |
+
+Numeric corrections: propensity stratification cuts at quantiles of the propensity; matching averages every tied donor (scalar and multivariate), so row order no longer matters; the trimmed AIPW influence and standard error use all rows; DML scores use the recorded folds; sandwich covariances are computed by QR; the Normal-Inverse-Gamma variance scale comes from residuals; Gaussian KL, the normal, Student-t and gamma tails and the Gaussian BIC keep full precision; a sharp regression-discontinuity window of four rows or fewer withholds its analytic error (NaN); the Anderson-Rubin set and the confounding-sensitivity threshold are scale-free; the Fisher-z interval keeps its endpoints at high correlation; discrete permutation tests count permuted statistics that tie the observed one; the temporal window certificate does not certify when a lag of two or more steps has autoregressive ancestry; regression-based sensitivity refuters refuse small-integer dose treatments in temporal designs.
+
+Evidence labels were also tightened: claims whose fixture only asserted that a seeded dataset behaves as constructed (for example mechanism-change detection, the kernel two-sample shift test, the NOTEARS chain and static PAG operations) are recorded as software coverage rather than independent known truth. The conformance pages reflect the current labels.
+
 ## Artifact compatibility
 
 The container format is unchanged, and readers that migrate container sources 0.1 through 0.5 still do. Identity values changed in two groups: those that took effect in 3.0, and those that took effect in 2.4.0 and matter only for artifacts written by 2.3 or earlier. Nothing is accepted silently: a consumer recomputes what it can and refuses a mismatch.

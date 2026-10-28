@@ -50,6 +50,24 @@ changes the population the estimate speaks for, so it is never dropped silently:
   Rust result reports how many rows were excluded. A declared exclusion executes through the
   ordinary dispatcher, not the checked all-observed routes, which refuse it.
 
+## Regressions and instruments
+
+`LinearAdjustment` and `GlmAdjustment` enter the treatment as one numeric column, so a discrete
+column with levels beyond the contrasted pair (`0/1/2`) would be read as a dose: the coefficient
+is a slope, not the contrast of the two declared levels. Such a column is refused as
+`treatment_level_undeclared`, listing the observed levels, unless the rows at the other levels
+are declared excluded (Rust: `with_other_levels(OtherLevels::ExcludeUndeclared)` on
+`LinearAdjustmentAte` and `GlmAdjustmentAte`; the target population is then the rows at the two
+levels and the result reports the excluded count). The Python `LinearAdjustment` and
+`GlmAdjustment` have no `other_levels` argument, so from Python the refusal stands: recode the
+treatment into the contrast of interest, or use a propensity estimator or `DML`, which do
+declare it.
+
+The instrumental estimators (`IvWald`, `Iv2Sls`) refuse a treatment with undeclared extra levels
+(`treatment_level_undeclared`, `iv.undeclared_level`) and have no exclusion option: restricting
+the rows to two treatment levels selects on the endogenous treatment and invalidates the
+instrument. Recode the treatment into the binary contrast, or use a continuous dose.
+
 ## Treatments with more than two levels
 
 In Python the two targets are `antecedent.multi_level_treatment.multi_level_effect(outcome,

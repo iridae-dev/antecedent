@@ -1305,7 +1305,12 @@ class _PreparedEngine(Generic[ResultT]):
         bootstraps or splits is held to it, and a request the design does not allow, such as a
         row bootstrap under a trajectory design, is refused with a sampling-design error. The
         declaration is part of the study's data identity. A name that is not one of the three
-        raises :class:`CausalValueError`.
+        raises :class:`CausalValueError`. A ``"clustered_panel"`` or ``"dependent_time_series"``
+        declaration with the bootstrap off is honoured only where the analytic error reads it: an
+        average effect through a regression, weighting or AIPW estimator whose ``se`` is the
+        cluster, multiway or panel-HAC error (panel) or Newey-West or panel-HAC error (series).
+        Any other estimator or query is refused (``option_not_applicable``), as are matching and
+        instrumental estimators, which read no cluster or serial dependence.
 
         ``retain_joint_horizons=True`` keeps, for a temporal ``ResponseCurve`` or
         ``InterventionResponse``, the replicates that refit every horizon together (the joint

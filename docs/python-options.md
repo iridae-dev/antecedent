@@ -333,7 +333,9 @@ nothing), rows of weight zero are excluded and counted, a negative, NaN or infin
 refuses naming its row (`sampling_weights_invalid`), and `result.estimate.sampling_weights`
 reports the rows used, the zero-weight rows, the Kish effective sample size and the declared
 weight sum. A construction with no weighted contrast refuses the weights
-(`option_not_applicable`, `sampling_weights.route_unsupported`). See
+(`option_not_applicable`, `sampling_weights.route_unsupported`): this covers table weights on every
+static route other than the average effect, synthetic control and survival, and `SustainedEffect`
+has no `weights` argument. See
 [the guide](guides/sampling-weights.md).
 
 ## Read identification details

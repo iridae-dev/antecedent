@@ -585,7 +585,7 @@ catalog search is sound and incomplete.
 
 ### Frequentist
 
-* linear and generalized-linear outcome regression (a discrete treatment with levels beyond the contrasted pair is refused by name unless the restriction to the two levels is declared; a clustered panel or dependent series declared with the bootstrap off requires the matching cluster or Newey-West error);
+* linear and generalized-linear outcome regression (a discrete treatment with levels beyond the contrasted pair is refused by name unless the restriction to the two levels is declared, which only the Rust estimators expose; a clustered panel or dependent series declared with the bootstrap off requires the matching cluster or Newey-West error, and the equivalence-class (CPDAG) average-effect route applies a declared cluster or Newey-West error instead of the plain HC1 value);
 * g-computation;
 * inverse probability weighting;
 * propensity matching (every donor tied at the nearest propensity is a match and the tied outcomes are averaged, so a discrete confounder's saturated table gives the stratified contrast whatever the row order);
@@ -595,9 +595,10 @@ catalog search is sound and incomplete.
 * AIPW;
 * front-door functional plug-in estimation (`frontdoor.functional`);
 * linear front-door two-stage estimation (`frontdoor.linear_two_stage`);
-* Wald estimation;
-* 2SLS;
+* Wald estimation (a treatment with undeclared extra levels is refused);
+* 2SLS (a treatment with undeclared extra levels is refused; matching and instrumental fits read no declared cluster or serial dependence, so a clustered-panel or dependent-time-series design with them is refused);
 * sharp local-linear regression discontinuity (effect at the cutoff);
+* sampling weights are read only by the average-effect estimators that declare them (and the randomized, panel and single-series temporal routes); every other static route refuses table weights with `option_not_applicable` rather than answering unweighted (see [sampling weights](guides/sampling-weights.md));
 * linear conditional effect models;
 * temporal adjustment;
 * temporal mediation;
@@ -606,7 +607,10 @@ catalog search is sound and incomplete.
   local polynomial);
 * observed-law Riesz average derivatives;
 * additive-GAM plug-in Jacobians and directional derivatives (at most two
-  treatment dimensions);
+  treatment dimensions; a query over two or more treatments is identified jointly,
+  by one adjustment set valid for all treatments at once, on a Dag, Admg, Cpdag or Pag,
+  and is not identified when no such common set exists, since joint identification
+  through the general ID algorithm is not wired);
 * additive-GAM g-computation for numeric hard, shift, and stochastic
   intervention responses;
 * selected-outcome IPW and cross-fitted AIPW, plus marginal right/left Kaplan–Meier

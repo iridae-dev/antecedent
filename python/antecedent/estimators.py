@@ -609,6 +609,11 @@ class LinearAdjustment:
     table passed to ``prepare`` / ``analyze``; rows dropped as incomplete or outside the
     target population take their labels with them. Exclusive with ``cluster_ids``, which
     must already be aligned to the rows the estimator uses.
+
+    A discrete treatment with levels beyond the contrasted pair (for example ``0/1/2``) is
+    refused as ``treatment_level_undeclared``: the regression would read it as a dose. There is
+    no ``other_levels`` argument here; recode the treatment into the contrast of interest, or
+    use a propensity estimator or :class:`DML`, which accept ``other_levels="exclude_undeclared"``.
     """
 
     bootstrap: int | None = None
@@ -1039,7 +1044,10 @@ class GlmAdjustment:
     """``glm.adjustment`` — GLM-family outcome-model adjustment (default binomial-logit).
 
     ``cluster="site"`` names the data column of cluster labels, as for
-    :class:`LinearAdjustment`.
+    :class:`LinearAdjustment`. A discrete treatment with levels beyond the contrasted pair (for
+    example ``0/1/2``) is refused as ``treatment_level_undeclared``: the regression would read it
+    as a dose. There is no ``other_levels`` argument here; recode the treatment into the contrast
+    of interest.
     """
 
     bootstrap: int | None = None
@@ -1149,6 +1157,9 @@ class FrontdoorLinearTwoStage:
 class IvWald:
     """``iv.wald`` — single binary-instrument Wald ratio.
 
+    A treatment with levels beyond the contrasted pair is refused as ``treatment_level_undeclared``;
+    recode it into the binary contrast.
+
     The ratio ``(E[Y|Z=1] - E[Y|Z=0]) / (E[T|Z=1] - E[T|Z=0])`` is the average
     treatment effect only when the treatment's effect on the outcome is the same
     constant, linear effect for every unit. When effects differ across units it is,
@@ -1195,6 +1206,9 @@ class IvWald:
 @dataclass(frozen=True, slots=True)
 class Iv2Sls:
     """``iv.2sls`` — two-stage least squares with one or more instruments.
+
+    A discrete treatment with levels beyond the contrasted pair is refused as
+    ``treatment_level_undeclared``; recode it into the binary contrast or use a continuous dose.
 
     The coefficient on the instrumented treatment is the average treatment effect
     only under a constant linear structural effect. With heterogeneous effects it

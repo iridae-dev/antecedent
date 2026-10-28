@@ -15,7 +15,7 @@ result = ant.analyze(data, query=ant.quasi.SharpRegressionDiscontinuity(
     "outcome", "treatment", "running", cutoff=0.0, bandwidth=1.5))
 ```
 
-The effect is the local jump at the cutoff, reported as a `local_at_cutoff` target. `se` chooses the heteroskedasticity-robust standard error (`hc1` by default, or `hc0`, `hc2`, `hc3`, `homoskedastic`).
+The effect is the local jump at the cutoff, reported as a `local_at_cutoff` target. `se` chooses the heteroskedasticity-robust standard error (`hc1` by default, or `hc0`, `hc2`, `hc3`, `homoskedastic`). When the bandwidth window holds four rows or fewer the fit is saturated (the jump interpolates the rows exactly, with no residual degrees of freedom), so the analytic standard error is withheld (NaN) instead of publishing a rounding-sized value; widen the bandwidth.
 
 ## Fuzzy design and regression kink
 
