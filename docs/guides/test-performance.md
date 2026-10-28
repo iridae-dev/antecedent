@@ -277,10 +277,11 @@ revision. Build and execution are timed separately.
 | after it (`d69837638`) | 231 | 8,436 | 673 s / 4,807 s | 73 s | 0 |
 | current ordinary run (`fa3ecc207`) | 480 | 13,486 | 1,160 s / 9,175 s | 464 s | 13 |
 
-Only the first pair supports a claim: same code and settings, with the
-consolidation as the intended difference. It shows about 15% less build wall
-time, 17% less build CPU time and 15% less execution time, at about 19% higher
-peak build memory. Each revision was run once, so there is no variance
+Only the first pair is comparable: same code and settings, with the
+consolidation as the intended difference. It is indicative only. It shows about
+15% less build wall time, 17% less build CPU time and 15% less execution time,
+at about 19% higher peak build memory, which is within the run-to-run variation
+to expect from a single cold build. Each revision was run once, so there is no variance
 estimate; interactive applications shared the host; and the earlier revision had
 12 failing tests (and 13 fewer tests) that the later one does not. The current
 run has far more tests and binaries, so it shows growth, not an improvement. Its
