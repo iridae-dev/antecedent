@@ -32,3 +32,20 @@ test_sources = [
   "crates/antecedent/tests/decision_claims.rs",
   "python/tests/test_scenario_decision.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Adapters from real scenario results into decision atoms and identified-set utilities: each scenario one atom keeping status, declared weight and support; an identified set one interval per action."
+no_independent_algorithm = "decision_claims.rs digests scenarios, checks that weights are used as declared and never renormalized, and hands interval endpoints to the existing identified-set utility evaluation; it performs no arithmetic on the numbers beyond passing them on."
+record_sha256 = "cffc73cc8ddb2fec48c33e0100fab73bdbdcfb6cef76bd92c10f48546b506c1f"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/decision_claims.rs"
+sha256 = "71b7f358e790897de28ed9fc7cf9ac2a3733c51dfaa4c68d25064afd8e1fd88e"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/decision_claims.rs"
+sha256 = "6ca903e7027d608942712385b2ba0e148a0409cc604ceb4fc05d5cdffb8df6ea"

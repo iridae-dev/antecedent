@@ -220,3 +220,83 @@ fn a_shifted_cohort_stays_point_only() {
     let error = native_cohort_interval(&native, &source, 0.95).unwrap_err();
     assert_eq!(error.detail, DETAIL_NOT_LICENSED);
 }
+
+// -- exact multiprecision reference --------------------------------------------------------------
+// `oracle_data/cohort_linear_effect_reference.py` refits each design by OLS with the HC3 sandwich
+// in 50-digit arithmetic (on the uncentred basis), forms the cohort-mean contrast and its standard
+// error, inverts the Student-t distribution function from the incomplete beta function, and
+// freezes the binary64 roundings.
+
+fn reference() -> serde_json::Value {
+    serde_json::from_str(include_str!("oracle_data/cohort_linear_effect_reference.json")).unwrap()
+}
+
+fn column(v: &serde_json::Value) -> Vec<f64> {
+    v.as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect()
+}
+
+fn rel_close(got: f64, want: f64, rel: f64, what: &str) {
+    let tol = rel * want.abs().max(1e-300);
+    assert!((got - want).abs() <= tol, "{what}: got {got} want {want} tol {tol}");
+}
+
+#[test]
+fn coefficients_and_hc3_covariance_equal_the_multiprecision_fit_with_zero_one_and_two_modifiers() {
+    let fx = reference();
+    for case in fx["fits"].as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        let features: Vec<Vec<f64>> =
+            case["features"].as_array().unwrap().iter().map(column).collect();
+        let columns: Vec<&[f64]> = features.iter().map(Vec::as_slice).collect();
+        let fit =
+            fit_cohort_linear_effect(&column(&case["outcome"]), &column(&case["treatment"]), &columns)
+                .unwrap();
+        assert_eq!(fit.width as u64, case["width"].as_u64().unwrap(), "{name}");
+        let coefficients = column(&case["coefficients"]);
+        let covariance = column(&case["covariance"]);
+        let scale = coefficients.iter().fold(0.0_f64, |m, c| m.max(c.abs()));
+        for (got, want) in fit.coefficients.iter().zip(&coefficients) {
+            assert!((got - want).abs() <= 1e-9 * scale.max(1.0), "{name} coefficient {got} vs {want}");
+        }
+        let vscale = covariance.iter().fold(0.0_f64, |m, c| m.max(c.abs()));
+        for (got, want) in fit.covariance.iter().zip(&covariance) {
+            assert!((got - want).abs() <= 1e-8 * vscale, "{name} covariance {got} vs {want}");
+        }
+    }
+}
+
+#[test]
+fn student_t_critical_values_equal_the_inverted_incomplete_beta() {
+    for q in reference()["t_quantiles"].as_array().unwrap() {
+        let df = q["df"].as_f64().unwrap();
+        let p = q["p"].as_f64().unwrap();
+        rel_close(antecedent_stats::special::student_t_ppf(p, df), q["want"].as_f64().unwrap(), 1e-9, &format!("t({p}; {df})"));
+    }
+}
+
+#[test]
+fn the_cohort_mean_interval_equals_the_reference_point_standard_error_and_bands() {
+    let fx = reference();
+    let case = &fx["fits"][1];
+    let (x, t, y) = (
+        column(&case["features"][0]),
+        column(&case["treatment"]),
+        column(&case["outcome"]),
+    );
+    let native = native_of(&x, &t, &y);
+    let interval = &fx["interval"];
+    let cohort = column(&interval["cohort"]);
+    let (source, first) =
+        native_cohort_interval_for(&native, &cohort_of(&cohort, "target"), "unit", 0.95, &ExecutionContext::for_tests(1))
+            .unwrap();
+    rel_close(source.mean_contrast(), interval["point"].as_f64().unwrap(), 1e-9, "cohort point");
+    rel_close(first.standard_error, interval["se"].as_f64().unwrap(), 1e-8, "cohort standard error");
+    assert_eq!(first.degrees_of_freedom as u64, interval["df"].as_u64().unwrap());
+    for band in interval["levels"].as_array().unwrap() {
+        let level = band["level"].as_f64().unwrap();
+        let got = native_cohort_interval(&native, &source, level).unwrap();
+        rel_close(got.critical_value, band["critical"].as_f64().unwrap(), 1e-9, "critical");
+        rel_close(got.lower, band["lower"].as_f64().unwrap(), 1e-8, "lower");
+        rel_close(got.upper, band["upper"].as_f64().unwrap(), 1e-8, "upper");
+    }
+}

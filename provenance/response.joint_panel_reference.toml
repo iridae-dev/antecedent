@@ -18,3 +18,22 @@ test_sources = [
   "conformance/response/joint_panel/expected.json (retained group, initial-history, innovation, per-world and whole-contrast truth)",
   "scripts/test_joint_panel_reference.py (independent steady-state Delta_AB=2/3 and finite-history transient formulas; data/dependence equations and negative support design)",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "An independent standard-library generator of the truth for the finite-lag two-channel panel fixtures: weighted carryover precedes a shared saturation, with group intercepts, seasons and AR(1) errors declared explicitly; it is a reference, not a fitted route."
+no_independent_algorithm = "reference.py evaluates the declared structural equations (lag-weighted exposure, Michaelis-Menten saturation, AR(1) recursion) and averages the contrast over the retained groups and histories; it imports no production estimator and estimates nothing from data."
+covered_by = ["response.joint_panel"]
+derivation = "Carryover exposure E_t = sum_k w_k x_{t-k} over the declared lag weights, saturation s(E) = E / (E + K) with K = 2, mean outcome 2 + group + season + 0.7 z + 3 s(A) + 2 s(B) + beta_AB s(A) s(B) with AR(1) errors; after the lag window a sustained dose of 4 saturates both channels at 4/6, so the interaction contrast is beta_AB (4/6)^2 = 2/3 for beta_AB = 1.5, and the additive variant has contrast 0. scripts/test_joint_panel_reference.py asserts the closed form and the finite-history transient averages to 13 places."
+record_sha256 = "c8729dd743a2155b7361b2cb917247e8195d1339af672404b1a08e7000bc3486"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "conformance/response/joint_panel/reference.py"
+sha256 = "2f1201ab9ef4025a4a5273885c43f58357d87d7fe277b42db4776a4a3893c4d7"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "scripts/test_joint_panel_reference.py"
+sha256 = "991b570a08d47ac35f69e298cbb62353b338735f76d61a51136b88f9ceddedad"

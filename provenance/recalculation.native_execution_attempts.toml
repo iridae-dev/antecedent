@@ -8,3 +8,25 @@ papers = []
 implementation_deviations = ["Actual original source RAII lifecycle guards and propagated joined-worker counters, including original Python interrupt dispatch and resolved learner workers; no parallel numerical engine or scientific authority.", "Distinct primitive/model operation levels are not summed as fits; original errors and successful receipt wire remain unchanged."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent-core/src/execution_attempt.rs", "python/tests/test_execution_attempt.py", "crates/antecedent/tests/recalc_attempt.rs", "crates/antecedent-estimate/src/joint_cell_factorized.rs", "crates/antecedent-stats/src/fit_counts.rs", "crates/antecedent-learn/src/fit_counts.rs", "crates/antecedent-estimate/src/retarget.rs"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Attempt accounting for the native execution paths: attempted, completed and failed counts of fits, solves and operations, kept separate from fit counts."
+no_independent_algorithm = "execution_attempt.rs is a scoped atomic counter with drop-restoring nesting and recalc_attempt.rs re-exports it; there is no floating-point computation in either file."
+record_sha256 = "5f8bc44cd41b9ed071ad68127c21164bb3dd6721a39ff6b6fdfd1b66941ead4a"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-core/src/execution_attempt.rs"
+sha256 = "aa216473749f1c16d1a0ea88e3d6b253d09dd5ecacc60228e67d360de6b0e7f7"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_attempt.rs"
+sha256 = "5e053baba9f4e0c851776f0c5dd02de08b6abbd2f532a49ececedfec8801ee98"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/recalc_attempt.rs"
+sha256 = "4895fbf6bea6a03f8940307f66a9d57fc087118cb744364915ee7ff9e5c2c8af"

@@ -8,3 +8,20 @@ papers = []
 implementation_deviations = ["The original checked finite native engine supplies real producing state and its original execution context. Two real foreign mean callbacks execute under their original external program and policy contracts. All three inputs enter the original supported composition boundary as ordered scientific alternatives, preserving native versus externally attested standing. One shared original RecalcPlan/receipt accounts for actual native factors/integrations, branch-specific provider entries and terminal decision work. Utility-only changes do no provider/native work; one foreign request mutation invokes only that provider plus the original decision; native data changes refresh original native factors while compatible providers remain retained. Failed scientific transactions leave prior native/provider/decision state usable while attempted side effects remain recorded. Fresh-process scientific replay explicitly reexecutes supplied raw native requests and compatible supplied callbacks, and independently consumes the original receipt. This finite mean workflow does not create a joint law, arbitrary callback runtime or calibrated ranking guarantee.", "Original integration engineering; existing ordinary ID, native finite evaluation, external contract binder, supported decision and canonical original receipt own their numerical/scientific methods. No new inferential guarantee."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/recalc_composite.rs", "python/tests/test_recalc_composite.py", "crates/antecedent-io/tests/native_contract_identity.rs"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "One shared dependency plan over a retained native response and attested external callbacks: stage identities, dependency binding and refusals when the two sources disagree."
+no_independent_algorithm = "recalc_composite.rs composes the static-response and external-callback sessions and folds identities; it contains no sqrt, ln, exp, solve or loop over data, and the numbers it reports are the two executing sessions' own. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
+record_sha256 = "8ac59f7c496846985f009bad2aca46bd5d3813d478e2b8812be4b8783b68537b"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_composite.rs"
+sha256 = "88e472f5d3701b9899d8a4791ed74944eb8c7f01b823462f68af08df6eb61f4c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/recalc_composite.rs"
+sha256 = "60ed7bcbdff209e845ef1d16c5c52bc18f87714f832b6641fb81a417f061818d"

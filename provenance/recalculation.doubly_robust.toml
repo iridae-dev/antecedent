@@ -26,3 +26,21 @@ test_sources = [
   "crates/antecedent-io/tests/recalc_receipt_artifact.rs",
   "python/tests/test_recalc_dr.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Shared-plan retention over the checked DML-AIPW and DR-Learner estimators: frozen scores, same-row reweighting and point CATE prediction without refitting."
+no_independent_algorithm = "recalc_dr.rs counts resolved fits, retains the estimator's scores and calls the existing retarget and prediction primitives; the only arithmetic of its own is a min/max range check of row ids and the shared decision arithmetic. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
+covered_by = ["estimate.dml", "estimate.dr.learner", "estimate.aipw"]
+record_sha256 = "4871fb90d0f5254f87593b10bc0c99b1843aabede9ba2c991f758687cf9ad892"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_dr.rs"
+sha256 = "d7341dbf98b0d84551fa66d713aa6afad885d8b832fd94f1762b4de06e122825"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/recalc_dr.rs"
+sha256 = "d7bd2a79b7f8fa78571a8a80c5ddd8db5176a47b90461bb3b511f183992b08a9"

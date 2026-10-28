@@ -632,3 +632,111 @@ fn compact_build_refuses_malformed_specifications() {
     spec.response.units = String::new();
     assert_eq!(detail(spec), "compact_export.invalid_quantity");
 }
+
+// Exact rational reference: `oracle_data/compact_export_reference.py` evaluates f(x) = b'phi(x)
+// and se = sqrt(phi'V phi) in exact arithmetic (the root at 50 digits) for a quartic power basis
+// and for a quadratic with one-hot levels, both with dense positive-semidefinite covariances.
+
+use serde_json::Value;
+
+fn reference_floats(v: &Value) -> Vec<f64> {
+    v.as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect()
+}
+
+fn reference_terms(v: &Value) -> Vec<TermSpec> {
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|t| match t["kind"].as_str().unwrap() {
+            "intercept" => TermSpec::Intercept,
+            "linear" => TermSpec::Linear { quantity: t["quantity"].as_str().unwrap().into() },
+            "power" => TermSpec::Power {
+                quantity: t["quantity"].as_str().unwrap().into(),
+                degree: t["degree"].as_u64().unwrap() as u32,
+            },
+            _ => TermSpec::OneHot {
+                quantity: t["quantity"].as_str().unwrap().into(),
+                level: t["level"].as_str().unwrap().into(),
+            },
+        })
+        .collect()
+}
+
+fn reference_spec(case: &Value) -> ExportSpec {
+    let with_levels = case["queries"][0]["g"].is_string();
+    let mut inputs = vec![ExportInput {
+        quantity: quantity("x", "treatment", "mg"),
+        support: InputSupport::Range { lo: 0.0, hi: 10.0 },
+    }];
+    if with_levels {
+        inputs.push(ExportInput {
+            quantity: quantity("g", "covariate", "category"),
+            support: InputSupport::Levels { levels: vec!["a".into(), "b".into(), "c".into()] },
+        });
+    }
+    ExportSpec {
+        response: quantity("y", "outcome", "mmHg"),
+        inputs,
+        terms: reference_terms(&case["terms"]),
+        coefficients: reference_floats(&case["coefficients"]),
+        covariance: reference_floats(&case["covariance"]),
+        mask: vec![],
+    }
+}
+
+#[test]
+fn compact_point_and_se_equal_the_exact_rational_quadratic_form() {
+    let cases: Vec<Value> =
+        serde_json::from_str(include_str!("oracle_data/compact_export_reference.json")).unwrap();
+    assert_eq!(cases.len(), 2);
+    let mut checked = 0;
+    for case in &cases {
+        let export = CompactExport::build(reference_spec(case)).unwrap();
+        for q in case["queries"].as_array().unwrap() {
+            let mut query = ExportQuery::new().with_number("x", q["x"].as_f64().unwrap());
+            if let Some(level) = q["g"].as_str() {
+                query = query.with_level("g", level);
+            }
+            let got = export.evaluate(&query).unwrap();
+            let (point, se) = (q["point"].as_f64().unwrap(), q["se"].as_f64().unwrap());
+            let name = case["name"].as_str().unwrap();
+            assert!((got.point - point).abs() <= 1e-12 * point.abs().max(1.0), "{name} point {} vs {point}", got.point);
+            assert!(
+                (got.model_based_se - se).abs() <= 1e-10 * se.max(1e-3),
+                "{name} se {} vs {se}",
+                got.model_based_se
+            );
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 6 + 18);
+}
+
+#[test]
+fn compact_indefinite_asymmetric_and_negative_covariances_are_refused() {
+    let base = |covariance: Vec<f64>| ExportSpec {
+        response: quantity("y", "outcome", "mmHg"),
+        inputs: vec![ExportInput {
+            quantity: quantity("x", "treatment", "mg"),
+            support: InputSupport::Range { lo: 0.0, hi: 10.0 },
+        }],
+        terms: vec![
+            TermSpec::Intercept,
+            TermSpec::Linear { quantity: "x".into() },
+            TermSpec::Power { quantity: "x".into(), degree: 2 },
+        ],
+        coefficients: vec![1.0, 2.0, 3.0],
+        covariance,
+        mask: vec![],
+    };
+    // Unit diagonal with correlations 0.9, -0.9, 0.9: every pairwise bound holds, the determinant
+    // 1 + 2abc - a^2 - b^2 - c^2 is negative, so the matrix is not positive semidefinite.
+    let indefinite = vec![1.0, 0.9, -0.9, 0.9, 1.0, 0.9, -0.9, 0.9, 1.0];
+    assert!(CompactExport::build(base(indefinite)).is_err());
+    let asymmetric = vec![1.0, 0.3, 0.0, 0.1, 1.0, 0.0, 0.0, 0.0, 1.0];
+    assert!(CompactExport::build(base(asymmetric)).is_err());
+    let negative = vec![-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+    assert!(CompactExport::build(base(negative)).is_err());
+    let identity = vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+    assert!(CompactExport::build(base(identity)).is_ok());
+}

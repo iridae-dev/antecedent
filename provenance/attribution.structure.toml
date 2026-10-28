@@ -47,3 +47,21 @@ test_sources = [
  "conformance/attribution/structure_change_parent_swap",
  "crates/antecedent/tests/attribution.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Parent-set (structural change) attribution by a dual-graph coalition game: hybrid DAGs swap whole parent-edge sets between the baseline and comparison graphs, mechanisms are refit under each hybrid, and the outcome-marginal change is Shapley-attributed to the nodes whose parent sets differ."
+no_independent_algorithm = "structure_change.rs builds the hybrid graphs (refusing a cyclic hybrid), calls the mechanism fitter and estimate_shapley, and reports total, observed and unexplained change as differences of the returned values; it contains no sqrt, ln, exp, solve or loop over data of its own."
+covered_by = ["attribution.shapley", "attribution.distribution_change"]
+record_sha256 = "5409365556c03a5a66fb776a54508733c296668ba2f228671f343238a8e84c6c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/structure_change.rs"
+sha256 = "0cc5cd0cfb8571ce32275e17487ef74a94841cc54177e038a9d1088b151b4e69"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/attribution.rs"
+sha256 = "b85777654e4e9aaf2dcadb59e3dd5fdf5756eb0dd39255549b84a9c6d4f9df2b"

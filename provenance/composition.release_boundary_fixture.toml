@@ -27,3 +27,20 @@ test_sources = [
   "a fresh-process consumer holding only bytes, retained identities and declarations, with its own closed-form oracle",
   "mutations of quantity, law, support, snapshot and evidence overlap, each refused with a recorded code and detail",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A release-boundary scenario that drives routes carrying their own provenance (binary misclassification correction, finite mechanism composition, summary pooling, the joint-law rule, claim revalidation) and the expectation of an affine utility."
+no_independent_algorithm = "scenario.rs declares the inputs and calls those routes; every expected value is a closed form written in the test from the declared inputs (prevalence 0.3, pooled 0.15, excess risk 0.045, utility 15, revised pool 0.08). It computes no statistic of its own."
+record_sha256 = "0f4a1d5bd9059a2a7622274c050cc97aa13044de05871b498b47c2c1d7aebeaf"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/tests/composition_release_fixture/scenario.rs"
+sha256 = "9a1b3a8c4c0d55acaaae726c6c07f7a1cab4f1fa7fed8c220c8d609aa85476a0"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/composition_release_fixture.rs"
+sha256 = "889843f86665a5945e44f1e75ed3686ee7085d576e4b770ec644ed1879b6aace"

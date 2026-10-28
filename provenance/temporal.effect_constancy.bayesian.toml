@@ -17,3 +17,27 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-estimate/tests/effect_constancy.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Normal posterior mean of the effect-constancy contrast using the contrast variance the frequentist test already forms."
+no_independent_algorithm = "known_variance_posterior returns point * tau^2 / (tau^2 + variance); the contrast and its variance are produced by the covered constancy test. No interval."
+covered_by = ["estimate.posterior_mean_kernel", "temporal.effect_constancy"]
+derivation = "Normal likelihood for the contrast with supplied variance v and an N(0, tau^2) prior give posterior mean point * tau^2 / (tau^2 + v); checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
+record_sha256 = "83a2ddb0489bb31044d73ad2af944a6805da2d09c93eb6db2bd6ed4930af6177"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/effect_constancy.rs"
+sha256 = "3e58351e83dce10ea150cdec2d83a8b27bf850fcc13a3798581bd312daa4faf9"

@@ -25,3 +25,34 @@ test_sources = [
   "python/tests/test_recalc_adjusted.py",
   "crates/antecedent/tests/adjusted_recalc_precision.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The numerical contrast of a retained adjusted model (AdjustedFit::contrast in adjustment_resume.rs): the identity-link effect delta'b with gradient delta on the treatment columns, and for the logit and Poisson-log links the target-law mean of the response-scale difference with its delta-method gradient and the standard error sqrt(g'Sg), over unweighted rows and over declared non-negative target weights, including the fit those numbers come from (OLS with model-based covariance, binomial-logit and Poisson-log Fisher covariance). Not a review of recalc_adjusted.rs (planning, identities, receipts and refusals, which carry no arithmetic of their own beyond the decision net benefit), of AdjustedFit::predict, the categorical regime, probit or negative-binomial links, or of how a changed role or graph invalidates the fit."
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied."
+redistribution = "No work is redistributed; the delta method and the generalized linear model score equations are textbook. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is not a product dependency."
+limitations = "Five seeded designs (OLS with two vector treatments and with a scalar treatment and two adjusters, logit with and without weights and with two treatments, Poisson-log with weights; 25 to 150 rows) are compared at 1e-6 relative for the effect and 1e-5 relative for the standard error. Probit, negative-binomial and the categorical regime are unreviewed; ill-conditioned or near-separated designs, large linear predictors where the logistic mean saturates, and very large row counts are not exercised. The reference script declares inline script metadata but is not run in a locked environment and is not wired into a gate; its output is frozen in the JSON file."
+assumptions = ["The target law is the retained rows reweighted by the supplied weights; the row law is treated as fixed, so the standard error is conditional on it and excludes target-law estimation (the record states this).", "The delta-method standard error uses the retained coefficient covariance as supplied; no robust or bootstrap variance is reviewed.", "Fits are converged and full rank; the reference refits from the data to 40 digits so only the product's solve tolerance separates them."]
+sources = ["https://en.wikipedia.org/wiki/Delta_method", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The effect and the delta-method standard error equal the 40-digit refit-and-contrast reference on all five designs: the identity link cancels the intercept and adjustment block exactly, and the logit and Poisson gradients include the adjustment columns through the row-wise mean derivatives with the normalized target weights.", "A wrong-length treatment setting, a wrong-length or negative weight vector, an all-zero weight vector and a setting outside the observed binary support are refused.", "No product defect was found in this record."]
+record_sha256 = "a87664d2bcf1186c410bf8a3e177f9f6a922118c127b6ff83867642427eecb46"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/adjustment_resume.rs"
+sha256 = "ee0075b670facec6a05cf2322b3d731163fdeb76b648356cc05f3540c15ff655"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/adjusted_contrast_reference.rs"
+sha256 = "67648237eff2b57c15fa780d5612b25c187ffff126bd4ac667a8a681f04d3ec8"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/adjusted_contrast_reference.py"
+sha256 = "296ff5598e4498c9b15bf1937e8c34150e3443a7e6ef6b7e44242085fdcc19b5"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/adjusted_contrast_reference.json"
+sha256 = "0edda5bfa5dc51206aaeb310015a00501a319d3c44ee97f5d996652773be6eec"

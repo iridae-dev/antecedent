@@ -15,3 +15,20 @@ test_sources = [
   "crates/antecedent-design/tests/structured_refusals.rs",
   "python/tests/test_structured_refusals.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A typed refusal envelope and its validator: a registered runtime reason code, a stage and a detail of the form namespace.snake_case; four different mistakes stay four distinguishable refusals."
+no_independent_algorithm = "external_refusal.rs checks strings, registered codes and field presence and builds the envelope; it has no floating-point computation."
+record_sha256 = "5192fb0e35aca3e25fbd1fdb9e150e96c090b25bafb48fadb35d8ac6ff1fab47"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/external_refusal.rs"
+sha256 = "978502edb9fda049f6ab125757cb3b4376fb4669393fa1d730f95c494f9efb25"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/structured_refusals.rs"
+sha256 = "d3ffde0d0cfaf3746e49c203ad0969a2b602155524a5bc4f1d9dae7b85c977c5"

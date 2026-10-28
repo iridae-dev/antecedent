@@ -8,3 +8,34 @@ papers = []
 implementation_deviations = ["Original checked preparation and original conjugate Gaussian/basis engine issue the actual posterior. Retention and summary never create new draws. A changed likelihood/configuration invalidates numerical state while compatible causal proof is retained. Source transfer is admitted only through a bounded capsule embedding source raw data, checked source graph/query/configuration and original posterior artifact: fresh verification reruns the source posterior and compares its complete artifact before the target uses it. Known same-content source/target likelihood is refused before work; absence of partial overlap identifiers cannot establish independence. Selected joint transport remains a separate calibration-internal candidate, not a public calibrated transport license.", "Retention is original engineering over existing identified/numerical engines; no imported estimator theorem or coverage guarantee is asserted. Whole-method measurement and public inference activation remain separate gates."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/recalc_bayesian.rs", "python/tests/test_recalc_bayesian.py", "conformance/recalculation/bayesian_retention/expected.json", "conformance/recalculation/bayesian_retention/README.md"]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The projections of a retained native posterior's effect draws that recalc_bayesian.rs computes itself (summarize_issued_values and empirical_quantile): the draw mean, the Bessel posterior standard deviation, the two interpolated posterior quantiles found by order-statistic selection (linear interpolation between neighbouring order statistics, Hyndman and Fan type 7), the strict-inequality proportion below a threshold, and their refusals. Not a review of the posterior engine that issues the draws (its own records), of the retention, planning and receipt machinery, of the source-transfer capsule, or of the decision net benefit beyond the single multiply-add it uses."
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied."
+redistribution = "No work is redistributed; the sample mean, Bessel standard deviation and type-7 quantile are standard definitions stated in the reference script. The script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is not a product dependency."
+limitations = "Eight draw sets (2 to 1001 draws, ties, a threshold equal to a draw, one set offset by 1e9 with spread 0.25, one with spread 1e-6) are compared: mean and quantiles to 4 ulps of the largest draw, standard deviation to 1e-9 relative, the strict proportion exactly. Selection is exercised through quantile positions that are integer and fractional and through the top order statistic; million-draw sets, NaN-bearing draws (refused) and the speed of selection are not examined. The reference script declares inline script metadata but is not run in a locked environment and is not wired into a gate; its output is frozen in the JSON file."
+assumptions = ["The draws are the aligned rows issued by the native checked execution; this review treats them as given data.", "Quantile probabilities are strictly inside (0,1) with lower below upper; threshold comparisons are strict.", "The mean uses compensated summation in the kernel and the quantile arithmetic is binary64 on the order statistics, so agreement is to a few ulps of the draw scale."]
+sources = ["https://doi.org/10.1080/00031305.1996.10473566", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["The posterior mean, standard deviation, both type-7 quantiles and the strict proportion below equal the exact rational reference on all eight draw sets, including ties, a threshold that equals a draw (counted as not below), the top order statistic and a set offset by 1e9 where cancellation would show.", "Fewer than two draws, a non-finite draw and every invalid probability pair (zero, one, reversed, equal, NaN) are refused.", "No product defect was found in this record."]
+record_sha256 = "f3cd56121403db4a89b249a0b6475a9f055c2fa0d6d49950319bc6fcafb53179"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_bayesian.rs"
+sha256 = "1eaa0be5ad131097080490291949c58a22d6a79bda04ac98985cef74f8003d9e"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/src/analysis/recalc_bayesian_summary_tests.rs"
+sha256 = "c7d8b88c82d43c4d6bd8302f8481ce32cdd7155f74beac8955adc8b024732128"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent/tests/oracle_data/recalc_posterior_summary_reference.py"
+sha256 = "e628cffa66193d66c90977dfddadd20d3580c58929f019d105c9e594cfb28c59"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent/tests/oracle_data/recalc_posterior_summary_reference.json"
+sha256 = "52b2ca48c5a8001b41630500c5869144d16f60f54370a4972610864382150eb4"

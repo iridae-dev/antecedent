@@ -32,3 +32,21 @@ test_sources = [
   "crates/antecedent-io/tests/recalc_receipt_artifact.rs",
   "python/tests/test_recalc.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A durable container for the receipt of one selective recalculation: per-stage digests, capability declarations, statuses, counted work and canonical identities, recomputed by the consumer from the stored declarations."
+no_independent_algorithm = "recalc_receipt_artifact.rs serializes and re-derives BLAKE3 identities and checks stored counts against the planner; counts are integers and the file has no floating-point computation."
+covered_by = ["recalculation.selective"]
+record_sha256 = "5ff730995bd2249b4d2c61860992c8de0a6fe8839409cef0030e3e32339c5f14"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs"
+sha256 = "fa89e232037aea2e143f28fe039e5ab7c3c7bd84f4c47e32ad15ba407b97db9d"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io/tests/recalc_receipt_artifact.rs"
+sha256 = "16a7c0176b05c816b0303734b7699a471cff378f596392948179b02b0d9cb067"

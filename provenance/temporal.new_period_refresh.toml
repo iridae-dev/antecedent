@@ -27,3 +27,20 @@ test_sources = [
   "crates/antecedent-io/tests/temporal_refresh_artifact.rs",
   "python/tests/test_temporal_extensions.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A semantic refresh of a prepared horizon-two temporal result onto a new observation period: an ordered comparison of the declared window identity (horizon, lag alignment, intervention history, selection targets, regimes, graph, proof, period, snapshot) decides reuse or a typed invalidation."
+no_independent_algorithm = "temporal_refresh.rs compares identities and declared premises in order and builds the receipt or the typed refusal; it has no floating-point computation and the refreshed value is re-evaluated by the covered temporal engine."
+record_sha256 = "1193e1c49a2f63de4e4219c7d2372de8d6988bbd86d81b0894897e32f9cd36e2"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_refresh.rs"
+sha256 = "8d7acf1a94c83a5a5121f0f679879d9d037dbc6a9945e77af252d9c3a043cacb"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/temporal_refresh.rs"
+sha256 = "8978360cb05d27d9928228fb214da4c44f55046405968fbeae05cddd15e7e176"

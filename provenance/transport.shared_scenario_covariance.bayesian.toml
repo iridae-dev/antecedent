@@ -17,3 +17,32 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-estimate/tests/scenario_covariance.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Normal-normal shrinkage of each shared scenario covariance entry toward zero using the entry's estimator sampling variance."
+no_independent_algorithm = "covariance_entry_posterior shrinks each entry by tau^2 / (tau^2 + v); v is kappa * correction^2 / n_rows with kappa the weighted variance of the centred replicate products (entry_sampling_variances in scenario_covariance.rs, a plug-in fourth-moment variance of a covariance); the replicate covariance itself is the covered record."
+covered_by = ["estimate.posterior_mean_kernel", "transport.shared_scenario_covariance"]
+derivation = "The sample covariance of centred products c_r has sampling variance Var(c)/n, estimated by kappa/n_rows with kappa = sum_r w_r (c_r - m)^2 and m = sum_r w_r c_r; the entry is then updated by the known-variance normal-normal rule point * tau^2 / (tau^2 + v). The scenario test recomputes kappa/n_rows by hand to 1e-12 and the kernel reference checks the update in exact rationals."
+record_sha256 = "17bae7b982f1ba4714bd3c1d959447e1647b47575dac87bee9204e23a2c63fca"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/scenario_covariance.rs"
+sha256 = "c76181124902882858c2e54fa70f14f13f0390c5e13b6828895fc438fc2ce83e"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/scenario_covariance.rs"
+sha256 = "6dca987e9ea4a4428d5625f8032b3f8b280f5d0c2d65109626f968fed41e437b"

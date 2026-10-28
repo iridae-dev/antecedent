@@ -16,3 +16,20 @@ test_sources = [
   "crates/antecedent-contract/tests/composition_verification.rs",
   "crates/antecedent/tests/composition_verification_facade.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "closed_variant"
+rationale = "A closed variant: no interval, posterior or coverage statement is produced for a revalidated or composed claim, and a calibration record is not inherited by a claim about another target."
+no_independent_algorithm = "revalidate.rs classifies claims against an earlier snapshot and returns a typed refusal (composition_verification.calibration_not_held) with the remedy of reporting the point value only; it computes no interval."
+record_sha256 = "6daf63e3b6a903c360dc5eb3cb4fe565d4f3c87a9aa8ea526fde3a8bb54fe913"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/composition_verification/revalidate.rs"
+sha256 = "1c362909789e331233bac463bbb65644412bd7985916273fe482f830bf1dc80f"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/composition_verification.rs"
+sha256 = "aa5ccea15516ae7f6adb5c1d4824d1b05e8ef1c2d466c900b3383b823faecce9"

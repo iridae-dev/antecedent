@@ -17,3 +17,27 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-estimate/tests/mechanism_discrepancy.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Posterior means of one population's mechanism coefficients, intercept included, under independent normal priors on the parent slopes; not a posterior of the Wald statistic."
+no_independent_algorithm = "mechanism_coefficient_posterior converts the retained X'X, X'y, y'y summary to a design summary (rss = y'y - beta'X'y) and calls full_coefficient_posterior_mean; the discrepancy statistic is the covered record. No interval."
+covered_by = ["estimate.posterior_mean_kernel", "sensitivity.mechanism_discrepancy"]
+derivation = "Normal likelihood with plug-in variance sigma2 = rss / (n - p) and independent N(0, tau^2) priors on the non-intercept coefficients (intercept unpenalized) give posterior mean (X'X + (sigma2 / tau^2) D)^-1 X'y; checked against the exact penalized normal equations in posterior_mean_reference.rs and in the route's own test."
+record_sha256 = "477a297af5ebad253b733f8ccbf415780a91b003daa2e472b2dad20e25e772a3"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/mechanism_discrepancy.rs"
+sha256 = "b9e5be405f8606bbc15006b84dddfd141c5e3380d9200421176a167232ac2ede"

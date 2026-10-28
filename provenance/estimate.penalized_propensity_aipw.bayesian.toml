@@ -17,3 +17,27 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-estimate/tests/penalized_aipw.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Posterior mean of a cross-fitted score contrast under an independent normal prior at zero (Penalized namespace); the point is the mean of the penalized-propensity AIPW score contrast and the frequentist interval is not reused."
+no_independent_algorithm = "score_contrast_posterior forms the paired contrast, its mean and Bessel variance, and the normal-normal weight; the cross-fitted scores are produced by the covered estimator and consumed unchanged. posterior_mean.rs also holds the Dirichlet, ridge and Gaussian-kernel local-quadratic routes, which belong to other records."
+covered_by = ["estimate.posterior_mean_kernel", "estimate.penalized_propensity_aipw"]
+derivation = "Normal likelihood for a mean with plug-in precision P = n / s2 and an independent N(0, tau^2) prior give posterior mean P / (P + 1 / tau^2) * mean = mean * n tau^2 / (n tau^2 + s2); checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
+record_sha256 = "098b53d0631c1a7d8d7c487a29d0da3c0871274fc7ab31d2234969783ada36bb"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/penalized_aipw.rs"
+sha256 = "4c33cf24eb9df9b8b7de23d7d125ec29b5c944af3c9c403896fdbd0578f13d59"

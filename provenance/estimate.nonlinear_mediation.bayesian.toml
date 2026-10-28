@@ -17,3 +17,27 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-estimate/tests/nonlinear_mediation.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Posterior means of the mediator and outcome coefficient vectors under independent normal priors on every non-intercept column with the OLS residual variance plugged in."
+no_independent_algorithm = "mediation_coefficient_posterior calls full_coefficient_posterior_mean on the mediator and outcome design summaries produced by the covered mediation estimator. No interval."
+covered_by = ["estimate.posterior_mean_kernel", "estimate.nonlinear_mediation"]
+derivation = "Normal likelihood with plug-in variance sigma2 = rss / (n - p) and independent N(0, tau^2) priors on the non-intercept coefficients (intercept unpenalized) give posterior mean (X'X + (sigma2 / tau^2) D)^-1 X'y; checked against the exact penalized normal equations in posterior_mean_reference.rs and in the route's own test."
+record_sha256 = "b2e98bc5bae25c6e6d08f0d3c07d3215d593712abcfab03c3f3cf6177bbef3b1"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/nonlinear_mediation.rs"
+sha256 = "b6983db64c29f3a220b45dab0be74148efbe022d063f565f16f6175cf79015db"

@@ -18,3 +18,34 @@ test_sources = [
   "crates/antecedent-io-core/src/cohort_decision/tests.rs",
   "crates/antecedent/tests/cohort_decision.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The native linear conditional-effect fit and its cohort-mean interval in antecedent-estimate cohort_linear_effect.rs: the ordinary-least-squares fit of y on (phi, t phi) with phi = (1, modifiers), the HC3 leverage-corrected sandwich covariance of the effect block, the affine map from the centred to the uncentred basis, the cohort-mean standard error sqrt(phibar' V phibar) the source recomputes, the n - p degrees of freedom, and the symmetric Student-t band at a requested level. Not a review of the Student-t quantile function beyond the six degrees of freedom and three probabilities compared, of the retained-model and cohort binding, native-fit replay and compact-export identity machinery, or of any coverage claim (measured elsewhere and not asserted here)."
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied."
+redistribution = "No work is redistributed; OLS, the HC3 sandwich (MacKinnon and White 1985, cited by the record) and the Student-t interval of a linear combination are textbook. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is not a product dependency."
+limitations = "Three seeded heteroskedastic designs (no modifier with 40 rows, one modifier with 120 rows, two modifiers with 50 rows) compare coefficients to 1e-9 and the HC3 covariance to 1e-8 of its largest entry; one cohort of 60 rows compares the point, standard error (1e-8 relative) and three bands (0.90, 0.95, 0.99); the Student-t critical value is compared at degrees of freedom 1, 2, 5, 30, 116 and 1000 and probabilities 0.95, 0.975 and 0.995 to 1e-9 relative. Nearly collinear modifiers, high-leverage designs, continuous (non-binary) doses and large row counts are not exercised, and the weighted-cohort path of the source is exercised only with uniform weights. The reference script declares inline script metadata but is not run in a locked environment and is not wired into a gate; its output is frozen in the JSON file."
+assumptions = ["The cohort is drawn from the model's own population (a shifted cohort is point-only), and the rows are independent with a correctly specified linear conditional effect; the review checks arithmetic, not those assumptions.", "HC3 is undefined at a row with leverage one and the fit refuses there; with near-unit leverage the covariance is dominated by one row.", "The interval treats the cohort mean basis as fixed and so excludes cohort-sampling variability; it is conditional on the cohort rows."]
+sources = ["https://doi.org/10.1016/0304-4076(85)90158-7", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The effect coefficients and the HC3 covariance of the effect block equal the 50-digit refit on the uncentred basis for zero, one and two modifiers, so the centring and the affine back-map to the uncentred basis preserve both the coefficients and the sandwich.", "The cohort point c'phibar, its standard error sqrt(phibar' V phibar) and the lower and upper bands equal the reference at all three levels, with the critical value of the Student-t distribution on n - p degrees of freedom.", "No product defect was found in this record."]
+record_sha256 = "d87164cb130d82f80c6733a6eb96f9d4e5e73b54eec144caecb4060604cd55ce"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/cohort_linear_effect.rs"
+sha256 = "de2d5408a47d75e1722c2e5b05ae8e8585b6ab1c4c5c2254abe400868c528ee1"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/cohort_linear_effect.rs"
+sha256 = "fa82124c6acd3a37c83e3483d900644ef6e94569cefdaa1f67e14cd359b3de2a"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/cohort_linear_effect_reference.py"
+sha256 = "addc9a2d7827b455b00d420310d6b065640373a1c64484a310e0a3dda65dce39"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/cohort_linear_effect_reference.json"
+sha256 = "b823c90bcd2228cf7ec755f75fa946e2f08638070f6ea7dfd1d6cb51ed42322b"

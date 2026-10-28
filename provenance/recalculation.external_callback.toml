@@ -8,3 +8,20 @@ papers = []
 implementation_deviations = ["Original external contract binding validates actual callback output against the declared scientific program. The shared dependency planner tracks bounded raw inputs, model parameters, provider implementation/environment and RNG policy. Actual provider entry is counted separately from input preparation and native estimation. Deterministic and seeded providers may retain compatible output; stateful providers execute again, unknown policies refuse, and side-effect attempts are retained separately from transactional scientific state to prevent implicit retries without an explicit supported idempotency key. Portable output contains the original attested claim, request and provider identities; fresh authority requires actual compatible provider reinvocation and comparison. No serialized callable, native identification, independent distribution or calibrated inference authority is created.", "Original executor and bounded replay engineering, not a new scientific estimator theorem; foreign attestation remains foreign attestation and measured calibration remains a separate gate."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/recalc_external.rs", "python/tests/test_recalc_external.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Executed, attested finite mean callbacks under the shared planner: planning never invokes a provider, and metadata grants no native causal proof."
+no_independent_algorithm = "recalc_external.rs binds provider identity, trust state and metadata limits and records invocation counts; the callback's numbers are supplied by the provider and are not transformed. It contains no numerical routine."
+record_sha256 = "0a8558654d0337d14d98ee0ab5c852882c9f7a50a0904ed9a51d60be60fd486d"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_external.rs"
+sha256 = "90584bacd6a983c7eec462528a9a160b671584dec6ebd40a8db8c8048dcaf31e"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/recalc_external.rs"
+sha256 = "412e4fe4159a862690d2299125f5f0f18149ff7d3f6c4b22898bd297d7832a0b"

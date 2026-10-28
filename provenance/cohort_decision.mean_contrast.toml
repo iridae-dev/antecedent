@@ -21,3 +21,27 @@ test_sources = [
   "crates/antecedent-io-core/src/cohort_decision/tests.rs",
   "crates/antecedent-design/tests/cohort_decision_input.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "A weighted mean of the conditional contrast predictions of a retained model over a declared cohort is the cohort expectation of an affine utility, issued point-only with a model-based standard error diagnostic."
+no_independent_algorithm = "cohort_decision.rs predicts each cohort row (a compact-export basis evaluation or a portable learner's own prediction), takes the compensated weighted sum of the row contrasts, and recomputes sqrt(phibar' V phibar) from the retained covariance; the support check and the covariate-shift check compare declared contracts and reweight nothing."
+covered_by = ["estimate.compact_runtime_export", "cohort_decision.interval"]
+derivation = "E_cohort[tau(X)] = sum_i w_i tau(x_i) with sum w_i = 1, tau(x) = c'phi(x) for a linear compact model, so the mean contrast is c'phibar with phibar = sum w_i phi(x_i) and the standard error is sqrt(phibar' V phibar); crates/antecedent-estimate/tests/cohort_linear_effect.rs compares the point and the standard error to a 50-digit reference to 1e-9 and 1e-8 relative."
+record_sha256 = "f42e37337c9913ba5f5598d184cc095daa23a3be493d36b2afe90cf4bdcff44c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+sha256 = "f03b21b476fd4800d9d1347e8a57f5388dc63deec053d55ad9ed8609dbe5d3ab"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/cohort_linear_effect.rs"
+sha256 = "fa82124c6acd3a37c83e3483d900644ef6e94569cefdaa1f67e14cd359b3de2a"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/cohort_decision.rs"
+sha256 = "dcff078b942302e7cb009ebccbc3dd49dc8968a50f424e037c07c029848f1e65"

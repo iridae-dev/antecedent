@@ -36,3 +36,36 @@ test_sources = [
   "crates/antecedent/src/analysis/evidence_plan.rs",
   "python/tests/test_evidence_plan.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Restating the evidence a failed identification owes as study candidates, ordering the repair options by the identification gate and then by declared value, and valuing one study with the existing preposterior expected value of sample information."
+no_independent_algorithm = "evidence_plan.rs, candidate_generation.rs, structure_identification.rs and confounder_value.rs order options, list obligations and build the decision problem on the grid coordinates; the value is computed by the covered EVSI and the identification verdicts by the covered repair search."
+covered_by = ["design.evsi", "design.identification_repair"]
+record_sha256 = "cd4358799a4002dc08aaffeb1afd18ce333449182482a0000a2b13867ac4d372"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/evidence_plan.rs"
+sha256 = "70c6a2f53628d8a23074d2d411b66f85040b092803653a57cce08bbcd43ccff9"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/candidate_generation.rs"
+sha256 = "70e0defb51303bb19d49eb37375f2ee2146e5f717ec207a8922c201d0e55066c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/structure_identification.rs"
+sha256 = "a98bde7d3197938444835bb532a6fc382ef4548daee626a44f4c2c46e0e502d8"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/confounder_value.rs"
+sha256 = "020746bb97f2d2a509a8e540ac20de375f131070b2340f5197f6e873746761d8"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/evidence_plan.rs"
+sha256 = "d979d97205fe63f5ad946186765342c3da23848e67cad12fc0df21fc9aaa2985"

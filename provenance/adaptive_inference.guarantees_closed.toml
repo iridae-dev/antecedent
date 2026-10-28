@@ -17,3 +17,20 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent/tests/adaptive_inference_facade.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "closed_variant"
+rationale = "A closed adjacent variant: every guarantee slot of an adaptive-inference result is a withheld guarantee that refuses with its own detail instead of reporting an interval or coverage statement."
+no_independent_algorithm = "adaptive_inference.rs gives each estimator entry point a WithheldGuarantee whose refusal names the closed guarantee; the estimators' own numerics belong to the other adaptive_inference records and no interval is computed here."
+record_sha256 = "d2dbae56d38be30fc53ae4782e9b516173a65b9d095b6524d3bbea1ae1734869"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/adaptive_inference.rs"
+sha256 = "9fe5b43e88c99d9a693ae8ceca118d36142009a4410f3eaef1c4933c2fbb9b7c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/adaptive_inference_facade.rs"
+sha256 = "241fb82b880cccd6ce053cda6e03e3141c51aa75fce129bf1662b59890d40818"

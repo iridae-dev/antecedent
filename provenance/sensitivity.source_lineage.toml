@@ -8,3 +8,25 @@ papers = []
 implementation_deviations = ["Original joint sensitivity v3 and its full checked baseline/proof/laws are independently consumed and reexecuted by the original joint sensitivity engine. Original sensitivity surface adapter recomputes and checks the complete surface before source lineage is published.", "Original stored uncertainty and declared provider assumptions remain unchanged; no new statistical method, native execution authority or calibration license."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/source_evidence.rs", "crates/antecedent/tests/joint_sensitivity_lifecycle.rs", "python/tests/test_composition_source_lineage.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Source lineage of an independently consumed and re-executed joint sensitivity artifact: the full checked baseline, proof and laws are recomputed by the original engine before lineage is published."
+no_independent_algorithm = "sensitivity_source.rs routes the artifact through the original joint sensitivity consumer and records lineage; it has no floating-point arithmetic and the surface values are the original engine's."
+record_sha256 = "f12dc841bbd0453809b40431a9fda5e82bf9bf39c7d9fbd8b5ba4b5a5640800f"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/sensitivity_source.rs"
+sha256 = "853482e7a204487a4ec56a4ac28a42975bef346614d61d48a73f068473d167a1"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs"
+sha256 = "fed6ce20a11ca26d3204c5083604025b2f2029e1440e775f7bfaad94991fe079"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/source_evidence.rs"
+sha256 = "20176eea72e5166c8c5b9317606ddb38aabbaaaf86e568ac712d3b87c3834178"

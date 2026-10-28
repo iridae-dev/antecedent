@@ -9,3 +9,21 @@ papers = []
 implementation_deviations = ["ADMG-only static scope and strictly increasing support with at least two points are checked before numerical work. Conservative context memory checks precede provider construction; actual Cartesian CPT allocation has a one-million-cell bound. Missing exact providers retain their typed obstruction and cannot be silently skipped during resampling.", "CPTs bind original complete-case row IDs and their actual columns; unchanged factors may survive other-column refresh without stale aliases.", "Transport factors bind complete source law, population, regime, snapshot and checked proof leaves. Rebinding reuses compatible compiled programs; source mutations invalidate their factors.", "Successful executing component observers count identification, compilation, factor builds, provider binding, factor evaluation, integration and calls. Utility-only changes preserve numerical state. Results are exact finite-grid points, with no statistical uncertainty license."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/recalc_static.rs", "python/tests/test_recalc_static.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Shared-plan retention and identity binding over the checked finite ADMG response and multi-source transport engines."
+no_independent_algorithm = "recalc_static.rs binds conditional probability tables and transport factors, checks support and memory bounds, and reports the contrast of two supplied response means (a single subtraction with a finiteness check); the responses are the covered engines'. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
+covered_by = ["identify.id", "identify.transport_sid", "estimate.response.intervention_gcomp"]
+record_sha256 = "6d9f713b99eb396ba3ef19e8f6f297c421e57be0f7016f6b7bec3a284452e59f"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_static.rs"
+sha256 = "befa71c2bb95886f5d2155d0c5d9eabd1b5723ab17198cf39db31de70b68bbec"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/recalc_static.rs"
+sha256 = "457b6a5b2d26b8a683b381ab60deea91775743c99ccc4a223e9cb364841d078e"

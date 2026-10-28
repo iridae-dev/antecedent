@@ -906,3 +906,7 @@ mod quantile_selection_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "recalc_bayesian_summary_tests.rs"]
+mod summary_reference_tests;

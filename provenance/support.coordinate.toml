@@ -18,3 +18,21 @@ test_sources = [
   "crates/antecedent-estimate/src/response/support.rs",
   "python/tests/test_support_artifact.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Support labelling and a consistency check: each requested coordinate is labelled supported, weak overlap, extrapolative, outside empirical support or missing evidence, and a static grid's summary is checked to be the worst label."
+no_independent_algorithm = "response.rs defines the label set and severity order and support.rs assigns labels from the local effective sample sizes and ranges the response estimators already computed; the summary is a maximum over severities."
+inline_tests = true
+record_sha256 = "bf22e7fc12826b13313383c1da66249400c951b2179c14748a24df46e5edc11a"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-core/src/response.rs"
+sha256 = "fad5dc92f7cf93a5a92bd83eadb0d07806481287658c3d403ce8f6c926a262cf"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/support.rs"
+sha256 = "3897fb55c56a44592120dab2e68271b231bd13d373a9160db9846cbe361bac6c"

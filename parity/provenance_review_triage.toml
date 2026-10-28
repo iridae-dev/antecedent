@@ -6,7 +6,7 @@
 # method families; 2 = linked by an admitted specification; 3 = numerical, unlinked;
 # 4 = contract, closed variant, bookkeeping or unclassified; 0 = reviewed or justified_non_algorithm
 # (a digest-bound mapping to the records and modules that carry the numerics; not a source review).
-# Summary: closed_variant=3, derived_in_repository=34, justified_non_algorithm=75, reviewed=51, source_candidate=13, substantive_method=293, unclassified=1, wrapper_contract=29
+# Summary: justified_non_algorithm=125, reviewed=91, source_candidate=13, substantive_method=271
 
 [[record]]
 id = "adaptive_inference.adaptive_weighting"
@@ -70,13 +70,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "adaptive_inference.guarantees_closed"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "adaptive_inference.participant_family"
@@ -120,13 +120,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "adaptive_inference.procedure_law"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "exact finite law of a batched adaptive Bernoulli procedure by enumeration; correctness is by construction of the recursion and needs an independent enumeration, not a paper"
+basis = "read the module: stats/adaptive_inference/procedure_law.rs is an exact dynamic programme over observed states with a Polya-urn prior predictive, upper-confidence-bound scores (sqrt, ln) and normal boundary statistics; the tests carry independent enumeration oracles but no bounded review is recorded"
 
 [[record]]
 id = "adaptive_inference.procedure_matrix"
@@ -150,13 +150,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "adaptive_inference.procedure_repeated_measures"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 2
 admitted_specs = 1
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "Gaussian design-effect and unit-summary variance in closed form; textbook cluster variance algebra"
+basis = "read the module: stats/adaptive_inference/procedure_repeated_measures.rs forms design effects and unit-summary variances from correlation matrices (powers, square roots), an exact binomial-mixture law with a normal distribution function, and a seeded simulation of epsilon-greedy assignment"
 
 [[record]]
 id = "adaptive_inference.procedure_weighting_simulation"
@@ -240,13 +240,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "attribution.path_decompose"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
 shares_primary_source_with = 1
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "attribution.root_cause"
@@ -260,43 +260,43 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "attribution.shapley"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
 shares_primary_source_with = 0
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "attribution.structure"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "structure player swapping a node's parent set with its refit mechanism"
+basis = "non_algorithm_review (wrapper; covered by: attribution.shapley, attribution.distribution_change) is digest-bound to the mapped modules"
 
 [[record]]
 id = "attribution.unit_change"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
 shares_primary_source_with = 0
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "ci.analytic"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
 shares_primary_source_with = 0
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "ci.bayes"
@@ -335,7 +335,7 @@ priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 2
+shares_primary_source_with = 1
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
@@ -375,7 +375,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 1
+shares_primary_source_with = 0
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -390,33 +390,33 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "cohort_decision.interval"
-class = "derived_in_repository"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "Student-t interval of a linear combination of OLS coefficients; textbook linear-model theory"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "cohort_decision.law_valued_request"
-class = "closed_variant"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "the record states that no method is implemented and the claim is refused or left open"
+basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "cohort_decision.mean_contrast"
-class = "derived_in_repository"
-priority = 2
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "weighted mean of conditional contrast predictions of a retained model; original construction"
+basis = "non_algorithm_review (derivation; covered by: estimate.compact_runtime_export, cohort_decision.interval) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.boundary"
@@ -440,23 +440,23 @@ basis = "non_algorithm_review (wrapper; covered by: composition.verifiers, compo
 
 [[record]]
 id = "composition.language_parity"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.multi_source"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: composition.bundle, composition.native_response_claims, composition.source_evidence, composition.verifiers) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.native_response_claims"
@@ -470,13 +470,13 @@ basis = "non_algorithm_review (wrapper; covered by: composition.program_binding,
 
 [[record]]
 id = "composition.panel_experiment_update"
-class = "wrapper_contract"
-priority = 4
+class = "substantive_method"
+priority = 2
 admitted_specs = 8
 licensed_specs = 2
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "read the module: prob/finite_belief.rs forms the importance weights of the known-variance Gaussian experimental-mean likelihood (exponentials and logarithms) and no other record covers them; the joint-panel wiring around it is a wrapper but the update itself is a numerical method"
 
 [[record]]
 id = "composition.program_binding"
@@ -500,13 +500,13 @@ basis = "non_algorithm_review (contract; covered by: none) is digest-bound to th
 
 [[record]]
 id = "composition.release_boundary_fixture"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.rollout_state"
@@ -530,13 +530,13 @@ basis = "non_algorithm_review (wrapper; covered by: composition.provenance, deci
 
 [[record]]
 id = "composition.source_lineage"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.source_projection"
@@ -550,13 +550,13 @@ basis = "non_algorithm_review (wrapper; covered by: composition.source_evidence,
 
 [[record]]
 id = "composition.structured_refusals"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.verifiers"
@@ -580,13 +580,13 @@ basis = "non_algorithm_review (contract; covered by: none) is digest-bound to th
 
 [[record]]
 id = "composition_verification.revalidated_interval"
-class = "closed_variant"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "the record states that no method is implemented and the claim is refused or left open"
+basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "core.inference_realization"
@@ -605,7 +605,7 @@ priority = 2
 admitted_specs = 3
 licensed_specs = 2
 papers = 1
-shares_primary_source_with = 15
+shares_primary_source_with = 12
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -615,7 +615,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 15
+shares_primary_source_with = 12
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -635,18 +635,18 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 3
+shares_primary_source_with = 2
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "counterfactual.transport_sampled_interval"
-class = "closed_variant"
-priority = 4
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "the record states that no method is implemented and the claim is refused or left open"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "counterfactual.transported_additive"
@@ -670,13 +670,13 @@ basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound
 
 [[record]]
 id = "counterfactual.whole_path_uncertainty"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "accounting of uncertainty sources of a finite Markovian cross-world row"
+basis = "non_algorithm_review (derivation; covered by: cross_world_execution.sampled_and_interval_readings) is digest-bound to the mapped modules"
 
 [[record]]
 id = "cross_world_execution.finite_markovian_scm"
@@ -720,13 +720,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "cyclic.external_mechanisms"
-class = "unclassified"
-priority = 4
+class = "substantive_method"
+priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "no-paper record not covered by any rule; needs a reading"
+basis = "read the module: model/external_mechanism.rs forms the equilibrium log-likelihood with a Cholesky log-determinant of the noise covariance, the Jacobian log-determinant and a central-difference score, and estimate/external_cyclic_fit.rs fits it; the damped-Newton block solver and contraction bound are numerical, not declarations"
 
 [[record]]
 id = "cyclic.general_systems"
@@ -735,38 +735,38 @@ priority = 2
 admitted_specs = 2
 licensed_specs = 2
 papers = 15
-shares_primary_source_with = 5
+shares_primary_source_with = 3
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "data.bayesian_bootstrap"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
 shares_primary_source_with = 9
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "data.resample"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 3
 shares_primary_source_with = 1
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "data.surrogate"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
 shares_primary_source_with = 1
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "decision.admissibility"
@@ -840,13 +840,13 @@ basis = "non_algorithm_review (derivation; covered by: decision.functionals, dec
 
 [[record]]
 id = "decision.scenario_claims"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision.sensitivity_composition"
@@ -920,13 +920,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "decision_reliability.ranking_statement"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 2
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "plain Monte Carlo frequencies with ties split equally"
+basis = "read the module: design/decision_reliability/mc_error.rs forms the batch-means and weighted standard errors (square roots, batch plans) that accompany the ranking frequencies; ranking.rs itself is indicator means with equal tie splitting, but the standard error is a numerical routine"
 
 [[record]]
 id = "decision_reliability.sampled_decision"
@@ -1020,13 +1020,13 @@ basis = "non_algorithm_review (contract; covered by: none) is digest-bound to th
 
 [[record]]
 id = "design.evidence_plan"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: design.evsi, design.identification_repair) is digest-bound to the mapped modules"
 
 [[record]]
 id = "design.evsi"
@@ -1145,7 +1145,7 @@ priority = 0
 admitted_specs = 1
 licensed_specs = 0
 papers = 3
-shares_primary_source_with = 8
+shares_primary_source_with = 7
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
@@ -1195,7 +1195,7 @@ priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 3
+shares_primary_source_with = 2
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
@@ -1265,7 +1265,7 @@ priority = 0
 admitted_specs = 1
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 2
+shares_primary_source_with = 1
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
@@ -1280,13 +1280,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "discovery.notears"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
 shares_primary_source_with = 0
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "discovery.order_mcmc"
@@ -1305,7 +1305,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 2
+shares_primary_source_with = 1
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1315,7 +1315,7 @@ priority = 0
 admitted_specs = 1
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 3
+shares_primary_source_with = 2
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
@@ -1485,7 +1485,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 6
-shares_primary_source_with = 15
+shares_primary_source_with = 14
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1500,13 +1500,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.batch_retarget_covariance.bayesian"
-class = "derived_in_repository"
-priority = 1
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 1
 licensed_specs = 1
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel) is digest-bound to the mapped modules"
 
 [[record]]
 id = "estimate.bayesian_basis_gcomp"
@@ -1525,7 +1525,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 9
+shares_primary_source_with = 8
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1565,7 +1565,7 @@ priority = 2
 admitted_specs = 1
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 2
+shares_primary_source_with = 1
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1585,7 +1585,7 @@ priority = 1
 admitted_specs = 2
 licensed_specs = 2
 papers = 2
-shares_primary_source_with = 2
+shares_primary_source_with = 1
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1595,7 +1595,7 @@ priority = 1
 admitted_specs = 1
 licensed_specs = 1
 papers = 3
-shares_primary_source_with = 14
+shares_primary_source_with = 13
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1605,7 +1605,7 @@ priority = 2
 admitted_specs = 1
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 9
+shares_primary_source_with = 7
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1625,7 +1625,7 @@ priority = 2
 admitted_specs = 4
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 10
+shares_primary_source_with = 9
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1655,7 +1655,7 @@ priority = 2
 admitted_specs = 2
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 18
+shares_primary_source_with = 17
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1675,7 +1675,7 @@ priority = 2
 admitted_specs = 6
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 9
+shares_primary_source_with = 8
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1690,13 +1690,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.calibration_coverage"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: estimate.linear_adjustment, estimate.propensity_weighting, estimate.aipw, estimate.iv_2sls, estimate.rd, estimate.distance_matching) is digest-bound to the mapped modules"
 
 [[record]]
 id = "estimate.categorical_treatment"
@@ -1740,23 +1740,23 @@ basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "estimate.clustered_dml_aipw.bayesian"
-class = "derived_in_repository"
-priority = 1
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 1
 licensed_specs = 1
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel) is digest-bound to the mapped modules"
 
 [[record]]
 id = "estimate.compact_runtime_export"
-class = "wrapper_contract"
-priority = 4
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "estimate.conditional"
@@ -1765,7 +1765,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 9
+shares_primary_source_with = 8
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1790,13 +1790,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.dose_grid_functional"
-class = "substantive_method"
-priority = 2
+class = "reviewed"
+priority = 0
 admitted_specs = 1
 licensed_specs = 0
 papers = 4
 shares_primary_source_with = 1
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "estimate.dose_grid_functional.bayesian"
@@ -1875,7 +1875,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 11
+shares_primary_source_with = 10
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1885,7 +1885,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 15
+shares_primary_source_with = 12
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1895,7 +1895,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 3
-shares_primary_source_with = 26
+shares_primary_source_with = 22
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1925,7 +1925,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 11
+shares_primary_source_with = 10
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1935,7 +1935,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 2
+shares_primary_source_with = 1
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -1985,7 +1985,7 @@ priority = 0
 admitted_specs = 1
 licensed_specs = 1
 papers = 2
-shares_primary_source_with = 12
+shares_primary_source_with = 11
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
@@ -1995,7 +1995,7 @@ priority = 0
 admitted_specs = 2
 licensed_specs = 1
 papers = 2
-shares_primary_source_with = 4
+shares_primary_source_with = 3
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
@@ -2020,13 +2020,13 @@ basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "estimate.iv_2sls"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 10
-basis = "lists primary papers; implementation correspondence not yet read"
+shares_primary_source_with = 9
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "estimate.joint_design"
@@ -2035,7 +2035,7 @@ priority = 2
 admitted_specs = 6
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 2
+shares_primary_source_with = 1
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2060,13 +2060,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.latent_class_effects.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, estimate.latent_class_effects) is digest-bound to the mapped modules"
 
 [[record]]
 id = "estimate.learned_transport"
@@ -2085,7 +2085,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 9
+shares_primary_source_with = 8
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2150,13 +2150,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.nonlinear_mediation.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, estimate.nonlinear_mediation) is digest-bound to the mapped modules"
 
 [[record]]
 id = "estimate.observation_cox_ipcw"
@@ -2175,7 +2175,7 @@ priority = 1
 admitted_specs = 1
 licensed_specs = 1
 papers = 3
-shares_primary_source_with = 3
+shares_primary_source_with = 2
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2230,13 +2230,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.penalized_propensity_aipw.bayesian"
-class = "derived_in_repository"
-priority = 1
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 1
 licensed_specs = 1
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, estimate.penalized_propensity_aipw) is digest-bound to the mapped modules"
 
 [[record]]
 id = "estimate.penalized_propensity_posterior"
@@ -2265,7 +2265,7 @@ priority = 2
 admitted_specs = 1
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 7
+shares_primary_source_with = 5
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2275,7 +2275,7 @@ priority = 2
 admitted_specs = 2
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 6
+shares_primary_source_with = 4
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2295,7 +2295,7 @@ priority = 2
 admitted_specs = 1
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 5
+shares_primary_source_with = 4
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2305,8 +2305,18 @@ priority = 2
 admitted_specs = 1
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 5
+shares_primary_source_with = 4
 basis = "lists primary papers; implementation correspondence not yet read"
+
+[[record]]
+id = "estimate.posterior_mean_kernel"
+class = "reviewed"
+priority = 0
+admitted_specs = 0
+licensed_specs = 0
+papers = 0
+shares_primary_source_with = 0
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "estimate.propensity_matching"
@@ -2325,7 +2335,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 9
+shares_primary_source_with = 8
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2335,7 +2345,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 9
+shares_primary_source_with = 8
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2360,23 +2370,23 @@ basis = "candidate: local polynomial regression (see stats.response.local_polyno
 
 [[record]]
 id = "estimate.quantile"
-class = "substantive_method"
-priority = 2
+class = "reviewed"
+priority = 0
 admitted_specs = 1
 licensed_specs = 0
 papers = 1
 shares_primary_source_with = 2
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "estimate.quantile.bayesian"
-class = "substantive_method"
-priority = 2
+class = "reviewed"
+priority = 0
 admitted_specs = 1
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 6
-basis = "lists primary papers; implementation correspondence not yet read"
+shares_primary_source_with = 5
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "estimate.randomized.ancova_itt"
@@ -2395,7 +2405,7 @@ priority = 2
 admitted_specs = 3
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 11
+shares_primary_source_with = 9
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2410,13 +2420,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.randomized.ht_itt"
-class = "substantive_method"
-priority = 2
+class = "reviewed"
+priority = 0
 admitted_specs = 1
 licensed_specs = 0
 papers = 1
 shares_primary_source_with = 5
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "estimate.randomized.multi_arm"
@@ -2425,18 +2435,18 @@ priority = 2
 admitted_specs = 1
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 5
+shares_primary_source_with = 4
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.randomized.neyman_itt"
-class = "substantive_method"
-priority = 2
+class = "reviewed"
+priority = 0
 admitted_specs = 1
 licensed_specs = 0
 papers = 1
 shares_primary_source_with = 1
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "estimate.randomized.small_arm_interval"
@@ -2455,18 +2465,18 @@ priority = 2
 admitted_specs = 1
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 5
+shares_primary_source_with = 4
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.randomized.wald_cace_late"
-class = "substantive_method"
-priority = 2
+class = "reviewed"
+priority = 0
 admitted_specs = 1
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 1
-basis = "lists primary papers; implementation correspondence not yet read"
+shares_primary_source_with = 0
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "estimate.randomized_missing_outcomes"
@@ -2480,13 +2490,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.rd"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
 shares_primary_source_with = 2
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "estimate.response.bayesian"
@@ -2555,7 +2565,7 @@ priority = 1
 admitted_specs = 8
 licensed_specs = 8
 papers = 5
-shares_primary_source_with = 13
+shares_primary_source_with = 12
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2605,7 +2615,7 @@ priority = 2
 admitted_specs = 2
 licensed_specs = 0
 papers = 3
-shares_primary_source_with = 7
+shares_primary_source_with = 5
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2640,6 +2650,26 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.survival.product_limit"
+class = "reviewed"
+priority = 0
+admitted_specs = 1
+licensed_specs = 0
+papers = 1
+shares_primary_source_with = 1
+basis = "bounded method_review present (digest-bound by the provenance gate)"
+
+[[record]]
+id = "estimate.switchback.bayesian"
+class = "reviewed"
+priority = 0
+admitted_specs = 1
+licensed_specs = 0
+papers = 2
+shares_primary_source_with = 7
+basis = "bounded method_review present (digest-bound by the provenance gate)"
+
+[[record]]
+id = "estimate.switchback_history"
 class = "substantive_method"
 priority = 2
 admitted_specs = 1
@@ -2649,33 +2679,13 @@ shares_primary_source_with = 1
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
-id = "estimate.switchback.bayesian"
-class = "substantive_method"
-priority = 2
-admitted_specs = 1
-licensed_specs = 0
-papers = 2
-shares_primary_source_with = 8
-basis = "lists primary papers; implementation correspondence not yet read"
-
-[[record]]
-id = "estimate.switchback_history"
-class = "substantive_method"
-priority = 2
-admitted_specs = 1
-licensed_specs = 0
-papers = 1
-shares_primary_source_with = 2
-basis = "lists primary papers; implementation correspondence not yet read"
-
-[[record]]
 id = "estimate.temporal_design_excursion"
 class = "substantive_method"
 priority = 2
 admitted_specs = 22
 licensed_specs = 0
 papers = 4
-shares_primary_source_with = 2
+shares_primary_source_with = 1
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2685,7 +2695,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 18
+shares_primary_source_with = 15
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2705,7 +2715,7 @@ priority = 2
 admitted_specs = 2
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 9
+shares_primary_source_with = 8
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2715,7 +2725,7 @@ priority = 1
 admitted_specs = 3
 licensed_specs = 3
 papers = 1
-shares_primary_source_with = 9
+shares_primary_source_with = 8
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2765,7 +2775,7 @@ priority = 1
 admitted_specs = 7
 licensed_specs = 5
 papers = 2
-shares_primary_source_with = 11
+shares_primary_source_with = 10
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -2805,7 +2815,7 @@ priority = 1
 admitted_specs = 1
 licensed_specs = 1
 papers = 2
-shares_primary_source_with = 11
+shares_primary_source_with = 10
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3035,7 +3045,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 3
-shares_primary_source_with = 3
+shares_primary_source_with = 2
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3045,18 +3055,18 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 4
+shares_primary_source_with = 3
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "graph.cpdag_completion"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
 shares_primary_source_with = 2
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "graph.dsep"
@@ -3070,23 +3080,23 @@ basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "graph.m_separation"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 3
 shares_primary_source_with = 3
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "graph.projection"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 1
-basis = "lists primary papers; implementation correspondence not yet read"
+shares_primary_source_with = 0
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "graph.sigma_separation"
@@ -3095,7 +3105,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 4
+shares_primary_source_with = 2
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3105,7 +3115,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 2
+shares_primary_source_with = 1
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3130,13 +3140,13 @@ basis = "non_algorithm_review (wrapper; covered by: identify.backdoor, identify.
 
 [[record]]
 id = "identify.backdoor"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 15
-basis = "lists primary papers; implementation correspondence not yet read"
+shares_primary_source_with = 13
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "identify.binary_iv_bounds"
@@ -3185,7 +3195,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 15
+shares_primary_source_with = 12
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3205,7 +3215,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 5
+shares_primary_source_with = 3
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3215,7 +3225,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 5
+shares_primary_source_with = 3
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3225,18 +3235,18 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 5
+shares_primary_source_with = 3
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "identify.frontdoor"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 15
-basis = "lists primary papers; implementation correspondence not yet read"
+shares_primary_source_with = 13
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "identify.gcm_parametric"
@@ -3260,23 +3270,23 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "identify.hedge"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 2
-basis = "lists primary papers; implementation correspondence not yet read"
+shares_primary_source_with = 1
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "identify.id"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 2
-basis = "lists primary papers; implementation correspondence not yet read"
+shares_primary_source_with = 1
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "identify.idc"
@@ -3315,7 +3325,7 @@ priority = 0
 admitted_specs = 1
 licensed_specs = 1
 papers = 2
-shares_primary_source_with = 18
+shares_primary_source_with = 13
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
@@ -3345,7 +3355,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 1
+shares_primary_source_with = 0
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3355,7 +3365,7 @@ priority = 0
 admitted_specs = 1
 licensed_specs = 1
 papers = 1
-shares_primary_source_with = 3
+shares_primary_source_with = 2
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
@@ -3375,7 +3385,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 3
-shares_primary_source_with = 2
+shares_primary_source_with = 0
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3385,7 +3395,7 @@ priority = 0
 admitted_specs = 3
 licensed_specs = 1
 papers = 1
-shares_primary_source_with = 16
+shares_primary_source_with = 13
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
@@ -3395,7 +3405,7 @@ priority = 0
 admitted_specs = 1
 licensed_specs = 1
 papers = 1
-shares_primary_source_with = 16
+shares_primary_source_with = 13
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
@@ -3405,7 +3415,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 16
+shares_primary_source_with = 12
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3665,7 +3675,7 @@ priority = 2
 admitted_specs = 2
 licensed_specs = 0
 papers = 3
-shares_primary_source_with = 27
+shares_primary_source_with = 24
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3675,7 +3685,7 @@ priority = 2
 admitted_specs = 1
 licensed_specs = 1
 papers = 1
-shares_primary_source_with = 15
+shares_primary_source_with = 12
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3685,18 +3695,18 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 7
+shares_primary_source_with = 5
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "model.discretized_linear_gaussian_scm"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "equal-probability-quantile discretization of a linear Gaussian model with a computed bound"
+basis = "read the module: model/discretized_scm.rs builds equal-probability quantile cells with the normal inverse distribution function, cell means from density differences and a recursive error bound; closed-form numerics with no bounded review yet"
 
 [[record]]
 id = "model.gcm_sampling"
@@ -3705,7 +3715,7 @@ priority = 2
 admitted_specs = 1
 licensed_specs = 1
 papers = 3
-shares_primary_source_with = 19
+shares_primary_source_with = 15
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3715,7 +3725,7 @@ priority = 2
 admitted_specs = 2
 licensed_specs = 1
 papers = 1
-shares_primary_source_with = 15
+shares_primary_source_with = 12
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3730,23 +3740,23 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "model.linear_solution"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 7
-basis = "lists primary papers; implementation correspondence not yet read"
+shares_primary_source_with = 6
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "model.mechanism_evaluation"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 15
-basis = "lists primary papers; implementation correspondence not yet read"
+shares_primary_source_with = 13
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "model.noise_replay"
@@ -3755,7 +3765,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
-shares_primary_source_with = 15
+shares_primary_source_with = 12
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3770,23 +3780,23 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "model.scc_compile"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 7
-basis = "lists primary papers; implementation correspondence not yet read"
+shares_primary_source_with = 6
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "observation_query.calibrated_probability"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "equal-tailed posterior quantile interval of a declared model's probability"
+basis = "read the module: estimate/count_fitted_posterior.rs draws independent Dirichlet posteriors by gamma sampling, enumerates each draw exactly and reports equal-tailed quantiles of the draws; a Monte Carlo posterior with its own numerics"
 
 [[record]]
 id = "observation_query.evidence_requirement"
@@ -3805,7 +3815,7 @@ priority = 2
 admitted_specs = 2
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 18
+shares_primary_source_with = 15
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -3920,13 +3930,13 @@ basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "prob.hmc"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 3
 shares_primary_source_with = 0
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "prob.laplace_glm"
@@ -4000,143 +4010,143 @@ basis = "non_algorithm_review (contract; covered by: none) is digest-bound to th
 
 [[record]]
 id = "recalculation.adjusted"
-class = "wrapper_contract"
-priority = 4
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "recalculation.bayesian"
-class = "derived_in_repository"
-priority = 2
+class = "reviewed"
+priority = 0
 admitted_specs = 2
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "recalculation.composite"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recalculation.design_specific"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: estimate.iv_2sls, estimate.rd, estimate.frontdoor_two_stage) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recalculation.doubly_robust"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: estimate.dml, estimate.dr.learner, estimate.aipw) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recalculation.external_callback"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recalculation.frozen_scores"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: estimate.cell.aipw, estimate.aipw) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recalculation.native_execution_attempts"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recalculation.portable_predictor"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: estimate.dr.learner) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recalculation.receipt"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: recalculation.selective) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recalculation.selective"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recalculation.static_response"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: identify.id, identify.transport_sid, estimate.response.intervention_gcomp) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recalculation.temporal"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (derivation; covered by: identify.id, temporal.uncertain_initial_state) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recovery.binary_observation.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, recovery.chain_observation) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recovery.chain_observation"
@@ -4150,13 +4160,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "recovery.chain_observation.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, recovery.chain_observation) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recovery.sampled_observation"
@@ -4170,23 +4180,23 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "response.joint_panel"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 2
 admitted_specs = 7
 licensed_specs = 1
 papers = 0
 shares_primary_source_with = 0
-basis = "finite-lag Gaussian panel family constructed in the repository"
+basis = "read the module: estimate/joint_panel (about 7000 lines): stationary AR(1) likelihood with analytically integrated random intercepts, a limited-memory optimizer, numerical derivatives, a rank-deficient group sandwich and a model-based bootstrap; substantive numerics"
 
 [[record]]
 id = "response.joint_panel_reference"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 3
 licensed_specs = 1
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (derivation; covered by: response.joint_panel) is digest-bound to the mapped modules"
 
 [[record]]
 id = "scientific_bridge.interval"
@@ -4200,13 +4210,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "scientific_bridge.law_substitution"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "scientific_bridge.typed_bridges"
@@ -4220,13 +4230,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "sensitivity.joint_uncertainty"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "endpoint percentile bootstrap of a joint sensitivity range"
+basis = "read the module: validate/joint_mechanism_sensitivity.rs joint_sensitivity_bootstrap_interval_internal draws row-bootstrap tables, evaluates the exact joint range on each and takes percentiles of the replicate minima and maxima; an interval method that needs its own review"
 
 [[record]]
 id = "sensitivity.marginal_structural_model"
@@ -4240,13 +4250,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "sensitivity.marginal_structural_model.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, sensitivity.marginal_structural_model) is digest-bound to the mapped modules"
 
 [[record]]
 id = "sensitivity.mechanism_discrepancy"
@@ -4260,13 +4270,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "sensitivity.mechanism_discrepancy.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, sensitivity.mechanism_discrepancy) is digest-bound to the mapped modules"
 
 [[record]]
 id = "sensitivity.missing_outcome_departure"
@@ -4280,13 +4290,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "sensitivity.source_lineage"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "sequential_evaluation.policy_evaluation"
@@ -4295,7 +4305,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 4
-shares_primary_source_with = 8
+shares_primary_source_with = 7
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
@@ -4360,13 +4370,13 @@ basis = "non_algorithm_review (wrapper; covered by: state.incremental_ols, stats
 
 [[record]]
 id = "stats.divergence"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 3
 shares_primary_source_with = 1
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "stats.fdr"
@@ -4430,13 +4440,13 @@ basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "stats.regularized"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
 shares_primary_source_with = 0
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "stats.response.local_polynomial"
@@ -4445,7 +4455,7 @@ priority = 0
 admitted_specs = 1
 licensed_specs = 1
 papers = 2
-shares_primary_source_with = 4
+shares_primary_source_with = 3
 basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
@@ -4480,13 +4490,13 @@ basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "support.coordinate"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 1
 licensed_specs = 1
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "support.native_response_coordinates"
@@ -4520,63 +4530,63 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "temporal.effect_constancy.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, temporal.effect_constancy) is digest-bound to the mapped modules"
 
 [[record]]
 id = "temporal.effect_constancy_consumers"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: temporal.effect_constancy) is digest-bound to the mapped modules"
 
 [[record]]
 id = "temporal.new_period_refresh"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "ordered comparison of declared premises (window-identity bookkeeping)"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "temporal.new_period_refresh.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, temporal.new_period_refresh) is digest-bound to the mapped modules"
 
 [[record]]
 id = "temporal.uncertain_initial_state"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "exact finite mixture over a supplied initial-state law"
+basis = "non_algorithm_review (derivation; covered by: identify.id) is digest-bound to the mapped modules"
 
 [[record]]
 id = "temporal.uncertain_initial_state.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, temporal.uncertain_initial_state) is digest-bound to the mapped modules"
 
 [[record]]
 id = "transport.adaptive_trial_source"
@@ -4590,13 +4600,13 @@ basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "transport.admg_conditional.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel) is digest-bound to the mapped modules"
 
 [[record]]
 id = "transport.assumption_range"
@@ -4625,18 +4635,18 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 4
-shares_primary_source_with = 14
+shares_primary_source_with = 13
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "transport.cpdag_completion"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 3
-shares_primary_source_with = 1
-basis = "lists primary papers; implementation correspondence not yet read"
+shares_primary_source_with = 0
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "transport.fitted_linear_gaussian_mechanism"
@@ -4660,33 +4670,33 @@ basis = "non_algorithm_review (contract; covered by: none) is digest-bound to th
 
 [[record]]
 id = "transport.joint_bayesian"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 2
 admitted_specs = 2
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "conjugate Gaussian algebra"
+basis = "read the module: estimate/joint_bayesian_transport.rs forms a dense Gaussian posterior with Cholesky factorizations, forward and back solves and iid draws (about 1500 lines); the tests carry an independent dense oracle but no bounded review is recorded"
 
 [[record]]
 id = "transport.learned_continuous_trial.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel) is digest-bound to the mapped modules"
 
 [[record]]
 id = "transport.learned_joint"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "conjugate Gaussian algebra"
+basis = "read the module: estimate/learned_joint_transport.rs fits a polynomial-basis conjugate Gaussian posterior through the learn hook and draws from it (about 1200 lines); the tests carry an independent dense oracle but no bounded review is recorded"
 
 [[record]]
 id = "transport.measurement_model"
@@ -4700,13 +4710,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "transport.multi_source_limited_experiment.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, composition.multi_source) is digest-bound to the mapped modules"
 
 [[record]]
 id = "transport.period_shift_policy"
@@ -4770,23 +4780,23 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "transport.shared_scenario_covariance.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, transport.shared_scenario_covariance) is digest-bound to the mapped modules"
 
 [[record]]
 id = "transport.smoothed_dose_response.bayesian"
-class = "derived_in_repository"
-priority = 2
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 1
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel, estimate.smoothed_dose) is digest-bound to the mapped modules"
 
 [[record]]
 id = "transport.surrogate_bridge_premise"
@@ -4810,13 +4820,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "transport.two_step_temporal.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: estimate.posterior_mean_kernel) is digest-bound to the mapped modules"
 
 [[record]]
 id = "transport.typed_mechanism_transport"
@@ -4850,23 +4860,23 @@ basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "validate.confounding_sensitivity"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 4
 shares_primary_source_with = 2
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "validate.dbn_posterior"
-class = "wrapper_contract"
-priority = 4
+class = "substantive_method"
+priority = 2
 admitted_specs = 2
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "read the module: the refuter mixing by posterior mass runs in analysis/execute (atom_mix.rs, bayesian_path.rs), thousands of lines of mixture arithmetic over per-atom designs; it was not isolated to a bounded wrapper in this pass, so it is not mapped"
 
 [[record]]
 id = "validate.discovery_stability"
@@ -4875,18 +4885,18 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 2
-shares_primary_source_with = 2
+shares_primary_source_with = 0
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "validate.evalue"
-class = "substantive_method"
-priority = 3
+class = "reviewed"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 1
 shares_primary_source_with = 0
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "validate.functional"
@@ -4915,7 +4925,7 @@ priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 4
-shares_primary_source_with = 2
+shares_primary_source_with = 1
 basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]

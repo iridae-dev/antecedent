@@ -17,3 +17,27 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-estimate/tests/temporal_refresh.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Normal posterior mean of the refreshed period's outcomes with the plug-in variance."
+no_independent_algorithm = "normal_mean_posterior returns the sample mean times n tau^2 / (n tau^2 + s2); the refreshed outcomes come from the covered refresh. No interval."
+covered_by = ["estimate.posterior_mean_kernel", "temporal.new_period_refresh"]
+derivation = "Normal likelihood for a mean with plug-in precision P = n / s2 and an independent N(0, tau^2) prior give posterior mean P / (P + 1 / tau^2) * mean = mean * n tau^2 / (n tau^2 + s2); checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
+record_sha256 = "260b7003c882d142d4029537e2c66c6c9f749e0306715440918b10325f0f8cf7"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/temporal_refresh.rs"
+sha256 = "8978360cb05d27d9928228fb214da4c44f55046405968fbeae05cddd15e7e176"

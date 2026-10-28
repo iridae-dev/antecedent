@@ -33,3 +33,21 @@ test_sources = [
   "crates/antecedent-io/tests/frozen_scores_artifact.rs",
   "python/tests/test_recalc_cell.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Cell-AIPW retention with portable frozen scores: a compatible target-weight retarget reweights the frozen cell scores with zero refits."
+no_independent_algorithm = "recalc_cell.rs freezes the estimator's score table, validates weights and calls antecedent_estimate::retarget; the fits and the reweighted mean are the covered estimator and retarget routines. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
+covered_by = ["estimate.cell.aipw", "estimate.aipw"]
+record_sha256 = "1c85fe8c9b2b8dba324f8479a3bc8f181d15ce046656cc0f0dc82ed8f567dfcc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_cell.rs"
+sha256 = "ab329e389d8aeca8b7ebf39ff944b7b0b97476b9483354d33327d4d55ef432fc"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/recalc_cell.rs"
+sha256 = "0f32b6f215865ae1c50f6c0d5971d24d29f287e3aee2878bae2de7c0d2a137b7"

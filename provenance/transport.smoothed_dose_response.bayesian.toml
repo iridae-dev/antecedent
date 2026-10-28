@@ -17,3 +17,27 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent/tests/smoothed_dose_lifecycle.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Posterior means of the per-row score tables of the smoothed-dose fit, one table per grid dose, under independent normal priors at zero. No interval."
+no_independent_algorithm = "smoothed_dose_score_posterior applies score_contrast_posterior with a zero control column to each grid dose's table; the scores come from the covered smoothed-dose fit."
+covered_by = ["estimate.posterior_mean_kernel", "estimate.smoothed_dose"]
+derivation = "Normal likelihood for a mean with plug-in precision P = n / s2 and an independent N(0, tau^2) prior give posterior mean P / (P + 1 / tau^2) * mean = mean * n tau^2 / (n tau^2 + s2); checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
+record_sha256 = "71ec370eef260f19240d8aa6421fdb796e91b9e8db9a880c1dc90854e3155537"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/smoothed_dose_lifecycle.rs"
+sha256 = "95c68e4464b946ae5fca1e2ae8b3b051fe1036187b9e86408c5e18af5d74b3b2"

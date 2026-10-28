@@ -29,3 +29,21 @@ test_sources = [
   "python/tests/test_multi_source_acceptance.py",
   "python/tests/test_multi_source_mutations.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "A hand-derived three-action acceptance story (a native response claim and two external studies over one program, a joint law, a design ranking and a bundle) exercised only through routes the composition records already license."
+no_independent_algorithm = "composition.rs re-exports the bundle builder and consumer; the story's expected values are written by hand in the acceptance test from the stated means and law rows and the numbers come from the covered routes."
+covered_by = ["composition.bundle", "composition.native_response_claims", "composition.source_evidence", "composition.verifiers"]
+record_sha256 = "128c84d837795d51decb0b190c7c64b2db812d2d836de49f091fb152fcf0bc36"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/composition.rs"
+sha256 = "ebe107aa0348e5df5e602477825e6c2f8731acc73b1927bb460211c53b308589"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/multi_source_acceptance.rs"
+sha256 = "ddcde15b0729010e4ef9967ebd279c7ab6cd6bfe7cf94dd37f42ed00a9b541d1"

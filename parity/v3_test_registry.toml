@@ -17876,3 +17876,24 @@ crate = "antecedent-stats"
 cargo_target = "lib"
 path = "crates/antecedent-stats/src/ci/analytic_oracle_tests.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "posterior-mean-exact-rational-reference"
+crate = "antecedent-estimate"
+cargo_target = "posterior_mean_reference"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "adjusted-contrast-multiprecision-reference"
+crate = "antecedent-estimate"
+cargo_target = "adjusted_contrast_reference"
+path = "crates/antecedent-estimate/tests/adjusted_contrast_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "recalc-bayesian-posterior-summary-reference"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/recalc_bayesian_summary_tests.rs"
+gates = ["inventory", "named"]

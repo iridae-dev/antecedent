@@ -17,3 +17,39 @@ test_sources = [
   "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs",
   "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The delta-method standard error of the sampled counterfactual transport plug-in for one independent-units multinomial table (inference.rs: the central-difference gradient of the homogeneous extension of the identified functional, the variance (1/N)[sum p g^2 - (sum p g)^2] and its square root) and the Wald interval estimate +/- z se clamped to [0, 1] at the measured 0.95 level (interval.rs, with its level and scope refusals), exercised on the unconfounded chain functional P(y = 1 | do(x = 1)). Not a review of identification or transport derivations, of the stratified-design branch (several strata per table), of grouped overlapping datasets or several tables, of the envelope or smoothed paths, or of any coverage claim, which is measured elsewhere by a whole-method coverage record and is not asserted here."
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied."
+redistribution = "No work is redistributed; the multinomial delta method is textbook (the open record cites it). The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is not a product dependency."
+limitations = "Five count tables of the chain design (20000, 400 and 64 units sampled at seed, plus two hand-built tables (37 and 59 units) that bind the lower and the upper clamp) are compared: the plug-in to 1e-12, the standard error to 1e-6 relative and the interval ends to 1e-6 of the standard error. One estimand, one table, independent units only: the stratified variance branch, several datasets, shared-unit overlap and non-unit weights are not covered, and small-sample behaviour of the delta interval (its poor coverage near 0 or 1) is a property the interval inherits and the coverage record, not this review, addresses. The reference script declares inline script metadata but is not run in a locked environment and is not wired into a gate; its output is frozen in the JSON file."
+assumptions = ["Each table is a multinomial sample of independent units with fixed N; the variance is conditional on the identified functional being smooth at the observed shares and every cell used being observed.", "The gradient step is a relative 1e-5 central difference, so the product's standard error carries an O(h^2) discretization error relative to the exact gradient; the review bounds it empirically.", "The reference differentiates the closed-form functional of this one design; agreement shows the variance formula and the differencing, not that the same formula is right for other estimands."]
+sources = ["https://en.wikipedia.org/wiki/Delta_method", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The delta standard error equals the 50-digit reference (analytic gradient by numerical differentiation of the closed form, multinomial variance with the single-stratum correction term) to 1e-6 relative on all five tables, so the central-difference step and the (sum p g)^2 term are right for independent units.", "The Wald interval equals the clamped reference at the lower and the upper boundary, both clamps bind in the fixtures, any level other than 0.95 is refused with level_not_measured, and the interval stays inside [0, 1].", "No product defect was found in this record."]
+record_sha256 = "d9fc2909a9e712c9f7f9b3bbffb753f99130a85405fd52045dd61f61f6a417de"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/inference.rs"
+sha256 = "f162e02639693c3c426a59e1c288d38ac1e61629ee4cec1ff60fea64a00e6a74"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/interval.rs"
+sha256 = "f270176bf6714e8bcfa364d2dae4734db2bc30c1e7893e10aa38cbae118a7a1b"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs"
+sha256 = "8adff3628f983dcdba03ac49b6d24d8cc578dd5c0409b81dc94b4b423cf6fc32"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/sampled_transport_delta_reference.py"
+sha256 = "17d1c2f02c4dfd500e032e72cb6a047dff06d886e9c39aec91fb4fd94e4b3c00"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/sampled_transport_delta_reference.json"
+sha256 = "b914a4f86e8c18f44ad11ab1683fde6b644cce0748f879f0b33b05a0d63310e1"

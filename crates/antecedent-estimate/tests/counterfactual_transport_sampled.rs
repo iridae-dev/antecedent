@@ -1029,3 +1029,46 @@ fn sampled_latent_district() {
         "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_latent_district",
     );
 }
+
+// -- exact multiprecision delta-method reference ---------------------------------------------------
+// `oracle_data/sampled_transport_delta_reference.py` evaluates the chain functional
+// P(y = 1 | do(x = 1)) = sum_m P(m | x = 1) P(y = 1 | m) on given cell counts, differentiates its
+// homogeneous extension to 50 digits, forms the multinomial delta variance
+// (1/N) [sum p g^2 - (sum p g)^2] and the Wald interval clamped to [0, 1], and freezes the roundings.
+
+#[test]
+fn delta_standard_error_and_clamped_wald_interval_equal_the_multiprecision_reference() {
+    use antecedent_estimate::counterfactual_transport_sampled::sampled_transport_interval;
+    let cases: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("oracle_data/sampled_transport_delta_reference.json"))
+            .unwrap();
+    let case = chain_case();
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    let mut clamped = (false, false);
+    for reference in &cases {
+        let name = reference["name"].as_str().unwrap();
+        let counts: Vec<u64> =
+            reference["counts"].as_array().unwrap().iter().map(|c| c.as_u64().unwrap()).collect();
+        let tables = cited_only(
+            &derivation,
+            &data.laws().iter().map(|law| table_of(law, counts.clone(), false)).collect::<Vec<_>>(),
+        );
+        let result = estimate(&derivation, tables, UnseenCellRule::Refuse).unwrap();
+        let want_point = reference["point"].as_f64().unwrap();
+        let want_se = reference["se"].as_f64().unwrap();
+        assert!((point(&result) - want_point).abs() <= 1e-12, "{name} point {} vs {want_point}", point(&result));
+        let se = result.inference.standard_error.as_ref().unwrap().value;
+        assert!((se - want_se).abs() <= 1e-6 * want_se, "{name} se {se} vs {want_se}");
+        let interval = sampled_transport_interval(&derivation, &result, 0.95).unwrap();
+        let (lower, upper) = (reference["lower"].as_f64().unwrap(), reference["upper"].as_f64().unwrap());
+        assert!((interval.lower - lower).abs() <= 1e-6 * want_se.max(1e-3), "{name} lower {} vs {lower}", interval.lower);
+        assert!((interval.upper - upper).abs() <= 1e-6 * want_se.max(1e-3), "{name} upper {} vs {upper}", interval.upper);
+        assert!(interval.lower >= 0.0 && interval.upper <= 1.0);
+        clamped.0 |= reference["lower_clamped"].as_bool().unwrap() && interval.lower == 0.0;
+        clamped.1 |= reference["upper_clamped"].as_bool().unwrap() && interval.upper == 1.0;
+        // Only the measured level is reported.
+        assert_eq!(sampled_transport_interval(&derivation, &result, 0.9).unwrap_err(), "level_not_measured");
+    }
+    assert_eq!(clamped, (true, true), "both clamps are exercised");
+}

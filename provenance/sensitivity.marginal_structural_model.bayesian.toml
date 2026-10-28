@@ -17,3 +17,32 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-validate/tests/msm_sensitivity.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Dirichlet posterior mean of the finite stratum masses and outcome laws, pushed through the existing marginal structural model at Lambda 1; structural zeros stay zero. No interval."
+no_independent_algorithm = "msm_dirichlet_posterior calls dirichlet_supported_mean on the masses and each outcome law and then msm_ate_sensitivity at Lambda = 1 + 1e-8 over two grid points; the sensitivity engine itself (the rest of msm_sensitivity.rs, which has its own bounds arithmetic) belongs to the covered record and was not mapped."
+covered_by = ["estimate.posterior_mean_kernel", "sensitivity.marginal_structural_model"]
+derivation = "Dirichlet(c,...,c) prior and weights w on k atoms give posterior mean (w_i + c) / (sum w + k c); structural zeros are held at zero and updated as a (k-1)-atom law; checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
+record_sha256 = "413d88e007854e030c49e463d9566a6f3c994d2fba7d048a2b956cc22b9747c6"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/msm_sensitivity.rs"
+sha256 = "6966211856296e8e2bfe367298cf6d08aab4ad705c26690046e0449dc32e6bbc"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/msm_sensitivity.rs"
+sha256 = "0932e1bed923de257d768c20ac20199871798a854a61e03b3b33d180abd83043"

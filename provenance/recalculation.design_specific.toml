@@ -9,3 +9,21 @@ papers = []
 implementation_deviations = ["Instrument, exclusion, mediator and RD cutoff/window declarations bind checked identification; data refresh refits the existing engines. Compatible utility changes reuse immutable checked estimates.", "Executing successful least-squares counters include the actual IV stages and Anderson-Rubin auxiliary fits; law summaries are distinct from frozen-score reweighting. Failed fits and cancellations preserve prior successful state.", "Weak-IV decision refusal follows the actual Anderson-Rubin confidence-set boundary, with inspectable point and diagnostics. No arbitrary first-stage F threshold or invented Wald standard error.", "Independent supplied-data consumption verifies exact artifact contracts and scientific bodies using fresh checked execution, including the sharp-RD checked operation. Historical dependency-only readers are unchanged; missing raw data cannot invent a verified fit."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/recalc_design.rs", "python/tests/test_recalc_design.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Shared-plan retention and dependency binding over the checked IV, sharp regression-discontinuity and linear front-door estimators."
+no_independent_algorithm = "recalc_design.rs builds the prepared study, counts least-squares solves with count_least_squares_solves and routes refusals; every estimate and standard error comes from the covered estimators. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
+covered_by = ["estimate.iv_2sls", "estimate.rd", "estimate.frontdoor_two_stage"]
+record_sha256 = "832039b4bf94fc7f807249a343d882dc36299809108528d3c7c34c6ed4e8837b"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_design.rs"
+sha256 = "e7b7fb9b8217fa490452a608d0d7c94b6628c6aed175dc7c1d55d015ddcf8b24"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/recalc_design.rs"
+sha256 = "c9cd6a826f2db9907a4e5f13d1a5b298c09512671a14e240f46b1f60aa37c4a4"

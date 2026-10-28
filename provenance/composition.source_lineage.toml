@@ -8,3 +8,20 @@ papers = []
 implementation_deviations = ["Original finite-law functional engine and complete original law artifact/request replay retain original numeric meanings. Actual native source diagnostics are cited by semantic coordinates/snapshot; native row origin requires full original source plus actual opaque native law comparison, never metadata.", "Original scoped diagnostics and actual action contributor identities survive projection; imported original unresolved status and source trust/calibration remain explicit."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/source_evidence.rs", "crates/antecedent/tests/joint_sensitivity_lifecycle.rs", "python/tests/test_composition_source_lineage.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Source-lineage evidence for composed claims: coordinates and snapshot of an original law artifact and request, actual action contributor identities, and imported unresolved status carried through projection."
+no_independent_algorithm = "source_evidence.rs compares and records digests, coordinates and trust statuses; numeric meanings come from the original artifacts and are not transformed."
+record_sha256 = "e0b8080cbab4c17a92ef65b27f6677b5606cfa0ae260a41278d0de61d4d6351b"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/source_evidence.rs"
+sha256 = "8414dc1985bc0fde087670a4099a0b0bdc90f0e0c6fca9226ebc14665eea63cc"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/source_evidence.rs"
+sha256 = "20176eea72e5166c8c5b9317606ddb38aabbaaaf86e568ac712d3b87c3834178"

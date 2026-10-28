@@ -20,3 +20,22 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-counterfactual/tests/whole_path_uncertainty.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Accounting of the uncertainty sources of the finite Markovian cross-world row: the exact predictive variance of each unit's counterfactual quantity under its exogenous posterior, the realized-mean variance, and the sampling variance of the unit mean for sampled units."
+no_independent_algorithm = "whole_path_uncertainty.rs sums enumerated posterior weights and values (v_i = sum_s w_s (g_s - q_i)^2, sum v_i / n^2, s^2 / n) over the executed row; it fits nothing and propagates no structural uncertainty."
+covered_by = ["cross_world_execution.sampled_and_interval_readings"]
+derivation = "For unit i with exogenous posterior weights w_s and per-state quantity g_s, q_i = sum_s w_s g_s and v_i = sum_s w_s (g_s - q_i)^2 (the law of total variance for a finite mixture); the realized mean of n fixed units has variance sum v_i / n^2, and an independent sample of units has sampling variance s^2 / n of the unit values. The test evaluates these in exact fractions (169/210, 10/49, 21/100, 2029/44100, 2526/264600) to 1e-12."
+record_sha256 = "914e7ef96a3be0171d5411a50eaf89d3fe3ad50da11f58aa5744e24c7b5de236"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-counterfactual/src/selective/whole_path_uncertainty.rs"
+sha256 = "a2283513cdcf388b229d459b68e62e8e97d559479bd0ff2f0949591f8deee1be"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-counterfactual/tests/whole_path_uncertainty.rs"
+sha256 = "67341ed3cad08547955eeb8b2116bd985beef8bc9e01fcb81a92d13f3c607b3d"

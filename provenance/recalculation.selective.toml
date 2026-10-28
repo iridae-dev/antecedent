@@ -36,3 +36,35 @@ test_sources = [
   "crates/antecedent/tests/recalc_receipt.rs",
   "python/tests/test_recalc.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "The stage model and planner that decide per stage whether an artifact is reused, recomputed or refused from BLAKE3 stage identities, plus one instrumented route (cross-fitted AIPW) that proves reuse by counts."
+no_independent_algorithm = "recalc.rs and recalc/standing.rs compare identity sets and statuses (no floating-point computation); the route in recalc_receipt.rs calls the AIPW estimator and the retarget and keeps the integer fit counts. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
+record_sha256 = "1aa001ce6f041a4632e52039dc848975579fac2d66cd005cac814e3955c196f6"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-core/src/recalc.rs"
+sha256 = "74a6adc8984f9199aa4f37394ef9deb7e70346da7b655bef7fdf906c0372e9c9"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-core/src/recalc/standing.rs"
+sha256 = "f396709c20ae224dcfede2b555b030e14d3c9111c8ea0eb813e5f26f330c48c5"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_receipt.rs"
+sha256 = "01bd7ce3926d930862e3c54b5aeb655c60f47a2c762c6cdc407188df6dfdca49"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-core/tests/recalc_plan.rs"
+sha256 = "435ef5fe4db57fc77b7bf47e4d01bf807c47aed8de7f7d1dc57e908ff0368ac5"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/recalc_receipt.rs"
+sha256 = "ae1610aeca285ed91ba7d0229eb38e9b9be17f1d285747c168ce026f9314d253"

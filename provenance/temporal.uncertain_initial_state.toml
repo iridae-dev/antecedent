@@ -28,3 +28,22 @@ test_sources = [
   "crates/antecedent-io/tests/temporal_initial_state_artifact.rs",
   "python/tests/test_temporal_extensions.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "An exact finite mixture over a supplied target initial-state law: the response is the target-mass-weighted sum of the conditional responses of each initial state, with each state's response itself a finite sum over the intermediate history."
+no_independent_algorithm = "temporal_initial_state.rs validates a law (distinct states, finite non-negative masses summing to one), forms R(s0) = sum_l P(l | s0, a1) E[y | s0, a1, l, a2] from the covered temporal fit and sums mass times response; no sqrt, ln, exp or solve."
+covered_by = ["identify.id"]
+derivation = "With initial-state law pi over S0 and conditional response R(s0), the target response is sum_s0 pi(s0) R(s0) (the law of total expectation over S0); the test evaluates it by hand to 0.421 and compares to 1e-12, with each contribution's mass and response checked separately."
+record_sha256 = "9651c4c5e2e25c7fb45400a1ae1c09bc766f550bec40b173d5acf140b5775257"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_initial_state.rs"
+sha256 = "0f7d2146e989f8881ff79e5754f07f1ab104c86a78ecf324dca6c20e0a7ca7e4"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/temporal_initial_state.rs"
+sha256 = "1385be068f918e450250a5104ca8c01bd36195103d24f1702a59bcd21c2f7907"

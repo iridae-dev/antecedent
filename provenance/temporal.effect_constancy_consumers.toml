@@ -8,3 +8,21 @@ papers = []
 implementation_deviations = ["Original effect-constancy artifact consumption verifies complete retained evidence identity and recomputes its heterogeneity and covariance-aware multiplicity-adjusted contrasts. The transport consumer returns only an original selected oriented contrast in its original family, requiring separate transport identification. The prior consumer calls the original PriorCatalog compatibility filter and rank, scoring declared source partitions by negative absolute effect distance to a declared target partition; this is explicitly data-dependent advisory preference, never automatic pooling or posterior transfer. The policy consumer supplies each original fully supported partition effect to the original affine mean decision engine using an exact declared common scientific effect coordinate, then intersects all exactly tied admissible leaders. Empty intersection is retained and no optimality/generalization guarantee is issued. Original calibration, point status, evidence identity and caveats are preserved.", "Original downstream exposure engineering over existing effect-constancy covariance/heterogeneity and bank/decision engines, whose citations belong to their original owners. No new transport, posterior transfer, sampling or generalization theorem is asserted."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/effect_constancy_consumers.rs", "python/tests/test_effect_constancy_review.py", "conformance/population_time/effect_constancy_consumers/expected.json", "conformance/population_time/effect_constancy_consumers/README.md"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Downstream consumption of the effect-constancy artifact: complete retained evidence identity is verified and the heterogeneity and multiplicity-adjusted contrasts are recomputed by the covered engines; a transport consumer returns one selected oriented contrast."
+no_independent_algorithm = "effect_constancy_consumers.rs verifies identities, selects a contrast and calls the covered constancy and bank engines; it has no floating-point computation of its own."
+covered_by = ["temporal.effect_constancy"]
+record_sha256 = "1d1661c3e7fe185ae6661f0c114b95185232e6952d9c5ced2e473974d110d476"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/effect_constancy_consumers.rs"
+sha256 = "a4ed43d9dc96204a666b935441da75a051a20e8332eb921234e1f808bd9b275c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/effect_constancy_consumers.rs"
+sha256 = "f4eba95ed04ba9fa41c1f3619aeb18f96ddb6ea82d6e192b99e5aad02db50e86"

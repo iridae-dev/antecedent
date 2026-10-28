@@ -29,3 +29,34 @@ test_sources = [
   "crates/antecedent-io/tests/compact_export.rs",
   "python/tests/test_compact_export.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The evaluation arithmetic of the compact runtime export in antecedent-io-core compact_export.rs: the basis row (intercept, linear, integer power and one-hot terms), the point prediction b'phi, the model-based standard error sqrt(phi'V phi) from the stored dense covariance, the negative-variance guard, and the build-time covariance admissibility checks (symmetry, non-negative diagonal, pairwise correlation bound and the full positive-semidefinite pivot test). Not a review of the container, identity, tamper and reseal machinery, of support and mask refusals (covered by hand-valued tests in the same file), or of how a producer obtains the coefficients and covariance."
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied."
+redistribution = "No work is redistributed; the linear predictor and the quadratic-form variance are textbook. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is not a product dependency."
+limitations = "Two exported models (a quartic power basis with five terms and a quadratic with two one-hot levels; dense covariances A'A for small dyadic A) are evaluated at six supported abscissae and three levels, 24 queries in all, and compared to 1e-12 relative for the point and 1e-10 relative for the standard error. The indefinite-covariance refusal is checked on one three-term matrix whose pairwise bounds all hold. High-degree bases near the degree limit, query values at 1e8 scale, and covariances that are positive semidefinite only to the 1e-9 tolerance are not exercised. The reference script declares inline script metadata but is not run in a locked environment and is not wired into a gate; its output is frozen in the JSON file."
+assumptions = ["The stored coefficients and covariance are the fitted model's, taken as given; the export neither refits nor validates them against data.", "The standard error is model-based and carries no extrapolation or misspecification uncertainty; calibration is unmeasured, as the artifact states.", "Powers are small integer degrees (default limit 8) of inputs inside their declared support."]
+sources = ["https://en.wikipedia.org/wiki/Variance#Linear_combinations", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The point prediction and the model-based standard error equal the exact rational point and the 50-digit root of the exact quadratic form on all 24 queries, including the closed support bounds, the one-hot levels and a dense covariance with off-diagonal terms (so the cross terms of phi'V phi are exercised, not only the diagonal).", "A covariance that satisfies every pairwise bound but has a negative determinant, an asymmetric covariance and a negative diagonal are refused at build, and the identity covariance is accepted.", "No product defect was found in this record."]
+record_sha256 = "fbfca005e1eacc1eb070d607129992a49ebf1d3a31150c5d744c5c3ffbd1ea16"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/compact_export.rs"
+sha256 = "219b2874cf85a72d1be2782e187625358fe01a9541ae4b3d2d190df851a84977"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io/tests/compact_export.rs"
+sha256 = "99c2d39fd4215415f9e374005969045c46201239ae0a6cffe2a37bd7c82c121d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-io/tests/oracle_data/compact_export_reference.py"
+sha256 = "754c8a71e202fcf9558fd52457bd25ed67c1e202a2fe31481b0fb0c3752ca266"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-io/tests/oracle_data/compact_export_reference.json"
+sha256 = "a5211513243043ad82cebdcbdfaa76b28d8a04399eacd96d8ce90a3b1946b9f7"

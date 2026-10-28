@@ -15,3 +15,20 @@ test_sources = [
   "crates/antecedent-io/tests/cross_surface_joint_law.rs",
   "python/tests/test_cross_surface.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A parity check between the Python and Rust surfaces over one aligned joint-law artifact format: values, identities and refusal details read on one surface from bytes written on the other."
+no_independent_algorithm = "distribution_artifact.rs is the shared encoding, decoding and identity binding of the artifact; the check compares bytes, identities and constants of an enumerated two-draw law and adds no numerics."
+record_sha256 = "e6401292ebec640de918c0b0452e99c32c510efe3b199425188f6ac72f2b4262"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/distribution_artifact.rs"
+sha256 = "9918dadc1ba0df7aaab50019ba02568ae8782a82cd2f50e8a0b47ca2e600c245"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io/tests/cross_surface_joint_law.rs"
+sha256 = "0d01d561a064cb4ec79fca6f517c6dbe0891b03f29d7a88f7819124863351036"

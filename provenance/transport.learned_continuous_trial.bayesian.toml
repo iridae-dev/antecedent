@@ -17,3 +17,27 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent/tests/learned_continuous_lifecycle.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Posterior mean of the per-row AIPW score table the learned-continuous fit already computed, under an independent normal prior at zero. No interval."
+no_independent_algorithm = "learned_continuous_score_posterior is score_contrast_posterior with a zero control column, so it forms the table mean, Bessel variance and normal-normal weight; the scores come from the covered learned-continuous fit."
+covered_by = ["estimate.posterior_mean_kernel"]
+derivation = "Normal likelihood for a mean with plug-in precision P = n / s2 and an independent N(0, tau^2) prior give posterior mean P / (P + 1 / tau^2) * mean = mean * n tau^2 / (n tau^2 + s2); checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
+record_sha256 = "f84e33afee8124d44f36606fc5d0b609118a4f68527f792312b6b55313ecd756"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/learned_continuous_lifecycle.rs"
+sha256 = "f92f7d14ff83a9c96474c3cad00d0cd1aa75baa1839347106f15ead86ba67ec7"

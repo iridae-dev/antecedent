@@ -19,3 +19,21 @@ test_sources = [
   "python/tests/test_portable_predictor_resume.py",
   "python/tests/test_cohesive_learners.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Immutable reuse of a portable fitted predictor: point prediction for new rows from a verified parent analysis artifact, with scoped counting of resolved fits."
+no_independent_algorithm = "fit_counts.rs wraps learner factories with a counting instrument and the lifecycle checks decide whether a stored model may predict; the prediction is the covered DR/CATE provider's."
+covered_by = ["estimate.dr.learner"]
+record_sha256 = "ca620f159f846d25a541c41acd50fb6a01f2065eaf14656d52989e749bc95a77"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-learn/src/fit_counts.rs"
+sha256 = "743a30c4cc7de7d7869094aed8f43d38fffec2b68693d3117eb26bf6bc5a383a"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/portable_predictor_resume.rs"
+sha256 = "3863c3a002c91c61b8061151f6852e49063554785f5b2eb0a74ce991d20fb9ec"

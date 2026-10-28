@@ -20,3 +20,32 @@ test_sources = [
   "crates/antecedent-io/src/measured_inference.rs",
   "python/tests/test_measured_inference.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Shared-plan point execution of checked binary whole-history functionals: the response under a supplied target initial-state law is the source conditional mean given each initial state, mixed by the target law."
+no_independent_algorithm = "recalc_temporal.rs (with its measured and studentized submodules) retains the identified source expression and fits; its arithmetic is source_conditional_means (a masses-weighted ratio over the source joint's atoms), the mixture sum of mass times response, the effect as a difference of two such means, and the shared decision arithmetic. No sqrt, ln, exp or solve."
+covered_by = ["identify.id", "temporal.uncertain_initial_state"]
+derivation = "With the source joint P(S0, Y | do(a)) from the checked identification, E[Y | S0 = s, do(a)] = sum over atoms with S0 = s of p y / sum of p, and the target response is sum_s pi_target(s) E[Y | S0 = s, do(a)]; the effect is the difference of two responses. tests/recalc_temporal.rs compares each response and the effect with the structural conditional probabilities integrated by hand, without invoking either engine, to 1e-10."
+record_sha256 = "5a48a24bd50b3987d712e91e32cd974cd53ff3e2f9b45344e1d4eaffbd36229e"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_temporal.rs"
+sha256 = "fd936ca1917f629824a20eace9546765c15a157573581d231dadf07413a521bc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_temporal_measured.rs"
+sha256 = "3b2732ae1d0271797e76eb3a00c734e94a2e795425669b271f965df7f0dcd02e"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_temporal_studentized.rs"
+sha256 = "9e02c5cf1784973e569988f7cbab309b4f028cdfcbd2d075a3fc0ec85d68c91c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/recalc_temporal.rs"
+sha256 = "9f0d01bfac3232b535d5c817119bf8fac4ac95ecbcbdabaf9f7ed9f7ecb74440"

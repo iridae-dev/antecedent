@@ -1,0 +1,55 @@
+feature_id = "estimate.posterior_mean_kernel"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The shared point-only conjugate kernel behind the posterior-mean routes: the normal-normal update
+# of a mean, contrast or covariance entry, the Dirichlet pseudo-count update of a finite law, and the
+# ridge normal equations of a linear fit. These are textbook conjugate identities, so no paper
+# introduces them and none is cited; the routes that publish the number cover the estimand.
+papers = []
+
+implementation_deviations = [
+  "Every update takes the plug-in sampling variance (Bessel variance of the sample or contrast, the caller's variance, or rss/(n-p)) as known, so the published number is the posterior mean of a normal model with that variance, not a fully Bayesian mean under an unknown-variance prior. No interval is produced.",
+  "The prior is centred at zero (independent normal on slopes, intercept unpenalized) or symmetric Dirichlet with equal concentration on every atom. Structural zeros of a supported law stay zero and are not prior atoms.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/posterior_mean_reference.rs (exact rational references for the normal-normal, known-variance, covariance-entry, Dirichlet, supported-Dirichlet and ridge updates, the flat and tight prior limits, and invalid-scale refusals)",
+  "crates/antecedent-estimate/tests/posterior_mean_linear.rs",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The scalar normal-normal posterior mean of a sample or paired-contrast mean (normal_mean_posterior, score_contrast_posterior), of a point with supplied variance (known_variance_posterior) and of covariance entries (covariance_entry_posterior); the Dirichlet pseudo-count mean and its supported variant (dirichlet_posterior_mean, dirichlet_supported_mean); and the ridge posterior mean of linear coefficients (full_coefficient_posterior_mean, which the mediation, latent-class and mechanism routes call). Not a review of the Gaussian-kernel local-quadratic route in the same module, of the refusal namespaces' wording, of the design summaries that feed the ridge route, or of how each publishing route obtains its point and variance."
+assumptions = ["The likelihood variance is the plug-in estimate and is treated as known; the prior is centred at zero with a common scale, which the caller chooses.", "Inputs are binary64 sufficient statistics; the ridge reference is evaluated on exactly the binary64 Gram, X'y and rss handed to the product, so only the solve and the arithmetic are compared, not the formation of the statistics.", "A zero-variance sample or contrast has no usable likelihood precision and is refused, not updated."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read posterior_mean.rs and the ridge function it calls and compared results with conjugate identities evaluated in exact rational arithmetic by a reference written for this review; no upstream implementation or test source was consulted or copied."
+redistribution = "No work is redistributed; the identities are textbook conjugate algebra stated in the reference script. The script and its frozen output are repository-authored (MIT OR Apache-2.0) and use only the Python standard library."
+limitations = "Six random samples and contrasts (2 to 50 values, scales from 0.01 to 1e6, one sample offset by 1e9), six known-variance points (variances 1e-8 to 1e12), three covariance scales, five Dirichlet tables and four supported tables (concentrations 1e-9 to 1000), and four ridge designs (2 to 4 columns, 6 to 60 rows, one offset by 100) are compared to 1e-9 relative at worst. Ridge designs are small and well conditioned; the ill-conditioned and rank-deficient cases are the singular-solve refusals, not compared to a reference. The Dirichlet routes take their weights as counts: a normalized law (weights summing to one) is updated as if the sample size were one, so the concentration is a strength relative to unit mass, which the publishing routes state and which this review does not change. The reference script declares inline script metadata but is not run in a locked environment and is not wired into a gate; its output is frozen in the JSON file."
+sources = ["https://docs.python.org/3/library/fractions.html", "https://en.wikipedia.org/wiki/Conjugate_prior"]
+findings_resolved = ["Every scalar update equals the exact m * n tau^2 / (n tau^2 + s2) (or p tau^2 / (tau^2 + v)) to a few ulps, including a sample offset by 1e9 where the two-pass Bessel variance avoids cancellation; the flat limit returns the mean and the tight limit returns zero.", "The Dirichlet mean equals (w_i + c)/(sum w + k c) and sums to one; the supported variant leaves zero cells exactly zero and updates the remaining cells as their own k-atom law.", "The ridge solve equals the exact (X'X + (sigma2/tau^2) D)^-1 X'y with the intercept unpenalized, on every design; non-finite or non-positive scales, a negative weight and a constant sample are refused.", "No product defect was found in this record."]
+record_sha256 = "1925566904ee480ea22ae446df40e1f592721f2e6370f932de556918fdddd7df"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/posterior_mean_reference.py"
+sha256 = "9d920728431b3f31db1665a9c6ef6576638b8bb09ed81004992d3d95c1f122fc"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/posterior_mean_reference.json"
+sha256 = "da140b818c86ecf4b02aa9b6597cae99a66aa8daae18fe35471edbc023e4358d"

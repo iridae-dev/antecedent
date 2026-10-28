@@ -24,3 +24,25 @@ test_sources = [
  "exhaustive enumeration of the ordered pairs of the five value kinds",
  "semantic mutation of a stored value kind by an independent artifact consumer",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "closed_variant"
+rationale = "A closed semantic boundary: a mean, a predictive law, a posterior, an identified set and a joint outcome law answer different questions and the bridge refuses to interconvert them."
+no_independent_algorithm = "kind.rs enumerates the value kinds and claim.rs refuses a held kind that differs from the requested one (bridge_substitution_refused) or is not carried; nothing is converted and no estimator is implemented."
+record_sha256 = "19f3a40029594e48118333f0a7fd137a0079984abeda314ff105b81d3a011d1d"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/bridge/kind.rs"
+sha256 = "61355ff7c980f069f57bcd8a50a2762b8f3612284ddbeb69faaf7caacef19523"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/bridge/claim.rs"
+sha256 = "5a6844ff7ffd8a33576f8ee166e411512728cc50cca8bbe26ce2b0c326de936f"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/scientific_bridge.rs"
+sha256 = "413f3cc427f682f1c889d317e010ff67c20a0ed432cc28999b1d04358dfc2321"

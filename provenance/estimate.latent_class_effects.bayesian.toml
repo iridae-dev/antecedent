@@ -17,3 +17,27 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-estimate/tests/latent_class_effects.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Posterior mean of each class's treatment coefficient under independent normal priors with the class residual variance plugged in; the class designs are the weighted normal equations the latent-class fit already forms."
+no_independent_algorithm = "latent_class_effect_posterior calls full_coefficient_posterior_mean per class design and keeps the first slope; the class designs are produced by the covered latent-class estimator. No interval."
+covered_by = ["estimate.posterior_mean_kernel", "estimate.latent_class_effects"]
+derivation = "Normal likelihood with plug-in variance sigma2 = rss / (n - p) and independent N(0, tau^2) priors on the non-intercept coefficients (intercept unpenalized) give posterior mean (X'X + (sigma2 / tau^2) D)^-1 X'y; checked against the exact penalized normal equations in posterior_mean_reference.rs and in the route's own test."
+record_sha256 = "9f8ee91e68dc507e557e9f893feb0a4699d1d4789a742e57067a9af60e0fcafd"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/latent_class_effects.rs"
+sha256 = "8eff036846d197ccb9e298af380ee541954aa39c4358abd83006502f6688eba1"
