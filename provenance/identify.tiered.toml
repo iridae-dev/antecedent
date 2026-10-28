@@ -40,7 +40,7 @@ record_sha256 = "ad2a8eafa7507b0e62cd868e233706915cf63669fe18fadcdcbec2b1f29472b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/tiered.rs"
-sha256 = "10a6fc7251879d6e72b468a29d2d7da5b26a3b71d9919374753f4bead20d8f06"
+sha256 = "b280a86519d0d579dc9f33d549e93e35bc66325152cae94e6c75e15fc0c6e4a0"
 
 [[method_review.artifacts]]
 role = "implementation"
