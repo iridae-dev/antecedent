@@ -10,7 +10,6 @@ decides what the truth is here.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import antecedent as at
@@ -19,11 +18,13 @@ import pytest
 from antecedent import typed_mechanism_transport as tmt
 from antecedent.errors import CausalTypeError, CausalValueError
 
+from _repo_text import load_json
+
 FIXTURE = (
     Path(__file__).resolve().parents[2] / "conformance" / "transport" / "typed_mechanism_shift"
 )
-DATA = json.loads((FIXTURE / "data.json").read_text())
-EXPECTED = json.loads((FIXTURE / "expected.json").read_text())
+DATA = load_json(FIXTURE / "data.json")
+EXPECTED = load_json(FIXTURE / "expected.json")
 OUTCOMES = ("demand", "orders", "buys", "spend", "basket", "noise_h")
 FAMILY = {
     "demand": "gaussian",

@@ -66,6 +66,7 @@ ALLOWLIST: dict[str, str] = {
     "antecedent.missing.ImputationSpec:seed": "declared imputation seed",
     "antecedent.missing.MissingPolicy.multiple_imputation:seed": "declared imputation seed",
     "antecedent.nonlinear_mediation.MediationBootstrap:seed": "declared bootstrap seed",
+    "antecedent.mnar_sensitivity.mnar_ate_sensitivity:seed": "declared bootstrap seed of the sampling interval",
     "antecedent.provider_callbacks.CallbackContext:stream_seed": "stream handed to a callback",
     "antecedent.provider_callbacks.Request:seed": "declared seed of a callback request",
     "antecedent.recalc_bayesian.JointBayesianRequest:seed": "declared seed of the request",
@@ -94,6 +95,8 @@ ALLOWLIST: dict[str, str] = {
     "antecedent.transport._smoothed_dose.SmoothedDoseEstimate:seed": "seed recorded on the result",
     "antecedent.transport.trial_compatible.TrialConfidenceSet:execution_seed": "seed recorded on the set",
     # --- scientific seeds: the stream or fold plan is recorded in the result or artifact ---
+    "antecedent.adaptive_policy.search:seed": "declared search stream, recorded in the result identity and replayed from it",
+    "antecedent.adaptive_policy.ModelSource:noise_seed": "declared noise stream of the response draws, recorded in the source identity",
     "antecedent._batch.BatchResult.retarget:simultaneous_seed": "draw seed of the band, recorded on the interval",
     "antecedent._batch.CandidateScreen.from_units:seed": "split seed, recorded in the screen id and receipt",
     "antecedent.adaptive_inference.ParticipantProcedure.simulate:seed": "declared simulation stream, recorded in the receipt",
@@ -105,6 +108,8 @@ ALLOWLIST: dict[str, str] = {
     "antecedent.nonlinear_mediation.mediation_effects:seed": "bootstrap seed recorded on the result and artifact",
     "antecedent.scientific_bridge.PreparedDistributionBridge.derive:seed": "mapping seed recorded with the derived table",
     "antecedent.sequential_evaluation.rollout:seed": "stream recorded on the rollout estimate",
+    "antecedent.cyclic.SdeSimulation:seed": "declared Monte Carlo stream of the ensemble, in the request and replayed from it",
+    "antecedent.cyclic.StochasticDifferentialEquation.fit:parameter_seed": "declared stream of the parameter draws, in the request and replayed from it",
     "antecedent.transport._joint_sensitivity.consume_joint_mechanism_sensitivity_artifact:max_memory_bytes": "consumer ceiling on the stored search envelope, not Execution memory",
 }
 

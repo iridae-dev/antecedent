@@ -14,7 +14,6 @@ import math
 import subprocess
 import sys
 import textwrap
-from pathlib import Path
 
 import pytest
 from antecedent import external_mechanisms as em
@@ -22,6 +21,7 @@ from antecedent.cyclic import Equation
 from antecedent.errors import CausalValueError
 
 from _refusal import assert_registered_refusal
+from _repo_text import REPO_ROOT, load_json
 
 CONTENT = "gain * tanh(x1) :: v1 :: reference mechanism"
 CLAMPED = (-2.0, -1.0, 0.5, 1.0, 2.0)
@@ -334,10 +334,7 @@ def test_a_process_local_callback_model_still_refuses_export():
 
 
 def test_fit_and_fixed_points_match_the_committed_independent_reference():
-    root = Path(__file__).resolve().parents[2]
-    expected = json.loads(
-        (root / "conformance/gcm/external_mechanism_feedback/expected.json").read_text()
-    )
+    expected = load_json(REPO_ROOT / "conformance/gcm/external_mechanism_feedback/expected.json")
     report = export(make_registry()).report
     assert report["system"]["equations"][0]["parameters"][0] == pytest.approx(
         expected["fitted_gain"], abs=1e-6

@@ -235,10 +235,10 @@ credible interval of the mean.
   callbacks refuse export.
 - Pass resource limits and cancellation through `execution=Execution(...)`.
 - Systems with hundreds of variables are solved sparsely. `SolvePolicy` bounds the
-  Jacobian's nonzeros (`max_nnz`), block order (`max_block_size`), estimated memory
-  (`max_bytes`), factor fill (`max_factor_fill`), total iterations
+  Jacobian's nonzeros (`max_nnz`), block order (`max_block_size`), factor fill (`max_factor_fill`), total iterations
   (`max_total_iterations`) and wall clock (`max_wall_clock_ms`); exceeding one is a
-  refusal that names its own `solver_*_budget` code. Each solved world carries an
+  refusal that names its own `solver_*_budget` code. Memory is bounded by the
+  execution's `ResourceLimits`, not by the policy. Each solved world carries an
   `evidence` dictionary with the block structure, resource accounting, contraction
   and spectral bounds, the Jacobian's nonsingularity basis, the unique-root basis and
   an `ill_conditioned` flag (`condition_warning`).

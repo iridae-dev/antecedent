@@ -134,6 +134,7 @@ SEED_ZERO = (
     "joint_response_api.rs::execute",
     "joint_response_api.rs::export",
     "joint_response_api.rs::retarget",
+    "mnar_sensitivity_api.rs::mnar_sensitivity_run",
     "discovered_transport_trial_api.rs::verify_trial_compatible_transport_estimate_artifact",
     "propagation_chain_api.rs::propagation_chain_family_table",
     "predictive_assessment_api.rs::predictive_assessment_assess",

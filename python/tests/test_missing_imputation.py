@@ -161,3 +161,43 @@ def test_the_within_table_bootstrap_setting_is_declared_and_carried_to_the_nativ
     assert "bootstrap_replicates" not in plain["imputation"]
     with pytest.raises(CausalTypeError):
         ImputationSpec(bootstrap_replicates=-1)
+
+
+def _selection_data(n: int, seed: int):
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=n)
+    t = (rng.random(n) < 1 / (1 + np.exp(-z))).astype(float)
+    y = TRUE_EFFECT * t + 0.7 * z + rng.normal(size=n)
+    miss = rng.random(n) < 1 / (1 + np.exp(-(1.2 * z - 0.8)))
+    return {"t": t, "y": np.where(miss, np.nan, y), "z": z}
+
+
+def test_graph_selection_is_rerun_on_every_completed_table():
+    from antecedent.missing import (
+        GraphSelectionImputationRefusal,
+        multiple_imputation_with_graph_selection,
+    )
+
+    data = _selection_data(500, 3)
+    result = multiple_imputation_with_graph_selection(
+        data, treatment="t", outcome="y", imputations=4,
+        iterations=3,
+        n_draws=200,
+        execution=ant.Execution(seed=2),
+    )
+    assert result.structure == "graph_selection_rerun_per_imputation"
+    assert result.pooling == "stacked_graph_posterior_rerun"
+    assert result.estimator == "bayesian.gcomp"
+    assert result.assumption == "missing_at_random"
+    assert result.imputations == 4 and len(result.points) == 4
+    assert result.posterior_draws == 4 * 200
+    assert result.imputed_cells["y"] > 0
+    # The stack's mean is the mean of the tables' posterior means, up to Monte Carlo error.
+    assert result.effect == pytest.approx(np.mean(result.points), abs=8 * result.posterior_sd / 28)
+    lower, upper = result.credible_interval["lower"], result.credible_interval["upper"]
+    assert lower < result.effect < upper
+    assert result.total >= result.within and result.between >= 0.0
+
+    with pytest.raises(GraphSelectionImputationRefusal) as unknown:
+        multiple_imputation_with_graph_selection(data, treatment="t", outcome="nope")
+    assert unknown.value.detail == "graph_selection_imputation.variables"

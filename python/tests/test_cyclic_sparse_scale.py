@@ -94,7 +94,6 @@ def test_noncontractive_ring_needs_newton_and_reports_the_affine_certificate() -
     [
         (SolvePolicy(max_nnz=10), "solver_jacobian_nnz_budget"),
         (SolvePolicy(max_block_size=50), "solver_block_size_budget"),
-        (SolvePolicy(max_bytes=1000), "solver_memory_budget"),
         (SolvePolicy(max_total_iterations=1), "solver_iteration_budget"),
         (SolvePolicy(max_wall_clock_ms=0), "solver_wall_clock_budget"),
     ],

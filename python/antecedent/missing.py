@@ -34,11 +34,14 @@ reason for each exclusion and a digest of exactly which rows were dropped.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from .errors import CausalTypeError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+
+if TYPE_CHECKING:
+    from .execution import Execution
 
 #: The policy names a route can be asked for.
 MissingPolicyName = Literal[
@@ -289,4 +292,128 @@ def native_declaration(policy: MissingPolicy | None, names: Iterable[str]) -> di
     return declaration
 
 
-__all__ = ["ImputationSpec", "MissingPolicy", "MissingPolicyName", "coerce_missing"]
+class GraphSelectionImputationRefusal(StructuredRefusal):
+    """A refusal of the imputation with graph selection re-run on every completed table.
+
+    A :class:`~antecedent.errors.StructuredRefusal` carrying the registered ``code`` and the
+    namespaced ``detail`` (``graph_selection_imputation.<slot>`` or the imputation's own
+    ``multiple_imputation.<slot>``).
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class GraphSelectionImputationResult:
+    """The pooled answer of :func:`multiple_imputation_with_graph_selection`.
+
+    ``effect`` and ``posterior_sd`` summarise the equal-weight stack of the completed tables'
+    effect posteriors, each a mixture over that table's own graph posterior; ``credible_interval``
+    is the central posterior interval of the stack at ``level``, a posterior statement
+    conditional on the imputation model and the exact-DAG search, not a coverage claim.
+    ``points`` are the tables' posterior means. Three things stay apart: ``within`` is the mean
+    posterior variance inside a table, ``between`` is the spread of the table means (the
+    uncertainty the missing cells and the changing selected structure add), and ``assumption``
+    is the declared missingness mechanism, which the data cannot test. ``structure`` names how
+    the graph posterior was obtained (``"graph_selection_rerun_per_imputation"``).
+    """
+
+    effect: float
+    posterior_sd: float
+    credible_interval: Mapping[str, float] | None
+    posterior_draws: int | None
+    imputations: int
+    points: tuple[float, ...]
+    within: float
+    between: float
+    total: float
+    pooling: str
+    estimator: str
+    imputed_cells: Mapping[str, int]
+    assumptions_digest: str
+    assumption: str
+    structure: str
+
+
+def multiple_imputation_with_graph_selection(
+    data: Mapping[str, Any],
+    *,
+    treatment: str,
+    outcome: str,
+    imputations: int = 20,
+    iterations: int = 10,
+    model: str = "chained_equations",
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    level: float = 0.95,
+    execution: Execution | None = None,
+) -> GraphSelectionImputationResult:
+    """Multiple imputation of a Bayesian average effect with graph selection re-run per table.
+
+    ``data`` maps column names to float columns (missing cells ``NaN`` or ``None``); every
+    column must be numeric. Each of the ``imputations`` completed tables is searched for its
+    own exact posterior over directed acyclic graphs of the columns, in column order (at most
+    six columns, the enumeration cap; larger tables are searched by order MCMC), the
+    Bayesian g-computation effect of ``treatment`` on ``outcome`` is estimated under that
+    posterior (the adjustment is whatever each sampled graph identifies), and the tables'
+    effect posteriors are stacked with equal weight, so the pooled spread carries the change
+    in the selected structure as well as the change in the filled cells. The missingness
+    mechanism is missing at random, declared and untestable. The seed of the imputation and
+    of the effect draws is ``execution.seed``. Refusals raise
+    :class:`GraphSelectionImputationRefusal`.
+    """
+    import json
+
+    from ._native import graph_selection_imputation_run as _run
+    from ._refusal import raise_refusal
+    from .execution import native_controls
+
+    if not isinstance(data, Mapping) or not data:
+        raise CausalTypeError("data must be a non-empty mapping of column names to values")
+    names = [str(name) for name in data]
+    columns = [
+        [float("nan") if v is None else float(v) for v in data[name]] for name in data
+    ]
+    text, refusal = _run(
+        names,
+        columns,
+        treatment,
+        outcome,
+        model=model,
+        imputations=imputations,
+        iterations=iterations,
+        n_draws=n_draws,
+        prior_scale=float(prior_scale),
+        level=float(level),
+        **native_controls(execution, seed="seed"),
+    )
+    raise_refusal(refusal, GraphSelectionImputationRefusal)
+    if text is None:  # pragma: no cover - the native contract
+        raise CausalValueError("the native routine returned neither a result nor a refusal")
+    raw = json.loads(text)
+    return GraphSelectionImputationResult(
+        effect=raw["effect"],
+        posterior_sd=raw["posterior_sd"],
+        credible_interval=raw["credible_interval"],
+        posterior_draws=raw["posterior_draws"],
+        imputations=raw["imputations"],
+        points=tuple(raw["points"]),
+        within=raw["within"],
+        between=raw["between"],
+        total=raw["total"],
+        pooling=raw["pooling"],
+        estimator=raw["estimator"],
+        imputed_cells={entry["variable"]: entry["cells"] for entry in raw["imputed_cells"]},
+        assumptions_digest=raw["assumptions_digest"],
+        assumption=raw["assumption"],
+        structure=raw["structure"],
+    )
+
+
+__all__ = [
+    "GraphSelectionImputationRefusal",
+    "GraphSelectionImputationResult",
+    "ImputationSpec",
+    "MissingPolicy",
+    "MissingPolicyName",
+    "coerce_missing",
+    "multiple_imputation_with_graph_selection",
+]

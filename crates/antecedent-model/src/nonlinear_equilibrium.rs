@@ -207,7 +207,8 @@ pub struct SolvePolicy {
     /// Maximum order of one strongly connected block.
     #[serde(default = "default_max_block_size", skip_serializing_if = "is_default_max_block_size")]
     pub max_block_size: usize,
-    /// Maximum estimated solver memory in bytes.
+    /// Maximum estimated solver memory in bytes. Unbounded by default: the execution's memory
+    /// limit (admission pool) is the physical control; this is an additional declared bound.
     #[serde(default = "default_max_bytes", skip_serializing_if = "is_default_max_bytes")]
     pub max_bytes: u64,
     /// Maximum sparse-LU entries (fill-in included) of one factorization.
@@ -273,7 +274,8 @@ fn default_max_block_size() -> usize {
     MAX_ORDER
 }
 fn default_max_bytes() -> u64 {
-    1 << 30
+    // Unbounded by default: physical memory is owned by the execution admission pool.
+    u64::MAX
 }
 fn default_max_factor_fill() -> usize {
     16_000_000

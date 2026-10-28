@@ -182,16 +182,17 @@ class SolvePolicy:
 
     The budget fields bound a sparse solve instead of a fixed variable count. Exceeding one
     is a refusal that names its own code (``solver_jacobian_nnz_budget``,
-    ``solver_block_size_budget``, ``solver_memory_budget``, ``solver_factor_fill_budget``,
+    ``solver_block_size_budget``, ``solver_factor_fill_budget``,
     ``solver_iteration_budget``, ``solver_wall_clock_budget`` or, beyond the dense
     disturbance-covariance admission, ``solver_model_order_budget``). A numerical failure
     inside the budgets (non-convergence, singular Jacobian) stays a retained world outcome.
 
     ``max_nnz`` bounds the structural nonzeros of the free Jacobian, ``max_block_size`` the
-    order of one strongly connected block, ``max_bytes`` the estimated solver memory,
-    ``max_factor_fill`` the sparse-LU entries of one factorization, ``max_total_iterations``
+    order of one strongly connected block, ``max_factor_fill`` the sparse-LU entries of one factorization, ``max_total_iterations``
     the iterations summed over blocks and ``max_wall_clock_ms`` a deadline (``0`` is already
-    expired). ``condition_warning`` flags ``ill_conditioned`` in the solve evidence when the
+    expired). Memory is a physical control: set it on
+    ``Execution(limits=ResourceLimits(...))``, which the solver's estimated bytes are admitted
+    against. ``condition_warning`` flags ``ill_conditioned`` in the solve evidence when the
     Jacobian condition estimate exceeds it; ``spectral_iterations`` bounds the power iteration
     that bounds each block's spectral radius.
     """
@@ -201,7 +202,6 @@ class SolvePolicy:
     require_contraction: bool = True
     max_nnz: int = 8_000_000
     max_block_size: int = 4096
-    max_bytes: int = 1 << 30
     max_factor_fill: int = 16_000_000
     max_total_iterations: int = 10_000_000
     max_wall_clock_ms: int | None = None

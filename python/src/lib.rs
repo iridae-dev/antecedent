@@ -132,6 +132,7 @@ mod mechanism_composition_api;
 mod mechanism_discrepancy_api;
 mod missing_report;
 mod mixed_decision_api;
+mod graph_selection_api;
 mod mnar_sensitivity_api;
 mod msm_sensitivity_api;
 mod multi_level_treatment_api;

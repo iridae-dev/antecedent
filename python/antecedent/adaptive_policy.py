@@ -46,8 +46,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from ._native import CancellationToken
 from ._native import adaptive_policy_search as _search
+from .execution import Execution, native_controls
 
 __all__ = [
     "AdaptivePolicyResult",
@@ -263,13 +263,14 @@ def search(
     polish: bool = True,
     standing: Literal["fitted_model", "identified_policy_effect"] = "fitted_model",
     held_out: Literal["preferred", "required"] = "preferred",
-    cancel: CancellationToken | None = None,
+    execution: Execution | None = None,
     _model_source: Mapping[str, Any] | None = None,
     _fitted: Any = None,
 ) -> AdaptivePolicyResult:
     """Search the declared policy families against ``source``.
 
-    Raises a refusal for an unobserved feature, an unsupported identified-effect request or a
+    ``execution`` carries the cancellation token. ``seed`` is the declared stream of the search,
+    recorded in the result's identity. Raises a refusal for an unobserved feature, an unsupported identified-effect request or a
     required but unavailable held-out evaluation; raises ``CausalCancelledError`` on
     cancellation and ``CausalResourceError`` on memory refusal.
     """
@@ -289,6 +290,7 @@ def search(
         "standing": standing,
         "held_out": held_out,
     }
+    cancel = native_controls(execution, cancel="cancel")["cancel"]
     if _fitted is not None:
         config["model_source"] = dict(_model_source or {})
         native = getattr(_fitted, "_native", _fitted)

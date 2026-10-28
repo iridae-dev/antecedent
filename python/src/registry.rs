@@ -39,7 +39,7 @@ use super::{
     learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
     load_float64_panel_columns, matched_case_control_api, measured_inference_api,
     measurement_model_api, mechanism_composition_api, mechanism_discrepancy_api,
-    mnar_sensitivity_api, msm_sensitivity_api, multi_level_treatment_api, nested_bayesian_api,
+    graph_selection_api, mnar_sensitivity_api, msm_sensitivity_api, multi_level_treatment_api, nested_bayesian_api,
     nested_fisher_api, nonlinear_mediation_api, observation_api, observation_query_api,
     observational_interference_api, observational_policy_api, observational_survival_api,
     policy_api, posterior_boundary_api, posterior_row_api, predictive_assessment_api,
@@ -110,6 +110,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     cross_world_execution_api::register(m)?;
     joint_transport_api::register(m)?;
     msm_sensitivity_api::register(m)?;
+    graph_selection_api::register(m)?;
     mnar_sensitivity_api::register(m)?;
     mechanism_discrepancy_api::register(m)?;
     inverse_outcome_api::register(m)?;

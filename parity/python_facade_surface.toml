@@ -2874,5 +2874,5 @@ reason = "reached through antecedent.mnar_sensitivity.from_analysis and ResultAP
 [[entry]]
 rust = "antecedent::analysis::api::estimate_with_graph_selection_per_imputation"
 kind = "fn"
-status = "missing"
-reason = "takes a closure that builds the study on each completed table; a Python route needs a declarative per-table study description"
+status = "bound"
+python = "antecedent.missing.multiple_imputation_with_graph_selection"

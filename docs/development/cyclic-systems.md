@@ -36,7 +36,7 @@ is independent of mathematical existence, uniqueness and identification.
   deterministic, detects a numerically singular Jacobian by a pivot floor and its
   factors of `A` and `A^T` give the condition estimate. There is no fixed variable
   cap. `SolvePolicy` admits the free Jacobian's nonzeros, the largest block,
-  estimated memory, sparse-LU fill, total iterations and a wall-clock deadline;
+  estimated memory (`max_bytes`, unbounded by default; the execution's admission pool is the physical limit), sparse-LU fill, total iterations and a wall-clock deadline;
   each excess is a refusal with its own code (`solver_jacobian_nnz_budget`,
   `solver_block_size_budget`, `solver_memory_budget`, `solver_factor_fill_budget`,
   `solver_iteration_budget`, `solver_wall_clock_budget`), and the dense disturbance

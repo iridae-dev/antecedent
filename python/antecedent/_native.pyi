@@ -6296,6 +6296,20 @@ def msm_sensitivity_run(
     tolerance: float,
     sampling_composition: str | None = None,
 ) -> tuple[str | None, str | None]: ...
+def graph_selection_imputation_run(
+    names: list[str],
+    columns: list[list[float]],
+    treatment: str,
+    outcome: str,
+    *,
+    model: str = ...,
+    imputations: int = 20,
+    iterations: int = 10,
+    seed: int = 1,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    level: float = 0.95,
+) -> tuple[str | None, str | None]: ...
 def mnar_sensitivity_run(
     treatment: list[float],
     outcome: list[float | None],

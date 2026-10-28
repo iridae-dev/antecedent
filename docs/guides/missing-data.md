@@ -100,7 +100,16 @@ table and posterior, and stacks the effect posteriors with equal weight (pooling
 `stacked_graph_posterior_rerun`; claim entry
 `missing_imputation_structure:graph_selection_rerun_per_imputation:weights_preserved`). It runs
 at the top level because a study's dispatch may not build and run another study. It needs a
-table of float columns searched in column order and a study that runs `bayesian.gcomp`. Constructions with
+table of float columns searched in column order and a study that runs `bayesian.gcomp`.
+
+From Python, `antecedent.missing.multiple_imputation_with_graph_selection(data, treatment=...,
+outcome=..., imputations=..., n_draws=..., prior_scale=...)` states that study declaratively
+(float columns with `NaN` for missing cells, the treatment and outcome, the Bayesian
+g-computation settings); the exact DAG posterior over the columns in order is searched on every
+completed table and the adjustment is whatever each sampled graph identifies. It returns the
+stacked effect, its posterior sd and central interval (a posterior statement, not a coverage
+claim), the tables' posterior means, and the within, between and total variances beside the
+declared missing-at-random assumption; refusals raise `GraphSelectionImputationRefusal`. Constructions with
 no justified pooling rule are refused with their own detail: a frequentist study
 (`multiple_imputation.graph_posterior_frequentist`), a series posterior
 (`multiple_imputation.graph_posterior_series`), a query answered atom by atom, such as a response,

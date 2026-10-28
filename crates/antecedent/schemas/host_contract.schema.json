@@ -388,7 +388,6 @@
         "unknown_variable",
         "validation_stream_not_independent",
         "validators_not_applicable"
-
       ],
       "description": "Registered runtime-refusal reason code. A refusal never carries another code."
     },
@@ -567,7 +566,6 @@
         "unknown_variable",
         "validation_stream_not_independent",
         "validators_not_applicable"
-
       ],
       "description": "Every registered reason code, including the calibration and product vocabularies."
     },
