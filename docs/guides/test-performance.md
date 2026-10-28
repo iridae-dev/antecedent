@@ -55,6 +55,36 @@ Runner-seconds sum work across machines. They do not equal elapsed time when
 jobs run concurrently. The shared build removes 15 native compilations per
 run; the resulting CI wall time needs a run of the updated workflow.
 
+## Selections
+
+`scripts/test.sh` names each selection explicitly; none silently substitutes
+for another, and an empty selection fails.
+
+| Mode | Selects |
+| --- | --- |
+| `rust` (default), `docs`, `dev` | Workspace nextest run, doctests, or a focused forwarded selection. |
+| `rust-software` | Ordinary workspace assertions with registered measured-record acceptance assertions explicitly deselected (they await calibration). |
+| `rust-calibration-acceptance` | Only those retained acceptance assertions; no calibration is performed. |
+| `integration` | Integration targets, without library unit tests. |
+| `scientific` | Exact scientific assertions cited by the evidence registries, via `scripts/evidence_audit.py run-scientific`. |
+| `scripts` | Discovered script unit tests in their locked environment; skips, empty discovery and failures fail. |
+| `python`, `python-test` | Full pytest (with or without sync and native rebuild). |
+| `python-software` | pytest with `-m 'not requires_calibration'`. |
+| `python-calibration-acceptance` | pytest with `-m requires_calibration`, after branch calibration. |
+
+Both pytest modes first check the native extension identity
+(`scripts/native_build_identity.py check`). CI's coverage-floor pytest step runs
+the whole suite (software and acceptance) because the calibration attestation
+runs first in the same workflow.
+
+Most integration files are compiled into a few consolidated `suite_NN` targets
+per crate (`scripts/consolidate_tests.py`); the files stay where they are, are
+included with `#[path]`, and are listed in the crate's `tests/suite_map.txt`.
+Calibration harnesses and any target a script names with `--test` stay
+separate. `scripts/check_test_targets.py` fails when a test file is not
+compiled, and `scripts/check_v3_test_registry.py` fails when a registry row
+names a missing file or a stale suite-map line.
+
 ## Rust fixture reuse
 
 `transport_exact_scm.rs` formerly generated the same source population laws
@@ -141,7 +171,7 @@ accepted coverage records.
 ## CI build strategy
 
 The `python-native` job builds one release extension for Linux x86_64 and
-CPython 3.12 after the calibration attestation. Fifteen Python domain sections
+CPython 3.12 after the calibration attestation. Sixteen Python domain sections
 and the coverage/lint job consume this run's artifact. Rust-only domain
 sections start independently while the extension builds.
 
@@ -152,7 +182,7 @@ It then verifies the exact native import path in a fresh interpreter outside
 the checkout, matching tests that launch child processes from temporary
 directories. Python source coverage still covers the checkout package.
 
-All 26 domain section names and the required `Domain gates` check remain.
+All 27 domain section names (16 Python, 11 Rust-only) and the required `Domain gates` check remain.
 The aggregate check requires both the Python and Rust domain matrices to
 succeed. The 16 platform/interpreter wheel combinations still build and test
 their own installed wheels. Sharing the Linux source-tree extension does not
@@ -233,8 +263,14 @@ The one comparison already on file,
 selections, checkout and Cargo settings differ, and its execution time rose
 from 744.162 to 903.397 seconds. No workspace speedup is claimed.
 
-The required checks fail, with fault controls in `scripts/test_evidence_audit.py`
-and `scripts/test_cost_report.py`, for: a stale native extension, a deleted one
+CI runs these controls in the `script unit tests` and `Test-suite controls`
+steps of the Python lint job (`scripts/test_evidence_audit.py` and
+`scripts/test_cost_report.py` through script discovery; the assertion scan and
+registry self-tests, and the source-only evidence audit report, directly). The
+Domain `inventory` section runs the registry check itself, and the provenance
+schema gate runs in every release-gate section. The required checks fail, with
+fault controls in `scripts/test_evidence_audit.py` and
+`scripts/test_cost_report.py`, for: a stale native extension, a deleted one
 with a fresh stamp, or one built for another interpreter ABI,
 an empty scientific or calibration selection, an unregistered or undiscovered
 calibration-acceptance test, a script test that is failed, skipped, expected to
@@ -272,8 +308,8 @@ changing test topology:
 ## Local development build strategy
 
 For the edit, build, test loop, reduce compilation and linking before adding
-more test workers. The workspace currently has 534 integration-test binaries;
-283 belong to the facade. Running a small nextest name filter against the
+more test workers. After consolidation the workspace has 449 integration-test binaries;
+197 belong to the facade. Running a small nextest name filter against the
 facade can still build all its targets. Select the Cargo target first, then
 apply a test-name filter within it:
 
@@ -311,7 +347,7 @@ The next broader changes, in priority order, are:
 | Change | Local benefit | Required validation |
 | --- | --- | --- |
 | Dedicated native development build with incremental compilation and LTO off | Avoid repeated whole-graph release link optimization after a Rust edit while retaining optimized numerical code. | Compare cold build, no-op build and a real edit/rebuild against the release path, then verify Python results and runtime. |
-| Group facade integration targets into moderate domain suites | Reduce the number of executables rebuilt/relinked after a library edit. | Preserve test collection, per-target features, process-isolation probes, citations and explicit calibration commands. Measure test-file edits as well as library edits. |
+| Measure the consolidated `suite_NN` targets | The grouping is in place; its benefit is unmeasured. | Compare library-edit and test-file-edit rebuilds before and after under matching conditions with `scripts/cost_report.py`. |
 | Exclude purely ignored calibration targets from ordinary builds | A conservative source inventory found 27 such integration targets, containing 112 ignored tests. These still cost compilation and links today. | Confirm actual collection, add an explicit measurement feature, and have the calibration driver enable it. |
 | Reduce dependency fan-out in core and artifact/facade layers | Limit how far a common source edit propagates. | Separate stable data/types from frequently edited implementations without weakening public API or provenance checks. |
 
@@ -349,6 +385,6 @@ snapshot/write checks, including the existing attestation guards, pass.
 Validation of the focused development changes includes all nineteen narrowed
 facade targets passing `cargo check`, a real focused Rust `dev` run, and 29
 Python tests through `python-test` without a native rebuild. The native profile
-candidate and integration-target consolidation remain benchmark proposals.
+candidate remains a benchmark proposal, and the consolidated targets' build benefit is unmeasured.
 
 
