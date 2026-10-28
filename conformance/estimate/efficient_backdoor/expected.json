@@ -14,13 +14,14 @@
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false,
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "generator_retained": false,
     "note": "black-box execution only; no source translation",
     "outputs": {
       "method": "backdoor.linear_regression",
       "estimate": 2.037513004155971,
       "se": 0.03858053585514642,
-      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nEstimand expression:\n d          \n\u2500\u2500\u2500\u2500(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U\u2192{t} and U\u2192y then P(y|t,z,U) = P(y|t,z)\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nEstimand expression:\n d          \n\u2500\u2500\u2500\u2500(E[y|z])\nd[t]        \nEstimand assumption 1,",
+      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nEstimand expression:\n d          \n────(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U→{t} and U→y then P(y|t,z,U) = P(y|t,z)\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nEstimand expression:\n d          \n────(E[y|z])\nd[t]        \nEstimand assumption 1,",
       "n": 800,
       "seed": 7
     }
@@ -28,6 +29,48 @@
   "oracle": {
     "kind": "closed_form",
     "method": "known generating structural model: the expected values are its coefficients or functionals, derived by hand",
-    "note": "true_effect is the structural coefficient of the clean-room SCM that crates/antecedent/tests/estimate_conformance.rs generates inline; the `reference` block records a pinned DoWhy 0.14 run (generator deleted after import) that the consuming test does not compare against, so it is context, not the truth source"
+    "note": "true_effect is the structural coefficient of the clean-room SCM that crates/antecedent/tests/estimate_conformance.rs generates inline; the `reference` block records a pinned DoWhy 0.14 run (generator deleted after import) that the consuming test does not compare against, so it is context, not the truth source",
+    "generator": "conformance/estimate/efficient_backdoor/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/efficient_backdoor/reference.py --check",
+    "environment_lock": "conformance/estimate/efficient_backdoor/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "true_effect as the structural effect of T on Y",
+      "tolerance band excludes the confounded contrast"
+    ],
+    "context_only_outputs": [
+      "identifier and estimator ids (not derivable)",
+      "DoWhy reference block (not compared by the executing assertion)",
+      "generation block (deleted harness)",
+      "notes text"
+    ],
+    "independence_basis": "The generator reads only the structural coefficients stated in the fixture notes and the test SCM (Y = 2T + Z + noise, T ~ Bernoulli(sigmoid(-0.4 + 0.9Z))) and derives the interventional contrast by cutting the Z -> T equation, plus the confounded contrast by quadrature; it imports no Antecedent code and no statistics package. The shared object is the stated SCM: if the test generated different coefficients than the notes state, this reference would not detect it.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Structural effect and band check for the ATE target under a constant-effect linear outcome with a logistic propensity. The generator recomputes the effect from the structural equation and the unadjusted contrast by quadrature, and requires the tolerance to be positive and narrower than the confounding bias.",
+      "independence_basis": "The generator reads only the structural coefficients stated in the fixture notes and the test SCM (Y = 2T + Z + noise, T ~ Bernoulli(sigmoid(-0.4 + 0.9Z))) and derives the interventional contrast by cutting the Z -> T equation, plus the confounded contrast by quadrature; it imports no Antecedent code and no statistics package. The shared object is the stated SCM: if the test generated different coefficients than the notes state, this reference would not detect it.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The executing assertion is a finite-sample Monte Carlo band on an estimator output (|ate - true_effect| < 0.35 at n=1500), so agreement shows the band is centred on the structural effect and excludes the confounded contrast, not that the estimator is unbiased or efficient. The estimator ids, the recorded DoWhy run and the generation block are context only. No uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/efficient_backdoor/reference.py",
+          "sha256": "23b01b05aae32ed84e55dd36fd92f1133275e51868c064b2e4688862bc5bb6e3"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/efficient_backdoor/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/estimate_conformance.rs",
+          "sha256": "ee32a186b9dda64627ff43827387eb90ffc1ef795220675863b5c54c129aabf4"
+        }
+      ],
+      "fixture_payload_sha256": "e6ba49dd4ff6cc72109758a977d314204cc7487aab613c9eeab6e615fc47f4cc"
+    }
   }
 }

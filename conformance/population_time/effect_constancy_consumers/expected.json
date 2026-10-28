@@ -2,30 +2,106 @@
   "oracle": {
     "kind": "closed_form",
     "provenance": "Variance of a difference using the declared covariance, two-sided standard normal tail, absolute-distance ordering and affine point utilities.",
-    "generation": "Compute variance=.25+.25-2*.125=.25; z=-1/sqrt(.25)=-2; p=erfc(abs(z)/sqrt(2)); scores=-abs(source_effect-2.1); baseline utility=0, treatment utility=effect. No Antecedent output is an input."
+    "generation": "Compute variance=.25+.25-2*.125=.25; z=-1/sqrt(.25)=-2; p=erfc(abs(z)/sqrt(2)); scores=-abs(source_effect-2.1); baseline utility=0, treatment utility=effect. No Antecedent output is an input.",
+    "generator": "conformance/population_time/effect_constancy_consumers/reference.py",
+    "command": "uv run --frozen --script conformance/population_time/effect_constancy_consumers/reference.py --check",
+    "environment_lock": "conformance/population_time/effect_constancy_consumers/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "difference, its variance-derived standard error and the Holm-adjusted p for one contrast",
+      "prior scores and compatible rank",
+      "policy common leaders for disagreement, tie and same-sign cases"
+    ],
+    "context_only_outputs": [
+      "standing block (point-only, unmeasured calibration, licensing flags: declared repository policy)",
+      "incompatible_source label",
+      "disagreement partition values read by the test"
+    ],
+    "independence_basis": "The generator applies the variance-of-a-difference identity, the normal tail through erfc, absolute-distance scoring and argmax-set intersection to the declared inputs; it imports no Antecedent code and no statistics package. The shared object is the declared inputs and the source-name order used by the test (far, near).",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Hand-sized algebra for a two-partition effect comparison, a two-source prior ranking and a two-action policy.",
+      "independence_basis": "The generator applies the variance-of-a-difference identity, the normal tail through erfc, absolute-distance scoring and argmax-set intersection to the declared inputs; it imports no Antecedent code and no statistics package. The shared object is the declared inputs and the source-name order used by the test (far, near).",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The 'standing' flags (point_only, unmeasured, no posterior transfer) are repository policy declarations, not derived. The ranking uses the source order far/near taken from the executing test, which this reference does not otherwise verify. Single contrast, so Holm adjustment is the identity. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/population_time/effect_constancy_consumers/reference.py",
+          "sha256": "b8df11beaa0e0d842e316e065772227d4c395cb2a8f0bec9f6d11d0eafd25f08"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/population_time/effect_constancy_consumers/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/effect_constancy_consumers.rs",
+          "sha256": "f4eba95ed04ba9fa41c1f3619aeb18f96ddb6ea82d6e192b99e5aad02db50e86"
+        }
+      ],
+      "fixture_payload_sha256": "5b6728def5921c142f5ddbe8c79b80bf4ed49ad1da93ca080f4616f2dec199e5"
+    }
   },
   "transport": {
-    "effects": [1.0, 2.0],
-    "standard_errors": [0.5, 0.5],
-    "covariance": [0.25, 0.125, 0.125, 0.25],
+    "effects": [
+      1.0,
+      2.0
+    ],
+    "standard_errors": [
+      0.5,
+      0.5
+    ],
+    "covariance": [
+      0.25,
+      0.125,
+      0.125,
+      0.25
+    ],
     "difference": -1.0,
     "difference_standard_error": 0.5,
     "holm_p_single_contrast": 0.04550026389635842
   },
   "prior": {
     "target_effect": 2.1,
-    "source_effects": [1.0, 2.0],
-    "scores": [-1.1, -0.1],
-    "compatible_rank": ["near", "far"],
+    "source_effects": [
+      1.0,
+      2.0
+    ],
+    "scores": [
+      -1.1,
+      -0.1
+    ],
+    "compatible_rank": [
+      "near",
+      "far"
+    ],
     "incompatible_source": "wrong"
   },
   "policy": {
-    "disagreement_effects": [-1.0, 2.0],
+    "disagreement_effects": [
+      -1.0,
+      2.0
+    ],
     "disagreement_common_leaders": [],
-    "tie_effects": [0.0, 0.0],
-    "tie_common_leaders": ["baseline", "treat"],
-    "same_effects": [1.0, 2.0],
-    "same_common_leaders": ["treat"]
+    "tie_effects": [
+      0.0,
+      0.0
+    ],
+    "tie_common_leaders": [
+      "baseline",
+      "treat"
+    ],
+    "same_effects": [
+      1.0,
+      2.0
+    ],
+    "same_common_leaders": [
+      "treat"
+    ]
   },
   "standing": {
     "inference": "point_only",

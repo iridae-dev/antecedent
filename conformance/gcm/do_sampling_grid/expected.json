@@ -4,7 +4,47 @@
     "kind": "closed_form",
     "project": "analytic linear-Gaussian SCM intervention",
     "pin": "fixture-algorithm-v1",
-    "generation_location": "analytical artifact; no generator retained"
+    "generation_location": "analytical artifact; no generator retained",
+    "generator": "conformance/gcm/do_sampling_grid/reference.py",
+    "command": "uv run --frozen --script conformance/gcm/do_sampling_grid/reference.py --check",
+    "environment_lock": "conformance/gcm/do_sampling_grid/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "model.outcome_mean",
+      "model.outcome_variance"
+    ],
+    "context_only_outputs": [
+      "acceptance draws, seeds and tolerances (Monte Carlo acceptance bands, not derived)",
+      "mcmc accept-rate window"
+    ],
+    "independence_basis": "The generator applies the intervention to the stated structural equation (do cuts the treatment mechanism, so the outcome is the intercept plus slope times the set value, with the noise variance unchanged); it imports no Antecedent code and no statistics package. The shared object is the stated SCM.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Mean and variance of the interventional outcome of a one-edge linear Gaussian SCM.",
+      "independence_basis": "The generator applies the intervention to the stated structural equation (do cuts the treatment mechanism, so the outcome is the intercept plus slope times the set value, with the noise variance unchanged); it imports no Antecedent code and no statistics package. The shared object is the stated SCM.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The sampler acceptance bands, draw counts, seeds and the MCMC acceptance-rate window are declared Monte Carlo bands that are not derived here, and the kernel-density and MCMC samplers are not checked for bias. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/gcm/do_sampling_grid/reference.py",
+          "sha256": "c7a16398902c132d69cf37dce6701af0a441ff655b25b007bbb3c4e59ad199f8"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/gcm/do_sampling_grid/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-model/tests/scm_oracle.rs",
+          "sha256": "40ee2966607624d70e4817ecd4dcd9965c38775a6ca7e727e829cee0ef98ee5e"
+        }
+      ],
+      "fixture_payload_sha256": "52b85537525a738a7a62617308a5c5870c676fabbe5ae728adcab9ac57b35ec2"
+    }
   },
   "model": {
     "treatment": "N(0,1)",
@@ -17,10 +57,24 @@
     "ancestral_draws": 20000,
     "kde_draws": 10000,
     "mcmc_draws": 6000,
-    "seeds": [2601, 2602, 2603],
-    "mean_atol": {"ancestral": 0.025, "kde": 0.035, "mcmc": 0.12},
-    "variance_atol": {"ancestral": 0.025, "kde": 0.04},
-    "mcmc_accept_rate": [0.1, 0.95],
+    "seeds": [
+      2601,
+      2602,
+      2603
+    ],
+    "mean_atol": {
+      "ancestral": 0.025,
+      "kde": 0.035,
+      "mcmc": 0.12
+    },
+    "variance_atol": {
+      "ancestral": 0.025,
+      "kde": 0.04
+    },
+    "mcmc_accept_rate": [
+      0.1,
+      0.95
+    ],
     "deterministic_replay": true
   }
 }

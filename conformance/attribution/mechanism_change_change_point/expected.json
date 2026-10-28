@@ -8,8 +8,16 @@
   ],
   "method": "change_point",
   "significance_level": 0.05,
+  "evidence_kind": "implementation_exists",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_source": "crates/antecedent/tests/attribution.rs::mechanism_change_change_point_conformance",
+  "evidence_proposition": "On a two-period chain whose y intercept shifts between periods with x unchanged, the known-split change-point residual test flags y at significance 0.05.",
+  "limitations": "A qualitative detection outcome on one seeded two-period dataset: no statistic, p-value, power or false-positive rate is derived or compared with an independent calculation. By-construction truth of which mechanism changed is not a numeric closed form. No calibration.",
   "oracle": {
-    "kind": "closed_form",
-    "method": "known synthetic two-period change (same periods as mechanism_change_detect): only y's mechanism shifts between periods, so y is the changed node by construction"
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
   }
 }

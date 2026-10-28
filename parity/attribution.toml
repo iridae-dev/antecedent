@@ -45,32 +45,32 @@ notes = "Regression-hybrid robust variant; antecedent.attribution.attribute_dist
 [[capabilities]]
 id = "attribution.mechanism_change_detection"
 status = "done"
-evidence_kind = "internal_known_truth"
+evidence_kind = "implementation_exists"
 known_truth_fixture = "conformance/attribution/mechanism_change_detect"
 evidence_test = "crates/antecedent/tests/attribution.rs"
 evidence_assertion = "mechanism_change_detect_conformance"
-limitations = "Qualitative detection truth (which mechanism changed), not a numeric magnitude. Baseline and comparison populations each need at least 10 rows (refused otherwise); the baseline is cross-fit (k-fold) so both residual samples are out-of-sample, matching the comparison side and avoiding anti-conservative Type-I inflation under a covariate shift with no mechanism change."
+limitations = "The fixture asserts only that y is flagged on one seeded two-period dataset under mean_diff; no statistic, p-value, power or false-positive rate is derived, and agreement is a software detection check, not independent known truth. Baseline and comparison populations each need at least 10 rows (refused otherwise); the baseline is cross-fit (k-fold) so both residual samples are out-of-sample."
 python_facade = "full"
 notes = "Detection separate from attribution (LR / mean-diff / classifier proxy); antecedent.attribution.mechanism_change_detection"
 
 [[capabilities]]
 id = "attribution.mechanism_change_kernel"
 status = "done"
-evidence_kind = "internal_known_truth"
+evidence_kind = "implementation_exists"
 known_truth_fixture = "conformance/attribution/mechanism_change_kernel_shift"
 evidence_test = "crates/antecedent/tests/attribution.rs"
 evidence_assertion = "mechanism_change_kernel_conformance"
-limitations = "Qualitative detection truth, not a numeric magnitude. Same minimum-population-size and cross-fitted-baseline caveats as attribution.mechanism_change_detection."
+limitations = "The fixture asserts only that y is flagged on one seeded two-period dataset under the kernel two-sample test; no MMD value, p-value, power or false-positive rate is derived, so this is a software detection check, not independent known truth. Same minimum-population-size and cross-fitted-baseline caveats as attribution.mechanism_change_detection."
 notes = "MMD² RBF kernel two-sample on residuals"
 
 [[capabilities]]
 id = "attribution.mechanism_change_change_point"
 status = "done"
-evidence_kind = "internal_known_truth"
+evidence_kind = "implementation_exists"
 known_truth_fixture = "conformance/attribution/mechanism_change_change_point"
 evidence_test = "crates/antecedent/tests/attribution.rs"
 evidence_assertion = "mechanism_change_change_point_conformance"
-limitations = "Qualitative detection truth, not a numeric magnitude. Same minimum-population-size and cross-fitted-baseline caveats as attribution.mechanism_change_detection; a comparison (or baseline) segment with no measured variation is refused rather than reported as a p=0 certainty."
+limitations = "The fixture asserts only that y is flagged on one seeded two-period dataset under the known-split change-point test; no statistic, p-value, power or false-positive rate is derived, so this is a software detection check, not independent known truth. Same minimum-population-size and cross-fitted-baseline caveats as attribution.mechanism_change_detection; a segment with no measured variation is refused rather than reported as a p=0 certainty."
 notes = "Known-split Gaussian change-point on concatenated residuals"
 
 [[capabilities]]

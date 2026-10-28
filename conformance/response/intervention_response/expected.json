@@ -43,6 +43,47 @@
   },
   "oracle": {
     "kind": "closed_form",
-    "method": "zero-noise linear law: E[Y | do(T=0.25)] = 1 + 2*0.25 + 0.8*mean(z) over the fixed deterministic sequence (see `generation`)"
+    "method": "zero-noise linear law: E[Y | do(T=0.25)] = 1 + 2*0.25 + 0.8*mean(z) over the fixed deterministic sequence (see `generation`)",
+    "generator": "conformance/response/intervention_response/reference.py",
+    "command": "uv run --frozen --script conformance/response/intervention_response/reference.py --check",
+    "environment_lock": "conformance/response/intervention_response/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "contract.true_response",
+      "tolerance.truth_absolute positivity (the band itself is a declared statistical tolerance)"
+    ],
+    "context_only_outputs": [
+      "estimator_contract text",
+      "graph and adjustment_set declarations",
+      "tolerance note about the GAM penalty"
+    ],
+    "independence_basis": "The generator evaluates the structural mean at the stated dose and the stated deterministic z sequence in floating-point arithmetic; it imports no Antecedent code and no statistics package. The shared object is the structural-mean formula in the fixture contract.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Exact interventional mean of a zero-noise linear structural model over a fixed 240-row z sequence.",
+      "independence_basis": "The generator evaluates the structural mean at the stated dose and the stated deterministic z sequence in floating-point arithmetic; it imports no Antecedent code and no statistics package. The shared object is the structural-mean formula in the fixture contract.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The truth is a single deterministic number for one dose. The 0.05 band is a regression tolerance chosen around the estimator's observed penalised-fit bias (about 0.016), not a derived error bound. The executing assertion also checks the prepared handle and accepted-graph paths, which this reference does not examine. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/intervention_response/reference.py",
+          "sha256": "751adad7a148f377e4339152a3b1b6219eaeafaad45fd0a7cc2bfbb6c9e2721b"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/intervention_response/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/response_facade.rs",
+          "sha256": "d5aecc8657793cf01b744b7d397dfbc8f5702327f2aa9d3db36bceb5014c820d"
+        }
+      ],
+      "fixture_payload_sha256": "961a749f4e1e04c1d3bc0afb7bdb05e2f4c6ebe8a0e4e28438b0ba06787bfeee"
+    }
   }
 }

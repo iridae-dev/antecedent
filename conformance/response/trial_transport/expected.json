@@ -1,13 +1,48 @@
 {
   "fixture_id": "antecedent.trial_to_target.paper_equation",
   "inputs": {
-    "outcome": [1.0, 3.0, 0.0, 0.0],
-    "treatment": [false, true, false, false],
-    "trial": [true, true, false, false],
-    "selection_probability": [0.5, 0.5, 0.5, 0.5],
-    "treatment_probability": [0.5, 0.5, 0.5, 0.5],
-    "mu0": [1.0, 1.0, 1.0, 1.0],
-    "mu1": [3.0, 3.0, 3.0, 3.0]
+    "outcome": [
+      1.0,
+      3.0,
+      0.0,
+      0.0
+    ],
+    "treatment": [
+      false,
+      true,
+      false,
+      false
+    ],
+    "trial": [
+      true,
+      true,
+      false,
+      false
+    ],
+    "selection_probability": [
+      0.5,
+      0.5,
+      0.5,
+      0.5
+    ],
+    "treatment_probability": [
+      0.5,
+      0.5,
+      0.5,
+      0.5
+    ],
+    "mu0": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mu1": [
+      3.0,
+      3.0,
+      3.0,
+      3.0
+    ]
   },
   "expected": {
     "ipw": 2.0,
@@ -16,9 +51,53 @@
     "treatment_effective_sample_size": 2.0
   },
   "contract": "Direct evaluation of the cited inverse-odds trial-to-target IPW and augmented estimating equations with known nuisance probabilities/regressions.",
-  "tolerance": {"atol": 1e-12},
+  "tolerance": {
+    "atol": 1e-12
+  },
   "oracle": {
     "kind": "closed_form",
-    "method": "direct evaluation of the cited inverse-odds IPW and augmented trial-to-target equations with known nuisances (see `contract`); no external package parity"
+    "method": "direct evaluation of the cited inverse-odds IPW and augmented trial-to-target equations with known nuisances (see `contract`); no external package parity",
+    "generator": "conformance/response/trial_transport/reference.py",
+    "command": "uv run --frozen --script conformance/response/trial_transport/reference.py --check",
+    "environment_lock": "conformance/response/trial_transport/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "expected ipw",
+      "expected aipw",
+      "selection_effective_sample_size",
+      "treatment_effective_sample_size"
+    ],
+    "context_only_outputs": [
+      "contract text",
+      "tolerance declaration"
+    ],
+    "independence_basis": "The generator evaluates the cited inverse-odds IPW and augmented estimating equations by direct arithmetic on the declared four-row inputs, with the normalisation by the number of target rows stated in its docstring; it imports no Antecedent code and no statistics package. The shared object is the estimating equation itself.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "One four-row calibration (two trial rows, two target rows, constant selection and treatment probabilities, outcome regressions exactly equal to the arm means). The generator recomputes IPW, AIPW and both Kish ESS.",
+      "independence_basis": "The generator evaluates the cited inverse-odds IPW and augmented estimating equations by direct arithmetic on the declared four-row inputs, with the normalisation by the number of target rows stated in its docstring; it imports no Antecedent code and no statistics package. The shared object is the estimating equation itself.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Every nuisance is constant and the residual corrections cancel, so the inputs cannot distinguish the normalisation by the target count from other normalisations, nor catch a swapped selection and treatment weight. The fixture checks the estimating-equation arithmetic only, with known nuisances: no estimated nuisance, variance, overlap diagnostic or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/trial_transport/reference.py",
+          "sha256": "e1b4c5d9dee353cf523258ffcbfc001a3a34d13d5e9e9475c4c9a4d2d160509a"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/trial_transport/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-estimate/src/transport.rs",
+          "sha256": "a190456f974409a14fdac5312ba8e5367ed1c71452285b261a0560bc03706b1f"
+        }
+      ],
+      "fixture_payload_sha256": "19e4c23dfc33761ce3b8804722cde3c405e4f6f257c68c1b18192e070dd6d31e"
+    }
   }
 }

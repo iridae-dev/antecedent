@@ -1,35 +1,138 @@
 {
   "fixture_id": "antecedent.observation.paper_equation_primitives",
   "selected_outcome": {
-    "observed": [2.0, null, 4.0],
-    "indicator": [1.0, 0.0, 1.0],
-    "probabilities": [0.5, 0.5, 1.0],
-    "outcome_regression": [1.0, 3.0, 4.0],
-    "expected_aipw_pseudo_values": [3.0, 3.0, 4.0]
+    "observed": [
+      2.0,
+      null,
+      4.0
+    ],
+    "indicator": [
+      1.0,
+      0.0,
+      1.0
+    ],
+    "probabilities": [
+      0.5,
+      0.5,
+      1.0
+    ],
+    "outcome_regression": [
+      1.0,
+      3.0,
+      4.0
+    ],
+    "expected_aipw_pseudo_values": [
+      3.0,
+      3.0,
+      4.0
+    ]
   },
   "kaplan_meier_ipcw": {
-    "time": [1.0, 2.0, 3.0],
-    "event": [0.0, 1.0, 1.0],
-    "entry": [0.0, 1.5, 0.0],
+    "time": [
+      1.0,
+      2.0,
+      3.0
+    ],
+    "event": [
+      0.0,
+      1.0,
+      1.0
+    ],
+    "entry": [
+      0.0,
+      1.5,
+      0.0
+    ],
     "survival_floor": 0.01,
-    "expected_without_entry": [0.0, 1.5, 1.5],
-    "expected_with_entry": [0.0, 1.0, 2.0]
+    "expected_without_entry": [
+      0.0,
+      1.5,
+      1.5
+    ],
+    "expected_with_entry": [
+      0.0,
+      1.0,
+      2.0
+    ]
   },
   "gaussian_observation_likelihood": {
     "sigma": 1.0,
-    "means": [0.0, 0.0, 0.0, 0.0],
+    "means": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
     "observations": [
-      {"kind": "left_censored", "bound": 0.0},
-      {"kind": "right_censored", "bound": 0.0},
-      {"kind": "interval_censored", "lower": -1.0, "upper": 1.0},
-      {"kind": "truncated", "value": 0.0, "lower": -1.0, "upper": 1.0}
+      {
+        "kind": "left_censored",
+        "bound": 0.0
+      },
+      {
+        "kind": "right_censored",
+        "bound": 0.0
+      },
+      {
+        "kind": "interval_censored",
+        "lower": -1.0,
+        "upper": 1.0
+      },
+      {
+        "kind": "truncated",
+        "value": 0.0,
+        "lower": -1.0,
+        "upper": 1.0
+      }
     ],
     "expected_log_likelihood": -2.305232894324563
   },
   "contract": "Independent closed-form evaluations of the cited IPW/AIPW, product-limit IPCW, and Gaussian censored/truncated likelihood equations; no external implementation parity is claimed.",
-  "tolerance": {"atol": 1e-12},
+  "tolerance": {
+    "atol": 1e-12
+  },
   "oracle": {
     "kind": "closed_form",
-    "method": "independent closed-form evaluations of the cited IPW/AIPW, product-limit IPCW and Gaussian censored/truncated likelihood equations (see `contract`); no external package parity"
+    "method": "independent closed-form evaluations of the cited IPW/AIPW, product-limit IPCW and Gaussian censored/truncated likelihood equations (see `contract`); no external package parity",
+    "generator": "conformance/response/observation_primitives/reference.py",
+    "command": "uv run --frozen --script conformance/response/observation_primitives/reference.py --check",
+    "environment_lock": "conformance/response/observation_primitives/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "expected_aipw_pseudo_values",
+      "expected_without_entry and expected_with_entry IPCW weights",
+      "expected_log_likelihood"
+    ],
+    "context_only_outputs": [
+      "tolerance declaration",
+      "contract text"
+    ],
+    "independence_basis": "The generator implements the cited estimating equations from their textbook definitions (AIPW pseudo-value, Kaplan-Meier censoring survival with at-risk sets restricted to entry <= u, conditional-on-entry weight, Gaussian CDF via erfc) in plain Python floats; it imports no Antecedent code and no statistics package. The shared object is the stated definitions (including the survival floor and the censored-as-event-zero convention); a misreading common to the fixture and this generator would not be detected.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Three one-row-per-case calibrations: selected-outcome AIPW pseudo-values for three rows, marginal Kaplan-Meier IPCW with and without delayed entry for three subjects, and a four-term Gaussian censored/truncated log-likelihood.",
+      "independence_basis": "The generator implements the cited estimating equations from their textbook definitions (AIPW pseudo-value, Kaplan-Meier censoring survival with at-risk sets restricted to entry <= u, conditional-on-entry weight, Gaussian CDF via erfc) in plain Python floats; it imports no Antecedent code and no statistics package. The shared object is the stated definitions (including the survival floor and the censored-as-event-zero convention); a misreading common to the fixture and this generator would not be detected.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Hand-sized inputs: three rows, no ties between censoring and event times, and the censoring convention (event 0 is censoring) is declared by the generator, not by an external specification. Tail behaviour (the floor binding), large samples and the Cox variant are not covered. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/observation_primitives/reference.py",
+          "sha256": "4663e8622302efd56380682f0f60ed02600e1e291dbab97e5c2f30ae64bc67c5"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/observation_primitives/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-stats/src/observation.rs",
+          "sha256": "201a0a18f916ba476a17ec73ee8957243c2a012edfa8d5c7363497ee41c582af"
+        }
+      ],
+      "fixture_payload_sha256": "ac37d83b47e82a185bb981346ca75c74f2e9034480052edddede3a9677d08e94"
+    }
   }
 }

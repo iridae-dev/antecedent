@@ -3,19 +3,82 @@
   "seed": 1601,
   "stream": 21,
   "rows": 6000,
-  "horizons": [1, 2],
+  "horizons": [
+    1,
+    2
+  ],
   "treatment_lag": 1,
-  "grid": [-0.5, 0.0, 0.5],
+  "grid": [
+    -0.5,
+    0.0,
+    0.5
+  ],
   "surface": {
-    "mean": [4.0, 3.5, 5.0, 5.0, 6.0, 6.5]
+    "mean": [
+      4.0,
+      3.5,
+      5.0,
+      5.0,
+      6.0,
+      6.5
+    ]
   },
-  "intervention_set_0_5": [6.0, 6.5],
+  "intervention_set_0_5": [
+    6.0,
+    6.5
+  ],
   "atol": 0.35,
   "naive_gap_min": 0.12,
-  "pairs": ["selected", "right_km", "left_km", "right_cox", "left_cox"],
+  "pairs": [
+    "selected",
+    "right_km",
+    "left_km",
+    "right_cox",
+    "left_cox"
+  ],
   "dgp": "T_s iid Uniform(-1,1); Y_s = 5 + 2 T_{s-1} + 3 T_{s-2} + Uniform(-0.5,0.5). Pulse at -1. Selected: logit P(R=1)=0.4 T_{s-1}. Independent C ~ Exp(0.07). Conditional C ~ Exp(0.07 exp(0.6 T_{s-1})). Left reverses recorded times. IndependentGiven(Z) lag-aligns Z at the policy offset. Complete-on-recorded-proxy must miss the surface.",
   "oracle": {
     "kind": "closed_form",
-    "method": "stationary linear SCM Y_s = 5 + 2 T_{s-1} + 3 T_{s-2} + U_s: the interventional surface follows from its coefficients (README)"
+    "method": "stationary linear SCM Y_s = 5 + 2 T_{s-1} + 3 T_{s-2} + U_s: the interventional surface follows from its coefficients (README)",
+    "generator": "conformance/response/temporal_observation/reference.py",
+    "command": "uv run --frozen --script conformance/response/temporal_observation/reference.py --check",
+    "environment_lock": "conformance/response/temporal_observation/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "surface.mean on the dose grid and horizons",
+      "intervention_set_0_5"
+    ],
+    "context_only_outputs": [
+      "atol and naive_gap_min (declared tolerances; the gap is checked only for ordering here)",
+      "pairs, seed, stream, rows and dgp description"
+    ],
+    "independence_basis": "The generator substitutes the stated doses into the stated structural equation with zero-mean treatment and noise; it imports no Antecedent code and no statistics package. The shared object is the structural equation in the fixture.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Interventional surface and Set(0.5) path of a stationary linear temporal SCM with uniform treatment and noise.",
+      "independence_basis": "The generator substitutes the stated doses into the stated structural equation with zero-mean treatment and noise; it imports no Antecedent code and no statistics package. The shared object is the structural equation in the fixture.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The censoring, selection and Cox/KM pairs, the proposition that conditional Cox beats marginal KM, and the claim that a Complete-on-proxy query misses the surface by more than naive_gap_min are properties of simulated data and estimators, not derived here. Tolerance 0.35 at 6000 rows is a declared band. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/temporal_observation/reference.py",
+          "sha256": "2c1c56aa9da68c54c5eade08334422de1d3679f517d19627fa6f8e56e7a10722"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/temporal_observation/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_observation.rs",
+          "sha256": "863f5756dadabc5865e52473d7e670751c4f31a6a96d1fbb99228db250df432d"
+        }
+      ],
+      "fixture_payload_sha256": "b6e36541fc6267d2ce996e43e78d4d861f456a36319e967d67d4baedc8be3a02"
+    }
   }
 }

@@ -10,6 +10,46 @@
   "notes": "noiseless y = 1 + 2x; MAP must match OLS",
   "oracle": {
     "kind": "closed_form",
-    "method": "noiseless design y = 1 + 2x: the posterior mean recovers the generating coefficients"
+    "method": "noiseless design y = 1 + 2x: the posterior mean recovers the generating coefficients",
+    "generator": "conformance/bayesian/conjugate_gaussian/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/conjugate_gaussian/reference.py --check",
+    "environment_lock": "conformance/bayesian/conjugate_gaussian/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "true_coefficients recovered by the posterior mean/MAP within tolerance"
+    ],
+    "context_only_outputs": [
+      "tolerance_class label",
+      "prior label and notes",
+      "n_draws and seed options of the test"
+    ],
+    "independence_basis": "The generator solves the closed-form conjugate normal equations in exact rational arithmetic for the rows the executing test constructs (intercept column and x = 0..39); it imports no Antecedent code and no statistics package. The shared object is the test's declared design, prior scale reading and residual variance; the prior scale is not declared in the fixture, so both readings are checked.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Posterior mean of a two-coefficient Gaussian linear model with known residual variance on a noiseless design.",
+      "independence_basis": "The generator solves the closed-form conjugate normal equations in exact rational arithmetic for the rows the executing test constructs (intercept column and x = 0..39); it imports no Antecedent code and no statistics package. The shared object is the test's declared design, prior scale reading and residual variance; the prior scale is not declared in the fixture, so both readings are checked.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "A noiseless design with a diffuse prior: the posterior mean is the least-squares line to within round-off, so the check does not test shrinkage, the residual-variance branch, the Normal-Inverse-Gamma variant named in the notes, or credible intervals. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/conjugate_gaussian/reference.py",
+          "sha256": "c01262c0ac4bb215e98b5e2d1ca325aac0591b8da36b5f3d110a31f54daaf87c"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/conjugate_gaussian/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian.rs",
+          "sha256": "40cada97dd3003c3914a8429d3800f80699299acbda7898600b74248ff9b7bca"
+        }
+      ],
+      "fixture_payload_sha256": "514cc895bcf5601de576b88ca785c804c58323c531bc194937ef3cedd46c03ee"
+    }
   }
 }

@@ -7,11 +7,58 @@
   "semi_treatment": 4.0,
   "semi_outcome": 0.2222222222222222,
   "average": 2.0,
-  "jacobian": [2.0, -0.5, 0.25, 1.5],
-  "directional": [1.0, 3.25],
+  "jacobian": [
+    2.0,
+    -0.5,
+    0.25,
+    1.5
+  ],
+  "directional": [
+    1.0,
+    3.25
+  ],
   "tolerance": 0.15,
   "oracle": {
     "kind": "closed_form",
-    "method": "linear law in `dgp`: derivatives, elasticities and the Jacobian follow from its coefficients"
+    "method": "linear law in `dgp`: derivatives, elasticities and the Jacobian follow from its coefficients",
+    "generator": "conformance/response/staged_derivatives/reference.py",
+    "command": "uv run --frozen --script conformance/response/staged_derivatives/reference.py --check",
+    "environment_lock": "conformance/response/staged_derivatives/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "point, elasticity, semi_treatment, semi_outcome, average, jacobian, directional"
+    ],
+    "context_only_outputs": [
+      "tolerance 0.15 (declared estimation band)",
+      "fixture_id and dgp text (checked only as a guard on the model used)"
+    ],
+    "independence_basis": "The generator differentiates the stated linear law by its coefficients and evaluates level-dependent scales at the stated point in exact rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the stated law and evaluation point.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Exact first derivatives, scaled derivatives, Jacobian and directional derivative of a two-input, two-output linear law.",
+      "independence_basis": "The generator differentiates the stated linear law by its coefficients and evaluates level-dependent scales at the stated point in exact rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the stated law and evaluation point.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The scalar functionals do not declare the value of B at which Y is evaluated; the elasticity and semi-outcome values (which depend on the level Y = 9) are reproduced only with B = 0, taken from the Jacobian's declared point. The law is linear, so every derivative is constant and the fixture cannot detect curvature errors. The 0.15 band is a declared estimation tolerance. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/staged_derivatives/reference.py",
+          "sha256": "5c4e0f59c763a32c5d9be89614093bee21be862091c43c824edc8810fdb53a19"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/staged_derivatives/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/staged_derivatives.rs",
+          "sha256": "59999fc9f2bcd2245a24e9f041eb9f1592eca2de785d1debe186199cb9597280"
+        }
+      ],
+      "fixture_payload_sha256": "af8cb929e87122f941017d809e96968129b45c756d0240da795864cd32848eb8"
+    }
   }
 }

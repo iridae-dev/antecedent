@@ -14,13 +14,15 @@
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false, "unexercised": "Not compared with any Antecedent output. The recorded DoWhy estimate (0.0283) is about seven of its own standard errors from this fixture's true_effect (0.25); it is not evidence of agreement and is kept only as the recorded run.",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "generator_retained": false,
+    "unexercised": "Not compared with any Antecedent output. The recorded DoWhy estimate (0.0283) is about seven of its own standard errors from this fixture's true_effect (0.25); it is not evidence of agreement and is kept only as the recorded run.",
     "note": "black-box execution only; no source translation",
     "outputs": {
       "method": "backdoor.generalized_linear_model",
       "estimate": 0.0282796870966886,
       "se": 0.03199203048291044,
-      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nEstimand expression:\n d          \n\u2500\u2500\u2500\u2500(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U\u2192{t} and U\u2192y then P(y|t,z,U) = P(y|t,z)\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nEstimand expression:\n d          \n\u2500\u2500\u2500\u2500(E[y|z])\nd[t]        \nEstimand assumption 1,",
+      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nEstimand expression:\n d          \n────(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U→{t} and U→y then P(y|t,z,U) = P(y|t,z)\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nEstimand expression:\n d          \n────(E[y|z])\nd[t]        \nEstimand assumption 1,",
       "n": 800,
       "seed": 7
     }
@@ -28,6 +30,48 @@
   "oracle": {
     "kind": "closed_form",
     "method": "known generating structural model: the expected values are its coefficients or functionals, derived by hand",
-    "note": "true_effect is the structural coefficient of the clean-room SCM that crates/antecedent/tests/estimate_conformance.rs generates inline; the `reference` block records a pinned DoWhy 0.14 run (generator deleted after import) that the consuming test does not compare against, so it is context, not the truth source"
+    "note": "true_effect is the structural coefficient of the clean-room SCM that crates/antecedent/tests/estimate_conformance.rs generates inline; the `reference` block records a pinned DoWhy 0.14 run (generator deleted after import) that the consuming test does not compare against, so it is context, not the truth source",
+    "generator": "conformance/estimate/glm_adjustment/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/glm_adjustment/reference.py --check",
+    "environment_lock": "conformance/estimate/glm_adjustment/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "true_effect as the standardised ATE (to the rounding the fixture states)",
+      "tolerance band excludes the unadjusted contrast"
+    ],
+    "context_only_outputs": [
+      "positive-ATE floor of 0.05 (test constant)",
+      "DoWhy reference block (about seven of its own standard errors from the truth; not compared)",
+      "identifier and estimator ids",
+      "generation block"
+    ],
+    "independence_basis": "The generator reads only the logistic structural coefficients stated in the fixture notes and the test SCM and integrates over the standard normal by composite Simpson quadrature; it imports no Antecedent code and no statistics package. The shared object is the stated SCM.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Standardised ATE and unadjusted contrast of the binary-outcome logistic SCM by numerical integration.",
+      "independence_basis": "The generator reads only the logistic structural coefficients stated in the fixture notes and the test SCM and integrates over the standard normal by composite Simpson quadrature; it imports no Antecedent code and no statistics package. The shared object is the stated SCM.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The fixture truth 0.25 is a rounded value of the exact standardised ATE (about 0.257); the band 0.08 is wide enough that the rounding does not matter. The unadjusted-contrast exclusion is the population value (about 0.373); the executing test applies the same exclusion to its own sample. The assertion is a finite-sample band on an estimator output at n=2000, not an efficiency or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/glm_adjustment/reference.py",
+          "sha256": "89b8d679b9228e70dd65dd614005cd15de5e32eaf44a994f5f24e41d6396e01f"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/glm_adjustment/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/estimate_conformance.rs",
+          "sha256": "ee32a186b9dda64627ff43827387eb90ffc1ef795220675863b5c54c129aabf4"
+        }
+      ],
+      "fixture_payload_sha256": "856dea4bade64c70912576fb7162042eeeff4ef20a12529f8a9706215c0551c1"
+    }
   }
 }

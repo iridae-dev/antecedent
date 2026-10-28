@@ -3,21 +3,68 @@
   "oracle": {
     "kind": "closed_form",
     "method": "closed_form_linear_scm",
-    "generator": "temporary clean-room harness (deleted after artifact import)",
-    "formula": "With one structurally changed outcome node, Shapley efficiency requires that node's contribution equal the full hybrid-payoff difference."
+    "generator": "conformance/attribution/structure_change_grid/reference.py",
+    "formula": "With one structurally changed outcome node, Shapley efficiency requires that node's contribution equal the full hybrid-payoff difference.",
+    "command": "uv run --frozen --script conformance/attribution/structure_change_grid/reference.py --check",
+    "environment_lock": "conformance/attribution/structure_change_grid/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "single_parent_swap.efficiency_residual (zero by the efficiency axiom for one player)",
+      "changed_players count"
+    ],
+    "context_only_outputs": [
+      "nonancestor_change case (identified_players and unidentified are refusal rules, not derived here)",
+      "the executing assertion's total_change magnitude bound"
+    ],
+    "independence_basis": "The generator enumerates player orders for a one-player game over several payoff values; the proposition is the Shapley efficiency axiom, so it does not depend on the fitted structural models. It imports no Antecedent code and no statistics package.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Shapley efficiency for one changed player over arbitrary payoffs (a property of the allocation rule).",
+      "independence_basis": "The generator enumerates player orders for a one-player game over several payoff values; the proposition is the Shapley efficiency axiom, so it does not depend on the fitted structural models. It imports no Antecedent code and no statistics package.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "This is an axiom-level property, not a validation of the hybrid payoff, the parent-set models or the estimated total change (the test separately bounds |total| above 2 from simulated data). The unidentified-player rule for non-ancestor changes is a design choice that this reference does not derive. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/attribution/structure_change_grid/reference.py",
+          "sha256": "db4d25108459840420c1f3e1bfdb024e9fb4fa9838efda1945ee54cc788d76d9"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/attribution/structure_change_grid/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-attribution/src/structure_change.rs",
+          "sha256": "0cc5cd0cfb8571ce32275e17487ef74a94841cc54177e038a9d1088b151b4e69"
+        }
+      ],
+      "fixture_payload_sha256": "7fb31ec20f0e7552534dd5c83049c38f96f7f899fc209f82b666bdfc8803a0f7"
+    }
   },
   "cases": [
     {
       "id": "single_parent_swap",
-      "changed_players": ["y"],
+      "changed_players": [
+        "y"
+      ],
       "efficiency_residual": 0.0,
       "unidentified": []
     },
     {
       "id": "nonancestor_change",
-      "identified_players": ["y"],
-      "unidentified": ["v"]
+      "identified_players": [
+        "y"
+      ],
+      "unidentified": [
+        "v"
+      ]
     }
   ],
-  "comparison": {"absolute_tolerance": 1e-8}
+  "comparison": {
+    "absolute_tolerance": 1e-08
+  }
 }

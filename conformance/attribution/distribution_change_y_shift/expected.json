@@ -7,6 +7,47 @@
   "oracle": {
     "kind": "closed_form",
     "method": "The declared structural example changes the Y intercept by +5 with unchanged X mechanism; its population mean change is 5 and is attributable to Y.",
-    "limitations": "The consuming facade assertion checks a lower bound of 3 and dominant component Y, not exact numerical recovery or uncertainty calibration."
+    "limitations": "The consuming facade assertion checks a lower bound of 3 and dominant component Y, not exact numerical recovery or uncertainty calibration.",
+    "generator": "conformance/attribution/distribution_change_y_shift/reference.py",
+    "command": "uv run --frozen --script conformance/attribution/distribution_change_y_shift/reference.py --check",
+    "environment_lock": "conformance/attribution/distribution_change_y_shift/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "total_change_min as a lower bound of the derived +5 change",
+      "dominant_component"
+    ],
+    "context_only_outputs": [
+      "allocation label",
+      "notes text",
+      "the executing assertion's rank_root_causes ordering"
+    ],
+    "independence_basis": "The generator enumerates both player orders of the hybrid-mean payoff for the two mechanisms using only the stated intercepts and slope; it imports no Antecedent code and no statistics package. The shared object is the stated period models.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Exact two-player Shapley allocation of the mean change when only the Y intercept shifts by +5.",
+      "independence_basis": "The generator enumerates both player orders of the hybrid-mean payoff for the two mechanisms using only the stated intercepts and slope; it imports no Antecedent code and no statistics package. The shared object is the stated period models.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The executing assertion checks a lower bound of 3 and the dominant component, not the exact value 5 or the sampling noise in the estimated hybrid means, so agreement is about the direction and rough size. The period models are taken from the fixture README; the data generator lives in the test. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/attribution/distribution_change_y_shift/reference.py",
+          "sha256": "679f71b4d41c15327e32f7bf3a2733a675188b90414f9ebe976a2f6a887f8b35"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/attribution/distribution_change_y_shift/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/attribution.rs",
+          "sha256": "b85777654e4e9aaf2dcadb59e3dd5fdf5756eb0dd39255549b84a9c6d4f9df2b"
+        }
+      ],
+      "fixture_payload_sha256": "b4cfc25b0688689db3c563e114eeb767f09d5ec3a0e666e5b6cf60ac77f3907c"
+    }
   }
 }

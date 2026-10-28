@@ -1,9 +1,49 @@
 {
   "mean_prediction_target": 2.01,
-  "tol": 1e-8,
+  "tol": 1e-08,
   "tolerance_class": "Numeric",
   "oracle": {
     "kind": "closed_form",
-    "method": "noise-free deterministic law Y_t = 0.01 + 2 X_{t-1} (X_t = 0.5 X_{t-1} + 0.1, X_0 = 0): the least-squares lag-1 fit recovers the line exactly, so the prediction at X_{t-1} = 1 is 2.01; the tolerance is floating-point round-off of that fit, not sampling error"
+    "method": "noise-free deterministic law Y_t = 0.01 + 2 X_{t-1} (X_t = 0.5 X_{t-1} + 0.1, X_0 = 0): the least-squares lag-1 fit recovers the line exactly, so the prediction at X_{t-1} = 1 is 2.01; the tolerance is floating-point round-off of that fit, not sampling error",
+    "generator": "conformance/context/prediction_smoke/reference.py",
+    "command": "uv run --frozen --script conformance/context/prediction_smoke/reference.py --check",
+    "environment_lock": "conformance/context/prediction_smoke/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "mean_prediction_target",
+      "tol as a round-off-scale tolerance"
+    ],
+    "context_only_outputs": [
+      "tolerance_class label",
+      "README remark that the associational prediction equals the interventional mean only here"
+    ],
+    "independence_basis": "The generator builds the 80-row noise-free sequence from the stated recursion in exact rational arithmetic and fits the lag-1 line by the normal equations; it imports no Antecedent code and no statistics package. The shared object is the stated recursion.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Exact lag-1 least-squares line and its conditional prediction at X_{t-1} = 1 for a deterministic law.",
+      "independence_basis": "The generator builds the 80-row noise-free sequence from the stated recursion in exact rational arithmetic and fits the lag-1 line by the normal equations; it imports no Antecedent code and no statistics package. The shared object is the stated recursion.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Noise-free, linear and unconfounded, so the fit is exact and the check cannot detect behaviour under noise, autocorrelated errors or a mis-specified lag. The prediction is associational. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/context/prediction_smoke/reference.py",
+          "sha256": "36b57712c664c650bd01061efe11b9f4910d81bf8ac6b3b2e1d4b24f9f40140c"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/context/prediction_smoke/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/context_effects.rs",
+          "sha256": "dcfe6d99da01f1bc6e0dff1fda3cbf80c74b03b3731ed5d1fa04b0fcdecc7634"
+        }
+      ],
+      "fixture_payload_sha256": "149b3c61f53179258556fa6cf609097c30ed2f27d4a996e996c1b506a77bc1aa"
+    }
   }
 }

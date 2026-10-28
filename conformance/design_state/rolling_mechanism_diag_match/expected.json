@@ -6,8 +6,16 @@
   "stable_float_tol": 1e-08,
   "expected_version_after_two_appends": 2,
   "notes": "RollingMechanismDiagnostics on last W rows matches batch OLS; AppendData does not clear the slot; ReplaceData clears.",
+  "evidence_kind": "internal_cross_check",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_source": "crates/antecedent-state/tests/rolling_mechanism_oracle.rs::rolling_summaries_match_independent_batch_windows",
+  "evidence_proposition": "Rolling mechanism diagnostics over the trailing window of the known linear law y = 2 + 3x match a batch OLS on the same rows within the stable float tolerance, append does not clear the slot and replace does.",
+  "limitations": "Compares the rolling path with a batch recomputation by the same product OLS code, so agreement is internal consistency, not an independent numerical value; the slot-clearing behaviour is a repository-authored contract. No calibration.",
   "oracle": {
-    "kind": "closed_form",
-    "method": "known linear law with the stated beta0/beta1: the trailing-window diagnostics match a batch OLS on the same rows (internal consistency)"
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
   }
 }

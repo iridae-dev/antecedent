@@ -4,8 +4,16 @@
   "stable_float_tol": 1e-08,
   "expected_version_after_two_appends": 2,
   "notes": "Incremental OLS XtX/Xty after two AppendData batches matches full-batch recompute; y = 1 + 2x.",
+  "evidence_kind": "internal_cross_check",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_source": "crates/antecedent-state/src/suff_stats.rs::incremental_ols_matches_full_batch",
+  "evidence_proposition": "After two appended batches of the noiseless law y = 1 + 2x the incremental OLS sufficient statistics give the same coefficients as a single full-batch recomputation within the stable float tolerance, and the state version advances to 2.",
+  "limitations": "Compares the incremental path with a recomputation by the same product OLS code, so agreement is internal consistency, not an independent numerical value; the recovery of beta0 = 1 and beta1 = 2 on noiseless data is a by-construction property of any exact least-squares routine. No calibration.",
   "oracle": {
-    "kind": "closed_form",
-    "method": "noiseless y = 1 + 2x: OLS after two appends recovers the generating coefficients and matches a full-batch recompute (internal consistency)"
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
   }
 }

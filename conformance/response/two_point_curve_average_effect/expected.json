@@ -2,8 +2,23 @@
   "fixture_id": "antecedent.two_point_curve_average_effect.linear_gaussian_contract",
   "claim": "estimate.response.kennedy_dr shared-linear-contract conformance (not npcausal black-box)",
   "contract": {
-    "graph": [["z", "t"], ["z", "y"], ["t", "y"]],
-    "adjustment_set": ["z"],
+    "graph": [
+      [
+        "z",
+        "t"
+      ],
+      [
+        "z",
+        "y"
+      ],
+      [
+        "t",
+        "y"
+      ]
+    ],
+    "adjustment_set": [
+      "z"
+    ],
     "structural_mean": "E[Y|T=t,Z=z] = 1 + 2*t + 0.8*z",
     "control_level": -0.5,
     "active_level": 0.5,
@@ -28,6 +43,46 @@
   },
   "oracle": {
     "kind": "closed_form",
-    "method": "shared linear contract E[Y | T=t, Z=z] = 1 + 2t + 0.8z: the responses at -0.5 and 0.5 and their contrast 2 follow by arithmetic (see `contract`)"
+    "method": "shared linear contract E[Y | T=t, Z=z] = 1 + 2t + 0.8z: the responses at -0.5 and 0.5 and their contrast 2 follow by arithmetic (see `contract`)",
+    "generator": "conformance/response/two_point_curve_average_effect/reference.py",
+    "command": "uv run --frozen --script conformance/response/two_point_curve_average_effect/reference.py --check",
+    "environment_lock": "conformance/response/two_point_curve_average_effect/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "contract.true_contrast (the contrast the executing assertion compares against)"
+    ],
+    "context_only_outputs": [
+      "true_control_response and true_active_response (the executing assertion compares them only for the Bayesian pin of another fixture; they differ from exact g-computation by 0.8 E[Z], about 0.054)",
+      "estimator_contract text",
+      "tolerances"
+    ],
+    "independence_basis": "The generator differences the structural mean at the two stated levels, so the confounder mean cancels and the contrast is the treatment coefficient times the level gap; it imports no Antecedent code and no statistics package. The shared object is the structural-mean formula in the fixture contract.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Contrast of two intervention levels under the shared linear conditional mean, and consistency of the stated absolute responses.",
+      "independence_basis": "The generator differences the structural mean at the two stated levels, so the confounder mean cancels and the contrast is the treatment coefficient times the level gap; it imports no Antecedent code and no statistics package. The shared object is the structural-mean formula in the fixture contract.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Only the contrast is an exact consequence of the contract; the absolute responses 0.0 and 2.0 are rounded from 1 + 2 t + 0.8 E[Z] with E[Z] taken as 0, whereas the fixed sequence has E[Z] of about 0.067, an offset of about 0.054. The executing assertion compares the contrast within 0.15. The estimator-versus-estimator agreement is software coverage, not part of this derivation. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/two_point_curve_average_effect/reference.py",
+          "sha256": "cb95aa12f2d09d5c6edf014b746bf0433847ff1138e7ce8f012ed671e933e8f4"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/two_point_curve_average_effect/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/response_facade.rs",
+          "sha256": "d5aecc8657793cf01b744b7d397dfbc8f5702327f2aa9d3db36bceb5014c820d"
+        }
+      ],
+      "fixture_payload_sha256": "07fada19dfcabe6a144a0f9edc4586c4a51e176b0d704e0ceac646dc2fcb1834"
+    }
   }
 }

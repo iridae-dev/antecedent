@@ -16,7 +16,8 @@
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false,
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "generator_retained": false,
     "note": "black-box execution only; no source translation",
     "outputs": {
       "method": "dowhy.gcm.average_causal_effect",
@@ -28,6 +29,46 @@
   "oracle": {
     "kind": "closed_form",
     "method": "linear Gaussian Y = 1 + 2X: do(X=3) gives E[Y] = 7",
-    "note": "the expected mean follows from the stated linear SCM; the `reference` block records a pinned DoWhy 0.14 run (generator deleted after import) that crates/antecedent/tests/gcm.rs does not compare against, so it is context, not the truth source"
+    "note": "the expected mean follows from the stated linear SCM; the `reference` block records a pinned DoWhy 0.14 run (generator deleted after import) that crates/antecedent/tests/gcm.rs does not compare against, so it is context, not the truth source",
+    "generator": "conformance/gcm/gcm_fit_intervene/reference.py",
+    "command": "uv run --frozen --script conformance/gcm/gcm_fit_intervene/reference.py --check",
+    "environment_lock": "conformance/gcm/gcm_fit_intervene/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "true_interventional_mean_y"
+    ],
+    "context_only_outputs": [
+      "tolerance 0.35 (a Monte Carlo sampling band over 200 draws)",
+      "DoWhy reference block (not compared)",
+      "notes text"
+    ],
+    "independence_basis": "The generator evaluates the stated linear structural equation at the intervention level; it imports no Antecedent code and no statistics package. The shared object is the stated equation.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Interventional mean of the outcome of a one-edge linear SCM at a single set value.",
+      "independence_basis": "The generator evaluates the stated linear structural equation at the intervention level; it imports no Antecedent code and no statistics package. The shared object is the stated equation.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The fitted model is estimated from 40 noiseless points, so the interventional mean is exact up to the sampling noise the fit adds; the 0.35 band is a declared tolerance on 200 draws, not a derived bound. A single intervention level only. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/gcm/gcm_fit_intervene/reference.py",
+          "sha256": "35b3410a6d084d64e24140677d342fc8ce333367cc900524838ea72ba6ddfbbd"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/gcm/gcm_fit_intervene/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/gcm.rs",
+          "sha256": "ca5808122c37db58c177e9b9af16c36564d745f510d52f75335adbbfcdaacac7"
+        }
+      ],
+      "fixture_payload_sha256": "e3a23a0fdbf3a916eea352d60c038d2177372757a0871e1c034fd72c242196fb"
+    }
   }
 }
