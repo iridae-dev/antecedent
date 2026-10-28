@@ -305,8 +305,13 @@ fn fit_multinomial_fisher(
             delta[i] = d;
             max_delta = max_delta.max(d.abs());
         }
-        // Damped Newton step when the update is large (common under quasi-separation).
-        let scale = if max_delta > 5.0 { 5.0 / max_delta } else { 1.0 };
+        // Damped Newton step when the update moves a linear predictor far (common under
+        // quasi-separation). The trust region is on the change of eta, not of the coefficients:
+        // a coefficient cap depends on where a covariate is centred, and a covariate offset of
+        // 1e3 needs an intercept step of order 1e3 that a cap of 5 would spread over hundreds of
+        // iterations, so the fit would be refused as not converged.
+        let reach = max_linear_predictor_step(design, &delta);
+        let scale = if reach > 5.0 { 5.0 / reach } else { 1.0 };
         for i in 0..m {
             beta_free[i] += scale * delta[i];
         }
@@ -341,6 +346,22 @@ fn fit_multinomial_fisher(
         n_categories: k,
         ncols,
     })
+}
+
+/// Largest change `|x_r' delta_j|` of any free linear predictor under the coefficient update
+/// `delta` (row-major over the free classes).
+fn max_linear_predictor_step(design: MultinomialDesignRef<'_>, delta: &[f64]) -> f64 {
+    let MultinomialDesignRef { x_colmajor, nrows, ncols, n_categories: k, .. } = design;
+    let mut worst = 0.0_f64;
+    for j in 0..k.saturating_sub(1) {
+        let block = &delta[j * ncols..(j + 1) * ncols];
+        for r in 0..nrows {
+            let step: f64 =
+                block.iter().enumerate().map(|(c, d)| x_colmajor[c * nrows + r] * d).sum();
+            worst = worst.max(step.abs());
+        }
+    }
+    worst
 }
 
 /// Baseline-category probabilities for every row.
