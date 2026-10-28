@@ -107,134 +107,153 @@ fn envelope_bounds(result: &antecedent::StudyResult) -> (f64, f64) {
 fn all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_proofs() {
     let ctx = ExecutionContext::for_tests(9_771);
     let suites = [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full];
-    for graph in graphs() {
-        let data = series(&graph, 977);
+    let graphs = graphs();
+    let all_data: Vec<_> = graphs.iter().map(|graph| series(graph, 977)).collect();
+    let mut cases = Vec::new();
+    for index in 0..graphs.len() {
         for multi_step in [false, true] {
-            let query = query(multi_step);
             for source in ["explicit", "accepted"] {
                 for suite in suites {
-                    let builder = Study::series(data.clone())
-                        .graph(structure(&graph, source == "accepted"))
-                        .query(CausalQuery::TemporalEffect(query.clone()))
-                        .inference(inference())
-                        .refute(suite)
-                        .build()
-                        .unwrap();
-                    let one_shot = builder.run(&ctx).unwrap();
-                    let mut prepared = builder.prepare(&ctx).unwrap();
-                    drop(builder);
-
-                    let RetainedOperation::BayesianTemporalClassEffect(plan) =
-                        prepared.retained_operation()
-                    else {
-                        panic!("Bayesian class effect must retain its complete execution plan")
-                    };
-                    assert_eq!(plan.query, query);
-                    assert_eq!(plan.graph_class.as_str(), graph_class(&graph));
-                    assert_eq!(plan.identifier.as_str(), "generalized.adjustment");
-                    assert_eq!(
-                        plan.estimator.as_str(),
-                        if multi_step {
-                            "temporal.sequential.gcomp"
-                        } else {
-                            "bayesian.temporal.gcomp"
-                        }
-                    );
-                    assert_eq!(plan.validation, suite);
-                    assert_eq!(plan.posterior_draws, DRAWS);
-                    assert!(!plan.class_prior_supplied);
-                    assert!(plan.completion_count > 0);
-                    assert!(plan.identified_mass > 0.0);
-                    assert!(!matches!(
-                        prepared.retained_operation(),
-                        RetainedOperation::BayesianTemporalDagEffect(..)
-                    ));
-                    assert!(!matches!(
-                        prepared.retained_operation(),
-                        RetainedOperation::TemporalClassEffect(..)
-                    ));
-
-                    let result = prepared.estimate_series(&data, &ctx).unwrap();
-                    let (lower, upper) = envelope_bounds(&result);
-                    let true_effect = truth(&graph, multi_step);
-                    assert!(
-                        lower - 0.1 <= true_effect && true_effect <= upper + 0.1,
-                        "class={}, source={source}, multi_step={multi_step}, suite={suite:?}, truth {true_effect} outside [{lower}, {upper}]",
-                        graph_class(&graph),
-                    );
-                    let mixture = result.structural_response.as_ref().unwrap();
-                    assert!(
-                        mixture.atoms.iter().any(|atom| atom.posterior.is_some()),
-                        "completion posteriors must ride the structural atoms"
-                    );
-                    if matches!(graph, SourceGraph::Pag(_)) {
-                        assert!(
-                            mixture.unidentified_mass + mixture.unevaluable_mass > 0.0,
-                            "TemporalPag must preserve the unresolved or unevaluable completion mass"
-                        );
-                    }
-                    // The one-shot facade executes the same sealed program.
-                    let (one_lower, one_upper) = envelope_bounds(&one_shot);
-                    assert!(
-                        (one_lower - lower).abs() < 1e-9 && (one_upper - upper).abs() < 1e-9,
-                        "one-shot envelope [{one_lower}, {one_upper}] differs from the prepared plan [{lower}, {upper}]"
-                    );
-                    assert!(
-                        one_shot
-                            .diagnostics
-                            .iter()
-                            .any(|d| d.code.as_ref() == "exec.identify.cached")
-                    );
-
-                    let refreshed = prepared.refresh_series(series(&graph, 978), &ctx).unwrap();
-                    let (refreshed_lower, refreshed_upper) = envelope_bounds(&refreshed);
-                    assert!(
-                        refreshed_lower - 0.1 <= true_effect
-                            && true_effect <= refreshed_upper + 0.1
-                    );
-                    let RetainedOperation::BayesianTemporalClassEffect(retained) =
-                        prepared.retained_operation()
-                    else {
-                        panic!("Bayesian class effect retains its plan")
-                    };
-                    assert_eq!(retained.query, query);
-                    let narrowed = TimeSeriesData::from_f64_columns(
-                        [("x", &[0.0, 1.0, 0.0, 1.0][..]), ("y", &[0.0, 1.0, 1.0, 0.0][..])],
-                        1,
-                    )
-                    .unwrap();
-                    assert!(
-                        prepared.refresh_series(narrowed, &ctx).is_err(),
-                        "schema-changed data must be refused"
-                    );
-                    let RetainedOperation::BayesianTemporalClassEffect(retained) =
-                        prepared.retained_operation()
-                    else {
-                        panic!("Bayesian class effect retains its plan")
-                    };
-                    assert_eq!(retained.query, query);
-
-                    let artifact = prepared
-                        .encode_contracted_result(
-                            &refreshed,
-                            "checked-bayesian-temporal-class-effect",
-                            &ctx,
-                        )
-                        .unwrap();
-                    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-                    assert!(
-                        consumed.acceptance.unresolved.iter().any(|dependency| {
-                            dependency.as_ref()
-                                == "dependencies.checked_bayesian_temporal_class_effect_operation"
-                        }),
-                        "unresolved={:?}",
-                        consumed.acceptance.unresolved
-                    );
-                    assert!(!consumed.acceptance.accepts_as_verified_program());
+                    cases.push((index, multi_step, source, suite));
                 }
             }
         }
     }
+    in_parallel(&cases, |&(index, multi_step, source, suite)| {
+        let (graph, data) = (&graphs[index], &all_data[index]);
+        let query = query(multi_step);
+        let builder = Study::series(data.clone())
+            .graph(structure(&graph, source == "accepted"))
+            .query(CausalQuery::TemporalEffect(query.clone()))
+            .inference(inference())
+            .refute(suite)
+            .build()
+            .unwrap();
+        let one_shot = builder.run(&ctx).unwrap();
+        let mut prepared = builder.prepare(&ctx).unwrap();
+        drop(builder);
+
+        let RetainedOperation::BayesianTemporalClassEffect(plan) = prepared.retained_operation()
+        else {
+            panic!("Bayesian class effect must retain its complete execution plan")
+        };
+        assert_eq!(plan.query, query);
+        assert_eq!(plan.graph_class.as_str(), graph_class(&graph));
+        assert_eq!(plan.identifier.as_str(), "generalized.adjustment");
+        assert_eq!(
+            plan.estimator.as_str(),
+            if multi_step { "temporal.sequential.gcomp" } else { "bayesian.temporal.gcomp" }
+        );
+        assert_eq!(plan.validation, suite);
+        assert_eq!(plan.posterior_draws, DRAWS);
+        assert!(!plan.class_prior_supplied);
+        assert!(plan.completion_count > 0);
+        assert!(plan.identified_mass > 0.0);
+        assert!(!matches!(
+            prepared.retained_operation(),
+            RetainedOperation::BayesianTemporalDagEffect(..)
+        ));
+        assert!(!matches!(
+            prepared.retained_operation(),
+            RetainedOperation::TemporalClassEffect(..)
+        ));
+
+        let result = prepared.estimate_series(&data, &ctx).unwrap();
+        let (lower, upper) = envelope_bounds(&result);
+        let true_effect = truth(&graph, multi_step);
+        assert!(
+            lower - 0.1 <= true_effect && true_effect <= upper + 0.1,
+            "class={}, source={source}, multi_step={multi_step}, suite={suite:?}, truth {true_effect} outside [{lower}, {upper}]",
+            graph_class(&graph),
+        );
+        let mixture = result.structural_response.as_ref().unwrap();
+        assert!(
+            mixture.atoms.iter().any(|atom| atom.posterior.is_some()),
+            "completion posteriors must ride the structural atoms"
+        );
+        if matches!(graph, SourceGraph::Pag(_)) {
+            assert!(
+                mixture.unidentified_mass + mixture.unevaluable_mass > 0.0,
+                "TemporalPag must preserve the unresolved or unevaluable completion mass"
+            );
+        }
+        // The one-shot facade executes the same sealed program.
+        let (one_lower, one_upper) = envelope_bounds(&one_shot);
+        assert!(
+            (one_lower - lower).abs() < 1e-9 && (one_upper - upper).abs() < 1e-9,
+            "one-shot envelope [{one_lower}, {one_upper}] differs from the prepared plan [{lower}, {upper}]"
+        );
+        assert!(one_shot.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+
+        let refreshed = prepared.refresh_series(series(&graph, 978), &ctx).unwrap();
+        let (refreshed_lower, refreshed_upper) = envelope_bounds(&refreshed);
+        assert!(refreshed_lower - 0.1 <= true_effect && true_effect <= refreshed_upper + 0.1);
+        let RetainedOperation::BayesianTemporalClassEffect(retained) =
+            prepared.retained_operation()
+        else {
+            panic!("Bayesian class effect retains its plan")
+        };
+        assert_eq!(retained.query, query);
+        let narrowed = TimeSeriesData::from_f64_columns(
+            [("x", &[0.0, 1.0, 0.0, 1.0][..]), ("y", &[0.0, 1.0, 1.0, 0.0][..])],
+            1,
+        )
+        .unwrap();
+        assert!(
+            prepared.refresh_series(narrowed, &ctx).is_err(),
+            "schema-changed data must be refused"
+        );
+        let RetainedOperation::BayesianTemporalClassEffect(retained) =
+            prepared.retained_operation()
+        else {
+            panic!("Bayesian class effect retains its plan")
+        };
+        assert_eq!(retained.query, query);
+
+        let artifact = prepared
+            .encode_contracted_result(&refreshed, "checked-bayesian-temporal-class-effect", &ctx)
+            .unwrap();
+        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        assert!(
+            consumed.acceptance.unresolved.iter().any(|dependency| {
+                dependency.as_ref()
+                    == "dependencies.checked_bayesian_temporal_class_effect_operation"
+            }),
+            "unresolved={:?}",
+            consumed.acceptance.unresolved
+        );
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+    });
+}
+
+/// Runs the independent coordinate cases on scoped threads (one per available core) and
+/// re-raises the first panic with its original payload, so a failure reads as it would in a
+/// sequential loop. Each case builds its own study and shares only the read-only fixtures.
+fn in_parallel<T: Sync>(cases: &[T], run: impl Fn(&T) + Sync) {
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let workers = std::thread::available_parallelism().map_or(1, usize::from).min(cases.len());
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..workers)
+            .map(|_| {
+                scope.spawn(|| {
+                    while let Some(case) =
+                        cases.get(next.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+                    {
+                        run(case);
+                    }
+                })
+            })
+            .collect();
+        let mut first = None;
+        for handle in handles {
+            if let Err(payload) = handle.join() {
+                first.get_or_insert(payload);
+            }
+        }
+        if let Some(payload) = first {
+            std::panic::resume_unwind(payload);
+        }
+    });
 }
 
 #[test]

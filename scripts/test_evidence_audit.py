@@ -80,6 +80,34 @@ class Classification(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     evidence.registered_calibration_acceptance(root)
 
+    def test_scientific_lane_resolves_exact_rust_assertions_and_rejects_unregistered_ones(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            crate = root / "crates/p"
+            (crate / "src").mkdir(parents=True)
+            (root / "parity").mkdir()
+            (crate / "Cargo.toml").write_text('[package]\nname="p"\nversion="0.1.0"\nautotests=false\n', encoding="utf-8")
+            source = crate / "src/lib.rs"
+            text = '#[cfg(test)] mod tests { #[test] fn truth() { assert_eq!(actual(), 2); } }'
+            source.write_text(text, encoding="utf-8")
+            registry = root / "parity/v3_test_registry.toml"
+            registry.write_text('[[test]]\npath="crates/p/src/lib.rs"\ncrate="p"\ncargo_target="lib"\n', encoding="utf-8")
+            rows = evidence.registered_rust_assertions([("crates/p/src/lib.rs", "truth")] * 2, root)
+            self.assertEqual([r["libtest_name"] for r in rows], ["tests::truth"])
+            self.assertEqual(
+                evidence.nextest_selection(rows),
+                "(package(=p) and kind(lib) and test(=tests::truth))",
+            )
+            listing = {"rust-suites": {"p": {"testcases": {"tests::truth": {"ignored": False, "filter-match": {"status": "matches"}}}}}}
+            self.assertEqual(evidence.calibration_discovery_problems(rows, listing), [])
+            self.assertTrue(evidence.calibration_discovery_problems(rows, {"rust-suites": {}}))
+            with self.assertRaisesRegex(ValueError, "not in parity/v3_test_registry"):
+                evidence.registered_rust_assertions([("crates/p/src/other.rs", "truth")], root)
+            for changed in (text.replace("#[test]", "#[test] #[ignore]"), text.replace("fn truth", "fn removed")):
+                source.write_text(changed, encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    evidence.registered_rust_assertions([("crates/p/src/lib.rs", "truth")], root)
+
     def test_script_runner_rejects_failed_skipped_and_missing_required_assertions(self):
         import contextlib
         import io

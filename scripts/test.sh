@@ -19,7 +19,9 @@ Usage: bash scripts/test.sh [dev|rust|rust-software|rust-calibration-acceptance|
   rust-calibration-acceptance  Run those retained acceptance assertions only.
           Use after branch lockdown and calibration; no calibration is performed.
   integration  Run Rust integration targets (excluding library unit tests).
-  scientific   Run exact scientific assertions cited by the evidence registries.
+  scientific   Run exact scientific assertions cited by the evidence registries:
+               the Rust ones in one workspace nextest run (discovery proves each
+               is present and not ignored), then the cited Python ones.
                No calibration, replay or performance measurement is selected.
   scripts Run discovered script unit tests in their isolated locked environment.
           Empty selections and unexpected skipped assertions fail.
@@ -134,7 +136,17 @@ case "$suite" in
     if [[ $# -eq 0 ]]; then set -- "${workspace[@]}"; fi
     rust_tests "$@" -E 'kind(test)'
     ;;
-  scientific) python3 "$ROOT/scripts/evidence_audit.py" run-scientific ;;
+  scientific)
+    # One workspace nextest run of the cited Rust assertions (sharing the
+    # build with rust-software), then the cited Python assertions.
+    selection="$(python3 "$ROOT/scripts/evidence_audit.py" scientific-filter)"
+    mkdir -p "$report_directory"
+    listing="$report_directory/scientific-discovery.json"
+    cargo nextest list --locked "${workspace[@]}" --message-format json -E "$selection" > "$listing"
+    python3 "$ROOT/scripts/evidence_audit.py" scientific-filter --listing "$listing" > /dev/null
+    rust_tests "${workspace[@]}" -E "$selection"
+    python3 "$ROOT/scripts/evidence_audit.py" run-scientific --python-only
+    ;;
   scripts) uv run --frozen --script "$ROOT/scripts/run_script_tests.py" "$@" ;;
   python) python_tests "$@" ;;
   python-test|python-software|python-calibration-acceptance)

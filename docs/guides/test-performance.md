@@ -66,7 +66,7 @@ for another, and an empty selection fails.
 | `rust-software` | Ordinary workspace assertions with registered measured-record acceptance assertions explicitly deselected (they await calibration). |
 | `rust-calibration-acceptance` | Only those retained acceptance assertions; no calibration is performed. |
 | `integration` | Integration targets, without library unit tests. |
-| `scientific` | Exact scientific assertions cited by the evidence registries, via `scripts/evidence_audit.py run-scientific`. |
+| `scientific` | Exact scientific assertions cited by the evidence registries: one workspace nextest run of the cited Rust tests (`scripts/evidence_audit.py scientific-filter`), then the cited Python ones (`run-scientific --python-only`). |
 | `scripts` | Discovered script unit tests in their locked environment; skips, empty discovery and failures fail. |
 | `python`, `python-test` | Full pytest (with or without sync and native rebuild). |
 | `python-software` | pytest with `-m 'not requires_calibration'`. |
@@ -84,6 +84,79 @@ Calibration harnesses and any target a script names with `--test` stay
 separate. `scripts/check_test_targets.py` fails when a test file is not
 compiled, and `scripts/check_v3_test_registry.py` fails when a registry row
 names a missing file or a stale suite-map line.
+
+## Lanes
+
+Software, scientific-evidence and calibration-acceptance assertions run
+separately. A test may be in the software and scientific lanes at once; every
+ordinary test is in the software lane, so none falls between lanes.
+
+| Lane | Command | Selected | Contents |
+| --- | --- | ---: | --- |
+| Software | `bash scripts/test.sh rust-software` | 13,473 Rust tests; 8,083 pytest tests (`python-software`); 538 script tests (`scripts`) | Every non-ignored workspace test except the registered measured-record acceptance assertions. |
+| Scientific evidence | `bash scripts/test.sh scientific` | 207 Rust tests plus 1 Python test | Only the assertions that `parity/*.toml` claims cite as known-truth or external-oracle evidence (`scientific` role). Discovery proves each cited test exists and is not ignored; each test is also in the software lane. |
+| Calibration acceptance | `bash scripts/test.sh rust-calibration-acceptance` | 13 Rust tests; 39 pytest tests (`python-calibration-acceptance`) | Tests registered under `calibration_acceptance_assertions` in `parity/v3_test_registry.toml`, or marked `requires_calibration`. They need the frozen branch's attesting coverage records and fail until `scripts/measure_calibration.sh` has produced them. |
+| Calibration measurement | `bash scripts/measure_calibration.sh` | 864 `#[ignore]` Rust tests | Replicate-heavy coverage, precision and timing measurements. No ordinary lane runs them. |
+| Integration | `bash scripts/test.sh integration` | 6,561 Rust tests | All integration targets, without library unit tests. |
+
+Cost per lane from the cold ordinary run on 10 CPUs (`fa3ecc207`, 13,486
+tests; durations are summed per test, and that host was heavily loaded, so
+read them as upper bounds): software 3,396 CPU-s, scientific 291 CPU-s with a
+longest test of 99 s, calibration acceptance 0.5 s, integration 2,950 CPU-s.
+The wall time of the software lane is bounded below by its longest test
+(373 s) and by total CPU time over the core count (340 s); that run took 464 s.
+Of 13,499 test results, 13,240 take under a second and together hold 417 CPU-s;
+47 tests of 10 s or more hold 2,348 CPU-s (69%), and the 12 tests over 60 s
+hold 1,540 CPU-s. `.config/nextest.toml` therefore gives the longest tests a
+scheduling priority, so they start first instead of after the pool has drained.
+Priority changes order only; every test still runs once with its assertions.
+
+The scientific lane builds with the workspace feature set, so it shares its
+build with `rust-software`. Doctests (`docs`) and the optional learner and
+Gaussian-process feature suites (`all`) are separate runs outside these lanes.
+
+## Critical path of the Rust suite
+
+In the cold ordinary run the 12 tests above 60 s hold 1,540 of 3,397 CPU-s, and
+the longest, `joint_panel_workflow::actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes`,
+alone takes 373 s of the 464 s wall time (a 4-chain, 20,000-iteration serial
+sampler; the exercises after the fit are a small fraction). Wall time is
+bounded below by that test, so shortening the suite means shortening or
+overlapping the few long tests, not tuning the 13,000 short ones.
+
+Applied without removing or weakening any assertion (same cited test names, same
+tolerances, same seeds). Each row is one run of the test alone on the 10-CPU
+host at a load of roughly 10 to 30, optimized test binaries; wall seconds:
+
+| Test | Before | After | Change |
+| --- | ---: | ---: | --- |
+| `every_licensed_cell_completes_the_compiler_path` (723 cells) | 132 | 20-29 | Cells run on scoped threads; outcomes are read back in inventory order, so the route file comparison is unchanged. |
+| `all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_proofs` | 99 | 24-39 | The 24 graph, horizon, source and suite cases run on scoped threads. |
+| `all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs` | 38 | 12 | Same. |
+| `block_bootstrap_is_the_same_for_any_thread_budget` | 96 | 52 | The serial and the parallel-budget run overlap. |
+| `samplers_agree_with_the_exact_marginals_at_ten_and_twelve_variables` | 95 | 65 | The ten- and twelve-variable cases overlap. |
+
+Nextest runs one test per core, so a test that spreads independent cases over
+threads uses idle cores at the tail of the run; it costs about the same CPU time
+(somewhat more through cache contention) and shortens the wall time. A shared
+fixture across tests (`OnceLock`) does not help under nextest, which gives each
+test its own process. Tried and not kept: running the post-fit exercises of the
+Bayesian joint-panel test concurrently (they are a small fraction of the 354 s of
+CPU spent in the single-threaded sampler) and running the cheap and full
+validation suites of `dbn_sustained_validation` concurrently (the full suite
+holds almost all of the time).
+
+Not applied, because the cost is in library code: the joint-panel posterior
+sampler runs its chains one after another and ignores the context's
+parallelism (four chains would overlap, with per-chain random streams
+unchanged); and each bootstrap replicate of the temporal change-attribution
+tests takes about one second on 400 rows, spent in Monte Carlo noise
+generation inside the attribution mechanism evaluation.
+
+`.config/nextest.toml` also starts the longest tests first (`priority`). The
+priority only orders the queue. Estimated effect on the recorded durations
+(longest-first list scheduling on 10 cores versus the worst order) is a
+makespan of 373 s against up to 618 s; the observed 464 s lies between them.
 
 ## Rust fixture reuse
 

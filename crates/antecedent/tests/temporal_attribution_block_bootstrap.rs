@@ -113,8 +113,15 @@ fn block_bootstrap_is_the_same_for_any_thread_budget() {
     let serial = ExecutionContext::for_tests(9);
     let mut parallel = ExecutionContext::for_tests(9);
     parallel.parallelism = Parallelism::bounded(NonZeroThreadCount::new(4).unwrap());
-    let a = run(&data, 49, None, &serial).unwrap();
-    let b = run(&data, 49, None, &parallel).unwrap();
+    // The two budgets are independent runs of the same study, so they run side by side.
+    let (a, b) = std::thread::scope(|scope| {
+        let serial_run = scope.spawn(|| run(&data, 49, None, &serial).unwrap());
+        let parallel_run = run(&data, 49, None, &parallel).unwrap();
+        (
+            serial_run.join().unwrap_or_else(|payload| std::panic::resume_unwind(payload)),
+            parallel_run,
+        )
+    });
     let se = |result: &StudyResult| result.estimate().as_effect().unwrap().se_bootstrap().unwrap();
     assert_eq!(se(&a).to_bits(), se(&b).to_bits());
 }

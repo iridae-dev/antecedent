@@ -9,6 +9,42 @@ test-threads = "num-cpus"
 filter = 'binary(transport_exact_scm) and test(/three_node_selection|every_treatment_position|four_node_branch/)'
 threads-required = "num-cpus"
 
+# Longest-processing-time-first scheduling. Nextest starts tests in binary
+# order unless told otherwise, so a multi-minute test in a late binary starts
+# after the pool has drained and alone sets the wall time. Priority only orders
+# the queue: every test still runs once, with the same assertions. The names
+# are the tests that held the most CPU time in the cold ordinary run recorded
+# in docs/guides/test-performance.md; a renamed test only loses its head start.
+[[profile.default.overrides]]
+filter = """
+test(=joint_panel_workflow::actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes)
+| test(=dbn_sustained_validation::bayesian_multistep_dbn_cheap_and_full_preserve_window)
+| test(=every_licensed_cell_completes_the_compiler_path)
+| test(=all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_proofs)
+| test(=block_bootstrap_recovers_the_known_mean_shift_with_a_row_block_interval)
+| test(=block_bootstrap_is_the_same_for_any_thread_budget)
+| test(=graph_posterior_wide::samplers_agree_with_the_exact_marginals_at_ten_and_twelve_variables)
+| test(=temporal_class_envelope_numeric_pins::temporal_pag_identified_multi_completion_pulse_and_sustained)
+| test(=dbn_sustained_validation::single_graph_full_validation_retains_both_lagged_actions)
+| test(=joint_panel_workflow::temporal_bayesian_frame_decomposes_on_reference_worlds_and_translates_experiments)
+| test(=synthetic_rollout::tests::conformal_period_intervals_cover_the_effect_at_the_nominal_rate)
+"""
+priority = 100
+
+[[profile.default.overrides]]
+filter = """
+test(=temporal_class_bayesian_envelope::temporal_class_bayesian_response_is_identified_set)
+| test(=temporal_class_bayesian_envelope::temporal_class_multi_step_is_not_last_step_collapse)
+| test(=all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs)
+| test(=dbn_posterior_atom_identity::lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effects)
+| test(=dbn_posterior_atom_identity::lag_distinct_dbn_fit_failure_demotes_the_correct_weight_in_either_order)
+| test(/^graph_posterior_wide::/)
+| test(=sampled_licensed_cells_replay_to_the_published_number)
+| test(=joint_panel_workflow::temporal_frequentist_frame_decomposes_on_reference_worlds_and_translates_experiments)
+| test(=survival::tests::delayed_entry_fixed_g_scalar_bootstrap_support_boundary_covers_known_truth)
+"""
+priority = 50
+
 # Keep per-test durations and failures for local profiling and CI artifacts.
 # No retries or default filters: all ordinary tests still run once.
 [profile.ci]

@@ -1512,14 +1512,49 @@ fn every_licensed_query_has_a_fixture_profile() {
     }
 }
 
+/// `cases.iter().map(run)` on scoped threads, one per available core, results in input order.
+/// The first panic is re-raised with its original payload.
+fn parallel_map<T: Sync, R: Send>(cases: &[T], run: impl Fn(&T) -> R + Sync) -> Vec<R> {
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let slots: Vec<std::sync::Mutex<Option<R>>> =
+        cases.iter().map(|_| std::sync::Mutex::new(None)).collect();
+    let workers = std::thread::available_parallelism().map_or(1, usize::from).min(cases.len());
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..workers)
+            .map(|_| {
+                scope.spawn(|| {
+                    loop {
+                        let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(case) = cases.get(index) else { break };
+                        *slots[index].lock().unwrap() = Some(run(case));
+                    }
+                })
+            })
+            .collect();
+        let mut first = None;
+        for handle in handles {
+            if let Err(payload) = handle.join() {
+                first.get_or_insert(payload);
+            }
+        }
+        if let Some(payload) = first {
+            std::panic::resume_unwind(payload);
+        }
+    });
+    slots.into_iter().map(|slot| slot.into_inner().unwrap().expect("every case ran")).collect()
+}
+
 #[test]
 fn every_licensed_cell_completes_the_compiler_path() {
     let mut failures = Vec::new();
     let mut routes = Vec::new();
-    let mut n = 0usize;
-    for cell in licensed_support_cells() {
-        n += 1;
-        match cell_setup(cell).and_then(consume_setup) {
+    // The cells are independent executions: each builds its own setup and consumes it. They run
+    // on scoped threads, and the outcomes are read back in inventory order, so the rendered
+    // route file and the failure list are exactly what a sequential loop produces.
+    let cells: Vec<_> = licensed_support_cells().collect();
+    let n = cells.len();
+    for outcome in parallel_map(&cells, |&cell| cell_setup(cell).and_then(consume_setup)) {
+        match outcome {
             Ok(route) => routes.push(route),
             Err(err) => failures.push(err),
         }

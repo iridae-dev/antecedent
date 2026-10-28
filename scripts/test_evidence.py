@@ -560,6 +560,65 @@ def registered_calibration_acceptance(root: Path = ROOT) -> list[dict]:
     return found
 
 
+def registered_rust_assertions(cited: list[tuple[str, str]], root: Path = ROOT) -> list[dict]:
+    """Exact libtest identity of each cited Rust assertion, from the test registry.
+
+    Each `(path, name)` must lie in a registered cargo target of its crate and
+    declare exactly one runnable test `name`; anything else raises. The result
+    has the shape `calibration_discovery_problems` and `nextest_selection`
+    consume, so a lane built from these rows is discovered and run the same way
+    as the calibration-acceptance lane.
+    """
+    registry = root / "parity/v3_test_registry.toml"
+    by_path = {
+        row["path"]: row for row in tomllib.loads(registry.read_text(encoding="utf-8")).get("test", [])
+    }
+    manifests: dict[str, dict] = {}
+    found, seen, problems = [], set(), []
+    for path_text, name in cited:
+        if (path_text, name) in seen:
+            continue
+        seen.add((path_text, name))
+        row = by_path.get(path_text)
+        if row is None:
+            problems.append(f"{path_text}::{name}: file is not in parity/v3_test_registry.toml")
+            continue
+        crate = root / "crates" / row["crate"]
+        manifest = manifests.setdefault(
+            row["crate"], tomllib.loads((crate / "Cargo.toml").read_text(encoding="utf-8"))
+        )
+        target = row["cargo_target"]
+        if target == "lib":
+            source = manifest.get("lib", {}).get("path", "src/lib.rs")
+        else:
+            entries = [t for t in manifest.get("test", []) if t["name"] == target]
+            source = entries[0].get("path", f"tests/{target}.rs") if entries else f"tests/{target}.rs"
+        path = root / path_text
+        target_source = crate / source
+        if path.resolve() not in target_files(target_source.resolve(), crate.resolve()):
+            problems.append(f"{path_text}::{name}: outside its registered target {target}")
+            continue
+        declaration = rust_test_declaration_problems(path, name)
+        if declaration:
+            problems.append(f"{path_text}::{name}: {declaration}")
+            continue
+        found.append({"evidence_test": path_text, "evidence_assertion": name,
+                      "crate": row["crate"], "cargo_target": target,
+                      "libtest_name": libtest_name(path, name, target_source)})
+    if problems:
+        raise ValueError("unresolvable cited Rust assertions:\n" + "\n".join(problems))
+    return found
+
+
+def nextest_selection(rows: list[dict]) -> str:
+    """One nextest filter expression selecting exactly the given resolved rows."""
+    expressions = []
+    for row in rows:
+        target = "kind(lib)" if row["cargo_target"] == "lib" else f"binary(={row['cargo_target']})"
+        expressions.append(f"(package(={row['crate']}) and {target} and test(={row['libtest_name']}))")
+    return " or ".join(expressions)
+
+
 def calibration_discovery_problems(rows: list[dict], listing: dict) -> list[str]:
     """Require each classified assertion in its exact, non-ignored binary."""
     problems = []

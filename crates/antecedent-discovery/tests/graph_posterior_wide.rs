@@ -947,35 +947,66 @@ fn exact_marginals_respect_the_parent_cap_and_refuse_beyond_their_size() {
 /// sampler gets longer chains here than the separate published-workflow checks.
 #[test]
 fn samplers_agree_with_the_exact_marginals_at_ten_and_twelve_variables() {
-    for (label, k, coef, seed) in [("ten", 5, 0.5, 4_867_969), ("twelve", 6, 1.0, 5_398_576)] {
-        let n = 2 * k;
-        let cols = ring_columns(k, coef, 2000, seed);
-        let (data, vars) = table(&names(n), &cols);
-        let prior = max_parents(3);
-        let exact = exact_dag_marginals(
-            &data,
-            &vars,
-            &prior,
-            GraphScoreFamily::GaussianBic,
-            &ExecutionContext::for_tests(1),
-        )
-        .unwrap();
-        let structure = run_structure(&published_structure(), &data, &vars, &prior, 21);
-        assert!(
-            structure.diagnostics().converged,
-            "{label} structure: {:?}",
-            structure.diagnostics()
-        );
-        assert_marginals_match(&format!("{label} structure"), &structure, &exact.edge_marginals);
-        assert_chain_diagnostics_consistent(&format!("{label} structure"), &structure);
-        // This exact-oracle comparison uses twice the order-chain effort of the
-        // workflow checks. Floating score differences across platforms can change
-        // a finite chain trajectory; retain the production publication gate and
-        // give its convergence checks more sampling headroom, never a wider bar.
-        let order_engine = OrderMcmc::new().with_schedule(4, 12_000, 48_000, 2);
-        let order = run_order(&order_engine, &data, &vars, &prior, 22);
-        assert!(order.diagnostics().converged, "{label} order: {:?}", order.diagnostics());
-        assert_marginals_match(&format!("{label} order"), &order, &exact.edge_marginals);
-        assert_chain_diagnostics_consistent(&format!("{label} order"), &order);
-    }
+    // The ten- and twelve-variable cases are independent studies (own data, exact reference
+    // and chains), so they run side by side; a failure re-raises with its original payload.
+    let cases = [("ten", 5, 0.5, 4_867_969), ("twelve", 6, 1.0, 5_398_576)];
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = cases
+            .into_iter()
+            .map(|(label, k, coef, seed)| {
+                scope.spawn(move || {
+                    let n = 2 * k;
+                    let cols = ring_columns(k, coef, 2000, seed);
+                    let (data, vars) = table(&names(n), &cols);
+                    let prior = max_parents(3);
+                    let exact = exact_dag_marginals(
+                        &data,
+                        &vars,
+                        &prior,
+                        GraphScoreFamily::GaussianBic,
+                        &ExecutionContext::for_tests(1),
+                    )
+                    .unwrap();
+                    let structure = run_structure(&published_structure(), &data, &vars, &prior, 21);
+                    assert!(
+                        structure.diagnostics().converged,
+                        "{label} structure: {:?}",
+                        structure.diagnostics()
+                    );
+                    assert_marginals_match(
+                        &format!("{label} structure"),
+                        &structure,
+                        &exact.edge_marginals,
+                    );
+                    assert_chain_diagnostics_consistent(&format!("{label} structure"), &structure);
+                    // This exact-oracle comparison uses twice the order-chain effort of the
+                    // workflow checks. Floating score differences across platforms can change
+                    // a finite chain trajectory; retain the production publication gate and
+                    // give its convergence checks more sampling headroom, never a wider bar.
+                    let order_engine = OrderMcmc::new().with_schedule(4, 12_000, 48_000, 2);
+                    let order = run_order(&order_engine, &data, &vars, &prior, 22);
+                    assert!(
+                        order.diagnostics().converged,
+                        "{label} order: {:?}",
+                        order.diagnostics()
+                    );
+                    assert_marginals_match(
+                        &format!("{label} order"),
+                        &order,
+                        &exact.edge_marginals,
+                    );
+                    assert_chain_diagnostics_consistent(&format!("{label} order"), &order);
+                })
+            })
+            .collect();
+        let mut first = None;
+        for handle in handles {
+            if let Err(payload) = handle.join() {
+                first.get_or_insert(payload);
+            }
+        }
+        if let Some(payload) = first {
+            std::panic::resume_unwind(payload);
+        }
+    });
 }

@@ -2,8 +2,11 @@
 """Join existing test, claim, fixture and provenance registries without licensing.
 
 report is source/metadata inspection, never execution verification. --strict fails
-on every reported gap. run-scientific executes exact registered scientific tests
-through the existing evidence runner; ignored measurements remain forbidden.
+on every reported gap. scientific-filter prints the nextest expression selecting
+the cited Rust scientific assertions (test.sh runs it as one workspace run, after
+checking it against a nextest listing); run-scientific executes exact registered
+scientific tests through the existing evidence runner, or only the cited Python
+ones with --python-only; ignored measurements remain forbidden.
 No command runs calibration, replay or performance acceptance measurements.
 """
 
@@ -35,6 +38,8 @@ from provenance_links import method_review_problems, non_algorithm_review_proble
 from scenario_matrix import build as build_scenario_matrix
 from test_evidence import (
     registered_calibration_acceptance,
+    registered_rust_assertions,
+    nextest_selection,
     calibration_discovery_problems,
     python_test_markers,
     python_test_declarations,
@@ -844,7 +849,15 @@ def scientific_rows(claims: list[dict]) -> list[dict]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("report", "run-scientific", "rust-calibration-filter"))
+    parser.add_argument(
+        "command",
+        choices=("report", "run-scientific", "rust-calibration-filter", "scientific-filter"),
+    )
+    parser.add_argument(
+        "--python-only",
+        action="store_true",
+        help="run-scientific: run only the cited Python assertions (Rust ones run through scientific-filter)",
+    )
     parser.add_argument("--listing", type=Path, help="Verify classified assertions in a nextest JSON listing")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--strict", action="store_true")
@@ -863,6 +876,20 @@ def main() -> int:
             target = "kind(lib)" if row["cargo_target"] == "lib" else f"binary(={row['cargo_target']})"
             expressions.append(f"(package(={row['crate']}) and {target} and test(={row['libtest_name']}))")
         print(" or ".join(expressions))
+        return 0
+    if args.command == "scientific-filter":
+        rows = scientific_rows(build_report(REPO_ROOT)["claims"])
+        rust_rows = registered_rust_assertions(
+            [(r["evidence_test"], r["evidence_assertion"]) for r in rows if r["evidence_test"].endswith(".rs")]
+        )
+        if not rust_rows:
+            raise ValueError("scientific Rust selection is empty")
+        if args.listing:
+            problems = calibration_discovery_problems(rust_rows, json.loads(args.listing.read_text(encoding="utf-8")))
+            if problems:
+                print("\n".join(problems), file=sys.stderr)
+                return 1
+        print(nextest_selection(rust_rows))
         return 0
     report = build_report(REPO_ROOT)
     if args.command == "report":
@@ -889,6 +916,11 @@ def main() -> int:
             )
         )
     rows = scientific_rows(report["claims"])
+    if args.python_only:
+        rows = [row for row in rows if row["evidence_test"].endswith(".py")]
+        if not rows:
+            print("scientific: no cited Python assertions; nothing to run")
+            return 0
     if any(row["evidence_test"].endswith(".py") for row in rows):
         interpreters = [
             REPO_ROOT / "python/.venv/bin/python",
