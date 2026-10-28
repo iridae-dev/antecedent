@@ -18,7 +18,7 @@
 //!   exists at the io layer as an internal artifact.
 use antecedent_core::reason_code;
 use antecedent_estimate::temporal_dependent_interval::{
-    DependentIntervalConfig, INTERVAL_MAX_REPLICATES, INTERVAL_MIN_REPLICATES,
+    DependentIntervalConfig, INTERVAL_MIN_REPLICATES,
     ObservedStateSequence, TEMPORAL_INTERVAL_TOO_FEW_UNITS, TEMPORAL_INTERVAL_TOO_MANY_REPLICATES,
     TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY, TemporalEstimator, TemporalUnitPanel, UnitHistories,
 };
@@ -402,15 +402,12 @@ pub enum IntervalEstimand {
 }
 
 fn validate_interval_design(config: &DependentIntervalConfig, units: usize) -> Result<(), IoError> {
-    if config.replicates > INTERVAL_MAX_REPLICATES {
-        return Err(refused(
-            reason_code!("route_not_supported"),
-            TEMPORAL_INTERVAL_TOO_MANY_REPLICATES,
-            &format!(
-                "{} replicates exceed the cap of {INTERVAL_MAX_REPLICATES}",
-                config.replicates
-            ),
-        ));
+    if let Err(error) = antecedent_estimate::temporal_dependent_interval::validate_config(config) {
+        if let Some((code, message)) = error.coded_refusal() {
+            if message.detail() == Some(TEMPORAL_INTERVAL_TOO_MANY_REPLICATES) {
+                return Err(IoError::Refused { code, message: message.as_str().to_owned() });
+            }
+        }
     }
     let bad = |message: &str| IoError::Refused {
         code: reason_code!("invalid_argument"),

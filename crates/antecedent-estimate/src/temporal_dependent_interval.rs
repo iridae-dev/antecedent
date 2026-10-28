@@ -33,8 +33,7 @@ use antecedent_core::{CanonicalWriter, ExecutionContext, reason_code};
 use crate::error::EstimationError;
 use crate::splitmix::{seed_mix, splitmix64};
 
-/// Reference replicate count. Not enforced: the replicates are cancellable and bounded by the
-/// execution budget.
+/// Most replicates a dependent interval may use; `validate_config` refuses a larger request.
 pub const INTERVAL_MAX_REPLICATES: usize = 2000;
 /// Fewest replicates an interval may use.
 pub const INTERVAL_MIN_REPLICATES: usize = 20;
@@ -58,7 +57,7 @@ pub(crate) const TEMPORAL_INTERVAL_UNKNOWN_UNITS: &str = "temporal_interval.unkn
 pub const TEMPORAL_INTERVAL_TOO_FEW_UNITS: &str = "temporal_interval.too_few_units";
 /// Detail: a history the estimator needs has no support.
 pub const TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY: &str = "temporal_interval.unsupported_history";
-/// Detail: more replicates than the execution budget funds.
+/// Detail: more replicates than the cap.
 pub const TEMPORAL_INTERVAL_TOO_MANY_REPLICATES: &str = "temporal_interval.too_many_replicates";
 /// Refusal detail: more units than the bootstrap-t is certified for.
 pub(crate) const TEMPORAL_INTERVAL_STUDENTIZED_BOUNDS_EXCEEDED: &str =
@@ -803,7 +802,22 @@ fn replicate_set_digest(seed: u64, panel_digest: u64, replicates: &[ReplicateRec
     crate::util::canonical_word(&digest)
 }
 
-fn validate_config(config: &DependentIntervalConfig) -> Result<(), EstimationError> {
+/// Check an interval configuration: the replicate count within the minimum and the cap, the
+/// level, and the failed-replicate fraction.
+///
+/// # Errors
+/// A coded refusal naming the first violated bound.
+pub fn validate_config(config: &DependentIntervalConfig) -> Result<(), EstimationError> {
+    if config.replicates > INTERVAL_MAX_REPLICATES {
+        return Err(EstimationError::refused_detail(
+            reason_code!("route_not_supported"),
+            TEMPORAL_INTERVAL_TOO_MANY_REPLICATES,
+            format!(
+                "{} replicates exceed the cap of {INTERVAL_MAX_REPLICATES}",
+                config.replicates
+            ),
+        ));
+    }
     let bad = |message: &str| EstimationError::refused(reason_code!("invalid_argument"), message);
     if config.replicates < INTERVAL_MIN_REPLICATES {
         return Err(bad("a dependent interval needs at least 20 replicates"));

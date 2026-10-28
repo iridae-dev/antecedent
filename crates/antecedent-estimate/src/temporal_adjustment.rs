@@ -397,6 +397,7 @@ impl TemporalLinearAdjustment {
         }
         query.validate()?;
 
+        refuse_effect_modifiers(query)?;
         refuse_multi_step_schedule(&query.policy)?;
         if query.target_population != TargetPopulation::AllObserved {
             return Err(EstimationError::TargetPopulation);
@@ -926,6 +927,26 @@ impl TemporalLinearAdjustment {
     ) -> Result<EffectEstimate, EstimationError> {
         self.inner.fit(problem, workspace, ctx, assumptions)
     }
+}
+
+/// This design carries the average effect. A query that declares effect modifiers asks for a
+/// conditional effect, which [`temporal_conditional_marginal_effect`] fits as a separate
+/// regression with interaction terms and no standard error; answering with the average effect
+/// would ignore the declaration, so it is refused.
+fn refuse_effect_modifiers(query: &TemporalEffectQuery) -> Result<(), EstimationError> {
+    if query.effect_modifiers.is_empty() {
+        return Ok(());
+    }
+    Err(EstimationError::refused_detail(
+        antecedent_core::reason_code!("route_not_supported"),
+        "temporal_adjustment.effect_modifiers_declared",
+        format!(
+            "the query declares {} effect modifier(s); temporal linear adjustment returns the \
+             average effect and does not condition on them (the conditional effect is \
+             temporal_conditional_marginal_effect)",
+            query.effect_modifiers.len()
+        ),
+    ))
 }
 
 /// Multi-step schedules identify a contrast over *every* treatment-time node;

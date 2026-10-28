@@ -129,3 +129,43 @@ fn edge_weights_and_the_declared_assignment_probability_do_not_enter_the_posteri
     assert_eq!(run_with(&case, 5_000, 0.4, Some(1.0)).contrast_draws, base.contrast_draws);
     assert_eq!(run_with(&case, 5_000, 0.9, None).contrast_draws, base.contrast_draws);
 }
+
+fn code_of(error: &antecedent_estimate::EstimationError) -> &'static str {
+    match error {
+        antecedent_estimate::EstimationError::UnsupportedCoded { code, .. } => code,
+        other => panic!("not a coded unsupported refusal: {other}"),
+    }
+}
+
+#[test]
+fn declarations_the_posterior_cannot_honour_are_refused_with_a_typed_refusal() {
+    let case = cases().into_iter().find(|c| c["name"] == "tight_prior").unwrap();
+    let outcome = floats(&case["outcome"]);
+    let units = TabularData::from_f64_columns([("y", outcome.as_slice())]).unwrap();
+    let data = NetworkData::try_new(units, Vec::<NetworkEdge>::new()).unwrap();
+    let assignment: Vec<bool> =
+        case["assignment"].as_array().unwrap().iter().map(|v| v.as_bool().unwrap()).collect();
+    let fit = |assignment_design: AssignmentDesign, exposure: ExposureMapping| {
+        let query = InterferenceQuery::new(
+            assignment_design,
+            exposure,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: level(&case["from_level"]),
+                to: level(&case["to_level"]),
+            },
+        );
+        estimate_interference_bayesian(&query, &data, &assignment, 100, 7, 1.0).unwrap_err()
+    };
+    // A probability vector that is neither scalar nor one per unit.
+    let error = fit(
+        AssignmentDesign::Bernoulli { probabilities: Arc::from([0.4, 0.5]) },
+        ExposureMapping::NeighborCount,
+    );
+    assert_eq!(code_of(&error), "invalid_argument");
+    // Edge weights are read only by the weighted mapping, which this posterior does not model.
+    for exposure in [ExposureMapping::WeightedNeighborExposure, ExposureMapping::NeighborFraction] {
+        let error = fit(AssignmentDesign::Bernoulli { probabilities: Arc::from([0.4]) }, exposure);
+        assert_eq!(code_of(&error), "route_not_supported");
+    }
+}

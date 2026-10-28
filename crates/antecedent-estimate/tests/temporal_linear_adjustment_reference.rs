@@ -148,3 +148,36 @@ fn aligned_windows_effect_and_standard_error_match_the_exact_reference() {
         );
     }
 }
+
+#[test]
+fn a_query_declaring_effect_modifiers_is_refused_not_answered_with_the_average_effect() {
+    let reference: Value =
+        serde_json::from_str(include_str!("oracle_data/temporal_linear_adjustment_reference.json"))
+            .unwrap();
+    let case = &reference["cases"].as_array().unwrap()[0];
+    let data = series(case);
+    let g = graph();
+    let query = TemporalEffectQuery::pulse(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+        case["delta"].as_f64().unwrap(),
+    )
+    .with_policy(TemporalPolicy::pulse(-1))
+    .with_horizon_steps(1)
+    .with_max_history_lag(Some(2))
+    .with_effect_modifiers([VariableId::from_raw(2)]);
+    let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &query).unwrap();
+    let estimand = id_res.result.estimands.first().unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    let est = TemporalLinearAdjustment::new();
+    let error = est
+        .prepare(&data, estimand, &query, &id_res.indexer, None, &ctx.kernel_policy)
+        .unwrap_err();
+    let (code, message) = error.coded_refusal().expect("a coded refusal");
+    assert_eq!(code, "route_not_supported");
+    assert_eq!(message.detail(), Some("temporal_adjustment.effect_modifiers_declared"));
+    let gapped = est
+        .prepare_with_gaps(&data, estimand, &query, &id_res.indexer, &ctx.kernel_policy)
+        .unwrap_err();
+    assert!(gapped.coded_refusal().is_some());
+}

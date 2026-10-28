@@ -102,6 +102,20 @@ pub fn estimate_interference_bayesian(
             "Bayesian interference is licensed only for Bernoulli assignment with NeighborCount exposure",
         ));
     }
+    // The posterior conditions on the realised assignment, so the declared probabilities do not
+    // enter it; a vector that is neither scalar nor one per unit does not describe this network's
+    // design, which the design-based cell refuses alike.
+    let per_unit_mismatch = matches!(
+        &query.assignment,
+        antecedent_core::AssignmentDesign::Bernoulli { probabilities }
+            if probabilities.len() != 1 && probabilities.len() != assignment.len()
+    );
+    if per_unit_mismatch {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("invalid_argument"),
+            "Bernoulli assignment needs one probability or one per unit of the network",
+        ));
+    }
     let InterferenceFunctional::ExposureContrast { outcome, from, to } = query.functional;
     let n = assignment.len();
     let outcomes = data.units().float64_values(outcome)?;
