@@ -3,7 +3,7 @@
 """Independent reference for a feedback system fitted with a registered external mechanism.
 
 The system has ``x0 = gain * tanh(x1) + u0`` (the external mechanism) and
-``x1 = 0.2 * tanh(x0) + u1`` (a built-in). The truth is derived without the production code:
+``x1 = tanh(0.2 * x0) + u1`` (a built-in: activation of the weighted sum). The truth is derived without the production code:
 
 * With ``x1`` hard-clamped in every row, the maximum-likelihood gain of the first equation is
   the least-squares slope of ``x0`` on ``tanh(x1)`` (the free Jacobian is the identity).
@@ -41,7 +41,7 @@ def least_squares_gain() -> float:
 def fixed_point(gain: float, u: tuple[float, float]) -> list[float]:
     def residual(x1: float) -> float:
         x0 = gain * math.tanh(x1) + u[0]
-        return x1 - (0.2 * math.tanh(x0) + u[1])
+        return x1 - (math.tanh(0.2 * x0) + u[1])
 
     lo, hi = -10.0, 10.0
     for _ in range(200):
@@ -54,9 +54,9 @@ def fixed_point(gain: float, u: tuple[float, float]) -> list[float]:
 def joint_log_density(gain: float, state: tuple[float, float]) -> float:
     x0, x1 = state
     r0 = x0 - gain * math.tanh(x1)
-    r1 = x1 - 0.2 * math.tanh(x0)
+    r1 = x1 - math.tanh(0.2 * x0)
     j01 = gain * (1.0 - math.tanh(x1) ** 2)
-    j10 = 0.2 * (1.0 - math.tanh(x0) ** 2)
+    j10 = 0.2 * (1.0 - math.tanh(0.2 * x0) ** 2)
     det = 1.0 - j01 * j10
     return -0.5 * (r0 * r0 + r1 * r1) - math.log(2.0 * math.pi) + math.log(abs(det))
 

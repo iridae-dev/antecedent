@@ -866,6 +866,10 @@ impl PreparedAdaptivePolicySearch {
         let mut rng = CausalRng::from_seed(derive_stream(o.seed, index as u64));
         let mut state = FamilyState { attempts: Vec::new(), best: None, evaluations: 0 };
         let budget = o.max_evaluations;
+        // Generations spend at most 70% of the budget when polishing is on, so the incumbent is
+        // always refined; a generation phase cut short still reports the search as incomplete.
+        let generation_budget = if o.polish { (budget * 7 / 10).max(1) } else { budget };
+        let mut cut_short = false;
         let mut stop = SearchStop::GenerationLimit;
 
         let mut mean: Vec<f64> = (0..dim).map(|i| lower[i] + 0.5 * width[i]).collect();
@@ -895,7 +899,8 @@ impl PreparedAdaptivePolicySearch {
             }
             let mut scored: Vec<(Score, Vec<f64>)> = Vec::with_capacity(batch.len());
             for theta in batch {
-                if state.evaluations >= budget {
+                if state.evaluations >= generation_budget {
+                    cut_short = true;
                     stop = SearchStop::EvaluationBudget;
                     break 'generations;
                 }
@@ -921,7 +926,7 @@ impl PreparedAdaptivePolicySearch {
                 break;
             }
         }
-        if o.polish && stop != SearchStop::EvaluationBudget {
+        if o.polish && (stop != SearchStop::EvaluationBudget || cut_short) {
             let mut step: Vec<f64> = width.iter().map(|w| 0.05 * w).collect();
             'polish: for _ in 0..64 {
                 let mut improved = false;
@@ -959,6 +964,9 @@ impl PreparedAdaptivePolicySearch {
                     }
                 }
             }
+        }
+        if cut_short {
+            stop = SearchStop::EvaluationBudget;
         }
         let Some((_, theta, in_sample)) = state.best else {
             return Err(AdaptivePolicySearchError::NoEvaluation(format!(

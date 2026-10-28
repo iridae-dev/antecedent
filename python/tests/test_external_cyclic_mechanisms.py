@@ -92,11 +92,11 @@ def reference_gain() -> float:
 
 
 def reference_fixed_point(gain: float, noise: list[float]) -> list[float]:
-    """Solve x0 = gain*tanh(x1)+u0, x1 = 0.2*tanh(x0)+u1 by bisection on x1."""
+    """Solve x0 = gain*tanh(x1)+u0, x1 = tanh(0.2*x0)+u1 by bisection on x1."""
 
     def residual(x1: float) -> float:
         x0 = gain * math.tanh(x1) + noise[0]
-        return x1 - (0.2 * math.tanh(x0) + noise[1])
+        return x1 - (math.tanh(0.2 * x0) + noise[1])
 
     lo, hi = -10.0, 10.0
     for _ in range(200):

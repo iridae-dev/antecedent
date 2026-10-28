@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import scipy.sparse as sp
-import scipy.sparse.linalg as spla
 from antecedent.cyclic import Equation, EquilibriumModel, SolvePolicy
 from antecedent.outcomes import require_success
+
+sp = pytest.importorskip("scipy.sparse")
+spla = pytest.importorskip("scipy.sparse.linalg")
 
 N = 300
 

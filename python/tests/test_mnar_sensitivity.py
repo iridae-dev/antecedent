@@ -125,7 +125,9 @@ def test_mnar_ranges_are_never_labelled_as_confidence_intervals() -> None:
         for cls in (mnar.MnarAssumptionRange, mnar.MnarResult)
         for f in dataclasses.fields(cls)
     }
-    assert not any("confidence" in name or name in {"ci", "ci_lower", "ci_upper"} for name in names)
+    # The only field that names a confidence interval is the explicit negative flag.
+    labelled = {n for n in names if "confidence" in n or n in {"ci", "ci_lower", "ci_upper"}}
+    assert labelled == {"is_confidence_interval"}
     # The sampling interval is its own type, never the range's.
     assert mnar.MnarSamplingInterval is not mnar.MnarAssumptionRange
 
