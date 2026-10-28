@@ -1212,6 +1212,7 @@ fn fitted_horizon(
         .expect("row count fits u64"),
         active: 1.0,
         control: 0.0,
+        treatment_levels: None,
         sampling_weights: None,
     };
     FittedHorizon::fit(prepared, &mut LeastSquaresWorkspace::default()).expect("OLS fit")

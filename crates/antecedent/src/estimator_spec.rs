@@ -84,6 +84,26 @@ impl EstimatorSpec {
         }
     }
 
+    /// The inference declarations (standard-error kind, cluster, multiway and panel labels) of a
+    /// configured estimator that reads them; `None` for an id-only spec and for the estimators
+    /// that publish their own uncertainty without them.
+    #[must_use]
+    pub fn inference_spec(&self) -> Option<&antecedent_estimate::InferenceSpec> {
+        match self {
+            Self::LinearAdjustmentAte(cfg) => Some(&cfg.inference),
+            Self::PropensityWeighting(cfg) => Some(&cfg.inference),
+            Self::PropensityMatching(cfg) => Some(&cfg.inference),
+            Self::PropensityStratification(cfg) => Some(&cfg.inference),
+            Self::DistanceMatching(cfg) => Some(&cfg.inference),
+            Self::Aipw(cfg) => Some(&cfg.inference),
+            Self::GlmAdjustment(cfg) => Some(&cfg.inference),
+            Self::FrontDoorTwoStage(cfg) => Some(&cfg.inference),
+            Self::IvWald(cfg) => Some(&cfg.inference),
+            Self::Iv2Sls(cfg) => Some(&cfg.inference),
+            Self::Default(_) | Self::Dml(_) | Self::DrLearner(_) | Self::CausalForest(_) => None,
+        }
+    }
+
     /// Bind the study-level sampling design to a configured estimator that resamples or splits.
     ///
     /// An estimator that declared no design takes the study's. An estimator that declared a
@@ -98,6 +118,31 @@ impl EstimatorSpec {
         design: antecedent_core::DeclaredSamplingDesign,
     ) -> Result<(), crate::CausalError> {
         use antecedent_estimate::util::SamplingDeclaration;
+        let dependent = matches!(
+            design,
+            antecedent_core::DeclaredSamplingDesign::ClusteredPanel
+                | antecedent_core::DeclaredSamplingDesign::DependentTimeSeries
+        );
+        if dependent
+            && matches!(
+                self,
+                Self::PropensityMatching(_)
+                    | Self::DistanceMatching(_)
+                    | Self::IvWald(_)
+                    | Self::Iv2Sls(_)
+            )
+        {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "this estimator reads no cluster or serial dependence: matching has no valid \
+                 cluster or HAC error (donors belong to other clusters and times than the \
+                 matched unit) and instrumental fits publish heteroskedasticity-robust errors \
+                 only, so a clustered-panel or dependent-time-series design would be silently \
+                 ignored. Next attempt: declare independent subject trajectories, or use \
+                 LinearAdjustmentAte, AIPW or propensity weighting with a cluster or Newey-West \
+                 standard error"
+            ));
+        }
         let slot: &mut SamplingDeclaration = match self {
             Self::LinearAdjustmentAte(cfg) => &mut cfg.inference.sampling_design,
             Self::PropensityWeighting(cfg) => &mut cfg.inference.sampling_design,

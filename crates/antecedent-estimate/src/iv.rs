@@ -441,6 +441,22 @@ fn prepare_iv_problem(
         crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
     // Each selected column is gathered once, straight into the allocation the problem keeps.
     let t = data.float64_selected_arc(treatment, &row_mask).map_err(EstimationError::from)?;
+    if crate::prepare::is_discrete_with_other_levels(&t, active, control) {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("treatment_level_undeclared"),
+            "iv.undeclared_level",
+            &format!(
+                "the treatment takes levels beyond the contrasted pair (active {active}, control \
+                 {control}); {}. The instrumental fit reads the treatment as one numeric dose, so \
+                 it would return a slope scaled by the gap between the levels, not the contrast of \
+                 the two levels, and restricting the rows to the two levels would select on the \
+                 endogenous treatment and invalidate the instrument. Next attempt: recode the \
+                 treatment into the binary contrast of interest before estimation, or use a \
+                 continuous dose with levels the data spans",
+                crate::propensity::levels::describe_observed_levels(&t)
+            ),
+        ));
+    }
     let y = data.float64_selected_arc(outcome, &row_mask).map_err(EstimationError::from)?;
     let nrows = t.len();
 

@@ -72,6 +72,9 @@ pub struct PreparedGlmProblem {
     pub target_population: TargetPopulation,
     /// Complete-case treatment values.
     pub treatment: Arc<[f64]>,
+    /// The two contrasted levels and the rows excluded, when the treatment is a discrete column
+    /// with further levels and the restriction to the two levels was declared.
+    pub treatment_levels: Option<crate::propensity::DeclaredTreatmentLevels>,
     /// Sampling weights of the retained rows (mean one) and what they did to this problem.
     /// The design stays unscaled; the weighted fit, g-computation average and sandwich read
     /// these per-row weights directly.
@@ -112,6 +115,11 @@ pub struct GlmAdjustmentAte {
     /// Fisher delta method treats weights as precision and is refused). Logit, probit,
     /// Poisson, negative-binomial (weighted dispersion update) and Gaussian families.
     pub sampling_weights: Option<SamplingWeights>,
+    /// Policy for rows at neither contrasted level when the treatment is a discrete column with
+    /// further levels (see [`crate::OtherLevels`]). The default refuses: the treatment enters
+    /// the linear predictor as one numeric column, so a column such as `0/1/2` would be read as
+    /// a dose and the contrast of 1 against 0 would be extrapolated from that slope.
+    pub other_levels: crate::propensity::OtherLevels,
 }
 
 impl Default for GlmAdjustmentAte {
@@ -132,7 +140,17 @@ impl GlmAdjustmentAte {
             family: GlmFamily::BinomialLogit,
             population_registry: None,
             sampling_weights: None,
+            other_levels: crate::propensity::OtherLevels::default(),
         }
+    }
+
+    /// Declare what to do with rows at neither contrasted level when the treatment is a
+    /// discrete column with further levels. The default refuses; the exclusion restricts the
+    /// target population to the rows at the two levels and is reported on the result.
+    #[must_use]
+    pub const fn with_other_levels(mut self, other_levels: crate::propensity::OtherLevels) -> Self {
+        self.other_levels = other_levels;
+        self
     }
 
     crate::inference::with_bootstrap_interval!(inference);
@@ -211,6 +229,7 @@ impl GlmAdjustmentAte {
                 message: "GlmAdjustmentAte expects an adjustment-shaped estimand",
             });
         }
+        self.inference.require_declared_design_read("GlmAdjustmentAte")?;
         query.validate()?;
         if !query.effect_modifiers.is_empty() {
             return Err(EstimationError::unsupported_coded(
@@ -258,6 +277,13 @@ impl GlmAdjustmentAte {
             &query.target_population,
             data.row_count(),
             self.population_registry.as_ref(),
+        )?;
+        let treatment_levels = crate::prepare::restrict_to_contrast_levels(
+            &data,
+            treatment,
+            &mut row_mask,
+            (active, control),
+            self.other_levels,
         )?;
         if self.sampling_weights.is_some()
             && matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic)
@@ -314,6 +340,7 @@ impl GlmAdjustmentAte {
             family: self.family,
             target_population: query.target_population.clone(),
             treatment: t,
+            treatment_levels,
             sampling,
             preparation,
         })
@@ -461,10 +488,14 @@ impl GlmAdjustmentAte {
             )?,
         };
 
-        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+        let mut estimate = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
             .with_se_kind(self.inference.se_kind)
-            .with_sampling_weights(problem.sampling.as_ref().map(|s| s.record)))
+            .with_sampling_weights(problem.sampling.as_ref().map(|s| s.record));
+        if let Some(levels) = problem.treatment_levels {
+            estimate = estimate.with_treatment_levels(levels);
+        }
+        Ok(estimate)
     }
 
     fn bootstrap_se(

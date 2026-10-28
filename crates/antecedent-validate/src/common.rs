@@ -798,6 +798,7 @@ fn panel_prepare_with_extras(
         treatment: Arc::from(all_t),
         active,
         control,
+        treatment_levels: None,
         sampling_weights: None,
         preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(rows)?,
     })

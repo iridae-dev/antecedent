@@ -532,6 +532,7 @@ impl TemporalLinearAdjustment {
                 treatment: selected.iter().map(|&r| t[r]).collect(),
                 active,
                 control,
+                treatment_levels: None,
                 sampling_weights,
                 preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(
                     selected.len(),
@@ -673,6 +674,7 @@ impl TemporalLinearAdjustment {
                 treatment: Arc::from(all_t),
                 active: first.active,
                 control: first.control,
+                treatment_levels: None,
                 sampling_weights,
                 preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(
                     rows,

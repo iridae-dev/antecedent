@@ -9,8 +9,10 @@
 //! refused with their own typed detail rather than approximated. Observation weights on the
 //! table are refused, estimator-declared weights equal the same fit on rows repeated by integer
 //! weights, and a missing confounder follows the default complete-case policy, equal to the fit on
-//! the rows that remain. On the latent-variable graph a declared cluster or Newey-West error is the
-//! closed-form sandwich of the regression scores.
+//! the rows that remain. On both graph classes a declared cluster or Newey-West error is the
+//! closed-form sandwich of the regression scores; when the class holds two completions with
+//! different adjustment sets, the error is that sandwich over their frozen-weight mixture of
+//! influence values.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -579,7 +581,7 @@ fn sandwich(groups: Option<&[u32]>, lag: Option<usize>) -> (f64, f64) {
 }
 
 #[test]
-fn declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_the_latent_variable_graph() {
+fn declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_both_graph_classes() {
     let clusters: Vec<u32> = (0..N).map(|i| (i / 10) as u32).collect();
     let fit = |class: &str, estimator: LinearAdjustmentAte| {
         let result = run(class, table(&columns()), average_effect(), Some(estimator), None).unwrap();
@@ -588,9 +590,9 @@ fn declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_the_la
     };
     let base = || LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let (_, independent) = fit("admg", base().with_se_kind(AnalyticSeKind::Hc1));
-    // The equivalence-class (CPDAG) envelope combines its completions' influence values and does
-    // not yet read a declared cluster or Newey-West error, so it is not asserted here.
-    for class in ["admg"] {
+    // The equivalence-class (CPDAG) envelope has one completion here, whose error is the
+    // declared sandwich exactly as on the latent-variable graph.
+    for class in CLASSES {
         let (beta, se) = sandwich(Some(&clusters), None);
         assert!((independent - se).abs() > 1e-3 * se, "the design must make clustering matter");
         let (ate, got) = fit(
@@ -611,3 +613,109 @@ fn declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_the_la
     }
 }
 
+
+/// Influence values `n [(X'X)^-1 x_i e_i]_a` of the coefficient of `a` in the regression of `y`
+/// on an intercept, `a` and the `extra` columns.
+fn coefficient_influence(extra: &[&[f64]]) -> Vec<f64> {
+    let c = columns();
+    let (a, y) = (&c[0].1, &c[2].1);
+    let k = 2 + extra.len();
+    let x: Vec<Vec<f64>> = (0..N)
+        .map(|i| {
+            let mut row = vec![1.0, a[i]];
+            row.extend(extra.iter().map(|column| column[i]));
+            row
+        })
+        .collect();
+    let mut xtx = vec![vec![0.0; k]; k];
+    let mut xty = vec![0.0; k];
+    for i in 0..N {
+        for p in 0..k {
+            xty[p] += x[i][p] * y[i];
+            for q in 0..k {
+                xtx[p][q] += x[i][p] * x[i][q];
+            }
+        }
+    }
+    let beta = solve(xtx.clone(), xty);
+    let bread: Vec<f64> = {
+        let mut unit = vec![0.0; k];
+        unit[1] = 1.0;
+        solve(xtx, unit)
+    };
+    (0..N)
+        .map(|i| {
+            let e = y[i] - (0..k).map(|p| x[i][p] * beta[p]).sum::<f64>();
+            N as f64 * (0..k).map(|p| bread[p] * x[i][p] * e).sum::<f64>()
+        })
+        .collect()
+}
+
+/// `a` and `z` joined by an undirected edge, the rest of the model compelled: the class holds the
+/// completions `z -> a` (adjust for `z`) and `a -> z` (no adjustment).
+fn two_completion_cpdag() -> Cpdag {
+    let mut graph = Cpdag::with_variables(4);
+    for (from, to) in [(3, 2), (0, 1), (1, 2), (0, 2)] {
+        graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    graph.insert_undirected(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
+    graph
+}
+
+#[test]
+fn two_completions_publish_the_declared_sandwich_of_their_mixed_influence_values() {
+    let clusters: Vec<u32> = (0..N).map(|i| (i / 10) as u32).collect();
+    let c = columns();
+    let z = c[3].1.as_slice();
+    let mixed: Vec<f64> = coefficient_influence(&[z])
+        .into_iter()
+        .zip(coefficient_influence(&[]))
+        .map(|(adjusted, unadjusted)| 0.5 * (adjusted + unadjusted))
+        .collect();
+    let mean = mixed.iter().sum::<f64>() / N as f64;
+    let n = N as f64;
+    let cluster_sums = {
+        let mut sums = std::collections::BTreeMap::<u32, f64>::new();
+        for (value, group) in mixed.iter().zip(&clusters) {
+            *sums.entry(*group).or_default() += value - mean;
+        }
+        sums
+    };
+    let g = cluster_sums.len() as f64;
+    let cluster_oracle =
+        (g / (g - 1.0) * cluster_sums.values().map(|s| s * s).sum::<f64>()).sqrt() / n;
+    let lag = 4_usize;
+    let long_run = |l: usize| -> f64 {
+        (l..N).map(|i| (mixed[i] - mean) * (mixed[i - l] - mean)).sum::<f64>()
+    };
+    let bartlett = long_run(0)
+        + 2.0 * (1..=lag).map(|l| (1.0 - l as f64 / (lag as f64 + 1.0)) * long_run(l)).sum::<f64>();
+    let newey_west_oracle = bartlett.max(0.0).sqrt() / n;
+    let hc1_oracle = (mixed.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n * (n - 1.0))).sqrt();
+
+    let fit = |estimator: LinearAdjustmentAte| {
+        let result = Study::tabular(table(&columns()))
+            .graph(two_completion_cpdag())
+            .estimator(estimator)
+            .query(average_effect())
+            .build()
+            .and_then(|study| study.run(&ctx()))
+            .unwrap();
+        result.estimate().as_effect().unwrap().se_analytic()
+    };
+    let base = || LinearAdjustmentAte::new().with_bootstrap_replicates(0);
+    let independent = fit(base().with_se_kind(AnalyticSeKind::Hc1));
+    assert!((independent - hc1_oracle).abs() < 1e-9 * (1.0 + hc1_oracle), "{independent} vs {hc1_oracle}");
+    let clustered =
+        fit(base().with_se_kind(AnalyticSeKind::Cluster).with_cluster_ids(clusters.clone()));
+    assert!(
+        (clustered - cluster_oracle).abs() < 1e-9 * (1.0 + cluster_oracle),
+        "cluster {clustered} vs {cluster_oracle}"
+    );
+    let serial = fit(base().with_se_kind(AnalyticSeKind::NeweyWest { lag }));
+    assert!(
+        (serial - newey_west_oracle).abs() < 1e-9 * (1.0 + newey_west_oracle),
+        "newey-west {serial} vs {newey_west_oracle}"
+    );
+    assert!((independent - clustered).abs() > 1e-3 * independent, "clustering must matter");
+}

@@ -12745,6 +12745,7 @@ pub fn <antecedent::EstimatorSpec>::fn bootstrap_interval_calibration_label(&sel
 pub fn <antecedent::EstimatorSpec>::fn bootstrap_replicates(&self) -> core::option::Option<u32>
 pub fn <antecedent::EstimatorSpec>::fn excludes_undeclared_levels(&self) -> bool
 pub fn <antecedent::EstimatorSpec>::fn id(&self) -> antecedent::EstimatorId
+pub fn <antecedent::EstimatorSpec>::fn inference_spec(&self) -> core::option::Option<&antecedent_estimate::inference::InferenceSpec>
 pub fn <antecedent::EstimatorSpec>::fn is_configured(&self) -> bool
 pub fn <antecedent::EstimatorSpec>::fn matching_calibration_label(&self) -> core::option::Option<&'static str>
 pub fn <antecedent::EstimatorSpec>::fn propensity_calibration_label(&self) -> core::option::Option<alloc::string::String>
@@ -18197,7 +18198,6 @@ pub use antecedent::analysis::mnar_sensitivity::MnarSensitivityResult = antecede
 pub use antecedent::analysis::mnar_sensitivity::MnarSensitivitySpec = antecedent_validate::mnar_sensitivity::MnarSensitivitySpec
 pub use antecedent::analysis::mnar_sensitivity::MnarTipping = antecedent_validate::mnar_sensitivity::MnarTipping
 pub use antecedent::analysis::mnar_sensitivity::MnarTippingSide = antecedent_validate::mnar_sensitivity::MnarTippingSide
-pub use antecedent::analysis::mnar_sensitivity::mnar_assumptions = antecedent_validate::mnar_sensitivity::assumptions
 pub use antecedent::analysis::msm_sensitivity::ActionUtility = antecedent_io::sensitivity_artifact::ActionUtility
 pub use antecedent::analysis::msm_sensitivity::MSM_ASSUMPTION_RANGE_CLAIM = antecedent_validate::msm_sensitivity::MSM_ASSUMPTION_RANGE_CLAIM
 pub use antecedent::analysis::msm_sensitivity::MSM_COORDINATE_ID = antecedent_io::msm_sensitivity_adapter::MSM_COORDINATE_ID

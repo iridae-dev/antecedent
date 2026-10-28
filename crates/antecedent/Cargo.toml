@@ -981,3 +981,7 @@ path = "tests/scenario_invalid_input_refusals.rs"
 [[test]]
 name = "scenario_dependence_declarations"
 path = "tests/scenario_dependence_declarations.rs"
+
+[[test]]
+name = "scenario_treatment_levels"
+path = "tests/scenario_treatment_levels.rs"

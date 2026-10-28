@@ -5,7 +5,7 @@
 use antecedent::{CausalError, EstimatorId, RefuteSuite, Study};
 use antecedent_core::{DeclaredSamplingDesign, ExecutionContext};
 use antecedent_data::{DataError, TableView};
-use antecedent_estimate::LinearAdjustmentAte;
+use antecedent_estimate::{AnalyticSeKind, LinearAdjustmentAte};
 
 #[path = "fixtures_common/mod.rs"]
 mod common;
@@ -191,8 +191,12 @@ fn a_dependent_series_refuses_a_whole_cluster_draw() {
 #[test]
 fn the_same_design_on_the_estimator_and_the_study_is_not_a_conflict() {
     let (data, dag, query) = confounded_scm(ROWS, 11);
+    // With the bootstrap off the declared panel is read by the cluster standard error.
+    let labels: Vec<u32> = (0..data.row_count()).map(|row| (row / 4) as u32).collect();
     let estimator = LinearAdjustmentAte::new()
         .with_bootstrap_replicates(0)
+        .with_se_kind(AnalyticSeKind::Cluster)
+        .with_cluster_ids(labels)
         .with_sampling_design(DeclaredSamplingDesign::ClusteredPanel);
     let built = Study::tabular(data)
         .graph(dag)

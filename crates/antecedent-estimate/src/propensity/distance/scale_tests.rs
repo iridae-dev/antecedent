@@ -67,7 +67,7 @@ fn exercise(rows: usize, seed: u64, stride: usize) {
     let treated_y: Vec<f64> = treated_idx.iter().map(|&i| prep.outcome[i]).collect();
     let control_y: Vec<f64> = control_idx.iter().map(|&i| prep.outcome[i]).collect();
     let mut match_workspace = PropensityEstimationWorkspace::default();
-    let MatchedDiffs { diffs, donors, queries } = match_diffs(
+    let matched = match_diffs(
         MatchSide { features: &control_feat, outcome: &control_y },
         MatchSide { features: &treated_feat, outcome: &treated_y },
         COVARIATES,
@@ -78,6 +78,8 @@ fn exercise(rows: usize, seed: u64, stride: usize) {
         &ctx,
     )
     .expect("the bounded match runs");
+    let donors: Vec<usize> = matched.donor_sets().iter().map(|set| set[0]).collect();
+    let MatchedDiffs { diffs, queries, .. } = matched;
     assert_eq!(queries.len(), treated_idx.len(), "every treated unit finds a donor");
     for q in (0..treated_idx.len()).step_by(stride) {
         let query = &treated_feat[q * COVARIATES..(q + 1) * COVARIATES];

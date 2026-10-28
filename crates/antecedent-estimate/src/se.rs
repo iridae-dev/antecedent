@@ -616,6 +616,31 @@ pub(crate) fn panel_cluster_hac_influence_se(
     Ok((c_g * meat).max(0.0).sqrt() / n as f64)
 }
 
+/// Standard error of the mean of influence values `psi` (one per source row, mean-zero up to
+/// the estimate) under the dependence `inference` declares: the heteroskedasticity-robust form
+/// for an independent-rows kind, the cluster, multiway or panel sums for a clustered kind, and
+/// the Bartlett long-run variance for a serial kind. Labels are read as aligned to `psi`, so a
+/// source-table label vector is used when no prepared-row vector is declared.
+///
+/// # Errors
+///
+/// Missing or misaligned labels, fewer than two clusters, or an HC2/HC3 kind (no leverage
+/// correction exists for influence values).
+pub fn influence_se_under(
+    inference: &crate::inference::InferenceSpec,
+    psi: &[f64],
+) -> Result<f64, EstimationError> {
+    influence_se_kind(
+        inference.se_kind,
+        psi,
+        psi.len(),
+        inference.cluster_ids.as_deref().or(inference.source_cluster_ids.as_deref()),
+        inference.multiway_ids.as_deref(),
+        inference.panel_times.as_deref(),
+        None,
+    )
+}
+
 /// Dispatch IF-based analytic SE kinds shared by AIPW / Wald / matching.
 pub(crate) fn influence_se_kind(
     kind: AnalyticSeKind,

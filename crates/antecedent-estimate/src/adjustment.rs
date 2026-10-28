@@ -76,6 +76,9 @@ pub struct PreparedEstimationProblem {
     pub active: f64,
     /// Control treatment level.
     pub control: f64,
+    /// The two contrasted levels and the rows excluded, when the treatment is a discrete column
+    /// with further levels and the restriction to the two levels was declared.
+    pub treatment_levels: Option<crate::propensity::DeclaredTreatmentLevels>,
     /// What declared sampling weights did to this problem. When present the design matrix and
     /// outcome are the weighted-least-squares transform (every row multiplied by the square
     /// root of its mean-one weight), so each normal-equation and sandwich formula downstream
@@ -157,6 +160,11 @@ pub struct LinearAdjustmentAte {
     pub preparation_budget: Option<PreparationBudget>,
     /// Explicit contrasts for categorical adjustment columns, in request order.
     pub contrasts: Vec<(VariableId, Contrast)>,
+    /// Policy for rows at neither contrasted level when the treatment is a discrete column with
+    /// further levels (see [`crate::OtherLevels`]). The default refuses: the treatment enters
+    /// the regression as one numeric column, so a column such as `0/1/2` would be read as a
+    /// dose and "1 against 0" would be its slope, not the contrast of the two levels.
+    pub other_levels: crate::propensity::OtherLevels,
 }
 
 impl Default for LinearAdjustmentAte {
@@ -178,7 +186,17 @@ impl LinearAdjustmentAte {
             sampling_weights: None,
             preparation_budget: None,
             contrasts: Vec::new(),
+            other_levels: crate::propensity::OtherLevels::default(),
         }
+    }
+
+    /// Declare what to do with rows at neither contrasted level when the treatment is a
+    /// discrete column with further levels. The default refuses; the exclusion restricts the
+    /// target population to the rows at the two levels and is reported on the result.
+    #[must_use]
+    pub const fn with_other_levels(mut self, other_levels: crate::propensity::OtherLevels) -> Self {
+        self.other_levels = other_levels;
+        self
     }
 
     crate::inference::with_bootstrap_interval!(inference);
@@ -333,6 +351,7 @@ impl LinearAdjustmentAte {
             estimand,
             "LinearAdjustmentAte expects an adjustment-shaped estimand",
         )?;
+        self.inference.require_declared_design_read("LinearAdjustmentAte")?;
         validate_ate_query_with_targets(query)?;
         let treatment = query.treatment;
         let outcome = query.outcome;
@@ -358,6 +377,13 @@ impl LinearAdjustmentAte {
             &query.target_population,
             data.row_count(),
             self.population_registry.as_ref(),
+        )?;
+        let treatment_levels = crate::prepare::restrict_to_contrast_levels(
+            data,
+            treatment,
+            &mut row_mask,
+            (active, control),
+            self.other_levels,
         )?;
         self.refuse_unweighted_routes()?;
         let retained = self
@@ -394,6 +420,7 @@ impl LinearAdjustmentAte {
             treatment: t,
             active,
             control,
+            treatment_levels,
             sampling_weights: retained.map(|retained| retained.record),
             preparation,
         })
@@ -697,12 +724,15 @@ impl LinearAdjustmentAte {
         let (se_coef, influence) = self.coefficient_se_and_influence(problem, &fit, t_col)?;
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
-        let point = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+        let mut point = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(nrows).unwrap_or(u64::MAX))
             .with_se_kind(self.inference.se_kind)
             .with_sampling_weights(problem.sampling_weights)
             .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
             .with_influence(influence.map(Arc::from));
+        if let Some(levels) = problem.treatment_levels {
+            point = point.with_treatment_levels(levels);
+        }
         let residuals =
             matches!(fit.variance, FitVariance::Ols).then(|| std::mem::take(&mut fit.residuals));
         Ok((point, residuals))

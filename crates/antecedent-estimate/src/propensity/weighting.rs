@@ -207,6 +207,7 @@ impl PropensityWeighting {
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
         super::require_supported_inference(&self.inference)?;
+        self.inference.require_declared_design_read("PropensityWeighting")?;
         if let Some(source) = self.inference.source_cluster_ids.as_deref() {
             crate::se::require_source_labels(
                 source,

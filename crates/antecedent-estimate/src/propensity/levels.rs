@@ -138,8 +138,9 @@ pub(crate) fn classify_treatment_levels(
                 "{excluded_rows} complete-case rows have a treatment value at neither declared \
                  level (active {active}, control {control}); first found {value}; {}. Excluding \
                  them would restrict the target population to the rows at the two declared \
-                 levels: declare that with OtherLevels::ExcludeUndeclared, or use the \
-                 full-population generalized-propensity estimator",
+                 levels. Next attempt: declare that restriction with \
+                 OtherLevels::ExcludeUndeclared, or use the full-population \
+                 generalized-propensity estimator",
                 describe_observed_levels(treatment)
             ),
         ));

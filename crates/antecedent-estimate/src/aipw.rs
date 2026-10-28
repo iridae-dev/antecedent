@@ -349,6 +349,7 @@ impl AipwAte {
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
         self.propensity.validate_for_execution()?;
+        self.inference.require_declared_design_read("AipwAte")?;
         if self.propensity.is_penalized() {
             self.require_penalized_scope(
                 query.outcome_functional == antecedent_core::OutcomeFunctional::Mean,

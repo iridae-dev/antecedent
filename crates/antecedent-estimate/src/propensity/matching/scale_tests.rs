@@ -1,9 +1,8 @@
 //! Propensity matching at tens of thousands of donors against a quadratic reference.
 //!
 //! The matching index answers every query exactly (sorted distinct values in one dimension),
-//! so the matched donor and the bias-corrected difference of every query must equal those of
-//! an exhaustive scan that keeps the strictly nearest donor, the lowest donor position among
-//! equals. Each test fits the estimator on a seeded population at its stated size, checks a
+//! so the matched donors and the bias-corrected difference of every query must equal those of
+//! an exhaustive scan that takes every donor at the nearest distance and averages them. Each test fits the estimator on a seeded population at its stated size, checks a
 //! sample of queries against the scan, checks a whole estimate on a subsample against the
 //! scan-based estimate, and replays the fit.
 //!
@@ -52,40 +51,50 @@ fn arms(est: &PropensityMatching, prep: &PreparedPropensityProblem) -> Arms {
     }
 }
 
-/// The scan: strictly nearest donor, the lowest position among equals.
-fn scan_nearest(donors: &[f64], query: f64) -> (usize, f64) {
-    let mut best = (0usize, f64::INFINITY);
+/// The scan: every donor at the nearest distance, ascending by position, and that distance.
+fn scan_nearest(donors: &[f64], query: f64) -> (Vec<usize>, f64) {
+    let mut best = f64::INFINITY;
+    let mut set = Vec::new();
     for (position, &donor) in donors.iter().enumerate() {
         let distance = (query - donor).abs();
-        if distance < best.1 {
-            best = (position, distance);
+        if distance < best {
+            best = distance;
+            set = vec![position];
+        } else if distance.to_bits() == best.to_bits() {
+            set.push(position);
         }
     }
-    best
+    (set, best)
 }
 
-/// The scan's donor and bias-corrected difference for treated query `q`, `None` outside the
+/// The scan's donor set and bias-corrected difference for treated query `q`, `None` outside the
 /// caliper.
 fn scan_match(
     arms: &Arms,
     beta: Option<&[f64]>,
     q: usize,
     caliper: Option<f64>,
-) -> Option<(usize, f64, f64)> {
+) -> Option<(Vec<usize>, f64, f64)> {
     let query = arms.treated_feat[q];
-    let (donor, distance) = scan_nearest(&arms.control_feat, query);
-    if !distance.is_finite() || caliper.is_some_and(|limit| distance > limit) {
+    let (set, distance) = scan_nearest(&arms.control_feat, query);
+    if set.is_empty() || !distance.is_finite() || caliper.is_some_and(|limit| distance > limit) {
         return None;
     }
-    let raw = arms.treated_y[q] - arms.control_y[donor];
+    let mean = |value: &dyn Fn(usize) -> f64| set.iter().map(|&d| value(d)).sum::<f64>() / set.len() as f64;
+    let raw = arms.treated_y[q] - mean(&|d| arms.control_y[d]);
     let bias = match beta {
         Some(beta) => {
             predict_linear(beta, &[query], 1, 0)
-                - predict_linear(beta, &arms.control_feat, 1, donor)
+                - mean(&|d| predict_linear(beta, &arms.control_feat, 1, d))
         }
         None => 0.0,
     };
-    Some((donor, raw - bias, distance))
+    Some((set.clone(), raw - bias, distance))
+}
+
+/// Two sums of the same terms in another order agree to rounding.
+fn same_to_rounding(a: f64, b: f64) -> bool {
+    (a - b).abs() <= 1e-12 * (1.0 + a.abs().max(b.abs()))
 }
 
 /// What a sample of queries showed against the scan.
@@ -108,7 +117,7 @@ fn assert_queries_equal_the_scan(
     ctx: &ExecutionContext,
 ) -> Agreement {
     let mut workspace = PropensityEstimationWorkspace::default();
-    let MatchedDiffs { diffs, donors, queries } = match_diffs(
+    let matched = match_diffs(
         MatchSide { features: &arms.control_feat, outcome: &arms.control_y },
         MatchSide { features: &arms.treated_feat, outcome: &arms.treated_y },
         1,
@@ -119,6 +128,7 @@ fn assert_queries_equal_the_scan(
         ctx,
     )
     .expect("the sorted index matches");
+    let (donor_sets, diffs, queries) = (matched.donor_sets(), matched.diffs.clone(), matched.queries.clone());
     let beta = fit_linear_mean(&arms.control_feat, &arms.control_y, 1);
     let mut agreement = Agreement {
         checked: 0,
@@ -129,19 +139,18 @@ fn assert_queries_equal_the_scan(
     };
     for q in (0..arms.treated_y.len()).step_by(stride) {
         let expected = scan_match(arms, beta.as_deref(), q, caliper);
-        let got = queries.binary_search(&q).ok().map(|slot| (donors[slot], diffs[slot]));
+        let got = queries.binary_search(&q).ok().map(|slot| {
+            let mut set = donor_sets[slot].to_vec();
+            set.sort_unstable();
+            (set, diffs[slot])
+        });
         match (expected, got) {
             (None, None) => {}
-            (Some((donor, diff, distance)), Some((got_donor, got_diff))) => {
-                assert_eq!(got_donor, donor, "query {q}: the index chose another donor");
-                assert_eq!(got_diff.to_bits(), diff.to_bits(), "query {q}: the difference differs");
+            (Some((set, diff, distance)), Some((got_set, got_diff))) => {
+                assert_eq!(got_set, set, "query {q}: the index chose other donors");
+                assert!(same_to_rounding(got_diff, diff), "query {q}: {got_diff} vs {diff}");
                 agreement.matched_by_scan += 1;
-                let tied = arms
-                    .control_feat
-                    .iter()
-                    .filter(|&&d| (arms.treated_feat[q] - d).abs().to_bits() == distance.to_bits())
-                    .count();
-                agreement.most_tied = agreement.most_tied.max(tied);
+                agreement.most_tied = agreement.most_tied.max(set.len());
                 agreement.zero_distance += usize::from(distance.to_bits() == 0);
             }
             (expected, got) => {
@@ -173,7 +182,7 @@ fn assert_estimate_equals_the_scan(
         .collect();
     assert!(!diffs.is_empty());
     let reference = diffs.iter().sum::<f64>() / diffs.len() as f64;
-    assert_eq!(effect.ate.to_bits(), reference.to_bits(), "ATT differs from the scan's");
+    assert!(same_to_rounding(effect.ate, reference), "ATT {} differs from the scan's {reference}", effect.ate);
     assert_eq!(effect.provenance.n_obs, Some(diffs.len() as u64));
 }
 
@@ -280,9 +289,9 @@ fn sorted_exact_one_dimensional_propensity_matching_100000_donors() {
 }
 
 #[test]
-fn sorted_matching_preserves_ties() {
+fn sorted_matching_averages_over_ties() {
     // One covariate on a quarter-step lattice: the fitted score takes a few dozen values, so
-    // thousands of donors share the nearest distance and the lowest position must win.
+    // thousands of donors share the nearest distance and the match is all of them.
     let design = Design { lattice: Some(0.25), ..design(20_000, 2_000, 1, 7_297_538) };
     let run = exercise(design, Caliper::None, 7);
     assert_eq!(run.agreement.matched_by_scan, run.agreement.checked);
@@ -307,7 +316,7 @@ fn sorted_matching_preserves_calipers() {
 #[test]
 fn sorted_matching_preserves_duplicates() {
     // Every row of the second half repeats the covariates of an earlier row, so donors
-    // coincide exactly and the sorted search must still pick the lowest position.
+    // coincide exactly and the sorted search must still return every duplicate.
     let design = Design { duplicated: true, ..design(20_000, 2_000, 2, 8_730_913) };
     let run = exercise(design, Caliper::None, 5);
     assert_eq!(run.agreement.matched_by_scan, run.agreement.checked);

@@ -393,14 +393,63 @@ pub(crate) struct MatchingSample<'a> {
 }
 
 /// The differences and the donor and query rows of one matching pass.
+///
+/// A query's matches are all donors at its nearest distance: with continuous scores that is one
+/// donor, and with tied scores (a discrete covariate, a saturated propensity model) it is the
+/// whole tied set, whose outcomes are averaged with equal weight.
 pub(crate) struct MatchedDiffs {
     /// Bias-corrected `query_y[q] − mean(donor_y[matched])`, one per matched query.
     pub(crate) diffs: Vec<f64>,
-    /// Local donor indices used by the matched queries, `matches` consecutive entries per
-    /// matched query (for `Kᵢ`).
-    pub(crate) donors: Vec<usize>,
     /// Local index of each matched query.
     pub(crate) queries: Vec<usize>,
+    /// Donor index at each position of the runs in [`Self::spans`].
+    pool: Vec<usize>,
+    /// `(start, len)` in `pool` of the donors each matched query averages.
+    spans: Vec<(usize, usize)>,
+}
+
+impl MatchedDiffs {
+    /// The donors each matched query averages, in order.
+    #[cfg(test)]
+    pub(crate) fn donor_sets(&self) -> Vec<&[usize]> {
+        self.spans.iter().map(|&(start, len)| &self.pool[start..start + len]).collect()
+    }
+
+    /// Number of donors each matched query averages.
+    fn set_sizes(&self) -> impl Iterator<Item = usize> + '_ {
+        self.spans.iter().map(|&(_, len)| len)
+    }
+
+    /// Add to `usage[offset + d]` the weight donor `d` carries in the matched queries: each
+    /// matched query `k` spends `weights[k]` (one when `None`) shared equally over its donor
+    /// set. With one donor per query this is the count of queries a donor serves.
+    fn add_donor_usage(&self, weights: Option<&[f64]>, offset: usize, usage: &mut [f64]) {
+        // Long runs (heavy ties) are added through a difference array over the pool, so a run
+        // of any length costs constant time per query.
+        const DIRECT_RUN: usize = 16;
+        let mut delta = vec![0.0_f64; self.pool.len() + 1];
+        let mut long_runs = false;
+        for (k, &(start, len)) in self.spans.iter().enumerate() {
+            let weight = weights.map_or(1.0, |w| w[k]);
+            let share = weight / len as f64;
+            if len <= DIRECT_RUN {
+                for &donor in &self.pool[start..start + len] {
+                    usage[offset + donor] += share;
+                }
+            } else {
+                long_runs = true;
+                delta[start] += share;
+                delta[start + len] -= share;
+            }
+        }
+        if long_runs {
+            let mut running = 0.0;
+            for (position, &donor) in self.pool.iter().enumerate() {
+                running += delta[position];
+                usage[offset + donor] += running;
+            }
+        }
+    }
 }
 
 /// Quote an exact matching pass from the declared charge of
@@ -449,10 +498,17 @@ fn quote_exact_matching(
     let slots = widen(n_queries)?.checked_mul(widen(matches)?).ok_or_else(overflow)?;
     let per_query = widen(n_queries)?;
     let scalar = matches == 1 && dim == 1 && matches!(distance, MatchingDistance::Absolute);
-    // Matched donor and query rows, distances, differences, and the sorted copy of the scalar
-    // scores that the scalar pass builds beside the cached index.
-    let sorted_scores =
-        if scalar { widen(n_donors)?.checked_mul(2 * word).ok_or_else(overflow)? } else { 0 };
+    // Matched donor and query rows, distances, differences, and what the scalar pass builds
+    // beside the cached index: the (score, donor) pairs it sorts, the distinct scores, run
+    // starts and donor order of the index (up to five words per donor), and the tied run of
+    // every query (two words per query).
+    let sorted_scores = if scalar {
+        let per_donor = widen(n_donors)?.checked_mul(5 * word);
+        let per_query = widen(n_queries)?.checked_mul(2 * word);
+        per_donor.zip(per_query).and_then(|(a, b)| a.checked_add(b)).ok_or_else(overflow)?
+    } else {
+        0
+    };
     let pass_bytes = slots
         .checked_mul(2)
         .and_then(|rows| per_query.checked_mul(3).and_then(|columns| rows.checked_add(columns)))
@@ -490,7 +546,8 @@ fn quote_exact_matching(
 ///
 /// Reuses [`PropensityEstimationWorkspace`]'s cached [`MatchingIndex`] when donor geometry
 /// is unchanged. One-dimensional absolute distance is answered by [`SortedScalarIndex`]:
-/// the same donor a forward scan keeps, including ties, calipers, and replacement.
+/// every donor at the nearest distance (ties are averaged, never broken by row order), with
+/// calipers and replacement.
 /// Multivariate queries stay on the cached index and its memory guard, or on the exact
 /// bounding-box tree in high dimension ([`SpatialIndex::for_dimension`]). Before either is built,
 /// the pass is quoted from the caller's budget ([`quote_exact_matching`]): its buffers are
@@ -595,18 +652,27 @@ pub(crate) fn match_diffs_with(
     donor_rows.resize(slots, usize::MAX);
     distances.clear();
     distances.resize(n_queries, 0.0);
+    // The tied donors of each query and the donor order they index, for the scalar pass.
+    let mut scalar_ties: Option<(Vec<(usize, usize)>, Vec<usize>)> = None;
     {
         let scalar = matches == 1 && dim == 1 && matches!(distance, MatchingDistance::Absolute);
         if scalar {
-            match_scalar_sorted(
+            let mut tied = vec![(0usize, 0usize); n_queries];
+            let pool = match_scalar_sorted(
                 donor_features,
                 query_features,
                 n_queries,
                 caliper,
-                &mut donor_rows,
+                &mut tied,
                 &mut distances,
                 ctx,
             )?;
+            for (slot, &(start, len)) in donor_rows.iter_mut().zip(&tied) {
+                if len > 0 {
+                    *slot = pool[start];
+                }
+            }
+            scalar_ties = Some((tied, pool));
         } else {
             // Multivariate Euclidean search keeps `MatchingIndex` and its memory guard.
             // `antecedent_stats::BoxTreeIndex` answers the same queries exactly; it is chosen
@@ -660,7 +726,8 @@ pub(crate) fn match_diffs_with(
             }
         }
     }
-    let matched = matched_outcome_diffs(donors, queries, dim, matches, &donor_rows);
+    let matched =
+        matched_outcome_diffs(donors, queries, dim, matches, &donor_rows, scalar_ties);
     workspace.matching_donor_rows = donor_rows;
     workspace.matching_distances = distances;
     Ok(matched)
@@ -684,20 +751,23 @@ fn require_match_counts(n_donors: usize, matches: usize) -> Result<(), Estimatio
 }
 
 /// Form bias-corrected outcome differences only after the exact neighbour pass.
-/// A single donor is read directly; multi-donor averaging retains match order.
+/// A single donor is read directly; a set of donors (several nearest neighbours, or donors tied
+/// at the nearest distance) is averaged with equal weight in the order of its run.
 fn matched_outcome_diffs(
     donors: MatchSide<'_>,
     queries: MatchSide<'_>,
     dim: usize,
     matches: usize,
     donor_rows: &[usize],
+    scalar_ties: Option<(Vec<(usize, usize)>, Vec<usize>)>,
 ) -> MatchedDiffs {
     let MatchSide { features: donor_features, outcome: donor_outcome } = donors;
     let MatchSide { features: query_features, outcome: query_outcome } = queries;
     let n_queries = query_outcome.len();
     let mut diffs = Vec::with_capacity(n_queries);
-    let mut used_donors = Vec::with_capacity(donor_rows.len());
+    let mut first_donors = Vec::new();
     let mut used_queries = Vec::with_capacity(n_queries);
+    let mut spans = Vec::with_capacity(n_queries);
     let mu_donor = fit_linear_mean(donor_features, donor_outcome, dim);
     // One match is read off directly so single-neighbour results do not pass through a sum.
     let average = |set: &[usize], value: &dyn Fn(usize) -> f64| -> f64 {
@@ -706,24 +776,60 @@ fn matched_outcome_diffs(
             _ => set.iter().map(|&d| value(d)).sum::<f64>() / set.len() as f64,
         }
     };
+    // Queries tied with the same run of donors share one average of the donors' outcomes and
+    // fitted means, computed once.
+    let mut run_means = std::collections::HashMap::<(usize, usize), (f64, f64)>::new();
     for q in 0..n_queries {
-        let set = &donor_rows[q * matches..(q + 1) * matches];
-        if set[0] != usize::MAX {
-            let raw = query_outcome[q] - average(set, &|d| donor_outcome[d]);
-            let bias = match &mu_donor {
-                Some(beta) => {
-                    let mq = predict_linear(beta, query_features, dim, q);
-                    let md = average(set, &|d| predict_linear(beta, donor_features, dim, d));
-                    mq - md
+        let (set, span): (&[usize], (usize, usize)) = match &scalar_ties {
+            Some((tied, pool)) => {
+                let (start, len) = tied[q];
+                if len == 0 {
+                    continue;
                 }
+                (&pool[start..start + len], (start, len))
+            }
+            None => {
+                let set = &donor_rows[q * matches..(q + 1) * matches];
+                if set[0] == usize::MAX {
+                    continue;
+                }
+                (set, (spans.len() * matches, matches))
+            }
+        };
+        let (donor_y, donor_fit) = if scalar_ties.is_some() && set.len() > 1 {
+            *run_means.entry(span).or_insert_with(|| {
+                let y = average(set, &|d| donor_outcome[d]);
+                let fit = match &mu_donor {
+                    Some(beta) => average(set, &|d| predict_linear(beta, donor_features, dim, d)),
+                    None => 0.0,
+                };
+                (y, fit)
+            })
+        } else {
+            let y = average(set, &|d| donor_outcome[d]);
+            let fit = match &mu_donor {
+                Some(beta) => average(set, &|d| predict_linear(beta, donor_features, dim, d)),
                 None => 0.0,
             };
-            diffs.push(raw - bias);
-            used_donors.extend_from_slice(set);
-            used_queries.push(q);
+            (y, fit)
+        };
+        let raw = query_outcome[q] - donor_y;
+        let bias = match &mu_donor {
+            Some(beta) => predict_linear(beta, query_features, dim, q) - donor_fit,
+            None => 0.0,
+        };
+        diffs.push(raw - bias);
+        if scalar_ties.is_none() {
+            first_donors.extend_from_slice(set);
         }
+        used_queries.push(q);
+        spans.push(span);
     }
-    MatchedDiffs { diffs, donors: used_donors, queries: used_queries }
+    let pool = match scalar_ties {
+        Some((_, pool)) => pool,
+        None => first_donors,
+    };
+    MatchedDiffs { diffs, queries: used_queries, pool, spans }
 }
 
 /// A caliper is a maximum distance: finite and non-negative.
@@ -739,11 +845,26 @@ fn validate_caliper(caliper: Option<f64>) -> Result<(), EstimationError> {
 /// Exact nearest-donor index for one scalar score.
 ///
 /// Donors stay in the index after a query matches them, so a later query can use the same
-/// donor (matching with replacement). Equal absolute differences resolve to the lowest donor
-/// index, which is the donor a forward scan keeps under a strict `<` update.
+/// donor (matching with replacement). Donors whose distance to the query equals the nearest
+/// distance are all neighbours: the match is the whole tied set, averaged with equal weight,
+/// never one donor chosen by row order.
 struct SortedScalarIndex {
-    /// `(score, lowest donor index with that score)` in ascending score order.
-    by_score: Vec<(f64, usize)>,
+    /// Distinct donor scores in ascending order.
+    scores: Vec<f64>,
+    /// `starts[k]..starts[k + 1]` are the positions in `members` of the donors scoring
+    /// `scores[k]`; one entry longer than `scores`.
+    starts: Vec<usize>,
+    /// Donor indices grouped by score: ascending score, then ascending donor index.
+    members: Vec<usize>,
+}
+
+/// The nearest donors of one query: a contiguous run of `SortedScalarIndex::members` and the
+/// distance they share.
+#[derive(Clone, Copy, Debug)]
+struct TiedDonors {
+    start: usize,
+    len: usize,
+    distance: f64,
 }
 
 impl SortedScalarIndex {
@@ -754,21 +875,28 @@ impl SortedScalarIndex {
         let mut by_score: Vec<(f64, usize)> =
             donors.iter().copied().enumerate().map(|(index, score)| (score, index)).collect();
         by_score.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-        // The first entry of an equal-score run is its lowest donor index, which is the
-        // only one a query can resolve to; the rest never change a result.
-        by_score.dedup_by(|later, kept| later.0.total_cmp(&kept.0).is_eq());
-        Self { by_score }
+        let mut scores = Vec::new();
+        let mut starts = Vec::new();
+        for (position, &(score, _)) in by_score.iter().enumerate() {
+            if scores.last().is_none_or(|last: &f64| last.total_cmp(&score).is_ne()) {
+                scores.push(score);
+                starts.push(position);
+            }
+        }
+        starts.push(by_score.len());
+        Self { scores, starts, members: by_score.into_iter().map(|(_, index)| index).collect() }
     }
 
-    /// Nearest donor to `query`, or `None` when that distance is non-finite or past `caliper`.
+    /// Nearest donors to `query`, or `None` when that distance is non-finite or past `caliper`.
     ///
-    /// A distance equal to the caliper is a match. `caliper == None` accepts every finite
-    /// nearest donor.
-    #[must_use = "the donor and distance are the match"]
-    fn nearest(&self, query: f64, caliper: Option<f64>) -> Option<(usize, f64)> {
-        let split = self.by_score.partition_point(|&(score, _)| score < query);
-        let left = split.checked_sub(1).map(|i| (query - self.by_score[i].0).abs());
-        let right = self.by_score.get(split).map(|&(score, _)| (query - score).abs());
+    /// Every donor at exactly the nearest distance is returned (the donors on both sides of the
+    /// query when it sits midway between two scores). A distance equal to the caliper is a
+    /// match. `caliper == None` accepts every finite nearest distance.
+    #[must_use = "the donors and distance are the match"]
+    fn nearest(&self, query: f64, caliper: Option<f64>) -> Option<TiedDonors> {
+        let split = self.scores.partition_point(|&score| score < query);
+        let left = split.checked_sub(1).map(|i| (query - self.scores[i]).abs());
+        let right = self.scores.get(split).map(|&score| (query - score).abs());
         let best = match (left, right) {
             (Some(l), Some(r)) => l.min(r),
             (Some(distance), None) | (None, Some(distance)) => distance,
@@ -778,24 +906,18 @@ impl SortedScalarIndex {
             return None;
         }
         // `|query - score|` is non-decreasing as `score` moves away from `query`, so every
-        // donor tied with `best` is contiguous around the two neighbours.
-        let mut position = usize::MAX;
-        let mut i = split;
-        while i > 0 {
-            i -= 1;
-            let (score, donor) = self.by_score[i];
-            if (query - score).abs().total_cmp(&best).is_ne() {
-                break;
-            }
-            position = position.min(donor);
+        // score at the nearest distance is contiguous around the split, and so are their donors.
+        let mut first = split;
+        while first > 0 && (query - self.scores[first - 1]).abs().total_cmp(&best).is_eq() {
+            first -= 1;
         }
-        for &(score, donor) in &self.by_score[split..] {
-            if (query - score).abs().total_cmp(&best).is_ne() {
-                break;
-            }
-            position = position.min(donor);
+        let mut last = split;
+        while last < self.scores.len()
+            && (query - self.scores[last]).abs().total_cmp(&best).is_eq()
+        {
+            last += 1;
         }
-        if position == usize::MAX {
+        if first == last {
             return None;
         }
         if let Some(limit) = caliper {
@@ -807,23 +929,25 @@ impl SortedScalarIndex {
                 return None;
             }
         }
-        Some((position, best))
+        let (start, end) = (self.starts[first], self.starts[last]);
+        Some(TiedDonors { start, len: end - start, distance: best })
     }
 }
 
 /// Answer one-dimensional absolute-distance queries from [`SortedScalarIndex`].
 ///
-/// `donor_rows[q] == usize::MAX` and `distances[q] == ∞` when the nearest donor is outside
-/// the caliper or at a non-finite distance.
+/// `tied[q]` is the run of tied nearest donors in the returned pool (`len == 0` and
+/// `distances[q] == ∞` when the nearest distance is past the caliper or non-finite). The pool is
+/// the index's donor order: a donor index per position.
 fn match_scalar_sorted(
     donors: &[f64],
     queries: &[f64],
     n_queries: usize,
     caliper: Option<f64>,
-    donor_rows: &mut [usize],
+    tied: &mut [(usize, usize)],
     distances: &mut [f64],
     ctx: &ExecutionContext,
-) -> Result<(), EstimationError> {
+) -> Result<Vec<usize>, EstimationError> {
     if queries.len() != n_queries {
         return Err(EstimationError::from(StatsError::Shape {
             message: "queries length != n_queries * dim",
@@ -839,15 +963,15 @@ fn match_scalar_sorted(
                 message: "matching query must be finite",
             }));
         }
-        if let Some((donor, distance)) = index.nearest(query, caliper) {
-            donor_rows[q] = donor;
-            distances[q] = distance;
+        if let Some(found) = index.nearest(query, caliper) {
+            tied[q] = (found.start, found.len);
+            distances[q] = found.distance;
         } else {
-            donor_rows[q] = usize::MAX;
+            tied[q] = (0, 0);
             distances[q] = f64::INFINITY;
         }
     }
-    Ok(())
+    Ok(index.members)
 }
 
 /// [`match_nearest_k`] and the single-neighbour pass answered by a [`BoxTreeIndex`], with the
@@ -1016,12 +1140,41 @@ impl MatchedArms {
 /// The per-unit matched effects of a target population with the donor usage behind them.
 struct MatchedEffects {
     per_unit_effects: Vec<f64>,
-    /// Pooled donor index of each matched query's donors (`matches` entries per query).
-    donor_usage: Vec<usize>,
+    /// The matching passes behind the effects, in effect order, each with the offset of its
+    /// donors in the pooled donor index space.
+    passes: Vec<(MatchedDiffs, usize)>,
     /// Donors the usage indexes into.
     n_donors: usize,
     /// Sample row of each matched query.
     effect_rows: Vec<usize>,
+}
+
+impl MatchedEffects {
+    /// What each donor carries in the matched estimator: the weight (`weights[k]` per effect,
+    /// one when `None`) of the queries it serves, each query's weight shared equally over its
+    /// donors. At unit weights and one donor per query this is the count of queries a donor
+    /// serves, `K_j / M` of the Abadie–Imbens variance.
+    fn donor_usage(&self, weights: Option<&[f64]>) -> Vec<f64> {
+        let mut usage = vec![0.0; self.n_donors.max(1)];
+        let mut next = 0;
+        for (pass, offset) in &self.passes {
+            let count = pass.spans.len();
+            pass.add_donor_usage(weights.map(|w| &w[next..next + count]), *offset, &mut usage);
+            next += count;
+        }
+        usage
+    }
+
+    /// Mean over the effects of `1 + 1 / (donors of the query)`: what one outcome's noise
+    /// accounts for, as a share of the variance of a matched difference, is its reciprocal.
+    fn mean_noise_inflation(&self) -> f64 {
+        let (total, count) = self
+            .passes
+            .iter()
+            .flat_map(|(pass, _)| pass.set_sizes())
+            .fold((0.0, 0usize), |(total, count), size| (total + 1.0 + 1.0 / size as f64, count + 1));
+        total / count.max(1) as f64
+    }
 }
 
 /// Match the target population's queries: ATT matches treated to the nearest controls, ATC
@@ -1035,19 +1188,19 @@ fn match_target(
 ) -> Result<MatchedEffects, EstimationError> {
     match target {
         TargetPopulation::Treated => {
-            let (matched, rows) = arms.treated_to_control(sample, caliper, workspace)?;
+            let (mut matched, rows) = arms.treated_to_control(sample, caliper, workspace)?;
             Ok(MatchedEffects {
-                per_unit_effects: matched.diffs,
-                donor_usage: matched.donors,
+                per_unit_effects: std::mem::take(&mut matched.diffs),
+                passes: vec![(matched, 0)],
                 n_donors: arms.control_y.len(),
                 effect_rows: rows,
             })
         }
         TargetPopulation::Untreated => {
-            let (matched, rows) = arms.control_to_treated(sample, caliper, workspace)?;
+            let (mut matched, rows) = arms.control_to_treated(sample, caliper, workspace)?;
             Ok(MatchedEffects {
-                per_unit_effects: matched.diffs.into_iter().map(|d| -d).collect(),
-                donor_usage: matched.donors,
+                per_unit_effects: std::mem::take(&mut matched.diffs).into_iter().map(|d| -d).collect(),
+                passes: vec![(matched, 0)],
                 n_donors: arms.treated_y.len(),
                 effect_rows: rows,
             })
@@ -1055,18 +1208,16 @@ fn match_target(
         TargetPopulation::AllObserved
         | TargetPopulation::Predicate(_)
         | TargetPopulation::CustomDistribution(_) => {
-            let (att, att_rows) = arms.treated_to_control(sample, caliper, workspace)?;
-            let (atc, atc_rows) = arms.control_to_treated(sample, caliper, workspace)?;
+            let (mut att, att_rows) = arms.treated_to_control(sample, caliper, workspace)?;
+            let (mut atc, atc_rows) = arms.control_to_treated(sample, caliper, workspace)?;
             let n_control = arms.control_y.len();
-            let mut effects = att.diffs;
-            effects.extend(atc.diffs.into_iter().map(|d| -d));
-            let mut donors = att.donors;
-            donors.extend(atc.donors.into_iter().map(|d| d + n_control));
+            let mut effects = std::mem::take(&mut att.diffs);
+            effects.extend(std::mem::take(&mut atc.diffs).into_iter().map(|d| -d));
             let mut rows = att_rows;
             rows.extend(atc_rows);
             Ok(MatchedEffects {
                 per_unit_effects: effects,
-                donor_usage: donors,
+                passes: vec![(att, 0), (atc, n_control)],
                 n_donors: n_control + arms.treated_y.len(),
                 effect_rows: rows,
             })
@@ -1122,16 +1273,23 @@ impl MatchedVariance<'_> {
 
     /// Coefficient of each sample row's outcome in the weighted matched estimator.
     fn coefficients(&self, weights: &[f64]) -> Vec<f64> {
+        let mass: f64 =
+            self.effects.effect_rows.iter().map(|&row| weights.get(row).copied().unwrap_or(0.0)).sum();
+        let query_shares: Vec<f64> = self
+            .effects
+            .effect_rows
+            .iter()
+            .map(|&row| weights.get(row).copied().unwrap_or(0.0) / mass)
+            .collect();
         custom_unit_coefficients(
             weights,
             &self.effects.effect_rows,
-            &self.effects.donor_usage,
+            &self.effects.donor_usage(Some(&query_shares)),
             &self.arms.treated_idx,
             &self.arms.control_idx,
             self.sample.treatment.len(),
             self.ate_form(),
             matches!(self.target, TargetPopulation::Untreated),
-            self.sample.matches,
         )
     }
 
@@ -1188,14 +1346,13 @@ impl MatchedVariance<'_> {
                     &effects.effect_rows,
                     coefficients,
                     self.target_weights.unwrap_or(&[]),
-                    self.sample.matches,
+                    1.0 / effects.mean_noise_inflation(),
                 ),
                 None => abadie_imbens_se(
                     &effects.per_unit_effects,
-                    &effects.donor_usage,
-                    effects.n_donors,
+                    &effects.donor_usage(None),
                     self.ate_form(),
-                    self.sample.matches,
+                    1.0 / effects.mean_noise_inflation(),
                 ),
             },
             AnalyticSeKind::Hc0
@@ -1345,13 +1502,12 @@ pub(crate) fn matching_contrast(
 fn custom_unit_coefficients(
     target_weights: &[f64],
     effect_rows: &[usize],
-    donor_local: &[usize],
+    donor_usage: &[f64],
     treated_idx: &[usize],
     control_idx: &[usize],
     nrows: usize,
     ate_form: bool,
     donors_are_treated: bool,
-    matches: usize,
 ) -> Vec<f64> {
     let n_control = control_idx.len();
     let weight = |row: usize| target_weights.get(row).copied().unwrap_or(0.0);
@@ -1365,23 +1521,25 @@ fn custom_unit_coefficients(
             coefficient[row] -= weight(row) / mass;
         }
     }
-    for (&row, donors) in effect_rows.iter().zip(donor_local.chunks(matches)) {
-        let w = weight(row) / mass;
-        coefficient[row] += w;
-        // Each of a query's `matches` donors carries an equal share of its weight.
-        let share = w / matches as f64;
-        for &donor in donors {
-            // The ATC match draws its donors from the treated arm alone, indexed without the
-            // control offset the pooled (ATE) donor list carries for its ATC half.
-            let donor_row = if donors_are_treated {
-                treated_idx[donor]
-            } else if donor < n_control {
-                control_idx[donor]
-            } else {
-                treated_idx[donor - n_control]
-            };
-            coefficient[donor_row] += share;
+    for &row in effect_rows {
+        coefficient[row] += weight(row) / mass;
+    }
+    // `donor_usage` holds, per donor, the share of the matched queries' weight it carries
+    // (each query's weight split equally over its donors).
+    for (donor, &share) in donor_usage.iter().enumerate() {
+        if share == 0.0 {
+            continue;
         }
+        // The ATC match draws its donors from the treated arm alone, indexed without the
+        // control offset the pooled (ATE) donor list carries for its ATC half.
+        let donor_row = if donors_are_treated {
+            treated_idx[donor]
+        } else if donor < n_control {
+            control_idx[donor]
+        } else {
+            treated_idx[donor - n_control]
+        };
+        coefficient[donor_row] += share;
     }
     coefficient
 }
@@ -1402,7 +1560,7 @@ fn weighted_abadie_imbens_se(
     effect_rows: &[usize],
     coefficients: &[f64],
     target_weights: &[f64],
-    matches: usize,
+    noise_share: f64,
 ) -> f64 {
     let weight = |row: usize| target_weights.get(row).copied().unwrap_or(0.0);
     let mass: f64 = effect_rows.iter().map(|&r| weight(r)).sum();
@@ -1411,7 +1569,7 @@ fn weighted_abadie_imbens_se(
     if denominator <= 0.0 {
         return f64::NAN;
     }
-    let sigma2: f64 = noise_share(matches)
+    let sigma2: f64 = noise_share
         * effects
             .iter()
             .zip(effect_rows)
@@ -1542,55 +1700,31 @@ fn bias_adjusted_coefficient_norm(
         .sum())
 }
 
-/// Donor-reuse counts `Kⱼ` from query→donor local indices.
-fn donor_counts(donor_local: &[usize], n_donors: usize) -> Vec<usize> {
-    let mut k = vec![0usize; n_donors.max(1)];
-    for &d in donor_local {
-        if d < k.len() {
-            k[d] += 1;
-        }
-    }
-    k
-}
-
-/// Share of the variance of a matched difference `Yᵢ − mean(Y_donors)` that one outcome's
-/// noise accounts for: the difference carries the query's noise plus the average of `matches`
-/// donors', so under a constant effect `Var(τ̂ᵢ) = σ² (1 + 1/M)` and `σ̂² = Var(τ̂ᵢ) / (1 + 1/M)`.
-/// One match gives the equal-arm one half.
-fn noise_share(matches: usize) -> f64 {
-    1.0 / (1.0 + 1.0 / matches as f64)
-}
-
-/// Abadie–Imbens (2006) SE for `M`-nearest-neighbour matching with replacement
-/// (homoskedastic); `M = 1` is single-nearest-neighbour matching.
+/// Abadie–Imbens (2006) SE for nearest-neighbour matching with replacement (homoskedastic).
 ///
-/// `σ̂² = Var(τ̂ᵢ) / (1 + 1/M)` (equal-arm residual variance; one half at `M = 1`). With donor
-/// reuse counts `Kⱼ` (each of a query's `M` donors is counted once, so `Σⱼ Kⱼ = M·n`):
-/// - **ATT/ATC** (`ate_form = false`): `Var = σ̂² (n + Σⱼ (Kⱼ/M)²) / n²`
-/// - **ATE** (`ate_form = true`): `Var = σ̂² Σⱼ (1 + Kⱼ/M)² / n²`
-///   `= σ̂² (n_donors + 2 Σ K/M + Σ (K/M)²) / n²` (the ATT form misses the cross term).
-fn abadie_imbens_se(
-    effects: &[f64],
-    donor_local: &[usize],
-    n_donors: usize,
-    ate_form: bool,
-    matches: usize,
-) -> f64 {
+/// `donor_usage[j]` is the weight donor `j` carries: the number of queries it serves, each
+/// query sharing its unit weight equally over its donors (`K_j / M` for `M` nearest neighbours,
+/// `K_j` for one, a fraction when a query's nearest donors are tied). `noise_share` is the
+/// reciprocal of the mean over queries of `1 + 1 / (donors of the query)`: a matched difference
+/// carries the query's noise plus the average of its donors', so under a constant effect
+/// `Var(τ̂ᵢ) = σ² (1 + 1/M)` and `σ̂² = Var(τ̂ᵢ) · noise_share` (one half at `M = 1`).
+/// - **ATT/ATC** (`ate_form = false`): `Var = σ̂² (n + Σⱼ uⱼ²) / n²`
+/// - **ATE** (`ate_form = true`): `Var = σ̂² Σⱼ (1 + uⱼ)² / n²`
+///   `= σ̂² (n_donors + 2 Σ u + Σ u²) / n²` (the ATT form misses the cross term).
+fn abadie_imbens_se(effects: &[f64], donor_usage: &[f64], ate_form: bool, noise_share: f64) -> f64 {
     let n = effects.len();
-    if n < 2 || n.checked_mul(matches) != Some(donor_local.len()) {
+    if n < 2 {
         return sample_std(effects) / (n as f64).sqrt();
     }
-    let k = donor_counts(donor_local, n_donors);
-    let share = matches as f64;
     let mean = effects.iter().sum::<f64>() / n as f64;
     let var_tau = effects.iter().map(|e| (e - mean).powi(2)).sum::<f64>() / (n as f64 - 1.0);
-    let sigma2 = (var_tau * noise_share(matches)).max(0.0);
+    let sigma2 = (var_tau * noise_share).max(0.0);
     let weight = if ate_form {
-        // Σⱼ (1 + Kⱼ/M)² over the donor-count vector (includes K=0 units).
-        k.iter().map(|&kj| (1.0 + kj as f64 / share).powi(2)).sum::<f64>()
+        // Σⱼ (1 + uⱼ)² over the donor-usage vector (includes unused units).
+        donor_usage.iter().map(|&u| (1.0 + u).powi(2)).sum::<f64>()
     } else {
-        let sum_k2: f64 = k.iter().map(|&kj| (kj as f64 / share).powi(2)).sum();
-        n as f64 + sum_k2
+        let sum_u2: f64 = donor_usage.iter().map(|&u| u * u).sum();
+        n as f64 + sum_u2
     };
     let var = sigma2 * weight / (n as f64).powi(2);
     var.sqrt()
@@ -1655,6 +1789,22 @@ mod tests {
     use antecedent_kernels::standard_normal;
 
     use super::*;
+
+    /// The donors of the index's nearest run, ascending by donor index.
+    fn tied_set(index: &SortedScalarIndex, found: TiedDonors) -> Vec<usize> {
+        let mut set = index.members[found.start..found.start + found.len].to_vec();
+        set.sort_unstable();
+        set
+    }
+
+    /// Donor usage of single-donor queries: the count of queries each donor serves.
+    fn usage_of(donors: &[usize], n_donors: usize) -> Vec<f64> {
+        let mut usage = vec![0.0; n_donors];
+        for &donor in donors {
+            usage[donor] += 1.0;
+        }
+        usage
+    }
 
     #[test]
     fn fitted_bias_adjustment_noise_variance_matches_outcome_basis_oracle() {
@@ -1838,8 +1988,8 @@ mod tests {
         // Four queries, two unique donors reused twice each (full K vector length n).
         let donors_reuse = vec![0usize, 0, 1, 1];
         let donors_unique = vec![0usize, 1, 2, 3];
-        let se_reuse = abadie_imbens_se(&effects, &donors_reuse, 4, true, 1);
-        let se_unique = abadie_imbens_se(&effects, &donors_unique, 4, true, 1);
+        let se_reuse = abadie_imbens_se(&effects, &usage_of(&donors_reuse, 4), true, 0.5);
+        let se_unique = abadie_imbens_se(&effects, &usage_of(&donors_unique, 4), true, 0.5);
         assert!(se_reuse > se_unique, "reuse={se_reuse} unique={se_unique}");
     }
 
@@ -1857,7 +2007,7 @@ mod tests {
         let k = [2.0_f64, 2.0, 0.0, 0.0];
         let sum_1pk2: f64 = k.iter().map(|kj| (1.0 + kj).powi(2)).sum();
         let expected = (sigma2 * sum_1pk2 / n.powi(2)).sqrt();
-        let se = abadie_imbens_se(&effects, &donors, 4, true, 1);
+        let se = abadie_imbens_se(&effects, &usage_of(&donors, 4), true, 0.5);
         assert!((se - expected).abs() < 1e-14, "se={se} expected={expected} (Σ(1+K)²={sum_1pk2})");
         let sum_k2: f64 = k.iter().map(|kj| kj.powi(2)).sum();
         let old_att_form = (sigma2 * (n + sum_k2) / n.powi(2)).sqrt();
@@ -1880,9 +2030,9 @@ mod tests {
         let sigma2 = var_tau * 0.5;
         // ATT donor pool length 2: K=[2,2], weight = n + ΣK² = 4+8 = 12.
         let expected = (sigma2 * (n + 8.0) / n.powi(2)).sqrt();
-        let se = abadie_imbens_se(&effects, &donors, 2, false, 1);
+        let se = abadie_imbens_se(&effects, &usage_of(&donors, 2), false, 0.5);
         assert!((se - expected).abs() < 1e-14, "se={se} expected={expected}");
-        let se_ate = abadie_imbens_se(&effects, &donors, 4, true, 1);
+        let se_ate = abadie_imbens_se(&effects, &usage_of(&donors, 4), true, 0.5);
         assert!(se_ate > se, "ATE form should exceed ATT form under reuse");
     }
 
@@ -2024,14 +2174,15 @@ mod tests {
             assert!(validate_caliper(Some(bad)).is_err(), "{bad}");
         }
         let index = SortedScalarIndex::from_donors(&[10.0]);
-        assert_eq!(index.nearest(0.0, Some(f64::NAN)), None);
-        assert_eq!(index.nearest(0.0, Some(10.0)), Some((0, 10.0)));
+        assert!(index.nearest(0.0, Some(f64::NAN)).is_none());
+        let found = index.nearest(0.0, Some(10.0)).expect("a distance equal to the caliper matches");
+        assert_eq!((tied_set(&index, found), found.distance), (vec![0], 10.0));
     }
 
-    /// A large run of equal scores resolves to the lowest donor index, matching a forward
-    /// strict-`<` scan, and collapses to one entry per distinct score.
+    /// A large run of equal scores is one tied set holding every donor at that score, as an
+    /// exhaustive scan finds it, and collapses to one entry per distinct score.
     #[test]
-    fn huge_tie_block_matches_the_forward_scan() {
+    fn huge_tie_block_matches_the_exhaustive_scan() {
         let mut donors = Vec::new();
         for i in 0..30_000_usize {
             // Interleave the tied value with others so its indices are far apart.
@@ -2039,23 +2190,18 @@ mod tests {
         }
         donors[17_000] = 0.5;
         let index = SortedScalarIndex::from_donors(&donors);
-        assert_eq!(index.by_score.len(), 7, "one entry per distinct score");
+        assert_eq!(index.scores.len(), 7, "one entry per distinct score");
         let queries = [0.5, 0.4, 0.375, 0.6, 0.25, -5.0, 9.0, 0.125];
         for caliper in [None, Some(0.0), Some(0.05), Some(0.125)] {
             for &query in &queries {
-                let mut best: Option<(usize, f64)> = None;
-                for (i, &score) in donors.iter().enumerate() {
-                    let distance = (query - score).abs();
-                    if best.is_none_or(|(_, d)| distance < d) {
-                        best = Some((i, distance));
-                    }
-                }
-                let expected = best.filter(|&(_, d)| caliper.is_none_or(|limit| d <= limit));
-                assert_eq!(
-                    index.nearest(query, caliper),
-                    expected,
-                    "q={query} caliper={caliper:?}"
-                );
+                let (set, distance) = scalar_scan_ties(&donors, query);
+                let expected = (!set.is_empty()
+                    && caliper.is_none_or(|limit| distance <= limit))
+                .then_some((set, distance));
+                let got = index
+                    .nearest(query, caliper)
+                    .map(|found| (tied_set(&index, found), found.distance));
+                assert_eq!(got, expected, "q={query} caliper={caliper:?}");
             }
         }
     }
@@ -2320,48 +2466,55 @@ mod tests {
         );
     }
 
-    /// Forward scan the sorted index replaces: strict `<`, so the lowest donor index keeps a tie.
-    fn scalar_scan(donors: &[f64], query: f64) -> (usize, f64) {
-        let mut best = (0usize, f64::INFINITY);
+    /// Exhaustive scan the sorted index replaces: every donor at the nearest distance,
+    /// ascending by index, and that distance (`(vec![], ∞)` without donors).
+    fn scalar_scan_ties(donors: &[f64], query: f64) -> (Vec<usize>, f64) {
+        let mut best = f64::INFINITY;
+        let mut set = Vec::new();
         for (index, &donor) in donors.iter().enumerate() {
             let distance = (query - donor).abs();
-            if distance < best.1 {
-                best = (index, distance);
+            if distance < best {
+                best = distance;
+                set = vec![index];
+            } else if distance.to_bits() == best.to_bits() {
+                set.push(index);
             }
         }
-        best
+        (set, best)
     }
 
-    /// What the scan accepts under `caliper` (`None` accepts every finite nearest donor).
+    /// What the scan accepts under `caliper` (`None` accepts every finite nearest distance).
     fn scalar_scan_within(
         donors: &[f64],
         query: f64,
         caliper: Option<f64>,
-    ) -> Option<(usize, f64)> {
-        let found = scalar_scan(donors, query);
-        if !found.1.is_finite() || caliper.is_some_and(|limit| found.1 > limit) {
+    ) -> Option<(Vec<usize>, f64)> {
+        let (set, distance) = scalar_scan_ties(donors, query);
+        if set.is_empty() || !distance.is_finite() || caliper.is_some_and(|limit| distance > limit)
+        {
             None
         } else {
-            Some(found)
+            Some((set, distance))
         }
     }
 
-    /// Ties keep the lowest donor index, a caliper drops the pair it excludes, replacement
-    /// reuses a donor, and sampling weights average those same scan matches.
+    /// Ties return every tied donor, a caliper drops the pair it excludes, replacement reuses
+    /// a donor, and sampling weights average those same scan matches.
     #[test]
     fn sorted_scalar_index_agrees_with_the_scalar_scan() {
-        // Query 1 is equidistant from donor 0 (score 2) and donor 1 (score 0). Donor 0 is
-        // the right-hand neighbour in sorted order and still wins, because its index is lower.
-        // Donor 3 repeats donor 1's score; the first copy wins. Query 10 sits outside a 0.5
-        // caliper of every donor.
+        // Query 1 is equidistant from donor 0 (score 2) and donor 1 (score 0), and donor 3
+        // repeats donor 1's score: all three are its nearest neighbours. Query 10 sits outside
+        // a 0.5 caliper of every donor.
         let donors = [2.0, 0.0, 3.0, 0.0];
         let queries = [1.0, 1.0, 0.0, 10.0];
         let index = SortedScalarIndex::from_donors(&donors);
         for &query in &queries {
             for caliper in [None, Some(1.0), Some(0.5)] {
                 let scanned = scalar_scan_within(&donors, query, caliper);
-                let indexed = index.nearest(query, caliper);
-                assert_eq!(indexed.map(|m| m.0), scanned.map(|m| m.0), "query {query} {caliper:?}");
+                let indexed = index
+                    .nearest(query, caliper)
+                    .map(|found| (tied_set(&index, found), found.distance));
+                assert_eq!(indexed.as_ref().map(|m| &m.0), scanned.as_ref().map(|m| &m.0));
                 assert_eq!(
                     indexed.map(|m| m.1.to_bits()),
                     scanned.map(|m| m.1.to_bits()),
@@ -2369,20 +2522,22 @@ mod tests {
                 );
             }
         }
-        let (tied, tied_distance) = scalar_scan(&donors, 1.0);
-        assert_eq!(tied, 0, "the tie keeps the lower index, not the left neighbour");
+        let (tied, tied_distance) = scalar_scan_ties(&donors, 1.0);
+        assert_eq!(tied, vec![0, 1, 3], "the tie holds the left and right neighbours");
         assert!(tied_distance > 0.5);
         assert!(index.nearest(1.0, Some(0.5)).is_none(), "the caliper excludes the tie");
-        assert_eq!(index.nearest(1.0, Some(tied_distance)).unwrap().0, tied);
-        // Replacement: a second query at the same score matches the same donor.
-        assert_eq!(index.nearest(1.0, None).unwrap().0, index.nearest(queries[1], None).unwrap().0);
+        let at_caliper = index.nearest(1.0, Some(tied_distance)).unwrap();
+        assert_eq!(tied_set(&index, at_caliper), tied);
+        // Replacement: a second query at the same score matches the same donors.
+        let again = index.nearest(queries[1], None).unwrap();
+        assert_eq!(tied_set(&index, again), tied);
 
         let treatment = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0];
         let outcome = [10.0, 8.0, 4.0, 1.0, 5.0, 9.0];
         let features = [1.0, 1.0, 0.0, 2.0, 0.0, 3.0];
         let weights = [3.0, 1.0, 9.0, 1.0, 4.0, 1.0];
         let mut workspace = PropensityEstimationWorkspace::default();
-        let MatchedDiffs { diffs, donors: matched_donors, queries: matched_queries } = match_diffs(
+        let matched = match_diffs(
             MatchSide { features: &features[3..], outcome: &outcome[3..] },
             MatchSide { features: &features[..3], outcome: &outcome[..3] },
             1,
@@ -2393,13 +2548,26 @@ mod tests {
             &ExecutionContext::for_tests(1),
         )
         .unwrap();
+        let matched_queries = matched.queries.clone();
+        let matched_donors = matched.donor_sets();
         assert_eq!(matched_queries, vec![0, 1, 2]);
         for (slot, &query) in matched_queries.iter().enumerate() {
-            assert_eq!(matched_donors[slot], scalar_scan(&features[3..], features[query]).0);
+            let mut set = matched_donors[slot].to_vec();
+            set.sort_unstable();
+            assert_eq!(set, scalar_scan_ties(&features[3..], features[query]).0);
         }
-        // The two treated units at 1.0 tie between controls at 2.0 and 0.0 and both reuse
-        // local donor 0. The treated unit at 0.0 matches the control at 0.0.
-        assert_eq!(matched_donors, vec![0, 0, 1]);
+        // The two treated units at 1.0 tie between the controls at 2.0 and 0.0 and average both
+        // (local donors 0 and 1). The treated unit at 0.0 matches the control at 0.0 alone.
+        let sorted: Vec<Vec<usize>> = matched_donors
+            .iter()
+            .map(|set| {
+                let mut set = set.to_vec();
+                set.sort_unstable();
+                set
+            })
+            .collect();
+        assert_eq!(sorted, vec![vec![0, 1], vec![0, 1], vec![1]]);
+        let diffs = matched.diffs.clone();
         let mass: f64 = weights[..3].iter().sum();
         let weighted_mean =
             diffs.iter().zip(&weights[..3]).map(|(diff, weight)| diff * weight).sum::<f64>() / mass;
@@ -2429,7 +2597,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(inside.queries, vec![2]);
-        assert_eq!(inside.donors, vec![scalar_scan(&features[3..], features[2]).0]);
+        assert_eq!(inside.donor_sets(), vec![&scalar_scan_ties(&features[3..], features[2]).0[..]]);
     }
 
     fn quote_arms(donors: usize, queries: usize, dim: usize) -> [Vec<f64>; 4] {
@@ -2471,12 +2639,12 @@ mod tests {
         assert_eq!(ctx.admission.available().bytes(), (1 << 30) - pass_bytes);
         drop(lease);
         assert_eq!(ctx.admission.available().bytes(), 1 << 30);
-        // The scalar pass also builds a sorted copy of the donor scores.
+        // The scalar pass also builds the sorted index of the donor scores and the tied runs.
         let (scalar_bytes, _lease) =
             quote_exact_matching((donors, queries, 1), MatchingDistance::Absolute, 1, None, &ctx)
                 .unwrap()
                 .unwrap();
-        assert_eq!(scalar_bytes, ((2 * queries + 3 * queries) * 8 + donors * 16) as u64);
+        assert_eq!(scalar_bytes, ((2 * queries + 3 * queries) * 8 + donors * 40 + queries * 16) as u64);
         // A shape the index itself rejects is not quoted.
         assert!(
             quote_exact_matching((donors, queries, 2), MatchingDistance::Absolute, 1, None, &ctx)
@@ -2594,7 +2762,7 @@ mod tests {
                 };
                 let split = run(SpatialIndex::SplitPlane);
                 let boxed = run(SpatialIndex::BoundingBox);
-                assert_eq!(split.donors, boxed.donors);
+                assert_eq!(split.donor_sets(), boxed.donor_sets());
                 assert_eq!(split.queries, boxed.queries);
                 assert_eq!(split.diffs.len(), boxed.diffs.len());
                 for (a, b) in split.diffs.iter().zip(&boxed.diffs) {

@@ -213,6 +213,12 @@ struct ClassAteAtoms {
     assumptions: antecedent_core::AssumptionSet,
     refute_atoms: Vec<EnvelopeRefuteAtom>,
     outcomes: Vec<ClassAtomOutcome>,
+    /// The inference declarations of the configured estimator, when it reads any: the pooled
+    /// error honours a declared cluster, multiway or serial dependence.
+    inference: Option<antecedent_estimate::InferenceSpec>,
+    /// The contrasted levels and the rows excluded, shared by every completion (the contrast is
+    /// of the treatment, not of the completion).
+    treatment_levels: Option<antecedent_estimate::DeclaredTreatmentLevels>,
 }
 
 impl ClassAteAtoms {
@@ -230,10 +236,32 @@ impl ClassAteAtoms {
             message: format!("{upper} envelope missing estimand"),
         })?;
         let n_contributing = self.se_items.len();
-        let se = if self.atom_ifs.len() == n_contributing {
-            mix_static_envelope_se(&self.atom_ifs, &self.atom_weights)
-        } else {
-            mix_weighted_analytic_se(self.se_items.iter().copied())
+        let declared_dependence = self.inference.as_ref().filter(|inference| {
+            matches!(
+                inference.se_kind,
+                antecedent_estimate::AnalyticSeKind::Cluster
+                    | antecedent_estimate::AnalyticSeKind::Multiway
+                    | antecedent_estimate::AnalyticSeKind::NeweyWest { .. }
+                    | antecedent_estimate::AnalyticSeKind::PanelClusterHac { .. }
+            )
+        });
+        let se = match declared_dependence {
+            // One contributing completion is the pooled estimate: its own error already reads
+            // the declared dependence, with the estimator's finite-sample factors.
+            Some(_) if n_contributing == 1 => mix_weighted_analytic_se(self.se_items.iter().copied()),
+            // Several completions share the rows: the error of their frozen-weight mixture is
+            // the declared sandwich over the mixed influence values.
+            Some(inference) if self.atom_ifs.len() == n_contributing => {
+                match mixed_static_influence(&self.atom_ifs, &self.atom_weights) {
+                    Some(mixed) => antecedent_estimate::influence_se_under(inference, &mixed)
+                        .map_err(CausalError::from)?,
+                    None => f64::NAN,
+                }
+            }
+            _ if self.atom_ifs.len() == n_contributing => {
+                mix_static_envelope_se(&self.atom_ifs, &self.atom_weights)
+            }
+            _ => mix_weighted_analytic_se(self.se_items.iter().copied()),
         };
         let mut estimate = EffectEstimate::new(
             self.weighted_ate / self.total_w,
@@ -245,6 +273,9 @@ impl ClassAteAtoms {
             if let Some(inf) = mixed_static_influence(&self.atom_ifs, &self.atom_weights) {
                 estimate.scores.influence = Some(inf);
             }
+        }
+        if let Some(levels) = self.treatment_levels {
+            estimate = estimate.with_treatment_levels(levels);
         }
         Ok((estimate, estimand, n_contributing))
     }
@@ -938,6 +969,8 @@ impl super::Study {
             assumptions: antecedent_core::AssumptionSet::default(),
             refute_atoms: Vec::new(),
             outcomes: vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()],
+            inference: None,
+            treatment_levels: None,
         };
         for (i, case) in envelope.cases.iter().enumerate() {
             if !identification_status_ok_for_case(case.result.status)
@@ -955,6 +988,9 @@ impl super::Study {
                 .as_deref()
                 .cloned()
                 .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
+            if atoms.inference.is_none() {
+                atoms.inference = case_spec.inference_spec().cloned();
+            }
             let estimate = estimate_static_effect(
                 &case_spec,
                 StaticEstimateInput {
@@ -970,6 +1006,9 @@ impl super::Study {
                 ctx,
                 &mut case_ws,
             )?;
+            if atoms.treatment_levels.is_none() {
+                atoms.treatment_levels = estimate.diagnostics.treatment_levels;
+            }
             let w = case.weight.0;
             atoms.outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);
             atoms.weighted_ate += w * estimate.ate;

@@ -1301,3 +1301,27 @@ previous = "crates/antecedent-estimate/src/adjustment/tests.rs::source_cluster_l
 replacement = "crates/antecedent-estimate/src/adjustment/tests.rs::source_cluster_labels_follow_their_rows_through_the_population_mask"
 disposition = "assertion_premise_corrected"
 reason = "The labels were (5 i) mod 7, an arithmetic progression, so the 'misaligned' slice labels[..60] is the aligned slice labels[10..70] with the ids cyclically renamed: the same partition, hence an identical cluster covariance in exact arithmetic that previously differed only by summation order. The test now uses non-progression labels so a misaligned slice is a different partition; the equality of source-label and aligned-label fits and the inequality with the misaligned fit are unchanged. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/scenario_class_route_boundaries.rs::declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_the_latent_variable_graph"
+replacement = "crates/antecedent/tests/scenario_class_route_boundaries.rs::declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_both_graph_classes"
+disposition = "renamed_and_strengthened"
+reason = "The closed-form cluster and Newey-West sandwich assertions are unchanged; the equivalence-class route, whose error ignored the declaration, is now asserted against the same oracle beside the latent-variable graph."
+
+[[case]]
+previous = "crates/antecedent-estimate/src/propensity/matching/scale_tests.rs::sorted_matching_preserves_ties"
+replacement = "crates/antecedent-estimate/src/propensity/matching/scale_tests.rs::sorted_matching_averages_over_ties"
+disposition = "reference_target_mismatch_resolved_and_coverage_strengthened"
+reason = "The reference scan kept the lowest-position donor among equals, which makes the effect depend on row order; the scan now takes every donor at the nearest distance and the index must return exactly that set and the same bias-corrected difference. The sizes, seeds, lattice, tie-count and zero-distance assertions are unchanged, and the closed-form saturated-table test in matching_ties.rs pins the stratified contrasts."
+
+[[case]]
+previous = "crates/antecedent-estimate/src/propensity/matching.rs::huge_tie_block_matches_the_forward_scan"
+replacement = "crates/antecedent-estimate/src/propensity/matching.rs::huge_tie_block_matches_the_exhaustive_scan"
+disposition = "reference_target_mismatch_resolved_and_coverage_strengthened"
+reason = "The 30,000-donor tie block, the query set and the calipers are unchanged; the expectation is now the whole tied set and its distance from an exhaustive scan rather than the lowest tied index."
+
+[[case]]
+previous = "crates/antecedent/tests/sampling_design_declaration.rs::the_same_design_on_the_estimator_and_the_study_is_not_a_conflict"
+replacement = "crates/antecedent/tests/sampling_design_declaration.rs::the_same_design_on_the_estimator_and_the_study_is_not_a_conflict"
+disposition = "inputs_made_valid_assertions_unchanged"
+reason = "A clustered panel declared with the bootstrap off now requires the cluster standard error that reads it; the estimator carries it and the agreeing declarations still build, run and leave the point estimate where it is undeclared."

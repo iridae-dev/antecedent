@@ -585,10 +585,10 @@ catalog search is sound and incomplete.
 
 ### Frequentist
 
-* linear and generalized-linear outcome regression;
+* linear and generalized-linear outcome regression (a discrete treatment with levels beyond the contrasted pair is refused by name unless the restriction to the two levels is declared; a clustered panel or dependent series declared with the bootstrap off requires the matching cluster or Newey-West error);
 * g-computation;
 * inverse probability weighting;
-* propensity matching;
+* propensity matching (every donor tied at the nearest propensity is a match and the tied outcomes are averaged, so a discrete confounder's saturated table gives the stratified contrast whatever the row order);
 * covariate-distance matching;
 * covariate-distance matching averaging several nearest donors (`KnnDistanceMatching`; a separate construction from one-nearest-neighbour matching, with its own provenance record and coverage design, exact at any donor count);
 * stratification;

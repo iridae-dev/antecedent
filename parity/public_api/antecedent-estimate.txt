@@ -13311,6 +13311,7 @@ pub field antecedent_estimate::GlmAdjustmentAte::backend: antecedent_stats::faer
 pub field antecedent_estimate::GlmAdjustmentAte::family: antecedent_stats::glm::GlmFamily
 pub field antecedent_estimate::GlmAdjustmentAte::glm_options: antecedent_stats::glm::GlmOptions
 pub field antecedent_estimate::GlmAdjustmentAte::inference: antecedent_estimate::InferenceSpec
+pub field antecedent_estimate::GlmAdjustmentAte::other_levels: antecedent_estimate::OtherLevels
 pub field antecedent_estimate::GlmAdjustmentAte::overlap: antecedent_estimate::OverlapPolicy
 pub field antecedent_estimate::GlmAdjustmentAte::population_registry: core::option::Option<antecedent_core::query::population::PopulationRegistry>
 pub field antecedent_estimate::GlmAdjustmentAte::sampling_weights: core::option::Option<antecedent_estimate::SamplingWeights>
@@ -13441,6 +13442,7 @@ pub field antecedent_estimate::LinearAdjustmentAte::backend: antecedent_stats::f
 pub field antecedent_estimate::LinearAdjustmentAte::contrasts: alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_data::categorical::Contrast)>
 pub field antecedent_estimate::LinearAdjustmentAte::fit_kind: antecedent_estimate::LinearFitKind
 pub field antecedent_estimate::LinearAdjustmentAte::inference: antecedent_estimate::InferenceSpec
+pub field antecedent_estimate::LinearAdjustmentAte::other_levels: antecedent_estimate::OtherLevels
 pub field antecedent_estimate::LinearAdjustmentAte::overlap: antecedent_estimate::OverlapPolicy
 pub field antecedent_estimate::LinearAdjustmentAte::population_registry: core::option::Option<antecedent_core::query::population::PopulationRegistry>
 pub field antecedent_estimate::LinearAdjustmentAte::preparation_budget: core::option::Option<antecedent_data::materialize::PreparationBudget>
@@ -13611,6 +13613,7 @@ pub field antecedent_estimate::PreparedEstimationProblem::sampling_weights: core
 pub field antecedent_estimate::PreparedEstimationProblem::target_population: antecedent_core::query::target::TargetPopulation
 pub field antecedent_estimate::PreparedEstimationProblem::treatment: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::PreparedEstimationProblem::treatment_delta: f64
+pub field antecedent_estimate::PreparedEstimationProblem::treatment_levels: core::option::Option<antecedent_estimate::DeclaredTreatmentLevels>
 pub field antecedent_estimate::PreparedFrontDoorProblem::active: f64
 pub field antecedent_estimate::PreparedFrontDoorProblem::control: f64
 pub field antecedent_estimate::PreparedFrontDoorProblem::mediator_ids: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
@@ -13649,6 +13652,7 @@ pub field antecedent_estimate::PreparedGlmProblem::preparation: antecedent_data:
 pub field antecedent_estimate::PreparedGlmProblem::sampling: core::option::Option<antecedent_estimate::RetainedSamplingWeights>
 pub field antecedent_estimate::PreparedGlmProblem::target_population: antecedent_core::query::target::TargetPopulation
 pub field antecedent_estimate::PreparedGlmProblem::treatment: alloc::sync::Arc<[f64]>
+pub field antecedent_estimate::PreparedGlmProblem::treatment_levels: core::option::Option<antecedent_estimate::DeclaredTreatmentLevels>
 pub field antecedent_estimate::PreparedIvProblem::adjustment_set: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub field antecedent_estimate::PreparedIvProblem::exogenous_matrix: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::PreparedIvProblem::instruments: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
@@ -17585,6 +17589,7 @@ pub fn <antecedent_estimate::GlmAdjustmentAte>::const fn with_bootstrap_interval
 pub fn <antecedent_estimate::GlmAdjustmentAte>::const fn with_bootstrap_replicates(self, replicates: u32) -> Self
 pub fn <antecedent_estimate::GlmAdjustmentAte>::const fn with_family(self, family: antecedent_stats::glm::GlmFamily) -> Self
 pub fn <antecedent_estimate::GlmAdjustmentAte>::const fn with_glm_options(self, glm_options: antecedent_stats::glm::GlmOptions) -> Self
+pub fn <antecedent_estimate::GlmAdjustmentAte>::const fn with_other_levels(self, other_levels: antecedent_estimate::OtherLevels) -> Self
 pub fn <antecedent_estimate::GlmAdjustmentAte>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
 pub fn <antecedent_estimate::GlmAdjustmentAte>::const fn with_se_kind(self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self
 pub fn <antecedent_estimate::GlmAdjustmentAte>::fn attach_bootstrap(&self, problem: &antecedent_estimate::PreparedGlmProblem, workspace: &mut antecedent_estimate::GlmAdjustmentWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, point: antecedent_estimate::EffectEstimate) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
@@ -17627,6 +17632,7 @@ pub fn <antecedent_estimate::LearnedContinuousUncertainty>::fn for_request(boots
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_bootstrap_interval(self, request: antecedent_estimate::IntervalRequest) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_bootstrap_replicates(self, replicates: u32) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_fit_kind(self, fit_kind: antecedent_estimate::LinearFitKind) -> Self
+pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_other_levels(self, other_levels: antecedent_estimate::OtherLevels) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_preparation_budget(self, budget: antecedent_data::materialize::PreparationBudget) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_se_kind(self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self
@@ -18728,6 +18734,7 @@ pub fn antecedent_estimate::heterogeneity_robust_did::prepare(panel: &antecedent
 pub fn antecedent_estimate::history_outcome_model::prepare_history_outcome_model(units: &[antecedent_estimate::history_match::HistoryUnit]) -> core::result::Result<antecedent_estimate::history_outcome_model::HistoryOutcomeProblem, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::inference_from_influence_columns(raw_means: &[f64], columns: &[&[f64]], event_n_eff: &[f64], threshold_supported: &[bool], support: antecedent_estimate::WeightedSupport) -> core::result::Result<antecedent_estimate::ScoreInference, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::inflate_replicates(center: &[f64], draws: &mut [alloc::vec::Vec<f64>], factor: f64)
+pub fn antecedent_estimate::influence_se_under(inference: &antecedent_estimate::InferenceSpec, psi: &[f64]) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::is_temporal_coefficient_name(name: &str) -> bool
 pub fn antecedent_estimate::joint_bayesian_transport::fit_joint_bayesian_transport(id: &antecedent_identify::transport::TransportIdentification, model: &antecedent_estimate::joint_bayesian_transport::JointTransportModel, sources: &[antecedent_estimate::joint_bayesian_transport::SourceData], target: core::option::Option<&antecedent_estimate::joint_bayesian_transport::TargetData>, options: &antecedent_estimate::joint_bayesian_transport::JointTransportOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_bayesian_transport::JointTransportFit, antecedent_estimate::joint_bayesian_transport::JointTransportRefusal>
 pub fn antecedent_estimate::joint_bayesian_transport::route_frozen_refusal() -> antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
@@ -20609,6 +20616,7 @@ pub use antecedent_estimate::scores::ScoreTableWire = antecedent_io_core::score_
 pub use antecedent_estimate::scores::inference_from_influence_columns = antecedent_estimate::inference_from_influence_columns
 pub use antecedent_estimate::se::AnalyticSeKind = antecedent_estimate::AnalyticSeKind
 pub use antecedent_estimate::se::DEFAULT_RIDGE_ON_SEPARATION = antecedent_stats::DEFAULT_RIDGE_ON_SEPARATION
+pub use antecedent_estimate::se::influence_se_under = antecedent_estimate::influence_se_under
 pub use antecedent_estimate::serial_dependence::DEPENDENCE_ASSUMPTION_ID = antecedent_estimate::DEPENDENCE_ASSUMPTION_ID
 pub use antecedent_estimate::serial_dependence::DependenceScope = antecedent_estimate::DependenceScope
 pub use antecedent_estimate::serial_dependence::SerialDependence = antecedent_estimate::SerialDependence

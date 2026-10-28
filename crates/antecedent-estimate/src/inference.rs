@@ -136,6 +136,60 @@ impl InferenceSpec {
     }
 }
 
+impl InferenceSpec {
+    /// Refuse a declared clustered or serial design whose analytic error would ignore it.
+    ///
+    /// With no bootstrap the analytic error is the only uncertainty the estimator publishes. A
+    /// declared clustered panel needs the cluster, multiway or panel cluster-HAC kind, and a
+    /// declared dependent time series the Newey-West or panel cluster-HAC kind; any other kind
+    /// reads the rows as independent and returns an error that is too small, so it is refused
+    /// instead of published. An undeclared design, independent subject trajectories, and any
+    /// request that runs a bootstrap (which resamples under the declared design) are unchanged.
+    ///
+    /// # Errors
+    ///
+    /// `option_not_applicable` naming the design, the error kind in use and the next attempt.
+    pub(crate) fn require_declared_design_read(
+        &self,
+        estimator: &str,
+    ) -> Result<(), crate::error::EstimationError> {
+        use crate::se::AnalyticSeKind as Kind;
+        use antecedent_core::DeclaredSamplingDesign as Design;
+        let SamplingDeclaration::Declared(design @ (Design::ClusteredPanel | Design::DependentTimeSeries)) =
+            self.sampling_design
+        else {
+            return Ok(());
+        };
+        if self.bootstrap_replicates > 0 || self.bootstrap_interval.is_some() {
+            return Ok(());
+        }
+        let (reads, wants) = match design {
+            Design::ClusteredPanel => (
+                matches!(self.se_kind, Kind::Cluster | Kind::Multiway | Kind::PanelClusterHac { .. }),
+                "the cluster, multiway or panel cluster-HAC kind with its cluster labels",
+            ),
+            _ => (
+                matches!(self.se_kind, Kind::NeweyWest { .. } | Kind::PanelClusterHac { .. }),
+                "the Newey-West or panel cluster-HAC kind with its lag",
+            ),
+        };
+        if reads {
+            return Ok(());
+        }
+        Err(crate::error::EstimationError::refused(
+            antecedent_core::reason_code!("option_not_applicable"),
+            format!(
+                "{estimator} declares the {} design with the bootstrap off, but its analytic \
+                 error kind {} reads the rows as independent and would be too small. Next \
+                 attempt: declare {wants}, run the bootstrap under the design, or declare \
+                 independent subject trajectories if the rows are independent",
+                design.as_str(),
+                self.se_kind.as_str(),
+            ),
+        ))
+    }
+}
+
 /// `with_bootstrap_replicates`: the bootstrap replicate count (`0` skips the bootstrap).
 macro_rules! with_bootstrap_replicates {
     ($($via:ident)?) => {

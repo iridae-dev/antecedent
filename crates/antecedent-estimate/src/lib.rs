@@ -425,6 +425,7 @@ pub use scores::{
     ScoreTableWire, inference_from_influence_columns,
 };
 pub use se::AnalyticSeKind;
+pub use se::influence_se_under;
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;
 pub use serial_dependence::{
     DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, tempering_capped_from_notes,

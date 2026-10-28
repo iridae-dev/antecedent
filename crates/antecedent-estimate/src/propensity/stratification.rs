@@ -181,6 +181,7 @@ impl PropensityStratification {
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
         super::require_supported_inference(&self.inference)?;
+        self.inference.require_declared_design_read("PropensityStratification")?;
         if let Some(source) = self.inference.source_cluster_ids.as_deref() {
             crate::se::require_source_labels(
                 source,

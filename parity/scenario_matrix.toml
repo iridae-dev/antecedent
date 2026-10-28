@@ -2157,7 +2157,7 @@ family = "P15.projection"
 axis = "dependence"
 value = "clustered"
 status = "delivered"
-test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_the_latent_variable_graph"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_both_graph_classes"
 what = "the declared cluster error is the CR1 sandwich of the regression scores on the ADMG route"
 
 [[cell]]
@@ -2165,7 +2165,7 @@ family = "P15.projection"
 axis = "dependence"
 value = "serial"
 status = "delivered"
-test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_the_latent_variable_graph"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_both_graph_classes"
 what = "the declared Newey-West error is the Bartlett sandwich of the regression scores on the ADMG route"
 
 [[cell]]
@@ -2343,3 +2343,43 @@ value = "graphless"
 status = "delivered"
 test = "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path"
 what = "the migration audit runs over route records, with no graph argument"
+
+[[cell]]
+family = "P06"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_both_graph_classes"
+what = "the CPDAG average effect publishes the declared cluster sandwich of the regression scores; two completions publish that sandwich over their mixed influence values in a sibling test"
+
+[[cell]]
+family = "P06"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::two_completions_publish_the_declared_sandwich_of_their_mixed_influence_values"
+what = "the Newey-West error over the frozen-weight mixture of two completions' influence values equals the Bartlett long-run variance computed from the definition"
+
+[[cell]]
+family = "P06"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_treatment_levels.rs::the_declared_restriction_gives_the_contrast_of_the_two_levels_on_every_route"
+what = "on the equivalence-class route a three-level treatment is refused naming its levels, and the declared restriction to two levels recovers the contrast (1 and 4) and reports the 40 excluded rows"
+
+[[cell]]
+family = "P02.glm"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/discrete_treatment_contrast.rs::the_declared_restriction_recovers_the_contrast_of_the_two_levels_and_counts_what_it_excluded"
+what = "a Gaussian GLM adjustment on a three-level treatment refuses it by name, and the declared restriction recovers the exact contrast of the two levels and counts the excluded rows"
+
+[[cell]]
+family = "P01.iv"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_iv_route_boundaries.rs::a_treatment_with_further_levels_is_refused_by_both_instrumental_estimators"
+reason = "the instrumental fit reads the treatment as one numeric dose, and restricting the rows to two levels would select on the endogenous treatment; a treatment with further levels is refused with treatment_level_undeclared, naming the observed levels and the next attempt"

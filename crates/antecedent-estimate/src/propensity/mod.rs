@@ -32,7 +32,7 @@ mod generalized;
 #[cfg(test)]
 mod ipw_oracle;
 mod knn;
-mod levels;
+pub(crate) mod levels;
 mod matching;
 mod penalized;
 mod penalized_report;

@@ -197,6 +197,73 @@ pub(crate) fn assert_records_preparation(estimate: &crate::EffectEstimate, rows:
     assert_eq!(summary.delivery.as_deref(), Some("finite"));
 }
 
+/// Most distinct treatment values a column may take and still be read as discrete levels
+/// rather than as a continuous dose.
+pub(crate) const MAX_DISCRETE_LEVELS: usize = 10;
+
+/// Restrict the rows of a regression-based contrast to the two contrasted levels when the
+/// treatment is a discrete column with further levels.
+///
+/// A regression that enters the treatment as one numeric column reads a column such as
+/// `0/1/2` as a dose, so "level 1 against level 0" would be the fitted slope, not the contrast
+/// of the two levels. A column counts as discrete when it takes at most
+/// [`MAX_DISCRETE_LEVELS`] distinct values, holds both contrasted levels, and holds some other
+/// value. Such rows are refused with `treatment_level_undeclared`, naming the observed levels,
+/// unless `other_levels` declares the restriction to the rows at the two levels, in which case
+/// the mask is narrowed and the exclusion is returned for the result to report. Any other
+/// column (two-valued, or continuous) is left alone and returns `None`.
+///
+/// # Errors
+///
+/// A column read failure, or `treatment_level_undeclared` as above.
+#[allow(
+    clippy::float_cmp,
+    reason = "declared treatment levels are exact category labels, not computed values"
+)]
+pub(crate) fn restrict_to_contrast_levels(
+    data: &TabularData,
+    treatment: VariableId,
+    row_mask: &mut [bool],
+    (active, control): (f64, f64),
+    other_levels: crate::propensity::levels::OtherLevels,
+) -> Result<Option<crate::propensity::levels::DeclaredTreatmentLevels>, EstimationError> {
+    let values = data.float64_selected(treatment, row_mask).map_err(EstimationError::from)?;
+    if !is_discrete_with_other_levels(&values, active, control) {
+        return Ok(None);
+    }
+    let (keep, levels) = crate::propensity::levels::classify_treatment_levels(
+        &values,
+        active,
+        control,
+        other_levels,
+    )?;
+    let mut decisions = keep.iter().copied();
+    for slot in row_mask.iter_mut().filter(|slot| **slot) {
+        *slot = decisions.next().unwrap_or(false);
+    }
+    Ok(Some(levels))
+}
+
+/// Whether a treatment column is discrete (at most [`MAX_DISCRETE_LEVELS`] distinct values),
+/// holds both contrasted levels, and holds some other value.
+#[allow(
+    clippy::float_cmp,
+    reason = "declared treatment levels are exact category labels, not computed values"
+)]
+pub(crate) fn is_discrete_with_other_levels(values: &[f64], active: f64, control: f64) -> bool {
+    let mut distinct: Vec<f64> = Vec::new();
+    for &value in values {
+        if !distinct.iter().any(|seen| *seen == value) {
+            distinct.push(value);
+            if distinct.len() > MAX_DISCRETE_LEVELS {
+                return false;
+            }
+        }
+    }
+    let has = |level: f64| distinct.iter().any(|seen| *seen == level);
+    distinct.len() >= 3 && has(active) && has(control)
+}
+
 /// Run the accepted preparation path, then hand the estimator the same finite table.
 ///
 /// `stream` is the estimator's own declaration. An estimator that declares it can

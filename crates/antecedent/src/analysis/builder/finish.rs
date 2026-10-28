@@ -1181,7 +1181,75 @@ fn admit_executable_route(estimand: RetargetedEstimand) -> Result<ExecutableRout
              has no scalar refutation problem for them to run on"
         ));
     }
+    require_declared_dependence_read(&carry, &query)?;
     Ok(ExecutableRoute(Spine { carry, graph, graph_posterior, query }))
+}
+
+/// Refuse a declared clustered or serial design whose analytic error ignores it.
+///
+/// With the bootstrap off, the only uncertainty an average effect, conditional effect or
+/// response publishes is the analytic error, and the study-level design cannot supply the
+/// cluster labels or lag it needs. An error that reads rows as independent under a declared
+/// clustered panel or dependent time series is too small, so the study is held to the
+/// declaration: the configured estimator must carry the matching standard-error kind (cluster,
+/// multiway or panel HAC for a panel, Newey-West or panel HAC for a series), which only the
+/// average effect through a configured regression, weighting or AIPW estimator reads.
+fn require_declared_dependence_read(
+    carry: &Carry,
+    query: &CausalQuery,
+) -> Result<(), CausalError> {
+    use antecedent_core::DeclaredSamplingDesign as Design;
+    use antecedent_estimate::AnalyticSeKind as Kind;
+    let Some(design @ (Design::ClusteredPanel | Design::DependentTimeSeries)) =
+        carry.declared.sampling_design
+    else {
+        return Ok(());
+    };
+    let reads_estimator_dependence = match query {
+        CausalQuery::AverageEffect(_) => true,
+        CausalQuery::ConditionalEffect(_) | CausalQuery::Response(_) => false,
+        _ => return Ok(()),
+    };
+    if !matches!(carry.data, DataInput::Tabular(_)) || carry.settings.inference.is_bayesian() {
+        return Ok(());
+    }
+    let inference = carry.declared.estimator_spec.as_ref().and_then(EstimatorSpec::inference_spec);
+    let replicates = inference.map_or(carry.settings.bootstrap_replicates, |i| i.bootstrap_replicates);
+    if replicates > 0 {
+        return Ok(());
+    }
+    let reads = reads_estimator_dependence
+        && inference.is_some_and(|inference| match (design, inference.se_kind) {
+            (Design::ClusteredPanel, Kind::Cluster | Kind::Multiway | Kind::PanelClusterHac { .. }) => {
+                true
+            }
+            (Design::DependentTimeSeries, Kind::NeweyWest { .. } | Kind::PanelClusterHac { .. }) => {
+                true
+            }
+            _ => false,
+        });
+    if reads {
+        return Ok(());
+    }
+    Err(match design {
+        Design::ClusteredPanel => crate::unsupported_reason!(
+            "option_not_applicable",
+            "a clustered-panel design is declared with the bootstrap off, but the analytic error \
+             this route publishes treats rows as independent and would be too small. Next \
+             attempt: configure an average-effect estimator whose standard error is the cluster \
+             sandwich (for example LinearAdjustmentAte::new().with_se_kind(AnalyticSeKind::Cluster) \
+             with its cluster ids), or declare independent subject trajectories if the rows are \
+             independent"
+        ),
+        _ => crate::unsupported_reason!(
+            "option_not_applicable",
+            "a dependent-time-series design is declared with the bootstrap off, but the analytic \
+             error this route publishes treats rows as independent and would be too small. Next \
+             attempt: configure an average-effect estimator whose standard error is Newey-West \
+             (for example LinearAdjustmentAte::new().with_se_kind(AnalyticSeKind::NeweyWest { lag })), \
+             or declare independent subject trajectories if the rows are independent"
+        ),
+    })
 }
 
 fn classify_graph(route: ExecutableRoute) -> Result<ClassifiedGraph, CausalError> {

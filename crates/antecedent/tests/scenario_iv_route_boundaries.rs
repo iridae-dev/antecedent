@@ -7,7 +7,11 @@
 //! only its own functional estimator: both instrumental estimators are refused there with the
 //! estimator named. Observation weights on the table are refused, because the instrumental fit
 //! reads none of them, and an incomplete outcome follows the default complete-case policy with
-//! the dropped rows reported, equal to the fit on the rows that remain.
+//! the dropped rows reported, equal to the fit on the rows that remain. A treatment with levels
+//! beyond the contrasted pair is refused by both instrumental estimators with
+//! `treatment_level_undeclared`, naming the observed levels: the fit reads the treatment as one
+//! numeric dose, so the contrast of two levels would be a slope scaled by their gap, and
+//! restricting the rows to the two levels would select on the endogenous treatment.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -202,4 +206,45 @@ fn an_incomplete_outcome_defaults_to_complete_case_and_equals_the_fit_on_the_rem
         .err()
         .expect("an explicit error policy refuses the holes");
     assert_eq!(error.reason_code(), Some("missing_policy_required"), "{error}");
+}
+
+#[test]
+fn a_treatment_with_further_levels_is_refused_by_both_instrumental_estimators() {
+    let n = 600;
+    let z: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    // Three levels, each row's level driven by the instrument and a deterministic disturbance.
+    let t: Vec<f64> = (0..n).map(|i| ((i % 2) + (i * 7 % 3 + i / 2) % 2) as f64).collect();
+    let y: Vec<f64> = t.iter().map(|level| [0.0, 1.0, 4.0][*level as usize]).collect();
+    let at = |level: f64| t.iter().filter(|&&v| v == level).count();
+    let data = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("z", z.as_slice()),
+    ])
+    .unwrap();
+    for (name, estimator) in [
+        ("iv.2sls", antecedent::EstimatorSpec::from(two_stage())),
+        ("iv.wald", antecedent::EstimatorSpec::from(WaldIv::new().with_se_kind(AnalyticSeKind::Hc1))),
+    ] {
+        let error = Study::tabular(data.clone())
+            .query(query())
+            .identifier(IdentifierId::Iv)
+            .estimator(estimator)
+            .refute(RefuteSuite::None)
+            .graph(instrument_dag(&data))
+            .build()
+            .and_then(|study| study.run(&ExecutionContext::for_tests(5)))
+            .err()
+            .unwrap_or_else(|| panic!("{name}: a three-level treatment read as a dose"));
+        assert_eq!(error.reason_code(), Some("treatment_level_undeclared"), "{name}: {error}");
+        let text = error.to_string();
+        let listing = format!(
+            "observed treatment levels: 0 ({} rows), 1 ({} rows), 2 ({} rows)",
+            at(0.0),
+            at(1.0),
+            at(2.0)
+        );
+        assert!(text.contains(&listing), "{name}: {text}");
+        assert!(text.contains("Next attempt"), "{name}: {text}");
+    }
 }

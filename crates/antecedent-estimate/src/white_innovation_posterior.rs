@@ -300,6 +300,7 @@ mod tests {
             treatment: Arc::from(t.to_vec()),
             active: 1.0,
             control: 0.0,
+            treatment_levels: None,
             sampling_weights: None,
             preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(t.len())
                 .expect("row count fits u64"),

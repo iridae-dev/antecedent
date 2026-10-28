@@ -17673,3 +17673,24 @@ crate = "antecedent-estimate"
 cargo_target = "randomized_scores_enumeration"
 path = "crates/antecedent-estimate/tests/randomized_scores_enumeration.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "matching-ties"
+crate = "antecedent-estimate"
+cargo_target = "matching_ties"
+path = "crates/antecedent-estimate/tests/matching_ties.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "discrete-treatment-contrast"
+crate = "antecedent-estimate"
+cargo_target = "discrete_treatment_contrast"
+path = "crates/antecedent-estimate/tests/discrete_treatment_contrast.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "scenario-treatment-levels"
+crate = "antecedent"
+cargo_target = "scenario_treatment_levels"
+path = "crates/antecedent/tests/scenario_treatment_levels.rs"
+gates = ["inventory", "named"]
