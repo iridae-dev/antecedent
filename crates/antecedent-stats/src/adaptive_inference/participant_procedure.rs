@@ -107,7 +107,10 @@ use super::participant_posterior::{
 use super::procedure_contract::{
     ContractGap, MAX_PROCEDURE_ARMS, MAX_PROCEDURE_UNITS, ProcedureContractError,
 };
-use super::procedure_law::{apply_exploration_floor, first_maximum, normalize_probabilities};
+use super::procedure_law::{
+    apply_exploration_floor, first_maximum, first_maximum_within_tolerance,
+    normalize_probabilities,
+};
 use super::procedure_repeated_measures::{CellLabel, MAX_UNIT_LAG};
 use super::procedure_simulation::{MAX_SIMULATION_REPLICATIONS, draw};
 use super::procedure_uncertainty::DERIVED_UNMEASURED;
@@ -115,6 +118,13 @@ use antecedent_core::named_variants;
 
 /// Most binary responses per participant.
 pub const MAX_PARTICIPANT_RESPONSES: u32 = 32;
+/// Width of the band around a decision threshold inside which a posterior
+/// quantity is read as equal to the threshold. The participant posterior is a
+/// quadrature in the logit of the arm mean accurate to about `1e-10` (the
+/// bound its own check, [`ExactPosterior::probability_error`], reads), and at
+/// small counts its quantities are rational numbers that land exactly on round
+/// thresholds, so a comparison inside the band would be decided by rounding.
+const THRESHOLD_BAND: f64 = 1e-9;
 /// Most looks of one participant procedure.
 pub const MAX_PARTICIPANT_LOOKS: usize = 64;
 
@@ -973,12 +983,12 @@ impl ParticipantSpec {
     fn fired(&self, view: &View, enrolled: u32) -> Option<(StopReason, usize)> {
         let losses = &view.exact.expected_loss;
         let negated: Vec<f64> = losses.iter().map(|l| -l).collect();
-        let cheapest = first_maximum(&negated);
-        if losses[cheapest] < self.decisions.loss_threshold {
+        let cheapest = first_maximum_within_tolerance(&negated, THRESHOLD_BAND);
+        if losses[cheapest] < self.decisions.loss_threshold - THRESHOLD_BAND {
             return Some((StopReason::ExpectedLoss, cheapest));
         }
         if let Some(rule) = self.decisions.futility {
-            if view.exact.exceedance.iter().all(|&p| p < rule.threshold) {
+            if view.exact.exceedance.iter().all(|&p| p < rule.threshold - THRESHOLD_BAND) {
                 return Some((StopReason::Futility, 0));
             }
         }

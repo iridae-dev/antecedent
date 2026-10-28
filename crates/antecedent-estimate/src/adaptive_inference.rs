@@ -248,6 +248,10 @@ pub enum PosteriorRule {
     },
 }
 
+/// Width of the band inside which two posterior quantities, or a quantity and its threshold, are
+/// read as equal (see [`expected_loss_stopping`]).
+const DECISION_TOLERANCE: f64 = 1e-12;
+
 /// The decision a posterior stopping rule reaches at one look.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StoppingDecision {
@@ -284,16 +288,27 @@ pub fn expected_loss_stopping(
             "a posterior rule needs a probability threshold in (0.5, 1) or a positive loss threshold",
         ));
     }
+    // Posterior quantities of small counts are rational numbers that land exactly on round
+    // thresholds and on each other, and the integrals that evaluate them carry about 1e-14 of
+    // rounding, so equal quantities are read as equal: the lowest arm among those within the band
+    // of the largest probability is the best arm, "exceeds" is strict and "below" is strict at
+    // equality.
+    let largest =
+        posterior.arms.iter().map(|arm| arm.probability_best).fold(f64::NEG_INFINITY, f64::max);
     let (best_arm, best) = posterior
         .arms
         .iter()
         .enumerate()
-        .max_by(|(_, a), (_, b)| a.probability_best.total_cmp(&b.probability_best))
+        .find(|(_, arm)| arm.probability_best >= largest - DECISION_TOLERANCE)
         .map(|(index, arm)| (index, *arm))
         .expect("a nonempty posterior has a best arm");
     let stop = match rule {
-        PosteriorRule::ProbabilityBest { threshold } => best.probability_best > threshold,
-        PosteriorRule::ExpectedLoss { loss_threshold } => best.expected_loss < loss_threshold,
+        PosteriorRule::ProbabilityBest { threshold } => {
+            best.probability_best > threshold + DECISION_TOLERANCE
+        }
+        PosteriorRule::ExpectedLoss { loss_threshold } => {
+            best.expected_loss < loss_threshold - DECISION_TOLERANCE
+        }
     };
     Ok(StoppingDecision {
         best_arm,

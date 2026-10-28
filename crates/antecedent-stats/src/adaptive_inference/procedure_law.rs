@@ -64,6 +64,20 @@ pub const MAX_LAW_WORK: u64 = 60_000_000;
 
 const CANCEL_STRIDE: u64 = 1024;
 
+/// Width of the band around a stopping threshold inside which a posterior
+/// quantity is read as equal to the threshold.
+///
+/// The posterior probabilities and expected losses are integrals evaluated to
+/// about `1e-14` on the integer-shape posteriors that observed counts give,
+/// and at small counts they are rational numbers that land exactly on round
+/// thresholds (the expected loss of two units on one arm is exactly `1/20`;
+/// the probability that one arm is best after three failures of the other is
+/// exactly `4/5`). A comparison decided by that rounding would stop or
+/// continue at random on the very states the threshold is written for. The
+/// rules therefore resolve a quantity within this band to the exact reading:
+/// "at least" holds at equality, "below" does not.
+pub(crate) const THRESHOLD_TOLERANCE: f64 = 1e-12;
+
 /// The outcome mechanism of a hypothesized truth.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -267,6 +281,14 @@ pub(crate) fn first_maximum(values: &[f64]) -> usize {
     best
 }
 
+/// The first index whose value is within `tolerance` of the maximum, so that
+/// mathematically equal posterior quantities name the lowest arm whatever
+/// their rounding.
+pub(crate) fn first_maximum_within_tolerance(values: &[f64], tolerance: f64) -> usize {
+    let largest = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    values.iter().position(|&v| v >= largest - tolerance).unwrap_or(0)
+}
+
 impl<'a> Rules<'a> {
     pub(crate) fn new(
         spec: &'a ProcedureSpec,
@@ -407,8 +429,8 @@ impl<'a> Rules<'a> {
             }
             StoppingRule::PosteriorProbabilityBest { threshold, prior } => {
                 let best = self.best_probabilities(prior, observed)?;
-                let arm = first_maximum(&best);
-                if best[arm] >= threshold {
+                let arm = first_maximum_within_tolerance(&best, THRESHOLD_TOLERANCE);
+                if best[arm] >= threshold - THRESHOLD_TOLERANCE {
                     Ok(Assessment { stop: true, decision: Some(arm) })
                 } else {
                     Ok(none)
@@ -417,15 +439,17 @@ impl<'a> Rules<'a> {
             StoppingRule::PosteriorExpectedLoss { loss_threshold, prior } => {
                 let losses = self.losses(prior, observed)?;
                 let negated: Vec<f64> = losses.iter().map(|l| -l).collect();
-                let arm = first_maximum(&negated);
-                if losses[arm] < loss_threshold {
+                let arm = first_maximum_within_tolerance(&negated, THRESHOLD_TOLERANCE);
+                if losses[arm] < loss_threshold - THRESHOLD_TOLERANCE {
                     Ok(Assessment { stop: true, decision: Some(arm) })
                 } else {
                     Ok(none)
                 }
             }
             StoppingRule::PosteriorFutility { margin, threshold, prior } => {
-                if self.futility_exceedance(prior, margin, observed)? < threshold {
+                if self.futility_exceedance(prior, margin, observed)?
+                    < threshold - THRESHOLD_TOLERANCE
+                {
                     Ok(Assessment { stop: true, decision: Some(0) })
                 } else {
                     Ok(none)

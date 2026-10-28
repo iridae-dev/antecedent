@@ -998,23 +998,44 @@ pub fn exact_fixed_contrast_law(
     let delta = arm_means[plus] - arm_means[minus];
     let v = spec.unit_summary_variance();
     let mut components = Vec::new();
+    let mut undefined_mass = 1.0;
     if n >= 2 && p > 0.0 && q > 0.0 {
-        let mut pmf = (f64::from(n) * q.ln()).exp();
-        for k in 0..=n {
-            if k >= 1 && k < n {
-                components.push(MixtureComponent {
-                    weight: pmf,
-                    mean: delta,
-                    variance: v * (1.0 / f64::from(k) + 1.0 / f64::from(n - k)),
-                });
-            }
-            if k < n {
-                pmf *= f64::from(n - k) / f64::from(k + 1) * (p / q);
-            }
+        // The binomial mass, anchored at the mode in log space and extended by the ratio of
+        // neighbouring masses: `q^n` leaves the range of a double beyond about a thousand
+        // units at an even allocation, which would zero every weight of the law. The anchor
+        // carries the cancellation error of the log-factorials, so the masses are rescaled to
+        // the total that the exact undefined mass `p^n + q^n` leaves.
+        let (ln_p, ln_q) = (p.ln(), q.ln());
+        let units = f64::from(n);
+        let mode = ((units + 1.0) * p).floor().clamp(1.0, units - 1.0) as u32;
+        let ln_mode = ln_gamma(units + 1.0)
+            - ln_gamma(f64::from(mode) + 1.0)
+            - ln_gamma(f64::from(n - mode) + 1.0)
+            + f64::from(mode) * ln_p
+            + f64::from(n - mode) * ln_q;
+        let mut mass = vec![0.0_f64; n as usize - 1];
+        mass[mode as usize - 1] = ln_mode.exp();
+        for k in mode..n - 1 {
+            mass[k as usize] =
+                mass[k as usize - 1] * f64::from(n - k) / f64::from(k + 1) * (p / q);
+        }
+        for k in (2..=mode).rev() {
+            mass[k as usize - 2] =
+                mass[k as usize - 1] * f64::from(k) / f64::from(n - k + 1) * (q / p);
+        }
+        undefined_mass = (units * ln_q).exp() + (units * ln_p).exp();
+        let total: f64 = mass.iter().sum();
+        let scale = if total > 0.0 { (1.0 - undefined_mass) / total } else { 0.0 };
+        for (index, m) in mass.iter().enumerate() {
+            let k = index as u32 + 1;
+            components.push(MixtureComponent {
+                weight: m * scale,
+                mean: delta,
+                variance: v * (1.0 / f64::from(k) + 1.0 / f64::from(n - k)),
+            });
         }
     }
-    let defined: f64 = components.iter().map(|c| c.weight).sum();
-    Ok(GaussianMixtureLaw { components, undefined_mass: 1.0 - defined })
+    Ok(GaussianMixtureLaw { components, undefined_mass })
 }
 
 fn check_means(spec: &RepeatedMeasuresSpec, arm_means: &[f64]) -> Result<(), Error> {
@@ -1155,6 +1176,7 @@ struct Unit {
 }
 
 use crate::describe::mean_and_sample_variance as mean_and_variance;
+use crate::special::ln_gamma;
 
 fn analyse(
     spec: &RepeatedMeasuresSpec,
