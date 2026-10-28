@@ -21,4 +21,26 @@ test_sources = [
  "crates/antecedent-state/src/graph_score.rs unit test the_laplace_score_prefers_the_causal_direction_under_laplace_noise (Laplace cause and noise; the Gaussian score ties the two directions)",
  "crates/antecedent/tests/structure_uncertainty_routes.rs (order MCMC under Laplace noise orients x to y)",
  "python/tests/test_structure_uncertainty_routes.py",
+ "crates/antecedent-state/src/graph_score_laplace_tests.rs (exhaustive k-subset least-absolute-deviations enumeration)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "laplace_bic_local in crates/antecedent-state/src/graph_score.rs: the least-absolute-deviations fit of a node on an intercept and its parents (iteratively reweighted least squares, then vertex descent), the mean-absolute-residual scale and the score -n (ln(2 b) + 1) - (|Pa| + 2)/2 ln n. Not a review of the order-MCMC, structure search or routes that consume the score, of the Gaussian BIC family, or of misspecification beyond what is stated."
+assumptions = ["Laplace noise with scale b: at the maximum-likelihood fit the log likelihood is -n ln(2 b) - n with b the mean absolute residual of the LAD fit, and the BIC penalty counts |Pa| + 1 coefficients plus the scale.", "A least-absolute-deviations optimum is attained at a fit interpolating one row per coefficient (the L1 objective is convex piecewise linear), so the optimum value is the minimum over k-subsets of rows of the L1 norm of the interpolating fit's residuals.", "The score is a pseudo-likelihood; it is misspecified for non-Laplace non-Gaussian noise."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and wrote its own reference from definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The exhaustive k-subset LAD enumeration is repository-authored (MIT OR Apache-2.0) and runs inside the crate's own unit tests. The cited papers are linked, not redistributed."
+limitations = "60 random problems with n = 9 to 14 rows, zero to two parents, Laplace noise and (every fourth) a gross outlier: the score equals the exhaustive-enumeration score to 1e-8 relative, and the score shifts by -n ln c under an outcome scaling c, with the outcome offset ignored. Large-n behavior is not compared with an exact solver (enumeration is combinatorial); the descent is only assumed to terminate at the global optimum there, which convexity guarantees but this review did not exercise beyond n = 2000 timing. The cited papers were not retrieved or re-read by this review (no downloads), so source correspondence is judged against the standard definitions and the executing references, not against the papers' text."
+sources = ["https://doi.org/10.1214/aos/1176344136"]
+findings_resolved = ["Defect repaired: the iteratively reweighted fit converges linearly and, at n = 14 with two parents, stopped at 500 sweeps with an objective 6e-5 above the least-absolute-deviations optimum (score error 9e-4); runs of up to 800 sweeps were needed on other small problems. After the reweighting stops the fit is now finished by descent over vertices: release each interpolated row, slide along the line that keeps the other k - 1 rows interpolated to the weighted median of the crossings, and accept only strict improvements, so the objective is that of an actual fit and never worse than before. All 60 problems then agree with exhaustive enumeration to 1e-8.", "Verified the closed form of the score and its penalty ((|Pa| + 2)/2 ln n) against the code, and that the objective value is unchanged by centering the columns.", "Added a self-check of the reference (median of an odd sample; a line with one gross outlier) so the enumeration cannot pass as a degenerate reference."]
+record_sha256 = "b89645359a7aa59f450cbf337eabe75afbb5c0c02fffea02b5e629314d130d6f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/graph_score.rs"
+sha256 = "ec713b89209825fb1dc8be3f956fcd36158d5b7fe8598bf35a37e2cd98c63379"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-state/src/graph_score_laplace_tests.rs"
+sha256 = "b8ff40ddbcfef689ad7ea0f3ecd4f38314db860db08edf63a6aef39ad9b6325d"

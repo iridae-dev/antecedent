@@ -46,7 +46,7 @@ sha256 = "df87dced0027e69b01f44ec103bdbed1607c1b2858563a61ed9ecc8e95878631"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/ges.rs"
-sha256 = "01d34ca5386558e146f1e3d7b74b9ac8c3d540447884d5b16c5e54701fefefa1"
+sha256 = "b2d0b9a7297425c4e7de68ae3bdeba0a849f8054a009853dfd8d0708cda4f2be"
 
 [[method_review.artifacts]]
 role = "assertion"

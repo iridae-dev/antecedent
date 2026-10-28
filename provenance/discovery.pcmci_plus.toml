@@ -12,6 +12,7 @@ papers = [
 
 implementation_deviations = [
  "PC1, contemporaneous separation, and majority-collider subset searches are bounded by max_cond_size, which defaults to 3.",
+ "The contemporaneous skeleton phase tests one conditioning set of each size, the first k contemporaneous neighbours in descending-statistic order, rather than every k-subset (matching the pinned baseline's max_combinations = 1); a link whose only separating sets are other subsets can survive although it is d-separable.",
  "MCI conditioning is limited to 30 conditions within a 32-column CI budget; oversized tests are refused rather than evaluated.",
  "The orientation phase adds contemporaneous Meek R4 beyond the pinned Tigramite PCMCI+ rule stack; the frozen oracle fixture explicitly notes that this may produce extra orientations.",
 ]
@@ -23,4 +24,26 @@ upstream_implementations_observed = [
 test_sources = [
  "independently generated synthetic lagged+contemporaneous SCM with known parents",
  "clean-room conformance fixture conformance/discovery/pcmci_plus_lag0",
+ "crates/antecedent-discovery/src/pcmci_oracle_tests.rs (population d-separation oracle on random stationary vector autoregressions with contemporaneous edges)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "PcmciPlus::run in crates/antecedent-discovery/src/pcmci_plus.rs with a CI oracle: the lagged PC1 skeleton, the contemporaneous MCI phase, majority collider orientation and the contemporaneous Meek rules. Not a review of finite-sample CI behavior, FDR, the panel variant or latent-confounder extensions."
+assumptions = ["Causal sufficiency, faithfulness, stationarity; contemporaneous effects allowed, no hidden processes.", "Soundness under a CI oracle: no true adjacency is removed (a true edge is d-connected given any set), recorded separating sets d-separate their pairs, lagged links are oriented forward in time, and every oriented contemporaneous edge is compelled in the equivalence class and so has the generating direction.", "Completeness of the skeleton needs every subset of the contemporaneous neighbours to be searched; the implementation tests one set per size (the strongest-ranked neighbours), so a link whose only separating sets are not those prefixes can survive."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and wrote its own reference from definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The unrolled-graph active-trail d-separation oracle and the random process generator are repository-authored (MIT OR Apache-2.0) and run inside the crate's own unit tests. The cited papers are linked, not redistributed."
+limitations = "80 random stationary vector autoregressions of three to five observed processes with lag-one, lag-two and contemporaneous edges (lower to higher process index). Checked: every generating lagged and contemporaneous link is present; every lagged link is directed into the present; every oriented contemporaneous edge (194 of 1012 links, none left undirected) has the generating direction; every recorded separating set (2436) d-separates its pair. Not asserted: that the skeleton is exactly the generating one (12 of 1012 links were extra, all from the single-subset search), orientation completeness, or anything about finite samples. The cited papers were not retrieved or re-read by this review (no downloads), so source correspondence is judged against the standard definitions and the executing references, not against the papers' text."
+sources = ["https://doi.org/10.48550/arXiv.2003.03685", "https://doi.org/10.1126/sciadv.aau4996"]
+findings_resolved = ["Added a population oracle for the contemporaneous setting. Soundness holds on all 80 processes: no generating link is missing, lagged links are directed forward, and no contemporaneous orientation contradicts the generating graph (including the R4 extension noted in the record).", "Found, and recorded as a deviation rather than changed, that the contemporaneous skeleton phase tests the first k ranked contemporaneous neighbours at size k, not every k-subset, matching the pinned baseline's max_combinations = 1. With the oracle every statistic ties so the order is by id; in one generated process the only separating set for three lag-one links into a target was its single contemporaneous parent, but at size one the tested prefix was an ancestor that leaves a direct route open, that ancestor was then removed, and at size two the remaining pair contained a child whose conditioning opens a collider route. The links survive although a separating set exists. A PC-style exhaustive subset search would remove them but would also change agreement with the pinned baseline on finite data, so the choice is left explicit; the executing check bounds the effect (extra links under 5 percent) instead of asserting exactness."]
+record_sha256 = "d692acc5e51c58017b14c2c723e1df78390da0d2af1717118fcc8f1ad2469271"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/pcmci_plus.rs"
+sha256 = "6a0b1db0c2a14579e95da3498d64bcc0344f392be094bc956faad5b94e5ced63"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/src/pcmci_oracle_tests.rs"
+sha256 = "533614b45cda63ad73d045668d8bff09fd896bc0f48ccac9592915e77300265c"

@@ -45,7 +45,7 @@ sha256 = "6ab7b828cd441fd76b1aa3d45143bc9940566d6d0faf2faf0f6fcb2db0a10d40"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-sha256 = "4a6406f0981648ff4bb53020659bf6369c02c0042869eb2bb61f3011c9013ef1"
+sha256 = "ec713b89209825fb1dc8be3f956fcd36158d5b7fe8598bf35a37e2cd98c63379"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -22,4 +22,31 @@ upstream_implementations_observed = [
 test_sources = [
  "independently generated synthetic lagged VAR / SCM with known parent",
  "black-box optional comparison against pinned Tigramite baseline (conformance/discovery/pcmci_lag1)",
+ "crates/antecedent-discovery/src/pcmci_oracle_tests.rs (population d-separation oracle on random stationary vector autoregressions)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Pcmci::run for lagged-only discovery (min_lag >= 1) on a regular series: PC1 parent selection, MCI conditioning on the target's and source's parents, and the retained lagged links. Not a review of any CI test's validity, of the FDR family beyond switching it off, of the panel variant, or of the vector-variable extensions."
+assumptions = ["Causal sufficiency, faithfulness, stationarity and no contemporaneous effects; then the true lagged parents are exactly the links MCI retains with a correct CI oracle.", "PC1 never discards a true parent (a parent is d-connected to its child given any set), so the estimated parent sets are supersets of the true ones; MCI then conditions on a superset of the target's parents drawn from its non-descendants, which d-separates every non-parent by the weak-union property.", "Finite-sample behavior and the p-value family are the CI test's, not established here."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and wrote its own reference from definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The unrolled-graph active-trail d-separation oracle and the random process generator are repository-authored (MIT OR Apache-2.0) and run inside the crate's own unit tests. The cited paper is linked, not redistributed."
+limitations = "With a population d-separation oracle on 80 random stationary vector autoregressions of three to five observed processes (self lag-one edge, random lag-one and lag-two edges, ten unrolled steps, max lag two) the retained links equal the generating lagged edges exactly. It establishes the population correctness of PC1 plus MCI with causal sufficiency and no contemporaneous edges; it does not test finite-sample error control, latent confounding, contemporaneous effects (PCMCI+ covers them) or the 32-column conditioning limit. The cited papers were not retrieved or re-read by this review (no downloads), so source correspondence is judged against the standard definitions and the executing references, not against the papers' text."
+sources = ["https://doi.org/10.1126/sciadv.aau4996"]
+findings_resolved = ["Added a population oracle: every conditional-independence query is answered by active-trail reachability in the generating graph unrolled over ten steps, so any disagreement is the algorithm's. The reference is the generating lagged edge set, not a Tigramite output.", "All 80 random processes returned exactly the generating lagged links, with both present (more than 300) and absent (more than 300) candidate links exercised; no defect found."]
+record_sha256 = "d216d14c321157f2ab4c211b96c2b388eed1778d4d99336fc315abf30d867291"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/pcmci.rs"
+sha256 = "09de1d73549c6df9e3ac8ff67856808adcde6424c13c8b546479db63c41cc2e9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/engine.rs"
+sha256 = "d36f9bb2524fde38daebeace6f0443bed091ca6042a7720fcc7f7fd8e7c9d1b3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/src/pcmci_oracle_tests.rs"
+sha256 = "533614b45cda63ad73d045668d8bff09fd896bc0f48ccac9592915e77300265c"

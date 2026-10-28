@@ -23,4 +23,26 @@ test_sources = [
  "crates/antecedent-discovery/src/ges.rs unit tests",
  "crates/antecedent-discovery/tests/static_discovery_oracle.rs",
  "conformance/discovery/static_oracle_matrix",
+ "crates/antecedent-discovery/src/ges_oracle_tests.rs (exact-covariance population data against the enumerated Markov equivalence class)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Ges::run in crates/antecedent-discovery/src/ges.rs for continuous data with the Gaussian BIC score (default): the forward Insert phase, the Reverse turning phase, the backward Delete phase, the T/H subset enumeration and Meek completion of the CPDAG. Not a review of the Gaussian BIC local score itself (checked elsewhere against a closed form), of PC screening, of the other score families, or of finite-sample behavior."
+assumptions = ["Linear-Gaussian structural model, causal sufficiency and faithfulness; with the population Gaussian BIC the maximisers are exactly the members of the true Markov equivalence class (Chickering's consistency result), so a correct search must return that class.", "The score is decomposable and score-equivalent, so the search moves between equivalence classes through valid Insert, Reverse and Delete operators with their clique and no-semi-directed-path conditions.", "The per-pair operator budget (default 2^12 candidate T/H sets) is not exceeded; when it is, the result carries a ges.operator_search_pruned diagnostic and the search is not exhaustive."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and wrote its own reference from definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The population-covariance generator, the moral-ancestral d-separation check and the equivalence-class enumeration are repository-authored (MIT OR Apache-2.0) and run inside the crate's own unit tests. The cited paper is linked, not redistributed."
+limitations = "Exact-covariance data (noise columns made exactly orthonormal, variables exact linear combinations) make the sample BIC the population BIC at 4000 rows. Six hand-built classes and 120 random linear models on four to six nodes (those with a visible margin: every d-connection leaves a partial correlation above 0.12, every d-separation exactly zero) return the true adjacencies and exactly the compelled edges of the class enumerated from its definition. This establishes population correctness of the three phases on up to six nodes; it says nothing about finite-sample error rates, larger graphs, non-Gaussian or discrete data, the budget-pruned regime, background-knowledge handling or the Reverse phase's value (population data never need it). The cited papers were not retrieved or re-read by this review (no downloads), so source correspondence is judged against the standard definitions and the executing references, not against the papers' text."
+sources = ["https://www.jmlr.org/papers/volume3/chickering02b/chickering02b.pdf"]
+findings_resolved = ["Added an exact-population oracle in place of the single three-variable chain test: the data columns have sample covariance equal to the generating covariance exactly, so the Gaussian BIC is the population score and the expected output is the true equivalence class, computed by enumerating acyclic orientations of the skeleton that keep its unshielded colliders (no Meek rule or search operator involved). Node ids are not tied to a topological order.", "Checked that the oracle is not degenerate: the generated columns reproduce the closed-form variances and covariances of a chain to 1e-12, the chain ends have zero partial correlation given the middle and non-zero marginally, and a faithfulness filter rejects models with a cancelled or weak dependence before they are compared.", "No defect found in Insert, Turn or Delete: all 120 random models and the six hand-built classes (chain, collider, collider with compelled tail, diamond, complete graph, diamond with tail) are recovered exactly, adjacencies and compelled/undirected status."]
+record_sha256 = "1c279c806df0406dacbb0cbdd38e22c58646454529b22766106612591f1b4b02"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/ges.rs"
+sha256 = "b2d0b9a7297425c4e7de68ae3bdeba0a849f8054a009853dfd8d0708cda4f2be"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/src/ges_oracle_tests.rs"
+sha256 = "66f2de74fb502c8c1f785ae8a8f6bd1a28fb6e81030c23c59d81757127937757"

@@ -12,7 +12,7 @@ papers = [
 ]
 
 implementation_deviations = [
- "The reported leading canonical correlation uses 64-step power iteration on the same unregularized whitened Gram matrix that supplies the Wilks-Lambda significance.",
+ "The reported leading canonical correlation is the square root of the largest eigenvalue of the same unregularized whitened Gram matrix that supplies the Wilks-Lambda significance, from the symmetric eigendecomposition.",
  "Robust partial correlation applies van der Waerden normal scores (inverse-normal of rank/(n+1)) to each column before ordinary partial correlation, and weighted partial correlation is weighted least squares with a Kish effective-sample-size degrees-of-freedom rule; neither is a procedure described by the three cited canonical-correlation papers.",
  "Block-preserving permutation nulls (scalar, weighted and multivariate) residualise X and Y on Z once and block-permute the X residual; this residual-permutation construction is not taken from the cited papers.",
 ]
@@ -22,4 +22,36 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-stats/src/ci/parcorr_variants.rs (robust, weighted, and multivariate unit tests)",
  "crates/antecedent-stats/src/ci/calibration.rs (multivariate_block_calibration_gate)",
+ "crates/antecedent-stats/tests/parcorr_variants_reference.rs (60-digit Wilks/Bartlett, weighted Kish and normal-score references)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "RobustPartialCorrelation, WeightedPartialCorrelation and MultivariatePartialCorrelation::test_blocks (analytic path) in crates/antecedent-stats/src/ci/parcorr_variants.rs: van der Waerden scores with midranks, weighted least-squares residualisation with a Kish effective-sample-size t test, and block residualisation, Wilks' Lambda, Bartlett's chi-square and the leading canonical correlation. Not a review of the block-shuffle permutation nulls beyond their calibration test, of ZDesign beyond its use here, or of the scalar ParCorr test."
+assumptions = ["Robust: after the normal-score transform the data are treated as Gaussian, so the residual partial correlation has a Student-t null on n - 2 - |Z| degrees of freedom; the transform makes this approximate, not exact.", "Weighted: the Kish effective sample size minus 2 minus |Z| is a heuristic degrees-of-freedom rule for a weighted correlation, not a derived null distribution.", "Block: multivariate normality of the residual blocks gives Bartlett's chi-square approximation to Wilks' Lambda with p_x p_y degrees of freedom and multiplier (n - |Z| - 1) - (p_x + p_y + 1)/2."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and wrote its own reference from definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause, not redistributed) and the Python standard library. The cited papers are linked, not redistributed."
+limitations = "Four block designs (2x2; 2x3 given two; 3x3 given one; an exchangeable-difference grid), three weighted cases (random weights, two zero weights, concentrated weights) and two normal-score cases (heavy tails with ties, with and without a conditioner) are compared with 60-digit references: block p-values and weighted/robust statistics to 1e-9 to 1e-6 relative and the leading canonical correlation to 1e-10. Whether the approximations calibrate (the block test's Type I rate is covered by the separate calibration gate, not run here), and the permutation paths, are not covered. The cited papers were not retrieved or re-read by this review (no downloads), so source correspondence is judged against the standard definitions and the executing references, not against the papers' text."
+sources = ["https://doi.org/10.1093/biomet/28.3-4.321", "https://doi.org/10.1093/biomet/24.3-4.471", "https://doi.org/10.1017/S0305004100019897", "https://mpmath.org/doc/current/functions/expintegrals.html", "https://mpmath.org/doc/current/functions/orthogonal.html"]
+findings_resolved = ["Defect repaired: the leading canonical correlation came from a 64-step power iteration started at the uniform vector. For an exchangeable block with a difference-direction dependence the whitened Gram matrix is [[g, -g], [-g, g]], the product with the start vector is exactly zero, and the reported statistic was 0 while Wilks' Lambda (from the Cholesky log-determinant) gave p = 1.4e-17. It now takes the largest eigenvalue from the symmetric eigendecomposition; the case gives 0.8164965809 as the reference does.", "Compared the Wilks/Bartlett p-value, the weighted correlation with its Kish degrees of freedom (zero weights excluded) and the normal-score partial correlation with multiprecision references that residualise from the stored columns; no other defect.", "Corrected the record's power-iteration deviation, which no longer applies."]
+record_sha256 = "5761689ef9e90411bfc41da09028f60925372120d63fd13af74c200d712f246b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/parcorr_variants.rs"
+sha256 = "015eda9e238cda1dd4a531a20098389c4f77cc648d225ff2a67b899e9f841c22"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/parcorr_variants_reference.rs"
+sha256 = "51baf87f0eccb52703ca2dedf33438fcb6d599c13963b1d89dffd29a1dd16e6c"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/parcorr_variants_reference.py"
+sha256 = "1df72abdc863eda1bbcde05c092e5413ba7b36368b7a97f27ab7ce2aa361d01c"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/parcorr_variants_reference.json"
+sha256 = "8b90365b685fdfaf00a8732859f990ee14684504b6eb564b1fb7d553a5b0d2af"

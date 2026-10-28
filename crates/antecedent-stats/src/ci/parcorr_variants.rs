@@ -621,7 +621,7 @@ fn residual_canonical(
     // working precision: the blocks are perfectly dependent. That is a valid
     // answer (Λ = 0, chi-square = +inf, p = 0), not an error, so floor Λ at the
     // smallest positive normal rather than propagating a failure.
-    let leading_eigen = leading_psd_eigenvalue(&gram, k);
+    let leading_eigen = leading_psd_eigenvalue(&gram, k)?;
     let ln_lambda = if let Some(l) = cholesky_spd(&eye_minus, k) {
         chol_log_det(&l, k)
     } else {
@@ -637,32 +637,22 @@ fn residual_canonical(
     Ok(ResidualCanonical { ln_lambda, leading_rho: leading_eigen.sqrt().min(1.0) })
 }
 
-/// Largest eigenvalue of a small symmetric Gram matrix via power iteration.
-fn leading_psd_eigenvalue(gram: &[f64], k: usize) -> f64 {
+/// Largest eigenvalue of a small symmetric positive semidefinite Gram matrix.
+///
+/// Taken from the symmetric eigendecomposition. A power iteration from a fixed start vector
+/// returns a wrong value when that vector is orthogonal to the leading eigenvector (an
+/// exchangeable block with a difference-direction dependence gives `[[g, -g], [-g, g]]`, whose
+/// product with the uniform start is exactly zero and was reported as no dependence at all),
+/// and converges slowly when the two leading eigenvalues are close.
+fn leading_psd_eigenvalue(gram: &[f64], k: usize) -> Result<f64, StatsError> {
     if k == 0 {
-        return 0.0;
+        return Ok(0.0);
     }
     if k == 1 {
-        return gram[0].max(0.0);
+        return Ok(gram[0].max(0.0));
     }
-    let mut v = vec![1.0 / (k as f64).sqrt(); k];
-    let mut lambda = 0.0;
-    for _ in 0..64 {
-        let mut w = vec![0.0; k];
-        for i in 0..k {
-            for j in 0..k {
-                w[i] += gram[i * k + j] * v[j];
-            }
-        }
-        lambda = w.iter().map(|x| x * x).sum::<f64>().sqrt();
-        if lambda == 0.0 {
-            return 0.0;
-        }
-        for i in 0..k {
-            v[i] = w[i] / lambda;
-        }
-    }
-    lambda.max(0.0)
+    let (values, _) = crate::covariance::symmetric_eigen(gram, k)?;
+    Ok(values.into_iter().fold(0.0_f64, f64::max))
 }
 
 #[cfg(test)]

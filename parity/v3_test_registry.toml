@@ -17897,3 +17897,45 @@ crate = "antecedent"
 cargo_target = "lib"
 path = "crates/antecedent/src/analysis/recalc_bayesian_summary_tests.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-gam-reference"
+crate = "antecedent-stats"
+cargo_target = "gam_reference"
+path = "crates/antecedent-stats/tests/gam_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-parcorr-variants-reference"
+crate = "antecedent-stats"
+cargo_target = "parcorr_variants_reference"
+path = "crates/antecedent-stats/tests/parcorr_variants_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-discovery-src-ges-oracle-tests-rs"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/ges_oracle_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-discovery-src-lingam-oracle-tests-rs"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/lingam_oracle_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-discovery-src-pcmci-oracle-tests-rs"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/pcmci_oracle_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-state-src-graph-score-laplace-tests-rs"
+crate = "antecedent-state"
+cargo_target = "lib"
+path = "crates/antecedent-state/src/graph_score_laplace_tests.rs"
+gates = ["inventory", "named"]

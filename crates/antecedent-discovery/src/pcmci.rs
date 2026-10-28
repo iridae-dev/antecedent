@@ -485,3 +485,7 @@ mod constraint_validation_tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "pcmci_oracle_tests.rs"]
+mod oracle_tests;

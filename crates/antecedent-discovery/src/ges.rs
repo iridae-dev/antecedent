@@ -2045,3 +2045,7 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+#[path = "ges_oracle_tests.rs"]
+mod oracle_tests;

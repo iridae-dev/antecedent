@@ -11,8 +11,8 @@ papers = [
 ]
 
 implementation_deviations = [
- "Exogeneity is scored with distance correlation rather than DirectLiNGAM's kernel mutual-information statistic T_kernel.",
- "The final adjacency is ordinary OLS followed by a fixed absolute coefficient threshold and optional top-k parent truncation, rather than the reference method's adaptive-lasso pruning.",
+ "Exogeneity is scored with distance correlation rather than DirectLiNGAM's kernel mutual-information statistic T_kernel. A candidate's score is the sum, over the other remaining variables, of the distance correlation between the candidate and the residual of that variable regressed on it; it does not compare the two directions of each pair.",
+ "The final adjacency is ordinary OLS on the predecessors in the order, followed by a fixed threshold on the absolute standardised coefficient and optional top-k parent truncation, rather than the reference method's adaptive-lasso pruning.",
 ]
 
 upstream_implementations_observed = [
@@ -23,4 +23,26 @@ test_sources = [
  "crates/antecedent-discovery/src/lingam.rs unit tests",
  "crates/antecedent-discovery/tests/static_discovery_oracle.rs",
  "conformance/discovery/static_oracle_matrix",
+ "crates/antecedent-discovery/src/lingam_oracle_tests.rs (product-grid errors with exact independence; distance correlation against its definition)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "DirectLingam::run in crates/antecedent-discovery/src/lingam.rs: the exogeneity search for the causal order with the distance-correlation residual-independence score, residualisation of the remaining variables, ordinary least squares of each variable on its predecessors, the standardised-coefficient pruning and the Jarque-Bera diagnostic. Not a review of the distance-correlation implementation beyond the pairwise definition check, of background-knowledge handling beyond required-edge ordering, or of finite-sample order recovery."
+assumptions = ["Linear acyclic model with mutually independent non-Gaussian errors and no hidden confounders; at most one Gaussian error for the order to be identified.", "Order search: the variable whose residuals on every other remaining variable are least dependent on it (smallest summed distance correlation) is exogenous; with exactly independent errors a true source scores zero and every other candidate scores strictly more.", "Pruning is a fixed threshold on the standardised OLS coefficient, so a true edge weaker than the threshold is dropped and the result is a graph at that threshold, not a consistent edge selector."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and wrote its own reference from definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The product-grid data generator and the O(n^2) distance-correlation definition are repository-authored (MIT OR Apache-2.0) and run inside the crate's own unit tests. The cited papers are linked, not redistributed."
+limitations = "Errors are skewed or flat non-Gaussian marginals on a 5- or 7-point grid and the rows are the full product of the grids, so the sample errors are exactly independent. The search then returns a causal order that is a linear extension of the generating graph, the generating edge set and the structural coefficients to 1e-9, on four hand-built structures and 24 random models of three and four variables. This is a population-exactness check of the order search, residualisation and OLS; it does not measure finite-sample order accuracy, robustness to near-Gaussian errors (only the unit test of the two-Gaussian diagnostic covers that), hidden confounding, or large p. The distance correlation is compared with its definition at n = 40 to 80 including ties. The cited papers were not retrieved or re-read by this review (no downloads), so source correspondence is judged against the standard definitions and the executing references, not against the papers' text."
+sources = ["https://doi.org/10.48550/arXiv.1101.2489", "https://doi.org/10.1214/009053607000000505"]
+findings_resolved = ["Added an exact-independence oracle: the data rows are the full product of the error grids, so the sample errors have exactly zero covariance and zero sample distance covariance with each other. Under it a true source has residuals exactly independent of it and scores zero; the search recovered the generating order (as a linear extension), edges and coefficients exactly on every case.", "Compared DistanceY::correlate (the fast path used by the order search) with the O(n^2) double-centred definition on continuous and three-valued (tied) data to 1e-10.", "No defect found; the unit-free pruning, constant-column refusal, rank-deficient minimum-norm regression and cyclic required-edge refusal that the existing tests cover were read and left unchanged.", "Recorded that the exogeneity score is the sum over the other variables of the distance correlation between the candidate and the residual of that variable on it, and does not compare the two directions of each pair as the paper's pairwise measure does; with exactly independent errors the two agree on the identified order, in finite samples they can differ."]
+record_sha256 = "0b29c9c508ee5595d918a340e8c4e39dae22dd7e81d292c440b67e8586a5714e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/lingam.rs"
+sha256 = "0d57220dfe3e1ea6a4564bbba475e22b6d5f5ce57ec1675b79c78138b5fa096e"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/src/lingam_oracle_tests.rs"
+sha256 = "66754535c86fbfc2e12caaa37a32b239a6f908c680ea00d2997968001efea6e3"

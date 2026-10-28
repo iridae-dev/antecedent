@@ -566,12 +566,128 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
         }
         previous = objective;
     }
+    objective = polish_lad_vertex(&design, &y, &residuals, objective);
     let scale = objective / n as f64;
     if !(scale.is_finite() && scale > 1e-12 * outcome_scale) {
         return Err(StateError::DegenerateScore("Laplace BIC fit (zero residual scale)".into()));
     }
     let nf = n as f64;
     Ok(-nf * ((2.0 * scale).ln() + 1.0) - 0.5 * (k as f64 + 1.0) * nf.ln())
+}
+
+/// Cap on accepted vertex moves after the reweighted least squares sweeps, per coefficient.
+const LAD_POLISH_MOVES_PER_COEFFICIENT: usize = 64;
+
+/// Lower the absolute-deviation objective of a near-optimal fit to its exact minimum.
+///
+/// A least-absolute-deviations optimum interpolates `k` rows (one per coefficient). The
+/// reweighted iteration converges linearly and can stop a few parts in `1e5` short of it, or
+/// after its sweep cap, so the fit is finished by descent over vertices: start from the exact fit
+/// of the `k` rows with the smallest residuals, and for each interpolated row release it and
+/// slide along the line the other `k - 1` rows still interpolate. The objective along that line
+/// is piecewise linear and convex, minimised at a weighted median of the crossing points, where
+/// another row becomes interpolated. A move is kept only if it strictly lowers the objective, so
+/// descent ends at a vertex with no improving edge, which is a global minimum of the convex
+/// objective, and the result is never worse than the input objective.
+fn polish_lad_vertex(design: &[Vec<f64>], y: &[f64], residuals: &[f64], objective: f64) -> f64 {
+    let k = design.len();
+    let n = y.len();
+    if k == 0 || k > n {
+        return objective;
+    }
+    let row = |r: usize| -> Vec<f64> { (0..k).map(|c| design[c][r]).collect() };
+    let fit = |active: &[usize]| -> Option<(Vec<f64>, Vec<f64>)> {
+        let beta = solve_square(
+            active.iter().map(|&r| row(r)).collect(),
+            active.iter().map(|&r| y[r]).collect(),
+        )?;
+        let resid: Vec<f64> = (0..n)
+            .map(|r| y[r] - beta.iter().enumerate().map(|(c, b)| b * design[c][r]).sum::<f64>())
+            .collect();
+        Some((beta, resid))
+    };
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by(|&a, &b| residuals[a].abs().total_cmp(&residuals[b].abs()).then(a.cmp(&b)));
+    let mut active: Vec<usize> = order[..k].to_vec();
+    let Some((_, mut resid)) = fit(&active) else {
+        return objective;
+    };
+    let mut current = compensated_sum(resid.iter().map(|v| v.abs()));
+    let mut moves = 0;
+    let mut improved = true;
+    while improved && moves < LAD_POLISH_MOVES_PER_COEFFICIENT * k {
+        improved = false;
+        for slot in 0..k {
+            let matrix: Vec<Vec<f64>> = active.iter().map(|&r| row(r)).collect();
+            let mut unit = vec![0.0; k];
+            unit[slot] = 1.0;
+            // `direction` leaves the other active rows interpolated and moves the released one.
+            let Some(direction) = solve_square(matrix, unit) else {
+                continue;
+            };
+            let slope: Vec<f64> = (0..n)
+                .map(|r| direction.iter().enumerate().map(|(c, d)| d * design[c][r]).sum::<f64>())
+                .collect();
+            let reach = slope.iter().fold(0.0_f64, |m, g| m.max(g.abs()));
+            let mut crossings: Vec<(f64, f64, usize)> = (0..n)
+                .filter(|&r| slope[r].abs() > 1e-12 * reach)
+                .map(|r| (resid[r] / slope[r], slope[r].abs(), r))
+                .collect();
+            crossings.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.2.cmp(&b.2)));
+            let half = 0.5 * crossings.iter().map(|c| c.1).sum::<f64>();
+            let mut seen = 0.0;
+            let Some(&(_, _, entering)) = crossings.iter().find(|c| {
+                seen += c.1;
+                seen >= half
+            }) else {
+                continue;
+            };
+            if active.contains(&entering) {
+                continue;
+            }
+            let mut trial = active.clone();
+            trial[slot] = entering;
+            let Some((_, next)) = fit(&trial) else {
+                continue;
+            };
+            let l1 = compensated_sum(next.iter().map(|v| v.abs()));
+            if l1.is_finite() && l1 < current * (1.0 - 1e-14) {
+                active = trial;
+                resid = next;
+                current = l1;
+                improved = true;
+                moves += 1;
+            }
+        }
+    }
+    current.min(objective)
+}
+
+/// Solve a small dense square system by Gaussian elimination with partial pivoting; `None`
+/// when a pivot is negligible against the largest entry of the matrix.
+fn solve_square(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Option<Vec<f64>> {
+    let k = b.len();
+    let scale = a.iter().flatten().fold(0.0_f64, |m, v| m.max(v.abs()));
+    for c in 0..k {
+        let pivot = (c..k).max_by(|&p, &q| a[p][c].abs().total_cmp(&a[q][c].abs()))?;
+        if !(a[pivot][c].abs() > 1e-12 * scale) {
+            return None;
+        }
+        a.swap(c, pivot);
+        b.swap(c, pivot);
+        for r in (c + 1)..k {
+            let f = a[r][c] / a[c][c];
+            for j in c..k {
+                a[r][j] -= f * a[c][j];
+            }
+            b[r] -= f * b[c];
+        }
+    }
+    let mut x = vec![0.0; k];
+    for c in (0..k).rev() {
+        x[c] = (b[c] - (c + 1..k).map(|j| a[c][j] * x[j]).sum::<f64>()) / a[c][c];
+    }
+    x.iter().all(|v| v.is_finite()).then_some(x)
 }
 
 /// Residual sum of squares of the last column on the others, from the Gram, and the smallest
@@ -1080,3 +1196,7 @@ mod tests {
         assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 }
+
+#[cfg(test)]
+#[path = "graph_score_laplace_tests.rs"]
+mod laplace_oracle_tests;

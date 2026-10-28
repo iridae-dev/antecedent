@@ -1044,3 +1044,7 @@ mod tests {
         assert!(alg.run(&data, pair, &mut ws, &ctx).is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "lingam_oracle_tests.rs"]
+mod oracle_tests;
