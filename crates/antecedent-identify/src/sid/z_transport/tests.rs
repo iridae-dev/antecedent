@@ -454,6 +454,8 @@ fn formula_matches_independent_binary_scm_truth() {
 
 #[test]
 fn recursive_trz_search_reaches_registered_surrogate() {
+    // Reachability only; the formula it returns is checked against an independent SCM in
+    // `recursive_trz_surrogate_formula_matches_independent_scm` below.
     let (diagram, query) = surrogate_fixture();
     let answer = search_trz(
         &diagram,

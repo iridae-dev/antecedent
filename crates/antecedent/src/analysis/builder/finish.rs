@@ -1972,6 +1972,7 @@ mod design_check_tests {
 
     #[test]
     fn a_query_with_no_estimator_selected_is_never_refused() {
+        // Acceptance companion to the refusal test below: `Ok(())` is the whole result.
         assert!(refuse_estimator_design_mismatch(&average_effect(), None).is_ok());
     }
 
@@ -1996,6 +1997,8 @@ mod design_check_tests {
 
     #[test]
     fn an_estimator_without_a_design_query_is_not_refused() {
+        // Acceptance companion to the refusal test above: a general estimator on an average
+        // effect is admitted; `Ok(())` is the whole result.
         assert!(
             refuse_estimator_design_mismatch(&average_effect(), Some(EstimatorId::Aipw)).is_ok()
         );

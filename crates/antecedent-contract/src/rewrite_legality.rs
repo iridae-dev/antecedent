@@ -2039,6 +2039,8 @@ mod tests {
 
     #[test]
     fn identity_text_is_not_length_capped() {
+        // Acceptance companion: establishes there is no length cap on identity text; malformed
+        // identities are refused by the tests that follow.
         let long = "x".repeat(10_000);
         assert!(PreservedIdentities::try_new("a", "b", "c", &long, "e", "f").is_ok());
         assert!(FrameContents::try_new(&[long.as_str()], &["f"], "p", "h").is_ok());

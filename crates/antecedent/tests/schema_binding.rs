@@ -118,7 +118,11 @@ fn matching_node_count_without_binding_builds() {
         .query(AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2)))
         .build();
 
-    assert!(built.is_ok(), "expected Ok, got {:?}", built.err());
+    let built = built.unwrap_or_else(|e| panic!("expected Ok, got {e:?}"));
+    // The supplied graph is used as given (nothing is discovered) and the plan lowers.
+    let plan = built.compile(&ExecutionContext::for_tests(1)).unwrap();
+    assert!(plan.static_graph().is_none() && plan.static_pag().is_none());
+    assert!(plan.lowered().is_some(), "a supplied DAG must lower to an executable program");
 }
 
 #[test]
@@ -169,7 +173,11 @@ fn bound_to_the_matching_schema_builds() {
         .query(AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2)))
         .build();
 
-    assert!(built.is_ok(), "expected Ok, got {:?}", built.err());
+    let built = built.unwrap_or_else(|e| panic!("expected Ok, got {e:?}"));
+    // The supplied graph is used as given (nothing is discovered) and the plan lowers.
+    let plan = built.compile(&ExecutionContext::for_tests(1)).unwrap();
+    assert!(plan.static_graph().is_none() && plan.static_pag().is_none());
+    assert!(plan.lowered().is_some(), "a supplied DAG must lower to an executable program");
 }
 
 #[test]

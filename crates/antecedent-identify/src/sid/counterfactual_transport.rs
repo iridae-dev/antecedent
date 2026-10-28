@@ -2503,6 +2503,8 @@ mod tests {
         // The same experiment transports when only the treatment's mechanism differs.
         let query = interventional_query(0, 1.0, 1, vec![source(&[0], &[0])]);
         let decision = decide(&problem, &query, &cat);
+        // The route is the proposition (identified, not obstructed); the derived values are
+        // checked against enumerated truth in the estimate-side transport tests.
         assert!(decision.derivation().is_some(), "{decision:?}");
     }
 

@@ -391,7 +391,9 @@ fn pag_compile_ready() {
     // plan actually resolved the supplied static PAG rather than silently compiling an empty
     // or default plan.
     let compiled = analysis.compile(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(compiled.static_pag().is_some());
+    let resolved = compiled.static_pag().expect("the supplied static PAG is resolved");
+    assert_eq!(resolved.node_count(), 2);
+    assert_eq!(resolved.directed_children(DenseNodeId::from_raw(0)), [DenseNodeId::from_raw(1)]);
 }
 
 /// `identify_admg_query` routes a conditional distribution on an ADMG through

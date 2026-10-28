@@ -540,7 +540,13 @@ fn a_graph_beyond_the_conditional_class_refuses_the_whole_set() {
         ExactEvaluationLimits::default(),
         &ExecutionContext::for_tests(1),
     );
-    assert!(result.is_ok(), "{:?}", result.map(|_| ()));
+    let report = result
+        .unwrap_or_else(|e| panic!("a seven-variable set must prepare: {e:?}"))
+        .estimate(&ExecutionContext::for_tests(1))
+        .unwrap();
+    assert_eq!(report.scenarios.len(), 1);
+    assert_eq!(&*report.scenarios[0].name, "wide");
+    assert_eq!(report.scenarios[0].status, "identified");
 }
 
 fn consume(bytes: &[u8]) -> Result<ScenarioSetReport, IoError> {

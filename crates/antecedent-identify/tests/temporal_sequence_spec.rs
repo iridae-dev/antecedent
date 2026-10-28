@@ -142,6 +142,9 @@ fn sequences_are_one_action_per_step_over_the_alphabet() {
 
 #[test]
 fn actions_and_histories_have_no_count_ceiling() {
+    // Acceptance companion: these declarations are valid at any cardinality (the history budget,
+    // not declaration, is the limit), so success is the whole proposition; refusals are pinned
+    // by the neighbouring invalid-declaration tests.
     let (slots, graph) = chain();
     let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
     let mut wide = coordinates(6);
@@ -203,6 +206,8 @@ fn a_template_unrolls_through_the_temporal_dag_unfolding() {
 
 #[test]
 fn the_history_count_has_no_ceiling() {
+    // Acceptance companion: establishes that neither coordinate count nor complete-history count
+    // is capped at declaration; invalid declarations are refused in the tests around it.
     // The number of coordinates is not capped: the old limit of twelve admits thirteen.
     let twelve = TemporalSlots {
         baseline: (0..7).map(v).collect(),

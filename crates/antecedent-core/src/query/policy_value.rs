@@ -472,6 +472,7 @@ mod tests {
 
     #[test]
     fn accepts_aligned_held_out_contract() {
+        // Acceptance baseline for the refusal tests that mutate this query.
         assert!(valid().validate().is_ok());
     }
 

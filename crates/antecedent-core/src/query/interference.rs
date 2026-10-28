@@ -352,6 +352,7 @@ mod tests {
 
     #[test]
     fn distinct_exposure_levels_validate() {
+        // Acceptance baseline for the within-tolerance refusal test below.
         let query = query_with_levels(
             ExposureLevel { own: 0.0, neighbors: 0.0 },
             ExposureLevel { own: 1.0, neighbors: 0.0 },

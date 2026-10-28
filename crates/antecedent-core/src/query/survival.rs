@@ -183,6 +183,7 @@ mod tests {
 
     #[test]
     fn accepts_explicit_marginal_observation_contract() {
+        // Acceptance baseline for the refusal tests that mutate this query.
         assert!(query().validate().is_ok());
     }
 

@@ -1235,3 +1235,39 @@ previous = "crates/antecedent-estimate/src/retarget.rs::admg_depends_on_uses_dir
 replacement = "crates/antecedent-estimate/src/retarget.rs::admg_depends_on_uses_directed_descendants_only"
 disposition = "assertion_strengthened_without_case_removal"
 reason = "Only the accepting half existed (a bidirected neighbour is allowed). A counterexample is added: the same variable reached by a directed edge from the treatment must be refused as a descendant. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/mediation_decomposition_validation.rs::a_pag_interventional_distribution_publishes_an_artifact_a_consumer_reads"
+replacement = "crates/antecedent/tests/mediation_decomposition_validation.rs::a_pag_interventional_distribution_publishes_an_artifact_a_consumer_reads"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Presence checks only. The published law must now have unit mass, and the consumer must read back the same number of atoms with each published probability to 1e-12. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/facade_gaps.rs::pag_compile_ready"
+replacement = "crates/antecedent/tests/facade_gaps.rs::pag_compile_ready"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Only checked that a static PAG exists. The resolved PAG must now have two nodes and node 0's directed children must be exactly node 1, so the supplied graph rather than a default one is resolved. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/transport_scenarios_conditional.rs::a_graph_beyond_the_conditional_class_refuses_the_whole_set"
+replacement = "crates/antecedent/tests/transport_scenarios_conditional.rs::a_graph_beyond_the_conditional_class_refuses_the_whole_set"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Only checked that preparation returned Ok. The prepared seven-variable set is now estimated and must report exactly one scenario, named wide, with status identified. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/schema_binding.rs::matching_node_count_without_binding_builds"
+replacement = "crates/antecedent/tests/schema_binding.rs::matching_node_count_without_binding_builds"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Only checked build success. The built study must now compile with no discovered graph (the supplied DAG is used as given) and lower to an executable program. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/schema_binding.rs::bound_to_the_matching_schema_builds"
+replacement = "crates/antecedent/tests/schema_binding.rs::bound_to_the_matching_schema_builds"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Only checked build success. The built study must now compile with no discovered graph (the bound DAG is used as given) and lower to an executable program. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent-contract/src/joint_alignment.rs::many_arrays_are_named_without_a_count_cap"
+replacement = "crates/antecedent-contract/src/joint_alignment.rs::many_arrays_are_named_without_a_count_cap"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Only checked Ok. The request must retain all 500 arrays in declaration order, ending with array-499. Executed: passes."

@@ -3319,6 +3319,7 @@ mod tests {
 
     #[test]
     fn errors_keep_their_source() {
+        // The proposition is the `Error::source` chain: each typed variant must expose its cause.
         let missing = std::env::temp_dir().join("weighted-gaussian-capacity-does-not-exist.wgol");
         match FileWeightedRows::open(&missing) {
             Err(error @ WeightedCapacityError::Io { .. }) => {

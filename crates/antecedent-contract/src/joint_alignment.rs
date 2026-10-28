@@ -1321,6 +1321,9 @@ mod tests {
             labeled.label = std::sync::Arc::from(format!("array-{index}"));
             arrays.push(labeled);
         }
-        assert!(JointAlignmentRequest::try_new(arrays, LawCoupling::DeclaredProduct).is_ok());
+        let request = JointAlignmentRequest::try_new(arrays, LawCoupling::DeclaredProduct)
+            .expect("500 distinctly labelled arrays are admitted");
+        assert_eq!(request.arrays().len(), 500);
+        assert_eq!(request.arrays()[499].label(), "array-499");
     }
 }

@@ -967,8 +967,17 @@ fn a_pag_interventional_distribution_publishes_an_artifact_a_consumer_reads() {
         .unwrap();
     let prepared = built.prepare(&ctx).unwrap();
     let result = prepared.estimate_retained(&ctx).unwrap();
-    assert!(result.payload().distribution().is_some());
+    let distribution = result.payload().distribution().expect("a distribution payload");
+    let mass: f64 = distribution.atoms.iter().map(|a| a.probability).sum();
+    assert!((mass - 1.0).abs() < 1e-9, "the published law must be normalised: {mass}");
     let artifact = prepared.encode_contracted_result(&result, "pag-distribution", &ctx).unwrap();
     let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-    assert!(consumed.body.interventional_distribution.is_some());
+    let wire = consumed.body.interventional_distribution.expect("a consumed distribution");
+    assert_eq!(wire.atoms.len(), distribution.atoms.len());
+    for (read, published) in wire.atoms.iter().zip(distribution.atoms.iter()) {
+        assert!(
+            (read.probability - published.probability).abs() < 1e-12,
+            "the consumer must read back each published atom probability"
+        );
+    }
 }
