@@ -318,3 +318,67 @@ fn derivative_artifacts_are_consumed_under_the_estimator_the_plan_chose() {
         assert!(contract.estimator.is_some(), "{key} bayesian={bayesian}");
     }
 }
+
+/// The scaled derivatives are functions of the back-door fit `y[t] ~ 1 + x[t-1]` (the graph has
+/// no edge between `x` and `b`, so `b` needs no adjustment) and the fitted mean response at the
+/// evaluation point `x = 2`. Here that fit is recomputed by hand from the normal equations
+/// (slope `Sxy / Sxx`, intercept `ybar - slope * xbar`) and the four scalar scales are
+/// `s`, `s * 2 / m`, `2 * s` and `s / m` with `m = a + 2 s`. The fixture-wide 0.05 band cannot
+/// tell the marginal mean response from the response at `b = 0` (7) or `b = 1` (7.5), which move
+/// the log scales by about 0.01 to 0.02; the 1e-6 band here does.
+#[test]
+fn temporal_derivative_log_scales_use_the_fitted_mean_response_claims_06() {
+    let data = series();
+    let n = 80;
+    let xs: Vec<f64> = (0..n - 1).map(|t| 1.0 + ((t as f64) * 0.37).sin()).collect();
+    let ys: Vec<f64> = (0..n - 1)
+        .map(|t| 3.0 + 2.0 * xs[t] + 0.5 * if t % 2 == 0 { 0.0 } else { 1.0 })
+        .collect();
+    let count = xs.len() as f64;
+    let (xbar, ybar) = (xs.iter().sum::<f64>() / count, ys.iter().sum::<f64>() / count);
+    let sxy: f64 = xs.iter().zip(&ys).map(|(x, y)| (x - xbar) * (y - ybar)).sum();
+    let sxx: f64 = xs.iter().map(|x| (x - xbar).powi(2)).sum();
+    let slope = sxy / sxx;
+    let mean_response = ybar - slope * xbar + 2.0 * slope;
+    let expected = [
+        ("point", slope),
+        ("elasticity", 2.0 * slope / mean_response),
+        ("semi_treatment", 2.0 * slope),
+        ("semi_outcome", slope / mean_response),
+    ];
+    let graph = graph();
+    let ctx = ExecutionContext::for_tests(11);
+    for (key, functional) in functionals() {
+        let Some((_, want)) = expected.iter().find(|(name, _)| *name == key) else {
+            continue;
+        };
+        for bayesian in [false, true] {
+            let builder = Study::series(data.clone())
+                .query(CausalQuery::Response(attach(functional.clone())))
+                .graph(graph.clone())
+                .refute(RefuteSuite::None);
+            let builder = if bayesian {
+                builder.inference(InferenceMode::Bayesian(
+                    BayesianConfig::conjugate().prior_scale(1_000.0).n_draws(8),
+                ))
+            } else {
+                builder
+            };
+            let result = builder
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap()
+                .estimate_retained(&ctx)
+                .unwrap();
+            let response = result.response().unwrap();
+            let ResponseIdentification::PointIdentified(ResponseValue::Scalar(got)) =
+                &response.estimate
+            else {
+                panic!("{key} bayesian={bayesian}: scalar point-identified slope expected");
+            };
+            let band = if bayesian { 5e-3 } else { 1e-6 };
+            assert!((got - want).abs() < band, "{key} bayesian={bayesian}: {got} vs {want}");
+        }
+    }
+}

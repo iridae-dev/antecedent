@@ -737,6 +737,14 @@ mod tests {
         let unexplained = result.unexplained_change().expect("unexplained");
         assert!((unexplained - (observed - result.contribution_sum())).abs() < 1e-12);
         assert!(unexplained.abs() < 1.0, "unexplained={unexplained}");
+        // The single player's contribution is the closed-form counterfactual change: y under the
+        // comparison mechanism 8 + 3 z versus the baseline mechanism 1 + 2 x, both over the
+        // baseline law (E[x] = E[z] = 1.95), i.e. 13.85 - 4.9 = 8.95. The 600 Monte Carlo draws
+        // of a quantity with SD about 3 * 1.15 leave a standard error near 0.14; the band is
+        // four of them, so it excludes the mean-shift-free answer (0) and either mechanism's
+        // slope error.
+        assert!((y.contribution - 8.95).abs() < 0.6, "y={}", y.contribution);
+        assert!((result.total_change - 8.95).abs() < 0.6, "total={}", result.total_change);
     }
 
     /// A shift in Z's own law is not a structure change, so no player carries it: the

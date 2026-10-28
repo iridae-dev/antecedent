@@ -159,7 +159,8 @@ fn frequentist_body() {
     drop(change_builder);
     let initial = change_prepared.estimate_series(&change, &ctx).unwrap();
     let expected = truth["change"]["total_change"].as_f64().unwrap();
-    let tolerance = truth["change"]["tolerance"].as_f64().unwrap();
+    // The fixture band is 0.25; the measured model-based shift is 0.033 from 5.
+    let tolerance = truth["change"]["tolerance"].as_f64().unwrap().min(0.1);
     let initial_change = initial.change_attribution().unwrap().total_change;
     assert!(
         (initial_change - expected).abs() < tolerance,
@@ -343,12 +344,19 @@ fn bayesian_body() {
     drop(change_builder);
     let result = change_prepared.estimate_series(&change, &ctx).unwrap();
     let expected = truth["change"]["total_change"].as_f64().unwrap();
-    let tolerance = truth["change"]["tolerance"].as_f64().unwrap();
+    // The fixture band is 0.25; the measured model-based shift is 0.033 from 5.
+    let tolerance = truth["change"]["tolerance"].as_f64().unwrap().min(0.1);
     let total = result.change_attribution().unwrap().total_change;
     assert!((total - expected).abs() < tolerance, "known population mean shift: {total}");
     assert!(result.posterior.is_some());
     assert!(result.effect().is_finite());
-    assert!((result.effect() - expected).abs() < 2.0, "posterior mean stays near the shift");
+    // The 4-draw posterior mean of the shift of 5 measured 4.69; 0.5 fails a half-size shift
+    // that the earlier 2.0 band accepted.
+    assert!(
+        (result.effect() - expected).abs() < 0.5,
+        "posterior mean {} stays near the shift {expected}",
+        result.effect()
+    );
     assert_eq!(
         result.interval().as_ref().map(|binding| binding.method),
         Some(IntervalMethod::PosteriorQuantile)

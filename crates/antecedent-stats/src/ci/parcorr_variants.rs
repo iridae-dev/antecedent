@@ -1003,6 +1003,36 @@ mod tests {
         assert!((out[2] - q75).abs() < 1e-9, "{out:?}");
     }
 
+    /// The robust statistic itself, against an independent 60-digit reference: van der Waerden
+    /// scores of the midranks of every column (ties present), residualisation of x and y on
+    /// `[1, z]`, Pearson correlation of the residuals, and the two-sided Student-t p-value with
+    /// `n - 2 - |Z|` degrees of freedom.
+    #[test]
+    fn robust_partial_correlation_matches_the_independent_reference_statistic_and_p_value() {
+        let x = [3.0, 1.0, 4.0, 1.0, 5.0, 9.0, 2.0, 6.0, 5.0, 3.5, 8.0, 7.0];
+        let y = [2.0, 7.0, 1.0, 8.0, 2.0, 8.0, 1.0, 8.0, 2.0, 8.5, 4.0, 5.0];
+        let z = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0];
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let ctx = ExecutionContext::for_tests(1);
+        let mut ws = CiWorkspace::default();
+        let out = RobustPartialCorrelation::new()
+            .test_batch_adhoc(&analytic_req(&cols, &queries, &z_flat), &mut ws, &ctx)
+            .unwrap();
+        let result = &out.results[0];
+        assert!(
+            (result.statistic - (-0.049_863_723_895_505_892_785)).abs() < 1e-12,
+            "statistic {}",
+            result.statistic
+        );
+        assert!(
+            (result.p_value - 0.884_242_941_130_385_485_54).abs() < 1e-10,
+            "p-value {}",
+            result.p_value
+        );
+    }
+
     /// Weighted / multivariate residualisation used uncentred normal equations and refused a
     /// well-posed design ("singular Z design") once Z sat ~3e4 sd's from zero.
     #[test]

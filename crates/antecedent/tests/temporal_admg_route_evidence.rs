@@ -27,6 +27,11 @@ use antecedent_graph::{Admg, DenseNodeId, TemporalAdmg};
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
+/// Half-width of the agreement band for a Bayesian-bootstrap posterior mean against the exact
+/// front-door value on the fixed 1000-row table (fixed seed; the Monte Carlo error of the mean
+/// is a few thousandths).
+const BAYESIAN_BOOTSTRAP_BAND: f64 = 0.02;
+
 fn load_pin(path: &str) -> serde_json::Value {
     match path {
         "conformance/estimate/admg_frontdoor_functional" => serde_json::from_str(include_str!(
@@ -195,7 +200,7 @@ fn temporal_admg_average_effect_explicit_and_accepted() {
                 let result = prepared
                     .estimate(&data, &ctx)
                     .unwrap_or_else(|error| panic!("{coordinate}: {error}"));
-                let tolerance = if bayesian { 0.08 } else { 1e-9 };
+                let tolerance = if bayesian { BAYESIAN_BOOTSTRAP_BAND } else { 1e-9 };
                 assert!(
                     (result.effect() - expected).abs() < tolerance,
                     "{coordinate}: {} vs {expected}",
@@ -248,7 +253,7 @@ fn temporal_admg_average_effect_graph_posterior() {
             let result = prepared
                 .estimate(&data, &ctx)
                 .unwrap_or_else(|error| panic!("{coordinate}: {error}"));
-            let tolerance = if bayesian { 0.05 } else { 1e-9 };
+            let tolerance = if bayesian { BAYESIAN_BOOTSTRAP_BAND } else { 1e-9 };
             assert!(
                 (result.estimate().as_effect().unwrap().ate - expected).abs() < tolerance,
                 "{coordinate}: {} vs {expected}",
@@ -342,7 +347,7 @@ fn temporal_admg_intervention_response_explicit_and_accepted() {
                     let result = prepared
                         .estimate(&data, &ctx)
                         .unwrap_or_else(|e| panic!("{coordinate}: {e}"));
-                    let tolerance = if bayesian { 0.08 } else { 1e-9 };
+                    let tolerance = if bayesian { BAYESIAN_BOOTSTRAP_BAND } else { 1e-9 };
                     assert!(
                         (response_value(&result) - truth).abs() < tolerance,
                         "{coordinate} level {level}: {}",
@@ -411,12 +416,24 @@ fn temporal_admg_intervention_response_graph_posterior() {
             let mixture = result.structural_response.as_ref().expect("mixture");
             let unidentified = if validation == "none" { 0.2 } else { 0.0 };
             assert!((mixture.unidentified_mass - unidentified).abs() < 1e-12, "{coordinate}");
+            // The identified-component response is the exact front-door value E[Y | do(T=1)]
+            // = 0.596 (enumerated from the eight-cell table), also when a mass of 0.2 is
+            // unidentified and the response is reported per graph.
+            let value = match &result.response().expect("response").estimate {
+                ResponseIdentification::GraphDependent(members) => {
+                    assert_eq!(members.len(), 1, "{coordinate}: {members:?}");
+                    match &members[0].1 {
+                        ResponseValue::Scalar(value) => *value,
+                        other => panic!("{coordinate}: expected a scalar, got {other:?}"),
+                    }
+                }
+                _ => response_value(&result),
+            };
+            assert!(
+                (value - 0.596).abs() < if bayesian { BAYESIAN_BOOTSTRAP_BAND } else { 1e-9 },
+                "{coordinate}: {value}"
+            );
             if validation != "none" {
-                assert!(
-                    (response_value(&result) - 0.596).abs() < if bayesian { 0.08 } else { 1e-9 },
-                    "{coordinate}: {}",
-                    response_value(&result)
-                );
                 assert!(!result.refutations.is_empty(), "{coordinate}");
             }
             let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
@@ -482,7 +499,7 @@ fn temporal_admg_response_curve_explicit_and_accepted() {
             );
             let result =
                 prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
-            let tolerance = if bayesian { 0.08 } else { 1e-9 };
+            let tolerance = if bayesian { BAYESIAN_BOOTSTRAP_BAND } else { 1e-9 };
             for (actual, truth) in curve_means(&result).iter().zip(expected) {
                 assert!((actual - truth).abs() < tolerance, "{coordinate}: {actual} vs {truth}");
             }
@@ -526,7 +543,7 @@ fn temporal_admg_response_curve_graph_posterior() {
         assert_eq!(plan.validation, RefuteSuite::None);
         let result = prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
         for (actual, truth) in curve_means(&result).iter().zip([0.314, 0.596]) {
-            assert!((actual - truth).abs() < if bayesian { 0.08 } else { 1e-9 }, "{coordinate}");
+            assert!((actual - truth).abs() < if bayesian { BAYESIAN_BOOTSTRAP_BAND } else { 1e-9 }, "{coordinate}");
         }
         let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
         let artifact = prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
@@ -586,7 +603,7 @@ fn temporal_admg_interventional_distribution_explicit_and_accepted() {
                     prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
                 let mean = result.distribution().expect("distribution").mean;
                 assert!(
-                    (mean - p_truth).abs() < if bayesian { 0.08 } else { 1e-9 },
+                    (mean - p_truth).abs() < if bayesian { BAYESIAN_BOOTSTRAP_BAND } else { 1e-9 },
                     "{coordinate} do(t={level}): {mean} vs {p_truth}"
                 );
                 let artifact =

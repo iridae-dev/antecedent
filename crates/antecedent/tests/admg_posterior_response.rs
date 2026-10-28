@@ -426,3 +426,76 @@ fn admg_frontdoor_mask_is_not_a_dag_for_response() {
     assert!(!mask_is_dag(&mask, admg.node_count()));
     assert!(dag_from_adjacency_mask(mask, admg.node_count()).is_err());
 }
+
+/// Hand front-door adjustment on the enumerated table, written from the formula
+/// `E[Y | do(t)] = sum_m P(m | t) sum_t' P(t') P(Y = 1 | t', m)` over the fixture counts; it
+/// shares no code with the product.
+fn frontdoor_interventional_mean(pin: &serde_json::Value, level: f64) -> f64 {
+    let mut count = std::collections::BTreeMap::<(u8, u8, u8), f64>::new();
+    for cell in pin["contingency_table"].as_array().unwrap() {
+        let key = |name: &str| u8::try_from(cell[name].as_u64().unwrap_or_else(|| {
+            cell[name].as_f64().unwrap().round() as u64
+        }))
+        .unwrap();
+        *count.entry((key("t"), key("m"), key("y"))).or_default() +=
+            cell["count"].as_u64().unwrap() as f64;
+    }
+    let c = |t: u8, m: u8, y: u8| count.get(&(t, m, y)).copied().unwrap_or(0.0);
+    let total: f64 = count.values().sum();
+    let t_total = |t: u8| (0..2).flat_map(|m| (0..2).map(move |y| (m, y))).map(|(m, y)| c(t, m, y)).sum::<f64>();
+    let tm = |t: u8, m: u8| c(t, m, 0) + c(t, m, 1);
+    let level = level as u8;
+    (0..2u8)
+        .map(|m| {
+            let p_m = tm(level, m) / t_total(level);
+            let inner: f64 = (0..2u8)
+                .map(|t| (t_total(t) / total) * (c(t, m, 1) / tm(t, m)))
+                .sum();
+            p_m * inner
+        })
+        .sum()
+}
+
+#[test]
+fn claims_03_admg_posterior_response_equals_frontdoor_formula_on_the_table() {
+    let pin = pin();
+    let data = expand_contingency(&pin);
+    let admg = admg_from_pin(&pin);
+    let n = admg.node_count();
+    let mask = adjacency_mask_from_admg(&admg).unwrap();
+    let t = VariableId::from_raw(0);
+    let y = VariableId::from_raw(2);
+    let gp = admg_posterior(n, &[1.0], &[mask]);
+    let truth = [frontdoor_interventional_mean(&pin, 0.0), frontdoor_interventional_mean(&pin, 1.0)];
+    // The fixture's own pinned contrast ties the hand formula to the enumerated oracle.
+    assert!(
+        ((truth[1] - truth[0]) - pin["frequentist"]["expected_ate"].as_f64().unwrap()).abs() < 1e-12
+    );
+    let ctx = ExecutionContext::for_tests(3);
+    for (inference, atol) in [
+        (InferenceMode::Frequentist, 1e-9),
+        (InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)), 0.05),
+    ] {
+        let run = |query: ResponseQuery| {
+            Study::tabular(data.clone())
+                .graph_posterior(gp.clone())
+                .query(CausalQuery::Response(query))
+                .inference(inference.clone())
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ctx)
+                .unwrap()
+        };
+        let curve = response_values(&run(response_curve(t, y)));
+        assert_eq!(curve.len(), 2);
+        for (got, want) in curve.iter().zip(truth) {
+            assert!((got - want).abs() < atol, "{inference:?} curve {got} vs {want}");
+        }
+        for (level, want) in [(0.0, truth[0]), (1.0, truth[1])] {
+            let got = response_values(&run(intervention_response(t, y, level)))[0];
+            assert!((got - want).abs() < atol, "{inference:?} do(t={level}) {got} vs {want}");
+        }
+    }
+}

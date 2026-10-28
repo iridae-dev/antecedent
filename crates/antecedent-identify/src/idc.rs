@@ -607,6 +607,70 @@ mod tests {
         }
     }
 
+    /// Every case of the retained fixture drives the identifier: the graph, outcomes,
+    /// `do(.)` interventions and conditioning set are read from the fixture's strings and the
+    /// reported status is compared with the fixture's, so the second (conditioned) case is
+    /// exercised and a fixture/graph disagreement cannot pass unnoticed.
+    #[test]
+    fn idc_fixture_cases_drive_the_identifier() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../../conformance/identify/idc/expected.json"))
+                .unwrap();
+        let cases = fixture["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 2);
+        for case in cases {
+            let id = case["id"].as_str().unwrap();
+            let strings = |key: &str| -> Vec<String> {
+                case[key].as_array().unwrap().iter().map(|v| v.as_str().unwrap().into()).collect()
+            };
+            let edges = strings("edges");
+            let mut names: Vec<String> = Vec::new();
+            let mut index = |name: &str| -> u32 {
+                let position = names.iter().position(|n| n == name).unwrap_or_else(|| {
+                    names.push(name.into());
+                    names.len() - 1
+                });
+                u32::try_from(position).unwrap()
+            };
+            let pairs: Vec<(u32, u32)> = edges
+                .iter()
+                .map(|e| {
+                    let (parent, child) = e.split_once("->").unwrap();
+                    (index(parent), index(child))
+                })
+                .collect();
+            let mut dag = Dag::with_variables(u32::try_from(names.len()).unwrap());
+            for (parent, child) in pairs {
+                dag.insert_directed(DenseNodeId::from_raw(parent), DenseNodeId::from_raw(child))
+                    .unwrap();
+            }
+            let var = |name: &str| {
+                let position = names.iter().position(|n| n == name).unwrap();
+                VariableId::from_raw(u32::try_from(position).unwrap())
+            };
+            let outcomes: Vec<VariableId> = strings("outcomes").iter().map(|n| var(n)).collect();
+            let conditioning: Vec<VariableId> =
+                strings("conditioning").iter().map(|n| var(n)).collect();
+            let interventions: Vec<Intervention> = strings("interventions")
+                .iter()
+                .map(|text| {
+                    let body = text.strip_prefix("do(").unwrap().strip_suffix(')').unwrap();
+                    let (name, value) = body.split_once('=').unwrap();
+                    Intervention::set(var(name), Value::f64(value.parse().unwrap()))
+                })
+                .collect();
+            let idc = IdcIdentifier::new();
+            let prep = idc.prepare_dag(&dag).unwrap();
+            let mut ws = IdentificationWorkspace::default();
+            let res = idc
+                .identify_conditional(&prep, &outcomes, &interventions, &conditioning, &mut ws)
+                .unwrap();
+            let expected = case["status"].as_str().unwrap();
+            assert_eq!(expected, "identified", "{id}: the fixture's positive cases");
+            assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified, "{id}");
+        }
+    }
+
     #[test]
     fn conditional_records_causal_markov() {
         // IDC's rule-2 reduction and the underlying ID calls both depend on

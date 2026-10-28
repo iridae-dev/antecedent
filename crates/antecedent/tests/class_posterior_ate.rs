@@ -668,6 +668,18 @@ fn class_posterior_frequentist_numeric_pins() {
     assert!(!disagree_result.estimate().as_effect().unwrap().ate.is_finite());
     let disagree_mix = disagree_result.structural_response.as_ref().unwrap();
     assert!((disagree_mix.unidentified_mass - unidentified_truth).abs() < 1e-12);
+    // The two identified completions-of-atoms estimate the closed-form effects 3 (no
+    // adjustment) and 2 (adjusting for z); the published set is exactly their span.
+    let set = disagree_mix.identified_set.as_ref().expect("identified set");
+    assert!(
+        (set.lower[0] - atom_effects[1]).abs() < 1e-6
+            && (set.upper[0] - atom_effects[0]).abs() < 1e-6,
+        "identified set [{}, {}] vs closed-form [{}, {}]",
+        set.lower[0],
+        set.upper[0],
+        atom_effects[1],
+        atom_effects[0]
+    );
     let same = cpdag_posterior(&[0.6, 0.4], &[oriented(false), outcome_parent_cpdag()]);
     let same_result = run(data, same, InferenceMode::Frequentist);
     assert!(has_policy(&same_result, StructuralAggregationPolicy::SameEstimandWeightedMean));

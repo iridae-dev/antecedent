@@ -116,8 +116,16 @@ fn staged_derivatives_known_truth() {
                 pin[key].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect()
             };
             for (got, want) in got.iter().zip(expected) {
+                // Measured deviations on this noise-free law: Jacobian and directional values
+                // within 1e-10, point-type scales within 0.003, the observed-weight average
+                // within 0.04; the fixture band (0.15) is wider than any of them.
+                let key_tolerance = match key {
+                    "jacobian" | "directional" => 1e-8,
+                    "average" => 0.08,
+                    _ => 0.02,
+                };
                 assert!(
-                    (got - want).abs() < pin["tolerance"].as_f64().unwrap(),
+                    (got - want).abs() < pin["tolerance"].as_f64().unwrap().min(key_tolerance),
                     "{key}: {got} != {want}"
                 );
             }

@@ -405,6 +405,16 @@ fn admg_frontdoor_response_pins_against_distribution() {
             }
         }
     }
+    // The levels themselves, not only their difference: the front-door adjustment on the
+    // eight-cell table, in exact rationals, gives E[Y | do(T=0)] = 0.314 and
+    // E[Y | do(T=1)] = 0.596 (difference 0.282). A product shift common to both levels would
+    // leave the difference, and the cross-check against the distribution route, unchanged.
+    for (mean, truth) in dist_means.iter().zip([0.314, 0.596]) {
+        assert!((mean - truth).abs() < 1e-9, "distribution mean {mean} vs exact {truth}");
+    }
+    for (mean, truth) in ir_means.iter().zip([0.314, 0.596]) {
+        assert!((mean - truth).abs() < 1e-9, "response mean {mean} vs exact {truth}");
+    }
     assert!(((ir_means[1] - ir_means[0]) - expected_ate).abs() < tolerance);
     assert!(((dist_means[1] - dist_means[0]) - expected_ate).abs() < tolerance);
 

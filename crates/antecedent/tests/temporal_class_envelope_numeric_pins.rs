@@ -796,6 +796,99 @@ fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
     }
 }
 
+/// Exact completion weighting of the identified multi-completion `TemporalPag`
+/// (`oracle_data/temporal_class_envelope_weighting_reference.py`, exact Fractions from
+/// the least-squares definition, no product code). Six identified completions at two
+/// distinct effects (adjust `z`: 4 completions, adjust nothing: 2) and one unidentified
+/// completion: the point is the 4:2 enumeration-weighted mean, the unidentified mass is
+/// reported and never mixed, and the identified-set interval is built on the exact
+/// bounds `min`/`max` of the completion effects. A uniform-over-models mean, a dropped
+/// unidentified mass counted as zero, or a single model's effect each differ from the
+/// pinned point by far more than the tolerance, so any of those weighting errors fails.
+///
+/// (At least 40 successful replicates are required before the interval is published.)
+/// The Imbens-Manski endpoints themselves depend on seeded block-bootstrap standard
+/// deviations, which have no closed form, so they are checked through the bounds they
+/// are built from, the stated construction `lower = bound_lower - c * lower_se` and
+/// `upper = bound_upper + c * upper_se`, and the critical-value bracket between the
+/// one-sided and two-sided normal quantiles at the 0.9 level.
+#[test]
+fn temporal_class_pag_completion_weighting_and_identified_set_bounds_are_exact() {
+    use antecedent_estimate::IdentifiedSetIntervalMethod;
+    let reference: serde_json::Value = serde_json::from_str(include_str!(
+        "oracle_data/temporal_class_envelope_weighting_reference.json"
+    ))
+    .unwrap();
+    let f = |v: &serde_json::Value| v.as_f64().unwrap();
+    let tol = f(&reference["absolute_tolerance"]);
+    let point = f(&reference["point"]);
+    let (lo, hi) = (f(&reference["bound_lower"]), f(&reference["bound_upper"]));
+    let pin = identified_pag_pin();
+    let data = identified_pag_series(&pin);
+    let mut query =
+        TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
+    query.policy = TemporalPolicy::pulse(-1);
+    query.horizon_steps = 1;
+    let result = Study::series(data)
+        .graph(identified_pag(&pin))
+        .query(CausalQuery::TemporalEffect(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(64)
+        .build()
+        .unwrap()
+        .run(&recording_ctx(1).0)
+        .unwrap();
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - point).abs() < tol, "class point {ate} vs exact weighted mean {point}");
+    for (name, wrong) in reference["wrong_weightings"].as_object().unwrap() {
+        assert!(
+            (ate - f(wrong)).abs() > 0.1,
+            "the point {ate} must not coincide with the {name} weighting {wrong}"
+        );
+    }
+    let structural = result.structural_response.as_ref().expect("structural mixture retained");
+    assert!((structural.identified_mass - f(&reference["identified_mass"])).abs() < 1e-12);
+    assert!((structural.unidentified_mass - f(&reference["unidentified_mass"])).abs() < 1e-12);
+    let mut identified: Vec<f64> = structural
+        .atoms
+        .iter()
+        .filter_map(|atom| match atom.value {
+            Some(ResponseValue::Scalar(x)) => Some(x),
+            _ => None,
+        })
+        .collect();
+    identified.sort_by(f64::total_cmp);
+    let mut expected: Vec<f64> =
+        reference["completion_effects"].as_array().unwrap().iter().map(f).collect();
+    expected.sort_by(f64::total_cmp);
+    assert_eq!(identified.len(), expected.len(), "atom values {identified:?}");
+    for (got, want) in identified.iter().zip(&expected) {
+        assert!((got - want).abs() < tol, "completion effect {got} vs exact {want}");
+    }
+    assert!(structural.atoms.iter().all(|atom| (atom.weight - 1.0).abs() < 1e-12));
+    let set = structural.identified_set_interval.as_ref().unwrap_or_else(|| {
+        panic!(
+            "no interval; diagnostics {:?}",
+            result.diagnostics.iter().map(|d| d.code.to_string()).collect::<Vec<_>>()
+        )
+    });
+    assert_eq!(set.method, IdentifiedSetIntervalMethod::ImbensManskiSharedBlock);
+    assert_eq!(set.completions, expected.len());
+    assert!((set.level - f(&reference["interval_level"])).abs() < 1e-12);
+    assert!((set.bound_lower - lo).abs() < tol, "lower bound {} vs {lo}", set.bound_lower);
+    assert!((set.bound_upper - hi).abs() < tol, "upper bound {} vs {hi}", set.bound_upper);
+    assert!(set.lower_se > 0.0 && set.upper_se > 0.0);
+    assert!(
+        set.critical_value >= f(&reference["critical_value_one_sided"]) - 1e-9
+            && set.critical_value <= f(&reference["critical_value_two_sided"]) + 1e-9,
+        "critical value {}",
+        set.critical_value
+    );
+    assert!((set.lower - (set.bound_lower - set.critical_value * set.lower_se)).abs() < 1e-9);
+    assert!((set.upper - (set.bound_upper + set.critical_value * set.upper_se)).abs() < 1e-9);
+    assert!(set.lower < lo && set.upper > hi, "the interval must cover the exact bounds");
+}
+
 /// Every licensed Frequentist `TemporalCpdag` Pulse and single-step Sustained
 /// coordinate (explicit and accepted structure × none / cheap / full) runs on the
 /// pinned two-completion law and returns the pinned mixture. Cheap and full run

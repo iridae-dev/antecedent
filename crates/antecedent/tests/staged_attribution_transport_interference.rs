@@ -108,6 +108,34 @@ fn change_attribution_known_truth() {
         change.total_change
     );
     assert!(change.total_change >= pin["change"]["total_change_min"].as_f64().unwrap());
+    // Exact mechanism Shapley of the planted y-only intercept shift: the whole change
+    // belongs to y and none to the unchanged x (conformance/attribution grid fixture).
+    let grid: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/attribution/distribution_change_grid/expected.json"
+    ))
+    .unwrap();
+    let case = grid["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["id"] == "y_intercept_plus_five")
+        .unwrap();
+    let grid_tol = grid["comparison"]["sampled_absolute_tolerance"].as_f64().unwrap();
+    let contribution = |variable: u32| {
+        change
+            .contributions
+            .iter()
+            .find(|c| c.component.variable() == VariableId::from_raw(variable))
+            .map_or(0.0, |c| c.contribution)
+    };
+    for (name, variable) in [("x", 0), ("y", 1)] {
+        let truth = case["component_contributions"][name].as_f64().unwrap();
+        assert!(
+            (contribution(variable) - truth).abs() <= grid_tol,
+            "{name} contribution {} vs exact Shapley {truth}",
+            contribution(variable)
+        );
+    }
 }
 
 #[test]
@@ -175,6 +203,12 @@ fn bayesian_attribution_shared_row_weight_known_truth() {
     assert!((posterior.summaries.mean[0] - expected_change).abs() < tolerance);
     let component_means: f64 = posterior.summaries.mean[1..].iter().sum();
     assert!((component_means - posterior.summaries.mean[0]).abs() < 1e-6);
+    // Planted y-only intercept shift: one component carries the whole change, the other none.
+    let mut components = posterior.summaries.mean[1..].to_vec();
+    components.sort_by(f64::total_cmp);
+    let (last, rest) = components.split_last().unwrap();
+    assert!((last - expected_change).abs() < tolerance, "carrying component {last}");
+    assert!(rest.iter().all(|c| c.abs() < tolerance), "uncarrying components {rest:?}");
     assert!(change.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.bayesian"));
 }
 

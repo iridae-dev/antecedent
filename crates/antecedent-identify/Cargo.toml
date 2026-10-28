@@ -111,3 +111,7 @@ path = "tests/temporal_mediation_population_regression.rs"
 [[test]]
 name = "experimental_recovery_reference"
 path = "tests/experimental_recovery_reference.rs"
+
+[[test]]
+name = "identify_fixture_cases_fixtures_01"
+path = "tests/identify_fixture_cases_fixtures_01.rs"

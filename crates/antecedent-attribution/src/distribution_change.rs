@@ -924,6 +924,7 @@ mod tests {
         struct Case {
             id: String,
             total_change: f64,
+            component_contributions: std::collections::BTreeMap<String, f64>,
         }
         #[derive(Deserialize)]
         struct Comparison {
@@ -973,6 +974,19 @@ mod tests {
             y_contrib.contribution,
             x_contrib,
             result.contributions
+        );
+        // The fixture's exact mechanism-Shapley values: the whole shift belongs to y, none to x.
+        let tolerance = fixture.comparison.sampled_absolute_tolerance;
+        assert!(
+            (y_contrib.contribution - expected.component_contributions["y"]).abs() <= tolerance,
+            "y contribution {} vs fixture {}",
+            y_contrib.contribution,
+            expected.component_contributions["y"]
+        );
+        assert!(
+            (x_contrib - expected.component_contributions["x"]).abs() <= tolerance,
+            "x contribution {x_contrib} vs fixture {}",
+            expected.component_contributions["x"]
         );
         // Exact Shapley efficiency is an algebraic identity of the cached telescoping sum
         // (every coalition value is deterministic under CRN), so no Monte Carlo slack.

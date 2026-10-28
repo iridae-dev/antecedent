@@ -697,6 +697,10 @@ mod tests {
         // across both populations, so it should contribute ~nothing in either path.
         assert!(robust_y > 1.0, "robust_y={robust_y}");
         assert!(sampled_y > 1.0, "sampled_y={sampled_y}");
+        // Hand truth, independent of both routes: y = x in rows 0..30 and y = x + 2 in rows
+        // 30..60 with x unchanged, so the mean change is exactly 2 and all of it is Y's.
+        assert!((robust_result.total_change - 2.0).abs() < 0.05, "{}", robust_result.total_change);
+        assert!((robust_y - 2.0).abs() < 0.05, "robust_y={robust_y}");
     }
 
     #[test]

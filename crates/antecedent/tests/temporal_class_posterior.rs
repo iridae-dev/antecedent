@@ -534,6 +534,28 @@ fn temporal_class_graph_posterior_same_estimand_scalar() {
     assert_same_estimand_scalar();
 }
 
+/// y_t = 1.4 t_{t-1} + 0.1 sin(1.7 phase), z a distractor: the graph t@-1 -> y has no omitted
+/// parent, so the structural coefficient is the effect.
+fn pag_pin_series() -> TimeSeriesData {
+    let n = 48usize;
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    for i in 0..n {
+        let phase = f64::from(u32::try_from(i).unwrap()) * 0.37;
+        z[i] = phase.sin();
+        t[i] = f64::from(u8::from(phase.cos() > 0.0));
+        if i > 0 {
+            y[i] = 1.4 * t[i - 1] + 0.1 * (phase * 1.7).sin();
+        }
+    }
+    TimeSeriesData::from_f64_columns(
+        [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+        1,
+    )
+    .unwrap()
+}
+
 #[test]
 fn temporal_class_graph_posterior_numeric_pins() {
     let pin = fixture_temporal_effect_pin();
@@ -552,48 +574,51 @@ fn temporal_class_graph_posterior_numeric_pins() {
     let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
     let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
     for kind in [GraphPosteriorAtomKind::Cpdag, GraphPosteriorAtomKind::Pag] {
-        let (data, gp, pin_numeric) = if kind == GraphPosteriorAtomKind::Cpdag {
-            (fixture_series.clone(), fixture_class_posterior(kind, &pin), true)
+        // The PAG atoms need a visibility witness, which the two-variable fixture series cannot
+        // carry; `pag_pin_series` is a three-variable law whose only structural cause of y is
+        // 1.4 * t@-1, so its pulse and sustained effects are 1.4 for any weights over atoms that
+        // keep t@-1 -> y, and the lag-autoregressive atom is the one left unidentified.
+        let (data, gp, truth, band) = if kind == GraphPosteriorAtomKind::Cpdag {
+            (fixture_series.clone(), fixture_class_posterior(kind, &pin), effect_truth, tolerance)
         } else {
-            (series(), class_posterior(kind, &[1.0], &[0], &[identified_lag_mask()]), false)
+            let weights: Vec<f64> = pin["posterior_weights"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_f64().unwrap())
+                .collect();
+            (
+                pag_pin_series(),
+                class_posterior(
+                    kind,
+                    &weights,
+                    &[visible_pag_contemp(), visible_pag_contemp()],
+                    &[lag_bit(3, 0, 1), lag_bit(3, 0, 1) | lag_bit(3, 0, 0)],
+                ),
+                1.4,
+                0.05,
+            )
         };
         for query in [fixture_pulse(), fixture_sustained()] {
             for inference in [
                 InferenceMode::Frequentist,
                 InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)),
             ] {
-                let result = run_on(
-                    &data,
-                    gp.clone(),
-                    if pin_numeric {
-                        query.clone()
-                    } else if matches!(query.policy, TemporalPolicy::Pulse { .. }) {
-                        pulse()
-                    } else {
-                        sustained()
-                    },
-                    inference,
-                    RefuteSuite::None,
-                    0,
-                );
+                let result =
+                    run_on(&data, gp.clone(), query.clone(), inference, RefuteSuite::None, 0);
                 assert_eq!(result.support_status().unwrap().as_str(), "licensed", "{kind:?}");
-                if pin_numeric {
-                    assert!(
-                        (result.estimate().as_effect().unwrap().ate - effect_truth).abs()
-                            < tolerance,
-                        "{kind:?} {:?}: effect {} vs {effect_truth}",
-                        query.policy,
-                        result.estimate().as_effect().unwrap().ate
-                    );
-                    let mixture = result.structural_response.as_ref().expect("mixture");
-                    assert!(
-                        (mixture.unidentified_mass - unidentified_truth).abs() < 1e-12,
-                        "{kind:?}: unidentified mass {}",
-                        mixture.unidentified_mass
-                    );
-                } else {
-                    assert!(result.structural_response.is_some(), "{kind:?} mixture");
-                }
+                assert!(
+                    (result.estimate().as_effect().unwrap().ate - truth).abs() < band,
+                    "{kind:?} {:?}: effect {} vs {truth}",
+                    query.policy,
+                    result.estimate().as_effect().unwrap().ate
+                );
+                let mixture = result.structural_response.as_ref().expect("mixture");
+                assert!(
+                    (mixture.unidentified_mass - unidentified_truth).abs() < 1e-12,
+                    "{kind:?}: unidentified mass {}",
+                    mixture.unidentified_mass
+                );
             }
         }
     }
@@ -782,6 +807,26 @@ fn temporal_class_graph_posterior_mediation_envelope() {
             .se_bootstrap()
             .is_some_and(|se| se.is_finite() && se > 0.0)
     );
+
+    // The Bayesian cell is held to the same closed-form path product and the same
+    // unidentified mass; the pin is the structural equation, not the frequentist result.
+    let bayesian = run_mediation(
+        &series,
+        known_truth_cpdag_mediation_posterior(pin, &weights),
+        mediation_query(),
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(256)),
+        RefuteSuite::None,
+        0,
+    );
+    assert_eq!(bayesian.support_status().unwrap().as_str(), "licensed");
+    assert!(
+        (bayesian.estimate().as_effect().unwrap().ate - effect_truth).abs() < tolerance,
+        "Bayesian mediated {} vs truth {effect_truth}",
+        bayesian.estimate().as_effect().unwrap().ate
+    );
+    assert_eq!(bayesian.identification.status, IdentificationStatus::GraphDependent);
+    let structural = bayesian.structural_response.as_ref().expect("Bayesian structural mixture");
+    assert!((structural.unidentified_mass - unidentified_truth).abs() < 1e-12);
 }
 
 #[test]

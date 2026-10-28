@@ -107,3 +107,7 @@ path = "tests/design_ranking_replay_reference.rs"
 [[test]]
 name = "certified_program_search_reference"
 path = "tests/certified_program_search_reference.rs"
+
+[[test]]
+name = "cells_01_finite_program_search"
+path = "tests/cells_01_finite_program_search.rs"

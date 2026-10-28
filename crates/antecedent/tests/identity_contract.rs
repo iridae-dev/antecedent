@@ -5064,6 +5064,17 @@ fn composition_prepared_estimate_matches_fresh() {
         .abs()
             < 1e-12
     );
+    // The one-shot `run` is the third route to the same estimate: neither a prepared handle nor
+    // the retained operation may differ from it.
+    let (data_again, dag_again, query_again) = confounded_scm(128, 59);
+    let one_shot = study(data_again, dag_again, query_again).run(&ctx).unwrap();
+    assert!((prepared_result.effect() - one_shot.effect()).abs() < 1e-12);
+    assert!(
+        (prepared_result.estimate().as_effect().unwrap().se_analytic()
+            - one_shot.estimate().as_effect().unwrap().se_analytic())
+        .abs()
+            < 1e-12
+    );
 }
 
 /// A record for the construction `basis` describes, or `None`.

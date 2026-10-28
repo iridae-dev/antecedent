@@ -330,6 +330,13 @@ fn conditional_effect_dag_frequentist_known_truth_all_structures_and_suites() {
                 "{label}: {}",
                 result.estimate().as_effect().unwrap().ate
             );
+            // The design is exactly linear (mean modifier exactly 2), so the interaction fit
+            // reproduces the analytic effect to round-off, far inside the fixture's band.
+            assert!(
+                (result.estimate().as_effect().unwrap().ate - target).abs() < 1e-8,
+                "{label}: exact linear design drifted from {target}: {}",
+                result.estimate().as_effect().unwrap().ate
+            );
             match suite {
                 RefuteSuite::None => assert!(result.refutations.is_empty(), "{label}"),
                 RefuteSuite::Cheap => {
@@ -541,7 +548,8 @@ fn mediation_bayesian_known_truth_all_structures_and_suites() {
                 );
                 let posterior = result.posterior.as_ref().expect("Bayesian mediation posterior");
                 assert!(
-                    (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.15,
+                    (result.estimate().as_effect().unwrap().ate - truth).abs()
+                        < pin["tolerance"].as_f64().unwrap(),
                     "{label}: posterior mean {}",
                     result.estimate().as_effect().unwrap().ate
                 );

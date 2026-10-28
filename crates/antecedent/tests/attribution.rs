@@ -120,6 +120,37 @@ fn distribution_change_y_shift_conformance() {
     assert_eq!(ranks[0].component.variable(), VariableId::from_raw(1));
 }
 
+/// The fixture's structural truth is exact: the Y intercept moves 1 -> 6 (slope 2 unchanged) and the
+/// X mechanism is identical across periods, so the mean change is 5, all of it allocated to Y by
+/// the two-player Shapley value (`conformance/attribution/distribution_change_y_shift/reference.py`
+/// enumerates both player orders). The lower-bound check above would also pass for a wrong 3.1.
+#[test]
+fn claims_03_distribution_change_y_shift_recovers_the_exact_five() {
+    let (model, data) = two_period_chain();
+    let query = ChangeAttributionQuery::new(
+        VariableId::from_raw(1),
+        PopulationSelector::TimeRange { start: 0, end: 40 },
+        PopulationSelector::TimeRange { start: 40, end: 80 },
+    )
+    .with_components(AttributionComponents::Mechanisms)
+    .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+    let mut ctx = ExecutionContext::for_tests(1);
+    ctx.cache_policy = CachePolicy::enabled(Some(1_000_000));
+    let opts =
+        DistributionChangeOptions { measure: DifferenceMeasure::MeanDiff, n_samples: 400, seed: 2 };
+    let result = attribute_distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
+    let contribution = |raw: u32| {
+        result
+            .contributions
+            .iter()
+            .find(|c| c.component.variable() == VariableId::from_raw(raw))
+            .map_or(0.0, |c| c.contribution)
+    };
+    assert!((result.total_change - 5.0).abs() < 0.1, "total {}", result.total_change);
+    assert!((contribution(1) - 5.0).abs() < 0.1, "y {}", contribution(1));
+    assert!(contribution(0).abs() < 0.1, "x {}", contribution(0));
+}
+
 #[test]
 fn mechanism_change_detect_conformance() {
     let expected: Value =

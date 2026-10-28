@@ -124,10 +124,12 @@ fn functional_bayesian_path_distribution_and_admg() {
                 result.posterior.as_ref().unwrap().diagnostics.backend_id.as_ref(),
                 "functional.dirichlet"
             );
+            // Closed-form 0.3; the Dirichlet posterior mean sits 0.002 away on this table, so
+            // a band of 0.01 still passes honest runs and fails a 0.05 bias.
             assert!(
                 (result.estimate().as_effect().unwrap().ate - pin["path_effect"].as_f64().unwrap())
                     .abs()
-                    < 0.08,
+                    < 0.01,
                 "path suite={suite:?} ate={}",
                 result.estimate().as_effect().unwrap().ate
             );
@@ -438,8 +440,9 @@ fn mediation_and_counterfactual_bayesian_pins() {
             .estimate(&data, &ctx)
             .unwrap();
         assert!(result.posterior.is_some());
+        // Closed-form effects (1.8 direct, 4.8 indirect); the posterior mean is within 0.007.
         assert!(
-            (result.estimate().as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs() < 0.15,
+            (result.estimate().as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs() < 0.03,
             "{key} {}",
             result.estimate().as_effect().unwrap().ate
         );
@@ -464,7 +467,8 @@ fn mediation_and_counterfactual_bayesian_pins() {
         .unwrap();
     let cf = result.counterfactual().unwrap();
     assert!(result.posterior.is_some());
-    assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.25);
+    // Closed-form mean ITE 6.6; the posterior mean is 0.03 away, so 0.08 replaces the old 0.25.
+    assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.08);
     assert_eq!(cf.unit_effects.len(), 500);
     let unit_mean = cf.unit_effects.iter().sum::<f64>() / cf.unit_effects.len() as f64;
     assert!(
@@ -673,8 +677,16 @@ fn derivative_bayesian_pins() {
             };
             assert_eq!(got.len(), truth.len(), "{label}");
             for j in 0..truth.len() {
+                // Measured deviations on this noise-free law: Jacobian and directional values
+                // within 1e-8, point-type scales within 0.003, the observed-weight average
+                // within 0.05. The shared fixture band (0.15) is wider than any of them.
+                let key_tolerance = match key {
+                    "jacobian" | "directional" => 1e-6,
+                    "average" => 0.1,
+                    _ => 0.02,
+                };
                 assert!(
-                    (got[j] - truth[j]).abs() < tolerance,
+                    (got[j] - truth[j]).abs() < tolerance.min(key_tolerance),
                     "{label}[{j}]: {} != {}",
                     got[j],
                     truth[j]

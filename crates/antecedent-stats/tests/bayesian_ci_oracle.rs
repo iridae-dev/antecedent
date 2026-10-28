@@ -121,7 +121,27 @@ fn g_prior_bayes_factor_and_posterior_probability_match_closed_form() {
         let expected_independence = 1.0 / (1.0 + expected_log_bf.exp());
         let expected_dependence = 1.0 / (1.0 + (-expected_log_bf).exp());
 
+        // The same quantities from the fixture's retained exact-rational generator (reference.py),
+        // so the in-test closed form below is itself checked against an independent calculation.
+        let g_prior = &case["g_prior"];
+        assert!(
+            (expected_log_bf - g_prior["log_bf10"].as_f64().unwrap()).abs() <= bf_atol,
+            "{} in-test closed form vs retained reference",
+            case["name"]
+        );
+        assert!((r.abs() - g_prior["partial_correlation_abs"].as_f64().unwrap()).abs() <= 1e-12);
         let (log_bf, independence) = run(&BayesFactorCi::new(), case, 1);
+        assert!(
+            (log_bf - g_prior["log_bf10"].as_f64().unwrap()).abs() <= bf_atol,
+            "{} log BF vs retained reference",
+            case["name"]
+        );
+        assert!(
+            (independence - g_prior["posterior_independence"].as_f64().unwrap()).abs()
+                <= probability_atol,
+            "{} independence mass vs retained reference",
+            case["name"]
+        );
         assert!(
             (log_bf - expected_log_bf).abs() <= bf_atol,
             "{} log BF {log_bf} != {expected_log_bf} (r={r})",
@@ -171,15 +191,14 @@ fn posterior_predictive_statistic_and_tail_probability_match_external_calibratio
 }
 
 #[test]
-fn bayesian_ci_fixture_records_model_pins_and_no_generator() {
+fn bayesian_ci_fixture_records_model_pins_and_its_retained_generator() {
     let fixture = fixture();
     let oracle = &fixture["oracle"];
-    assert_eq!(oracle["packages"]["numpy"]["version"], "2.1.3");
-    assert_eq!(oracle["packages"]["scipy"]["version"], "1.14.1");
-    assert_eq!(oracle["generation_location"], "temporary external harness; not retained");
+    assert_eq!(oracle["generator"], "conformance/discovery/bayesian_ci/reference.py");
+    assert_eq!(oracle["generator_retained"], true);
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    assert!(root.join(oracle["generator"].as_str().unwrap()).is_file());
+    assert!(root.join(oracle["environment_lock"].as_str().unwrap()).is_file());
     assert_eq!(fixture["model"]["alpha0"], 1e-3);
     assert_eq!(fixture["model"]["coefficient_prior_precision"], 0.01);
-    for package in ["numpy", "scipy"] {
-        assert_eq!(oracle["packages"][package]["metadata_sha256"].as_str().unwrap().len(), 64);
-    }
 }

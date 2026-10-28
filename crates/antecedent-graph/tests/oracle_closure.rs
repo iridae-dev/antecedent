@@ -1,44 +1,129 @@
 //! Frozen clean-room oracle checks for bounded graph-operation motifs.
 
 use antecedent_graph::{
-    CompletionSampler, Cpdag, Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, Pag,
-    PagSeparation, is_mag_completion, latent_project,
+    CompletionSampler, Cpdag, CpdagCompletionSampler, Dag, DenseNodeId, Endpoint, GraphError,
+    MarkedEdge, Pag, PagSeparation, is_mag_completion, is_mec_member, latent_project,
 };
 
 fn fixture(path: &str) -> serde_json::Value {
     serde_json::from_str(path).unwrap()
 }
 
+/// `a--b` undirected or `a->b` directed, as written in the fixture.
+fn cpdag_edge(edge: &str) -> (DenseNodeId, DenseNodeId, bool) {
+    let (pair, directed) = edge
+        .split_once("->")
+        .map(|p| (p, true))
+        .unwrap_or_else(|| (edge.split_once("--").unwrap(), false));
+    let node = |text: &str| DenseNodeId::from_raw(text.parse().unwrap());
+    (node(pair.0), node(pair.1), directed)
+}
+
+fn cpdag_from_edges(edges: &[&str]) -> Cpdag {
+    let mut graph = Cpdag::with_variables(3);
+    for edge in edges {
+        let (a, b, directed) = cpdag_edge(edge);
+        if directed {
+            graph.insert_directed(a, b).unwrap();
+        } else {
+            graph.insert_undirected(a, b).unwrap();
+        }
+    }
+    graph
+}
+
+fn fixture_strings(value: &serde_json::Value) -> Vec<&str> {
+    value.as_array().unwrap().iter().map(|e| e.as_str().unwrap()).collect()
+}
+
 #[test]
 fn cpdag_endpoint_oracle() {
     let expected =
         fixture(include_str!("../../../conformance/graph/cpdag_operations/expected.json"));
-    assert_eq!(expected["cases"][0]["mec_size"].as_u64(), Some(3));
-    let [a, b, c] = [0, 1, 2].map(DenseNodeId::from_raw);
-    let mut graph = Cpdag::with_variables(3);
-    graph.insert_undirected(a, b).unwrap();
-    graph.insert_undirected(b, c).unwrap();
-    graph.orient_undirected(a, b).unwrap();
-    assert_eq!(graph.edge_between(a, b).unwrap().parent_child(), Some((a, b)));
-    assert!(graph.edge_between(b, c).unwrap().is_undirected());
-
-    let mut cyclic = Cpdag::with_variables(3);
-    cyclic.insert_directed(a, b).unwrap();
-    cyclic.insert_directed(b, c).unwrap();
-    assert!(matches!(cyclic.insert_directed(c, a), Err(GraphError::Cycle { .. })));
+    let cases = expected["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 3);
+    for case in cases {
+        let id = case["id"].as_str().unwrap();
+        if let Some(size) = case["mec_size"].as_u64() {
+            // The class size is the number of streamed DAG completions, each a class member.
+            let graph = cpdag_from_edges(&fixture_strings(&case["edges"]));
+            let members: Vec<_> = CpdagCompletionSampler::new(graph.clone(), 16).unwrap().collect();
+            assert_eq!(members.len() as u64, size, "{id}");
+            assert!(members.iter().all(|m| is_mec_member(&graph, &m.graph)), "{id}");
+            continue;
+        }
+        let input = fixture_strings(&case["input"]);
+        let mut graph = cpdag_from_edges(&input);
+        let operation = case["operation"].as_str().unwrap();
+        if let Some(edge) = operation.strip_prefix("orient ") {
+            let (a, b, _) = cpdag_edge(edge);
+            graph.orient_undirected(a, b).unwrap();
+            // Every edge of the declared output is present with the declared orientation, and the
+            // edge counts agree so nothing else was oriented or added.
+            let output = fixture_strings(&case["output"]);
+            for written in &output {
+                let (x, y, directed) = cpdag_edge(written);
+                let stored = graph.edge_between(x, y).unwrap();
+                if directed {
+                    assert_eq!(stored.parent_child(), Some((x, y)), "{id}: {written}");
+                } else {
+                    assert!(stored.is_undirected(), "{id}: {written}");
+                }
+            }
+            assert_eq!(
+                graph.undirected_edge_count(),
+                output.iter().filter(|e| e.contains("--")).count(),
+                "{id}"
+            );
+        } else if let Some(edge) = operation.strip_prefix("insert ") {
+            let (a, b, _) = cpdag_edge(edge);
+            assert_eq!(case["error"].as_str(), Some("cycle"), "{id}");
+            assert!(matches!(graph.insert_directed(a, b), Err(GraphError::Cycle { .. })), "{id}");
+        } else {
+            panic!("{id}: unknown operation {operation}");
+        }
+    }
 }
 
 #[test]
 fn pag_endpoint_and_definite_status_oracles() {
     let endpoints =
         fixture(include_str!("../../../conformance/graph/pag_operations/expected.json"));
-    assert_eq!(endpoints["cases"].as_array().unwrap().len(), 4);
+    let cases = endpoints["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 4);
     let [a, b, c] = [0, 1, 2].map(DenseNodeId::from_raw);
-    let mut marks = Pag::with_variables(3);
-    marks.insert_circle_arrow(a, b).unwrap();
-    let edge = marks.edge_between(a, b).unwrap();
-    assert_eq!((edge.at_a, edge.at_b), (Endpoint::Circle, Endpoint::Arrow));
-    assert!(marks.insert_circle_circle(c, c).is_err());
+    for case in cases {
+        let id = case["id"].as_str().unwrap();
+        if let Some(edge) = case["edge"].as_str() {
+            let pag = pag_from_marked_edges(&[edge]);
+            let stored = pag.edge_between(a, b).unwrap();
+            let mark = |name: &str| match name {
+                "circle" => Endpoint::Circle,
+                "arrow" => Endpoint::Arrow,
+                "tail" => Endpoint::Tail,
+                other => panic!("{id}: unknown mark {other}"),
+            };
+            let marks = fixture_strings(&case["marks"]);
+            assert_eq!((stored.at_a, stored.at_b), (mark(marks[0]), mark(marks[1])), "{id}");
+        } else if case["operation"] == "insert 2->0" {
+            let mut pag = Pag::with_variables(3);
+            for edge in fixture_strings(&case["input"]) {
+                let (x, y) = edge.split_once("->").unwrap();
+                let node = |t: &str| DenseNodeId::from_raw(t.parse().unwrap());
+                pag.insert_directed(node(x), node(y)).unwrap();
+            }
+            assert_eq!(case["error"].as_str(), Some("cycle"), "{id}");
+            assert!(matches!(pag.insert_directed(c, a), Err(GraphError::Cycle { .. })), "{id}");
+        } else {
+            assert_eq!(case["operation"].as_str(), Some("insert 0o-o0"), "{id}");
+            assert_eq!(case["error"].as_str(), Some("invalid_endpoints"), "{id}");
+            let mut pag = Pag::with_variables(3);
+            assert!(
+                matches!(pag.insert_circle_circle(a, a), Err(GraphError::InvalidEndpoints { .. })),
+                "{id}"
+            );
+        }
+    }
 
     let separation = fixture(include_str!(
         "../../../conformance/graph/definite_status_separation/expected.json"
@@ -140,26 +225,90 @@ fn latent_projection_oracle() {
     );
 }
 
+/// Parses the fixture's `AoB` / `A->B` / `A<->B` edge strings into a PAG.
+fn pag_from_edge_strings(edges: &[String]) -> Pag {
+    let parsed: Vec<(usize, &str, usize)> = edges
+        .iter()
+        .map(|token| {
+            let digits_a = token.find(|c: char| !c.is_ascii_digit()).expect("edge operator");
+            let digits_b = token.rfind(|c: char| !c.is_ascii_digit()).expect("edge operator") + 1;
+            (
+                token[..digits_a].parse().expect("source node"),
+                &token[digits_a..digits_b],
+                token[digits_b..].parse().expect("target node"),
+            )
+        })
+        .collect();
+    let nodes = parsed.iter().map(|(a, _, b)| (*a).max(*b)).max().expect("an edge") + 1;
+    let mut pag = Pag::with_variables(u32::try_from(nodes).expect("node count"));
+    for (a, op, b) in parsed {
+        let [a, b] = [a, b].map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node fits")));
+        match op {
+            "o-o" => pag.insert_circle_circle(a, b),
+            "o->" => pag.insert_circle_arrow(a, b),
+            "<-o" => pag.insert_circle_arrow(b, a),
+            "->" => pag.insert_directed(a, b),
+            "<-" => pag.insert_directed(b, a),
+            "<->" => pag.insert_bidirected(a, b),
+            other => panic!("unreadable edge operator {other}"),
+        }
+        .unwrap();
+    }
+    pag
+}
+
+/// Renders a fully decided completion in the fixture's `A->B` / `A<->B` notation.
+fn completion_edge_strings(graph: &Pag) -> Vec<String> {
+    let mut rendered = Vec::new();
+    for i in 0..graph.node_count() {
+        for j in (i + 1)..graph.node_count() {
+            let [a, b] = [i, j].map(|k| DenseNodeId::from_raw(u32::try_from(k).expect("node")));
+            if let Some(edge) = graph.edge_between(a, b) {
+                let (ends_at_i, ends_at_j) = if edge.a == a {
+                    (edge.at_a, edge.at_b)
+                } else {
+                    (edge.at_b, edge.at_a)
+                };
+                rendered.push(match (ends_at_i, ends_at_j) {
+                    (Endpoint::Tail, Endpoint::Arrow) => format!("{i}->{j}"),
+                    (Endpoint::Arrow, Endpoint::Tail) => format!("{j}->{i}"),
+                    (Endpoint::Arrow, Endpoint::Arrow) => format!("{i}<->{j}"),
+                    other => panic!("completion left an undecided or tail-tail edge {other:?}"),
+                });
+            }
+        }
+    }
+    rendered
+}
+
 #[test]
 fn pag_completion_oracle() {
     let expected =
         fixture(include_str!("../../../conformance/graph/pag_mag_completion/expected.json"));
-    let expected_count = usize::try_from(
-        expected["cases"][0]["valid_completion_count"]
-            .as_u64()
-            .expect("valid_completion_count is u64"),
-    )
-    .expect("valid_completion_count fits usize");
-    let [a, b, c] = [0, 1, 2].map(DenseNodeId::from_raw);
-    let mut one_edge = Pag::with_variables(2);
-    one_edge.insert_circle_circle(a, b).unwrap();
-    let completions: Vec<_> = CompletionSampler::new(one_edge, 8).unwrap().collect();
-    assert_eq!(completions.len(), expected_count);
-    assert!(completions.iter().all(|completion| is_mag_completion(&completion.graph)));
-
-    let mut invalid = Pag::with_variables(3);
-    invalid.insert_directed(a, b).unwrap();
-    invalid.insert_directed(b, c).unwrap();
-    invalid.insert_bidirected(a, c).unwrap();
-    assert!(!is_mag_completion(&invalid));
+    let cases = expected["cases"].as_array().expect("cases");
+    assert_eq!(cases.len(), 3, "the fixture declares three cases and each is exercised here");
+    for case in cases {
+        let id = case["id"].as_str().expect("case id");
+        let input: Vec<String> = serde_json::from_value(case["input"].clone()).expect("input");
+        let pag = pag_from_edge_strings(&input);
+        if let Some(count) = case["valid_completion_count"].as_u64() {
+            let completions: Vec<_> = CompletionSampler::new(pag.clone(), 8).unwrap().collect();
+            assert_eq!(completions.len() as u64, count, "{id}: completion count");
+            assert!(completions.iter().all(|c| is_mag_completion(&c.graph)), "{id}");
+            if let Some(outputs) = case.get("outputs") {
+                let mut expected_outputs: Vec<String> =
+                    serde_json::from_value(outputs.clone()).expect("outputs");
+                let mut actual: Vec<String> = completions
+                    .iter()
+                    .map(|c| completion_edge_strings(&c.graph).join(" "))
+                    .collect();
+                expected_outputs.sort();
+                actual.sort();
+                assert_eq!(actual, expected_outputs, "{id}: completion set");
+            }
+        }
+        if let Some(is_mag) = case["is_mag"].as_bool() {
+            assert_eq!(is_mag_completion(&pag), is_mag, "{id}: is_mag");
+        }
+    }
 }

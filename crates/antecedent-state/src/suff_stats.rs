@@ -1404,6 +1404,26 @@ mod tests {
         assert!((b_inc[1] - 2.0).abs() < 1e-8);
     }
 
+    /// Noisy data, so the answer is not the by-construction exact line. Hand derivation: for
+    /// x = 0, 1, 2, 3 and y = 1, 2, 2, 5 the means are 1.5 and 2.5, Sxy = 6 and Sxx = 5, so the
+    /// slope is 1.2 and the intercept 2.5 - 1.2 * 1.5 = 0.7. Appending in uneven batches must
+    /// reach the same normal-equation solution.
+    #[test]
+    fn incremental_ols_matches_the_hand_derived_normal_equations_claims_06() {
+        let rows = [1.0, 0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0];
+        let y = [1.0, 2.0, 2.0, 5.0];
+        let mut stats = ols(2);
+        stats.append_row(&rows[0..2], y[0]).expect("row");
+        stats.append_batch(&rows[2..8], &y[1..4]).expect("batch");
+        let beta = stats.solve_beta().expect("beta");
+        assert!((beta[0] - 0.7).abs() < 1e-12, "{beta:?}");
+        assert!((beta[1] - 1.2).abs() < 1e-12, "{beta:?}");
+        // Residuals are 0.3, 0.1, -1.1, 0.7 (sum of squares 1.8); one residual degree of
+        // freedom pair gives variance 1.8 / (4 - 2) = 0.9.
+        let var = stats.residual_variance(&beta).expect("residual variance");
+        assert!((var - 0.9).abs() < 1e-12, "{var}");
+    }
+
     #[test]
     fn incremental_ols_residual_variance_survives_large_offset() {
         let offset = 1e12;

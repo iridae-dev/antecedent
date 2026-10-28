@@ -1156,3 +1156,133 @@ fn static_hill_and_group_classes_recover_curves_and_beat_shared_saturation() {
         assert_eq!(draw.group_intercepts.len(), 24);
     }
 }
+
+/// A broader-family panel small enough to validate and to fit in a unit test.
+fn cells_06_panel() -> PanelData {
+    let family = PanelFamily {
+        adstock: PanelAdstock::Geometric,
+        saturation: PanelSaturation::Hill,
+        scope: PanelFamily::per_group_saturation(6),
+        spatial: Some(line(6, 1.5)),
+    };
+    let p = truth(&family);
+    let data = simulate(family, &p, 6, 10, 101);
+    data.validate().unwrap();
+    data
+}
+
+#[test]
+fn cells_06_non_finite_panel_values_are_refused_never_dropped_for_the_broader_family() {
+    let good = cells_06_panel();
+    let refused = |mutate: &dyn Fn(&mut PanelData), what: &str| {
+        let mut data = good.clone();
+        mutate(&mut data);
+        assert!(matches!(data.validate(), Err(PanelError::Invalid(_))), "{what}");
+        assert!(matches!(data.identity(), Err(PanelError::Invalid(_))), "{what}: identity");
+        assert!(
+            matches!(
+                fit_panel(&data, &options(None, 0), &context(1)),
+                Err(PanelError::Invalid(_))
+            ),
+            "{what}: fit"
+        );
+    };
+    refused(&|d| d.groups[2].outcome[3] = f64::NAN, "a missing outcome");
+    refused(&|d| d.groups[0].outcome[0] = f64::INFINITY, "an infinite outcome");
+    refused(&|d| d.groups[4].confounder[7] = f64::NAN, "a missing confounder");
+    refused(&|d| d.groups[1].channels[1][2] = f64::NAN, "a missing exposure");
+    refused(&|d| d.groups[3].history[0][1] = f64::NAN, "a missing pre-period exposure");
+    // The refusal is of the value, not of the family: the same panel with the value present fits.
+    good.validate().unwrap();
+    // A missing period cannot be skipped either: a group shorter than its exposure vectors, or
+    // fewer periods than the carryover window, is a dimension refusal.
+    let mut ragged = good.clone();
+    ragged.groups[2].outcome.pop();
+    assert!(matches!(ragged.validate(), Err(PanelError::Invalid(_))), "a dropped period");
+    // No row is dropped: the refusal leaves the source untouched and its identity unchanged.
+    assert_eq!(good.identity().unwrap(), cells_06_panel().identity().unwrap());
+}
+
+#[test]
+fn cells_06_a_weight_or_a_categorical_label_has_no_field_and_the_frozen_schema_refuses_it() {
+    let good = cells_06_panel();
+    let json = serde_json::to_value(&good).unwrap();
+    // Sampling weights: no weight field exists at the panel, the group or the family, so a
+    // declaration of one cannot be ignored, it fails to parse.
+    let mut weighted = json.clone();
+    weighted["weights"] = serde_json::json!([1.0, 2.0]);
+    assert!(serde_json::from_value::<PanelData>(weighted).is_err(), "panel weights");
+    let mut weighted = json.clone();
+    weighted["groups"][0]["weight"] = serde_json::json!(2.0);
+    assert!(serde_json::from_value::<PanelData>(weighted).is_err(), "group weight");
+    let mut weighted = json.clone();
+    weighted["family"]["weights"] = serde_json::json!([1.0]);
+    assert!(serde_json::from_value::<PanelData>(weighted).is_err(), "family weights");
+    // The untouched document still reads back to the same panel.
+    assert_eq!(serde_json::from_value::<PanelData>(json.clone()).unwrap(), good);
+    // Categorical treatment: an exposure is a nonnegative number per period. A level label does
+    // not parse, and a level code below zero is a nonnegativity refusal.
+    let mut labelled = json;
+    labelled["groups"][0]["channels"][0][0] = serde_json::json!("high");
+    assert!(serde_json::from_value::<PanelData>(labelled).is_err(), "a level label");
+    let mut coded = good.clone();
+    coded.groups[0].channels[0][0] = -1.0;
+    assert!(matches!(coded.validate(), Err(PanelError::Invalid(_))), "a negative level code");
+}
+
+#[test]
+fn cells_06_degenerate_designs_are_refused_or_withhold_uncertainty_instead_of_fabricating_it() {
+    let family = PanelFamily {
+        adstock: PanelAdstock::Geometric,
+        saturation: PanelSaturation::Hill,
+        ..PanelFamily::default()
+    };
+    let p = truth(&family);
+    let base = simulate(family, &p, 12, 16, 101);
+    base.validate().unwrap();
+    let mutated = |mutate: &dyn Fn(&mut PanelGroup)| {
+        let mut data = base.clone();
+        data.groups.iter_mut().for_each(mutate);
+        data
+    };
+    let message = |data: &PanelData| match data.validate() {
+        Err(PanelError::Invalid(message)) => message,
+        other => panic!("expected a typed refusal, got {other:?}"),
+    };
+    // A channel that is a copy of another, one that never moves from zero and one that never
+    // moves from a positive level have no separately identified effect: the design is refused
+    // before any fit, and the refusal names the channel.
+    let duplicated = mutated(&|g| {
+        g.channels[1] = g.channels[0].clone();
+        g.history[1] = g.history[0];
+    });
+    assert!(message(&duplicated).contains("channel 1 is exactly collinear"));
+    assert!(matches!(
+        fit_panel(&duplicated, &options(None, 0), &context(3)),
+        Err(PanelError::Invalid(_))
+    ));
+    let zero = mutated(&|g| {
+        g.channels[1] = vec![0.0; g.outcome.len()];
+        g.history[1] = [0.0; 2];
+    });
+    assert!(message(&zero).contains("channel 1 is constant"));
+    let constant = mutated(&|g| {
+        g.channels[1] = vec![2.0; g.outcome.len()];
+        g.history[1] = [2.0; 2];
+    });
+    assert!(message(&constant).contains("channel 1 is constant"));
+    // An outcome with no variation is either refused or, when it is admitted, sends the
+    // innovation variance to zero: the optimizer reports that it did not converge, the
+    // coefficients are zero and no requested uncertainty slot carries a fabricated draw.
+    let flat = mutated(&|g| g.outcome = vec![1.0; g.outcome.len()]);
+    if flat.validate().is_ok() {
+        let draws = 6;
+        let fit = fit_panel(&flat, &options(None, draws), &context(3)).unwrap();
+        assert!(!fit.diagnostics.optimizer_converged);
+        assert!(!fit.diagnostics.curvature_available);
+        assert_eq!(fit.diagnostics.failed_draws, draws);
+        assert!(fit.draws.iter().all(Option::is_none));
+        assert_eq!(fit.diagnostics.claim, "model_conditional_mechanism_only");
+        assert!(fit.point.parameters.channels.iter().all(|c| c.coefficient.abs() < 1e-6));
+    }
+}

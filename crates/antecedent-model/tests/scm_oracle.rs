@@ -165,9 +165,9 @@ fn minnesota_bvar_matches_independent_standardized_ridge_solve() {
     };
     let tolerance = expected["acceptance"]["atol"].as_f64().unwrap();
     assert!((*intercept - expected["reference"]["intercept"].as_f64().unwrap()).abs() <= tolerance);
-    for (actual, target) in
-        coeffs.iter().zip(expected["reference"]["coefficients"].as_array().unwrap())
-    {
+    let targets = expected["reference"]["coefficients"].as_array().unwrap();
+    assert_eq!(coeffs.len(), targets.len(), "one slope per parent");
+    for (actual, target) in coeffs.iter().zip(targets) {
         assert!((*actual - target.as_f64().unwrap()).abs() <= tolerance);
     }
     assert!(

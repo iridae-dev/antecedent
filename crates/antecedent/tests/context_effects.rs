@@ -375,6 +375,10 @@ fn conditional_effect_pin() {
         .estimate(&data, &estimand, &cq, &ExecutionContext::for_tests(4))
         .unwrap();
     assert!((est.ate - ate_target).abs() < ate_tol);
+    // Noise-free interaction law with modifier mean exactly 2: the marginal contrast is
+    // 2 + 0.5 * 2 = 3 up to round-off, so the 0.3 band is not what separates a correct
+    // modifier-averaged effect from the main-effect-only answer (2) or an unweighted one.
+    assert!((est.ate - (2.0 + 0.5 * 2.0)).abs() < 1e-8, "conditional ATE {}", est.ate);
 }
 
 #[test]

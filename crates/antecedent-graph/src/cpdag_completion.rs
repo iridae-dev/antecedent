@@ -174,6 +174,16 @@ mod tests {
         for c in &collected {
             assert!(is_mec_member(&g, &c.graph));
         }
+        // Hand enumeration of the four orientations of A-B-C: the collider A->B<-C is excluded
+        // (a new unshielded v-structure), leaving exactly the chain, the reverse chain and the
+        // fork. Encode each completion as (A->B?, C->B?) from the parent lists.
+        let mut orientations: Vec<(bool, bool)> = collected
+            .iter()
+            .map(|d| (d.graph.parents(b).contains(&a), d.graph.parents(b).contains(&c)))
+            .collect();
+        orientations.sort_unstable();
+        // chain A->B->C: (true,false); reverse chain A<-B<-C: (false,true); fork A<-B->C: (false,false).
+        assert_eq!(orientations, vec![(false, false), (false, true), (true, false)]);
     }
 
     #[test]

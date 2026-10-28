@@ -69,3 +69,7 @@ path = "tests/pag_completion_exhaustive.rs"
 [[test]]
 name = "temporal_cpdag_invariants_reference"
 path = "tests/temporal_cpdag_invariants_reference.rs"
+
+[[test]]
+name = "latent_projection_claims_02_reference"
+path = "tests/latent_projection_claims_02_reference.rs"

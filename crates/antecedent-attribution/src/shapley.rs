@@ -741,6 +741,27 @@ mod tests {
         assert_eq!(est.budget.evaluations, 8);
     }
 
+    /// Glove game: players 0 and 1 hold left gloves, player 2 a right glove; a coalition is worth
+    /// one pair. Enumerating the six orderings by hand gives Shapley values (1/6, 1/6, 2/3), a
+    /// non-additive game where a wrong permutation weighting or a plain marginal-from-empty rule
+    /// (which would give 0, 0, 0) cannot pass.
+    #[test]
+    fn exact_shapley_matches_the_hand_enumerated_glove_game_claims_06() {
+        struct Glove;
+        impl CoalitionPayoff for Glove {
+            fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
+                let mask = coalition.low_bits();
+                Ok(f64::from(mask & 0b100 != 0 && mask & 0b011 != 0))
+            }
+        }
+        let players: Vec<_> = (0..3).map(ComponentId::from_raw).collect();
+        let ctx = ExecutionContext::for_tests(1);
+        let est = estimate_shapley(&players, &ShapleyConfig::exact(), &mut Glove, &ctx).unwrap();
+        assert!((est.values[0] - 1.0 / 6.0).abs() < 1e-12, "{:?}", est.values);
+        assert!((est.values[1] - 1.0 / 6.0).abs() < 1e-12, "{:?}", est.values);
+        assert!((est.values[2] - 2.0 / 3.0).abs() < 1e-12, "{:?}", est.values);
+    }
+
     #[test]
     fn exact_rejects_above_limit() {
         let players: Vec<_> = (0..5).map(ComponentId::from_raw).collect();

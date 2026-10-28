@@ -3203,6 +3203,15 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
     let ix = antecedent_estimate::interaction_contrast(table).unwrap();
     assert!(ix.value.is_finite() && ix.se.is_finite(), "interaction={} se={}", ix.value, ix.se);
 
+    // Known truth from the generating equations, independent of both estimator calls below: the
+    // latent confounds only the two treatments, so E[Y | do(t1 = 1, t2 = 1)] = 1.2 + 0.8 + 1.5
+    // + 0.55 E[z] = 3.5. The band is a sampling band (n = 2400, outcome noise sd 0.3).
+    let licensed_cell = result.estimate().as_effect().unwrap().ate;
+    assert!(
+        (licensed_cell - 3.5).abs() < 0.2,
+        "tiered cell.aipw {licensed_cell} vs generating-equation truth 3.5"
+    );
+
     let direct = antecedent_estimate::CellSaturatedAipw::new()
         .with_fold_seed(ctx.rng.master_seed())
         .fit_scores(
