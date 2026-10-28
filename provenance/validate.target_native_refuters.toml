@@ -20,4 +20,41 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-validate/tests/target_native.rs",
   "crates/antecedent/tests/target_native_validation.rs",
+  "crates/antecedent-validate/tests/target_native_numerics_reference.rs (rational Mahalanobis, 50-digit chi-square tail, Richardson difference and local linearity)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The numerical statistics of the target-native refuters: joint_mahalanobis and the covariance and singularity handling it shares (target_native/joint.rs: replicate mean, unbiased covariance, Cholesky quadratic form with a relative ridge, chi-square tail), finite_difference_consistency (Richardson-extrapolated central difference with truncation and rounding standardisation) and local_linearity (second-difference curvature relative to slope) in target_native/derivative.rs. Not the plan catalogue, certification and refusal logic, the refit engine (engine.rs), the Bayesian posterior-shift and predictive checks (bayesian.rs), or any error rate of the pass thresholds (the record states none is measured)."
+assumptions = ["The statistics are diagnostics: the joint statistic refers D2 = (e - m)' S^-1 (e - m) to chi-square with k degrees of freedom as if S and m were known, so with few replicates it is anti-conservative; the review checks the arithmetic and the reference law, not size.", "The reference treats each supplied double as exact; function values for the derivative checks are looked up, so the test function's own rounding does not enter.", "A ridge of 1e-10 times a coordinate's own variance is a regularisation of a singular replicate covariance, not an estimate."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated definitions; no upstream implementation was consulted. No primary paper is cited: the Mahalanobis distance, Richardson extrapolation and central differences are textbook, and none was retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency."
+limitations = "Twenty-five replicate sets of one to five coordinates (8 to 45 replicates, coordinate scales 0.01 to 100, one set with a common offset of 1e6 against a spread of 1e-3) compare the squared distance to 1e-9 relative (1e-5 for the offset set) and the chi-square tail to 1e-7 relative; thirty Richardson checks (steps 0.001 to 0.5, tolerances 1e-6 to 0.1, function scales 1 and 1e6, reported values exact and perturbed) compare the difference, the truncation estimate and the standardised discrepancy; thirty local-linearity checks compare slope, curvature and the nonlinearity measure. The singular-covariance ridge is exercised only through the existing unit tests, no size or power of the joint test is measured, and the pass thresholds carry no error rate. The reference script is not run in a locked environment: its output is frozen in the JSON file."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect fixed: the singularity test and the ridge of the joint statistic were relative to the mean diagonal of the replicate covariance, so a target whose coordinates have variances more than 1e10 apart (units differing by 1e5) was treated as singular and its distance was computed with a ridge larger than the smallest true variance (38485 against the exact 246437 on one tested set). The test and ridge are now relative to each coordinate's own variance, so the statistic does not depend on the units of the coordinates; the distance then equals the rational quadratic form on every set.", "The Richardson difference, its truncation estimate, the rounding term and the standardised discrepancy equal their definitions, and the local-linearity slope, curvature and nonlinearity equal the second-difference definition.", "The chi-square reference law ignores the estimation of the replicate mean and covariance; this is stated as a limit, not changed."]
+record_sha256 = "ece87533165b4133afa174367b0f2bd17b6669391010adfb41accd251e40cb5f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/target_native/joint.rs"
+sha256 = "7701ca80bc921805f4aa3c365066375e43af20cc653ae71d05217c5651c1f531"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/target_native/derivative.rs"
+sha256 = "b44e1cfde2af57e61fb39d4291ee01e0be33c55740d6aa2faadf7ab0e26448bc"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/target_native_numerics_reference.rs"
+sha256 = "0ff3ae3577b658c0e8ca7273edaf77a69e86c5544eb9f6c6eb1c907cf6f2d445"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/target_native_numerics_reference.py"
+sha256 = "d7c0a10758b2a7f62f0e65a99c16ee716d32966a0445acc4533dc34dfbe5fe20"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/target_native_numerics_reference.json"
+sha256 = "450f6e41869a060638323f5c55ee5292cd2e4283dbb7166c7cd1860a8415ac05"

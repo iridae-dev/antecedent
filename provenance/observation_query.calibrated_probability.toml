@@ -20,4 +20,36 @@ test_sources = [
   "crates/antecedent/tests/count_fitted_observation_facade.rs",
   "crates/antecedent-contract/src/observation_query.rs",
   "crates/antecedent/tests/observation_query_facade.rs",
+  "crates/antecedent-estimate/tests/count_fitted_posterior_reference.rs (exact rational enumeration and exact Beta posterior quantile brackets)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "CountFittedModel in crates/antecedent-estimate/src/count_fitted_posterior.rs: the posterior-mean conditional probability by exact enumeration of the joint assignment space, the independent Dirichlet posterior draws of every counted conditional (Marsaglia-Tsang gamma generation with the shape-below-one boost, normalised per parent configuration), the equal-tailed linear-interpolated quantiles of the draws, and the order-statistic Monte Carlo standard error. Not the coverage records, the calibration basis or draw-class machinery, the facade that binds the interval to a measured coverage record, or the claim that the interval covers the true conditional probability (a measured property of the whole route)."
+assumptions = ["Rows are independent and complete, the structure is correct, and each counted conditional has an independent Dirichlet(count + prior) posterior (a uniform Dirichlet prior is the measured design); the review checks arithmetic and the posterior law, not these assumptions.", "Declared nodes are fixed and carry no sampling uncertainty.", "The Monte Carlo interval of m draws is a noisy estimate of the exact posterior quantile; its error is reported and not removed."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated definitions; no upstream implementation was consulted. No primary paper is cited: the Dirichlet-multinomial conjugate model and its aggregation property are standard, and none was retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency."
+limitations = "Forty random models of two to five nodes and two to three levels (counted and declared nodes, evidence on a root and on a child) are compared with the exact rational enumeration to 1e-13. Eight child-level probabilities with parent counts from empty to 47:3, prior weights 0.001 to 20 and 2000 to 20000 draws are compared with the exact Beta posterior quantiles (the Dirichlet aggregation property gives the law of one level of a two- or three-level row in closed form): each interval endpoint must lie between the exact quantiles at five Monte Carlo standard deviations either side of its probability. This checks the draw distribution of a single row and the quantile arithmetic; the joint draws across several parent configurations and the nonlinear map through enumeration are checked only through the exact point value and the existing calibration, which is run at measurement time and not here. Evidence of very small probability, sparse parent configurations and the interval's frequentist coverage are the named boundaries of the measured calibration and are not examined. The reference script is not run in a locked environment: its output is frozen in the JSON file."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect fixed: gamma draws of shape below one were formed as G(shape + 1) u^(1/shape), which underflows to zero for u below about 0.475 at shape 0.001, so a row of two empty cells had no mass in about 22% of the draws and the whole interval was refused as 'the evidence has zero probability'. Rows are now normalised from logarithms of the draws, and the interval for prior weights 0.001 and 0.01 matches the exact Beta quantiles.", "The posterior-mean conditional equals the exact rational enumeration on all forty models, and the Monte Carlo endpoints equal the exact Beta quantiles within five Monte Carlo standard deviations in all eight designs at both tails."]
+record_sha256 = "5bdbe7104d72fb6927ff6d4c8b9f0b7aebfe11922fdb540f1bb0ecab0fcbc13a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/count_fitted_posterior.rs"
+sha256 = "be6c3725092f4b87db97659f5d41d1ff1a9aa9764a5ae10ce6a63b391554d17d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/count_fitted_posterior_reference.rs"
+sha256 = "7d381f9f2246b8b09d95f0443d662a74205fb86c1b5a4ebd45fbc070cd9de0c3"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/count_fitted_posterior_reference.py"
+sha256 = "cb3198e83fa53a6eae9814d52e1f16d7dcde9743e63ad2d2aee53d4a511f89bf"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/count_fitted_posterior_reference.json"
+sha256 = "827ef4559001538007e227cb440c6db37fb500de5f93ef136c266c88477b7e7f"

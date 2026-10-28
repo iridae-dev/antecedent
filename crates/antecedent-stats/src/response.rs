@@ -566,7 +566,24 @@ fn fit_local_quadratic(
     workspace.weights.reserve(x.len());
     let mut weight_sum = 0.0;
     let mut weight_sq_sum = 0.0;
+    // The fit is carried out on the response minus its kernel-weighted mean, and the mean is
+    // added back to the level. Slope, curvature, residuals and influences are unchanged, but
+    // the products w * y no longer carry the response's offset: with a mean 1e6 times the local
+    // spread the curvature otherwise loses about eight digits.
+    let (mut shift_numerator, mut shift_denominator) = (0.0, 0.0);
     for (i, (&xi, &yi)) in x.iter().zip(y).enumerate() {
+        let z = (xi - at) / bandwidth;
+        let w = (-0.5 * z * z).exp() * observation_weights.map_or(1.0, |w| w[i]);
+        shift_numerator += w * yi;
+        shift_denominator += w;
+    }
+    let shift = if shift_denominator > 0.0 && shift_numerator.is_finite() {
+        shift_numerator / shift_denominator
+    } else {
+        0.0
+    };
+    for (i, (&xi, &response)) in x.iter().zip(y).enumerate() {
+        let yi = response - shift;
         let dx = xi - at;
         let z = dx / bandwidth;
         let w = (-0.5 * z * z).exp() * observation_weights.map_or(1.0, |w| w[i]);
@@ -655,7 +672,7 @@ fn fit_local_quadratic(
     let sandwich = smoother_squares;
     let coefficient_se = |index: usize| (sigma2 * sandwich[index][index]).max(0.0).sqrt();
     let point = LocalPolynomialPoint {
-        value: beta[0],
+        value: beta[0] + shift,
         first_derivative: beta[1],
         second_derivative: 2.0 * beta[2],
         standard_error: coefficient_se(0),

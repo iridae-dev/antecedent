@@ -28,4 +28,36 @@ upstream_implementations_observed = []
 
 test_sources = [
  "conformance/design_state/incremental_ols_match (exercised via crates/antecedent/tests/design_state.rs)",
+ "crates/antecedent-state/tests/incremental_ols_reference.rs (exact rational least squares across regressor and response offsets)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "LinearOlsSuffStats in crates/antecedent-state/src/suff_stats.rs: row-by-row and batched accumulation of the Gram and cross products with the Welford scatter of [x | y], the Chan merge of two windows in either order, the coefficient solve (centred coordinates for a design with one constant column, the Cholesky of the raw Gram otherwise, each with compensated iterative refinement), and the residual variance SSE / (n - p) from the centred scatter for OLS and for externally supplied coefficients. Not the refresh-ledger layer (ols_refresh.rs), the weighted summaries, the retention and spill machinery, the digest or the eviction and invalidation refusals beyond the paths the test touches."
+assumptions = ["Rows are finite and independent and the design has full column rank; a singular Gram is refused.", "The reference treats the stored doubles as exact (Fraction of each float), so the comparison isolates the algorithm's rounding and not decimal representation of the inputs.", "A design is solved in centred coordinates only when exactly one column is constant and non-zero (an intercept, possibly scaled); any other design, including through-origin and two constant columns, is solved on the raw Gram."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference in exact rational arithmetic from the normal equations; no upstream implementation was consulted. No primary paper is cited: running accumulation of X'X and X'y is textbook (the record explains why Welford and Chan are not credited for the Gram), and none was retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; no third-party code or data is used."
+limitations = "Nine designs (intercept and slope with a regressor offset of 0, 1e3, 1e6 and 1e8 against a unit spread, a response offset of 1e8, a through-origin column, a near-collinear pair 1e-4 apart, three rows for two columns, and a regressor spread of 1e-3) are compared after row-wise appends, one batch, and two merged windows in both orders, for the coefficients and for the residual variance at the OLS and at supplied coefficients. Accuracy is bounded by the doubles the scatter is accumulated from: 1e-9 for offsets to 1e6, 1e-7 at an offset of 1e8 or a response offset of 1e8, and 1e-4 on the residual variance of the near-collinear pair, where the residual sum of squares is a difference of terms near 1e8 taken from the scatter, not from the rows. Designs without a single constant column (through the origin with a large offset) still use the raw Gram and carry its squared conditioning; weighted summaries (weighted_refresh.rs) were not reviewed and have their own solve. Eviction, spill and invalidation behaviour is covered only by the existing unit tests."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["Defect fixed: the raw Gram of a design with an intercept and a regressor offset by 1e6 against a spread of one gave a slope wrong in the third digit (0.46224 against 0.46193, relative 7e-4), because the Gram carries the square of the centred conditioning. A design with exactly one constant column is now solved on the centred scatter of the remaining columns, with the constant column's coefficient recovered from the means, and agrees with the rational solution to 1e-9 at an offset of 1e6 and to 1e-7 at 1e8; the weighted capacity summary already used the same construction.", "The Gram accumulation, the batched and per-row paths and the Chan merge in either order agree with exact least squares, and the residual variance at externally supplied coefficients agrees with the exact sum of squares divided by n - p.", "Documented limit, not repaired: the residual sum of squares of a near-collinear pair loses about five digits because it is formed from the scatter."]
+record_sha256 = "68a4f72c116cdb5be37288aee6060129a605d51306b681f3315dea656b45d043"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/suff_stats.rs"
+sha256 = "945412851945f2ad085f2e8630d85f4e145111b8662af8f114e591678af94414"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-state/tests/incremental_ols_reference.rs"
+sha256 = "76f1aa53878dca1262045d8a61cce87eb99378d4873f960d69fb193c3be26573"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-state/tests/oracle_data/incremental_ols_reference.py"
+sha256 = "9792377e4556c4a01e4edf4e4664b18ab9874ae1a9e3dab418e6bed54ab29706"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-state/tests/oracle_data/incremental_ols_reference.json"
+sha256 = "0e4a246dc2cbc012c64d806c13744aa7d55ec00602ae8778ccd5b956fa1ccbb5"

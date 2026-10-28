@@ -32,6 +32,10 @@ name = "state_append"
 harness = false
 
 [[test]]
+name = "incremental_ols_reference"
+path = "tests/incremental_ols_reference.rs"
+
+[[test]]
 name = "streaming_memory_bound"
 path = "tests/streaming_memory_bound.rs"
 

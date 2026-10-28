@@ -55,12 +55,20 @@ name = "staleness"
 path = "tests/staleness.rs"
 
 [[test]]
+name = "target_native_numerics_reference"
+path = "tests/target_native_numerics_reference.rs"
+
+[[test]]
 name = "target_native"
 path = "tests/target_native.rs"
 
 [[test]]
 name = "sensitivity_bounds"
 path = "tests/sensitivity_bounds.rs"
+
+[[test]]
+name = "distribution_drift_reference"
+path = "tests/distribution_drift_reference.rs"
 
 [[test]]
 name = "conflict_policy_reference"

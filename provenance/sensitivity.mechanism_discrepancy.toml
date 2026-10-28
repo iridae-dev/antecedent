@@ -34,6 +34,38 @@ upstream_implementations_observed = []
 test_sources = [
   "hand-derived one-parent (x = [0,1,2,3], y_s = [1,3,2,4]) and two-parent (vector-treatment frozen data) OLS fits with df 1 and df 2 closed-form statistics",
   "crates/antecedent-estimate/tests/mechanism_discrepancy.rs",
+  "crates/antecedent-estimate/tests/mechanism_discrepancy_reference.rs (exact rational fits, 50-digit chi-square tail, Holm and detectable differences)",
   "crates/antecedent-io/tests/mechanism_discrepancy_artifact.rs",
   "python/tests/test_mechanism_discrepancy.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "test_mechanism_discrepancy and test_mechanism_discrepancy_from_summaries in crates/antecedent-estimate/src/mechanism_discrepancy.rs, from raw populations through the sufficient statistics X'X, X'y, y'y: the Cholesky OLS fit of each population, its covariance sigma^2 (X'X)^-1 with sigma^2 = RSS / (n - p), the Wald statistic d' (V_s + V_t)^-1 d over the compared coefficients with its chi-square tail, the per-coefficient standard error, z, normal p-value and Holm adjustment, and the minimal detectable differences (z_{1-alpha/2} + z_power) se with the shared normal quantile. Not the comparability and dependence refusals, the artifact and its recomputing consumer (antecedent-io), the posterior-mean consumers of the summaries, or the finite-sample size and power of the Wald test (declared unmeasured)."
+assumptions = ["Independent samples, a correctly specified homoscedastic linear conditional mean and Gaussian-theory standard errors; the review checks the arithmetic on data that satisfy none of these claims and does not examine them.", "Observations are on a binary grid so the sufficient statistics are exact in doubles; the reference then equals exact least squares on the same numbers.", "The Holm adjustment is the standard step-down with a running maximum and a cap at one, applied over the compared coefficients only."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated definitions; no upstream implementation was consulted. The cited Wald and Holm papers were not retrieved for this review (nothing downloaded, no local copy); the record's description of them rests on the code and the existing record."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency."
+limitations = "Thirty seeded designs of one to three parents (5 to 33 rows per population, intercept compared or not, alpha 0.2, 0.05 and 0.01, power 0.5, 0.8 and 0.9) compare the coefficients to 1e-11, the Wald statistic to 1e-10, its chi-square tail to 1e-8 relative, and the per-coefficient standard error, z, p, Holm-adjusted p and minimal detectable difference to 1e-8 to 1e-10 relative. Five response offsets (0 to 3e6 against a spread of 1.5, twelve rows per population) show the limit of the portable summary: up to 1e3 the statistic and slope standard error agree to 1e-8, at 1e5 to about 1e-6 relative, and at 1e6 and above the residual sum of squares falls below the 1e-12 exact-fit threshold relative to y'y and the diagnostic refuses as degenerate_covariance. That is a loss of information in X'X, X'y and y'y held in doubles (the sums of squares of the raw response), not an arithmetic slip in the fit, and a centred summary would be a change of the artifact format, which was not made. Heteroscedastic and non-Gaussian errors, the finite-sample size of the Wald test and the coverage of the detectable-difference statement are not examined. The reference script is not run in a locked environment: its output is frozen in the JSON file."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The coefficients, residual variances, summed covariance, Wald statistic and chi-square tail, standard errors, z, unadjusted and Holm-adjusted p-values and minimal detectable differences equal the rational and 50-digit reference on all thirty designs, with and without the intercept in the compared set.", "Documented limit, not repaired: a response with a mean far above its spread (offset 1e5 and above for a spread near one) loses digits in the raw sums of squares and, from 1e6, is refused as an exact fit; the refusal is conservative (no wrong number is returned)."]
+record_sha256 = "e4d9d32e8b6f2437302360a893815dbf7a90c0b0304c6c7e0b7c3eb50040495e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/mechanism_discrepancy.rs"
+sha256 = "e06449373628c834a5d0954baf9f35b70cc64ba3d4f68ac0c751315b5b4b9132"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/mechanism_discrepancy_reference.rs"
+sha256 = "0c11461d2aa551a38b5e258f7b3cf5f2a6bd2d0d1534f8050511952db4d5714d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/mechanism_discrepancy_reference.py"
+sha256 = "c55745598f0a3724f8e2e57fe977bcb4d5cdabe7aa14dea1c3540f55af7894fd"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/mechanism_discrepancy_reference.json"
+sha256 = "e0b6a40dfeff1ec8ea8a9a74b22f42b1381b2e79e05be214bfe29e4d1c2e57b3"

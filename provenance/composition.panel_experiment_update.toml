@@ -33,4 +33,36 @@ test_sources = [
   "crates/antecedent/tests/joint_panel_experiment_chain.rs",
   "crates/antecedent-io/src/joint_panel_artifact.rs",
   "crates/antecedent-prob/src/finite_belief.rs",
+  "crates/antecedent-prob/tests/finite_belief_reference.rs (80-digit posterior of the Gaussian experimental-mean likelihood)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The numerical update in crates/antecedent-prob/src/finite_belief.rs: condition (prior mass times exp of a declared log likelihood, normalised through the largest log weight, zero prior or zero likelihood kept as exact zeros), AffineGaussianExperiment::condition (the log density of the observed experimental mean under N((target - intercept) / slope, variance / n) for every aligned slot, with the standardisation that avoids overflow of a large finite deviation), and linear_functional_rows. Not the joint-panel wiring, estimand bridge, native proof binding, mapping dependence, identity or authority checks, preposterior ranking, or any claim that the experimental likelihood is the correct model of the study."
+assumptions = ["The experimental sample mean is the only retained datum and is N(mu, v / n) with the variance v of one observation known and the observations independent; the review checks arithmetic given that declaration, not the declaration.", "The prior over aligned slots is a probability vector over whole-function realisations that already carries the observational evidence; the update is modular and does not refit it, as the record states.", "The affine map target = intercept + slope * experimental_mean is supplied per slot and is exact; no Jacobian enters because the likelihood is a density of the observed mean, which is common to every slot."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated model at 80 digits (mpmath logarithm, exponential and the log-sum-exp normalisation done in high precision); no upstream implementation was consulted. No primary paper is cited: Bayes' rule on a finite set with a Gaussian likelihood is textbook, and none was retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency."
+limitations = "Forty-six cases (six named, forty random) compare every posterior mass to 1e-12 relative: two slots, negative and mixed-sign slopes with intercepts, a posterior 30 standard errors into one tail, a zero-prior slot, a sample of 1e8 with targets 1e-4 apart, a variance of 1e-9, and forty seeded random sets of 2 to 12 slots (variance 0.1 to 5.1, n 1 to 200); ten random functionals of up to eight aligned rows are compared to 1e-12 relative; the refusals of the contract are asserted. The mapping and identity layers, the preposterior value computation and the decision receipts that surround the update are not examined here, and a heavy-tailed or dependent experimental likelihood is outside the declared model. The reference script is not run in a locked environment: its output is frozen in the JSON file."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The posterior equals the normalised prior-times-likelihood reference on every case, including a tail case where the unnormalised likelihood would underflow without the largest-log-weight shift.", "A zero prior or zero likelihood slot remains an exact zero, and an update that leaves zero total mass, a non-finite or negative prior, a NaN or positive-infinite log likelihood, a zero slope, a non-positive variance and a misaligned slot count are refused.", "No product defect was found in this record."]
+record_sha256 = "d3f7032e0a8a8f0fddae15df67e6b6c3aa9ad42fe90f0ca1140d5fa1c517f7bf"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/finite_belief.rs"
+sha256 = "46d54f6b4ab0583b4bc86d481a1bb2896ee90baffa44b0d1cac13360070ff59c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-prob/tests/finite_belief_reference.rs"
+sha256 = "45c26a134bc43afe43be10c3541bf33be0ab0bcc9d3b8e914efaf6c2acca1080"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-prob/tests/oracle_data/finite_belief_reference.py"
+sha256 = "5da6b1eb272b658fbbb53dd76ed86109fb862ea3cc74ccf3f5a7776c73a029f6"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-prob/tests/oracle_data/finite_belief_reference.json"
+sha256 = "9e11d42901ea20e2f663c2b3f67bd2bbf2ec15503a954996790316a8169f6dba"

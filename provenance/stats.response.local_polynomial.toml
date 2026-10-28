@@ -27,6 +27,7 @@ test_sources = [
  "crates/antecedent-stats/src/response.rs",
  "crates/antecedent-estimate/src/response/tests.rs",
  "crates/antecedent-stats/tests/local_quadratic_reference.rs (normal-equation solve, influence identities and exact plug-in variance unbiasedness)",
+ "crates/antecedent-stats/tests/local_quadratic_precision_reference.rs (60-digit definition across dose scales 1e-4 to 1e4, bandwidths 0.1 to 50 spreads, response and dose offsets of 1e6)",
 ]
 
 [method_review]
@@ -35,17 +36,32 @@ scope = "fit_local_quadratic and its public wrappers in stats/response.rs: the G
 assumptions = ["The regression function is smooth enough that a local quadratic with the chosen bandwidth has acceptable smoothing bias; the point estimate carries that bias and no correction.", "The plug-in standard error assumes uncorrelated homoskedastic errors; the robust standard errors from the influences relax homoskedasticity but treat the bandwidth as fixed and ignore smoothing bias.", "Kernel weights localise the fit and are not inverse-variance weights; the sandwich uses them as such. Observation weights (summing to n) enter multiplicatively with the kernel and the plug-in variance assumes no further structure in them.", "The 1.06 sigma n^(-1/5) bandwidth is a default rule for a density estimate, not a regression bandwidth selector."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source and its numerical helpers and checked them against closed-form algebra and high-precision or exhaustive-enumeration references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, so it is a code-versus-rule review with executing references, not a page-level reading of the papers."
 redistribution = "Primary works are cited, not redistributed. The reference test is repository-authored (MIT OR Apache-2.0) with dense linear algebra written in the file; no upstream code or tests are imported."
-limitations = "Three sampling positions at three bandwidths on a 40 to 60 point grid for the point estimate and the variance identity. The unbiasedness check is an exact expectation identity over unit-vector responses, so it establishes the residual divisor for uncorrelated homoskedastic noise but not coverage of intervals, the effect of smoothing bias, heteroskedastic or dependent errors, or the weighted-observation path. The consumers in the estimate crate (dose-grid functional and response curves) could not be re-run after the change because the working tree does not currently build (an unrelated Eq derive error in the query wire code); their SEs for fractional-weight windows will be smaller than before. Neither Fan et al. nor Silverman was re-read for this review."
+limitations = "Three sampling positions at three bandwidths on a 40 to 60 point grid for the point estimate and the variance identity. The unbiasedness check is an exact expectation identity over unit-vector responses, so it establishes the residual divisor for uncorrelated homoskedastic noise but not coverage of intervals, the effect of smoothing bias, heteroskedastic or dependent errors, or the weighted-observation path. The consumers in the estimate crate (dose-grid functional and response curves) could not be re-run after the change because the working tree does not currently build (an unrelated Eq derive error in the query wire code); their SEs for fractional-weight windows will be smaller than before. Neither Fan et al. nor Silverman was re-read for this review. A second comparison at 60 digits (local_quadratic_precision_reference) covers fourteen designs of 50 to 60 doses: dose spreads 1e-4, 1 and 1e4 each at bandwidths of 0.1, 0.5, 2 and 50 spreads, a response offset of 1e6, a dose offset of 1e6 and doses with many ties, comparing level, slope, curvature, influences, robust and plug-in level standard errors, the plug-in slope standard error and the Kish size at 1e-10 relative. The leverage-adjusted variant, weighted observations and the second-derivative plug-in standard error are not compared with an independent value there."
 sources = ["https://doi.org/10.1023/A:1003162622169", "https://doi.org/10.1201/9781315140919"]
-findings_resolved = ["Defect fixed: the plug-in residual variance divided the weighted residual sum of squares by sum(w) - 3. For homoskedastic uncorrelated noise E[r'Wr] = sigma^2 (sum(w) - tr((X'WX)^-1 X'W^2 X)), which equals sum(w) - 3 only when every kernel weight is 0 or 1. With fractional Gaussian weights the old divisor overstated the level variance by 20 percent in a 40-point example (0.127 against the exact sandwich 0.106). The divisor is now sum(w) - tr((X'WX)^-1 X'W^2 X) and the fit refuses when it is not positive.", "Verified that the level, slope and curvature equal the solution of the kernel-weighted normal equations built and solved independently, and that an exact quadratic is recovered exactly at any bandwidth; verified that the level influences sum to zero and that their sum of squares is the robust variance and the covariance diagonal.", "Verified the Silverman factor (4/((d+2)n))^(1/(d+4)), which at d = 1 is 1.0592 sigma n^(-1/5), against its closed form (existing tests); the record's 1.06 is the rounded constant."]
-record_sha256 = "925c1f6c6294bf6c7dc79b4b08f5cc2f047d33efc87d0cde03c08137ea60aae0"
+findings_resolved = ["Defect fixed: the plug-in residual variance divided the weighted residual sum of squares by sum(w) - 3. For homoskedastic uncorrelated noise E[r'Wr] = sigma^2 (sum(w) - tr((X'WX)^-1 X'W^2 X)), which equals sum(w) - 3 only when every kernel weight is 0 or 1. With fractional Gaussian weights the old divisor overstated the level variance by 20 percent in a 40-point example (0.127 against the exact sandwich 0.106). The divisor is now sum(w) - tr((X'WX)^-1 X'W^2 X) and the fit refuses when it is not positive.", "Verified that the level, slope and curvature equal the solution of the kernel-weighted normal equations built and solved independently, and that an exact quadratic is recovered exactly at any bandwidth; verified that the level influences sum to zero and that their sum of squares is the robust variance and the covariance diagonal.", "Verified the Silverman factor (4/((d+2)n))^(1/(d+4)), which at d = 1 is 1.0592 sigma n^(-1/5), against its closed form (existing tests); the record's 1.06 is the rounded constant.", "Defect fixed: the products w y were formed from the raw response, so a response whose mean was 1e6 times its local spread lost about eight digits of the curvature (relative error 4e-8 against a 60-digit value) and four of the slope. The response is now centred on its kernel-weighted mean before the products are formed and the mean added back to the level; level, slope, curvature, residuals and influences are unchanged algebraically, and all fourteen designs agree to 1e-10, including dose spreads of 1e4 with a bandwidth of fifty spreads."]
+record_sha256 = "0fb4cd22a112ca48d900d8d6c4cfd995fd0147533328cdcb23529d0655a052e6"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/response.rs"
-sha256 = "d72c83f9cce69d6da640f68b9883e4327aaf1db5c9e7700cc2f4063b1675cc07"
+sha256 = "235fa27be25daf374e5187918392e6606278cb575ad2ad73ad4a5eb6358173b5"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/local_quadratic_reference.rs"
 sha256 = "95b5465422425f202392c99937f8cb79cfb30d1a24d5b30928e763ee8981ca3c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/local_quadratic_precision_reference.rs"
+sha256 = "de88579687a964c715f5812a49b9f6dc780fb72a606735df4599ede12eb2ceb9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/local_quadratic_precision_reference.py"
+sha256 = "bba3b5fa6e59123bd8beff8d19b957bb4b7059a7053d6d4ee42065deaf33e9a6"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/local_quadratic_precision_reference.json"
+sha256 = "797f5a5458aaa928ee93345815b9d409664835e54405e56fdb3a6eab2d4129d8"

@@ -13,4 +13,35 @@ implementation_deviations = [
   "No significance level is attached to either statistic; the windows are chosen by the caller.",
 ]
 upstream_implementations_observed = []
-test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs"]
+test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs", "crates/antecedent-validate/tests/distribution_drift_reference.rs (exact rational KS and 60-digit PSI)"]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "distribution_drift in crates/antecedent-validate/src/predictive_assessment/calibration.rs: the two-sample Kolmogorov-Smirnov distance of two windows of PIT values (merged-order-statistic walk with ties at a value consumed together), the equal-width histogram binning on [0, 1] with the value 1 in the last bin, and the population stability index sum (q - p) ln(q / p) with a half-count pseudocount added to every bin. Not the construction of the PIT values, the choice of window or bin count, or any significance level (the route attaches none)."
+assumptions = ["The inputs are mid-PIT values in [0, 1]; the diagnostic describes movement of the distribution of probabilistic errors and carries no sampling distribution.", "A value is binned by floor(value * bins) in double arithmetic, so a decimal value that is not exactly representable (0.3 with ten bins) is binned by the nearest double of its product, which the reference reproduces for the tested decimals.", "The half-count pseudocount is a declared repository choice, not derived."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the definitions (rational arithmetic for the distance, 60-digit mpmath for the index); no upstream implementation was consulted. No primary paper is cited: the Kolmogorov-Smirnov distance is textbook and the population stability index is an industry convention, and no source was retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency."
+limitations = "Sixty-five cases compare the distance to 1e-13 and the index to 1e-11 relative: identical and disjoint windows, ties at bin edges and at 0 and 1, tenth-edge decimals with ten bins, a single-case window against forty values, and sixty seeded random pairs with 1 to 60 values, 2 to 20 bins and shifted windows. Symmetry of both statistics under swapping the windows and invariance to case order are checked on every case. No significance level, power or detection-delay claim is examined (none is made), the pseudocount is not calibrated, and the reference script is not run in a locked environment: its output is frozen in the JSON file."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The distance equals the exact rational supremum of the empirical-distribution-function gap on every case, including windows of unequal size and heavy ties.", "The index equals the 60-digit sum on every case; the pseudocount makes empty bins finite and the index is symmetric and non-negative.", "No product defect was found in this record."]
+record_sha256 = "84414a6662f73028fb94a7adbd331c6212e0e6bb520a92ec66db85a14f2c9a47"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/predictive_assessment/calibration.rs"
+sha256 = "a8fa06230950480cf4a8124be6961e2c0af47d7c1ef767a26ba4cfa5ff1ce6b3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/distribution_drift_reference.rs"
+sha256 = "5bd69dc22d6e675c23823113278fed75c83856d3fb4715b0d3dce612e4be9207"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/distribution_drift_reference.py"
+sha256 = "73cd4d86b0e9dcd7854a075f0acf4d13e98b0b721ff075e5b88bd0495a28b0dd"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/distribution_drift_reference.json"
+sha256 = "9fc0736d12ad1822824f89f55bd28cac794e12c6bd1b3c9e4104e676c105a6b6"

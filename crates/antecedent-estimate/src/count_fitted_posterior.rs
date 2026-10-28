@@ -318,9 +318,16 @@ impl CountFittedModel {
                     for (row_counts, row) in
                         counts.chunks(node.cardinality).zip(table.chunks_mut(node.cardinality))
                     {
-                        let mut total = 0.0;
+                        // Normalise in log space: a gamma draw of shape below one underflows to
+                        // zero with substantial probability (shape 1e-3: nearly half of the
+                        // draws), and a row of zeros has no normalisation.
                         for (slot, &c) in row.iter_mut().zip(row_counts) {
-                            *slot = rng.gamma(c as f64 + prior_alpha);
+                            *slot = rng.ln_gamma_draw(c as f64 + prior_alpha);
+                        }
+                        let top = row.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                        let mut total = 0.0;
+                        for slot in row.iter_mut() {
+                            *slot = (*slot - top).exp();
                             total += *slot;
                         }
                         for slot in row.iter_mut() {
@@ -412,11 +419,13 @@ impl SplitMix {
         (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * self.uniform()).cos()
     }
 
-    /// Gamma(shape, 1) by Marsaglia and Tsang, with the boost for shape below one.
-    fn gamma(&mut self, shape: f64) -> f64 {
+    /// `ln` of a Gamma(shape, 1) draw by Marsaglia and Tsang, with the boost for shape below
+    /// one done on the logarithm (`ln G(shape + 1) + ln(u) / shape`), so a small shape never
+    /// underflows.
+    fn ln_gamma_draw(&mut self, shape: f64) -> f64 {
         if shape < 1.0 {
             let u = self.uniform();
-            return self.gamma(shape + 1.0) * u.powf(1.0 / shape);
+            return self.ln_gamma_draw(shape + 1.0) + u.ln() / shape;
         }
         let d = shape - 1.0 / 3.0;
         let c = 1.0 / (9.0 * d).sqrt();
@@ -429,7 +438,7 @@ impl SplitMix {
             let v = v * v * v;
             let u = self.uniform();
             if u.ln() < 0.5 * x * x + d - d * v + d * v.ln() {
-                return d * v;
+                return d.ln() + v.ln();
             }
         }
     }

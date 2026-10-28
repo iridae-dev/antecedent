@@ -133,7 +133,13 @@ pub(crate) fn mean_and_covariance(rows: &[f64], k: usize) -> (Vec<f64>, Vec<f64>
 }
 
 /// `dᵀ C⁻¹ d` through a Cholesky factor of `cov` (overwritten). A numerically singular
-/// covariance is regularized by a ridge of [`RELATIVE_RIDGE`] times its mean diagonal.
+/// covariance is regularized by a ridge of [`RELATIVE_RIDGE`] times each coordinate's own
+/// variance (the mean diagonal for a coordinate that never varies).
+///
+/// The singularity test and the ridge are relative to each coordinate's own variance, not to
+/// the mean diagonal, so the statistic does not depend on the units of the coordinates: a
+/// target mixing coordinates whose variances differ by more than `1 / RELATIVE_RIDGE` is a
+/// well-conditioned correlation matrix, not a singular one.
 pub(crate) fn mahalanobis_squared(
     diff: &[f64],
     cov: &mut [f64],
@@ -147,15 +153,21 @@ pub(crate) fn mahalanobis_squared(
         });
     }
     let original = cov.to_vec();
+    let floors: Vec<f64> = (0..k)
+        .map(|i| {
+            let own = original[i * k + i];
+            RELATIVE_RIDGE * if own > 0.0 { own } else { scale }
+        })
+        .collect();
     // A pivot at rounding level is a direction the replicates do not vary in (a target whose
     // coordinates are affine in fewer parameters); treat it as singular rather than divide
     // by rounding error.
-    if !cholesky_in_place(cov, k, RELATIVE_RIDGE * scale) {
+    if !cholesky_in_place(cov, k, &floors) {
         cov.copy_from_slice(&original);
         for i in 0..k {
-            cov[i * k + i] += RELATIVE_RIDGE * scale;
+            cov[i * k + i] += floors[i];
         }
-        if !cholesky_in_place(cov, k, 0.0) {
+        if !cholesky_in_place(cov, k, &vec![0.0; k]) {
             return Err(ValidationError::estimation_msg(
                 "joint statistic: replicate covariance is not positive definite",
             ));
@@ -174,8 +186,8 @@ pub(crate) fn mahalanobis_squared(
 }
 
 /// Lower Cholesky factor in place (`k × k`, row-major); `false` when a squared pivot is at
-/// most `min_pivot` (not numerically positive definite).
-fn cholesky_in_place(a: &mut [f64], k: usize, min_pivot: f64) -> bool {
+/// most `min_pivot[i]` (not numerically positive definite).
+fn cholesky_in_place(a: &mut [f64], k: usize, min_pivot: &[f64]) -> bool {
     for i in 0..k {
         for j in 0..=i {
             let mut s = a[i * k + j];
@@ -183,7 +195,7 @@ fn cholesky_in_place(a: &mut [f64], k: usize, min_pivot: f64) -> bool {
                 s -= a[i * k + p] * a[j * k + p];
             }
             if i == j {
-                if !(s.is_finite() && s > min_pivot) {
+                if !(s.is_finite() && s > min_pivot[i]) {
                     return false;
                 }
                 a[i * k + i] = s.sqrt();

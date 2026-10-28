@@ -292,7 +292,63 @@ impl LinearOlsSuffStats {
         if !self.published_matches_scatter() {
             return Err(unsupported("summary is out of step with its scatter"));
         }
-        solve_gram(&self.xtx, &self.xty, self.ncols)
+        match self.solve_centered() {
+            Some(beta) => Ok(beta),
+            None => solve_gram(&self.xtx, &self.xty, self.ncols),
+        }
+    }
+
+    /// Coefficients in coordinates centred on the column means, for a design with exactly one
+    /// constant non-zero column (an intercept, possibly scaled).
+    ///
+    /// The non-constant coefficients solve `S β = s` on the mean-centred scatter of the
+    /// non-constant columns, and the constant column's coefficient is `(ȳ − Σ μ_j β_j) / level`.
+    /// The raw Gram of a regressor with a large common offset carries the square of the
+    /// centred conditioning (an offset of 1e6 against a spread of one costs about four digits
+    /// of the slope); the centred scatter does not. `None` when the design has no single
+    /// constant column or the centred scatter is singular, in which case the raw Gram decides.
+    fn solve_centered(&self) -> Option<Vec<f64>> {
+        let p = self.ncols;
+        let dim = p + 1;
+        let (m2, mean) = (&self.joint.m2, &self.joint.mean);
+        let mut constants = (0..p).filter(|&j| m2[j * dim + j] == 0.0);
+        let constant = constants.next()?;
+        if constants.next().is_some() || mean[constant] == 0.0 || !mean[constant].is_finite() {
+            return None;
+        }
+        let others: Vec<usize> = (0..p).filter(|&j| j != constant).collect();
+        let q = others.len();
+        let mut beta = vec![0.0; p];
+        if q > 0 {
+            let mut scatter = vec![0.0; q * q];
+            let mut cross = vec![0.0; q];
+            for (a, &i) in others.iter().enumerate() {
+                cross[a] = m2[i * dim + p];
+                for (b, &j) in others.iter().enumerate() {
+                    scatter[a * q + b] = m2[i * dim + j];
+                }
+            }
+            let mut factor = vec![0.0; q * q];
+            if cholesky_spd_into(&scatter, q, &mut factor).is_err() {
+                return None;
+            }
+            let mut scratch = vec![0.0; q];
+            let mut slopes = vec![0.0; q];
+            chol_solve_into(&factor, q, &cross, &mut scratch, &mut slopes);
+            if slopes.iter().any(|value| !value.is_finite()) {
+                return None;
+            }
+            refine_solution(&scatter, &cross, &factor, &mut slopes);
+            for (&j, value) in others.iter().zip(&slopes) {
+                beta[j] = *value;
+            }
+        }
+        let mut shift = CompensatedSum::default();
+        for &j in &others {
+            shift.add(mean[j] * beta[j]);
+        }
+        beta[constant] = (mean[p] - shift.total()) / mean[constant];
+        beta.iter().all(|value| value.is_finite()).then_some(beta)
     }
 
     /// Residual variance estimate `σ² = SSE / (n − p)` when `n > p`.
@@ -501,29 +557,37 @@ pub(crate) fn solve_gram(xtx: &[f64], xty: &[f64], ncols: usize) -> Result<Vec<f
     if beta.iter().any(|value| !value.is_finite()) {
         return Err(singular);
     }
-    // Refine against an error-free residual: a coefficient near a large common offset
-    // otherwise carries a unit-in-the-last-place error that the residual variance squares.
+    refine_solution(xtx, xty, &factor, &mut beta);
+    Ok(beta)
+}
+
+/// Iterative refinement of `A β = b` against an error-free residual (compensated products),
+/// reusing the Cholesky `factor` of `A`: a coefficient near a large common offset otherwise
+/// carries a unit-in-the-last-place error that the residual variance squares.
+fn refine_solution(a_matrix: &[f64], rhs: &[f64], factor: &[f64], beta: &mut [f64]) {
+    let ncols = beta.len();
+    let mut scratch = vec![0.0; ncols];
     let mut residual = vec![0.0; ncols];
     let mut step = vec![0.0; ncols];
     for _ in 0..3 {
         for (i, slot) in residual.iter_mut().enumerate() {
             let mut sum = CompensatedSum::default();
-            sum.add(xty[i]);
+            sum.add(rhs[i]);
             for (j, b) in beta.iter().enumerate() {
-                let a = xtx[i * ncols + j];
+                let a = a_matrix[i * ncols + j];
                 let product = a * b;
                 sum.add(-product);
                 sum.add(-a.mul_add(*b, -product));
             }
             *slot = sum.total();
         }
-        chol_solve_into(&factor, ncols, &residual, &mut scratch, &mut step);
+        chol_solve_into(factor, ncols, &residual, &mut scratch, &mut step);
         if step.iter().any(|value| !value.is_finite()) {
             break;
         }
         let settled = step
             .iter()
-            .zip(&beta)
+            .zip(beta.iter())
             .all(|(d, b)| d.abs() <= f64::EPSILON * b.abs().max(f64::MIN_POSITIVE));
         for (b, d) in beta.iter_mut().zip(&step) {
             *b += d;
@@ -532,7 +596,6 @@ pub(crate) fn solve_gram(xtx: &[f64], xty: &[f64], ncols: usize) -> Result<Vec<f
             break;
         }
     }
-    Ok(beta)
 }
 
 /// `Σ w (y − xᵀβ)²` from a mean-centred scatter of `[x | y]` (`m2`, row-major

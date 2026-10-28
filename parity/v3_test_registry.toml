@@ -18258,3 +18258,52 @@ crate = "antecedent-estimate"
 cargo_target = "history_match_variance_reference"
 path = "crates/antecedent-estimate/tests/history_match_variance_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "distribution-drift-reference"
+crate = "antecedent-validate"
+cargo_target = "distribution_drift_reference"
+path = "crates/antecedent-validate/tests/distribution_drift_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "target-native-numerics-reference"
+crate = "antecedent-validate"
+cargo_target = "target_native_numerics_reference"
+path = "crates/antecedent-validate/tests/target_native_numerics_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "finite-belief-reference"
+crate = "antecedent-prob"
+cargo_target = "finite_belief_reference"
+path = "crates/antecedent-prob/tests/finite_belief_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "incremental-ols-reference"
+crate = "antecedent-state"
+cargo_target = "incremental_ols_reference"
+path = "crates/antecedent-state/tests/incremental_ols_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "count-fitted-posterior-reference"
+crate = "antecedent-estimate"
+cargo_target = "count_fitted_posterior_reference"
+path = "crates/antecedent-estimate/tests/count_fitted_posterior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "mechanism-discrepancy-reference"
+crate = "antecedent-estimate"
+cargo_target = "mechanism_discrepancy_reference"
+path = "crates/antecedent-estimate/tests/mechanism_discrepancy_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "local-quadratic-precision-reference"
+crate = "antecedent-stats"
+cargo_target = "local_quadratic_precision_reference"
+path = "crates/antecedent-stats/tests/local_quadratic_precision_reference.rs"
+gates = ["inventory", "named"]
