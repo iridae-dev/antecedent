@@ -306,8 +306,8 @@ class PulseEffect:
     coefficient, windows keep their consecutive times (a window of weight zero stays, contributes
     nothing and is counted), weights are normalized to mean one, and the uncertainty is the
     dependence-honest circular-block bootstrap of the weighted windows. It is read by the
-    frequentist single-window fit with ``refute=False``; sustained windows, conditional effects,
-    Bayesian fits, refuters and series with gaps refuse (``option_not_applicable``).
+    frequentist fit with ``refute=False``; Bayesian fits, refuters and series with gaps refuse
+    (``option_not_applicable``).
     """
 
     treatment: str

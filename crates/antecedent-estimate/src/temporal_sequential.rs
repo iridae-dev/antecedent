@@ -440,6 +440,12 @@ impl SequentialContrastDesign {
             ctx,
             gaps,
         )?;
+        if setup.sampling_weights.is_some() {
+            return Err(crate::sampling_weights::unsupported_route(
+                "a shared bootstrap over a prepared sustained design refits unweighted windows; \
+                 sampling weights are read by the direct frequentist sustained contrast",
+            ));
+        }
         Ok(Self { setup })
     }
 
@@ -677,6 +683,9 @@ struct SequentialSetup {
     /// `Some(complete)` when the series has gaps and the rows are its intact windows only:
     /// `complete[w]` says whether the window at position `w` of the original axis is one.
     window_complete: Option<Vec<bool>>,
+    /// What declared sampling weights did to the windows; every mechanism's design is then
+    /// the root-weighted design of its windows, so each solve is weighted least squares.
+    sampling_weights: Option<crate::sampling_weights::SamplingWeightRecord>,
 }
 
 /// Full-sample OLS solves of a [`SequentialSetup`], one per fitted mechanism in fitting order.
@@ -894,6 +903,13 @@ impl SequentialSetup {
             }
             designs[i] = Some(design);
         }
+        let sampling_weights = weight_sequential_windows(
+            problem.data,
+            &mut designs,
+            max_lag as usize,
+            n,
+            gaps || !modifiers.is_empty() || !matches!(eval, SequentialEval::Contrast { .. }),
+        )?;
         let mut factual = vec![0.0; node_count];
         for &i in &order {
             let col = sample.column(column_of[i]);
@@ -916,6 +932,7 @@ impl SequentialSetup {
             interaction_at,
             node_modifier_values,
             window_complete,
+            sampling_weights,
         })
     }
 
@@ -1213,6 +1230,66 @@ impl SequentialSetup {
     }
 }
 
+/// Root-weight every mechanism design by the sampling weight of the observation its window
+/// ends at (window `r` ends at series time `max_lag + r`), so each mechanism's least-squares
+/// solve is the weighted fit, the contrast influence is the weighted score and a row-block
+/// resample carries each window's weight with it. The weights are normalized to mean one over
+/// the windows of positive weight; a window of weight zero stays in sequence and contributes
+/// no score.
+///
+/// Returns `None` for an unweighted series.
+///
+/// # Errors
+///
+/// `route_unsupported` when `unweighted_only` (a series with gaps, an effect modifier or a
+/// level, none of which has a weighted construction); `invalid` for weights that do not cover
+/// the windows or leave none positive.
+fn weight_sequential_windows(
+    data: &TimeSeriesData,
+    designs: &mut [Option<CompiledDesign>],
+    max_lag: usize,
+    windows: usize,
+    unweighted_only: bool,
+) -> Result<Option<crate::sampling_weights::SamplingWeightRecord>, EstimationError> {
+    let Some(weights) = data.storage().weights() else {
+        return Ok(None);
+    };
+    if unweighted_only {
+        return Err(crate::sampling_weights::unsupported_route(
+            "sampling weights are read by the sustained contrast on consecutive lag windows; a \
+             series with gaps, an effect modifier or a level has no weighted construction",
+        ));
+    }
+    let Some(window_weights) = weights.get(max_lag..max_lag + windows) else {
+        return Err(crate::sampling_weights::invalid(
+            "the series' sampling weights do not cover its lag-aligned windows",
+        ));
+    };
+    if let Some((window, value)) =
+        window_weights.iter().copied().enumerate().find(|(_, w)| !w.is_finite() || *w < 0.0)
+    {
+        return Err(crate::sampling_weights::invalid(&format!(
+            "window {window} has sampling weight {value}; weights must be finite and non-negative"
+        )));
+    }
+    let positive: Vec<f64> = window_weights.iter().copied().filter(|w| *w > 0.0).collect();
+    if positive.is_empty() {
+        return Err(crate::sampling_weights::invalid("no lag window has a positive sampling weight"));
+    }
+    let retained = crate::sampling_weights::RetainedSamplingWeights::from_positive(
+        &positive,
+        (window_weights.len() - positive.len()) as u64,
+    );
+    let scale = positive.len() as f64 / retained.record.weight_sum;
+    let normalized: Vec<f64> = window_weights.iter().map(|w| w * scale).collect();
+    for slot in designs.iter_mut() {
+        if let Some(design) = slot.take() {
+            *slot = Some(crate::sampling_weights::root_weight_design(design, &normalized));
+        }
+    }
+    Ok(Some(retained.record))
+}
+
 /// Append modifier main effects and intervened-parent interactions.
 ///
 /// Parent slopes stay in columns `1..=parents`. Each intervened parent then
@@ -1323,6 +1400,12 @@ fn estimate_sequential_with_gaps(
         ));
     }
     let setup = SequentialSetup::build_with_gaps(problem, target, eval, modifiers, ctx, gaps)?;
+    if bayesian.is_some() && setup.sampling_weights.is_some() {
+        return Err(crate::sampling_weights::unsupported_route(
+            "sampling weights are read by the frequentist sustained contrast; the composed \
+             Bayesian posterior fits unweighted mechanisms",
+        ));
+    }
     let selection = setup
         .window_complete
         .clone()
@@ -1792,6 +1875,7 @@ fn block_bootstrap_estimate(
         None,
     );
     effect.scores.influence = influence.map(Arc::from);
+    effect.diagnostics.sampling_weights = setup.sampling_weights;
     effect.uncertainty.block.resampling = Some(crate::adjustment::BlockResampling {
         block_length,
         rows: resampled_rows,

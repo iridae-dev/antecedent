@@ -169,6 +169,11 @@ diagnostic.
   is not retargetable. The DR-learner's `cate_se` and pointwise profiles are the HC0 sandwich of
   the weighted least squares. A `cluster_dml` declaration with weights takes the cluster
   sandwich of the weighted influence.
+- The frequentist temporal linear adjustment reads weights on a single window and on a sustained
+  window of any length: each lag window is weighted by the observation it ends at, and a
+  multi-step sustained contrast is the weighted least squares of every mechanism on its unfolded
+  windows (the block bootstrap carries each window's weight with it). Conditional effects,
+  Bayesian fits, refuters and series with gaps refuse.
 - A time series with zero-weight lag windows keeps them in the design so the windows stay
   consecutive; they contribute no score, and the block length is sized on the windows of
   positive weight.

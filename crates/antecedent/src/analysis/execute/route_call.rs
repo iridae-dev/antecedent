@@ -191,6 +191,8 @@ impl Study {
                 | CausalQuery::ContinuousDoseResponse(_)
                 | CausalQuery::LocalPolynomialRatio(_)
                 | CausalQuery::TemporalDesign(_)
+                | CausalQuery::SyntheticControl(_)
+                | CausalQuery::Survival(_)
         );
         if !static_effect {
             return Ok(());

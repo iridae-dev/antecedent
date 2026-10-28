@@ -12,8 +12,11 @@
 use std::sync::Arc;
 
 use antecedent::prelude::ExecutionContext;
-use antecedent::{PanelDidQuery, RandomizedEffectQuery, Study};
-use antecedent_core::{RandomizationDesign, VariableId};
+use antecedent::{PanelDidQuery, RandomizedEffectQuery, Study, SyntheticControlQuery};
+use antecedent_core::{
+    CausalQuery, ObservationAssumption, RandomizationDesign, SurvivalFunctional, SurvivalQuery,
+    VariableId,
+};
 use antecedent_data::TabularData;
 
 fn ctx() -> ExecutionContext {
@@ -249,4 +252,83 @@ fn an_augmented_panel_refuses_declared_weights() {
     let data = weighted(&data, vec![1.0, 2.0, 3.0, 1.0, 2.0, 3.0]);
     let study = Study::tabular(data.clone()).query(query).build().unwrap();
     assert_weights_refused(&refusal_of(study, &data), "augmented_panel");
+}
+
+/// Synthetic control reads whole unit trajectories, not weighted rows: a donor pool whose
+/// weighted combination is written out by hand gives the effect exactly 5 unweighted, and the same
+/// table with row weights (uneven or the constant one) is refused rather than answered unweighted.
+#[test]
+fn a_synthetic_control_refuses_declared_weights() {
+    let donors = [
+        ("a", [0.0, 0.0, 1.0, 0.0, 1.0, 0.0]),
+        ("b", [0.0, 1.0, 0.0, 1.0, 2.0, 2.0]),
+        ("c", [1.0, 0.0, 0.0, 1.0, 0.0, 2.0]),
+    ];
+    let (mut y, mut unit_ids, mut periods) = (vec![], vec![], vec![]);
+    for (unit, trajectory) in donors {
+        for (index, value) in trajectory.into_iter().enumerate() {
+            unit_ids.push(Arc::<str>::from(unit));
+            periods.push(index as i64 + 1);
+            y.push(value);
+        }
+    }
+    for index in 0..6 {
+        unit_ids.push(Arc::<str>::from("treated"));
+        periods.push(index as i64 + 1);
+        let counterfactual =
+            0.2 * donors[0].1[index] + 0.3 * donors[1].1[index] + 0.5 * donors[2].1[index];
+        y.push(counterfactual + if index >= 4 { 5.0 } else { 0.0 });
+    }
+    let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
+    let query = SyntheticControlQuery::new(
+        VariableId::from_raw(0),
+        unit_ids,
+        periods,
+        Arc::<str>::from("treated"),
+        5,
+    );
+    let fit =
+        Study::tabular(data.clone()).query(query.clone()).build().unwrap().run(&ctx()).unwrap();
+    assert!((fit.synthetic_control().unwrap().effect - 5.0).abs() < 1e-5);
+    let n = y.len();
+    for weights in [(0..n).map(|i| 1.0 + (i % 3) as f64).collect::<Vec<_>>(), vec![1.0; n]] {
+        let data = weighted(&data, weights);
+        let study = Study::tabular(data.clone()).query(query.clone()).build().unwrap();
+        assert_weights_refused(&refusal_of(study, &data), "synthetic_control");
+    }
+}
+
+/// Randomized survival reads subjects, not weighted rows. Two arms with the same durations and
+/// events have identical survival curves, which is the unweighted answer; the same table with
+/// row weights is refused rather than answered unweighted.
+#[test]
+fn a_randomized_survival_contrast_refuses_declared_weights() {
+    let duration = [1.0, 3.0, 2.0, 1.0, 3.0, 2.0];
+    let event = [1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
+    let treatment = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+    let data = TabularData::from_f64_columns([
+        ("duration", &duration[..]),
+        ("event", &event[..]),
+        ("treatment", &treatment[..]),
+    ])
+    .unwrap();
+    let query = CausalQuery::Survival(SurvivalQuery {
+        duration: VariableId::from_raw(0),
+        event: VariableId::from_raw(1),
+        treatment: VariableId::from_raw(2),
+        tau: 3.0,
+        delayed_entry: None,
+        known_censoring: None,
+        observation_assumption: ObservationAssumption::IndependentGiven(Arc::from([])),
+        functional: SurvivalFunctional::SurvivalAndRmst,
+    });
+    let result = Study::tabular(data.clone()).query(query.clone()).build().unwrap().run(&ctx());
+    let result = result.unwrap();
+    let curve = result.survival().unwrap();
+    assert_eq!(curve.control, curve.treated, "identical arms have identical curves");
+    for weights in [vec![1.0, 2.0, 3.0, 1.0, 2.0, 3.0], vec![1.0; 6]] {
+        let data = weighted(&data, weights);
+        let study = Study::tabular(data.clone()).query(query.clone()).build().unwrap();
+        assert_weights_refused(&refusal_of(study, &data), "survival");
+    }
 }

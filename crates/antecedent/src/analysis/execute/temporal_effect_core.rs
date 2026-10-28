@@ -1022,21 +1022,20 @@ pub(super) fn plan_completed_to_dag(physical: &PhysicalExecutionPlan) -> bool {
         .is_some_and(|a| a.contains("pag_completed_to_dag") || a.contains("completed_to_dag"))
 }
 
-/// Sampling weights are read by the frequentist single-window linear adjustment, whose lag
-/// windows are weighted by the observation they end at; every other temporal construction
-/// (sustained windows, conditional effects, Bayesian fits and the refuters, which refit on the
-/// unweighted series) refuses them rather than ignore them.
+/// Sampling weights are read by the frequentist linear adjustment on a single window and by the
+/// frequentist sustained contrast (single- or multi-step), whose lag windows are weighted by the
+/// observation they end at; every other temporal construction (conditional effects, Bayesian fits
+/// and the refuters, which refit on the unweighted series) refuses them rather than ignore them.
 fn require_sampling_weight_route(inputs: &TemporalEffectInputs<'_>) -> Result<(), CausalError> {
-    let supported = !inputs.query.is_multi_step_sustained()
-        && inputs.query.effect_modifiers.is_empty()
+    let supported = inputs.query.effect_modifiers.is_empty()
         && matches!(inputs.inference, InferenceMode::Frequentist)
         && inputs.refute == RefuteSuite::None;
     if supported {
         return Ok(());
     }
     Err(CausalError::Estimate(antecedent_estimate::sampling_weights::unsupported_route(
-        "sampling weights are read by the frequentist single-window temporal linear adjustment \
-         without refuters (refute=False); sustained windows, conditional effects, Bayesian \
-         fits and the refuters have no sampling-weighted construction",
+        "sampling weights are read by the frequentist temporal linear adjustment and sustained \
+         contrast without refuters (refute=False); conditional effects, Bayesian fits and the \
+         refuters have no sampling-weighted construction",
     )))
 }

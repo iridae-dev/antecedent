@@ -601,12 +601,77 @@ fn a_weighted_temporal_window_is_weighted_least_squares_on_lag_windows() {
     close(again.estimate().as_effect().unwrap().ate, effect.ate, 1e-9, "rescaled coefficient");
 }
 
-/// The licensed sustained effect is the single-step window: with declared weights it is the same
-/// weighted least squares on lag windows as the pulse, whatever the weight pattern. A multi-step
-/// window has no sampling-weighted construction and is refused with the typed
-/// `sampling_weights.route_unsupported` detail naming sustained windows, rather than run unweighted.
+/// Weighted least squares of `y_i` on `[1, t_{i-1}, t_{i-2}]` for `i >= 2`, window `i` repeated
+/// `copies[i]` times (an integer weight is a row replication); the sum of the two treatment
+/// slopes. This is the sustained contrast over the lags one and two, `E[Y | do(T = 1 at both
+/// lags)] - E[Y | do(T = 0 at both lags)]`, of the outcome mechanism on the unfolded window.
+fn sustained_oracle(t: &[f64], y: &[f64], weights: &[f64]) -> f64 {
+    let mut gram = [[0.0_f64; 3]; 3];
+    let mut moment = [0.0_f64; 3];
+    for i in 2..t.len() {
+        let row = [1.0, t[i - 1], t[i - 2]];
+        for (a, ra) in row.iter().enumerate() {
+            for (b, rb) in row.iter().enumerate() {
+                gram[a][b] += weights[i] * ra * rb;
+            }
+            moment[a] += weights[i] * ra * y[i];
+        }
+    }
+    // Gaussian elimination with partial pivoting on the 3 x 3 normal equations.
+    let mut m = [[0.0_f64; 4]; 3];
+    for a in 0..3 {
+        m[a][..3].copy_from_slice(&gram[a]);
+        m[a][3] = moment[a];
+    }
+    for col in 0..3 {
+        let pivot = (col..3).max_by(|&a, &b| m[a][col].abs().total_cmp(&m[b][col].abs())).unwrap();
+        m.swap(col, pivot);
+        for row in col + 1..3 {
+            let factor = m[row][col] / m[col][col];
+            for k in col..4 {
+                m[row][k] -= factor * m[col][k];
+            }
+        }
+    }
+    let mut beta = [0.0_f64; 3];
+    for row in (0..3).rev() {
+        let tail: f64 = (row + 1..3).map(|k| m[row][k] * beta[k]).sum();
+        beta[row] = (m[row][3] - tail) / m[row][row];
+    }
+    beta[1] + beta[2]
+}
+
+fn run_sustained(
+    t: &[f64],
+    y: &[f64],
+    weights: Option<&[f64]>,
+    from: i32,
+    until: i32,
+) -> Result<antecedent::StudyResult, String> {
+    let mut data =
+        TimeSeriesData::from_f64_columns([("t", t), ("y", y)], 1).map_err(|e| e.to_string())?;
+    if let Some(weights) = weights {
+        data = data.with_weights(Arc::from(weights.to_vec())).map_err(|e| e.to_string())?;
+    }
+    let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::sustained(from, until));
+    Study::series(data)
+        .graph(temporal_graph())
+        .query(CausalQuery::TemporalEffect(query))
+        .refute(antecedent::RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .map_err(|e| e.to_string())?
+        .run(&ctx())
+        .map_err(|e| e.to_string())
+}
+
+/// With declared weights a sustained window, single- or multi-step, is weighted least squares on
+/// its lag windows, whatever the weight pattern: the single-step window is the coefficient of the
+/// lag-one treatment and the multi-step window is the sum of the two lag slopes of the outcome
+/// mechanism, each window weighted by the observation it ends at.
 #[test]
-fn a_weighted_single_step_sustained_window_is_the_weighted_fit_and_a_multi_step_one_is_refused() {
+fn a_weighted_sustained_window_is_weighted_least_squares_on_its_lag_windows() {
     let n = 400;
     let (t, y) = series(n, 41);
     let mut rng = ExecutionContext::for_tests(42).rng.stream_for(StreamDomain::Test, 0x7105);
@@ -622,45 +687,109 @@ fn a_weighted_single_step_sustained_window_is_the_weighted_fit_and_a_multi_step_
     ];
     for (label, weights) in &weight_patterns {
         for (from, until) in [(-1, -1), (-2, -1)] {
-            let data =
-                TimeSeriesData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice())], 1)
-                    .unwrap()
-                    .with_weights(Arc::from(weights.clone()))
-                    .unwrap();
-            let query =
-                TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
-                    .with_policy(TemporalPolicy::sustained(from, until));
-            let run = Study::series(data)
-                .graph(temporal_graph())
-                .query(CausalQuery::TemporalEffect(query))
-                .refute(antecedent::RefuteSuite::None)
-                .bootstrap_replicates(0)
-                .build()
-                .unwrap()
-                .run(&ctx());
-            if from == until {
-                let result = run.unwrap();
-                let effect = result.estimate().as_effect().unwrap();
-                close(
-                    effect.ate,
-                    temporal_oracle(&t, &y, weights),
-                    1e-9,
-                    &format!("{label}: window [{from}, {until}]"),
-                );
-                let zeros = weights[1..].iter().filter(|w| **w == 0.0).count() as u64;
-                let record = effect.diagnostics.sampling_weights.as_ref().expect("weight record");
-                assert_eq!(record.zero_weight_rows, zeros, "{label}");
-                assert_eq!(record.rows_used, (n - 1) as u64 - zeros, "{label}");
+            let result = run_sustained(&t, &y, Some(weights), from, until).unwrap();
+            let effect = result.estimate().as_effect().unwrap();
+            let (expected, first) = if from == until {
+                (temporal_oracle(&t, &y, weights), 1)
             } else {
-                let error = run.unwrap_err().to_string();
-                assert!(
-                    error.contains("sampling_weights.route_unsupported")
-                        && error.contains("sustained windows"),
-                    "{label} window [{from}, {until}]: {error}"
-                );
-            }
+                (sustained_oracle(&t, &y, weights), 2)
+            };
+            close(effect.ate, expected, 1e-9, &format!("{label}: window [{from}, {until}]"));
+            let zeros = weights[first..].iter().filter(|w| **w == 0.0).count() as u64;
+            let record = effect.diagnostics.sampling_weights.as_ref().expect("weight record");
+            assert_eq!(record.zero_weight_rows, zeros, "{label} [{from}, {until}]");
+            assert_eq!(
+                record.rows_used,
+                (n - first) as u64 - zeros,
+                "{label} [{from}, {until}]"
+            );
         }
     }
+}
+
+/// An integer weight is a row replication: the multi-step weighted contrast equals the
+/// unweighted least squares on the windows repeated that many times, a rescaling of the weights
+/// changes nothing, unit weights are the unweighted fit, and the weights move the value (the
+/// declared population is not the sample).
+#[test]
+fn a_weighted_multi_step_window_is_row_replication_rescale_invariant_and_unit_weights_are_unweighted()
+{
+    let n = 300;
+    let (t, y) = series(n, 61);
+    let mut rng = ExecutionContext::for_tests(62).rng.stream_for(StreamDomain::Test, 0x7106);
+    let counts: Vec<f64> = (0..n).map(|_| (rng.next_f64() * 4.0).floor()).collect();
+    let weighted = run_sustained(&t, &y, Some(&counts), -2, -1).unwrap();
+    let ate = weighted.estimate().as_effect().unwrap().ate;
+
+    // Row replication: window i appears counts[i] times in an unweighted least squares, which
+    // the oracle expresses as repeated rows with unit weights.
+    let (mut rep_t, mut rep_y, mut rep_idx) = (Vec::new(), Vec::new(), Vec::new());
+    for i in 2..n {
+        for _ in 0..counts[i] as usize {
+            rep_idx.push(i);
+        }
+    }
+    // Rebuild a lag-2 row per replicated window as three consecutive entries (t[i-2], t[i-1],
+    // t[i]) so the oracle's own lag indexing reads exactly that window.
+    for &i in &rep_idx {
+        rep_t.extend_from_slice(&[t[i - 2], t[i - 1], 0.0]);
+        rep_y.extend_from_slice(&[0.0, 0.0, y[i]]);
+    }
+    let replicated = {
+        // Windows end at every third entry: weight one there, zero elsewhere.
+        let mut w = vec![0.0; rep_t.len()];
+        for k in 0..rep_idx.len() {
+            w[3 * k + 2] = 1.0;
+        }
+        sustained_oracle(&rep_t, &rep_y, &w)
+    };
+    close(ate, replicated, 1e-9, "integer weights equal row replication");
+
+    let scaled: Vec<f64> = counts.iter().map(|w| w * 17.5).collect();
+    let again = run_sustained(&t, &y, Some(&scaled), -2, -1).unwrap();
+    close(again.estimate().as_effect().unwrap().ate, ate, 1e-9, "rescaled weights");
+
+    let unit = run_sustained(&t, &y, Some(&vec![1.0; n]), -2, -1).unwrap();
+    let plain = run_sustained(&t, &y, None, -2, -1).unwrap();
+    close(
+        unit.estimate().as_effect().unwrap().ate,
+        plain.estimate().as_effect().unwrap().ate,
+        1e-9,
+        "unit weights equal the unweighted fit",
+    );
+    assert!(
+        (ate - plain.estimate().as_effect().unwrap().ate).abs() > 1e-6,
+        "non-trivial weights must move the contrast"
+    );
+}
+
+/// The weighted sustained contrast keeps its dependence-honest interval: with replicates the
+/// block bootstrap draws weighted windows and publishes a finite positive error.
+#[test]
+fn a_weighted_multi_step_window_publishes_a_block_bootstrap_error() {
+    let n = 300;
+    let (t, y) = series(n, 71);
+    let mut rng = ExecutionContext::for_tests(72).rng.stream_for(StreamDomain::Test, 0x7107);
+    let weights: Vec<f64> = (0..n).map(|_| 0.3 + 3.0 * rng.next_f64()).collect();
+    let data = TimeSeriesData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice())], 1)
+        .unwrap()
+        .with_weights(Arc::from(weights.clone()))
+        .unwrap();
+    let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::sustained(-2, -1));
+    let result = Study::series(data)
+        .graph(temporal_graph())
+        .query(CausalQuery::TemporalEffect(query))
+        .refute(antecedent::RefuteSuite::None)
+        .bootstrap_replicates(60)
+        .build()
+        .unwrap()
+        .run(&ctx())
+        .unwrap();
+    let effect = result.estimate().as_effect().unwrap();
+    close(effect.ate, sustained_oracle(&t, &y, &weights), 1e-9, "point under replicates");
+    let se = effect.se_bootstrap().expect("a bootstrap error");
+    assert!(se.is_finite() && se > 0.0, "bootstrap error {se}");
 }
 
 #[test]

@@ -2467,8 +2467,8 @@ family = "P15.sustained"
 axis = "weights_missingness"
 value = "sampling_weights"
 status = "delivered"
-test = "crates/antecedent/tests/sampling_weight_routes.rs::a_weighted_single_step_sustained_window_is_the_weighted_fit_and_a_multi_step_one_is_refused"
-what = "the licensed single-step sustained window is the weighted least squares on lag windows for three weight patterns, and a multi-step window is refused rather than run unweighted"
+test = "crates/antecedent/tests/sampling_weight_routes.rs::a_weighted_sustained_window_is_weighted_least_squares_on_its_lag_windows"
+what = "single-step and multi-step sustained windows equal the weighted least squares on their unfolded lag windows for varied, zero and unit weights, with the weight record counted"
 
 [[cell]]
 family = "P15.pulse"
@@ -2501,3 +2501,19 @@ value = "categorical"
 status = "unavailable"
 test = "crates/antecedent/tests/temporal_scenario_boundaries.rs::a_three_level_treatment_is_refused_by_name_on_every_graph_class_with_or_without_refuters"
 reason = "the refuters run on the binary average-effect study, which reads the treatment at two declared levels; a treatment with a further level is refused with treatment_level_undeclared, naming the observed levels and their row counts, on the DAG, ADMG and CPDAG classes with and without refuters, and the categorical treatment contrast is the route that reads every level"
+
+[[cell]]
+family = "P10"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/weighted_route_boundary.rs::a_randomized_survival_contrast_refuses_declared_weights"
+reason = "randomized survival is the arm-stratified product limit over subjects and has no weighted construction; identical arms give identical curves unweighted, and the same table with uneven or constant row weights is refused with sampling_weights.route_unsupported rather than answered for the unweighted population"
+
+[[cell]]
+family = "P11.synthetic_control"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/weighted_route_boundary.rs::a_synthetic_control_refuses_declared_weights"
+reason = "synthetic control fits donor weights on whole unit trajectories and has no row-weighted construction; the hand-built donor pool recovers the effect 5 unweighted, and the same table with uneven or constant row weights is refused with sampling_weights.route_unsupported"
