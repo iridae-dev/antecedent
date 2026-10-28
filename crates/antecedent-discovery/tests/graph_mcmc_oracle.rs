@@ -8,7 +8,8 @@
 )]
 
 use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_data::TabularData;
+use antecedent_data::{SamplingRegularity, TabularData, TimeIndex, TimeSeriesData};
+use antecedent_discovery::DbnPosterior;
 use antecedent_discovery::{
     AdjacencyMask, CiScreenedPosterior, DiscoveryConstraints, DiscoveryWorkspace,
     ExactDagPosterior, GraphPosterior, GraphPrior, OrderMcmc, StructureMcmc,
@@ -365,6 +366,159 @@ fn class_collapse_partitions_every_dag_by_skeleton_and_unshielded_colliders() {
         }
         let actual: Vec<f64> = collapsed.weights().to_vec();
         assert!((actual.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+    }
+}
+
+/// Naive least-squares residual sum by normal equations and Gaussian elimination, written
+/// for this test and sharing no code with the product's cached-Gram Cholesky score.
+fn naive_rss(design: &[Vec<f64>], y: &[f64]) -> f64 {
+    let k = design.len();
+    let mut a: Vec<Vec<f64>> = (0..k)
+        .map(|r| {
+            let mut row: Vec<f64> = (0..k)
+                .map(|c| design[r].iter().zip(&design[c]).map(|(u, v)| u * v).sum())
+                .collect();
+            row.push(design[r].iter().zip(y).map(|(u, v)| u * v).sum());
+            row
+        })
+        .collect();
+    for c in 0..k {
+        let pivot = (c..k).max_by(|&i, &j| a[i][c].abs().total_cmp(&a[j][c].abs())).unwrap();
+        a.swap(c, pivot);
+        for r in c + 1..k {
+            let f = a[r][c] / a[c][c];
+            for j in c..=k {
+                a[r][j] -= f * a[c][j];
+            }
+        }
+    }
+    let mut beta = vec![0.0; k];
+    for r in (0..k).rev() {
+        beta[r] = (a[r][k] - (r + 1..k).map(|j| a[r][j] * beta[j]).sum::<f64>()) / a[r][r];
+    }
+    (0..y.len())
+        .map(|i| {
+            let fit: f64 = (0..k).map(|j| beta[j] * design[j][i]).sum();
+            (y[i] - fit).powi(2)
+        })
+        .sum()
+}
+
+fn series_unit(n_obs: usize, state: &mut u64) -> Vec<Vec<f64>> {
+    let mut next = || {
+        *state =
+            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        ((*state >> 11) as f64) / (1u64 << 53) as f64 - 0.5
+    };
+    let (mut x, mut y) = (vec![0.0; n_obs], vec![0.0; n_obs]);
+    for t in 0..n_obs {
+        let (px, py) = if t >= 2 { (x[t - 2], y[t - 1]) } else { (0.0, 0.0) };
+        x[t] = 0.5 * px + next();
+        y[t] = 0.8 * py + 0.9 * x[t] + 0.4 * if t >= 1 { x[t - 1] } else { 0.0 } + 0.5 * next();
+    }
+    vec![x, y]
+}
+
+fn time_series(columns: &[Vec<f64>]) -> TimeSeriesData {
+    let names = ["x", "y"];
+    let length = columns[0].len();
+    TimeSeriesData::try_new(
+        common::continuous_storage(&names, columns.to_vec()),
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length },
+    )
+    .unwrap()
+}
+
+#[test]
+fn dbn_exact_template_posterior_matches_brute_force_over_a_two_unit_panel() {
+    // Two variables, maximum lag two: 3 contemporaneous DAGs times 2^8 lag masks. Every
+    // template is scored by regressing each node on its contemporaneous and lagged parents
+    // over the lag windows of each unit separately (no window crosses a unit boundary), summing
+    // Gaussian log likelihoods at the fitted variance minus (k/2) ln n, and normalising.
+    let (p, max_lag) = (2usize, 2usize);
+    let mut state = 0x2545_f491_4f6c_dd1d_u64;
+    let units = [series_unit(70, &mut state), series_unit(45, &mut state)];
+    let rows: usize = units.iter().map(|u| u[0].len() - max_lag).sum();
+    // Per node regressors: column (lag, variable) over all stacked windows.
+    let value = |lag: usize, var: usize| -> Vec<f64> {
+        units.iter().flat_map(|u| (max_lag..u[0].len()).map(move |t| u[var][t - lag])).collect()
+    };
+    let local = |node: usize, parents: &[(usize, usize)]| -> f64 {
+        let mut design = vec![vec![1.0; rows]];
+        design.extend(parents.iter().map(|&(lag, var)| value(lag, var)));
+        let rss = naive_rss(&design, &value(0, node));
+        let n = rows as f64;
+        -0.5 * n * (1.0 + (2.0 * std::f64::consts::PI).ln() + (rss / n).ln())
+            - 0.5 * (parents.len() + 1) as f64 * n.ln()
+    };
+    let datasets: Vec<TimeSeriesData> = units.iter().map(|u| time_series(u)).collect();
+    for (prior, edge_p) in
+        [(GraphPrior::uniform(), None), (GraphPrior::bernoulli_edges(0.3).unwrap(), Some(0.3_f64))]
+    {
+        let contemporaneous: [&[(usize, usize)]; 3] = [&[], &[(0, 1)], &[(1, 0)]];
+        let mut logs = Vec::new();
+        let mut instances = Vec::new();
+        for edges in contemporaneous {
+            for lag_mask in 0u32..(1 << (max_lag * p * p)) {
+                let mut total = 0.0;
+                for node in 0..p {
+                    let mut parents: Vec<(usize, usize)> =
+                        edges.iter().filter(|e| e.1 == node).map(|e| (0, e.0)).collect();
+                    for lag in 1..=max_lag {
+                        for from in 0..p {
+                            if lag_mask >> ((lag - 1) * p * p + from * p + node) & 1 == 1 {
+                                parents.push((lag, from));
+                            }
+                        }
+                    }
+                    total += local(node, &parents);
+                }
+                if let Some(q) = edge_p {
+                    let lag_bits = (max_lag * p * p) as i32;
+                    let present = lag_mask.count_ones() as i32;
+                    let contemporaneous_bits = (p * (p - 1)) as i32;
+                    total += f64::from(present + edges.len() as i32) * q.ln()
+                        + f64::from(lag_bits + contemporaneous_bits - present - edges.len() as i32)
+                            * (1.0 - q).ln();
+                }
+                logs.push(total);
+                instances.push((edges, lag_mask));
+            }
+        }
+        let top = logs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let weights: Vec<f64> = logs.iter().map(|l| (l - top).exp()).collect();
+        let z: f64 = weights.iter().sum();
+        let mut lagged = vec![0.0; max_lag * p * p];
+        let mut contemp = vec![0.0; p * p];
+        for ((edges, lag_mask), w) in instances.iter().zip(&weights) {
+            for (b, slot) in lagged.iter_mut().enumerate() {
+                if lag_mask >> b & 1 == 1 {
+                    *slot += w / z;
+                }
+            }
+            for &(from, to) in *edges {
+                contemp[from * p + to] += w / z;
+            }
+        }
+        let variables: Vec<VariableId> = (0..p).map(|i| VariableId::from_raw(i as u32)).collect();
+        let post = DbnPosterior::new(max_lag as u32)
+            .run_panel(
+                &datasets,
+                &variables,
+                &prior,
+                GraphScoreFamily::GaussianBic,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        assert_eq!(post.n_graphs(), instances.len());
+        for (b, expect) in lagged.iter().enumerate() {
+            let got = post.lagged_edge_marginals().unwrap()[b];
+            assert!((got - expect).abs() < 1e-9, "lag bit {b}: {got} vs {expect}");
+        }
+        for (b, expect) in contemp.iter().enumerate() {
+            let got = post.edge_marginals()[b];
+            assert!((got - expect).abs() < 1e-9, "contemporaneous bit {b}: {got} vs {expect}");
+        }
     }
 }
 

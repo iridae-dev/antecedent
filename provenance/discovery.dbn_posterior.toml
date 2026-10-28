@@ -20,4 +20,36 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-discovery/src/dbn_posterior.rs unit tests",
+ "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs::dbn_exact_template_posterior_matches_brute_force_over_a_two_unit_panel (independent brute-force enumeration of all 768 templates of two variables at lag two over a two-unit panel, uniform and Bernoulli edge priors)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The exact template path of the bounded-lag DBN posterior: construction of the stacked lag-window design per unit, the parent columns each template implies for every node, the Gaussian-BIC template score, the Bernoulli prior over contemporaneous and lag bits, normalisation, and the contemporaneous and lagged edge marginals. Verified against an independent brute-force enumeration of all 3 x 2^8 templates for two variables at lag two over a two-unit panel of unequal lengths. The finite template MCMC, constraint handling beyond the unconstrained prior, and the temporal-graph builders are not reviewed."
+assumptions = ["The template is stationary and every lag window is one exchangeable Gaussian regression row; initial-network terms and the cited paper's Bayesian parameter integration are not part of the target.", "Lag windows are built inside each unit, so no lagged value crosses a unit boundary; units are pooled as exchangeable.", "Gaussian BIC is score-based and not a calibrated posterior; the target is a pseudo-posterior as stated in the deviations."]
+historical_exposure = "Historical author exposure cannot be established from retained artifacts. This review consulted no upstream implementation or test source and did not re-read the cited DBN or BIC papers: the executed check is against the defined target, evaluated by a separately written least-squares solver (normal equations with pivoted elimination) in the test."
+redistribution = "The new test is repository-authored under MIT OR Apache-2.0; no third-party code, data or papers are redistributed."
+limitations = "One simulated two-variable data set, maximum lag two, two priors. Forbidden or required lagged edges, maximum-parent caps and temporal min-lag constraints are not covered by the independent reference. The MCMC path used above 16 lag bits (up to 48) is not independently enumerated. Agreement shows the implementation computes the stated BIC pseudo-posterior; it does not support structure-recovery or calibration claims."
+sources = ["https://doi.org/10.48550/arXiv.1301.7374", "https://doi.org/10.1214/aos/1176344136", "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"]
+findings_resolved = ["No defect found: lagged and contemporaneous edge marginals, template count and normalisation match the brute-force reference to 1e-9 under both priors, including the lag block offset and per-unit window construction.", "Replaced recovery-only unit tests (a strong edge has posterior above a threshold) with an exact numerical comparison of the whole template distribution."]
+record_sha256 = "13ec69e9557cee642e85f0e8198df32008682a1aead73fb93194182162b827ce"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/dbn_posterior.rs"
+sha256 = "8b89f179163481881b508bf8802225c83b8cf4a111c29ef5857f92ea9eb71971"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/graph_score.rs"
+sha256 = "c9573c39fb4944a1a4dacac81c522bd2ff3eb03b9e586e189bdf3951526c3f5e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/graph_posterior.rs"
+sha256 = "df87dced0027e69b01f44ec103bdbed1607c1b2858563a61ed9ecc8e95878631"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
+sha256 = "84ab687ec69e5e16bf085b18f29808d672e758c06f8f5440c97d084f9e1167aa"
