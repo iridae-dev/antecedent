@@ -295,50 +295,65 @@ fn directed_parents(
     Ok(parents)
 }
 
-/// Inverse of a symmetric `k x k` matrix by Gauss-Jordan elimination with partial pivoting.
-fn invert(mut a: Vec<f64>, k: usize) -> Option<Vec<f64>> {
-    let scale = (0..k).map(|i| a[i * k + i].abs()).fold(0.0_f64, f64::max);
-    let mut inverse = vec![0.0; k * k];
-    for i in 0..k {
-        inverse[i * k + i] = 1.0;
-    }
-    for col in 0..k {
-        let mut pivot = col;
-        for row in (col + 1)..k {
-            if a[row * k + col].abs() > a[pivot * k + col].abs() {
-                pivot = row;
-            }
-        }
-        if a[pivot * k + col].abs().partial_cmp(&(1e-12 * scale))
-            != Some(std::cmp::Ordering::Greater)
-        {
+/// Least-squares slope of the first column on the centred design by Householder QR.
+///
+/// Returns the first slope, the residual sum of squares and the `(0, 0)` entry of
+/// `(X'X)^-1`, or `None` when a column is constant or lies, to within `1e-9` of its own length,
+/// in the span of the columns before it. Centring removes the intercept without changing any
+/// slope, and the orthogonal factorization works at the conditioning of the design rather than
+/// its square, so an offset of the columns or a near-collinear covariate does not make a
+/// well-posed design look singular.
+fn centred_least_squares(y: &[f64], columns: &[Vec<f64>]) -> Option<(f64, f64, f64)> {
+    let n = y.len();
+    let m = columns.len();
+    #[allow(clippy::cast_precision_loss, reason = "row counts are far below 2^53")]
+    let mean = |v: &[f64]| v.iter().sum::<f64>() / n as f64;
+    let centre = |v: &[f64]| -> Vec<f64> {
+        let mu = mean(v);
+        v.iter().map(|value| value - mu).collect()
+    };
+    let mut cols: Vec<Vec<f64>> = columns.iter().map(|c| centre(c)).collect();
+    let mut rhs = centre(y);
+    let own_length: Vec<f64> =
+        cols.iter().map(|c| c.iter().map(|v| v * v).sum::<f64>().sqrt()).collect();
+    for j in 0..m {
+        let norm = cols[j][j..].iter().map(|v| v * v).sum::<f64>().sqrt();
+        if !(norm.is_finite() && own_length[j] > 0.0 && norm > 1e-9 * own_length[j]) {
             return None;
         }
-        if pivot != col {
-            for c in 0..k {
-                a.swap(pivot * k + c, col * k + c);
-                inverse.swap(pivot * k + c, col * k + c);
-            }
-        }
-        let diagonal = a[col * k + col];
-        for c in 0..k {
-            a[col * k + c] /= diagonal;
-            inverse[col * k + c] /= diagonal;
-        }
-        for row in 0..k {
-            if row == col {
-                continue;
-            }
-            let factor = a[row * k + col];
-            if factor != 0.0 {
-                for c in 0..k {
-                    a[row * k + c] -= factor * a[col * k + c];
-                    inverse[row * k + c] -= factor * inverse[col * k + c];
+        let alpha = if cols[j][j] > 0.0 { -norm } else { norm };
+        let mut reflector: Vec<f64> = cols[j][j..].to_vec();
+        reflector[0] -= alpha;
+        let length2: f64 = reflector.iter().map(|v| v * v).sum();
+        if length2 > 0.0 {
+            for target in cols.iter_mut().skip(j + 1).chain(std::iter::once(&mut rhs)) {
+                let dot: f64 = reflector.iter().zip(&target[j..]).map(|(r, t)| r * t).sum();
+                let scale = 2.0 * dot / length2;
+                for (t, r) in target[j..].iter_mut().zip(&reflector) {
+                    *t -= scale * r;
                 }
             }
         }
+        cols[j][j] = alpha;
+        for value in cols[j][(j + 1)..].iter_mut() {
+            *value = 0.0;
+        }
     }
-    Some(inverse)
+    // Back substitution R b = (Q'y)[..m].
+    let mut beta = vec![0.0; m];
+    for j in (0..m).rev() {
+        let tail: f64 = ((j + 1)..m).map(|c| cols[c][j] * beta[c]).sum();
+        beta[j] = (rhs[j] - tail) / cols[j][j];
+    }
+    let rss: f64 = rhs[m..].iter().map(|v| v * v).sum();
+    // Row 0 of R^-1 solves r R = e_0', and (X'X)^-1 [0, 0] is the squared length of that row.
+    let mut row = vec![0.0; m];
+    for j in 0..m {
+        let carried: f64 = (0..j).map(|i| row[i] * cols[j][i]).sum();
+        row[j] = (if j == 0 { 1.0 } else { 0.0 } - carried) / cols[j][j];
+    }
+    let inverse_00: f64 = row.iter().map(|v| v * v).sum();
+    Some((beta[0], rss, inverse_00))
 }
 
 /// Linear effect of `treatment` on `outcome` adjusting for `adjustment` on `frame` (a table).
@@ -372,50 +387,15 @@ pub fn adjusted_effect(
             "the analysis rows do not exceed the regression parameters",
         ));
     }
-    let design = |row: usize, col: usize| -> f64 {
-        match col {
-            0 => 1.0,
-            1 => x[row],
-            c => covariates[c - 2][row],
-        }
-    };
-    let mut gram = vec![0.0; k * k];
-    let mut moment = vec![0.0; k];
-    #[allow(
-        clippy::needless_range_loop,
-        reason = "the row indexes both the outcome and the design"
-    )]
-    for row in 0..n {
-        for a in 0..k {
-            let da = design(row, a);
-            moment[a] += da * y[row];
-            for b in a..k {
-                gram[a * k + b] += da * design(row, b);
-            }
-        }
-    }
-    for a in 0..k {
-        for b in 0..a {
-            gram[a * k + b] = gram[b * k + a];
-        }
-    }
-    let inverse = invert(gram, k).ok_or_else(|| {
+    let mut slopes: Vec<Vec<f64>> = Vec::with_capacity(1 + covariates.len());
+    slopes.push(x);
+    slopes.extend(covariates);
+    let (point, rss, inverse_treatment) = centred_least_squares(&y, &slopes).ok_or_else(|| {
         refused("split_effect.design_singular", "the adjusted regression design is singular")
     })?;
-    let beta: Vec<f64> =
-        (0..k).map(|a| (0..k).map(|b| inverse[a * k + b] * moment[b]).sum()).collect();
-    let mut rss = 0.0;
-    #[allow(
-        clippy::needless_range_loop,
-        reason = "the row indexes both the outcome and the design"
-    )]
-    for row in 0..n {
-        let fitted: f64 = (0..k).map(|c| beta[c] * design(row, c)).sum();
-        rss += (y[row] - fitted).powi(2);
-    }
     #[allow(clippy::cast_precision_loss, reason = "bounded row and parameter counts")]
     let df = (n - k) as f64;
-    let variance = rss / df * inverse[k + 1];
+    let variance = rss / df * inverse_treatment;
     if !(variance.is_finite() && variance > 0.0) {
         return Err(refused(
             "split_effect.degenerate_variance",
@@ -424,7 +404,6 @@ pub fn adjusted_effect(
     }
     let se = variance.sqrt();
     let quantile = antecedent_stats::student_t_ppf(1.0 - (1.0 - level) / 2.0, df);
-    let point = beta[1];
     Ok(AdjustedEffect {
         point,
         lower: point - quantile * se,

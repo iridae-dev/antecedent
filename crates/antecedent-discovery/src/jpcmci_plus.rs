@@ -389,7 +389,17 @@ impl JpcmciPlus {
             crate::evidence::fdr_family_size(&scored, self.fdr),
         ));
         scored = threshold_scored_links(scored, self.fdr, constraints.alpha);
-        scored = symmetrize_contemporaneous_links(scored);
+        // A contemporaneous system link survives only when both directed tests do. An exogenous
+        // link (observed context or dummy to system) is tested in the one direction the link
+        // assumptions allow, so intersecting it with a direction that is never tested would
+        // drop every one of them from the graph; it bypasses the intersection.
+        let (exogenous, system_links): (Vec<ScoredLink>, Vec<ScoredLink>) =
+            scored.into_iter().partition(|s| {
+                constraints.multi_dataset.role_of(s.link.source).is_exogenous()
+                    || constraints.multi_dataset.role_of(s.link.target).is_exogenous()
+            });
+        scored = symmetrize_contemporaneous_links(system_links);
+        scored.extend(exogenous);
         // Exogenous → system: force directed (no undirected symmetrize residue).
         scored = orient_exogenous_links(scored, &constraints);
 

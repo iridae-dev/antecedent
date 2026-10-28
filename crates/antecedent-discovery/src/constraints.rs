@@ -95,7 +95,8 @@ impl CiMaskType {
 /// How contemporaneous links may relate across environments (J-PCMCI+).
 ///
 /// Retained for API compatibility. Günther pooled search does not use this enum
-/// to drive pooling; link assumptions come from node roles instead.
+/// to drive pooling; link assumptions come from node roles instead, so any value other than
+/// the default is refused by [`DiscoveryConstraints::validate`] rather than ignored.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 pub enum CrossEnvLinkAssumption {
     /// No cross-environment contemporaneous assumption (default).
@@ -203,9 +204,9 @@ pub struct MultiDatasetConstraints {
     pub space_dummy_ci: SpaceDummyCiMode,
     /// How time one-hot dummies enter CI (scalar vs multivariate block).
     pub time_dummy_ci: TimeDummyCiMode,
-    /// Cross-environment link assumptions (API compatibility; unused by Günther path).
+    /// Cross-environment link assumptions (API compatibility; only the default is accepted).
     pub cross_env: CrossEnvLinkAssumption,
-    /// Legacy intersection-pool flag; ignored by Günther pooled search.
+    /// Legacy intersection-pool flag; the pooled search always pools, so `false` is refused.
     pub pool_lagged_ci: bool,
 }
 
@@ -697,6 +698,21 @@ impl DiscoveryConstraints {
                 });
             }
         }
+        // The pooled search takes its link assumptions from node roles. These two declarations
+        // are not read anywhere, so a value other than the implemented one must not be accepted.
+        if self.multi_dataset.cross_env != CrossEnvLinkAssumption::default() {
+            return Err(DiscoveryError::Unsupported {
+                message: "a cross-environment link assumption is not used by the pooled \
+                          J-PCMCI+ search, which takes its link assumptions from node roles; \
+                          leave it at Independent",
+            });
+        }
+        if !self.multi_dataset.pool_lagged_ci {
+            return Err(DiscoveryError::Unsupported {
+                message: "pool_lagged_ci = false is not implemented: the pooled search always \
+                          pools the lagged conditional-independence tests of all environments",
+            });
+        }
         Ok(())
     }
 
@@ -1073,8 +1089,6 @@ mod tests {
         let c = DiscoveryConstraints {
             multi_dataset: MultiDatasetConstraints {
                 context_variables: Arc::from([ctx]),
-                cross_env: CrossEnvLinkAssumption::SharedContemporaneousSkeleton,
-                pool_lagged_ci: true,
                 ..MultiDatasetConstraints::default()
             },
             ..DiscoveryConstraints::default()
@@ -1083,6 +1097,33 @@ mod tests {
         assert!(!c.multi_dataset.is_context(VariableId::from_raw(0)));
         assert_eq!(c.multi_dataset.role_of(ctx), JpcmciNodeRole::SpaceContext);
         c.validate().unwrap();
+    }
+
+    /// The pooled search reads neither the cross-environment link assumption nor the lagged-pooling
+    /// switch, so a declaration other than the one it implements is refused instead of accepted
+    /// and ignored.
+    #[test]
+    fn multi_dataset_declarations_the_pooled_search_does_not_read_are_refused() {
+        let with = |multi_dataset: MultiDatasetConstraints| DiscoveryConstraints {
+            multi_dataset,
+            ..DiscoveryConstraints::default()
+        };
+        for cross_env in [
+            CrossEnvLinkAssumption::SharedContemporaneousSkeleton,
+            CrossEnvLinkAssumption::EnvironmentSpecificContemporaneous,
+        ] {
+            let c =
+                with(MultiDatasetConstraints { cross_env, ..MultiDatasetConstraints::default() });
+            let error = c.validate().unwrap_err().to_string();
+            assert!(error.contains("cross-environment"), "{cross_env:?}: {error}");
+        }
+        let c = with(MultiDatasetConstraints {
+            pool_lagged_ci: false,
+            ..MultiDatasetConstraints::default()
+        });
+        let error = c.validate().unwrap_err().to_string();
+        assert!(error.contains("pool_lagged_ci"), "{error}");
+        with(MultiDatasetConstraints::default()).validate().unwrap();
     }
 
     #[test]
