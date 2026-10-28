@@ -4,15 +4,65 @@
     "kind": "enumeration",
     "project": "clean-room discrete g-formula enumeration",
     "pin": "fixture-algorithm-v1",
-    "generation_location": "analytical artifact; no generator retained"
+    "method": "exact rational back-door adjustment over the eight table cells",
+    "generator": "conformance/estimate/functional_plugin/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/functional_plugin/reference.py --check",
+    "environment_lock": "conformance/estimate/functional_plugin/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "interventional_mean",
+      "atom_probability_sum"
+    ],
+    "context_only_outputs": [
+      "z_mass",
+      "conditional_outcome_probability",
+      "bootstrap_scope"
+    ],
+    "independence_basis": "reference.py is standard-library Python with exact Fraction arithmetic that imports no Antecedent code. From the eight (z, t, y, count) cells of the table the executing assertion builds (transcribed as input), it computes P(Z=z), P(Y=1|T=1,Z=z) and the back-door functional sum_z P(z) P(Y=1|T=1,z) = 7/10, and the interventional atom masses summing to one, then compares them with the fixture. The shared object is the back-door formula stated in the fixture and the table counts.",
+    "historical_exposure": "The fixture previously recorded no generator ('analytical artifact'); this reference was written during this review from the fixture formula and the table counts in the executing assertion, with no product implementation source consulted. Who first derived 0.7 is unrecorded.",
+    "reference_review": {
+      "scope": "Plug-in interventional mean E[Y | do(T=1)] and total atom mass of the 200-row binary confounding table with a single binary adjuster.",
+      "independence_basis": "reference.py is standard-library Python with exact Fraction arithmetic that imports no Antecedent code. From the eight (z, t, y, count) cells of the table the executing assertion builds (transcribed as input), it computes P(Z=z), P(Y=1|T=1,Z=z) and the back-door functional sum_z P(z) P(Y=1|T=1,z) = 7/10, and the interventional atom masses summing to one, then compares them with the fixture. The shared object is the back-door formula stated in the fixture and the table counts.",
+      "historical_exposure": "The fixture previously recorded no generator ('analytical artifact'); this reference was written during this review from the fixture formula and the table counts in the executing assertion, with no product implementation source consulted. Who first derived 0.7 is unrecorded.",
+      "limitations": "One deterministic empirical table with a single binary adjuster and a small hand-chosen set of cell counts; the exact table makes the plug-in equal the population functional, so no estimation noise is involved. The reference does not derive the identifying functional (the ID derivation is the assertion's identify step and its NonparametricallyIdentified status check), and the bootstrap scope field is context only. The asserted outputs are the mean and the atom mass sum at 1e-12. No calibration.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/functional_plugin/reference.py",
+          "sha256": "3cc47b2be1b7d1aee09001d8b8d64a0b9c2ef95a6250210b39334b96348d2e66"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/functional_plugin/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-estimate/src/functional_distribution.rs",
+          "sha256": "1c1244602640fbaf0f2e07305b0bb2cbe795be94eb4ecdf366c2487de0f4d278"
+        }
+      ],
+      "sources": [],
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "fixture_payload_sha256": "d0626e27be53debe456f7d930b3f4ccc7beb7875c3724694f0194e7ce4c244ca"
+    }
   },
   "case": {
     "name": "binary_confounding_table",
     "formula": "sum_z P(Y=1|T=1,Z=z) P(Z=z)",
-    "z_mass": [0.5, 0.5],
-    "conditional_outcome_probability": [0.8, 0.6],
+    "z_mass": [
+      0.5,
+      0.5
+    ],
+    "conditional_outcome_probability": [
+      0.8,
+      0.6
+    ],
     "interventional_mean": 0.7,
     "atom_probability_sum": 1.0
   },
-  "acceptance": {"atol": 1e-12, "bootstrap_scope": "finite-positive-only"}
+  "acceptance": {
+    "atol": 1e-12,
+    "bootstrap_scope": "finite-positive-only"
+  }
 }

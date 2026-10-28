@@ -1,10 +1,48 @@
 {
   "oracle": {
-    "kind": "dense_linear_algebra",
+    "kind": "independent_reimplementation",
     "method": "brute-force joint Gaussian density of all observation times, with SciPy expm and continuous Lyapunov solutions",
-    "independence_basis": "The stationary OU process is jointly Gaussian; its observation covariance blocks are H expm(A dt) S H^T plus noise, evaluated densely with NumPy/SciPy. The generator is retained and checked by the conformance reference check; the author of the reference is the repository author and independence from the production implementation has not been reviewed.",
+    "independence_basis": "The stationary OU process is jointly Gaussian; its observation covariance blocks are H expm(A dt) S H^T plus noise, evaluated densely with NumPy/SciPy in one multivariate-normal density per unit. No Kalman recursion, van Loan transition or other production code is used. The retained generator and the executing assertion were read for the review recorded in reference_review.",
     "generator": "conformance/gcm/ou_trajectory_likelihood/reference.py",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "generator_retained": true,
+    "environment_lock": "conformance/gcm/ou_trajectory_likelihood/reference.py.lock",
+    "command": "uv run --frozen --script conformance/gcm/ou_trajectory_likelihood/reference.py --check",
+    "asserted_outputs": [
+      "cases[*].log_likelihood (summed over the units of each case)"
+    ],
+    "context_only_outputs": [
+      "seed",
+      "per_unit",
+      "units"
+    ],
+    "executing_assertion": "crates/antecedent-estimate/src/ou_trajectory/tests.rs::the_kalman_likelihood_matches_the_committed_joint_gaussian_reference",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "reference_review": {
+      "scope": "Three stationary OU cases (fully observed irregular times, partially observed with noise, oscillatory with a combined observation) with 2-3 independent units of 25-30 irregularly timed observations each; the summed exact log-likelihood of the stored data at the generating parameters.",
+      "independence_basis": "The generator evaluates the log-likelihood as one dense multivariate-normal density per unit: observation covariance blocks H expm(A dt) S H^T (plus noise on the diagonal) with S from SciPy's continuous Lyapunov solver and the stationary mean -A^{-1} b, then slogdet and a linear solve. The product evaluates the same likelihood by a Kalman recursion with exact transitions, so the two computations share the model statement only. The generator imports no Antecedent code; the executing assertion reads each case's stored times, values, drift, forcing, diffusion factor, observation and noise from expected.json, and compares the product's log-likelihood with the stored value at relative 1e-8 (the generator's own --check re-evaluates the stored data at relative 1e-9).",
+      "historical_exposure": "The reference was written by the repository author alongside the product; independence rests on the different algorithm described above, not on a separate author. The Kalman implementation source was not consulted for this review.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. NumPy and SciPy are used from an isolated locked script environment outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Likelihood value at the generating parameters only: no maximum-likelihood fit, score, information or confidence-interval claim, no intervention schedule or non-stationary initial law (the assertion uses the stationary initial law). Dense evaluation is O((km)^3), so the cases are small. The simulated data come from the same generator but are stored, so the check does not depend on their provenance. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/gcm/ou_trajectory_likelihood/reference.py",
+          "sha256": "b66568b95673de88eacc455c67d12dc938a43639c831e91e949c7685599f287e"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/gcm/ou_trajectory_likelihood/reference.py.lock",
+          "sha256": "87774211723939884a170d86e8670db50824f24dae6ac357b443a107d4915711"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-estimate/src/ou_trajectory/tests.rs",
+          "sha256": "a387f4aec31c6664d1d4dcf1c7d87b28e8b91fc874bc689d8bea1f53125bcbde"
+        }
+      ],
+      "fixture_payload_sha256": "ff990ee9e58072a2052072fd1342512413b28f9cad0e6bbada313b200fb4f6bb"
+    }
   },
   "schema_version": 1,
   "cases": [

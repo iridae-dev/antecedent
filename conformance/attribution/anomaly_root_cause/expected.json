@@ -40,17 +40,34 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-attribution/src/root_cause.rs",
-          "sha256": "1e028b40e82a86d37865ecc0380068f66f4a1a983bcbd3b780e0cd996814ac0e"
+          "sha256": "119952ebca0880abf2e329fbb07fc34cc798bce1ac2f76bbeacd58073de0555a"
         }
       ],
       "fixture_payload_sha256": "3659657dda1d4813464e3ecc1764063052ca6b1cf3ff36a0087351ea6d90c5b9"
     }
   },
-  "posterior_draws_colmajor": [1.0, 2.0, 3.0, -4.0, -4.0, -4.0],
+  "posterior_draws_colmajor": [
+    1.0,
+    2.0,
+    3.0,
+    -4.0,
+    -4.0,
+    -4.0
+  ],
   "n_draws": 3,
   "expected_ranking": [
-    {"component_raw": 1, "score": 4.0, "graph_std": 0.0},
-    {"component_raw": 0, "score": 2.0, "graph_std": 0.816496580927726}
+    {
+      "component_raw": 1,
+      "score": 4.0,
+      "graph_std": 0.0
+    },
+    {
+      "component_raw": 0,
+      "score": 2.0,
+      "graph_std": 0.816496580927726
+    }
   ],
-  "tolerance": {"absolute": 1e-12}
+  "tolerance": {
+    "absolute": 1e-12
+  }
 }

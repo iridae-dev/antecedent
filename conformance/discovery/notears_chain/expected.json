@@ -30,7 +30,7 @@
     "baseline_pin": null,
     "env": "python3"
   },
-  "reference": {
+  "historical_reference": {
     "project": "causal-library",
     "available": true,
     "version": "synthetic",

@@ -1,14 +1,165 @@
 {
   "schema_version": 1,
-  "oracle": {"kind": "independent_reimplementation", "project": "edge-g formula and canonical mediation examples", "generator": "temporary clean-room harness (deleted after artifact import); witness cases added by hand from the Avin-Shpitser-Pearl recanting-witness definition (a node W reached from T along a prefix q with continuations s1, s2 to Y such that q.s1 is selected and q.s2 is not)"},
+  "oracle": {
+    "kind": "enumeration",
+    "project": "edge-g formula and canonical mediation examples",
+    "method": "explicit enumeration of directed T-to-Y paths and recanting witnesses",
+    "generator": "conformance/identify/path_specific/reference.py",
+    "command": "uv run --frozen --script conformance/identify/path_specific/reference.py --check",
+    "environment_lock": "conformance/identify/path_specific/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "status per case",
+      "witness node per not_identified case",
+      "method string where present"
+    ],
+    "context_only_outputs": [
+      "note",
+      "limits"
+    ],
+    "independence_basis": "reference.py is standard-library Python that imports no Antecedent code. For each case it enumerates every directed T -> Y path explicitly, marks a path selected when it visits every included node (empty list: all paths), and finds recanting witnesses W by the Avin-Shpitser-Pearl condition (a shared prefix to W with one selected and one unselected continuation to Y). It reproduces all seven statuses and checks the named witness is among the derived witnesses. The shared object is the recanting-witness definition and the selection convention (a path is selected when it visits all included nodes), both stated in the fixture and the query documentation; the product decides the same question by reachability, which the reference does not use.",
+    "historical_exposure": "The cases and their expected statuses were written by hand from the recanting-witness definition together with a temporary harness that was not retained (recorded under historical_oracle). The retained reference was written during this review from the definition and the fixture cases with no product implementation source consulted; who first derived the expected statuses is unrecorded.",
+    "reference_review": {
+      "scope": "Seven directed-graph cases of path-specific identification: identified versus not identified under the recanting-witness criterion, and the witness node for the not-identified cases.",
+      "independence_basis": "reference.py is standard-library Python that imports no Antecedent code. For each case it enumerates every directed T -> Y path explicitly, marks a path selected when it visits every included node (empty list: all paths), and finds recanting witnesses W by the Avin-Shpitser-Pearl condition (a shared prefix to W with one selected and one unselected continuation to Y). It reproduces all seven statuses and checks the named witness is among the derived witnesses. The shared object is the recanting-witness definition and the selection convention (a path is selected when it visits all included nodes), both stated in the fixture and the query documentation; the product decides the same question by reachability, which the reference does not use.",
+      "historical_exposure": "The cases and their expected statuses were written by hand from the recanting-witness definition together with a temporary harness that was not retained (recorded under historical_oracle). The retained reference was written during this review from the definition and the fixture cases with no product implementation source consulted; who first derived the expected statuses is unrecorded.",
+      "limitations": "Directed graphs only: the fixture states that the district-level criterion for latent confounding is not implemented. Seven small graphs. For selection_not_edge_closed the reference finds two witnesses (A and R) while the fixture and assertion name A; the assertion checks that the product's reported witness is the one named, which is a choice among valid witnesses and is not derived. The method string (path_specific.natural) is a repository label the reference does not derive. Identification status is a graph property; no estimation or calibration is involved.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/identify/path_specific/reference.py",
+          "sha256": "e1a633719394986e990f14c0315d66d80c3e32d971aa662c69204bdf1f368d4b"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/identify/path_specific/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-identify/src/path_specific.rs",
+          "sha256": "e855b312851b6f18ac1725641de65d3a4230f08453130dca6ebaacf8a15f5984"
+        }
+      ],
+      "sources": [],
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "fixture_payload_sha256": "73318cb3c7747c4ba883c93874f9f4f8df5749ca476fdcd8a90d8527eba909f3"
+    }
+  },
   "cases": [
-    {"id": "mediated_only", "dag": ["T->M", "M->Y", "T->Y"], "included_path_nodes": ["M"], "status": "identified", "method": "path_specific.natural"},
-    {"id": "all_paths", "dag": ["T->M", "M->Y", "T->Y"], "included_path_nodes": [], "status": "identified"},
-    {"id": "shared_descendant_distinct_children", "dag": ["T->A", "A->W", "T->B", "B->W", "W->Y"], "included_path_nodes": ["A"], "status": "identified", "method": "path_specific.natural", "note": "W lies on the selected T->A->W->Y and the unselected T->B->W->Y but is not a witness: the two paths leave T through different children, so W takes A from the active world and B from the control world"},
-    {"id": "post_mediator_node_on_direct_path", "dag": ["T->M1", "M1->W", "T->W", "W->Y", "T->Y"], "included_path_nodes": ["W"], "status": "identified", "method": "path_specific.natural", "note": "selecting T->W->Y leaves T->M1->W->Y unselected; W is on both but T's children M1 and W each start one kind of path only"},
-    {"id": "treatment_child_splits", "dag": ["T->L", "L->M", "L->Y", "T->M", "M->Y"], "included_path_nodes": ["M"], "status": "not_identified", "witness": "L", "note": "L starts the selected T->L->M->Y and the unselected T->L->Y"},
-    {"id": "split_below_treatment_child", "dag": ["T->W", "W->A", "A->Y", "W->B", "B->Y", "T->C", "C->Y"], "included_path_nodes": ["A"], "status": "not_identified", "witness": "W", "note": "W continues to the selected W->A->Y and the unselected W->B->Y after the shared prefix T->W"},
-    {"id": "selection_not_edge_closed", "dag": ["T->A", "T->B", "A->R", "B->R", "R->Y", "R->Z", "Z->Y"], "included_path_nodes": ["A", "Z"], "status": "not_identified", "witness": "A", "note": "only T->A->R->Z->Y is selected; A also starts the unselected T->A->R->Y"}
+    {
+      "id": "mediated_only",
+      "dag": [
+        "T->M",
+        "M->Y",
+        "T->Y"
+      ],
+      "included_path_nodes": [
+        "M"
+      ],
+      "status": "identified",
+      "method": "path_specific.natural"
+    },
+    {
+      "id": "all_paths",
+      "dag": [
+        "T->M",
+        "M->Y",
+        "T->Y"
+      ],
+      "included_path_nodes": [],
+      "status": "identified"
+    },
+    {
+      "id": "shared_descendant_distinct_children",
+      "dag": [
+        "T->A",
+        "A->W",
+        "T->B",
+        "B->W",
+        "W->Y"
+      ],
+      "included_path_nodes": [
+        "A"
+      ],
+      "status": "identified",
+      "method": "path_specific.natural",
+      "note": "W lies on the selected T->A->W->Y and the unselected T->B->W->Y but is not a witness: the two paths leave T through different children, so W takes A from the active world and B from the control world"
+    },
+    {
+      "id": "post_mediator_node_on_direct_path",
+      "dag": [
+        "T->M1",
+        "M1->W",
+        "T->W",
+        "W->Y",
+        "T->Y"
+      ],
+      "included_path_nodes": [
+        "W"
+      ],
+      "status": "identified",
+      "method": "path_specific.natural",
+      "note": "selecting T->W->Y leaves T->M1->W->Y unselected; W is on both but T's children M1 and W each start one kind of path only"
+    },
+    {
+      "id": "treatment_child_splits",
+      "dag": [
+        "T->L",
+        "L->M",
+        "L->Y",
+        "T->M",
+        "M->Y"
+      ],
+      "included_path_nodes": [
+        "M"
+      ],
+      "status": "not_identified",
+      "witness": "L",
+      "note": "L starts the selected T->L->M->Y and the unselected T->L->Y"
+    },
+    {
+      "id": "split_below_treatment_child",
+      "dag": [
+        "T->W",
+        "W->A",
+        "A->Y",
+        "W->B",
+        "B->Y",
+        "T->C",
+        "C->Y"
+      ],
+      "included_path_nodes": [
+        "A"
+      ],
+      "status": "not_identified",
+      "witness": "W",
+      "note": "W continues to the selected W->A->Y and the unselected W->B->Y after the shared prefix T->W"
+    },
+    {
+      "id": "selection_not_edge_closed",
+      "dag": [
+        "T->A",
+        "T->B",
+        "A->R",
+        "B->R",
+        "R->Y",
+        "R->Z",
+        "Z->Y"
+      ],
+      "included_path_nodes": [
+        "A",
+        "Z"
+      ],
+      "status": "not_identified",
+      "witness": "A",
+      "note": "only T->A->R->Z->Y is selected; A also starts the unselected T->A->R->Y"
+    }
   ],
-  "limits": "Directed-graph cases only; the district-level recanting criterion for latent confounding is not implemented (a bidirected edge on an outcome ancestor with a complementary path is refused as unsupported)."
+  "limits": "Directed-graph cases only; the district-level recanting criterion for latent confounding is not implemented (a bidirected edge on an outcome ancestor with a complementary path is refused as unsupported).",
+  "historical_oracle": {
+    "kind": "independent_reimplementation",
+    "project": "edge-g formula and canonical mediation examples",
+    "generator": "temporary clean-room harness (deleted after artifact import); witness cases added by hand from the Avin-Shpitser-Pearl recanting-witness definition (a node W reached from T along a prefix q with continuations s1, s2 to Y such that q.s1 is selected and q.s2 is not)"
+  }
 }

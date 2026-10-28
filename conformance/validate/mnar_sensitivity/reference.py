@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = []
+# ///
 """Independent reference for the missing-not-at-random sensitivity analysis.
 
 Pure standard-library Python; it imports no Antecedent code and shares no formula text with the
@@ -32,7 +36,7 @@ Cases:
 
 ``--write`` regenerates ``expected.json``; ``--check`` compares it (``math.isclose``).
 
-    python3 conformance/validate/mnar_sensitivity/reference.py --check
+    uv run --frozen --script conformance/validate/mnar_sensitivity/reference.py --check
 """
 
 from __future__ import annotations
@@ -301,11 +305,24 @@ def document() -> dict:
         "schema_version": 1,
         "tolerance_class": "StableFloat",
         "oracle": {
-            "kind": "closed_form",
+            "kind": "independent_reimplementation",
             "method": "closed forms for the shift and the binary tilt plus an independent evaluation of the logistic selection model by explicit Bayes on the selection mechanism, with a numerical-influence delta-method variance",
-            "independence_basis": "reference.py is standard-library Python that imports no Antecedent code. The shift and the binary tilt are checked against hand-derived closed forms (effect, tipping points); the continuous tilt is evaluated through the selection mechanism f(y|R=0) ~ f_obs(y)(1-pi(y))/pi(y) with an arbitrary intercept that drops out, and its tipping points come from this script's own scan plus bisection. The author of the reference is the repository author and independence from the production implementation has not been reviewed.",
             "generator": "conformance/validate/mnar_sensitivity/reference.py",
-            "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+            "command": "uv run --frozen --script conformance/validate/mnar_sensitivity/reference.py --check",
+            "environment_lock": "conformance/validate/mnar_sensitivity/reference.py.lock",
+            "generator_retained": True,
+            "asserted_outputs": [
+                "effect at each probe parameter",
+                "sampling standard error at each probe parameter",
+                "sign, excludes_null and decision (treat) tipping points per side",
+            ],
+            "context_only_outputs": [
+                "closed_forms block",
+                "decision thresholds (inputs)",
+                "grid_points, bounds and data (inputs)",
+            ],
+            "independence_basis": "reference.py is standard-library Python that imports no Antecedent code. The shift and the binary tilt are checked inside the script against hand-derived closed forms (effect, tipping points); the continuous tilt is evaluated through the selection mechanism f(y|R=0) ~ f_obs(y)(1-pi(y))/pi(y) with an arbitrary intercept that drops out, and its tipping points come from this script's own scan plus bisection. The sampling variance is a delta-method variance from a numerical influence function (central finite differences of the arm mean under perturbed observation weights), not the closed-form influence the product uses.",
+            "historical_exposure": "Written by the repository author alongside the product; whether the product source was consulted is unrecorded.",
         },
         "level": 0.95,
         "closed_forms": closed,
@@ -326,10 +343,15 @@ def close(a, b) -> bool:
 def main(argv: list[str]) -> int:
     doc = document()
     if "--write" in argv:
-        EXPECTED.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
+        if EXPECTED.is_file():
+            previous = json.loads(EXPECTED.read_text(encoding="utf-8")).get("oracle", {})
+            if "reference_review" in previous:
+                doc["oracle"]["reference_review"] = previous["reference_review"]
+        EXPECTED.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"wrote {EXPECTED}")
         return 0
     stored = json.loads(EXPECTED.read_text(encoding="utf-8"))
+    stored["oracle"].pop("reference_review", None)
     if not close(json.loads(json.dumps(doc)), stored):
         print("expected.json differs from the reference; rerun with --write", file=sys.stderr)
         return 1

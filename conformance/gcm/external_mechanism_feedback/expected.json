@@ -1,10 +1,47 @@
 {
   "oracle": {
-    "kind": "closed_form_and_bisection",
+    "kind": "closed_form",
     "method": "least-squares slope, bisection fixed point and explicit 2x2 Jacobian determinant of the two-equation saturating feedback system",
-    "independence_basis": "Standard-library arithmetic only; nothing is shared with the production solver, likelihood or resolver. The author of the reference is the repository author and independence has not been reviewed.",
+    "independence_basis": "Standard-library arithmetic only; nothing is shared with the production solver, likelihood or resolver. The retained generator and the executing assertion were read for the review recorded in reference_review.",
     "generator": "conformance/gcm/external_mechanism_feedback/reference.py",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "generator_retained": true,
+    "environment_lock": "conformance/gcm/external_mechanism_feedback/reference.py.lock",
+    "command": "uv run --frozen --script conformance/gcm/external_mechanism_feedback/reference.py --check",
+    "asserted_outputs": [
+      "fitted_gain",
+      "fixed_points"
+    ],
+    "context_only_outputs": [
+      "joint_log_density_at_first_fixed_point"
+    ],
+    "executing_assertion": "python/tests/test_external_cyclic_mechanisms.py::test_fit_and_fixed_points_match_the_committed_independent_reference",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "reference_review": {
+      "scope": "One two-variable saturating feedback system (x0 = gain*tanh(x1) + u0 with a registered external mechanism, x1 = tanh(0.2 x0) + u1) fitted on ten regime rows with x1 clamped; the fitted gain and the fixed points of two noise worlds. The generator derives the gain as the least-squares slope of x0 on tanh(x1) and the fixed points by bisection of the scalar residual in x1.",
+      "independence_basis": "The generator uses only the Python standard library: a closed-form least-squares slope, a 200-step bisection on x1 in [-10, 10], and an explicit 2x2 determinant. It imports no Antecedent code, no solver and no resolver. The shared object is the fixture statement of the model (the two equations, the clamped values and noise rows), which the executing assertion rebuilds in regime_rows() and NOISE; the assertion reads fitted_gain and fixed_points from expected.json and compares the product's exported fit and solved worlds at an absolute 1e-6.",
+      "historical_exposure": "The reference was written by the repository author alongside the product; independence rests on the derivation above, not on a separate author. The product implementation source was not consulted for this review.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "One system, one dataset, one nonlinearity (tanh); the contraction condition is argued in the generator docstring, not checked numerically. The joint log-density is derived and checked by the generator but is not read by the executing assertion. Tolerance 1e-6 absolute. No sampling variability and no calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/gcm/external_mechanism_feedback/reference.py",
+          "sha256": "174e17c570eae31dca28a387d7d7489393b73777afc97c0cbd53f43877c802e7"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/gcm/external_mechanism_feedback/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "python/tests/test_external_cyclic_mechanisms.py",
+          "sha256": "80cecc7671bc6743d3bbcb18624fbb2c3b5491e2041960a4a8e9d7a8188b38e8"
+        }
+      ],
+      "fixture_payload_sha256": "b97b1bee916023786d10cafcd3b1128556424e9ba4bd70ebbc0250450e2300a5"
+    }
   },
   "schema_version": 1,
   "fitted_gain": 0.7,

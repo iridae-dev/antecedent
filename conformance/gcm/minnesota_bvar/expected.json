@@ -2,11 +2,50 @@
   "schema_version": 1,
   "oracle": {
     "kind": "independent_reimplementation",
-    "project": "NumPy clean-room augmented ridge solve",
-    "versions": {"python": "3.11.5", "numpy": "2.4.6"},
-    "installed_metadata_sha256": {"numpy": "b082c52ccbe3b880bae177c35171b52ed6c947f3ad71e3762f2723f60a411de0"},
+    "project": "stdlib exact-rational standardized ridge solve",
+    "versions": {
+      "python": "3.12"
+    },
     "algorithm": "solve (Z'Z+diag(0,1/phi,1/phi)) b=Z'y on Z=[1,x1/s1,x2/s2] (s_j = population SD of parent j, intercept unpenalized); phi=0.2; coefficients b_j/s_j; sigma from the n data-row residuals with n-3 degrees of freedom (no prior pseudo-rows)",
-    "generation_location": "temporary external harness; not retained"
+    "generation_location": "conformance/gcm/minnesota_bvar/reference.py (retained; replaces a deleted NumPy harness)",
+    "independence_basis": "Gaussian elimination over Fractions on the normal equations of the standardized design with the stated ridge penalty; the data are rebuilt from the fixture's formulas. It imports no Antecedent code and calls no BVAR routine. Floating point enters only through the sines and cosines of the inputs, the two population standard deviations and the final residual-scale square root. The data formulas, phi, the intercept-unpenalised convention and the n-3 divisor are fixture statements shared with the product input.",
+    "asserted_outputs": [
+      "intercept",
+      "two slopes",
+      "data-row residual sigma"
+    ],
+    "context_only_outputs": [],
+    "historical_exposure": "The original NumPy harness was not retained; this replacement was written during this review from the fixture's algorithm text. No product implementation source was consulted. It reproduces the stored NumPy values to the fixture's 3e-10.",
+    "generator": "conformance/gcm/minnesota_bvar/reference.py",
+    "command": "uv run --frozen --script conformance/gcm/minnesota_bvar/reference.py --check",
+    "environment_lock": "conformance/gcm/minnesota_bvar/reference.py.lock",
+    "generator_retained": true,
+    "reference_review": {
+      "scope": "One n=90, two-parent Minnesota-style fit; intercept, both slopes and the residual sigma recomputed exactly and compared at the test's 3e-10.",
+      "independence_basis": "Gaussian elimination over Fractions on the normal equations of the standardized design with the stated ridge penalty; the data are rebuilt from the fixture's formulas. It imports no Antecedent code and calls no BVAR routine. Floating point enters only through the sines and cosines of the inputs, the two population standard deviations and the final residual-scale square root. The data formulas, phi, the intercept-unpenalised convention and the n-3 divisor are fixture statements shared with the product input.",
+      "historical_exposure": "The original NumPy harness was not retained; this replacement was written during this review from the fixture's algorithm text. No product implementation source was consulted. It reproduces the stored NumPy values to the fixture's 3e-10.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "One deterministic dataset and one penalty (phi = 0.2); the penalty and standardization convention are restated, not derived from a published Minnesota prior; no posterior draws, no multi-lag VAR structure, no calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/gcm/minnesota_bvar/reference.py",
+          "sha256": "d55089629320c3280da91f06ac39deac13ab8f2651d83c6f215d19a4ec5ae244"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/gcm/minnesota_bvar/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-model/tests/scm_oracle.rs",
+          "sha256": "bc469596ad05dcb0d2a36db1fcf739fc44b88d4f909423a6711337c89b34f2cc"
+        }
+      ],
+      "fixture_payload_sha256": "6e18979853a6dff21a30df89febb28efbcbf5e6b9e618f4673216b572e647149"
+    }
   },
   "data": {
     "n": 90,
@@ -16,8 +55,13 @@
   },
   "reference": {
     "intercept": 1.1027509286649668,
-    "coefficients": [0.7101047512729772, -0.3252094315203953],
+    "coefficients": [
+      0.7101047512729772,
+      -0.3252094315203953
+    ],
     "data_residual_sigma": 0.09259091182898882
   },
-  "acceptance": {"atol": 3e-10}
+  "acceptance": {
+    "atol": 3e-10
+  }
 }

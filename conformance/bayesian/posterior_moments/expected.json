@@ -1584,6 +1584,53 @@
   "oracle": {
     "kind": "independent_reimplementation",
     "project": "NumPy Normal-inverse-gamma posterior equations",
-    "generator": "conformance/bayesian/posterior_moments/generate.py (retained; imports NumPy only, no Antecedent code)"
+    "method": "tempered Normal-inverse-gamma matrix equations, Bartlett long-run covariance of stacked OLS scores, REML autoregression by Nelder-Mead, and product moments of jointly Gaussian coefficients",
+    "independence_basis": "The plain and tempered posterior moments are closed-form matrix equations in NumPy. The tempering factor kappa re-implements the repository-defined long-run-variance rule (autoregressive REML fit, fixed-b Newey-West bound, delta-method spread; constants at the top of the file) in NumPy and imports no Antecedent code, so for kappa the reference checks the product against the rule as restated here, not against an external definition. The retained generator and the executing assertions were read for the review recorded in reference_review.",
+    "generator": "conformance/bayesian/posterior_moments/generate.py",
+    "generator_retained": true,
+    "environment_lock": "conformance/bayesian/posterior_moments/generate.py.lock",
+    "command": "uv run --frozen --script conformance/bayesian/posterior_moments/generate.py --check",
+    "asserted_outputs": [
+      "posterior[scale][family] mean and variance for conditional, mediation, window, response, stationary_window, confounded_mediation",
+      "tempering[family][*].rows and kappa (window, stationary_window)",
+      "posterior[scale].dependent_pulse and the mediation moments and kappa in the Rust assertions",
+      "joint_block (the Rust assertion reports the same block length)"
+    ],
+    "context_only_outputs": [
+      "data (inputs)"
+    ],
+    "executing_assertion": "python/tests/test_posterior_moments.py::test_posterior_moments_and_artifact",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "reference_review": {
+      "scope": "One frozen 96-row Gaussian series and its derived columns, with posterior mean and variance of the conditional, response, mediation, sustained-window, stationary-window and confounded-mediation effects at prior scales 0.1 and 10, and the serial-dependence tempering factor kappa for the window designs. The plain and tempered Normal-inverse-gamma moments, the product of jointly Gaussian mediation coefficients and the kappa rule are computed in NumPy.",
+      "independence_basis": "The posterior moments are closed-form matrix equations (P = X'X/kappa + I/scale^2, V = P^-1, m = V X'y/kappa, a, b of the inverse gamma) and closed-form product moments; the generator imports no Antecedent code. The kappa values come from a NumPy re-implementation of the repository-defined tempering rule (REML autoregression by Nelder-Mead, fixed-b Newey-West bound, delta-method spread), so for kappa the fixture checks the product against the rule restated in NumPy rather than against an external definition, and the review does not establish who wrote it without reference to the product. The executing assertions read the stored data and compare actual posterior draws with the stored moments at 0.08 posterior SD on the mean and 6 percent on the variance (Monte Carlo limited), and the reported kappa at 5.1e-5 (Python) and 1e-5 (Rust).",
+      "historical_exposure": "Historical author exposure is unrecorded and remains unknown; the tempering rule is repository-authored.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. NumPy is used from an isolated locked script environment outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Moments are Monte Carlo compared (8192 draws), so the comparison detects errors larger than about 0.08 posterior SD in the mean and 6 percent in the variance. One series and one seed. The tempered posterior is a generalized posterior defined by the repository rule; agreement validates the implementation against that rule, not the rule's coverage (coverage is a separate calibration question and is not recorded here). No external-package parity. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/posterior_moments/generate.py",
+          "sha256": "8302479ee82c5623653d3a7700bb384175d4b44e0db6e4da14751946795445dd"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/posterior_moments/generate.py.lock",
+          "sha256": "1f04f8f8656e5327de48c7e011511e1777da8d2a9979916bdd4c6fc541583d12"
+        },
+        {
+          "role": "assertion_source",
+          "path": "python/tests/test_posterior_moments.py",
+          "sha256": "4574f56a2becdd041455734fbdb10a9b01540741bfd51fc1ead17e706c58b92f"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian_temporal.rs",
+          "sha256": "2bde5cee157aa421338d2f693f6e100558fd64d6293908eabd8687053886176b"
+        }
+      ],
+      "fixture_payload_sha256": "60d5b8e111b58f1532481fc28728bde89042107c7d912843bc0a15ac485562d6"
+    }
   }
 }

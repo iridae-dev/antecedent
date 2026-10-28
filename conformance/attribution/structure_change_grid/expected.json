@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-attribution/src/structure_change.rs",
-          "sha256": "0cc5cd0cfb8571ce32275e17487ef74a94841cc54177e038a9d1088b151b4e69"
+          "sha256": "82d1ba69ca08325e3692c26df54ffaaacab581e6e51c0159ac87e8cef73e0595"
         }
       ],
       "fixture_payload_sha256": "7fb31ec20f0e7552534dd5c83049c38f96f7f899fc209f82b666bdfc8803a0f7"

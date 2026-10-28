@@ -2,18 +2,50 @@
   "schema_version": 1,
   "oracle": {
     "kind": "independent_reimplementation",
-    "project": "NumPy clean-room scalar Kalman filter",
-    "api": "closed-form predict/update recursions",
-    "packages": {
-      "numpy": {
-        "version": "2.1.3",
-        "metadata_sha256": "56f003c44b0ee98d6adb1cb49f292d2ef07daaab7c7ba409ab2679c846fe6bf8"
-      }
-    },
-    "python": "3.12.7",
-    "seed": 20260801,
-    "command": "uv run --python 3.12 --with numpy==2.1.3 python /tmp/antecedent_particle_filter_oracle.py", "generator_retained": false,
-    "generation_location": "temporary external harness; not retained"
+    "project": "stdlib exact-rational scalar Kalman filter",
+    "api": "closed-form predict/update recursions in Fractions",
+    "python": "3.12",
+    "command": "uv run --frozen --script conformance/design_state/particle_filter_kalman/reference.py --check",
+    "generator_retained": true,
+    "generation_location": "conformance/design_state/particle_filter_kalman/reference.py (retained; replaces a deleted NumPy harness)",
+    "independence_basis": "The scalar Kalman predict/update recursion run in exact Fractions on the stored observations from the stated initial state N(0, process_std^2). It imports no Antecedent code and draws nothing. The particle filter is a Monte Carlo approximation of these filtered moments, so agreement is a convergence check at the stated tolerance, not equality. The state-space equations and the initial variance are fixture statements shared with the product input.",
+    "asserted_outputs": [
+      "filtered means at checkpoints 0, 9, 24 and 49",
+      "filtered variances at checkpoints 0, 9, 24 and 49"
+    ],
+    "context_only_outputs": [
+      "filtered moments at the other 46 time points",
+      "seed field (no random draw remains in the reference)"
+    ],
+    "historical_exposure": "The original NumPy harness was not retained; this replacement was written during this review from the fixture's recursion description and reproduces the stored values to 1e-12. No product implementation source was consulted.",
+    "generator": "conformance/design_state/particle_filter_kalman/reference.py",
+    "environment_lock": "conformance/design_state/particle_filter_kalman/reference.py.lock",
+    "reference_review": {
+      "scope": "Three scalar linear-Gaussian cases of 50 observations; the stored filtered means and variances are recomputed exactly at all 50 steps and agree to 1e-12. The product assertion compares the weighted particle moments to them at four checkpoints and three seeds.",
+      "independence_basis": "The scalar Kalman predict/update recursion run in exact Fractions on the stored observations from the stated initial state N(0, process_std^2). It imports no Antecedent code and draws nothing. The particle filter is a Monte Carlo approximation of these filtered moments, so agreement is a convergence check at the stated tolerance, not equality. The state-space equations and the initial variance are fixture statements shared with the product input.",
+      "historical_exposure": "The original NumPy harness was not retained; this replacement was written during this review from the fixture's recursion description and reproduces the stored values to 1e-12. No product implementation source was consulted.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Scalar linear-Gaussian models only, where the exact filter exists; the observations are stored data, not drawn by the generator. Tolerances are a mean absolute 0.02 and a variance relative 0.1 on three fixed seeds, about three times the largest observed particle-filter deviation, so this is a convergence check on a bootstrap filter and not a bound on its Monte Carlo error. The weighted-moment helper is part of the asserting test. No smoothing, nonlinear or multivariate case. Calibration unmeasured.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/design_state/particle_filter_kalman/reference.py",
+          "sha256": "b4625df1860056a7b42713cf86ee9a792f08d92f211962a33cfd7772f131544c"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/design_state/particle_filter_kalman/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-state/tests/particle_filter_oracle.rs",
+          "sha256": "96fc6f17ef01585dbae8cf25ab0d52f82a0ad54f33c443395e5f23faf174f8c8"
+        }
+      ],
+      "fixture_payload_sha256": "3921a738692e280bf95753eebad9ed8943ebfcc4b911a058f7ac91cc324a4e1d"
+    }
   },
   "initial_state": {
     "mean": 0.0,
@@ -26,8 +58,8 @@
       712,
       713
     ],
-    "mean_atol": 0.045,
-    "variance_atol": 0.05,
+    "mean_atol": 0.02,
+    "variance_rtol": 0.1,
     "checkpoints": [
       0,
       9,

@@ -110,24 +110,42 @@ def solve_case(spec: dict) -> dict:
     return {**spec, "units_data": units, "log_likelihood": total}
 
 
+REVIEW_OWNED = ("reference_review", "executing_assertion")
+
+
+def committed_review() -> dict:
+    """The reviewed-artifact record and the assertion path live in the committed fixture."""
+    if not EXPECTED.is_file():
+        return {}
+    oracle = json.loads(EXPECTED.read_text(encoding="utf-8")).get("oracle", {})
+    return {k: oracle[k] for k in REVIEW_OWNED if k in oracle}
+
+
 def build() -> dict:
-    return {
+    document = {
         "oracle": {
-            "kind": "dense_linear_algebra",
+            "kind": "independent_reimplementation",
             "method": "brute-force joint Gaussian density of all observation times, with SciPy expm and continuous Lyapunov solutions",
             "independence_basis": (
                 "The stationary OU process is jointly Gaussian; its observation covariance "
-                "blocks are H expm(A dt) S H^T plus noise, evaluated densely with NumPy/SciPy. "
-                "The generator is retained and checked by the conformance reference check; the "
-                "author of the reference is the repository author and independence from the "
-                "production implementation has not been reviewed."
+                "blocks are H expm(A dt) S H^T plus noise, evaluated densely with NumPy/SciPy "
+                "in one multivariate-normal density per unit. No Kalman recursion, van Loan "
+                "transition or other production code is used. The retained generator and the "
+                "executing assertion were read for the review recorded in reference_review."
             ),
             "generator": "conformance/gcm/ou_trajectory_likelihood/reference.py",
+            "generator_retained": True,
+            "environment_lock": "conformance/gcm/ou_trajectory_likelihood/reference.py.lock",
+            "command": "uv run --frozen --script conformance/gcm/ou_trajectory_likelihood/reference.py --check",
+            "asserted_outputs": ["cases[*].log_likelihood (summed over the units of each case)"],
+            "context_only_outputs": ["seed", "per_unit", "units"],
             "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
         },
         "schema_version": 1,
         "cases": [solve_case(spec) for spec in CASES],
     }
+    document["oracle"].update(committed_review())
+    return document
 
 
 def main() -> int:
@@ -135,7 +153,9 @@ def main() -> int:
     if "--check" in sys.argv[1:]:
         committed = json.loads(EXPECTED.read_text(encoding="utf-8"))
         problems = []
-        if document["oracle"] != committed["oracle"]:
+        stored_oracle = {k: v for k, v in committed["oracle"].items() if k not in REVIEW_OWNED}
+        fresh_oracle = {k: v for k, v in document["oracle"].items() if k not in REVIEW_OWNED}
+        if fresh_oracle != stored_oracle:
             problems.append("oracle record differs")
         if len(document["cases"]) != len(committed["cases"]):
             problems.append("case count")

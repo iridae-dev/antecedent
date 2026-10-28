@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = []
+# ///
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """Independent reference for a feedback system fitted with a registered external mechanism.
 
@@ -13,8 +16,8 @@ The system has ``x0 = gain * tanh(x1) + u0`` (the external mechanism) and
   with ``J = [[0, g sech^2(x1)], [0.2 sech^2(x0), 0]]``, evaluated here by an explicit 2x2
   determinant.
 
-    python3 conformance/gcm/external_mechanism_feedback/reference.py          # write
-    python3 conformance/gcm/external_mechanism_feedback/reference.py --check  # compare
+    uv run --script conformance/gcm/external_mechanism_feedback/reference.py          # write
+    uv run --frozen --script conformance/gcm/external_mechanism_feedback/reference.py --check  # compare
 """
 
 from __future__ import annotations
@@ -61,21 +64,35 @@ def joint_log_density(gain: float, state: tuple[float, float]) -> float:
     return -0.5 * (r0 * r0 + r1 * r1) - math.log(2.0 * math.pi) + math.log(abs(det))
 
 
+def committed_review() -> dict | None:
+    """The reviewed-artifact record lives in the committed fixture, not in this derivation."""
+    if not EXPECTED.is_file():
+        return None
+    oracle = json.loads(EXPECTED.read_text(encoding="utf-8")).get("oracle", {})
+    return oracle.get("reference_review")
+
+
 def build() -> dict:
     gain = least_squares_gain()
-    return {
+    document = {
         "oracle": {
-            "kind": "closed_form_and_bisection",
+            "kind": "closed_form",
             "method": (
                 "least-squares slope, bisection fixed point and explicit 2x2 Jacobian "
                 "determinant of the two-equation saturating feedback system"
             ),
             "independence_basis": (
                 "Standard-library arithmetic only; nothing is shared with the production "
-                "solver, likelihood or resolver. The author of the reference is the "
-                "repository author and independence has not been reviewed."
+                "solver, likelihood or resolver. The retained generator and the executing "
+                "assertion were read for the review recorded in reference_review."
             ),
             "generator": "conformance/gcm/external_mechanism_feedback/reference.py",
+            "generator_retained": True,
+            "environment_lock": "conformance/gcm/external_mechanism_feedback/reference.py.lock",
+            "command": "uv run --frozen --script conformance/gcm/external_mechanism_feedback/reference.py --check",
+            "asserted_outputs": ["fitted_gain", "fixed_points"],
+            "context_only_outputs": ["joint_log_density_at_first_fixed_point"],
+            "executing_assertion": "python/tests/test_external_cyclic_mechanisms.py::test_fit_and_fixed_points_match_the_committed_independent_reference",
             "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
         },
         "schema_version": 1,
@@ -85,6 +102,10 @@ def build() -> dict:
             gain, tuple(fixed_point(gain, NOISE[0]))
         ),
     }
+    review = committed_review()
+    if review is not None:
+        document["oracle"]["reference_review"] = review
+    return document
 
 
 def main() -> int:
@@ -92,7 +113,9 @@ def main() -> int:
     if "--check" in sys.argv[1:]:
         committed = json.loads(EXPECTED.read_text(encoding="utf-8"))
         problems = []
-        if document["oracle"] != committed["oracle"]:
+        stored_oracle = {k: v for k, v in committed["oracle"].items() if k != "reference_review"}
+        fresh_oracle = {k: v for k, v in document["oracle"].items() if k != "reference_review"}
+        if fresh_oracle != stored_oracle:
             problems.append("oracle record differs")
         for key in ("fitted_gain", "joint_log_density_at_first_fixed_point"):
             if not math.isclose(document[key], committed[key], rel_tol=1e-12):

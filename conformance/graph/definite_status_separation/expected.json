@@ -2,9 +2,50 @@
   "schema_version": 2,
   "oracle": {
     "kind": "enumeration",
-    "method": "m-separation in every MAG of the class, by hand enumeration of the member MAGs",
-    "generator": "hand-derived; statuses are statements about every member (separated / connected) or undetermined. An edge is '<a><left mark>-<right mark><b>' with marks '<' / '>' arrowhead, 'o' circle, 'x' conflict, none for a tail: '0->1', '0<->1', '0o-o1', '0o->1', '0-o1', '0x-x1'.",
-    "reference": "Zhang (2008), On the completeness of orientation rules for causal discovery, definite-status paths"
+    "method": "m-separation in every member MAG of the class, by explicit enumeration of the member MAGs",
+    "generator": "conformance/graph/definite_status_separation/reference.py",
+    "reference": "Zhang (2008), On the completeness of orientation rules for causal discovery, definite-status paths",
+    "edge_syntax": "hand-derived; statuses are statements about every member (separated / connected) or undetermined. An edge is '<a><left mark>-<right mark><b>' with marks '<' / '>' arrowhead, 'o' circle, 'x' conflict, none for a tail: '0->1', '0<->1', '0o-o1', '0o->1', '0-o1', '0x-x1'.",
+    "hand_derivation": "statuses are statements about every member (separated / connected) or undetermined",
+    "command": "uv run --frozen --script conformance/graph/definite_status_separation/reference.py --check",
+    "environment_lock": "conformance/graph/definite_status_separation/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "status per case",
+      "separated flag where present"
+    ],
+    "context_only_outputs": [
+      "reason text",
+      "edge syntax"
+    ],
+    "independence_basis": "reference.py is standard-library Python that imports no Antecedent code. For each case it resolves every circle mark to a tail or arrowhead in all ways, keeps the completions that are ancestral and maximal and show on every unshielded triple the collider status the marked graph shows, groups the kept completions by the set of m-separation statements they entail (one class remains in all nine non-conflict cases), and evaluates m-separation of x and y given the conditioning set in every member by its path definition. It reproduces all ten statuses. The shared object is the definition of a PAG as the class of MAGs that agree with its marks (the fixture's own statement) and the m-separation definition.",
+    "historical_exposure": "The expected statuses were derived by hand from the member MAGs (recorded under the previous oracle text, kept as hand_derivation); the retained reference was written during this review from the definition and the fixture cases with no product implementation source consulted.",
+    "reference_review": {
+      "scope": "Ten small marked-graph cases: m-separation status (separated, connected, undetermined) of x and y given a conditioning set in the class of MAGs represented by a graph with circle, tail, arrowhead and conflict marks.",
+      "independence_basis": "reference.py is standard-library Python that imports no Antecedent code. For each case it resolves every circle mark to a tail or arrowhead in all ways, keeps the completions that are ancestral and maximal and show on every unshielded triple the collider status the marked graph shows, groups the kept completions by the set of m-separation statements they entail (one class remains in all nine non-conflict cases), and evaluates m-separation of x and y given the conditioning set in every member by its path definition. It reproduces all ten statuses. The shared object is the definition of a PAG as the class of MAGs that agree with its marks (the fixture's own statement) and the m-separation definition.",
+      "historical_exposure": "The expected statuses were derived by hand from the member MAGs (recorded under the previous oracle text, kept as hand_derivation); the retained reference was written during this review from the definition and the fixture cases with no product implementation source consulted.",
+      "limitations": "Graphs of at most four nodes. The conflict-mark case is classified undetermined by declaration (an unknown orientation is neither discarded nor asserted), which the reference states rather than derives. The member set is the completions of the circles that are ancestral, maximal and agree on unshielded colliders; discriminating-path colliders are not imposed separately because every case resolves to a single Markov equivalence class, which the reference checks. The product's path-enumeration limits (64 paths, depth 8) are inputs of the assertion and are not examined by the reference. No calibration.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/graph/definite_status_separation/reference.py",
+          "sha256": "1427a8a0687c73a750f84fce7e04f566c1af179341d7a92edc13e13b3f8390f0"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/graph/definite_status_separation/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-graph/tests/oracle_closure.rs",
+          "sha256": "ebf538d85c36d5c3cc4a53627c1fefcf1e28b7b69d891e24b1e4aea92c0e75ea"
+        }
+      ],
+      "sources": [],
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "fixture_payload_sha256": "9d9fe2482e5c61904bff3c51bd392e6f02bf0a10e5af42bac352402467fd69f0"
+    }
   },
   "cases": [
     {

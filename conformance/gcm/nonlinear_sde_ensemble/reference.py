@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = ["numpy==2.1.3"]
+# ///
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """Independent reference for the nonlinear SDE ensemble and quasi-likelihood families.
 
@@ -19,8 +23,8 @@ implementation (which evaluates its coefficients through a portable expression t
   (a different generator and code path) and the Euler Gaussian transition log likelihood
   evaluated densely at two parameter vectors.
 
-    python3 conformance/gcm/nonlinear_sde_ensemble/reference.py          # write
-    python3 conformance/gcm/nonlinear_sde_ensemble/reference.py --check  # compare
+    uv run --frozen --script conformance/gcm/nonlinear_sde_ensemble/reference.py          # write
+    uv run --frozen --script conformance/gcm/nonlinear_sde_ensemble/reference.py --check  # compare
 """
 
 from __future__ import annotations
@@ -335,21 +339,41 @@ def quasi_document() -> dict:
 def build() -> dict:
     return {
         "oracle": {
-            "kind": "independent_numpy_implementation",
+            "kind": "independent_reimplementation",
             "method": (
                 "NumPy re-implementation of the counter-based generator, Euler-Maruyama with "
                 "shared half-step Brownian paths, reflecting bounds, held components and replaced "
                 "input schedules; exact moment ODEs of a square-root diffusion with a "
                 "piecewise-constant input; dense Euler transition log likelihood."
             ),
+            "generator": "conformance/gcm/nonlinear_sde_ensemble/reference.py",
+            "command": "uv run --frozen --script conformance/gcm/nonlinear_sde_ensemble/reference.py --check",
+            "environment_lock": "conformance/gcm/nonlinear_sde_ensemble/reference.py.lock",
+            "generator_retained": True,
+            "asserted_outputs": [
+                "epidemic world mean, variance and weak difference",
+                "epidemic contrast mean difference and Monte Carlo standard error",
+                "square-root diffusion exact mean and variance",
+                "counter-based normal values",
+                "quasi log likelihood at the truth and the alternative",
+            ],
+            "context_only_outputs": [
+                "quasi-likelihood trajectories (data drawn with numpy.random.default_rng)",
+                "spec and schedule fields",
+            ],
             "independence_basis": (
                 "Coefficients are written out in NumPy rather than evaluated through the "
                 "expression tape; the quasi-likelihood data come from numpy.random.default_rng. "
-                "The author of the reference is the repository author and independence from the "
-                "production implementation has not been reviewed."
+                "The reference imports no Antecedent code. The ensemble moments replay a "
+                "documented algorithm (SplitMix64 counter generator, Euler-Maruyama with shared "
+                "half-step Brownian paths) and so share that specification with the product; "
+                "the square-root diffusion moments are closed-form ODE solutions that need no "
+                "noise realization."
             ),
-            "generator": "conformance/gcm/nonlinear_sde_ensemble/reference.py",
-            "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+            "historical_exposure": (
+                "Written by the repository author alongside the product; whether the product "
+                "source was consulted is unrecorded."
+            ),
         },
         "schema_version": 1,
         "rng": rng_document(),
@@ -364,7 +388,8 @@ def main() -> int:
         committed = json.loads(EXPECTED.read_text(encoding="utf-8"))
         fresh = build()
         problems = []
-        if fresh["oracle"] != committed["oracle"]:
+        retained = {k: v for k, v in committed["oracle"].items() if k != "reference_review"}
+        if fresh["oracle"] != retained:
             problems.append("oracle record differs")
 
         def compare(name, a, b):
@@ -411,7 +436,12 @@ def main() -> int:
         for problem in problems:
             print(f"nonlinear sde reference mismatch: {problem}", file=sys.stderr)
         return 1 if problems else 0
-    EXPECTED.write_text(json.dumps(build(), indent=2) + "\n", encoding="utf-8")
+    document = build()
+    if EXPECTED.is_file():
+        previous = json.loads(EXPECTED.read_text(encoding="utf-8")).get("oracle", {})
+        if "reference_review" in previous:
+            document["oracle"]["reference_review"] = previous["reference_review"]
+    EXPECTED.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     return 0
 
 

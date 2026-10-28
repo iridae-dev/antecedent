@@ -2,22 +2,52 @@
   "schema_version": 1,
   "oracle": {
     "kind": "independent_reimplementation",
-    "project": "SciPy/NumPy clean-room conjugate NIG oracle",
-    "api": "closed-form Normal-Inverse-Gamma marginal likelihood plus scipy.stats.invgamma posterior predictive simulation",
-    "packages": {
-      "numpy": {
-        "version": "2.1.3",
-        "metadata_sha256": "56f003c44b0ee98d6adb1cb49f292d2ef07daaab7c7ba409ab2679c846fe6bf8"
-      },
-      "scipy": {
-        "version": "1.14.1",
-        "metadata_sha256": "dd4e8542e7e319158dfab943b04eb811ee99566a1911241f1a3226e07bfbae57"
-      }
-    },
-    "python": "3.12.7",
-    "seed": 20260729,
-    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 python /tmp/antecedent_bayesian_ci_oracle.py", "generator_retained": false,
-    "generation_location": "temporary external harness; not retained"
+    "project": "stdlib exact-rational partial correlation, g-prior Bayes factor, incomplete-beta predictive tail and conjugate NIG marginal likelihoods",
+    "api": "closed forms; no sampling is needed for the asserted outputs",
+    "python": "3.12",
+    "command": "uv run --frozen --script conformance/discovery/bayesian_ci/reference.py --check",
+    "generator_retained": true,
+    "generation_location": "conformance/discovery/bayesian_ci/reference.py (retained; replaces a deleted NumPy/SciPy harness)",
+    "independence_basis": "Stdlib reference rebuilt from the stored columns: exact-Fraction normal equations give the residual correlation of columns 0 and 1 given the conditioners; the g-prior (g = n) log Bayes factor and posterior independence follow from that partial correlation; the posterior-predictive tail probability is the exact regularised-incomplete-beta tail of the null residual cosine (Beta(1/2, (n-q-1)/2)), cross-checked by a seeded 3000-replicate simulation; and the normal-inverse-gamma marginal likelihoods and Bayes factors are recomputed from the standardised columns. It imports no Antecedent code, NumPy or SciPy. The modelling choices shared with the product input are the g = n prior, the coefficient prior precision 0.01, the inverse-gamma(0.001, 0.001) prior, the equal prior model probabilities and the choice of |residual correlation| as the predictive statistic.",
+    "asserted_outputs": [
+      "g-prior log Bayes factor and posterior independence/dependence masses (g_prior blocks)",
+      "observed absolute residual correlation",
+      "posterior-predictive tail probability (to the MC band)"
+    ],
+    "context_only_outputs": [
+      "NIG log marginals, NIG Bayes factor and NIG posterior moments (verified by the generator, not read by an executing assertion)",
+      "m0/m1 posterior means and precisions",
+      "draws and mcse of the stored simulation"
+    ],
+    "historical_exposure": "The original NumPy/SciPy harness was not retained; this replacement was written during this review from the fixture's api description and model block. No product implementation source was consulted. It reproduces the stored NIG values to 1e-8 relative, the observed statistics to the fixture's 2e-10 and the stored tail probabilities to within the test band.",
+    "generator": "conformance/discovery/bayesian_ci/reference.py",
+    "environment_lock": "conformance/discovery/bayesian_ci/reference.py.lock",
+    "reference_review": {
+      "scope": "Six cases (unconditional and conditional, dependent and null, a translated-scaled copy and two near-collinear conditioners); the g-prior Bayes factors are written by the generator and compared with the product at 2e-9, probabilities at 2e-10.",
+      "independence_basis": "Stdlib reference rebuilt from the stored columns: exact-Fraction normal equations give the residual correlation of columns 0 and 1 given the conditioners; the g-prior (g = n) log Bayes factor and posterior independence follow from that partial correlation; the posterior-predictive tail probability is the exact regularised-incomplete-beta tail of the null residual cosine (Beta(1/2, (n-q-1)/2)), cross-checked by a seeded 3000-replicate simulation; and the normal-inverse-gamma marginal likelihoods and Bayes factors are recomputed from the standardised columns. It imports no Antecedent code, NumPy or SciPy. The modelling choices shared with the product input are the g = n prior, the coefficient prior precision 0.01, the inverse-gamma(0.001, 0.001) prior, the equal prior model probabilities and the choice of |residual correlation| as the predictive statistic.",
+      "historical_exposure": "The original NumPy/SciPy harness was not retained; this replacement was written during this review from the fixture's api description and model block. No product implementation source was consulted. It reproduces the stored NIG values to 1e-8 relative, the observed statistics to the fixture's 2e-10 and the stored tail probabilities to within the test band.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Gaussian linear partial-correlation tests on 80 stored rows. The predictive tail probability is asserted only to a Monte Carlo band (0.04 floor) because the product replicates are random. The stored NIG marginal likelihoods describe a different prior from the g-prior factor the product returns and no executing assertion reads them. Test-internal closed form and the retained generator share the g = n formula, so the g-prior formula itself is a restated convention, not a published derivation. Calibration unmeasured.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/discovery/bayesian_ci/reference.py",
+          "sha256": "8496f8c72b1bc722473562d9915450dce2c1e3e346d786964cd32fcff68d3d0f"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/discovery/bayesian_ci/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-stats/tests/bayesian_ci_oracle.rs",
+          "sha256": "fff309d8abed79d14a9d22c9c8508dac8969a5c609489cde9efc0d612eda5d69"
+        }
+      ],
+      "fixture_payload_sha256": "c07498b981530b5a5f8ce7b9a877aab920cffc48b99f97fe554a4b7faade3e3b"
+    }
   },
   "model": {
     "standardization_variance_denominator": "n",
@@ -248,6 +278,11 @@
           "draws": 6000,
           "mcse": 0.00016666666666666666
         }
+      },
+      "g_prior": {
+        "partial_correlation_abs": 0.884369297612333,
+        "log_bf10": 56.2785821469008,
+        "posterior_independence": 3.6184479034782725e-25
       }
     },
     {
@@ -461,6 +496,11 @@
           "draws": 6000,
           "mcse": 0.003870112808194116
         }
+      },
+      "g_prior": {
+        "partial_correlation_abs": 0.012902039708689372,
+        "log_bf10": -2.190729945827093,
+        "posterior_independence": 0.8994139627858069
       }
     },
     {
@@ -772,6 +812,11 @@
           "draws": 6000,
           "mcse": 0.00016666666666666666
         }
+      },
+      "g_prior": {
+        "partial_correlation_abs": 0.6361583596400774,
+        "log_bf10": 17.70555716949787,
+        "posterior_independence": 2.0444392653240544e-08
       }
     },
     {
@@ -1083,6 +1128,11 @@
           "draws": 6000,
           "mcse": 0.005906642525659219
         }
+      },
+      "g_prior": {
+        "partial_correlation_abs": 0.12143765280922267,
+        "log_bf10": -1.6250106476162762,
+        "posterior_independence": 0.8354850006215452
       }
     },
     {
@@ -1394,6 +1444,11 @@
           "draws": 6000,
           "mcse": 0.00016666666666666666
         }
+      },
+      "g_prior": {
+        "partial_correlation_abs": 0.6361583596400774,
+        "log_bf10": 17.705557169497876,
+        "posterior_independence": 2.0444392653240402e-08
       }
     },
     {
@@ -1806,6 +1861,11 @@
           "draws": 6000,
           "mcse": 0.00016666666666666666
         }
+      },
+      "g_prior": {
+        "partial_correlation_abs": 0.6357572482426785,
+        "log_bf10": 17.418090564756803,
+        "posterior_independence": 2.7253317176172382e-08
       }
     }
   ]

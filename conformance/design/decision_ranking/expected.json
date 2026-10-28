@@ -5,10 +5,49 @@
     "project": "clean-room brute-force expected-utility enumeration",
     "algorithm": "enumerate action/outcome utility and constraint matrices in exact rational arithmetic; choose the Bayes action over admissible actions only; regret is the expected opportunity loss of the Bayes action against perfect information over admissible actions (EVPI)",
     "pin": "fixture-algorithm-v2",
-    "python": "3.11.5",
-    "command": "python3 antecedent_design_oracle_v2.py",
-    "generation_location": "temporary external harness; deleted after artifact import",
-    "dependencies": "Python standard library only (fractions, json)"
+    "generation_location": "conformance/design/decision_ranking/reference.py (retained; replaces a deleted external harness)",
+    "method": "exact rational enumeration of the action-by-outcome utility matrix with a lowest-index tie break",
+    "independence_basis": "The generator enumerates the utility matrix action*outcome in Fractions, filters admissible actions by satisfaction + 1e-12 >= threshold, takes the maximum outcome-mean utility with lowest index on ties, and the regret as the outcome mean of best admissible utility minus the chosen action's utility. It imports no Antecedent code, draws nothing and calls no decision routine. The utility product and the fixed satisfaction vectors are fixture statements shared with the product input.",
+    "asserted_outputs": [
+      "chosen action",
+      "expected utility",
+      "regret (EVPI over admissible actions)",
+      "no-admissible-action refusal"
+    ],
+    "context_only_outputs": [
+      "python version and pin text"
+    ],
+    "historical_exposure": "The original external harness was deleted; this replacement was written during this review from the fixture's normalization block and the six declared cases. No product implementation source was consulted. Authorship of the original harness is unrecorded.",
+    "generator": "conformance/design/decision_ranking/reference.py",
+    "command": "uv run --frozen --script conformance/design/decision_ranking/reference.py --check",
+    "environment_lock": "conformance/design/decision_ranking/reference.py.lock",
+    "generator_retained": true,
+    "reference_review": {
+      "scope": "Six decision cases (unconstrained, constrained, all infeasible, tie, EVPI, inadmissible action excluded from perfect information); every fixture value recomputed exactly and compared at the test's 1e-12.",
+      "independence_basis": "The generator enumerates the utility matrix action*outcome in Fractions, filters admissible actions by satisfaction + 1e-12 >= threshold, takes the maximum outcome-mean utility with lowest index on ties, and the regret as the outcome mean of best admissible utility minus the chosen action's utility. It imports no Antecedent code, draws nothing and calls no decision routine. The utility product and the fixed satisfaction vectors are fixture statements shared with the product input.",
+      "historical_exposure": "The original external harness was deleted; this replacement was written during this review from the fixture's normalization block and the six declared cases. No product implementation source was consulted. Authorship of the original harness is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Two- and three-action toy problems with action*outcome utilities and fixed constraint satisfaction; the 1e-12 admissibility slack is the product's convention restated. Only the decision test in design_oracle.rs consumes this fixture; the expected-information-gain and ranking fixtures are separate. Calibration unmeasured.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/design/decision_ranking/reference.py",
+          "sha256": "9f9c43b56c523b8f73e557a80a8995760aafd92156e8a13c6c472ff4ac0fe748"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/design/decision_ranking/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-design/tests/design_oracle.rs",
+          "sha256": "e272a61ef60c5195b89585b0714b23075a35080af92e7b956ef0c37d758fafd7"
+        }
+      ],
+      "fixture_payload_sha256": "6be151b87e5b7e43d26fdab28addc35cc89020de99036cea735e3ed672a0eef5"
+    }
   },
   "normalization": {
     "tie_break": "lowest action index",
@@ -20,10 +59,19 @@
   "cases": [
     {
       "name": "unconstrained_linear",
-      "actions": [1.0, 2.0],
-      "outcomes": [1.0, 2.0],
+      "actions": [
+        1.0,
+        2.0
+      ],
+      "outcomes": [
+        1.0,
+        2.0
+      ],
       "utility": "action_times_outcome",
-      "satisfaction": [1.0, 1.0],
+      "satisfaction": [
+        1.0,
+        1.0
+      ],
       "threshold": 1.0,
       "chosen_action": 1,
       "expected_utility": 3.0,
@@ -31,10 +79,19 @@
     },
     {
       "name": "constraint_excludes_utility_maximum",
-      "actions": [1.0, 2.0],
-      "outcomes": [1.0, 2.0],
+      "actions": [
+        1.0,
+        2.0
+      ],
+      "outcomes": [
+        1.0,
+        2.0
+      ],
       "utility": "action_times_outcome",
-      "satisfaction": [1.0, 0.5],
+      "satisfaction": [
+        1.0,
+        0.5
+      ],
       "threshold": 0.75,
       "chosen_action": 0,
       "expected_utility": 1.5,
@@ -42,19 +99,37 @@
     },
     {
       "name": "all_actions_infeasible",
-      "actions": [1.0, 2.0],
-      "outcomes": [1.0, 2.0],
+      "actions": [
+        1.0,
+        2.0
+      ],
+      "outcomes": [
+        1.0,
+        2.0
+      ],
       "utility": "action_times_outcome",
-      "satisfaction": [0.5, 0.25],
+      "satisfaction": [
+        0.5,
+        0.25
+      ],
       "threshold": 0.75,
       "refusal": "no_admissible_action"
     },
     {
       "name": "utility_tie",
-      "actions": [1.0, 1.0],
-      "outcomes": [2.0, 4.0],
+      "actions": [
+        1.0,
+        1.0
+      ],
+      "outcomes": [
+        2.0,
+        4.0
+      ],
       "utility": "action_times_outcome",
-      "satisfaction": [1.0, 1.0],
+      "satisfaction": [
+        1.0,
+        1.0
+      ],
       "threshold": 1.0,
       "chosen_action": 0,
       "expected_utility": 3.0,
@@ -62,10 +137,19 @@
     },
     {
       "name": "unconstrained_regret_is_evpi",
-      "actions": [1.0, 2.0],
-      "outcomes": [-1.0, 3.0],
+      "actions": [
+        1.0,
+        2.0
+      ],
+      "outcomes": [
+        -1.0,
+        3.0
+      ],
       "utility": "action_times_outcome",
-      "satisfaction": [1.0, 1.0],
+      "satisfaction": [
+        1.0,
+        1.0
+      ],
       "threshold": 1.0,
       "chosen_action": 1,
       "expected_utility": 2.0,
@@ -73,10 +157,21 @@
     },
     {
       "name": "inadmissible_action_excluded_from_perfect_information",
-      "actions": [1.0, 2.0, 3.0],
-      "outcomes": [-1.0, 3.0],
+      "actions": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "outcomes": [
+        -1.0,
+        3.0
+      ],
       "utility": "action_times_outcome",
-      "satisfaction": [1.0, 1.0, 0.5],
+      "satisfaction": [
+        1.0,
+        1.0,
+        0.5
+      ],
       "threshold": 0.75,
       "chosen_action": 1,
       "expected_utility": 2.0,

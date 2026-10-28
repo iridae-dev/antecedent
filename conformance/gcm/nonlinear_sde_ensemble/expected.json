@@ -1,10 +1,60 @@
 {
   "oracle": {
-    "kind": "independent_numpy_implementation",
+    "kind": "independent_reimplementation",
     "method": "NumPy re-implementation of the counter-based generator, Euler-Maruyama with shared half-step Brownian paths, reflecting bounds, held components and replaced input schedules; exact moment ODEs of a square-root diffusion with a piecewise-constant input; dense Euler transition log likelihood.",
-    "independence_basis": "Coefficients are written out in NumPy rather than evaluated through the expression tape; the quasi-likelihood data come from numpy.random.default_rng. The author of the reference is the repository author and independence from the production implementation has not been reviewed.",
     "generator": "conformance/gcm/nonlinear_sde_ensemble/reference.py",
-    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+    "command": "uv run --frozen --script conformance/gcm/nonlinear_sde_ensemble/reference.py --check",
+    "environment_lock": "conformance/gcm/nonlinear_sde_ensemble/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "epidemic world mean, variance and weak difference",
+      "epidemic contrast mean difference and Monte Carlo standard error",
+      "square-root diffusion exact mean and variance",
+      "counter-based normal values",
+      "quasi log likelihood at the truth and the alternative"
+    ],
+    "context_only_outputs": [
+      "quasi-likelihood trajectories (data drawn with numpy.random.default_rng)",
+      "spec and schedule fields"
+    ],
+    "independence_basis": "Coefficients are written out in NumPy rather than evaluated through the expression tape; the quasi-likelihood data come from numpy.random.default_rng. The reference imports no Antecedent code. The ensemble moments replay a documented algorithm (SplitMix64 counter generator, Euler-Maruyama with shared half-step Brownian paths) and so share that specification with the product; the square-root diffusion moments are closed-form ODE solutions that need no noise realization.",
+    "historical_exposure": "Written by the repository author alongside the product; whether the product source was consulted is unrecorded.",
+    "reference_review": {
+      "scope": "Counter-based Gaussian values, a three-compartment epidemic SDE ensemble with an input-replacement world and a component-hold world, the exact mean and variance of a square-root diffusion with a piecewise-constant input, and the dense Euler quasi log likelihood of numpy-drawn trajectories.",
+      "independence_basis": "Coefficients are written out in NumPy rather than evaluated through the expression tape; the quasi-likelihood data come from numpy.random.default_rng. The reference imports no Antecedent code. The ensemble moments replay a documented algorithm (SplitMix64 counter generator, Euler-Maruyama with shared half-step Brownian paths) and so share that specification with the product; the square-root diffusion moments are closed-form ODE solutions that need no noise realization.",
+      "historical_exposure": "Written by the repository author alongside the product; whether the product source was consulted is unrecorded.",
+      "limitations": "The reference is a NumPy reimplementation by the repository author of the same documented algorithm, so the epidemic ensemble moments, the counter-based generator and the Euler likelihood agree because both implement one specification; they do not validate that specification against an external SDE package. Independence of the square-root diffusion moments (exact ODEs) and of the numpy.random.default_rng trajectories is stronger. The Rust ensemble assertions compare grids at 1e-8 * (1 + |expected|) and the likelihood at relative 1e-9; the reference check itself compares at rtol and atol 1e-9. One epidemic parameter set and 200 paths; Monte Carlo moments are replays, not coverage or calibration.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/gcm/nonlinear_sde_ensemble/reference.py",
+          "sha256": "84493d1ad5da3cadb0ef50cac6d231935887ce0cddd9dcce48da5c51b6de223a"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/gcm/nonlinear_sde_ensemble/reference.py.lock",
+          "sha256": "1f04f8f8656e5327de48c7e011511e1777da8d2a9979916bdd4c6fc541583d12"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-model/src/nonlinear_sde/tests.rs",
+          "sha256": "65b7d327208ff6d3e9973938d4ec6a29238fe0eab53b1d2b8094234825344407"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-estimate/src/nonlinear_sde_fit/tests.rs",
+          "sha256": "7a0b2fa87b779b9bbfedd4fe9f55962306d99eff75b416478d842a66dba6eba4"
+        },
+        {
+          "role": "assertion_source",
+          "path": "python/tests/test_nonlinear_sde.py",
+          "sha256": "67b903f75c7f6245a7aff58f401d3853f1f2b071ad18eec0f2cfd74ea3f393b4"
+        }
+      ],
+      "sources": [],
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "fixture_payload_sha256": "694ac99aa4fca3445297cc61bd0ec4e7b69fdd6fac4e8360692332019b19a7ec"
+    }
   },
   "schema_version": 1,
   "rng": {

@@ -53,7 +53,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/conditional.rs",
-          "sha256": "a07f828f7181f47ace3b5981ca9e833b4a9655d8c4127417e9540c8551a36d4d"
+          "sha256": "5badac795d43276303fad3b25aa9596a157a86d53eaa013d332dca2bffb8694c"
         }
       ],
       "fixture_payload_sha256": "0813b6be0eccb05ecacd0e49da2cb4a381b0745de8b6b7b050250fe14d5bf325"

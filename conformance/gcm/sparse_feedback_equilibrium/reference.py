@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = ["numpy==2.1.3"]
+# ///
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """Independent reference for sparse feedback equilibria with hundreds of variables.
 
@@ -114,8 +117,8 @@ def close(left, right) -> bool:
 
 def check(document: dict, committed: dict) -> list[str]:
     problems = []
-    if document["oracle"] != committed["oracle"]:
-        problems.append("oracle record differs")
+    # The oracle record (origin, review) is metadata owned by expected.json; this check
+    # regenerates and compares the numerical cases only.
     for fresh, stored in zip(document["cases"], committed["cases"], strict=True):
         for key, value in fresh.items():
             same = (
@@ -139,6 +142,8 @@ def main() -> int:
         for problem in problems:
             print(f"sparse feedback reference mismatch: {problem}", file=sys.stderr)
         return 1 if problems else 0
+    if EXPECTED.exists():
+        document["oracle"] = json.loads(EXPECTED.read_text(encoding="utf-8"))["oracle"]
     EXPECTED.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     return 0
 

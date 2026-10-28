@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = ["numpy==2.1.3"]
+# ///
 """Independent reference for the interacted (Sun-Abraham) staggered DiD on an unbalanced panel.
 
 Known data-generating process (cohorts 0, 3, 5 of 40 units each, periods 1..6):
@@ -24,7 +28,7 @@ aggregates with the cohort sizes: the simple average over post-adoption cells an
 pre-adoption leads by event time. Nothing here uses a within transformation or the
 production solver.
 
-Run: ``python3 conformance/estimate/interacted_did_unbalanced_panel/reference.py``
+Run: ``uv run --frozen --script conformance/estimate/interacted_did_unbalanced_panel/reference.py``
 (add ``--write`` to regenerate expected.json, ``--check`` to compare).
 
 SPDX-License-Identifier: MIT OR Apache-2.0
@@ -145,16 +149,40 @@ def saturated_regression(rows: dict[str, list]) -> dict:
 ORACLE = {
     "kind": "independent_reimplementation",
     "method": "full-dummy saturated cohort-by-period regression on the observed unit-periods by numpy lstsq",
-    "independence_basis": "Simulated unbalanced panel with known cohort-by-event-time effects; the reference builds one dummy per unit, period and cohort-period cell and solves it with numpy.linalg.lstsq after a full-column-rank check, using no within transformation, union-find support screening or production solver. The generator is retained and checked by the conformance reference check; the author of the reference is the repository author and independence from the production implementation has not been reviewed.",
+    "independence_basis": "Simulated unbalanced panel with known cohort-by-event-time effects; the reference builds one dummy per unit, period and cohort-period cell and solves it with numpy.linalg.lstsq after a full-column-rank check, using no within transformation, union-find support screening or production solver. The retained generator and the executing assertion were read for the review recorded in reference_review.",
     "generator": "conformance/estimate/interacted_did_unbalanced_panel/reference.py",
+    "generator_retained": True,
+    "environment_lock": "conformance/estimate/interacted_did_unbalanced_panel/reference.py.lock",
+    "command": "uv run --frozen --script conformance/estimate/interacted_did_unbalanced_panel/reference.py --check",
+    "asserted_outputs": [
+        "reference.cells[*].estimate, treated_units and comparison_units for post-adoption cells",
+        "reference.leads_by_event",
+        "reference.simple and reference.simple_truth (0.1 band)",
+        "reference.dropped_rows_by_cohort",
+        "reference.periods_without_comparison",
+    ],
+    "context_only_outputs": ["reference.cells[*].truth for pre-adoption cells", "rows (inputs)"],
     "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
 }
 
 
+REVIEW_OWNED = ("reference_review", "executing_assertion")
+
+
+def committed_review() -> dict:
+    """The reviewed-artifact record and the assertion path live in the committed fixture."""
+    path = HERE / "expected.json"
+    if not path.is_file():
+        return {}
+    oracle = json.loads(path.read_text(encoding="utf-8")).get("oracle", {})
+    return {k: oracle[k] for k in REVIEW_OWNED if k in oracle}
+
+
 def build() -> dict:
     rows = simulate()
+    oracle = {**ORACLE, **committed_review()}
     return {
-        "oracle": ORACLE,
+        "oracle": oracle,
         "schema_version": 1,
         "case": "interacted_did_unbalanced_panel",
         "rows": rows,

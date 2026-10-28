@@ -1,9 +1,76 @@
 {
   "schema_version": 1,
-  "oracle": {"kind": "independent_reimplementation", "project": "Shpitser-Pearl ID recursion and Ananke-compatible graph semantics", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "oracle": {
+    "kind": "enumeration",
+    "method": "exhaustive enumeration of finite binary structural causal models compatible with each graph: a not-identified status needs a pair of positive observational-equal models with different interventional probabilities, an identified status needs no such pair and an exact textbook identifying functional",
+    "independence_basis": "Definition-level enumeration in the Python standard library; no Antecedent code is imported and nothing is shared with the product. The retained generator and the executing assertion were read for the review recorded in reference_review.",
+    "generator": "conformance/identify/id_hedge/reference.py",
+    "generator_retained": true,
+    "environment_lock": "conformance/identify/id_hedge/reference.py.lock",
+    "command": "uv run --frozen --script conformance/identify/id_hedge/reference.py --check",
+    "asserted_outputs": [
+      "cases[*].status",
+      "cases[*].certificate (hedge, with the product diagnostic identify.hedge)"
+    ],
+    "context_only_outputs": [
+      "cases[*].edges (inputs)"
+    ],
+    "executing_assertion": "crates/antecedent-identify/tests/identify_fixture_cases_fixtures_01.rs::id_hedge_fixture_every_case_status_and_hedge_certificate_match",
+    "historical_exposure": "The values were first pinned by a temporary clean-room harness that was deleted after artifact import (Shpitser-Pearl ID recursion and Ananke-compatible graph semantics); who derived them is unrecorded. The retained reference was written during this review from the fixture statement and compared with the stored values.",
+    "reference_review": {
+      "scope": "Three ADMGs over binary variables: a back-door DAG, a bow arc (T -> Y with T <-> Y) and a front-door ADMG (T -> M -> Y with T <-> Y), and the identification status of P(Y | do(T = 1)) in each.",
+      "independence_basis": "The generator enumerates finite binary structural causal models compatible with each graph (private uniform noise per node, a shared latent bit per bidirected edge, every Boolean truth table for each structural function), keeps those with a strictly positive observational distribution, and counts worlds exactly. The bow arc is not identified because it exhibits two models with identical observational distributions and different interventional probabilities; the back-door and front-door cases have no such pair and the textbook adjustment and front-door formulas equal the interventional probability exactly (fractions) in every kept model. It uses the Python standard library only and shares nothing with the product's ID implementation. The executing assertion builds every case's ADMG from the fixture's edge strings, runs the shipped ID identifier on P(Y | do(T)) and compares the status, and for the not-identified case the hedge certificate label and the identify.hedge diagnostic.",
+      "historical_exposure": "The stored statuses were first pinned by a deleted clean-room harness; who derived them is unrecorded. The retained reference was written during this review from the definitions and agrees with all three stored cases. The product source was not consulted for this review.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Finite family: binary variables with uniform noise, so only 128, 1808 and 5312 positive-support models are enumerated for the three cases. A found witness proves non-identification; absence of a witness plus an exact formula supports, but does not prove, identification for all models (the theory proves it; this reference does not). Three small graphs; no conditional, joint or multi-treatment queries and no hedge-structure check beyond the label (the larger definition-level hedge sweep is a separate test). No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/identify/id_hedge/reference.py",
+          "sha256": "fa64cdb50d486e87987d79190a699a0f146e933a15fb4bf60635554fe3005a23"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/identify/id_hedge/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-identify/tests/identify_fixture_cases_fixtures_01.rs",
+          "sha256": "78b079439a7e5e62efdb6718a86c1470902fc560dc0f98e872ffb6dc27b98a82"
+        }
+      ],
+      "fixture_payload_sha256": "a0f5a652d809a2019efef78b28884cf83cd85a7a2882ded5ff5d0bc26e27585c"
+    }
+  },
   "cases": [
-    {"id": "backdoor_dag", "edges": ["Z->T", "Z->Y", "T->Y"], "status": "identified"},
-    {"id": "bow_arc_hedge", "edges": ["T->Y", "T<->Y"], "status": "not_identified", "certificate": "hedge"},
-    {"id": "frontdoor_admg", "edges": ["T->M", "M->Y", "T<->Y"], "status": "identified"}
+    {
+      "id": "backdoor_dag",
+      "edges": [
+        "Z->T",
+        "Z->Y",
+        "T->Y"
+      ],
+      "status": "identified"
+    },
+    {
+      "id": "bow_arc_hedge",
+      "edges": [
+        "T->Y",
+        "T<->Y"
+      ],
+      "status": "not_identified",
+      "certificate": "hedge"
+    },
+    {
+      "id": "frontdoor_admg",
+      "edges": [
+        "T->M",
+        "M->Y",
+        "T<->Y"
+      ],
+      "status": "identified"
+    }
   ]
 }

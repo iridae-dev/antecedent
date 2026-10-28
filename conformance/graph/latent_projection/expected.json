@@ -1,9 +1,93 @@
 {
   "schema_version": 1,
-  "oracle": {"kind": "enumeration", "method": "independent latent-only path enumeration", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "oracle": {
+    "kind": "enumeration",
+    "method": "explicit enumeration of simple paths with latent interior, applying the directed-path and collider-free double-arrowhead definitions of the latent projection",
+    "independence_basis": "Definition-level enumeration in the Python standard library; no Antecedent code is imported and nothing is shared with the product. The retained generator and the executing assertion were read for the review recorded in reference_review.",
+    "generator": "conformance/graph/latent_projection/reference.py",
+    "generator_retained": true,
+    "environment_lock": "conformance/graph/latent_projection/reference.py.lock",
+    "command": "uv run --frozen --script conformance/graph/latent_projection/reference.py --check",
+    "asserted_outputs": [
+      "cases[*].projection (the complete edge set, every ordered observed pair)"
+    ],
+    "context_only_outputs": [
+      "cases[*].dag and observed (inputs)"
+    ],
+    "executing_assertion": "crates/antecedent-graph/tests/latent_projection_claims_02_reference.rs::latent_projection_claims_02_every_fixture_case_matches_the_full_edge_set",
+    "historical_exposure": "The values were first pinned by a temporary clean-room harness that was deleted after artifact import (independent latent-only path enumeration); who derived them is unrecorded. The retained reference was written during this review from the fixture statement and compared with the stored values.",
+    "reference_review": {
+      "scope": "Three small latent DAGs (a latent chain, a latent common cause, and an observed mediator that blocks the shortcut) and their projections onto the observed nodes, as complete edge sets of directed and bidirected edges.",
+      "independence_basis": "The generator lists every simple path between two observed nodes whose interior is entirely latent, then applies the definitions directly: a directed edge when some path is directed forward, a bidirected edge when some path has an arrowhead at both ends and no collider. It uses the Python standard library only, imports no Antecedent code and shares nothing with the product's latent_project routine. The executing assertion builds each case's DAG from the fixture's edge strings, projects with the product and compares every ordered observed pair for directed and for bidirected adjacency against the stored projection, so no extra or missing edge passes.",
+      "historical_exposure": "The stored projections were first pinned by a deleted clean-room harness; who derived them is unrecorded. The retained reference was written during this review from the definitions and agrees with all three stored cases. The product's projection source was not consulted.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Three cases of at most four nodes; the cases exercise a chain, a fork and a blocked shortcut, not collider interiors, longer latent paths, multiple latent confounders or latent nodes with observed descendants beyond these. Structure only: no distribution, parameters or sampling. The executing assertion lives in a separately registered test file; if it is renamed the binding must be redone. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/graph/latent_projection/reference.py",
+          "sha256": "b4ac90c8b4e5b254b05242e96f90ed7117ae967e485a25af3505fdb54fa1fec8"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/graph/latent_projection/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-graph/tests/latent_projection_claims_02_reference.rs",
+          "sha256": "fdf58f30a55b72a2ee3c3a7c022b6b5074dd99fc115371d6b0a889e7c50321a3"
+        }
+      ],
+      "fixture_payload_sha256": "9711b227c7d25c599e3d1a00245cbd671d056e9bc1cd2e3bda6db06f36fe1028"
+    }
+  },
   "cases": [
-    {"id": "latent_chain", "dag": ["X->L", "L->Y"], "observed": ["X", "Y"], "projection": ["X->Y"]},
-    {"id": "latent_fork", "dag": ["L->X", "L->Y"], "observed": ["X", "Y"], "projection": ["X<->Y"]},
-    {"id": "observed_internal_blocks_shortcut", "dag": ["X->M", "M->L", "L->Y"], "observed": ["X", "M", "Y"], "projection": ["X->M", "M->Y"]}
+    {
+      "id": "latent_chain",
+      "dag": [
+        "X->L",
+        "L->Y"
+      ],
+      "observed": [
+        "X",
+        "Y"
+      ],
+      "projection": [
+        "X->Y"
+      ]
+    },
+    {
+      "id": "latent_fork",
+      "dag": [
+        "L->X",
+        "L->Y"
+      ],
+      "observed": [
+        "X",
+        "Y"
+      ],
+      "projection": [
+        "X<->Y"
+      ]
+    },
+    {
+      "id": "observed_internal_blocks_shortcut",
+      "dag": [
+        "X->M",
+        "M->L",
+        "L->Y"
+      ],
+      "observed": [
+        "X",
+        "M",
+        "Y"
+      ],
+      "projection": [
+        "X->M",
+        "M->Y"
+      ]
+    }
   ]
 }

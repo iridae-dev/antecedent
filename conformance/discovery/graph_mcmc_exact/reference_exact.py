@@ -7,7 +7,8 @@
 Pure standard library.  For every labelled DAG on the case's variables it scores each node
 by the textbook Gaussian log-likelihood at the maximum-likelihood fit, minus (k/2) ln n with
 k = |parents| + 1 (intercept; the shared noise-variance parameter is the same for every graph
-and cancels in the posterior), adds the graph prior, and normalises.  Least squares is solved
+and cancels in the posterior), adds the graph prior, and normalises.  The uniform_screened_pairs target restricts the same enumeration to DAGs whose
+skeleton lies inside the fixture's declared pairs.  Least squares is solved
 by Gaussian elimination with partial pivoting, a different algorithm from the product's
 equilibrated Cholesky on a cached Gram matrix.
 
@@ -74,7 +75,7 @@ def is_dag(n, edges):
     return seen == n
 
 
-def posterior(case, edge_p):
+def posterior(case, edge_p, allowed_pairs=None):
     names = case["var_names"]
     n = len(names)
     cols = [[row[c] for row in case["data"]] for c in range(n)]
@@ -84,6 +85,10 @@ def posterior(case, edge_p):
     graphs = []
     for bits in itertools.product([0, 1], repeat=len(pairs)):
         edges = [p for p, b in zip(pairs, bits) if b]
+        if allowed_pairs is not None and any(
+            tuple(sorted(e)) not in allowed_pairs for e in edges
+        ):
+            continue
         if not is_dag(n, edges):
             continue
         total = 0.0
@@ -111,8 +116,15 @@ def main():
     emit = {}
     worst = 0.0
     for case in fixture["cases"]:
-        for key, p in (("uniform_all_dags", None), ("bernoulli_0_2_all_dags", 0.2)):
-            count, marg = posterior(case, p)
+        for key, p in (
+            ("uniform_all_dags", None),
+            ("bernoulli_0_2_all_dags", 0.2),
+            ("uniform_screened_pairs", None),
+        ):
+            allowed = None
+            if key == "uniform_screened_pairs":
+                allowed = {tuple(sorted(pair)) for pair in case["targets"][key]["pairs"]}
+            count, marg = posterior(case, p, allowed)
             target = case["targets"][key]
             assert count == target["n_dags"], (case["name"], count)
             emit[f"{case['name']}/{key}"] = marg

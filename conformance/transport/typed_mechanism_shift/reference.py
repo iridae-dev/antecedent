@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = ["numpy==2.1.3", "scipy==1.14.1"]
+# ///
 """Independent reference for typed mechanism transport under a mechanism shift.
 
 Generates the source and target samples, fits every outcome mechanism on the
@@ -12,10 +15,12 @@ The Rust route never sees these numbers while fitting: it fits the same data
 itself, and the test compares its transported response with this reference and
 with the closed-form truth of the data-generating process.
 
-Run: python3 reference.py   (rewrites data.json and expected.json)
+Run: uv run --script conformance/transport/typed_mechanism_shift/reference.py          (rewrites data.json and expected.json)
+     uv run --frozen --script conformance/transport/typed_mechanism_shift/reference.py --check  (compare)
 """
 import json
 import pathlib
+import sys
 
 import numpy as np
 from scipy import optimize, special, stats
@@ -245,7 +250,7 @@ def standardized_price_fit(income, price, centre, scale):
     return theta, cov
 
 
-def main():
+def build():
     rng = np.random.default_rng(SEED)
     source = draw_population(rng, True)
     target = draw_population(rng, False)
@@ -307,9 +312,21 @@ def main():
 
     expected = {
         "oracle": {
-            "kind": "independent_numpy_scipy_fit",
+            "kind": "independent_reimplementation",
             "method": "target-sample fit by numpy least squares or scipy BFGS plus root-polished score equations; Gauss-Hermite quadrature over the source-fitted income law; delta-method standard error from a finite-difference gradient",
-            "independence_basis": "the fits are computed here with numpy and scipy from the saved samples; no Rust code or Rust-produced number enters this file",
+            "independence_basis": "the fits are computed here with numpy and scipy from the saved samples; no Rust code or Rust-produced number enters this file. The retained generator and the executing assertions were read for the review recorded in reference_review.",
+            "generator": "conformance/transport/typed_mechanism_shift/reference.py",
+            "generator_retained": True,
+            "environment_lock": "conformance/transport/typed_mechanism_shift/reference.py.lock",
+            "command": "uv run --frozen --script conformance/transport/typed_mechanism_shift/reference.py --check",
+            "asserted_outputs": [
+                "outcomes[*].reference and reference_se (Monte Carlo and relative-SE tolerances)",
+                "outcomes[*].truth with reference_se (4.5 sigma band)",
+                "invariance[*].statistic and p_value (1e-6)",
+            ],
+            "context_only_outputs": ["outcomes[*].coefficients", "sample_size", "income"],
+            "executing_assertion": "crates/antecedent-model/tests/typed_mechanism_transport.rs::transported_response_matches_the_independent_target_fit_for_every_family",
+            "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
         },
         "grid": GRID,
         "sample_size": N,
@@ -317,12 +334,42 @@ def main():
         "outcomes": outcomes,
         "invariance": {k: {"statistic": v[0], "p_value": v[1]} for k, v in invariance.items()},
     }
+    return data, expected, outcomes
+
+
+def close(left, right, rtol=1e-6, atol=1e-9):
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(close(left[k], right[k], rtol, atol) for k in left)
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(close(a, b, rtol, atol) for a, b in zip(left, right))
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)) and not isinstance(left, bool):
+        return abs(left - right) <= atol + rtol * abs(right)
+    return left == right
+
+
+def main():
+    data, expected, outcomes = build()
+    if "--check" in sys.argv[1:]:
+        committed = json.loads((HERE / "expected.json").read_text(encoding="utf-8"))
+        review = committed.get("oracle", {}).get("reference_review")
+        stored = {**committed, "oracle": {k: v for k, v in committed["oracle"].items() if k != "reference_review"}}
+        if not close(expected, stored) or not close(data, json.loads((HERE / "data.json").read_text(encoding="utf-8"))):
+            print("typed mechanism reference mismatch", file=sys.stderr)
+            return 1
+        return 0
+    review = None
+    path = HERE / "expected.json"
+    if path.is_file():
+        review = json.loads(path.read_text(encoding="utf-8")).get("oracle", {}).get("reference_review")
+    if review is not None:
+        expected["oracle"]["reference_review"] = review
     (HERE / "data.json").write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
-    (HERE / "expected.json").write_text(json.dumps(expected, indent=2), encoding="utf-8")
+    path.write_text(json.dumps(expected, indent=2), encoding="utf-8")
     for name, o in outcomes.items():
         print(name, o["reference"], o["truth"], o["reference_se"])
     print({k: v for k, v in expected["invariance"].items()})
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

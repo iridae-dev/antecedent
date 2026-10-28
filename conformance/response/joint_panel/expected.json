@@ -33,7 +33,7 @@
         {
           "path": "crates/antecedent-estimate/src/joint_panel/tests.rs",
           "role": "assertion_source",
-          "sha256": "5a341441c5a23e608792f32aba01d0a8ec67861b0ea1c54b599b25e865943c67"
+          "sha256": "c47fb6b44ea291ac4c7418f5eb46af073323b8f86319a1e196bc5b6855531d8e"
         }
       ],
       "fixture_payload_sha256": "ab42dd79e08ae665b1307ba5c59df8cd19d167041a6c0d2c916fb241222271af",

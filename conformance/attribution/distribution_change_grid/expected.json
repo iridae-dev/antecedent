@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-attribution/src/distribution_change.rs",
-          "sha256": "4de0d078c21d770acd8632a134b46a3aa04dbdad76ee640480d333fc66ddccfb"
+          "sha256": "b30fd6e2684ddf0a414eb77db5087d144b7ef577f36f2164ef884eb194d988c7"
         }
       ],
       "fixture_payload_sha256": "10b998ea5771234ea936341a5624e7ec2c7cf265429bde382d4da63091c08ef3"
@@ -52,7 +52,10 @@
       "comparison_intercept": 6.0,
       "slope": 2.0,
       "total_change": 5.0,
-      "component_contributions": {"x": 0.0, "y": 5.0}
+      "component_contributions": {
+        "x": 0.0,
+        "y": 5.0
+      }
     },
     {
       "id": "null_change",
@@ -60,11 +63,14 @@
       "comparison_intercept": 1.0,
       "slope": 2.0,
       "total_change": 0.0,
-      "component_contributions": {"x": 0.0, "y": 0.0}
+      "component_contributions": {
+        "x": 0.0,
+        "y": 0.0
+      }
     }
   ],
   "comparison": {
-    "deterministic_absolute_tolerance": 1e-8,
+    "deterministic_absolute_tolerance": 1e-08,
     "sampled_absolute_tolerance": 0.15
   }
 }

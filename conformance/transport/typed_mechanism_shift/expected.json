@@ -1,8 +1,60 @@
 {
   "oracle": {
-    "kind": "independent_numpy_scipy_fit",
+    "kind": "independent_reimplementation",
     "method": "target-sample fit by numpy least squares or scipy BFGS plus root-polished score equations; Gauss-Hermite quadrature over the source-fitted income law; delta-method standard error from a finite-difference gradient",
-    "independence_basis": "the fits are computed here with numpy and scipy from the saved samples; no Rust code or Rust-produced number enters this file"
+    "independence_basis": "the fits are computed here with numpy and scipy from the saved samples; no Rust code or Rust-produced number enters this file. The retained generator and the executing assertions were read for the review recorded in reference_review.",
+    "generator": "conformance/transport/typed_mechanism_shift/reference.py",
+    "generator_retained": true,
+    "environment_lock": "conformance/transport/typed_mechanism_shift/reference.py.lock",
+    "command": "uv run --frozen --script conformance/transport/typed_mechanism_shift/reference.py --check",
+    "asserted_outputs": [
+      "outcomes[*].reference and reference_se (Monte Carlo and relative-SE tolerances)",
+      "outcomes[*].truth with reference_se (4.5 sigma band)",
+      "invariance[*].statistic and p_value (1e-6)"
+    ],
+    "context_only_outputs": [
+      "outcomes[*].coefficients",
+      "sample_size",
+      "income"
+    ],
+    "executing_assertion": "crates/antecedent-model/tests/typed_mechanism_transport.rs::transported_response_matches_the_independent_target_fit_for_every_family",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "reference_review": {
+      "scope": "Six outcome mechanisms (Gaussian, Poisson, Bernoulli, gamma, log-normal, heteroscedastic Gaussian) with a quadratic price effect whose coefficients shift between a source and a target sample of 3000 rows, with invariant income and price mechanisms: the target interventional mean at price 0, 1 and 2, its first-order delta-method standard error, and Wald invariance statistics for income and price.",
+      "independence_basis": "The generator refits each outcome on the saved target sample with numpy least squares or scipy BFGS polished by a root solve of the score equations, evaluates E[outcome | do(price)] by 120-point Gauss-Hermite quadrature over the source-fitted income law, and takes the standard error from a finite-difference gradient and the fitted covariance; the invariance statistics are Wald chi-square tests from numpy/scipy fits. It imports no Antecedent code and no Rust-produced number enters the file; it also asserts that its references sit within 4.5 standard errors of the closed-form truth of the data-generating coefficients. The product fits the same stored samples with its own mechanism fitter and evaluates the response by Monte Carlo over its transported model. The executing assertions compare the product value with the reference within 6 Monte Carlo standard errors, with the closed-form truth inside a 4.5-sigma band, the parameter standard error within 8 percent relative, and the invariance statistic and p value at 1e-6.",
+      "historical_exposure": "The reference was written by the repository author alongside the product; independence rests on the different computation (deterministic quadrature and optimiser against Monte Carlo and the product's fitter), not on a separate author. The product source was not consulted for this review.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs (the samples are simulated, stored rounded to nine decimals). NumPy and SciPy are used from an isolated locked script environment outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "One seed and one sample size; the response comparison is bounded by Monte Carlo error and a 4.5-sigma truth band, so it detects gross errors and bias of the order of the tolerance, not smaller ones. The standard-error comparison is 8 percent relative at price 2 only. The fitted-mechanism class is the declared quadratic basis; no model-misspecification, selection-diagram or refusal logic is checked by this fixture (other tests in the same file check refusals without a numerical reference). No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/transport/typed_mechanism_shift/reference.py",
+          "sha256": "af6667ad1f97dbfd232960f7eaa09f47e807897fedb442ee67276ab4febcae42"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/transport/typed_mechanism_shift/reference.py.lock",
+          "sha256": "87774211723939884a170d86e8670db50824f24dae6ac357b443a107d4915711"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-model/tests/typed_mechanism_transport.rs",
+          "sha256": "c766d73ce698e760d9945ff49d64a312ddc51fb18fc98b15a58fec2f7a0365c8"
+        },
+        {
+          "role": "assertion_source",
+          "path": "python/tests/test_typed_mechanism_transport.py",
+          "sha256": "1e38931f1ca0dfd22634feabd7b08e36cb4509dbcbfd7cb255c9d1856afff00b"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/transport/typed_mechanism_shift/data.json",
+          "sha256": "e38bc5069ce400ff0fcc6c595590778e299c951b2ec75592c653969bf549304e"
+        }
+      ],
+      "fixture_payload_sha256": "fe128294829374f182129faff15afaedc29b2a7994dffb928daa997c56c8e00b"
+    }
   },
   "grid": [
     0.0,

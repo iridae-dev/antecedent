@@ -1,11 +1,47 @@
 {
   "schema_version": 1,
-  "oracle": {"kind": "independent_reimplementation", "method": "composition of frozen backdoor, ID, IDC, IV, RD, and envelope fixtures", "generator": "temporary composition harness (deleted after artifact import)"},
+  "evidence_kind": "implementation_exists",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_source": "crates/antecedent-identify/src/auto.rs::auto_finds_backdoor_on_chain",
+  "evidence_proposition": "On the declared three-node graph 0->1, 0->2, 1->2 the automatic identifier reports a nonparametrically identified average effect of 1 on 2 with a non-empty estimand, an auto.method derivation step and an auto.rd.missing_config diagnostic; the fixture's first case names the backdoor family, which is the only fixture field the executing assertion reads.",
+  "limitations": "Routing and bookkeeping check on one graph. The fixture's other four cases (conditioned-distribution, IV, RD and soft-mechanism routes) are descriptive labels: sibling tests exercise those routes with graphs written inline, and none reads the fixture. The family labels were chosen by the repository author and are not an independent reference. No calibration.",
+  "oracle": {
+    "kind": "regression_pin",
+    "project": "repository software contract",
+    "origin": "Current review of the retained fixture fields and the exact executing consumer; the case labels are repository-authored and no external generator or independent numerical origin is asserted.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "historical_oracle": {
+      "kind": "independent_reimplementation",
+      "method": "composition of frozen backdoor, ID, IDC, IV, RD, and envelope fixtures",
+      "generator": "temporary composition harness (deleted after artifact import)"
+    }
+  },
   "cases": [
-    {"id": "backdoor_route", "expected_method_family": "backdoor", "status": "identified"},
-    {"id": "conditioned_distribution_route", "expected_method_family": "idc", "status": "identified"},
-    {"id": "iv_route", "expected_method_family": "iv", "status": "identified"},
-    {"id": "rd_route_with_config", "expected_method_family": "rd.sharp", "status": "identified"},
-    {"id": "unsupported_soft_mechanism", "status": "error"}
+    {
+      "id": "backdoor_route",
+      "expected_method_family": "backdoor",
+      "status": "identified"
+    },
+    {
+      "id": "conditioned_distribution_route",
+      "expected_method_family": "idc",
+      "status": "identified"
+    },
+    {
+      "id": "iv_route",
+      "expected_method_family": "iv",
+      "status": "identified"
+    },
+    {
+      "id": "rd_route_with_config",
+      "expected_method_family": "rd.sharp",
+      "status": "identified"
+    },
+    {
+      "id": "unsupported_soft_mechanism",
+      "status": "error"
+    }
   ]
 }

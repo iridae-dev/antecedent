@@ -1,9 +1,79 @@
 {
   "schema_version": 1,
-  "oracle": {"kind": "enumeration", "project": "clean-room exhaustive enumeration of valid back-door sets selecting the O-set of Henckel, Perkovic and Maathuis (2022); DAGitty was not run", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "oracle": {
+    "kind": "enumeration",
+    "method": "exhaustive enumeration of valid back-door sets by the back-door definition with moral-graph d-separation, and exact linear-Gaussian asymptotic variance factors in fractions to select the unique minimum-variance valid set",
+    "independence_basis": "Definition-level enumeration in the Python standard library; no Antecedent code is imported and nothing is shared with the product. The retained generator and the executing assertion were read for the review recorded in reference_review.",
+    "generator": "conformance/identify/efficient_adjustment/reference.py",
+    "generator_retained": true,
+    "environment_lock": "conformance/identify/efficient_adjustment/reference.py.lock",
+    "command": "uv run --frozen --script conformance/identify/efficient_adjustment/reference.py --check",
+    "asserted_outputs": [
+      "cases[*].optimal_set"
+    ],
+    "context_only_outputs": [
+      "cases[*].edges, treatment and outcome (inputs; T and Y when omitted)"
+    ],
+    "executing_assertion": "crates/antecedent-identify/tests/identify_fixture_cases_fixtures_01.rs::efficient_adjustment_fixture_every_case_reports_the_stored_optimal_set",
+    "historical_exposure": "The values were first pinned by a temporary clean-room harness that was deleted after artifact import (clean-room exhaustive enumeration of valid back-door sets selecting the O-set of Henckel, Perkovic and Maathuis (2022); DAGitty was not run); who derived them is unrecorded. The retained reference was written during this review from the fixture statement and compared with the stored values.",
+    "reference_review": {
+      "scope": "Three DAGs (a single confounder, an outcome-parent versus treatment-parent choice, and a bare treatment-outcome edge) and the unique minimum-variance valid back-door set of each, with the treatment T and outcome Y.",
+      "independence_basis": "The generator enumerates every subset of the remaining nodes, keeps those that satisfy the back-door definition (no descendant of the treatment; the treatment and outcome are d-separated once arrows out of the treatment are removed, decided on the moral graph of the ancestral subgraph), computes with fractions the exact covariance of the unit-coefficient unit-variance linear-Gaussian SEM, and ranks the valid sets by the asymptotic variance factor sigma2_{Y|T,Z} / sigma2_{T|Z}. It requires a unique minimum and compares it with the stored set. It uses the Python standard library only and shares no code with the product's identifier or its O-set routine. The executing assertion builds every case's DAG from the fixture's edge strings, runs the shipped efficient back-door identifier and compares the reported adjustment set with the stored one.",
+      "historical_exposure": "The stored sets were first pinned by a deleted clean-room harness; who derived them is unrecorded. The retained reference was written during this review from the definitions and agrees with all three stored cases (the second case has four valid sets with factors 1/2, 1, 1 and 2). The product source was not consulted for this review.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Three small DAGs; optimality is with respect to the asymptotic variance of the OLS treatment coefficient in one fixed linear-Gaussian parameterisation (unit coefficients), not for every parameterisation, and ties are not exercised. Case 2 and 3 omit treatment and outcome in the fixture and are read as T and Y. Larger-graph agreement with the optimal-set definition is covered by a separate exhaustive test, not by this fixture. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/identify/efficient_adjustment/reference.py",
+          "sha256": "9456089d6a06360034f9bf850b3866bf61ae335e86328336ff149344e279bb62"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/identify/efficient_adjustment/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-identify/tests/identify_fixture_cases_fixtures_01.rs",
+          "sha256": "78b079439a7e5e62efdb6718a86c1470902fc560dc0f98e872ffb6dc27b98a82"
+        }
+      ],
+      "fixture_payload_sha256": "b3fd2385e2572f63fbf82d4948b1ed05ab03802c0ce26d1f2462f2b675c058d5"
+    }
+  },
   "cases": [
-    {"id": "single_confounder", "edges": ["Z->T", "Z->Y", "T->Y"], "treatment": "T", "outcome": "Y", "optimal_set": ["Z"]},
-    {"id": "outcome_parent_preferred", "edges": ["W->T", "T->Y", "Q->Y"], "optimal_set": ["Q"]},
-    {"id": "no_backdoor", "edges": ["T->Y"], "optimal_set": []}
+    {
+      "id": "single_confounder",
+      "edges": [
+        "Z->T",
+        "Z->Y",
+        "T->Y"
+      ],
+      "treatment": "T",
+      "outcome": "Y",
+      "optimal_set": [
+        "Z"
+      ]
+    },
+    {
+      "id": "outcome_parent_preferred",
+      "edges": [
+        "W->T",
+        "T->Y",
+        "Q->Y"
+      ],
+      "optimal_set": [
+        "Q"
+      ]
+    },
+    {
+      "id": "no_backdoor",
+      "edges": [
+        "T->Y"
+      ],
+      "optimal_set": []
+    }
   ]
 }

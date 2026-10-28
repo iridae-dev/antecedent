@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = ["numpy==2.1.3"]
+# ///
 """Independent Normal-inverse-gamma equations; no Antecedent imports.
 
 SPDX-License-Identifier: MIT OR Apache-2.0
@@ -438,8 +442,27 @@ for scale in [0.1, 10.0]:
 ORACLE = {
     'kind': 'independent_reimplementation',
     'project': 'NumPy Normal-inverse-gamma posterior equations',
-    'generator': 'conformance/bayesian/posterior_moments/generate.py (retained; imports NumPy only, no Antecedent code)',
+    'method': 'tempered Normal-inverse-gamma matrix equations, Bartlett long-run covariance of stacked OLS scores, REML autoregression by Nelder-Mead, and product moments of jointly Gaussian coefficients',
+    'independence_basis': 'The plain and tempered posterior moments are closed-form matrix equations in NumPy. The tempering factor kappa re-implements the repository-defined long-run-variance rule (autoregressive REML fit, fixed-b Newey-West bound, delta-method spread; constants at the top of the file) in NumPy and imports no Antecedent code, so for kappa the reference checks the product against the rule as restated here, not against an external definition. The retained generator and the executing assertions were read for the review recorded in reference_review.',
+    'generator': 'conformance/bayesian/posterior_moments/generate.py',
+    'generator_retained': True,
+    'environment_lock': 'conformance/bayesian/posterior_moments/generate.py.lock',
+    'command': 'uv run --frozen --script conformance/bayesian/posterior_moments/generate.py --check',
+    'asserted_outputs': [
+        'posterior[scale][family] mean and variance for conditional, mediation, window, response, stationary_window, confounded_mediation',
+        'tempering[family][*].rows and kappa (window, stationary_window)',
+        'posterior[scale].dependent_pulse and the mediation moments and kappa in the Rust assertions',
+        'joint_block (the Rust assertion reports the same block length)',
+    ],
+    'context_only_outputs': ['data (inputs)'],
+    'executing_assertion': 'python/tests/test_posterior_moments.py::test_posterior_moments_and_artifact',
+    'historical_exposure': 'Historical author exposure is unrecorded and remains unknown.',
 }
+_path = Path(__file__).with_name('expected.json')
+if _path.is_file():
+    _review = json.loads(_path.read_text(encoding='utf-8')).get('oracle', {}).get('reference_review')
+    if _review is not None:
+        ORACLE['reference_review'] = _review
 def _values_close(left, right):
     """Float documents compare with ``np.isclose``, not ``!=``.
 
@@ -477,7 +500,6 @@ def _worst_gap(left, right, path=''):
 
 
 _text = json.dumps({'data': {k: v.tolist() for k,v in dict(t=t,w=w,y=y,r=r,m=m,o=o,s=s,u=u,z=z,tc=tc,mc=mc,oc=oc,td=td,yd=yd).items()}, 'posterior': expected, 'joint_block': JOINT_BLOCK, 'tempering': kappas, 'oracle': ORACLE}, indent=2)+'\n'
-_path = Path(__file__).with_name('expected.json')
 if __name__ == '__main__' and '--check' in sys.argv:
     if not _values_close(json.loads(_path.read_text(encoding='utf-8')), json.loads(_text)):
         gap = _worst_gap(json.loads(_path.read_text(encoding='utf-8')), json.loads(_text))

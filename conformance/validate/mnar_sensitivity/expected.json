@@ -1,630 +1,669 @@
 {
- "schema_version": 1,
- "tolerance_class": "StableFloat",
- "oracle": {
-  "kind": "closed_form",
-  "method": "closed forms for the shift and the binary tilt plus an independent evaluation of the logistic selection model by explicit Bayes on the selection mechanism, with a numerical-influence delta-method variance",
-  "independence_basis": "reference.py is standard-library Python that imports no Antecedent code. The shift and the binary tilt are checked against hand-derived closed forms (effect, tipping points); the continuous tilt is evaluated through the selection mechanism f(y|R=0) ~ f_obs(y)(1-pi(y))/pi(y) with an arbitrary intercept that drops out, and its tipping points come from this script's own scan plus bisection. The author of the reference is the repository author and independence from the production implementation has not been reviewed.",
-  "generator": "conformance/validate/mnar_sensitivity/reference.py",
-  "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
- },
- "level": 0.95,
- "closed_forms": {
-  "shift_common_sign_tipping": 15.0,
-  "shift_treated_only_sign_tipping": -3.75,
-  "shift_treated_only_decision_tipping": -1.25,
-  "tilt_binary_decision_tipping": 0.5108256237659907
- },
- "cases": [
-  {
-   "name": "shift_closed_form",
-   "grid_points": 81,
-   "model": "delta",
-   "loading": [
-    1.0,
-    1.0
-   ],
-   "lower": -20.0,
-   "upper": 20.0,
-   "data": {
-    "treatment": [
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0
+  "schema_version": 1,
+  "tolerance_class": "StableFloat",
+  "oracle": {
+    "kind": "independent_reimplementation",
+    "method": "closed forms for the shift and the binary tilt plus an independent evaluation of the logistic selection model by explicit Bayes on the selection mechanism, with a numerical-influence delta-method variance",
+    "generator": "conformance/validate/mnar_sensitivity/reference.py",
+    "command": "uv run --frozen --script conformance/validate/mnar_sensitivity/reference.py --check",
+    "environment_lock": "conformance/validate/mnar_sensitivity/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "effect at each probe parameter",
+      "sampling standard error at each probe parameter",
+      "sign, excludes_null and decision (treat) tipping points per side"
     ],
-    "outcome": [
-     1.0,
-     2.0,
-     3.0,
-     4.0,
-     5.0,
-     6.0,
-     null,
-     null,
-     null,
-     null,
-     0.0,
-     1.0,
-     2.0,
-     3.0,
-     4.0,
-     null,
-     null,
-     null,
-     null,
-     null
-    ]
-   },
-   "probe": [
-    {
-     "parameter": -20.0,
-     "effect": 3.5,
-     "standard_error": 4.547893285192443
-    },
-    {
-     "parameter": -5.0,
-     "effect": 2.0,
-     "standard_error": 1.519320023359226
-    },
-    {
-     "parameter": 0.0,
-     "effect": 1.5,
-     "standard_error": 1.0408329997510848
-    },
-    {
-     "parameter": 2.0,
-     "effect": 1.3000000000000007,
-     "standard_error": 1.131076183727859
-    },
-    {
-     "parameter": 7.5,
-     "effect": 0.75,
-     "standard_error": 1.9594854766474021
-    },
-    {
-     "parameter": 20.0,
-     "effect": -0.5,
-     "standard_error": 4.547893285188049
+    "context_only_outputs": [
+      "closed_forms block",
+      "decision thresholds (inputs)",
+      "grid_points, bounds and data (inputs)"
+    ],
+    "independence_basis": "reference.py is standard-library Python that imports no Antecedent code. The shift and the binary tilt are checked inside the script against hand-derived closed forms (effect, tipping points); the continuous tilt is evaluated through the selection mechanism f(y|R=0) ~ f_obs(y)(1-pi(y))/pi(y) with an arbitrary intercept that drops out, and its tipping points come from this script's own scan plus bisection. The sampling variance is a delta-method variance from a numerical influence function (central finite differences of the arm mean under perturbed observation weights), not the closed-form influence the product uses.",
+    "historical_exposure": "Written by the repository author alongside the product; whether the product source was consulted is unrecorded.",
+    "reference_review": {
+      "scope": "Pattern-mixture shift and exponential-tilting selection sensitivity of a two-arm mean contrast: effect and delta-method standard error at probe parameters and sign, excludes-null and decision tipping points, on four small cases (shift with common and treated-only loadings, a binary tilt, and a seeded continuous tilt with opposite loadings).",
+      "independence_basis": "reference.py is standard-library Python that imports no Antecedent code. The shift and the binary tilt are checked inside the script against hand-derived closed forms (effect, tipping points); the continuous tilt is evaluated through the selection mechanism f(y|R=0) ~ f_obs(y)(1-pi(y))/pi(y) with an arbitrary intercept that drops out, and its tipping points come from this script's own scan plus bisection. The sampling variance is a delta-method variance from a numerical influence function (central finite differences of the arm mean under perturbed observation weights), not the closed-form influence the product uses.",
+      "historical_exposure": "Written by the repository author alongside the product; whether the product source was consulted is unrecorded.",
+      "limitations": "The shift and binary-tilt cases have hand-derived closed forms that the script asserts and the product's own tests also pin; the continuous tilt and all standard errors are checked only against this script's explicit-Bayes evaluation and numerical-influence variance, written by the product's author, so shared misreadings of the model definition are not excluded. Tolerances in the fixture-driven assertion are 1e-9 on effects, 1e-6 on standard errors and 1e-7 on tipping points. The model definitions (departure parameterisation, loading convention) are declared conventions, not validated against external software. No coverage, no calibration.",
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/validate/mnar_sensitivity/reference.py",
+          "sha256": "6aa99f3b677c16bdd59387f713b4bfd0a5898f9fec5f1a85b4f1c0d12a6feeea"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/validate/mnar_sensitivity/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-validate/tests/mnar_sensitivity.rs",
+          "sha256": "12608ed35cc712d6515cbb6e8cda6f683167e52f84fd25425a8843e7ce2d4beb"
+        }
+      ],
+      "sources": [],
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "fixture_payload_sha256": "61f482b5f904a511b8b4343cc8a97f0a80d03c682d738b9510daffe74679f96b"
     }
-   ],
-   "tipping": {
-    "sign": {
-     "negative": null,
-     "positive": 14.999999999999996
-    },
-    "excludes_null": {
-     "negative": null,
-     "positive": null
-    },
-    "treat": {
-     "negative": null,
-     "positive": 4.999999999999996
-    }
-   },
-   "decisions": {
-    "treat": 1.0
-   }
   },
-  {
-   "name": "shift_treated_only",
-   "grid_points": 81,
-   "model": "delta",
-   "loading": [
-    1.0,
-    0.0
-   ],
-   "lower": -10.0,
-   "upper": 10.0,
-   "data": {
-    "treatment": [
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0
-    ],
-    "outcome": [
-     1.0,
-     2.0,
-     3.0,
-     4.0,
-     5.0,
-     6.0,
-     null,
-     null,
-     null,
-     null,
-     0.0,
-     1.0,
-     2.0,
-     3.0,
-     4.0,
-     null,
-     null,
-     null,
-     null,
-     null
-    ]
-   },
-   "probe": [
-    {
-     "parameter": -10.0,
-     "effect": -2.5,
-     "standard_error": 1.866369023900494
-    },
-    {
-     "parameter": -3.75,
-     "effect": 0.0,
-     "standard_error": 1.191987136415374
-    },
-    {
-     "parameter": 0.0,
-     "effect": 1.5,
-     "standard_error": 1.0408329997510848
-    },
-    {
-     "parameter": 4.0,
-     "effect": 3.0999999999999996,
-     "standard_error": 1.2113353512943252
-    },
-    {
-     "parameter": 10.0,
-     "effect": 5.5,
-     "standard_error": 1.8663690238766997
-    }
-   ],
-   "tipping": {
-    "sign": {
-     "negative": -3.75,
-     "positive": null
-    },
-    "excludes_null": {
-     "negative": null,
-     "positive": 1.4707578901192164
-    },
-    "treat": {
-     "negative": -1.2499999999999998,
-     "positive": null
-    }
-   },
-   "decisions": {
-    "treat": 1.0
-   }
+  "level": 0.95,
+  "closed_forms": {
+    "shift_common_sign_tipping": 15.0,
+    "shift_treated_only_sign_tipping": -3.75,
+    "shift_treated_only_decision_tipping": -1.25,
+    "tilt_binary_decision_tipping": 0.5108256237659907
   },
-  {
-   "name": "tilt_binary_closed_form",
-   "grid_points": 81,
-   "model": "tilt",
-   "loading": [
-    1.0,
-    0.0
-   ],
-   "lower": -5.0,
-   "upper": 5.0,
-   "data": {
-    "treatment": [
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0
-    ],
-    "outcome": [
-     1.0,
-     1.0,
-     1.0,
-     0.0,
-     0.0,
-     0.0,
-     null,
-     null,
-     null,
-     null,
-     1.0,
-     1.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0
-    ]
-   },
-   "probe": [
+  "cases": [
     {
-     "parameter": -5.0,
-     "effect": 0.05267714036971394,
-     "standard_error": 0.2264288663971592
+      "name": "shift_closed_form",
+      "grid_points": 81,
+      "model": "delta",
+      "loading": [
+        1.0,
+        1.0
+      ],
+      "lower": -20.0,
+      "upper": 20.0,
+      "data": {
+        "treatment": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "outcome": [
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0,
+          null,
+          null,
+          null,
+          null,
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      "probe": [
+        {
+          "parameter": -20.0,
+          "effect": 3.5,
+          "standard_error": 4.547893285192443
+        },
+        {
+          "parameter": -5.0,
+          "effect": 2.0,
+          "standard_error": 1.519320023359226
+        },
+        {
+          "parameter": 0.0,
+          "effect": 1.5,
+          "standard_error": 1.0408329997510848
+        },
+        {
+          "parameter": 2.0,
+          "effect": 1.3000000000000007,
+          "standard_error": 1.131076183727859
+        },
+        {
+          "parameter": 7.5,
+          "effect": 0.75,
+          "standard_error": 1.9594854766474021
+        },
+        {
+          "parameter": 20.0,
+          "effect": -0.5,
+          "standard_error": 4.547893285188049
+        }
+      ],
+      "tipping": {
+        "sign": {
+          "negative": null,
+          "positive": 14.999999999999996
+        },
+        "excludes_null": {
+          "negative": null,
+          "positive": null
+        },
+        "treat": {
+          "negative": null,
+          "positive": 4.999999999999996
+        }
+      },
+      "decisions": {
+        "treat": 1.0
+      }
     },
     {
-     "parameter": -1.0,
-     "effect": 0.15757656854799806,
-     "standard_error": 0.2643667410465693
+      "name": "shift_treated_only",
+      "grid_points": 81,
+      "model": "delta",
+      "loading": [
+        1.0,
+        0.0
+      ],
+      "lower": -10.0,
+      "upper": 10.0,
+      "data": {
+        "treatment": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "outcome": [
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0,
+          null,
+          null,
+          null,
+          null,
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      "probe": [
+        {
+          "parameter": -10.0,
+          "effect": -2.5,
+          "standard_error": 1.866369023900494
+        },
+        {
+          "parameter": -3.75,
+          "effect": 0.0,
+          "standard_error": 1.191987136415374
+        },
+        {
+          "parameter": 0.0,
+          "effect": 1.5,
+          "standard_error": 1.0408329997510848
+        },
+        {
+          "parameter": 4.0,
+          "effect": 3.0999999999999996,
+          "standard_error": 1.2113353512943252
+        },
+        {
+          "parameter": 10.0,
+          "effect": 5.5,
+          "standard_error": 1.8663690238766997
+        }
+      ],
+      "tipping": {
+        "sign": {
+          "negative": -3.75,
+          "positive": null
+        },
+        "excludes_null": {
+          "negative": null,
+          "positive": 1.4707578901192164
+        },
+        "treat": {
+          "negative": -1.2499999999999998,
+          "positive": null
+        }
+      },
+      "decisions": {
+        "treat": 1.0
+      }
     },
     {
-     "parameter": 0.0,
-     "effect": 0.25,
-     "standard_error": 0.27710235344490325
+      "name": "tilt_binary_closed_form",
+      "grid_points": 81,
+      "model": "tilt",
+      "loading": [
+        1.0,
+        0.0
+      ],
+      "lower": -5.0,
+      "upper": 5.0,
+      "data": {
+        "treatment": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "outcome": [
+          1.0,
+          1.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          null,
+          null,
+          null,
+          null,
+          1.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "probe": [
+        {
+          "parameter": -5.0,
+          "effect": 0.05267714036971394,
+          "standard_error": 0.2264288663971592
+        },
+        {
+          "parameter": -1.0,
+          "effect": 0.15757656854799806,
+          "standard_error": 0.2643667410465693
+        },
+        {
+          "parameter": 0.0,
+          "effect": 0.25,
+          "standard_error": 0.27710235344490325
+        },
+        {
+          "parameter": 0.5,
+          "effect": 0.29898373248074184,
+          "standard_error": 0.2734501872247111
+        },
+        {
+          "parameter": 2.0,
+          "effect": 0.40231883119115297,
+          "standard_error": 0.24445097671136856
+        },
+        {
+          "parameter": 5.0,
+          "effect": 0.44732285963028606,
+          "standard_error": 0.22642886639940474
+        }
+      ],
+      "tipping": {
+        "sign": {
+          "negative": null,
+          "positive": null
+        },
+        "excludes_null": {
+          "negative": null,
+          "positive": 4.4425553677134255
+        },
+        "treat": {
+          "negative": null,
+          "positive": 0.5108256237659907
+        }
+      },
+      "decisions": {
+        "treat": 0.3
+      }
     },
     {
-     "parameter": 0.5,
-     "effect": 0.29898373248074184,
-     "standard_error": 0.2734501872247111
-    },
-    {
-     "parameter": 2.0,
-     "effect": 0.40231883119115297,
-     "standard_error": 0.24445097671136856
-    },
-    {
-     "parameter": 5.0,
-     "effect": 0.44732285963028606,
-     "standard_error": 0.22642886639940474
+      "name": "tilt_continuous",
+      "grid_points": 61,
+      "model": "tilt",
+      "loading": [
+        1.0,
+        -1.0
+      ],
+      "lower": -3.0,
+      "upper": 3.0,
+      "data": {
+        "treatment": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "outcome": [
+          null,
+          null,
+          0.603329,
+          null,
+          null,
+          null,
+          0.469918,
+          null,
+          null,
+          1.172254,
+          0.408666,
+          1.349347,
+          0.879676,
+          0.038948,
+          1.033817,
+          2.574956,
+          0.332313,
+          1.707712,
+          2.398431,
+          0.396399,
+          0.363836,
+          1.627086,
+          0.627878,
+          1.248784,
+          null,
+          2.793587,
+          0.855515,
+          0.671775,
+          0.636404,
+          -0.568524,
+          1.76878,
+          0.527546,
+          1.009959,
+          1.943696,
+          0.727033,
+          1.137078,
+          2.276099,
+          -0.04373,
+          0.888071,
+          2.394875,
+          0.687215,
+          0.711212,
+          null,
+          null,
+          -1.839878,
+          null,
+          0.924629,
+          1.336707,
+          1.316178,
+          0.925838,
+          1.397973,
+          -0.442818,
+          1.349424,
+          null,
+          0.847589,
+          0.414733,
+          -0.829068,
+          null,
+          0.131141,
+          null,
+          1.032715,
+          -0.030313,
+          -0.527827,
+          1.672481,
+          0.249981,
+          -0.351916,
+          0.284175,
+          1.588047,
+          0.166117,
+          -1.036553,
+          0.12251,
+          0.020266,
+          -0.78504,
+          -0.378411,
+          -2.322079,
+          -0.397096,
+          0.685842,
+          -1.705237,
+          null,
+          0.512554,
+          0.983712,
+          0.347696,
+          -0.240898,
+          null,
+          null,
+          1.794169,
+          -0.335543,
+          -0.310434,
+          0.280167,
+          0.379929,
+          -1.573788,
+          0.030568,
+          0.642426,
+          0.763794,
+          -1.581527,
+          -1.383803,
+          -0.30897,
+          null,
+          0.156417,
+          -1.612657,
+          -0.149192,
+          0.585272,
+          -1.532243,
+          -0.865761,
+          null,
+          -1.045398,
+          null,
+          1.373516,
+          -0.449512,
+          -1.178778,
+          2.012161,
+          -1.072304,
+          0.793023,
+          null,
+          null,
+          -1.824286,
+          1.08878,
+          1.214402,
+          -1.184338,
+          -0.818937
+        ]
+      },
+      "probe": [
+        {
+          "parameter": -3.0,
+          "effect": 0.17053335982274842,
+          "standard_error": 0.23575481107137808
+        },
+        {
+          "parameter": -1.0,
+          "effect": 0.6569325587894137,
+          "standard_error": 0.22934235446139783
+        },
+        {
+          "parameter": 0.0,
+          "effect": 1.0149254991638794,
+          "standard_error": 0.19465984736280115
+        },
+        {
+          "parameter": 0.7,
+          "effect": 1.2277348947866118,
+          "standard_error": 0.19711772256916268
+        },
+        {
+          "parameter": 3.0,
+          "effect": 1.6183907464111449,
+          "standard_error": 0.2079280744012356
+        }
+      ],
+      "tipping": {
+        "sign": {
+          "negative": null,
+          "positive": null
+        },
+        "excludes_null": {
+          "negative": -1.430477295847199,
+          "positive": null
+        },
+        "treat": {
+          "negative": null,
+          "positive": 0.6034328308157139
+        }
+      },
+      "decisions": {
+        "treat": 1.2
+      }
     }
-   ],
-   "tipping": {
-    "sign": {
-     "negative": null,
-     "positive": null
-    },
-    "excludes_null": {
-     "negative": null,
-     "positive": 4.4425553677134255
-    },
-    "treat": {
-     "negative": null,
-     "positive": 0.5108256237659907
-    }
-   },
-   "decisions": {
-    "treat": 0.3
-   }
-  },
-  {
-   "name": "tilt_continuous",
-   "grid_points": 61,
-   "model": "tilt",
-   "loading": [
-    1.0,
-    -1.0
-   ],
-   "lower": -3.0,
-   "upper": 3.0,
-   "data": {
-    "treatment": [
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     1.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0
-    ],
-    "outcome": [
-     null,
-     null,
-     0.603329,
-     null,
-     null,
-     null,
-     0.469918,
-     null,
-     null,
-     1.172254,
-     0.408666,
-     1.349347,
-     0.879676,
-     0.038948,
-     1.033817,
-     2.574956,
-     0.332313,
-     1.707712,
-     2.398431,
-     0.396399,
-     0.363836,
-     1.627086,
-     0.627878,
-     1.248784,
-     null,
-     2.793587,
-     0.855515,
-     0.671775,
-     0.636404,
-     -0.568524,
-     1.76878,
-     0.527546,
-     1.009959,
-     1.943696,
-     0.727033,
-     1.137078,
-     2.276099,
-     -0.04373,
-     0.888071,
-     2.394875,
-     0.687215,
-     0.711212,
-     null,
-     null,
-     -1.839878,
-     null,
-     0.924629,
-     1.336707,
-     1.316178,
-     0.925838,
-     1.397973,
-     -0.442818,
-     1.349424,
-     null,
-     0.847589,
-     0.414733,
-     -0.829068,
-     null,
-     0.131141,
-     null,
-     1.032715,
-     -0.030313,
-     -0.527827,
-     1.672481,
-     0.249981,
-     -0.351916,
-     0.284175,
-     1.588047,
-     0.166117,
-     -1.036553,
-     0.12251,
-     0.020266,
-     -0.78504,
-     -0.378411,
-     -2.322079,
-     -0.397096,
-     0.685842,
-     -1.705237,
-     null,
-     0.512554,
-     0.983712,
-     0.347696,
-     -0.240898,
-     null,
-     null,
-     1.794169,
-     -0.335543,
-     -0.310434,
-     0.280167,
-     0.379929,
-     -1.573788,
-     0.030568,
-     0.642426,
-     0.763794,
-     -1.581527,
-     -1.383803,
-     -0.30897,
-     null,
-     0.156417,
-     -1.612657,
-     -0.149192,
-     0.585272,
-     -1.532243,
-     -0.865761,
-     null,
-     -1.045398,
-     null,
-     1.373516,
-     -0.449512,
-     -1.178778,
-     2.012161,
-     -1.072304,
-     0.793023,
-     null,
-     null,
-     -1.824286,
-     1.08878,
-     1.214402,
-     -1.184338,
-     -0.818937
-    ]
-   },
-   "probe": [
-    {
-     "parameter": -3.0,
-     "effect": 0.17053335982274842,
-     "standard_error": 0.23575481107137808
-    },
-    {
-     "parameter": -1.0,
-     "effect": 0.6569325587894137,
-     "standard_error": 0.22934235446139783
-    },
-    {
-     "parameter": 0.0,
-     "effect": 1.0149254991638794,
-     "standard_error": 0.19465984736280115
-    },
-    {
-     "parameter": 0.7,
-     "effect": 1.2277348947866118,
-     "standard_error": 0.19711772256916268
-    },
-    {
-     "parameter": 3.0,
-     "effect": 1.6183907464111449,
-     "standard_error": 0.2079280744012356
-    }
-   ],
-   "tipping": {
-    "sign": {
-     "negative": null,
-     "positive": null
-    },
-    "excludes_null": {
-     "negative": -1.430477295847199,
-     "positive": null
-    },
-    "treat": {
-     "negative": null,
-     "positive": 0.6034328308157139
-    }
-   },
-   "decisions": {
-    "treat": 1.2
-   }
-  }
- ]
+  ]
 }

@@ -2,7 +2,68 @@
   "fixture_id": "response.conditional_ipcw",
   "oracle": {
     "kind": "external_package",
-    "method": "R survival 3.8.6 coxph Breslow and basehaz left limits"
+    "method": "R survival 3.8.6 coxph Breslow and basehaz left limits",
+    "project": "survival",
+    "version": "3.8.6",
+    "generator": "conformance/response/conditional_ipcw/generate.R",
+    "command": "Rscript conformance/response/conditional_ipcw/generate.R && python3 conformance/response/conditional_ipcw/freeze.py",
+    "environment_lock": "conformance/response/conditional_ipcw/renv.lock",
+    "generator_retained": true,
+    "executed_here": true,
+    "asserted_outputs": [
+      "coefficients",
+      "survival (left-limit censoring survival per row)",
+      "weight"
+    ],
+    "context_only_outputs": [
+      "time, event, a, z (inputs)",
+      "fixture_id"
+    ],
+    "independence_basis": "generate.R builds the 180-row data from closed-form deterministic expressions of the row index (sin, cos and modular-arithmetic uniforms), fits survival::coxph on the censoring indicator with Breslow ties and eps 1e-12, takes the cumulative baseline hazard from survival::basehaz(centered = FALSE), forms each row's left-limit hazard sum(diff(c(0, hazard))[time < t]), the censoring survival exp(-H * exp(lp)) and the weight event / survival. It imports no Antecedent code and no repository helper. The reviewer re-ran generate.R under R 4.6.1 with survival 3.8-6 into a scratch directory and it reproduced the committed oracle.csv and coefficients.txt exactly (maximum absolute difference 0). The shared object is the conditional inverse-probability-of-censoring weight definition (left-limit censoring survival from the Breslow baseline), which the generator states and the product implements.",
+    "historical_exposure": "Both the data expressions and the weight convention (left-limit survival, Breslow baseline) were chosen by the repository author alongside the product; the fitted numbers come from the R package, not from the product. The package version is recorded in the generator and the lock.",
+    "reference_review": {
+      "scope": "Cox proportional-hazards censoring fit (two coefficients), row-specific censoring survival before each recorded time, and the inverse-probability-of-censoring weights on one 180-row deterministic dataset with two covariates.",
+      "independence_basis": "generate.R builds the 180-row data from closed-form deterministic expressions of the row index (sin, cos and modular-arithmetic uniforms), fits survival::coxph on the censoring indicator with Breslow ties and eps 1e-12, takes the cumulative baseline hazard from survival::basehaz(centered = FALSE), forms each row's left-limit hazard sum(diff(c(0, hazard))[time < t]), the censoring survival exp(-H * exp(lp)) and the weight event / survival. It imports no Antecedent code and no repository helper. The reviewer re-ran generate.R under R 4.6.1 with survival 3.8-6 into a scratch directory and it reproduced the committed oracle.csv and coefficients.txt exactly (maximum absolute difference 0). The shared object is the conditional inverse-probability-of-censoring weight definition (left-limit censoring survival from the Breslow baseline), which the generator states and the product implements.",
+      "historical_exposure": "Both the data expressions and the weight convention (left-limit survival, Breslow baseline) were chosen by the repository author alongside the product; the fitted numbers come from the R package, not from the product. The package version is recorded in the generator and the lock.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. The committed outputs are numerical results of survival 3.8-6 (LGPL-2 or later), with no package source or tests stored; R and the recommended packages Matrix and survival come from the R 4.6.1 distribution and are not redistributed here.",
+      "limitations": "Fixed-input numerical agreement of the product's Cox censoring fit, left-limit survival and weights with survival::coxph at atol 1e-8 (the executing assertion also pins vector lengths so a short fit cannot pass). The weight convention is shared by definition. One dataset, no ties handling beyond Breslow on rounded times, no coverage, no calibration. The lock records the package versions from the local R library description, not a content hash.",
+      "sources": [
+        "https://cran.r-project.org/package=survival"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/conditional_ipcw/generate.R",
+          "sha256": "116ed80414405dd012375cd2c57ffccdb5dd11a14f531027b53d06854bcef3eb"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/conditional_ipcw/renv.lock",
+          "sha256": "619f9d1fe4693d51b0134a59bbd7a3e261279657c9685b0f3f4cb5e0cec3703f"
+        },
+        {
+          "role": "comparison_helper",
+          "path": "conformance/response/conditional_ipcw/freeze.py",
+          "sha256": "341358f287c1900b7120107cb55d42c7a0e741ec186abeb8b6d22c960e4b2f6d"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/response/conditional_ipcw/oracle.csv",
+          "sha256": "0a569f00ab737fe746f9e21586d54b15af2024005033effd5a9884fd3af93824"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/response/conditional_ipcw/coefficients.txt",
+          "sha256": "d3bfabdd795b1dff3eb6b81cb941721feb0b6d85db42cf00d76f0c7f02b72f61"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-stats/src/cox_ipcw.rs",
+          "sha256": "e44f70cf91cc03751b47c9497ad1d703517f39725b6f48667551329b4234b0b4"
+        }
+      ],
+      "fixture_payload_sha256": "233775ed640dbd84449a1cdebbaa6d5bf1cc4124071a796d8e7ea2169fb29949"
+    }
   },
   "command": "Rscript conformance/response/conditional_ipcw/generate.R && python3 conformance/response/conditional_ipcw/freeze.py",
   "coefficients": [
