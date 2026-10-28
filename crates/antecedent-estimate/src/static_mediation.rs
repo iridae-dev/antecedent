@@ -684,8 +684,9 @@ impl MediationRows {
         query: &MediationQuery,
         extra: &[VariableId],
     ) -> Result<Self, EstimationError> {
-        let delta = crate::adjustment::intervention_f64(&query.active)?
-            - crate::adjustment::intervention_f64(&query.control)?;
+        let active = crate::adjustment::intervention_f64(&query.active)?;
+        let control = crate::adjustment::intervention_f64(&query.control)?;
+        let delta = active - control;
         let order = graph
             .topological_order()
             .ok_or_else(|| EstimationError::unsupported("mediation requires a DAG"))?;
@@ -707,6 +708,34 @@ impl MediationRows {
                     && columns.iter().chain(&extras).all(|c| c[r].is_finite())
             })
             .collect();
+        // A treatment that took only two values is a binary indicator: a contrast to a third
+        // level is a regime the data never visited, and the linear mechanisms would extrapolate
+        // it silently. A treatment with more values is a dose on which the linear mechanisms
+        // define the effect per unit of treatment.
+        let treatment = &columns[query.treatment.raw() as usize];
+        let mut observed: Vec<f64> = Vec::with_capacity(3);
+        for &r in &rows {
+            if !observed.contains(&treatment[r]) {
+                observed.push(treatment[r]);
+                if observed.len() > 2 {
+                    break;
+                }
+            }
+        }
+        let unvisited = [control, active].into_iter().find(|level| !observed.contains(level));
+        if let (2, Some(level)) = (observed.len(), unvisited) {
+            observed.sort_by(f64::total_cmp);
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("positivity_violated"),
+                format!(
+                    "the treatment contrast level {level} is not one of the two levels the \
+                     binary treatment took ({} and {}), so the mediation mechanisms would \
+                     extrapolate a regime the data never visited. Next attempt: contrast the \
+                     two observed levels, or collect data that visits the requested level",
+                    observed[0], observed[1]
+                ),
+            ));
+        }
         Ok(Self { delta, order, columns, extras, rows })
     }
 }

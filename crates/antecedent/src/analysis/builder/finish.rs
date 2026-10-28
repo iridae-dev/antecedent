@@ -1288,6 +1288,28 @@ fn require_declared_dependence_read(
              dependent series"
         ));
     }
+    // The interference contrast is design-based over one outcome per unit of a fixed network:
+    // it reads the cluster labels only through a clustered assignment design and no lag at all.
+    if let CausalQuery::Interference(interference) = query {
+        let clustered_assignment = matches!(
+            interference.assignment,
+            antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+        );
+        if design == Design::DependentTimeSeries || !clustered_assignment {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "the interference contrast conditions on the realized assignment of a fixed \
+                 network and reads one outcome per unit, with cluster labels only from a \
+                 clustered assignment design and no lag, so the declared clustered-panel or \
+                 dependent-time-series design would be silently ignored. Next attempt: declare \
+                 independent subject trajectories, use a cluster-randomized or two-stage \
+                 assignment design for clusters, or use the unit-period interference design \
+                 whose cluster-robust contrasts read serial dependence"
+            ));
+        }
+        return Ok(());
+    }
     let reads_estimator_dependence = match query {
         CausalQuery::AverageEffect(_) => true,
         CausalQuery::ConditionalEffect(_) | CausalQuery::Response(_) => false,

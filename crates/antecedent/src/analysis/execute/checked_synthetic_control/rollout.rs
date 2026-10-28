@@ -36,7 +36,25 @@ pub(super) fn refuse_sampling_design(
     sampling: Option<antecedent_core::DeclaredSamplingDesign>,
 ) -> Result<(), CausalError> {
     use antecedent_core::DeclaredSamplingDesign as Design;
-    let Some(rollout) = &query.rollout else { return Ok(()) };
+    let Some(rollout) = &query.rollout else {
+        // The single treated unit publishes a point effect (or the Bayesian donor-weight
+        // posterior) and reads no cluster label or lag, so a declared clustered or serial design
+        // would be silently ignored.
+        return match sampling {
+            Some(Design::ClusteredPanel | Design::DependentTimeSeries) => {
+                Err(crate::compile_reason!(
+                    "option_not_applicable",
+                    "the single-treated-unit synthetic control publishes a point effect or a \
+                     donor-weight posterior and reads no cluster label or lag, so the declared \
+                     clustered_panel or dependent_time_series design would be silently ignored. \
+                     Next attempt: declare independent_subject_trajectories (or no design), or \
+                     add a rollout with the conformal interval for a dependent series or the \
+                     placebo-variance interval for a clustered panel"
+                ))
+            }
+            _ => Ok(()),
+        };
+    };
     match (rollout.interval, sampling) {
         (
             SyntheticInterval::Conformal,
