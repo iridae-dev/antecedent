@@ -1179,3 +1179,295 @@ fn reviewed_family_is_the_request_default_and_a_family_change_refits() {
     assert_ne!(a.inspect().source_identity, b.inspect().source_identity);
     assert!(a.model_data().family.is_reviewed() && !b.model_data().family.is_reviewed());
 }
+
+fn declared_series(columns: &[Vec<f64>; 5]) -> TimeSeriesData {
+    TimeSeriesData::from_f64_columns(
+        [
+            ("a", columns[0].as_slice()),
+            ("b", columns[1].as_slice()),
+            ("y", columns[2].as_slice()),
+            ("z", columns[3].as_slice()),
+            ("season", columns[4].as_slice()),
+        ],
+        100,
+    )
+    .unwrap()
+}
+fn declared_columns() -> [Vec<f64>; 5] {
+    [
+        vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 2.0, 1.0],
+        vec![0.0, 0.0, 1.0, 2.0, 3.0, 1.0, 0.0, 2.0],
+        vec![f64::NAN, f64::NAN, 1.0, 2.0, 3.0, 4.0, 3.0, 2.0],
+        vec![f64::NAN, f64::NAN, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+        vec![0.0; 8],
+    ]
+}
+fn declared_panel_with(
+    ids: [u32; 4],
+    edit: impl Fn(u32, &mut [Vec<f64>; 5]),
+    wrap: impl Fn(TimeSeriesData) -> TimeSeriesData,
+) -> PanelData {
+    let units = ids
+        .into_iter()
+        .enumerate()
+        .map(|(position, unit_id)| {
+            let mut columns = declared_columns();
+            edit(u32::try_from(position).unwrap(), &mut columns);
+            PanelUnit { unit_id, series: wrap(declared_series(&columns)) }
+        })
+        .collect::<Vec<_>>();
+    PanelData::try_new(Arc::from(units)).unwrap()
+}
+fn declared_panel(edit: impl Fn(u32, &mut [Vec<f64>; 5])) -> PanelData {
+    declared_panel_with([0, 1, 2, 3], edit, |series| series)
+}
+fn prepare_declared(
+    data: PanelData,
+    edit: impl FnOnce(&mut JointPanelRequest),
+) -> Result<PreparedStudy<JointPanelState>, JointPanelError> {
+    let (_, mut request) = fixture();
+    edit(&mut request);
+    Study::prepare_joint_panel(data, request, &ExecutionContext::for_tests(1))
+}
+#[test]
+fn panel_source_refuses_weights_masks_and_missing_cells_with_typed_errors() {
+    use antecedent_data::ValidityBitmap;
+    assert!(prepare_declared(declared_panel(|_, _| {}), |_| {}).is_ok());
+    // A weighted or masked series is a declaration the engine cannot honour.
+    let weighted = declared_panel_with(
+        [0, 1, 2, 3],
+        |_, _| {},
+        |series| {
+            series.with_weights(Arc::from(vec![1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0])).unwrap()
+        },
+    );
+    let masked = declared_panel_with(
+        [0, 1, 2, 3],
+        |_, _| {},
+        |series| {
+            let keep = [true, true, true, true, true, true, true, false];
+            series.with_analysis_mask(ValidityBitmap::from_bools(&keep)).unwrap()
+        },
+    );
+    for refused in [weighted, masked] {
+        match prepare_declared(refused, |_| {}) {
+            Err(JointPanelError::Compile(message)) => {
+                assert!(message.contains("weighted or masked panel laws"), "{message}");
+            }
+            other => panic!("expected a typed compile refusal, got {other:?}"),
+        }
+    }
+    // A missing cell in any read column of the fitted rows is refused, never dropped or filled.
+    for (role, column, row) in [("outcome", 2, 4), ("confounder", 3, 4), ("channel", 0, 5)] {
+        let data = declared_panel(|unit, columns| {
+            if unit == 2 {
+                columns[column][row] = f64::NAN;
+            }
+        });
+        assert!(
+            matches!(
+                prepare_declared(data, |_| {}),
+                Err(JointPanelError::Engine(engine::PanelError::Invalid(_)))
+            ),
+            "a missing {role} cell must be refused"
+        );
+    }
+    // A missing pre-period exposure is refused too: history is never imputed.
+    let history = declared_panel(|unit, columns| {
+        if unit == 1 {
+            columns[1][0] = f64::NAN;
+        }
+    });
+    assert!(matches!(
+        prepare_declared(history, |_| {}),
+        Err(JointPanelError::Engine(engine::PanelError::Invalid(_)))
+    ));
+    let season = declared_panel(|unit, columns| {
+        if unit == 3 {
+            columns[4][4] = f64::NAN;
+        }
+    });
+    assert!(matches!(prepare_declared(season, |_| {}), Err(JointPanelError::Compile(_))));
+}
+#[test]
+fn panel_source_refuses_a_categorical_channel_instead_of_coding_it() {
+    use antecedent_core::{CategoryDomainId, CausalSchemaBuilder, MeasurementSpec};
+    use antecedent_core::{SmallRoleSet, ValueType};
+    use antecedent_data::{
+        CategoricalColumn, CategoryCode, CategoryDomain, CategoryLevel, Float64Column,
+        OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex, UnknownCategoryPolicy,
+        ValidityBitmap,
+    };
+    let columns = declared_columns();
+    let mut builder = CausalSchemaBuilder::new();
+    for (index, name) in ["a", "b", "y", "z", "season"].into_iter().enumerate() {
+        builder
+            .add_variable(
+                name,
+                if index == 0 { ValueType::Categorical } else { ValueType::Continuous },
+                SmallRoleSet::empty(),
+                None,
+                (index == 0).then(|| CategoryDomainId::from_raw(0)),
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+    }
+    let schema = builder.build().unwrap();
+    let domain = Arc::new(
+        CategoryDomain::try_new(
+            CategoryDomainId::from_raw(0),
+            ["none", "low", "high", "peak"]
+                .map(|label| CategoryLevel { label: Arc::from(label) })
+                .to_vec(),
+            false,
+            None,
+            UnknownCategoryPolicy::Fail,
+        )
+        .unwrap(),
+    );
+    let units = (0..4)
+        .map(|unit_id| {
+            let mut owned = vec![OwnedColumn::Categorical(
+                CategoricalColumn::try_new(
+                    VariableId::from_raw(0),
+                    columns[0]
+                        .iter()
+                        .map(|level| CategoryCode::from_raw(*level as u32))
+                        .collect::<Vec<_>>(),
+                    ValidityBitmap::all_valid(8),
+                    Arc::clone(&domain),
+                )
+                .unwrap(),
+            )];
+            for (index, values) in columns.iter().enumerate().skip(1) {
+                owned.push(OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(u32::try_from(index).unwrap()),
+                        Arc::from(values.clone()),
+                        ValidityBitmap::from_bools(&values.iter().map(|v| !v.is_nan()).collect::<Vec<_>>()),
+                    )
+                    .unwrap(),
+                ));
+            }
+            PanelUnit {
+                unit_id,
+                series: TimeSeriesData::try_new(
+                    OwnedColumnarStorage::try_new(schema.clone(), owned, None, None).unwrap(),
+                    TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 100 }, length: 8 },
+                )
+                .unwrap(),
+            }
+        })
+        .collect::<Vec<_>>();
+    let data = PanelData::try_new(Arc::from(units)).unwrap();
+    assert!(matches!(prepare_declared(data, |_| {}), Err(JointPanelError::Compile(_))));
+}
+#[test]
+fn panel_source_refuses_repeated_clusters_and_lag_orders_it_does_not_model() {
+    // Each unit is one cluster of the group-intercept law; a repeated label is not a cluster.
+    let repeated = declared_panel_with([0, 1, 1, 3], |_, _| {}, |series| series);
+    assert!(matches!(
+        prepare_declared(repeated, |_| {}),
+        Err(JointPanelError::Engine(engine::PanelError::Invalid(_)))
+    ));
+    // The serial law is the stationary AR(1) with two pre-period rows, or none at all.
+    for lag_order in [1, 3, 5] {
+        match prepare_declared(declared_panel(|_, _| {}), |request| request.lag_order = lag_order) {
+            Err(JointPanelError::Compile(message)) => {
+                assert!(message.contains("only lag orders zero and two"), "{message}");
+            }
+            other => panic!("lag order {lag_order} must be refused, got {other:?}"),
+        }
+    }
+}
+#[test]
+fn panel_source_refuses_constant_and_collinear_channels_and_a_constant_outcome() {
+    let constant = declared_panel(|_, columns| columns[0] = vec![1.0; 8]);
+    let collinear = declared_panel(|_, columns| {
+        columns[1] = columns[0].iter().map(|value| 2.0 * value + 1.0).collect();
+    });
+    for refused in [constant, collinear] {
+        match prepare_declared(refused, |_| {}) {
+            Err(JointPanelError::Engine(engine::PanelError::Invalid(message))) => {
+                assert!(message.contains("not identified"), "{message}");
+            }
+            other => panic!("expected an identification refusal, got {other:?}"),
+        }
+    }
+    let flat_outcome = declared_panel(|_, columns| {
+        columns[2] = vec![f64::NAN, f64::NAN, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0];
+    });
+    let prepared = prepare_declared(flat_outcome, |request| {
+        request.options.optimizer.max_iterations = 300;
+    })
+    .unwrap();
+    assert!(matches!(
+        prepared.estimate(&ExecutionContext::for_tests(1)),
+        Err(JointPanelError::Engine(_))
+    ));
+}
+#[test]
+fn continuous_search_grants_only_conditional_use_and_refuses_a_causal_scope_for_new_programs() {
+    use antecedent_design::decision_contract::{
+        ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr,
+    };
+    use antecedent_design::program_search::{
+        FiniteProgramDomain, ProgramControl, continuous::ContinuousSearchOptions,
+    };
+    let ctx = ExecutionContext::for_tests(1);
+    let (source, request) = fixture();
+    let result = Study::prepare_joint_panel(source, request, &ctx).unwrap().estimate(&ctx).unwrap();
+    let search_request = |scope| JointPanelContinuousSearchRequest {
+        base_world: ScientificWorldId::from_raw(0),
+        scope,
+        functional: JointPanelResponseFunctional::TerminalMean,
+        uncertainty: JointPanelSearchUncertainty::PointMeans,
+        contract: ProgramSearchContract {
+            space: ProgramSearchSpace {
+                id: "panel_response".into(),
+                variables: vec!["response".into()],
+            },
+            objective: ProgramObjective::ExpectedUtility(UtilityExpr::Input(0)),
+            constraints: vec![],
+        },
+        domain: FiniteProgramDomain {
+            controls: (0..6)
+                .flat_map(|offset| {
+                    (0..2).map(move |channel| ProgramControl {
+                        variable: VariableId::from_raw(channel),
+                        offset,
+                        lower: 0.0,
+                        upper: 2.5,
+                        unit_cost: 1.0,
+                    })
+                })
+                .collect(),
+            budget: Some(3.0),
+            restrictions: vec![],
+        },
+        utility_units: "response".into(),
+        options: ContinuousSearchOptions {
+            max_evaluations: 30,
+            max_iterations: 2,
+            initial_step: 0.35,
+            step_tolerance: 1e-4,
+            objective_tolerance: 1e-10,
+        },
+        initial: vec![0.0; 12],
+    };
+    match result.compile_continuous_search(search_request(JointPanelScientificScope::IdentifiedCausal), &ctx) {
+        Err(JointPanelError::Unsupported(message)) => {
+            assert!(message.contains("own causal design proof"), "{message}");
+        }
+        other => panic!("a causal scope for a new program must be refused, got {:?}", other.map(|_| ())),
+    }
+    let granted = result
+        .compile_continuous_search(search_request(JointPanelScientificScope::ModelConditional), &ctx)
+        .unwrap()
+        .execute(&ctx)
+        .unwrap();
+    let source = granted.best_source.expect("a feasible best program is retained");
+    assert!(source.authorize(JointPanelScientificScope::ModelConditional).is_ok());
+    assert!(source.authorize(JointPanelScientificScope::IdentifiedCausal).is_err());
+    assert!(!granted.search.global_certificate);
+}

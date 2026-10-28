@@ -298,7 +298,8 @@ fn configured_three_channel_programmable_features_use_exact_axis_and_shared_draw
     let (mut data, mut draw, _) = fixture();
     data.channels.push(PanelChannel { id: "9".into() });
     for group in &mut data.groups {
-        group.channels.push(vec![2.0; group.outcome.len()]);
+        // A held-fixed channel must still vary somewhere in the data to have an identified effect.
+        group.channels.push((0..group.outcome.len()).map(|t| 2.0 + (t % 3) as f64).collect());
         group.history.push([2.0; 2]);
     }
     draw.parameters.channels.push(PanelChannelParameters {

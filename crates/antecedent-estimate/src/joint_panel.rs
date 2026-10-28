@@ -546,8 +546,44 @@ impl PanelData {
                 return Err(invalid("group IDs, finite values, cadence or vector dimensions"));
             }
         }
+        self.validate_channel_design()?;
         let group_ids: Vec<&str> = self.groups.iter().map(|group| group.id.as_str()).collect();
         self.family.validate(&group_ids, self.lag_order)?;
+        Ok(())
+    }
+
+    /// A channel that never varies, or that is an exact affine function of the others, has no
+    /// separately identified effect; the fit would return an arbitrary point on a flat ridge.
+    fn validate_channel_design(&self) -> Result<(), PanelError> {
+        let mut basis: Vec<Vec<f64>> = Vec::with_capacity(self.channels.len());
+        for (index, channel) in self.channels.iter().enumerate() {
+            let column: Vec<f64> =
+                self.groups.iter().flat_map(|group| group.channels[index].iter().copied()).collect();
+            let first = column[0];
+            if column.iter().all(|&value| value == first) {
+                return Err(invalid(&format!(
+                    "channel {} is constant across every group and period; its effect is not identified",
+                    channel.id
+                )));
+            }
+            let mean = column.iter().sum::<f64>() / column.len() as f64;
+            let mut centred: Vec<f64> = column.iter().map(|value| value - mean).collect();
+            let norm = centred.iter().map(|value| value * value).sum::<f64>().sqrt();
+            for earlier in &basis {
+                let projection: f64 = centred.iter().zip(earlier).map(|(a, b)| a * b).sum();
+                for (value, direction) in centred.iter_mut().zip(earlier) {
+                    *value -= projection * direction;
+                }
+            }
+            let residual = centred.iter().map(|value| value * value).sum::<f64>().sqrt();
+            if residual <= 1e-9 * norm {
+                return Err(invalid(&format!(
+                    "channel {} is exactly collinear with the earlier channels; separate effects are not identified",
+                    channel.id
+                )));
+            }
+            basis.push(centred.iter().map(|value| value / residual).collect());
+        }
         Ok(())
     }
 
