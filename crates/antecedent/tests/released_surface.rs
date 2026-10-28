@@ -201,8 +201,28 @@ fn refusal_constructor_and_matrix_rows_keep_their_shape() {
 
 #[test]
 fn design_record_functional_keeps_the_exact_count_label() {
+    use antecedent_design::decision_reliability::draws::{
+        CandidateCoupling, SourceParadigm, WithinStreamDependence,
+    };
     let _: fn(&antecedent_design::decision_reliability::CalibrationCoordinate) -> String =
         antecedent_design::decision_reliability::calibration::record_functional;
+    let coordinate = antecedent_design::decision_reliability::CalibrationCoordinate {
+        candidate_set_size: 7,
+        mc_budget: 1_000,
+        selection_rule: "argmax".to_owned(),
+        functional: "expected_utility".to_owned(),
+        coupling: CandidateCoupling::SharedSimulation,
+        paradigm: SourceParadigm::Posterior,
+        within_stream: WithinStreamDependence::Independent,
+        importance_weighted: false,
+        adaptively_generated: false,
+    };
+    // The label keys records measured at one exact count: the count, rule and functional
+    // only, so a changed spelling would orphan every such released record.
+    assert_eq!(
+        antecedent_design::decision_reliability::record_functional(&coordinate),
+        "candidates=7;rule=argmax;functional=expected_utility"
+    );
 }
 
 #[test]

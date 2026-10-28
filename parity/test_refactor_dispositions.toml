@@ -1271,3 +1271,15 @@ previous = "crates/antecedent-contract/src/joint_alignment.rs::many_arrays_are_n
 replacement = "crates/antecedent-contract/src/joint_alignment.rs::many_arrays_are_named_without_a_count_cap"
 disposition = "assertion_strengthened_without_case_removal"
 reason = "Only checked Ok. The request must retain all 500 arrays in declaration order, ending with array-499. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/released_surface.rs::design_record_functional_keeps_the_exact_count_label"
+replacement = "crates/antecedent/tests/released_surface.rs::design_record_functional_keeps_the_exact_count_label"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The test was named for the exact-count record label but only coerced record_functional to a function pointer, so a changed label text still compiled and passed. It keeps the signature coercion and now also builds a coordinate and requires the exact string candidates=7;rule=argmax;functional=expected_utility, the key that released exact-count records are stored under. The expected string is written out independently of the format call, not derived from it. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent-estimate/src/response/tests.rs::plugin_derivatives_serve_more_than_two_treatments"
+replacement = "crates/antecedent-estimate/src/response/tests.rs::plugin_derivatives_serve_more_than_two_treatments"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The test documented one partial per coordinate for three treatments but dropped both results unread, so it established only that estimation returned Ok. It keeps both requests and now requires a point-identified Jacobian of one outcome by three treatments with three finite partials, and that the directional derivative along the first axis equals the first partial of the same additive fit. Data and queries are unchanged. Executed: passes."

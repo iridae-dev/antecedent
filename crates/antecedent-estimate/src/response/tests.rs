@@ -1583,14 +1583,38 @@ fn plugin_derivatives_serve_more_than_two_treatments() {
         at: Arc::from([0.0, 0.0, 0.0]),
         scale: DerivativeScale::Identity,
     });
-    drop(jacobian);
+    let ResponseIdentification::PointIdentified(ResponseValue::Jacobian {
+        outcomes,
+        treatments: width,
+        values: partials,
+    }) = jacobian.estimate
+    else {
+        panic!("expected a point-identified Jacobian");
+    };
+    assert_eq!((outcomes, width), (1, 3), "one outcome row with one partial per treatment");
+    assert_eq!(partials.len(), 3);
+    assert!(partials.iter().all(|partial| partial.is_finite()), "{partials:?}");
     let directional = serve(ResponseFunctional::DirectionalDerivative {
         outcomes: Arc::from([VariableId::from_raw(3)]),
         treatments,
         at: Arc::from([0.0, 0.0, 0.0]),
         direction: Arc::from([1.0, 0.0, 0.0]),
     });
-    drop(directional);
+    // Along the first coordinate axis the directional derivative is the first partial of
+    // the same additive fit.
+    let ResponseIdentification::PointIdentified(value) = directional.estimate else {
+        panic!("expected a point-identified directional derivative");
+    };
+    let along_first = match value {
+        ResponseValue::Scalar(value) => value,
+        ResponseValue::Vector(values) | ResponseValue::Jacobian { values, .. } => values[0],
+        other => panic!("unexpected directional value {other:?}"),
+    };
+    assert!(
+        (along_first - partials[0]).abs() < 1e-9,
+        "directional {along_first} vs first partial {}",
+        partials[0]
+    );
 }
 
 /// Every additive-GAM non-convergence refusal keeps its message and names

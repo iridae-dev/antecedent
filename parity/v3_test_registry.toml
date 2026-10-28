@@ -17434,3 +17434,10 @@ crate = "antecedent-prob"
 cargo_target = "external_prior_quadrature"
 path = "crates/antecedent-prob/tests/external_prior_quadrature.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "test-assertion-scan"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_assertion_scan.py"
+gates = ["inventory"]
