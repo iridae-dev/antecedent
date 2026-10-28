@@ -700,12 +700,13 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "CI width: joint p=667 clique; keep 20 + 200 default"]
-    fn joint_identification_p667_under_recorded_bound() {
-        // Unoptimized measurement: ~8.1 s on the p=667 facet clique
-        // (~221k bidirected edges). Single-lever p=667 is chunked and stays
-        // under 1 s; this is the recorded joint-path bound, not that bench.
-        assert_joint_width_identified(667, |elapsed| elapsed.as_secs_f64() < 16.0);
+    fn joint_identification_p667_examines_two_candidates() {
+        // The p=667 facet clique (~221k bidirected edges). The bound is the work
+        // done, not the clock: the helper asserts the closure set has exactly
+        // p - 3 members, that the joint search examined exactly two candidate
+        // sets, and that the adjustment set equals the tier closure. A search
+        // that slid into enumeration would examine more than two.
+        assert_joint_width_identified(667, |_| true);
     }
 
     #[test]

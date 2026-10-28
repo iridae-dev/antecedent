@@ -1090,7 +1090,6 @@ fn nonlinear_confounded(n: usize) -> (TabularData, IdentifiedEstimand, Vec<f64>,
 
 /// 100000 complete cases through the neighbourhood construction (acceptance workload).
 #[test]
-#[ignore = "acceptance workload: 100k rows; run with --ignored in a release build"]
 fn neighborhood_sensitivity_one_hundred_thousand_row_acceptance() {
     let n = 100_000usize;
     let (data, estimand, _, _) = nonlinear_confounded(n);

@@ -21,6 +21,7 @@ from antecedent.errors import (
     CausalTypeError,
     CausalValueError,
 )
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.transport import advanced as transport
 from antecedent.transport._closed_pilots import _sampled_observation_recovery_candidate
 
@@ -180,7 +181,7 @@ def test_query_and_fake_stage_do_not_gain_native_candidate_authority():
     )
     with pytest.raises(CausalValueError, match="query differs"):
         produce(declaration=changed)
-    with pytest.raises(CausalTypeError, match="use sampled_observation_recovery"):
+    with pytest.raises(CausalTypeError, match="use the internal candidate hook"):
         transport.SampledRecoveryCandidate()
 
 
@@ -280,27 +281,32 @@ def test_original_recovery_consumer_enforces_identity_bytes_and_work_budgets():
         assert caught.value.reason_code == "invalid_argument"
     with pytest.raises(CausalError, match="budget") as caught:
         transport.SampledRecoveryCandidate.load(
-            bytes(result.export()), expected=expected, memory_bytes=1
+            bytes(result.export()),
+            expected=expected,
+            execution=Execution(limits=ResourceLimits(memory_bytes=1)),
         )
     assert caught.value.reason_code == "transport_budget_cancel"
     token = _native.CancellationToken()
     token.cancel()
     with pytest.raises(CausalError, match="budget") as caught:
         transport.SampledRecoveryCandidate.load(
-            bytes(result.export()), expected=expected, cancel=token
+            bytes(result.export()), expected=expected, execution=Execution(cancel=token)
         )
     assert caught.value.reason_code == "transport_budget_cancel"
     for limits in (
         {"max_rows": True},
         {"max_rows": 100001},
         {"max_replicates": 2001},
-        {"memory_bytes": True},
-        {"memory_bytes": 2**64},
     ):
         with pytest.raises(CausalValueError):
             transport.SampledRecoveryCandidate.load(
                 bytes(result.export()), expected=expected, **limits
             )
+    # Physical controls are owned by Execution and validated when it is built.
+    with pytest.raises(CausalTypeError):
+        ResourceLimits(memory_bytes=True)
+    with pytest.raises(CausalValueError):
+        ResourceLimits(memory_bytes=2**64)
 
 
 def test_candidate_scalar_reads_reuse_immutable_original_report(monkeypatch):
@@ -324,16 +330,17 @@ def test_candidate_scalar_reads_reuse_immutable_original_report(monkeypatch):
     def no_reparse(*args, **kwargs):
         raise AssertionError("scalar reads must not reparse the full native report")
 
-    monkeypatch.setattr(candidate_module.json, "loads", no_reparse)
-    for _ in range(3):
-        assert (
-            result.effect,
-            result.effect_standard_error,
-            result.interval,
-            result.level,
-            result.expected_identity,
-        ) == expected
-        assert result.inspect()["result"]["effect"] == expected[0]
+    with monkeypatch.context() as patched:
+        patched.setattr(candidate_module.json, "loads", no_reparse)
+        for _ in range(3):
+            assert (
+                result.effect,
+                result.effect_standard_error,
+                result.interval,
+                result.level,
+                result.expected_identity,
+            ) == expected
+            assert result.inspect()["result"]["effect"] == expected[0]
     assert bytes(result.export()) == artifact
 
 

@@ -1537,7 +1537,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "acceptance workload: 100k donors; run with --ignored in a release build"]
     fn one_hundred_thousand_donor_acceptance() {
         let started = std::time::Instant::now();
         exercise_at_scale(100_000, 200);

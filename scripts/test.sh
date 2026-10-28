@@ -6,7 +6,7 @@ cd "$ROOT"
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/test.sh [dev|rust|rust-software|rust-calibration-acceptance|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|slow|all] [test arguments...]
+Usage: bash scripts/test.sh [dev|rust|rust-software|rust-calibration-acceptance|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|python-internal|slow|all] [test arguments...]
 
   dev     Run a focused Rust selection with cheap test compilation (opt-level 0).
           Supply a package/target selection; numerical package overrides remain.
@@ -34,6 +34,13 @@ Usage: bash scripts/test.sh [dev|rust|rust-software|rust-calibration-acceptance|
   python-calibration-acceptance  Run measured-record acceptance assertions.
           Requires a current extension and attesting frozen-branch calibration.
           May execute numerical consumer replays; use only after branch lockdown.
+  python-internal  Build the extension with the calibration-internal feature into an
+          isolated directory and virtualenv (target/python-internal, or
+          ANTECEDENT_INTERNAL_DIR; the ordinary wheel and python/antecedent are
+          untouched), then run the six modules that skip without that feature's private
+          candidate hooks. Fails if one of them collects nothing or skips for a missing
+          hook. A release build; manual or nightly, never ordinary CI. Set
+          ANTECEDENT_INTERNAL_REUSE_WHEEL=1 to reuse the wheel built there.
   slow    Run the slow correctness sweeps that are #[ignore]d out of every ordinary
           lane (exhaustive enumerations, 100,000-row acceptance fits), selected by
           exact name from parity/slow_correctness_tests.toml with --run-ignored.
@@ -60,7 +67,7 @@ suite="${1:-rust}"
 if [[ $# -gt 0 ]]; then shift; fi
 case "$suite" in
   -h|--help) usage; exit 0 ;;
-  dev|rust|rust-software|rust-calibration-acceptance|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|slow|all) ;;
+  dev|rust|rust-software|rust-calibration-acceptance|integration|scientific|scripts|docs|python-test|python|python-software|python-calibration-acceptance|python-internal|slow|all) ;;
   *) usage >&2; exit 2 ;;
 esac
 if [[ ( "$suite" == all || "$suite" == scientific || "$suite" == rust-software || "$suite" == rust-calibration-acceptance || "$suite" == slow ) && $# -gt 0 ]]; then
@@ -116,6 +123,47 @@ python_tests() {
   (cd "$ROOT/python" && uv run --no-sync pytest "$@")
 }
 
+python_internal_tests() {
+  # The private candidate hooks exist only in an extension built with
+  # calibration-internal. Everything lives under one directory: the cargo target,
+  # the wheel and a locked virtualenv, so no ordinary build output is overwritten.
+  local dir="${ANTECEDENT_INTERNAL_DIR:-$ROOT/target/python-internal}"
+  local py="$dir/venv/bin/python"
+  python3 "$ROOT/scripts/check_python_internal_lane.py" sources
+  mkdir -p "$dir/wheels" "$dir/run"
+  # Locked dev dependencies (including maturin) in the isolated environment.
+  UV_PROJECT_ENVIRONMENT="$dir/venv" uv sync --project "$ROOT/python" --locked --group dev --no-install-project
+  if [[ "${ANTECEDENT_INTERNAL_REUSE_WHEEL:-0}" != 1 ]]; then
+    rm -f "$dir"/wheels/*.whl
+    (cd "$ROOT/python" && env -u CONDA_PREFIX CARGO_TARGET_DIR="$dir/cargo-target" \
+      "$dir/venv/bin/maturin" build --release --locked \
+      --features pyo3/extension-module,ml-full,ml-neural,calibration-internal \
+      --out "$dir/wheels")
+  fi
+  local wheels=("$dir"/wheels/antecedent-*.whl)
+  if [[ ${#wheels[@]} -ne 1 || ! -f "${wheels[0]}" ]]; then
+    echo "expected exactly one wheel in $dir/wheels, found ${#wheels[@]}" >&2
+    return 1
+  fi
+  uv pip install --python "$py" --no-deps --force-reinstall "${wheels[0]}"
+  local modules=() module
+  while IFS= read -r module; do modules+=("$ROOT/$module"); done \
+    < <(python3 "$ROOT/scripts/check_python_internal_lane.py" modules)
+  rm -f "$dir/junit.xml"
+  # Run outside python/ so the source tree cannot shadow the installed wheel.
+  local status=0
+  (cd "$dir/run" && "$py" -c "
+from antecedent import _native
+assert hasattr(_native, 'joint_transport_candidate'), _native.__file__
+print('internal extension:', _native.__file__)") || return 1
+  # Skips for a missing hook fail in the report check below, not the session bound.
+  (cd "$dir/run" && ANTECEDENT_MAX_SKIP_FRACTION=1 "$py" -m pytest -c "$ROOT/python/pyproject.toml" \
+    --rootdir "$ROOT/python" -p no:cacheprovider --junitxml="$dir/junit.xml" \
+    -m 'not requires_calibration' "${modules[@]}") || status=$?
+  python3 "$ROOT/scripts/check_python_internal_lane.py" junit "$dir/junit.xml" || status=1
+  return "$status"
+}
+
 case "$suite" in
   dev|rust)
     if [[ $# -eq 0 ]]; then set -- "${workspace[@]}"; fi
@@ -137,6 +185,7 @@ case "$suite" in
     fi
     rust_tests "${workspace[@]}" -E "$selection"
     ;;
+  python-internal) python_internal_tests ;;
   slow)
     python3 "$ROOT/scripts/check_ignored_tests.py"
     selection="$(python3 "$ROOT/scripts/check_ignored_tests.py" slow-filter)"

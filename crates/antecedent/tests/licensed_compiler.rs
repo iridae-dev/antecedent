@@ -1695,11 +1695,10 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
     assert_eq!(count, 723, "licensed support inventory drifted");
 }
 
-/// Opt-in probe for the separately licensed alternate estimators. It keeps
+/// Probe for the separately licensed alternate estimators. It keeps
 /// every exact `base::estimator=...` coordinate visible and classifies public
 /// plan inspection separately from execution and artifact acceptance.
 #[test]
-#[ignore = "opt-in 60-route optional-estimator closure diagnostic"]
 #[allow(
     clippy::too_many_lines,
     reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for diagnostic optional estimator closure after builder and study drop"

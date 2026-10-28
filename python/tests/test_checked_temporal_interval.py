@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from antecedent import _native
 from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError, CausalValueError
-from antecedent.execution import Execution
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcRefusal, Utility
 from antecedent.recalc_temporal import (
@@ -236,11 +236,34 @@ def test_original_checked_source_score_draws_intervals_and_fresh_consumer(
         expected = (values.mean() - tails[1] * se, values.mean() - tails[0] * se)
     else:
         low, high = np.quantile(points, [0.025, 0.975])
-        expected = (
-            (low, high)
-            if method == "percentile"
-            else (2 * values.mean() - high, 2 * values.mean() - low)
-        )
+        if method == "percentile":
+            # The checked percentile effect interval reports bias-corrected and accelerated
+            # endpoints (Efron 1987): bias from the replicate mass below the point, acceleration
+            # from the delete-one-unit jackknife of the unit-score mean, type-7 quantiles.
+            from statistics import NormalDist
+
+            normal = NormalDist()
+            # Exact ties with the point estimate set the bias constant, and re-summing the draws
+            # in numpy differs from the native sums in the last place. Count against the
+            # native-reported replicate points and the point the candidate reports.
+            reported = np.array([record["point"] for record in records])
+            below = np.sum(reported < candidate.point)
+            ties = np.sum(reported == candidate.point)
+            fraction = (below + 0.5 * ties) / len(points)
+            bias = normal.inv_cdf(fraction)
+            jackknife = (values.sum() - values) / (len(values) - 1)
+            deltas = jackknife.mean() - jackknife
+            acceleration = np.sum(deltas**3) / (6 * np.sum(deltas**2) ** 1.5)
+
+            def adjusted(tail):
+                shifted = bias + normal.inv_cdf(tail)
+                return normal.cdf(bias + shifted / (1 - acceleration * shifted))
+
+            expected = tuple(np.quantile(points, [adjusted(0.025), adjusted(0.975)]))
+        elif method == "basic":
+            expected = (2 * values.mean() - high, 2 * values.mean() - low)
+        else:
+            raise AssertionError(method)
         assert candidate.standard_error is None and candidate.unit_scores is None
     assert candidate.interval == pytest.approx(expected, abs=1e-12)
     artifact = tmp_path / "original-checked-interval.cbor"
@@ -284,12 +307,17 @@ print(json.dumps(r.inspect(),sort_keys=True))
         {"max_units": 79},
         {"max_histories": 1279},
         {"max_replicates": 79},
-        {"memory_limit_bytes": 0},
     ]:
         with pytest.raises(CausalError):
             Candidate.load(
                 bytes(candidate.export()), expected=candidate.expected_identity, **bounds
             )
+    with pytest.raises(CausalError):
+        Candidate.load(
+            bytes(candidate.export()),
+            expected=candidate.expected_identity,
+            execution=Execution(limits=ResourceLimits(memory_bytes=0)),
+        )
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):

@@ -507,7 +507,6 @@ fn mediation_has_no_row_ceiling_and_export_and_replay_are_budgeted() {
 }
 
 #[test]
-#[ignore = "estimates on 100,000 rows; run with --ignored"]
 fn mediation_runs_at_one_hundred_thousand_rows() {
     exercise_budgets(2_500);
 }
@@ -518,7 +517,6 @@ fn nonlinear_mediation_fit_beyond_old_row_ceiling_50000() {
 }
 
 #[test]
-#[ignore = "estimates on 100,000 rows; run with --ignored"]
 fn nonlinear_mediation_fit_beyond_old_row_ceiling_100000() {
     exercise_population(100_000, 5_293_885, 900);
 }

@@ -18762,3 +18762,10 @@ crate = "antecedent-state"
 cargo_target = "scenario_refresh_designs"
 path = "crates/antecedent-state/tests/scenario_refresh_designs.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-scripts-test-python-internal-lane-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_python_internal_lane.py"
+gates = ["inventory"]

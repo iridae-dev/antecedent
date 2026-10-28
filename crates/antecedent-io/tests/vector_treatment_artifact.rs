@@ -436,7 +436,6 @@ fn vector_robust_fit_has_no_row_ceiling_and_the_artifact_does_not_grow_with_the_
 }
 
 #[test]
-#[ignore = "fits 100,000 rows; run with --ignored"]
 fn vector_robust_fit_runs_at_one_hundred_thousand_rows() {
     let big = synthetic(100_000, "hc2");
     let artifact = VectorTreatmentArtifact::seal(&big).unwrap();

@@ -497,7 +497,6 @@ fn latent_fit_has_no_row_ceiling_and_export_and_replay_are_budgeted() {
 }
 
 #[test]
-#[ignore = "fits 100,000 rows; run with --ignored"]
 fn latent_fit_runs_at_one_hundred_thousand_rows() {
     exercise_budgets(2_500);
 }
@@ -508,13 +507,11 @@ fn latent_class_fit_beyond_old_row_ceiling_20000() {
 }
 
 #[test]
-#[ignore = "fits 100,000 rows; run with --ignored"]
 fn latent_class_fit_beyond_old_row_ceiling_100000() {
     exercise_population(100_000, 1_689_014, 900);
 }
 
 #[test]
-#[ignore = "fits 100,000 rows; run with --ignored"]
 fn fit_artifact_export_and_replay_budgets_explicit() {
     let rows = 100_000;
     let request = population_request(rows, 8_179_773);
@@ -555,7 +552,6 @@ fn fit_artifact_export_and_replay_budgets_explicit() {
 }
 
 #[test]
-#[ignore = "fits 100,000 rows; run with --ignored"]
 fn fit_artifact_data_binding_verified() {
     let rows = 100_000;
     let request = population_request(rows, 7_534_003);
