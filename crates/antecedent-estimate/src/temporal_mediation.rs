@@ -482,6 +482,11 @@ impl TemporalMediationEstimator {
         query: &MediationQuery,
     ) -> Result<(Arc<[antecedent_core::VariableId]>, f64), EstimationError> {
         query.validate()?;
+        // Every window is fitted with equal weight; a declared sub-population or retarget would
+        // be answered as the all-observed question under its name.
+        if query.target_population != antecedent_core::TargetPopulation::AllObserved {
+            return Err(EstimationError::TargetPopulation);
+        }
         if matches!(
             query.contrast,
             MediationContrast::NaturalDirect | MediationContrast::NaturalIndirect

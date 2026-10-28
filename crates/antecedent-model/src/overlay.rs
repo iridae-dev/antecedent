@@ -102,6 +102,16 @@ impl InterventionOverlay {
     ///
     /// [`ModelError::Unsupported`] naming the first offending dense node index.
     pub fn validate(&self) -> Result<(), ModelError> {
+        // No evaluation path reads the activation mask, so a node declared inactive would be
+        // evaluated as if it were active. Refuse the declaration instead of ignoring it.
+        if let Some(idx) = self.active.iter().position(|a| !*a) {
+            return Err(ModelError::Unsupported {
+                message: format!(
+                    "dense node {idx} is declared inactive, but temporal activation masks are \
+                     not supported by evaluation and would be silently ignored"
+                ),
+            });
+        }
         for (idx, set) in self.hard_set.iter().enumerate() {
             if set.is_some() && self.shifts.get(idx).is_some_and(|s| *s != 0.0) {
                 return Err(ModelError::Unsupported {
