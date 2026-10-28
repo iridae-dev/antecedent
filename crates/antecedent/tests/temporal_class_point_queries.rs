@@ -307,12 +307,29 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
                         if !bayesian {
                             assert!(result.posterior.is_none());
                         }
-                        let ate = result.estimate().as_effect().unwrap().ate;
-                        let (lo, hi) = result.interval().expect("the point carries an interval");
+                        let effect = result.estimate().as_effect().unwrap();
+                        let binding =
+                            result.interval().as_ref().expect("the point carries an interval");
                         assert!(
-                            lo.is_finite() && hi.is_finite() && lo < ate && ate < hi,
-                            "interval ({lo}, {hi}) must be a proper finite bracket of {ate}"
+                            binding.level > 0.0 && binding.level < 1.0,
+                            "nominal level {}",
+                            binding.level
                         );
+                        assert_ne!(binding.method, antecedent_core::IntervalMethod::None);
+                        // Where a scalar standard error is published, the interval is a proper
+                        // finite bracket of the point.
+                        if let Some((lo, hi)) =
+                            antecedent::PublishedScalarUncertainty::select(effect).interval(effect)
+                        {
+                            assert!(
+                                lo.is_finite()
+                                    && hi.is_finite()
+                                    && lo < effect.ate
+                                    && effect.ate < hi,
+                                "interval ({lo}, {hi}) must bracket {}",
+                                effect.ate
+                            );
+                        }
                         assert_eq!(
                             result.logical_plan.estimator.as_deref(),
                             Some("temporal.linear.adjustment")

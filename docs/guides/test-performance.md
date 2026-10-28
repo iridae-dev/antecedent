@@ -234,7 +234,8 @@ selections, checkout and Cargo settings differ, and its execution time rose
 from 744.162 to 903.397 seconds. No workspace speedup is claimed.
 
 The required checks fail, with fault controls in `scripts/test_evidence_audit.py`
-and `scripts/test_cost_report.py`, for: a stale or missing native extension,
+and `scripts/test_cost_report.py`, for: a stale native extension, a deleted one
+with a fresh stamp, or one built for another interpreter ABI,
 an empty scientific or calibration selection, an unregistered or undiscovered
 calibration-acceptance test, a script test that is failed, skipped, expected to
 fail, deselected unknown or discovered as nothing, a Python session that skips

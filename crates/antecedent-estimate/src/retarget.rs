@@ -680,7 +680,14 @@ mod tests {
         g.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        // A bidirected edge to the treatment makes variable 2 a confounded neighbour, not a
+        // directed descendant, so weights may depend on it.
         check_depends_on(&[VariableId::from_raw(2)], &t, Some(&g)).unwrap();
+        // The same variable reached by a directed edge from the treatment is a descendant.
+        let mut descendant = Admg::with_variables(3);
+        descendant.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        let err = check_depends_on(&[VariableId::from_raw(2)], &t, Some(&descendant)).unwrap_err();
+        assert!(err.to_string().contains("descendant"), "{err}");
     }
 
     #[test]

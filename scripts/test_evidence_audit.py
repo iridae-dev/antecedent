@@ -837,6 +837,26 @@ class NativeBuildIdentity(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "stale"):
                 native.check(root)
 
+    def test_a_removed_or_foreign_extension_fails_even_with_a_fresh_stamp(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package = root / "python/antecedent"
+            package.mkdir(parents=True)
+            binary = package / ("_native" + importlib.machinery.EXTENSION_SUFFIXES[0])
+            binary.write_bytes(b"binary one")
+            (root / "Cargo.toml").write_text("input", encoding="utf-8")
+            native.begin_build(root)
+            native.finish_build(root)
+            native.check(root)
+            # The stamp is fresh but the extension for this interpreter is gone.
+            binary.unlink()
+            with self.assertRaisesRegex(ValueError, "no native extension matches"):
+                native.check(root)
+            # An extension built for another interpreter ABI is not a substitute.
+            (package / "_native.cpython-000-unused.so").write_bytes(b"other ABI")
+            with self.assertRaisesRegex(ValueError, "no native extension matches"):
+                native.check(root)
+
 
 class PythonSkipGuard(unittest.TestCase):
     def run_session(self, tests: str, *args: str) -> subprocess.CompletedProcess:

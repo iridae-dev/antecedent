@@ -1155,3 +1155,83 @@ previous = "crates/antecedent-estimate/src/glm_adjustment/tests.rs::recovers_att
 replacement = "crates/antecedent-estimate/src/glm_adjustment/tests.rs::recovers_att_via_gcomp"
 disposition = "tautology_replaced_by_reference_value"
 reason = "The test named recovery of the ATT but only required a finite estimate. Treatment alternates independently of Z, so the ATT equals the ATE, the mean over Z uniform on (-0.5, 0.5) of sigmoid(1.5 + z) - sigmoid(-0.5 + z) = 0.43378 by numerical integration. The estimate must be within 0.15 of that, the same tolerance the probit ATE check in this file uses (about four standard errors at n = 800). Not yet executed against the fixed-seed draw."
+
+[[case]]
+previous = "crates/antecedent/tests/context_effects.rs::prediction_smoke_pin"
+replacement = "crates/antecedent/tests/context_effects.rs::prediction_smoke_pin"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The mean prediction was held to 0.25 of a target of 2.0 although the series is noise free and deterministic (X_t = 0.5 X_{t-1} + 0.1, Y_t = 0.01 + 2 X_{t-1}), so the lag-1 least-squares fit is exact and the closed-form prediction at X_{t-1} = 1 is 2.01. The fixture now records 2.01 with a 1e-8 round-off tolerance and every predicted row is checked, not only their mean; there is no sampling error to budget. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/prepared_analysis.rs::functional_validation_staged_known_truth"
+replacement = "crates/antecedent/tests/prepared_analysis.rs::functional_validation_staged_known_truth"
+additional_replacements = ["crates/antecedent/tests/prepared_analysis.rs::functional_validation_report_count_contract"]
+disposition = "numerical_and_report_count_assertions_separated"
+reason = "The numeric pins (path effect 0.3, intervention mean 0.7, tolerance 1e-10, every suite and graph provenance) stay in the original test; the validation report counts and family prefixes, which are design choices of the suites and not numerical truth, move to a separate test. Every original comparison is kept. Executed: both pass."
+
+[[case]]
+previous = "crates/antecedent-discovery/tests/dag_posterior_conformance.rs::dag_posterior_engines_put_fixture_mass_on_the_true_structure"
+replacement = "crates/antecedent-discovery/tests/dag_posterior_conformance.rs::dag_posterior_engines_put_fixture_mass_on_the_true_structure"
+additional_replacements = ["crates/antecedent-discovery/tests/dag_posterior_conformance.rs::exact_engine_reproduces_an_independent_bic_enumeration_and_samplers_agree_with_it"]
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The fixture floors (0.7 skeleton, 0.5 collider arrows, 0.4 DBN lag edge) were far below the exact posterior. They are now 0.999, 0.8 and 0.999, just under the exact BIC masses (skeleton and lag edge 1 to round-off, collider arrows 0.876). An independent 25-DAG enumeration with its own least-squares scores is added as a separate test: the exact engine must reproduce its edge marginals to 1e-6 (it does, by exact agreement to six places), the samplers within 0.06 (observed at most 0.04), and the CI-screened engine must keep every edge the full posterior holds at 0.5 or more. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/facade_gaps.rs::counterfactual_and_anomaly_via_causal_analysis"
+replacement = "crates/antecedent/tests/facade_gaps.rs::counterfactual_and_anomaly_via_causal_analysis"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Both results were only required to exist. The counterfactual mean unit effect must be 2.01 (the fitted slope 2 plus 0.01 times the exact arm gap of 1 in the omitted trend, against the default control level) and the anomaly result must hold one block with one finite score per row. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/src/planner/tests.rs::memory_limit_hands_a_streamable_plan_to_the_streamed_reduction"
+replacement = "crates/antecedent/src/planner/tests.rs::memory_limit_hands_a_streamable_plan_to_the_streamed_reduction"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Admission only had to succeed. The starting record must now be the one-batch one-column quote (8 copy bytes, not the resident 10 000 x 2 design) and its peak must fit the 64-byte limit. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/sampling_design_declaration.rs::a_request_without_resampling_is_accepted_under_the_declared_design"
+replacement = "crates/antecedent/tests/sampling_design_declaration.rs::a_request_without_resampling_is_accepted_under_the_declared_design"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The test only required Ok. Acceptance must now leave the point estimate equal to the undeclared run and publish no bootstrap standard error or replicates. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/sampling_design_declaration.rs::a_whole_cluster_bootstrap_is_accepted_under_a_clustered_panel"
+replacement = "crates/antecedent/tests/sampling_design_declaration.rs::a_whole_cluster_bootstrap_is_accepted_under_a_clustered_panel"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The test only required Ok. Acceptance must now leave the point estimate equal to the undeclared run and publish a finite positive bootstrap standard error from successful replicates. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/sampling_design_declaration.rs::subject_labels_let_a_trajectory_design_resample_whole_subjects"
+replacement = "crates/antecedent/tests/sampling_design_declaration.rs::subject_labels_let_a_trajectory_design_resample_whole_subjects"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The test only required Ok. Acceptance must now leave the point estimate equal to the undeclared run and publish a finite positive bootstrap standard error from successful replicates. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/sampling_design_declaration.rs::the_same_design_on_the_estimator_and_the_study_is_not_a_conflict"
+replacement = "crates/antecedent/tests/sampling_design_declaration.rs::the_same_design_on_the_estimator_and_the_study_is_not_a_conflict"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The test only required Ok. Building without a conflict must now also run and leave the point estimate equal to the undeclared run. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+replacement = "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The interval was only required to exist. Its nominal level must lie in (0, 1), its method must not be none and, where a scalar standard error is published, the interval must be a finite proper bracket of the point. Numeric truth comparisons unchanged. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_nested_contract_encodes"
+replacement = "crates/antecedent/tests/temporal_class_point_queries.rs::temporal_class_nested_contract_encodes"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Encoding only had to return Ok. The sealed artifact must now be consumable and its verified contract must name the nested counterfactual query kind. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent-core/src/scientific_target/tests.rs::interaction_accepts_a_coherent_two_by_two_at_a_nonzero_reference"
+replacement = "crates/antecedent-core/src/scientific_target/tests.rs::interaction_accepts_a_coherent_two_by_two_at_a_nonzero_reference"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Acceptance was unwrap-only. The accepted contrast must now carry the interaction form over exactly the declared joint, a-at-reference and b-at-reference worlds and hold four worlds. Executed: passes."
+
+[[case]]
+previous = "crates/antecedent-estimate/src/retarget.rs::admg_depends_on_uses_directed_descendants_only"
+replacement = "crates/antecedent-estimate/src/retarget.rs::admg_depends_on_uses_directed_descendants_only"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "Only the accepting half existed (a bidirected neighbour is allowed). A counterexample is added: the same variable reached by a directed edge from the treatment must be refused as a descendant. Executed: passes."

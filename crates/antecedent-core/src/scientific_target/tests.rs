@@ -600,8 +600,22 @@ fn interaction_of(
 #[test]
 fn interaction_accepts_a_coherent_two_by_two_at_a_nonzero_reference() {
     // Y(a,b), Y(a,r_b), Y(r_a,b), Y(r_a,r_b) with a reference that is not zero.
-    interaction_of((5.0, 5.0), (1.0, 5.0), (5.0, 2.0), (1.0, 2.0)).unwrap();
-    interaction_of((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)).unwrap();
+    for (reference, a, b, joint) in [
+        ((5.0, 5.0), (1.0, 5.0), (5.0, 2.0), (1.0, 2.0)),
+        ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)),
+    ] {
+        let contrast = interaction_of(reference, a, b, joint).unwrap();
+        // The accepted contrast is the interaction of exactly the four declared worlds.
+        assert_eq!(
+            contrast.form(),
+            ContrastForm::Interaction {
+                joint: world_id(3),
+                a_at_reference: world_id(1),
+                b_at_reference: world_id(2),
+            }
+        );
+        assert_eq!(contrast.worlds().worlds().len(), 4);
+    }
 }
 
 #[test]

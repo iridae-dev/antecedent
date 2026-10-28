@@ -242,10 +242,11 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
         .unwrap()
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
-    // y = 1 + 2 t + 0.01 i (noise free): do(t = 1) moves each unit from its observed t (0 or 1)
-    // along slope 2, so the mean unit effect is 2 (1 - mean t) = 1 over the alternating arms.
+    // y = 1 + 2 t + 0.01 i with t = i mod 2 and 60 rows: the fitted slope on t is 2 plus 0.01
+    // times the arm difference in the trend i (odd mean 30, even mean 29, a gap of exactly 1), so
+    // do(t = 1) against the default control level 0 moves every unit by 2.01.
     let mean_ite = result.counterfactual().expect("counterfactual result").mean_ite;
-    assert!((mean_ite - 1.0).abs() < 0.05, "mean counterfactual effect {mean_ite}");
+    assert!((mean_ite - 2.01).abs() < 1e-6, "mean counterfactual effect {mean_ite}");
 
     let an = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100);
     let analysis = Study::tabular(data)

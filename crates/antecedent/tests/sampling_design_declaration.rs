@@ -15,9 +15,7 @@ use common::fixtures::confounded_scm;
 const ROWS: usize = 240;
 
 /// The point estimate and bootstrap accounting of a study result.
-fn point_and_bootstrap(
-    result: &antecedent::StudyResult,
-) -> (f64, Option<f64>, Option<u32>) {
+fn point_and_bootstrap(result: &antecedent::StudyResult) -> (f64, Option<f64>, Option<u32>) {
     let effect = result.estimate().as_effect().expect("an average effect");
     let bootstrap = &effect.uncertainty.bootstrap;
     (effect.ate, bootstrap.se, bootstrap.replicates_ok)

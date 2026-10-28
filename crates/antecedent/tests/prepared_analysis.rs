@@ -1494,7 +1494,8 @@ fn functional_validation_results(
 ) -> (antecedent::StudyResult, antecedent::StudyResult) {
     let (data, dag, query) = path_specific_fixture();
     let builder = Study::tabular(data.clone());
-    let builder = if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
+    let builder =
+        if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
     let path = builder
         .query(CausalQuery::PathSpecific(query))
         .refute(suite)
@@ -1506,7 +1507,8 @@ fn functional_validation_results(
         .unwrap();
     let (data, dag, query) = distribution_fixture();
     let builder = Study::tabular(data.clone());
-    let builder = if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
+    let builder =
+        if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
     let distribution = builder
         .query(CausalQuery::Distribution(query))
         .refute(suite)

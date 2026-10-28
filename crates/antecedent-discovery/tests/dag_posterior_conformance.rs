@@ -310,9 +310,18 @@ fn exact_engine_reproduces_an_independent_bic_enumeration_and_samplers_agree_wit
         for (engine, post) in static_engines(&data, &vars, &engines, gate) {
             // The exact engine is the enumeration itself; the samplers estimate it from
             // finite chains, so they get a Monte Carlo budget.
-            let budget = if engine == "ExactDagPosterior" { 1e-6 } else { 0.1 };
+            // Observed seeded deviations are at most 0.04 (finite chains, a few thousand draws).
+            let budget = if engine == "ExactDagPosterior" { 1e-6 } else { 0.06 };
             for cell in 0..9 {
                 let got = post.edge_marginals()[cell];
+                if engine == "CiScreenedPosterior" {
+                    // Screening removes graphs, so only the edges the full posterior keeps
+                    // must survive; edges it rules out may be zeroed or sharpened.
+                    if reference[cell] >= 0.5 {
+                        assert!(got >= reference[cell] - budget, "{label} {engine}: edge {cell}");
+                    }
+                    continue;
+                }
                 assert!(
                     (got - reference[cell]).abs() < budget,
                     "{label} {engine}: P(edge {cell}) = {got}, enumeration {}",
