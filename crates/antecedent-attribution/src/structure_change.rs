@@ -204,6 +204,7 @@ fn structure_change_impl(
         ws: MechanismWorkspace::default(),
         values_buf: Vec::new(),
         baseline_law: None,
+        law_memo: crate::change_common::LawMemo::default(),
         fits: None,
         refit: refit.map(|r| (r.baseline().to_vec(), r.comparison().to_vec(), r.is_counts())),
         compiled_cache: HashMap::new(),
@@ -391,6 +392,8 @@ struct StructureSwapPayoff<'a> {
     /// Reused ancestral-sample buffer (`n_samples × n_nodes`).
     values_buf: Vec<f64>,
     baseline_law: Option<(f64, f64)>,
+    /// Outcome laws computed so far, by coalition.
+    law_memo: crate::change_common::LawMemo,
     /// Memoized mechanism fits (two `assign_and_fit` calls total; see [`StructureFits`]).
     fits: Option<StructureFits>,
     /// Row weights the two fits are made under, when the fits are one replicate of a
@@ -407,6 +410,10 @@ struct StructureSwapPayoff<'a> {
 }
 
 impl crate::change_common::CachedOutcomeLawPayoff for StructureSwapPayoff<'_> {
+    fn law_memo(&mut self) -> &mut crate::change_common::LawMemo {
+        &mut self.law_memo
+    }
+
     fn measure(&self) -> DifferenceMeasure {
         self.measure
     }
@@ -446,6 +453,7 @@ impl CoalitionPayoff for StructureSwapPayoff<'_> {
             ws: MechanismWorkspace::default(),
             values_buf: Vec::new(),
             baseline_law: self.baseline_law,
+            law_memo: crate::change_common::LawMemo::default(),
             fits: self.fits.clone(),
             refit: self.refit.clone(),
             compiled_cache: self.compiled_cache.clone(),
@@ -872,6 +880,7 @@ mod tests {
             ws: MechanismWorkspace::default(),
             values_buf: Vec::new(),
             baseline_law: None,
+            law_memo: crate::change_common::LawMemo::default(),
             fits: None,
             refit: None,
             compiled_cache: HashMap::new(),

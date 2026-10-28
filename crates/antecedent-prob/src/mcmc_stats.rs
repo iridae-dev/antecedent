@@ -60,10 +60,38 @@ pub fn mcmc_summary(
         return McmcSummary { max_rhat: f64::INFINITY, min_bulk_ess: 0.0, min_tail_ess: 0.0 };
     }
     let diags = parameter_mcmc_diagnostics(samples, n_chains, n_draws, n_params);
+    summarize(&diags, rhat_guard, ess_guard)
+}
+
+/// [`mcmc_summary`] with the per-parameter diagnostics computed under the context's
+/// parallelism. Each parameter's diagnostics depend only on its own column of draws and the
+/// reduction runs in parameter order, so the summary is bit-identical to [`mcmc_summary`]
+/// for every thread count.
+#[must_use]
+pub fn mcmc_summary_parallel(
+    samples: &[f64],
+    n_chains: usize,
+    n_draws: usize,
+    n_params: usize,
+    ctx: &antecedent_core::ExecutionContext,
+) -> McmcSummary {
+    let rhat_guard = n_chains < 2 || n_draws < 8 || n_params == 0;
+    let ess_guard = n_chains == 0 || n_draws < 8 || n_params == 0;
+    if rhat_guard && ess_guard {
+        return McmcSummary { max_rhat: f64::INFINITY, min_bulk_ess: 0.0, min_tail_ess: 0.0 };
+    }
+    let diags = ctx.map_indexed(n_params, |p, _| {
+        Ok::<_, std::convert::Infallible>(diagnostics_one(samples, n_chains, n_draws, n_params, p))
+    });
+    let Ok(diags) = diags;
+    summarize(&diags, rhat_guard, ess_guard)
+}
+
+fn summarize(diags: &[ParameterMcmcDiagnostics], rhat_guard: bool, ess_guard: bool) -> McmcSummary {
     let mut max_rhat = 0.0_f64;
     let mut min_bulk = f64::INFINITY;
     let mut min_tail = f64::INFINITY;
-    for d in &diags {
+    for d in diags {
         if d.rhat.is_finite() {
             max_rhat = max_rhat.max(d.rhat);
         } else {
@@ -457,6 +485,21 @@ mod tests {
     fn fill_iid_normal(n_chains: usize, n_draws: usize, seed: u64) -> Vec<f64> {
         let mut rng = antecedent_core::CausalRng::from_seed(seed);
         (0..n_chains * n_draws).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect()
+    }
+
+    #[test]
+    fn parallel_summary_is_bit_identical_to_the_serial_summary() {
+        use antecedent_core::{ExecutionContext, NonZeroThreadCount, Parallelism};
+        let (chains, draws, params) = (4, 300, 5);
+        let samples = fill_iid_normal(chains, draws * params, 3);
+        let serial = mcmc_summary(&samples, chains, draws, params);
+        let mut ctx = ExecutionContext::for_tests(1)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(4, u64::MAX));
+        ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(4).unwrap());
+        let parallel = mcmc_summary_parallel(&samples, chains, draws, params, &ctx);
+        assert_eq!(serial.max_rhat.to_bits(), parallel.max_rhat.to_bits());
+        assert_eq!(serial.min_bulk_ess.to_bits(), parallel.min_bulk_ess.to_bits());
+        assert_eq!(serial.min_tail_ess.to_bits(), parallel.min_tail_ess.to_bits());
     }
 
     #[test]

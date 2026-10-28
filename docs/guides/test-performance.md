@@ -96,7 +96,8 @@ ordinary test is in the software lane, so none falls between lanes.
 | Software | `bash scripts/test.sh rust-software` | 13,473 Rust tests; 8,083 pytest tests (`python-software`); 538 script tests (`scripts`) | Every non-ignored workspace test except the registered measured-record acceptance assertions. |
 | Scientific evidence | `bash scripts/test.sh scientific` | 207 Rust tests plus 1 Python test | Only the assertions that `parity/*.toml` claims cite as known-truth or external-oracle evidence (`scientific` role). Discovery proves each cited test exists and is not ignored; each test is also in the software lane. |
 | Calibration acceptance | `bash scripts/test.sh rust-calibration-acceptance` | 13 Rust tests; 39 pytest tests (`python-calibration-acceptance`) | Tests registered under `calibration_acceptance_assertions` in `parity/v3_test_registry.toml`, or marked `requires_calibration`. They need the frozen branch's attesting coverage records and fail until `scripts/measure_calibration.sh` has produced them. |
-| Calibration measurement | `bash scripts/measure_calibration.sh` | 864 `#[ignore]` Rust tests | Replicate-heavy coverage, precision and timing measurements. No ordinary lane runs them. |
+| Calibration measurement | `bash scripts/measure_calibration.sh` | 803 `#[ignore]` Rust tests | Replicate-heavy coverage, precision and measurement diagnostics. No ordinary lane runs them. |
+| Slow correctness | `bash scripts/test.sh slow` | 21 `#[ignore]` Rust tests | Exhaustive enumerations and 100,000-row acceptance fits that are too slow for the ordinary lanes (for example `mag_id_bruteforce::exhaustive_four_observed_two_latent` and the ring-with-triangles sampler references in `graph_posterior_wide`). Selected by exact name from `parity/slow_correctness_tests.toml`, which gives each a reason and an expected runtime. Manual or nightly; not part of ordinary CI. |
 | Integration | `bash scripts/test.sh integration` | 6,561 Rust tests | All integration targets, without library unit tests. |
 
 Cost per lane from the cold ordinary run on 10 CPUs (`fa3ecc207`, 13,486
@@ -110,6 +111,16 @@ Of 13,499 test results, 13,240 take under a second and together hold 417 CPU-s;
 hold 1,540 CPU-s. `.config/nextest.toml` therefore gives the longest tests a
 scheduling priority, so they start first instead of after the pool has drained.
 Priority changes order only; every test still runs once with its assertions.
+
+The workspace has 865 `#[ignore]`d Rust tests: 803 calibration or measurement, 27 fixture writers, 13 timing probes, 21 in the slow lane and 1 exempt. Every one is in exactly one class, and
+`python3 scripts/check_ignored_tests.py` (CI, `Test-suite controls`) fails
+otherwise: calibration or measurement (the calibration scripts own them), fixture
+writers (`writes ...`), timing probes (`timing harness ...`), the slow correctness
+lane above, or an explicit `[[other]]` exemption in the same registry. An ignored
+test needs a written reason; a new one that fits no class, or a registry row whose
+test is gone or no longer ignored, is a failure, so nothing falls out of every lane.
+`bash scripts/test.sh slow` repeats that check against a nextest listing before it
+runs the selection with `--run-ignored only`; run it before a release or nightly.
 
 The scientific lane builds with the workspace feature set, so it shares its
 build with `rust-software`. Doctests (`docs`) and the optional learner and
@@ -146,12 +157,17 @@ CPU spent in the single-threaded sampler) and running the cheap and full
 validation suites of `dbn_sustained_validation` concurrently (the full suite
 holds almost all of the time).
 
-Not applied, because the cost is in library code: the joint-panel posterior
-sampler runs its chains one after another and ignores the context's
-parallelism (four chains would overlap, with per-chain random streams
-unchanged); and each bootstrap replicate of the temporal change-attribution
-tests takes about one second on 400 rows, spent in Monte Carlo noise
-generation inside the attribution mechanism evaluation.
+Fixed in library code, with bit-identical results. The joint-panel posterior
+sampler now runs its chains, the convergence diagnostics (per parameter) and the
+conditional group-effect draws under the context's parallelism; every chain and
+draw keeps its own random stream, so the draws do not depend on the thread
+count. The `joint_panel_workflow` Bayesian test builds its context with four
+threads so the chains overlap. The change-attribution coalition payoffs are
+pure functions of the coalition, but the default Monte Carlo Shapley allocation
+asked for 2,000 permutations, each re-sampling every coalition (2,000 draws per
+node) when the coalition cache is off; the payoffs now keep a bounded memo of
+the outcome laws they have computed, so the two-player temporal bootstrap
+replicate costs the four distinct coalitions instead of 6,000 evaluations.
 
 `.config/nextest.toml` also starts the longest tests first (`priority`). The
 priority only orders the queue. Estimated effect on the recorded durations

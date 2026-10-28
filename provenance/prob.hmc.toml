@@ -44,4 +44,4 @@ sha256 = "e8dc3b1396bd2d4be607f413deec6743b52e6126d18d686355b9ed212d20b532"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-prob/src/hmc_oracle_tests.rs"
-sha256 = "a0422f9d95ddf70ecfca48f36431cf402294e8bdd08843ecd56431745ecd47a3"
+sha256 = "50dd9b355d5db46443b8db3e6a168df390a78ed5fe38a44a9754397ab5967873"

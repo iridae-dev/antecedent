@@ -238,6 +238,46 @@ fn actual_posterior_draws_include_conditional_random_effect_uncertainty_and_repo
 }
 
 #[test]
+fn posterior_draws_are_bit_identical_for_any_thread_budget() {
+    use antecedent_core::{NonZeroThreadCount, Parallelism};
+    let (data, draw, _) = fixture();
+    let options = PanelFitOptions {
+        optimizer: PanelOptimizerOptions { max_iterations: 1, gradient_tolerance: 1e-4 },
+        inference: PanelInference::Bayesian {
+            prior: PanelPrior::default(),
+            sampler: PanelSamplingOptions {
+                chains: 4,
+                warmup: 8,
+                draws: 16,
+                proposal_scale: 0.001,
+                max_rhat: 1.01,
+                min_ess: 100.0,
+            },
+        },
+        initial: Some(draw.parameters),
+    };
+    let run = |threads: u32| {
+        let mut ctx = ExecutionContext::for_tests(29)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(threads, u64::MAX));
+        ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(threads).unwrap());
+        fit_panel(&data, &options, &ctx).unwrap()
+    };
+    let serial = run(1);
+    let parallel = run(4);
+    assert_eq!(serial.draws.len(), 64);
+    // Shortest round-trip serialization is injective on f64, so equal text is equal bits.
+    assert_eq!(
+        serde_json::to_string(&serial.draws).unwrap(),
+        serde_json::to_string(&parallel.draws).unwrap()
+    );
+    assert_eq!(
+        serial.diagnostics.max_rhat.map(f64::to_bits),
+        parallel.diagnostics.max_rhat.map(f64::to_bits)
+    );
+    assert_eq!(serial.diagnostics.posterior_converged, parallel.diagnostics.posterior_converged);
+}
+
+#[test]
 fn resource_refusal_and_cancellation_are_distinct_from_statistical_failure() {
     let (data, _, _) = fixture();
     let options = PanelFitOptions {

@@ -28,9 +28,13 @@ impl PosteriorTarget for StdNormal1 {
 /// carried-gradient first half kick, must reproduce that matrix power to rounding.
 #[test]
 fn leapfrog_is_the_exact_linear_map_on_a_gaussian() {
-    for &(eps, steps, inv_m) in
-        &[(0.1_f64, 1u32, 1.0_f64), (0.37, 5, 1.0), (0.37, 9, 0.25), (1.2, 7, 2.5), (0.05, 200, 1.0)]
-    {
+    for &(eps, steps, inv_m) in &[
+        (0.1_f64, 1u32, 1.0_f64),
+        (0.37, 5, 1.0),
+        (0.37, 9, 0.25),
+        (1.2, 7, 2.5),
+        (0.05, 200, 1.0),
+    ] {
         let (q0, p0) = (0.8_f64, -1.3_f64);
         // kick(eps/2) drift(eps m^-1) kick(eps/2) acting on (q, p) with grad U = q
         let (a, b) = (eps * 0.5, eps * inv_m);

@@ -478,6 +478,7 @@ fn distribution_change_with_mechanisms(
         ws: MechanismWorkspace::default(),
         values_buf: Vec::new(),
         baseline_law: None,
+        law_memo: crate::change_common::LawMemo::default(),
     };
 
     let v0 = payoff.value(&Coalition::empty())?;
@@ -607,9 +608,15 @@ struct MechanismSwapPayoff<'a> {
     values_buf: Vec<f64>,
     /// Cached `(μ₀, σ₀²)` of the all-baseline outcome law for KL payoffs.
     baseline_law: Option<(f64, f64)>,
+    /// Outcome laws computed so far, by coalition.
+    law_memo: crate::change_common::LawMemo,
 }
 
 impl crate::change_common::CachedOutcomeLawPayoff for MechanismSwapPayoff<'_> {
+    fn law_memo(&mut self) -> &mut crate::change_common::LawMemo {
+        &mut self.law_memo
+    }
+
     fn measure(&self) -> DifferenceMeasure {
         self.measure
     }
@@ -648,6 +655,7 @@ impl CoalitionPayoff for MechanismSwapPayoff<'_> {
             ws: MechanismWorkspace::default(),
             values_buf: Vec::new(),
             baseline_law: self.baseline_law,
+            law_memo: crate::change_common::LawMemo::default(),
         }))
     }
 }

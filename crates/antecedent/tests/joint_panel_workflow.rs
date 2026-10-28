@@ -852,7 +852,11 @@ fn recoverable_callback_feature_is_refused_by_public_panel_compilation() {
 }
 
 fn cached_context(seed: u64) -> ExecutionContext {
-    let mut ctx = ExecutionContext::for_tests(seed);
+    // Four threads let the sampler's chains overlap; the draws do not depend on the budget.
+    let mut ctx = ExecutionContext::for_tests(seed)
+        .with_admission(antecedent_core::execution::AdmissionPool::fixed(4, u64::MAX));
+    ctx.parallelism =
+        antecedent_core::Parallelism::bounded(antecedent_core::NonZeroThreadCount::new(4).unwrap());
     ctx.cache_policy = antecedent_core::execution::CachePolicy::enabled(None);
     ctx
 }

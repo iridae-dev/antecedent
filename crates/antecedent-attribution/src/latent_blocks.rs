@@ -374,6 +374,7 @@ pub fn distribution_change_blocks(
         n_samples,
         measure: options.measure,
         baseline_law: None,
+        law_memo: crate::change_common::LawMemo::default(),
         noise_buf: vec![0.0; n_nodes * n_samples],
         values_buf: vec![0.0; n_nodes * n_samples],
         ws: MechanismWorkspace::default(),
@@ -426,12 +427,18 @@ struct BlockSwapPayoff {
     n_samples: usize,
     measure: DifferenceMeasure,
     baseline_law: Option<(f64, f64)>,
+    /// Outcome laws computed so far, by coalition.
+    law_memo: crate::change_common::LawMemo,
     noise_buf: Vec<f64>,
     values_buf: Vec<f64>,
     ws: MechanismWorkspace,
 }
 
 impl CachedOutcomeLawPayoff for BlockSwapPayoff {
+    fn law_memo(&mut self) -> &mut crate::change_common::LawMemo {
+        &mut self.law_memo
+    }
+
     fn measure(&self) -> DifferenceMeasure {
         self.measure
     }
@@ -510,6 +517,7 @@ impl CoalitionPayoff for BlockSwapPayoff {
             n_samples: self.n_samples,
             measure: self.measure,
             baseline_law: self.baseline_law,
+            law_memo: crate::change_common::LawMemo::default(),
             noise_buf: self.noise_buf.clone(),
             values_buf: vec![0.0; self.n_nodes * self.n_samples],
             ws: MechanismWorkspace::default(),

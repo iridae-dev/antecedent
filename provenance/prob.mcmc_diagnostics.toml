@@ -51,7 +51,7 @@ record_sha256 = "35e8ace7e6a28687de075157f8c6b417e3b3e9172d645574e19ced3cdd9bae4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/mcmc_stats.rs"
-sha256 = "82e00a3bf59486834faded0eafe3766f0a1093735deb6b441264ab6204942ff3"
+sha256 = "f4ee1585868deec4e2670b5aaaa84063183a71e85ff8391cd354a4613e2065a5"
 
 [[method_review.artifacts]]
 role = "implementation"

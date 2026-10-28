@@ -11,8 +11,8 @@ use antecedent_core::{
 };
 use antecedent_kernels::{chol_inverse, cholesky_spd_into, standard_normal};
 use antecedent_prob::{
-    all_chains_moved, mcmc_summary,
-    metropolis::{MetropolisOptions, sample_metropolis_dispersed},
+    all_chains_moved, mcmc_summary_parallel,
+    metropolis::{MetropolisOptions, sample_metropolis_dispersed_parallel},
 };
 use std::sync::Arc;
 
@@ -578,7 +578,7 @@ fn posterior_draws(
                 })
                 .collect()
         };
-        let samples = sample_metropolis_dispersed(
+        let samples = sample_metropolis_dispersed_parallel(
             &vec![0.0; p],
             CHAIN_START_SPREAD,
             MetropolisOptions {
@@ -601,7 +601,7 @@ fn posterior_draws(
             }
         })?;
         let transformed: Vec<_> = samples.samples.chunks_exact(p).flat_map(transform).collect();
-        let summary = mcmc_summary(&transformed, sampler.chains, sampler.draws, p);
+        let summary = mcmc_summary_parallel(&transformed, sampler.chains, sampler.draws, p, ctx);
         diagnostics.max_rhat = Some(summary.max_rhat);
         diagnostics.min_bulk_ess = Some(summary.min_bulk_ess);
         diagnostics.min_tail_ess = Some(summary.min_tail_ess);
@@ -611,14 +611,14 @@ fn posterior_draws(
                 && summary.min_tail_ess >= sampler.min_ess
                 && all_chains_moved(&transformed, sampler.chains, sampler.draws, p),
         );
-        let mut output = Vec::with_capacity(sampler.chains * sampler.draws);
-        for (slot, x) in transformed.chunks_exact(p).enumerate() {
+        // One conditional group-effect draw per retained posterior draw, each on its own
+        // stream keyed by its slot, so the draws do not depend on the thread count.
+        ctx.map_indexed(transformed.len() / p, |slot, _inner| {
             check_cancelled(ctx)?;
             let mut rng =
                 ctx.rng.stream(antecedent_core::derive_stream(0x5830_3247_524f_5550, slot as u64));
-            output.push(conditional_draw(data, x, &mut rng));
-        }
-        output
+            Ok(conditional_draw(data, &transformed[slot * p..(slot + 1) * p], &mut rng))
+        })?
     })
 }
 

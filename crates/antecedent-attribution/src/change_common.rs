@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{AllocationMethod, ComponentId, ExecutionContext, StreamDomain, VariableId};
@@ -170,6 +171,33 @@ pub(crate) fn measure_value(
     }
 }
 
+/// Outcome laws `(mean, variance)` already computed by a hybrid-outcome-law payoff, by coalition.
+///
+/// The law of a coalition is a pure function of it (every sampling stream restarts at the
+/// same key on each call, which is what makes the coalition values common random numbers), so
+/// the Monte Carlo allocations, which revisit the same few coalitions thousands of times,
+/// can reuse it without changing a bit of any value. The memo is bounded and holds only
+/// successful evaluations; once it is full a new coalition is computed and not kept.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct LawMemo {
+    laws: HashMap<Coalition, (f64, f64)>,
+}
+
+impl LawMemo {
+    /// Most coalitions kept: 4096 entries of a coalition key and two floats.
+    const MAX_ENTRIES: usize = 4096;
+
+    fn get(&self, coalition: &Coalition) -> Option<(f64, f64)> {
+        self.laws.get(coalition).copied()
+    }
+
+    fn insert(&mut self, coalition: &Coalition, law: (f64, f64)) {
+        if self.laws.len() < Self::MAX_ENTRIES {
+            self.laws.insert(coalition.clone(), law);
+        }
+    }
+}
+
 /// Shared [`CoalitionPayoff::value`] caching shape for hybrid-outcome-law payoffs.
 ///
 /// Both `MechanismSwapPayoff` ([`crate::distribution_change`]) and
@@ -178,6 +206,8 @@ pub(crate) fn measure_value(
 /// and then evaluate the coalition's difference measure; they differ only
 /// in how they compute the outcome law itself ([`Self::law_at`]).
 pub(crate) trait CachedOutcomeLawPayoff {
+    /// The payoff's memo of outcome laws already computed.
+    fn law_memo(&mut self) -> &mut LawMemo;
     /// The configured difference measure.
     fn measure(&self) -> DifferenceMeasure;
     /// The cached all-baseline `(μ₀, σ₀²)`, once computed.
@@ -197,7 +227,14 @@ pub(crate) trait CachedOutcomeLawPayoff {
                 return Ok(0.0);
             }
         }
-        let (mu, var) = self.law_at(coalition)?;
+        let (mu, var) = match self.law_memo().get(coalition) {
+            Some(law) => law,
+            None => {
+                let law = self.law_at(coalition)?;
+                self.law_memo().insert(coalition, law);
+                law
+            }
+        };
         measure_value(self.measure(), coalition, mu, var, self.baseline_law())
     }
 }
