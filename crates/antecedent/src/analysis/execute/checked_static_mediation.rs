@@ -79,6 +79,11 @@ impl CheckedStaticMediationOperation {
         {
             return Err(CausalError::Compile { message: "mediation identification or estimator lowering does not match the checked target".into() });
         }
+        // The mediation bootstrap refits the mechanisms on rows resampled one by one; a declared
+        // clustered panel or dependent series would be read as independent subjects.
+        if study.settings.bootstrap_replicates > 0 {
+            super::gcm_bootstrap::require_subject_resampling(study.declared.sampling_design)?;
+        }
         let program_schema = ProgramSchema::new(
             data.schema()
                 .variables()

@@ -989,3 +989,7 @@ path = "tests/scenario_dependence_declarations.rs"
 [[test]]
 name = "scenario_treatment_levels"
 path = "tests/scenario_treatment_levels.rs"
+
+[[test]]
+name = "scenario_route_declarations"
+path = "tests/scenario_route_declarations.rs"

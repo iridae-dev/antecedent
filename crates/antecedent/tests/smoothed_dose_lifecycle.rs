@@ -2081,3 +2081,30 @@ fn smoothed_dose_posterior_consumer_replays_the_score_mean() {
     let weight = (n / variance) / (n / variance + 1.0);
     assert!((means[0] - weight * sample_mean).abs() < 1e-12, "{}", means[0]);
 }
+
+#[test]
+fn a_missing_outcome_dose_or_covariate_is_refused_instead_of_the_row_being_dropped() {
+    let base = draw(Design::IndependentSamples, Scenario::Good, 1500, 1000, 4);
+    let q = query(&GRID, H);
+    let id = identify(&q);
+    assert!(antecedent_estimate::validate_smoothed_dose(&id, &q, &base, &options()).is_ok());
+    let edits: [(&str, fn(&mut SmoothedDoseInput)); 3] = [
+        ("outcome", |i| i.outcome[2] = f64::NAN),
+        ("dose", |i| i.dose[2] = f64::NAN),
+        ("covariate", |i| i.covariates[0][2] = f64::NAN),
+    ];
+    for (column, edit) in edits {
+        let mut input = base.clone();
+        edit(&mut input);
+        let error = antecedent_estimate::validate_smoothed_dose(&id, &q, &input, &options())
+            .err()
+            .unwrap_or_else(|| panic!("a missing {column} was accepted"));
+        let text = error.to_string();
+        assert!(
+            text.contains("finite")
+                || text.contains("dose_response.dose_density_invalid")
+                || text.contains("invalid certified smoothed dose transport input"),
+            "{column}: {text}"
+        );
+    }
+}

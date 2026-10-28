@@ -18748,3 +18748,17 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_ignored_test_lanes.py"
 gates = ["inventory"]
+
+[[test]]
+id = "scenario-route-declarations"
+crate = "antecedent"
+cargo_target = "scenario_route_declarations"
+path = "crates/antecedent/tests/scenario_route_declarations.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "state-scenario-refresh-designs"
+crate = "antecedent-state"
+cargo_target = "scenario_refresh_designs"
+path = "crates/antecedent-state/tests/scenario_refresh_designs.rs"
+gates = ["inventory", "named"]

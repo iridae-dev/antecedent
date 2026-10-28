@@ -336,3 +336,34 @@ fn exact_quadratic_scope_derives_zero_bias_without_claiming_sampling_calibration
         }
     }
 }
+
+#[test]
+fn a_missing_dose_or_outcome_is_refused_instead_of_the_row_being_dropped() {
+    let grid = [1.0, 2.0];
+    let (dose, outcome) = design(0.0);
+    let ok = estimate_dose_grid_functional(&request(
+        &dose,
+        &outcome,
+        &grid,
+        DoseFunctional::Level,
+        claims(true, false),
+    ));
+    assert!(ok.is_ok());
+    for column in ["dose", "outcome"] {
+        let (mut dose, mut outcome) = (dose.clone(), outcome.clone());
+        if column == "dose" {
+            dose[17] = f64::NAN;
+        } else {
+            outcome[17] = f64::NAN;
+        }
+        let error = estimate_dose_grid_functional(&request(
+            &dose,
+            &outcome,
+            &grid,
+            DoseFunctional::Level,
+            claims(true, false),
+        ))
+        .expect_err("a row with a missing value was used");
+        assert!(error.to_string().contains("finite"), "{column}: {error}");
+    }
+}

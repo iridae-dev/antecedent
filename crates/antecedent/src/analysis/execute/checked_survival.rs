@@ -64,6 +64,11 @@ impl CheckedSurvivalOperation {
                 Some(config.clone())
             }
         };
+        // The pointwise interval resamples subjects within arm, one row each; a declared clustered
+        // panel or dependent series would be read as independent subjects.
+        if bayesian.is_none() && study.settings.bootstrap_replicates > 0 {
+            super::gcm_bootstrap::require_subject_resampling(study.declared.sampling_design)?;
+        }
         for id in
             [Some(query.duration), Some(query.event), Some(query.treatment), query.delayed_entry]
                 .into_iter()

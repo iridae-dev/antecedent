@@ -193,6 +193,7 @@ impl Study {
                 | CausalQuery::TemporalDesign(_)
                 | CausalQuery::SyntheticControl(_)
                 | CausalQuery::Survival(_)
+                | CausalQuery::PolicyValue(_)
         );
         if !static_effect {
             return Ok(());

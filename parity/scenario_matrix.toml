@@ -2517,3 +2517,530 @@ value = "sampling_weights"
 status = "unavailable"
 test = "crates/antecedent/tests/weighted_route_boundary.rs::a_synthetic_control_refuses_declared_weights"
 reason = "synthetic control fits donor weights on whole unit trajectories and has no row-weighted construction; the hand-built donor pool recovers the effect 5 unweighted, and the same table with uneven or constant row weights is refused with sampling_weights.route_unsupported"
+
+[[cell]]
+family = "P08"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_mediation_bootstrap_refits_independent_subjects_and_refuses_a_declared_dependence"
+reason = "the natural-direct mediation bootstrap refits the mechanisms on rows resampled one by one and its analytic error is not published; a declared clustered panel or dependent series needs a whole-cluster or block resample the route does not have, so the bootstrap is refused with option_not_applicable and its next attempt instead of resampling by row (independent subjects recover the natural direct effect 3, and the point value without a bootstrap is unaffected)"
+
+[[cell]]
+family = "P08"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_mediation_bootstrap_refits_independent_subjects_and_refuses_a_declared_dependence"
+reason = "the natural-direct mediation bootstrap refits the mechanisms on rows resampled one by one and its analytic error is not published; a declared clustered panel or dependent series needs a whole-cluster or block resample the route does not have, so the bootstrap is refused with option_not_applicable and its next attempt instead of resampling by row (independent subjects recover the natural direct effect 3, and the point value without a bootstrap is unaffected)"
+
+[[cell]]
+family = "P11.local_ratio"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_fuzzy_ratio_recovers_the_jump_and_refuses_a_declared_clustered_or_serial_design"
+reason = "the fuzzy local-polynomial ratio publishes an independent-row sandwich interval and has no cluster-robust error; a declared clustered panel is refused with option_not_applicable and a next attempt instead of being answered with that interval (a declared dependent series is refused unless the running variable is declared as calendar time)"
+
+[[cell]]
+family = "P11.rd"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_sharp_discontinuity_recovers_the_jump_and_refuses_a_declared_dependence_with_or_without_a_bootstrap"
+reason = "the sharp discontinuity estimator resamples and sandwiches rows one by one and reads no cluster label or lag; a declared clustered panel or dependent series is refused with option_not_applicable and a next attempt, with or without a bootstrap, instead of returning the independent-row error (an undeclared design recovers the jump 3)"
+
+[[cell]]
+family = "P10"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_survival_subject_bootstrap_refuses_a_declared_clustered_or_serial_design"
+reason = "the arm-stratified survival bootstrap resamples subjects one row each; a declared clustered panel or dependent series is refused with option_not_applicable and a next attempt instead of publishing the subject-bootstrap interval (identical arms have identical curves and an interval covering zero without a declaration, and the point contrast without a bootstrap is unaffected)"
+
+[[cell]]
+family = "P10"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_survival_subject_bootstrap_refuses_a_declared_clustered_or_serial_design"
+reason = "the arm-stratified survival bootstrap resamples subjects one row each; a declared clustered panel or dependent series is refused with option_not_applicable and a next attempt instead of publishing the subject-bootstrap interval (identical arms have identical curves and an interval covering zero without a declaration, and the point contrast without a bootstrap is unaffected)"
+
+[[cell]]
+family = "P03.policy"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_policy_value_matches_its_hand_score_and_refuses_weights_and_declared_dependence"
+reason = "the policy value is a cross-fitted influence-function interval over independent evaluation subjects and reads no cluster label or lag; a declared clustered panel or dependent series is refused with option_not_applicable and a next attempt instead of returning the independent-subject interval (the undeclared value equals the hand-computed doubly robust score)"
+
+[[cell]]
+family = "P03.policy"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_policy_value_matches_its_hand_score_and_refuses_weights_and_declared_dependence"
+reason = "the policy value is a cross-fitted influence-function interval over independent evaluation subjects and reads no cluster label or lag; a declared clustered panel or dependent series is refused with option_not_applicable and a next attempt instead of returning the independent-subject interval (the undeclared value equals the hand-computed doubly robust score)"
+
+[[cell]]
+family = "P13.attribution"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_attribution_bootstrap_refuses_a_declared_clustered_panel"
+reason = "the mechanism-refit attribution bootstrap resamples independent subjects; a declared clustered panel is refused with option_not_applicable and a next attempt (the noiseless two-period shift recovers the total change 3 under independent subjects)"
+
+[[cell]]
+family = "P07.derivative"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_dependence_declarations.rs::a_declared_panel_or_series_is_refused_where_the_analytic_error_reads_rows_as_independent"
+reason = "the average derivative publishes an analytic error that reads rows as independent; with a declared clustered panel or dependent series it is refused with option_not_applicable and a next attempt that names the estimator declaration reading the dependence, and it runs under independent subject trajectories"
+
+[[cell]]
+family = "P07.derivative"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_dependence_declarations.rs::a_declared_panel_or_series_is_refused_where_the_analytic_error_reads_rows_as_independent"
+reason = "the average derivative publishes an analytic error that reads rows as independent; with a declared clustered panel or dependent series it is refused with option_not_applicable and a next attempt that names the estimator declaration reading the dependence, and it runs under independent subject trajectories"
+
+[[cell]]
+family = "P12.intervention"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_dependence_declarations.rs::a_declared_panel_or_series_is_refused_where_the_analytic_error_reads_rows_as_independent"
+reason = "the intervention response publishes an analytic error that reads rows as independent; with a declared clustered panel or dependent series it is refused with option_not_applicable and a next attempt, and it runs under independent subject trajectories"
+
+[[cell]]
+family = "P12.intervention"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_dependence_declarations.rs::a_declared_panel_or_series_is_refused_where_the_analytic_error_reads_rows_as_independent"
+reason = "the intervention response publishes an analytic error that reads rows as independent; with a declared clustered panel or dependent series it is refused with option_not_applicable and a next attempt, and it runs under independent subject trajectories"
+
+[[cell]]
+family = "P15.conditional"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_dependence_declarations.rs::a_declared_panel_or_series_is_refused_where_the_analytic_error_reads_rows_as_independent"
+reason = "the conditional effect publishes an analytic error that reads rows as independent; with a declared clustered panel or dependent series it is refused with option_not_applicable and a next attempt, and it runs under independent subject trajectories"
+
+[[cell]]
+family = "P15.conditional"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_dependence_declarations.rs::a_declared_panel_or_series_is_refused_where_the_analytic_error_reads_rows_as_independent"
+reason = "the conditional effect publishes an analytic error that reads rows as independent; with a declared clustered panel or dependent series it is refused with option_not_applicable and a next attempt, and it runs under independent subject trajectories"
+
+[[cell]]
+family = "P03.policy"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_policy_value_matches_its_hand_score_and_refuses_weights_and_declared_dependence"
+reason = "the policy value has no weighted construction; a table that carries observation weights, uneven or the constant one, is refused with sampling_weights.route_unsupported and a next attempt instead of being answered for the unweighted rows"
+
+[[cell]]
+family = "P11.rd"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_sharp_discontinuity_refuses_observation_weights_instead_of_answering_unweighted"
+reason = "the sharp discontinuity estimator has no weighted construction; a table that carries observation weights, uneven or the constant one, is refused with sampling_weights.route_unsupported and a next attempt"
+
+[[cell]]
+family = "P15.conditional"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::a_three_level_treatment_is_refused_by_the_conditional_effect_instead_of_read_as_a_dose"
+reason = "the conditional effect reads the treatment at two declared levels; a treatment with a further level was read as a dose (slope 2 against a contrast of 1) and is now refused with treatment_level_undeclared naming the observed levels and their row counts, while the two-level table recovers the contrast 1"
+
+[[cell]]
+family = "P07.continuous_dose"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::a_continuous_dose_route_refuses_declared_dependence_and_missing_values_instead_of_using_them"
+reason = "the continuous-dose response publishes an independent-row variance and interval and reads no cluster label or lag; a declared clustered panel or dependent series is refused with option_not_applicable and a next attempt instead of returning that interval, while independent subject trajectories run"
+
+[[cell]]
+family = "P07.continuous_dose"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::a_continuous_dose_route_refuses_declared_dependence_and_missing_values_instead_of_using_them"
+reason = "the continuous-dose response publishes an independent-row variance and interval and reads no cluster label or lag; a declared clustered panel or dependent series is refused with option_not_applicable and a next attempt instead of returning that interval, while independent subject trajectories run"
+
+[[cell]]
+family = "P07.continuous_dose"
+axis = "weights_missingness"
+value = "missing_data"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::a_continuous_dose_route_refuses_declared_dependence_and_missing_values_instead_of_using_them"
+reason = "the continuous-dose response has no missing-data policy; a missing outcome, dose or supplied density is refused as non-finite rather than the row being dropped or used"
+
+[[cell]]
+family = "P10"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::a_randomized_survival_contrast_refuses_a_three_level_treatment_instead_of_reading_a_dose"
+reason = "randomized survival contrasts two arms; a treatment column with a third level is refused (treatment must be binary zero or one) instead of being read as a dose or merged into an arm"
+
+[[cell]]
+family = "P09.factorial"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::multi_arm_and_factorial_designs_refuse_outcome_rows_nested_in_one_assignment_unit"
+reason = "the design-based variance is over the declared assignment units, one per outcome row for this design; rows nested in one assignment unit, the shape a cluster or a repeated measurement would take, are refused as an invalid randomized-effect query instead of being treated as independent, and the cluster-randomized design (P09.two_arm) is the route that reads clusters"
+
+[[cell]]
+family = "P09.factorial"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::multi_arm_and_factorial_designs_refuse_outcome_rows_nested_in_one_assignment_unit"
+reason = "the design-based variance is over the declared assignment units, one per outcome row for this design; rows nested in one assignment unit, the shape a cluster or a repeated measurement would take, are refused as an invalid randomized-effect query instead of being treated as independent, and the cluster-randomized design (P09.two_arm) is the route that reads clusters"
+
+[[cell]]
+family = "P09.multiarm"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::multi_arm_and_factorial_designs_refuse_outcome_rows_nested_in_one_assignment_unit"
+reason = "the design-based variance is over the declared assignment units, one per outcome row for this design; rows nested in one assignment unit, the shape a cluster or a repeated measurement would take, are refused as an invalid randomized-effect query instead of being treated as independent, and the cluster-randomized design (P09.two_arm) is the route that reads clusters"
+
+[[cell]]
+family = "P09.multiarm"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::multi_arm_and_factorial_designs_refuse_outcome_rows_nested_in_one_assignment_unit"
+reason = "the design-based variance is over the declared assignment units, one per outcome row for this design; rows nested in one assignment unit, the shape a cluster or a repeated measurement would take, are refused as an invalid randomized-effect query instead of being treated as independent, and the cluster-randomized design (P09.two_arm) is the route that reads clusters"
+
+[[cell]]
+family = "P13.attribution"
+axis = "graph_class"
+value = "dag"
+status = "delivered"
+test = "crates/antecedent/tests/unlicensed_refuter_states_and_mechanism_bootstrap.rs::frequentist_attribution_bootstraps_publish_unlicensed_standard_errors"
+reason = "anomaly attribution on a linear DAG recovers the known unit mean score 1 and the change attribution recovers the known intercept shift 3"
+
+[[cell]]
+family = "P11.augmented_panel_did"
+axis = "graph_class"
+value = "graphless"
+status = "delivered"
+test = "crates/antecedent/tests/augmented_panel_did_route.rs::augmented_panel_did_retains_known_truth_and_point_only_semantics"
+reason = "the augmented panel difference-in-differences recovers its known truth from panel inputs with no graph argument"
+
+[[cell]]
+family = "P20"
+axis = "graph_class"
+value = "graphless"
+status = "unavailable"
+reason = "a closure audit reads method records, not data or a graph, so no graph class applies to it"
+
+[[cell]]
+family = "P18"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent-state/tests/scenario_refresh_designs.rs::dummy_coded_levels_give_the_reference_mean_and_the_level_differences"
+reason = "a three-level treatment as an intercept and two dummy columns gives the reference mean and the two level differences, with the hand-computed residual variance"
+
+[[cell]]
+family = "P18"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent-state/tests/scenario_refresh_designs.rs::a_constant_or_repeated_column_withholds_the_coefficients_instead_of_inventing_them"
+reason = "a constant column or a repeated covariate withholds the coefficients and agrees with a fresh rebuild"
+
+[[cell]]
+family = "P18"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent-state/tests/scenario_refresh_designs.rs::dummy_coded_levels_give_the_reference_mean_and_the_level_differences"
+reason = "the refresh keeps the Gram, cross-product and an independent-row residual variance of the supplied design and publishes no cluster or serial covariance; dependence is handled by the estimator that consumes the refreshed summary"
+
+[[cell]]
+family = "P18"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent-state/tests/scenario_refresh_designs.rs::dummy_coded_levels_give_the_reference_mean_and_the_level_differences"
+reason = "the refresh keeps the Gram, cross-product and an independent-row residual variance of the supplied design and publishes no cluster or serial covariance; dependence is handled by the estimator that consumes the refreshed summary"
+
+[[cell]]
+family = "P18"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = "crates/antecedent-state/tests/ols_refresh_contract.rs::a_malformed_row_is_refused_before_anything_is_touched"
+reason = "the refresh applies no missing-data policy: a row with a non-finite value is refused before anything changes, and the caller decides what to do with the row upstream"
+
+[[cell]]
+family = "P18"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = ""
+reason = "a refreshed least-squares summary answers no intervention query, only the coefficients and residual variance of the supplied design, so there is no regime to hold out"
+
+[[cell]]
+family = "P16"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = ""
+reason = "the product consumes already-estimated summaries and declared distributions, not data rows, so there is no missing data for a policy to act on"
+
+[[cell]]
+family = "P17"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = ""
+reason = "the product consumes already-estimated summaries and declared distributions, not data rows, so there is no missing data for a policy to act on"
+
+[[cell]]
+family = "P09.categorical"
+axis = "weights_missingness"
+value = "missing_data"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/categorical_treatment.rs::categorical_refuses_a_non_finite_outcome_or_adjustment_value_instead_of_dropping_the_row"
+reason = "the categorical contrast has no missing-data policy; a non-finite outcome or adjustment value is refused with vector_treatment.non_finite_value instead of the row being dropped"
+
+[[cell]]
+family = "P09.categorical"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/categorical_treatment.rs::categorical_refuses_a_non_finite_outcome_or_adjustment_value_instead_of_dropping_the_row"
+reason = "the categorical contrast executes no missing-data policy; a non-finite outcome or adjustment value is refused with vector_treatment.non_finite_value, so the caller completes the rows upstream"
+
+[[cell]]
+family = "P09.categorical"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = ""
+reason = "the categorical request carries the outcome, the level of each row, the adjustment columns and a covariance kind (model-based or HC0 to HC3) and has no weight, cluster or lag field, so a declaration of that kind cannot be made to it and cannot be silently ignored; a cluster-robust option is deliberately not offered"
+
+[[cell]]
+family = "P09.categorical"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = ""
+reason = "the categorical request carries the outcome, the level of each row, the adjustment columns and a covariance kind (model-based or HC0 to HC3) and has no weight, cluster or lag field, so a declaration of that kind cannot be made to it and cannot be silently ignored; a cluster-robust option is deliberately not offered"
+
+[[cell]]
+family = "P09.categorical"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = ""
+reason = "the categorical request carries the outcome, the level of each row, the adjustment columns and a covariance kind (model-based or HC0 to HC3) and has no weight, cluster or lag field, so a declaration of that kind cannot be made to it and cannot be silently ignored; a cluster-robust option is deliberately not offered"
+
+[[cell]]
+family = "P09.factorial"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = ""
+reason = "the treatment enters as a boolean assignment (or treated-unit indicator), so a third level cannot be represented; a multi-level action is the multi-arm design (P09.multiarm) or the categorical treatment contrast (P09.categorical)"
+
+[[cell]]
+family = "P09.switchback"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = ""
+reason = "the treatment enters as a boolean assignment (or treated-unit indicator), so a third level cannot be represented; a multi-level action is the multi-arm design (P09.multiarm) or the categorical treatment contrast (P09.categorical)"
+
+[[cell]]
+family = "P09.two_arm"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = ""
+reason = "the treatment enters as a boolean assignment (or treated-unit indicator), so a third level cannot be represented; a multi-level action is the multi-arm design (P09.multiarm) or the categorical treatment contrast (P09.categorical)"
+
+[[cell]]
+family = "P11.did"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = ""
+reason = "the treatment enters as a boolean assignment (or treated-unit indicator), so a third level cannot be represented; a multi-level action is the multi-arm design (P09.multiarm) or the categorical treatment contrast (P09.categorical)"
+
+[[cell]]
+family = "P11.augmented_panel_did"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = ""
+reason = "the treatment enters as a boolean assignment (or treated-unit indicator), so a third level cannot be represented; a multi-level action is the multi-arm design (P09.multiarm) or the categorical treatment contrast (P09.categorical)"
+
+[[cell]]
+family = "P11.staggered"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = ""
+reason = "the treatment is the adoption period of each cohort and its contrasts are cohort-by-period group-time effects, not levels of one treatment column; the categorical treatment contrast (P09.categorical) is the route that reads levels"
+
+[[cell]]
+family = "P11.synthetic_control"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = ""
+reason = "the treatment is the single treated unit named by the query and its intervention period, not a treatment column, so a categorical level has nothing to attach to"
+
+[[cell]]
+family = "P11.local_ratio"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = ""
+reason = "the treatment is a continuous dose whose first-stage jump scales the outcome jump; a categorical treatment has no dose, so the estimand does not exist for it"
+
+[[cell]]
+family = "P07.curve"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = ""
+reason = "the treatment is a continuous dose; a categorical treatment has no dose, kernel, grid or derivative, so the estimand does not exist for it"
+
+[[cell]]
+family = "P07.dose_grid"
+axis = "weights_missingness"
+value = "missing_data"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/dose_grid_functional.rs::a_missing_dose_or_outcome_is_refused_instead_of_the_row_being_dropped"
+reason = "this route has no missing-data policy; a non-finite outcome, dose or covariate is refused instead of the row being dropped or used"
+
+[[cell]]
+family = "P07.dose_grid"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/dose_grid_functional.rs::a_missing_dose_or_outcome_is_refused_instead_of_the_row_being_dropped"
+reason = "this route executes no missing-data policy; a non-finite outcome, dose or covariate is refused, so the caller completes the rows upstream"
+
+[[cell]]
+family = "P07.dose_grid"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = ""
+reason = "the request is aligned (dose, outcome) rows of independent observations with a declared bandwidth and carries no weight, cluster or lag field; clustered, serial or linked rows are outside this row, so a declaration of that kind cannot be made to it and cannot be silently ignored"
+
+[[cell]]
+family = "P07.dose_grid"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = ""
+reason = "the request is aligned (dose, outcome) rows of independent observations with a declared bandwidth and carries no weight, cluster or lag field; clustered, serial or linked rows are outside this row, so a declaration of that kind cannot be made to it and cannot be silently ignored"
+
+[[cell]]
+family = "P07.smoothed_dose"
+axis = "weights_missingness"
+value = "missing_data"
+status = "unavailable"
+test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs::a_missing_outcome_dose_or_covariate_is_refused_instead_of_the_row_being_dropped"
+reason = "this route has no missing-data policy; a non-finite outcome, dose or covariate is refused instead of the row being dropped or used"
+
+[[cell]]
+family = "P07.smoothed_dose"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs::a_missing_outcome_dose_or_covariate_is_refused_instead_of_the_row_being_dropped"
+reason = "this route executes no missing-data policy; a non-finite outcome, dose or covariate is refused, so the caller completes the rows upstream"
+
+[[cell]]
+family = "P07.smoothed_dose"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = ""
+reason = "the input is the rows, a source indicator and the trial sampling mode (a nested cohort or independent samples) and carries no weight, cluster or lag field, so a declaration of that kind cannot be made to it and cannot be silently ignored"
+
+[[cell]]
+family = "P07.smoothed_dose"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = ""
+reason = "the input is the rows, a source indicator and the trial sampling mode (a nested cohort or independent samples) and carries no weight, cluster or lag field, so a declaration of that kind cannot be made to it and cannot be silently ignored"
+
+[[cell]]
+family = "P05"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::a_static_structure_search_refuses_a_declared_clustered_or_serial_design_instead_of_testing_rows_as_independent"
+reason = "a static structure search (the constraint, score, LiNGAM, NOTEARS and posterior engines) tests and scores rows as independent draws and reads no cluster label or lag; a declared clustered panel or dependent series is refused with option_not_applicable and a next attempt instead of over-selecting edges from independent-row tests (a bootstrap-stability search reads the design when it resamples, and a series is searched with a lagged method)"
+
+[[cell]]
+family = "P05"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::a_static_structure_search_refuses_a_declared_clustered_or_serial_design_instead_of_testing_rows_as_independent"
+reason = "a static structure search (the constraint, score, LiNGAM, NOTEARS and posterior engines) tests and scores rows as independent draws and reads no cluster label or lag; a declared clustered panel or dependent series is refused with option_not_applicable and a next attempt instead of over-selecting edges from independent-row tests (a bootstrap-stability search reads the design when it resamples, and a series is searched with a lagged method)"
+
+[[cell]]
+family = "P07.quantile"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_quantile_effect_refuses_a_third_level_and_a_declared_dependence_instead_of_reading_them"
+reason = "the quantile contrast reads the treatment at two declared levels; a treatment with a third level is refused with treatment_level_undeclared naming the observed levels instead of being read as a dose, and the two-level median contrast recovers the shift 1"
+
+[[cell]]
+family = "P07.quantile"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_quantile_effect_refuses_a_third_level_and_a_declared_dependence_instead_of_reading_them"
+reason = "the quantile contrast is a cross-fitted AIPW functional whose row bootstrap and independent-rows error do not read a declared clustered panel or dependent series; it is refused (the bootstrap as a row_iid resample the design does not allow, the bootstrap-off error with option_not_applicable and a next attempt) instead of resampling by row"
+
+[[cell]]
+family = "P07.quantile"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::the_quantile_effect_refuses_a_third_level_and_a_declared_dependence_instead_of_reading_them"
+reason = "the quantile contrast is a cross-fitted AIPW functional whose row bootstrap and independent-rows error do not read a declared clustered panel or dependent series; it is refused (the bootstrap as a row_iid resample the design does not allow, the bootstrap-off error with option_not_applicable and a next attempt) instead of resampling by row"
+
+[[cell]]
+family = "P02.glm"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::a_gaussian_glm_adjustment_fits_the_complete_rows_when_an_outcome_is_missing"
+reason = "a row with a missing outcome is left out by the complete-case default and the Gaussian GLM average effect and its standard error equal the fit on the table with that row deleted"
+
+[[cell]]
+family = "P03.policy"
+axis = "weights_missingness"
+value = "missing_data"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_route_declarations.rs::a_policy_value_refuses_a_missing_outcome_instead_of_dropping_the_row"
+reason = "the per-row predictions, propensities and actions are aligned with the outcome rows, so a row cannot be dropped without shifting them; a missing outcome is refused instead of being scored"

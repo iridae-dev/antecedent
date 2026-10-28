@@ -207,6 +207,7 @@ impl ConditionalLinearAdjustment {
                 "conditional arm scores require an already transformed outcome and the Mean functional",
             ));
         }
+        refuse_undeclared_levels(data, &query.inner)?;
         if binary_zero_one(&query.inner)? {
             let (scores, overlap, overlap_report) =
                 aipw_conditional_arm_scores(data, estimand, &query.inner, self.fold_seed)?;
@@ -292,6 +293,7 @@ impl ConditionalLinearAdjustment {
             ));
         }
 
+        refuse_undeclared_levels(data, query)?;
         let modifier_ids = &query.effect_modifiers;
         let extra_z: Vec<VariableId> =
             estimand.adjustment_set.iter().copied().filter(|z| !modifier_ids.contains(z)).collect();
@@ -604,6 +606,35 @@ fn inverse_weighted_leverage(
         }
     }
     leverage
+}
+
+/// Refuse a treatment column with levels beyond the two contrasted ones.
+///
+/// Both the cross-fitted binary path and the interaction regression read the treatment as one
+/// numeric column, so a discrete column such as `0/1/2` would be read as a dose and "level 1
+/// against level 0" would be a fitted slope. The conditional effect has no restriction to the
+/// two levels, so the extra levels are refused with `treatment_level_undeclared`, naming them.
+fn refuse_undeclared_levels(
+    data: &TabularData,
+    query: &AverageEffectQuery,
+) -> Result<(), EstimationError> {
+    let active = intervention_f64(&query.active)?;
+    let control = intervention_f64(&query.control)?;
+    let crate::prepare::AdmittedColumns { data, row_mask, .. } =
+        crate::prepare::admit_estimator_columns(
+            data,
+            &[query.treatment],
+            crate::prepare::FINITE_TABLE_ONLY,
+        )?;
+    let mut mask = row_mask.to_vec();
+    crate::prepare::restrict_to_contrast_levels(
+        &data,
+        query.treatment,
+        &mut mask,
+        (active, control),
+        crate::propensity::levels::OtherLevels::Refuse,
+    )?;
+    Ok(())
 }
 
 fn binary_zero_one(query: &AverageEffectQuery) -> Result<bool, EstimationError> {

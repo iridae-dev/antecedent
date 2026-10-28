@@ -73,34 +73,45 @@ impl CheckedLocalPolynomialRatioOperation {
                 Some(config.clone())
             }
         };
-        if let Some(options) = &query.options {
-            match (options.temporal_replicates.is_some(), study.declared.sampling_design) {
-                (
-                    true,
-                    Some(
-                        antecedent_core::DeclaredSamplingDesign::ClusteredPanel
-                        | antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories,
-                    ),
-                ) => {
-                    return Err(crate::compile_reason!(
-                        "option_not_applicable",
-                        "a calendar-time running variable is one dependent series resampled in \
-                         contiguous blocks; the declared design resamples independent units. \
-                         Next attempt: declare dependent_time_series (or no design), or drop the \
-                         calendar-time option for independent rows"
-                    ));
-                }
-                (false, Some(antecedent_core::DeclaredSamplingDesign::DependentTimeSeries)) => {
-                    return Err(crate::compile_reason!(
-                        "option_not_applicable",
-                        "the declared dependent_time_series design makes the rows one dependent \
-                         series, which the independent-row HC0 interval does not cover. Next \
-                         attempt: declare the running variable as calendar time to use the \
-                         within-side block bootstrap"
-                    ));
-                }
-                _ => {}
+        let calendar_time =
+            query.options.as_ref().is_some_and(|options| options.temporal_replicates.is_some());
+        match (calendar_time, study.declared.sampling_design) {
+            (
+                true,
+                Some(
+                    antecedent_core::DeclaredSamplingDesign::ClusteredPanel
+                    | antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories,
+                ),
+            ) => {
+                return Err(crate::compile_reason!(
+                    "option_not_applicable",
+                    "a calendar-time running variable is one dependent series resampled in \
+                     contiguous blocks; the declared design resamples independent units. \
+                     Next attempt: declare dependent_time_series (or no design), or drop the \
+                     calendar-time option for independent rows"
+                ));
             }
+            (false, Some(antecedent_core::DeclaredSamplingDesign::DependentTimeSeries)) => {
+                return Err(crate::compile_reason!(
+                    "option_not_applicable",
+                    "the declared dependent_time_series design makes the rows one dependent \
+                     series, which the independent-row HC0 interval does not cover. Next \
+                     attempt: declare the running variable as calendar time to use the \
+                     within-side block bootstrap"
+                ));
+            }
+            (false, Some(antecedent_core::DeclaredSamplingDesign::ClusteredPanel)) => {
+                return Err(crate::compile_reason!(
+                    "option_not_applicable",
+                    "the declared clustered_panel design makes the rows dependent within \
+                     clusters, which the independent-row HC0 interval does not cover and the \
+                     local ratio has no cluster-robust error for. Next attempt: declare \
+                     independent subject trajectories if the rows are independent"
+                ));
+            }
+            _ => {}
+        }
+        if let Some(options) = &query.options {
             for variable in options.balance_covariates.iter() {
                 data.schema().get(*variable).map_err(CausalError::rejected)?;
                 if !matches!(

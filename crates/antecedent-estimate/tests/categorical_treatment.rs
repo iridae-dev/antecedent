@@ -19,7 +19,7 @@ use antecedent_estimate::categorical_treatment::{
     fit_categorical_treatment,
 };
 use antecedent_estimate::effect_constancy::CalibrationStatus;
-use antecedent_estimate::vector_treatment::VectorCovariance;
+use antecedent_estimate::vector_treatment::{NamedColumn, VectorCovariance};
 use antecedent_kernels::erfc;
 
 #[path = "common/checks.rs"]
@@ -415,4 +415,24 @@ fn categorical_refuses_malformed_declarations() {
     let (code, message) = run(&base, &short);
     assert_eq!(code, "route_not_supported");
     assert!(message.contains("categorical_treatment.row_count_mismatch"), "{message}");
+}
+
+#[test]
+fn categorical_refuses_a_non_finite_outcome_or_adjustment_value_instead_of_dropping_the_row() {
+    let spec = spec(&["a", "b", "c"], LevelScale::Unordered, "a");
+    assert!(fit_categorical_treatment(&abc_input(), &spec).is_ok());
+    let mut missing_outcome = abc_input();
+    missing_outcome.outcome.to_mut()[3] = f64::NAN;
+    let (code, message) = refusal(fit_categorical_treatment(&missing_outcome, &spec).unwrap_err());
+    assert_eq!(code, "invalid_argument");
+    assert!(message.contains("vector_treatment.non_finite_value"), "{message}");
+    let mut missing_adjustment = abc_input();
+    missing_adjustment.adjustment = vec![NamedColumn::new(
+        "x",
+        vec![1.0, 2.0, f64::NAN, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0],
+    )];
+    let (code, message) =
+        refusal(fit_categorical_treatment(&missing_adjustment, &spec).unwrap_err());
+    assert_eq!(code, "invalid_argument");
+    assert!(message.contains("vector_treatment.non_finite_value"), "{message}");
 }

@@ -50,3 +50,7 @@ path = "tests/streaming_memory_bound.rs"
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "scenario_refresh_designs"
+path = "tests/scenario_refresh_designs.rs"

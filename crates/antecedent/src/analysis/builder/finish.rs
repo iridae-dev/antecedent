@@ -532,6 +532,31 @@ fn refuse_structure_route_options(query: &CausalQuery, carry: &Carry) -> Result<
              bootstrap_replicates"
         ));
     }
+    // The static search engines test and score rows as independent draws; a bootstrap-stability
+    // search reads the declared design itself when it resamples, and a series search reads a
+    // dependent series by construction.
+    if matches!(
+        query,
+        CausalQuery::Discover(search)
+            if !matches!(search.method, antecedent_core::DiscoveryMethod::BootstrapStability { .. })
+    ) && matches!(carry.data, DataInput::Tabular(_))
+        && matches!(
+            carry.declared.sampling_design,
+            Some(
+                antecedent_core::DeclaredSamplingDesign::ClusteredPanel
+                    | antecedent_core::DeclaredSamplingDesign::DependentTimeSeries
+            )
+        )
+    {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "a static structure search tests and scores rows as independent draws and reads no \
+             cluster label or lag, so a declared clustered-panel or dependent-time-series design \
+             would be silently ignored and its edges over-selected. Next attempt: declare \
+             independent subject trajectories if the rows are independent, or search the series \
+             with a lagged method such as PCMCI"
+        ));
+    }
     if carry.declared.split.is_some()
         || carry.declared.tiered.is_some()
         || carry.exposure.selection_targets.is_some()
@@ -1205,6 +1230,63 @@ fn require_declared_dependence_read(
     else {
         return Ok(());
     };
+    // The policy value and the continuous-dose response publish an influence-function or
+    // independent-row variance and interval over independent evaluation subjects, whatever the
+    // bootstrap setting, and nothing declares clusters or a lag to them: a declared dependence
+    // they cannot read is refused rather than answered with that interval.
+    if matches!(query, CausalQuery::PolicyValue(_) | CausalQuery::ContinuousDoseResponse(_))
+        && matches!(carry.data, DataInput::Tabular(_))
+    {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "this route publishes an influence-function or independent-row interval over \
+             independent evaluation subjects and reads no cluster or serial dependence, so the \
+             declared clustered-panel or dependent-time-series design would be silently \
+             ignored. Next attempt: declare independent subject trajectories if the evaluation \
+             subjects are independent, or estimate an average effect with a cluster or \
+             Newey-West standard error"
+        ));
+    }
+    // A Bayesian static route conditions on a likelihood whose rows are independent given the
+    // model, so its posterior would be too narrow for a declared clustered panel or dependent
+    // series; no static Bayesian likelihood reads a cluster label or a lag.
+    if matches!(carry.data, DataInput::Tabular(_))
+        && carry.settings.inference.is_bayesian()
+        && matches!(
+            query,
+            CausalQuery::AverageEffect(_)
+                | CausalQuery::ConditionalEffect(_)
+                | CausalQuery::Response(_)
+                | CausalQuery::Mediation(_)
+                | CausalQuery::Counterfactual(_)
+        )
+    {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "a Bayesian static route conditions on a likelihood whose rows are independent given \
+             the model and reads no cluster label or lag, so a declared clustered-panel or \
+             dependent-time-series design would be silently ignored and the posterior too \
+             narrow. Next attempt: declare independent subject trajectories if the rows are \
+             independent, or use the frequentist average effect with a cluster or Newey-West \
+             standard error"
+        ));
+    }
+    // The sharp-discontinuity estimator resamples and sandwiches rows one by one: neither its
+    // bootstrap nor its heteroskedasticity-robust error reads a cluster label or a lag.
+    if carry.declared.rd.is_some()
+        && matches!(query, CausalQuery::AverageEffect(_))
+        && matches!(carry.data, DataInput::Tabular(_))
+    {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "the sharp regression-discontinuity estimator resamples and sandwiches rows one by \
+             one and reads no cluster label or lag, so a declared clustered-panel or \
+             dependent-time-series design would be silently ignored and its error too small. \
+             Next attempt: declare independent subject trajectories if the rows are independent, \
+             or use the fuzzy local-polynomial ratio with a calendar-time running variable for a \
+             dependent series"
+        ));
+    }
     let reads_estimator_dependence = match query {
         CausalQuery::AverageEffect(_) => true,
         CausalQuery::ConditionalEffect(_) | CausalQuery::Response(_) => false,

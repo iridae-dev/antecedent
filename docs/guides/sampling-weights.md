@@ -36,7 +36,7 @@ randomized and panel routes read the table's observation weights
 Only the average effect reads weights declared on its estimator. The other static effect routes
 (conditional effect, natural-direct mediation, counterfactual, mean curve, average derivative,
 intervention response, continuous dose response, regression discontinuity, the prepared temporal
-designs, synthetic control and observational survival) have no weighted construction: a table that carries observation weights, or weights
+designs, synthetic control, observational survival and the policy value) have no weighted construction: a table that carries observation weights, or weights
 declared on an estimator such a route does not run, is refused with `option_not_applicable`
 (`sampling_weights.route_unsupported`) when the study is prepared or a table is rebound, never
 estimated as if the rows were unweighted. The average effect on a Dag or an ADMG with weights
