@@ -103,6 +103,8 @@ Antecedent's development applies high-assurance engineering principles. Method r
 - **Licensed combinations** name the question, structure, evidence, inference and estimator with executing support evidence. "Licensed" means evidenced support and is unrelated to the software license. A route that executes without a license keeps that status on its result: successful execution does not upgrade the scientific claim.
 - **Calibration** records the uncertainty construction, tested setting, sample sizes, coverage and Monte Carlo error. A result is `calibrated` only when a matching record applies; <!-- generated:claim:calibrated_slot_means_a_current_matching_record:begin -->the record still attests the current code.<!-- generated:claim:calibrated_slot_means_a_current_matching_record:end --> Implemented intervals are not automatically calibrated.
 
+Read [How Antecedent checks its scientific methods](docs/guides/scientific-verification.md) to follow AIPW from its source method through an independent numerical reference, executing assertions and calibration requirements. The guide also shows how two mathematical derivations check arrow strength and how reviews stay attached to the code they examined.
+
 Read a result's identification, support, uncertainty and calibration separately. See [assurance](docs/concepts/assurance.md), [results are claims](docs/concepts/results-are-claims.md), [uncertainty](docs/concepts/uncertainty.md) and [refusals](docs/concepts/refusals.md). The [support matrix](docs/support-matrix.md) separates licensed combinations from coverage measurements; [provenance](provenance/README.md) and the [evidence rules](parity/README.md) hold the records.
 
 ## Release, migration and contribution

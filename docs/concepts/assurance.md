@@ -4,6 +4,8 @@ Antecedent's development applies high-assurance engineering principles. Method r
 
 This describes an engineering approach. It is not formal verification of the whole system, not a certification, and not proof that your causal model is true.
 
+[How Antecedent checks its scientific methods](../guides/scientific-verification.md) follows the evidence end to end, with worked AIPW and arrow-strength examples, review digests and the separate requirements for calibration.
+
 ## Four kinds of evidence
 
 These are different kinds of evidence. They do not combine into a single "validated" badge.

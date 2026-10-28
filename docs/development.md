@@ -1,5 +1,7 @@
 # Development
 
+[How Antecedent checks its scientific methods](guides/scientific-verification.md) explains how provenance, independent references, executing assertions and calibration support a claim. This page describes the development and measurement procedures that maintain that evidence.
+
 ## Documentation preview and checks
 
 In a separate checkout or worktree with the matching Antecedent installed:

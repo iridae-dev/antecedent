@@ -3,6 +3,9 @@
 Every substantive algorithm must have a machine-readable provenance record in
 this directory.
 
+For a worked reading of a method record and its numerical evidence, see
+[How Antecedent checks its scientific methods](../docs/guides/scientific-verification.md#aipw-start-with-the-method-record).
+
 Copy [`_template.toml`](_template.toml) to a descriptive name
 (e.g. `discovery.pcmci.toml`) and fill all fields truthfully. The `feature_id`
 must match the filename stem, and should match the corresponding

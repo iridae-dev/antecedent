@@ -153,6 +153,7 @@ nav:
   - Uncertainty: concepts/uncertainty.md
   - Refusals: concepts/refusals.md
   - Assurance: concepts/assurance.md
+  - How methods are checked: guides/scientific-verification.md
   - Observation contract: observation-contract.md
   - Glossary: concepts/glossary.md
 - Reference:

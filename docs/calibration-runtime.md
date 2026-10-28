@@ -1,5 +1,7 @@
 # Calibration runtime and evidence reuse
 
+For calibration's role in the wider evidence system, read [How Antecedent checks its scientific methods](guides/scientific-verification.md#measure-uncertainty-as-a-complete-procedure). This page explains how measurements and their supporting artifacts are retained and reused.
+
 The full calibration run at `c30e10304f4bd85a01ad81dd133a360ddc95c2f1`
 spent 6 h 34 min in its parallel measurement phase, excluding the release build.
 Its 2,137 grid jobs consumed about 38.8 summed job-hours. There were 282

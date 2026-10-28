@@ -3,6 +3,10 @@
 Domain capability inventories and pinned external baseline oracles. See ADR 0009
 and [docs/development.md](../docs/development.md).
 
+[How Antecedent checks its scientific methods](../docs/guides/scientific-verification.md)
+follows these evidence distinctions through AIPW and arrow-strength examples,
+from independent references to executing assertions and calibration requirements.
+
 **Inventories** (status: `pending` | `in_progress` | `done`):
 
 - [estimate.toml](estimate.toml) — identify / estimate / refute

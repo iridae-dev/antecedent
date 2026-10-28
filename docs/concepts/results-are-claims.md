@@ -60,6 +60,8 @@ These words name different checks. Each applies to a particular object, and none
 
 Two further distinctions come up constantly. A *frozen output* of Antecedent checks change against a recorded result; it is not an independent oracle. An *accepted artifact* means the result's contract and identities checked out; it does not mean the causal assumptions are true.
 
+For a worked account of the evidence behind these distinctions, read [How Antecedent checks its scientific methods](../guides/scientific-verification.md).
+
 ## Successful execution does not upgrade the claim
 
 A route can execute and still be outside licensed support, still model-conditional, still uncalibrated. In those cases the result keeps that status in its report and in exported artifacts. When you build on a result, read the status of the route that actually ran. The [support matrix](../support-matrix.md) and [support lookup](../support-lookup.md) say which combinations have executing evidence; [assurance](assurance.md) says what each kind of evidence establishes.
