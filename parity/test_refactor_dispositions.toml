@@ -1325,3 +1325,51 @@ previous = "crates/antecedent/tests/sampling_design_declaration.rs::the_same_des
 replacement = "crates/antecedent/tests/sampling_design_declaration.rs::the_same_design_on_the_estimator_and_the_study_is_not_a_conflict"
 disposition = "inputs_made_valid_assertions_unchanged"
 reason = "A clustered panel declared with the bootstrap off now requires the cluster standard error that reads it; the estimator carries it and the agreeing declarations still build, run and leave the point estimate where it is undeclared."
+
+[[case]]
+previous = "crates/antecedent/tests/identity_contract.rs::same_shape_inspection_distinguishes_masks_and_weights"
+replacement = "crates/antecedent/tests/identity_contract.rs::same_shape_inspection_distinguishes_masks_and_weights"
+disposition = "assertion_premise_corrected"
+reason = "Inspection still distinguishes the masked and the weighted table by data snapshot with an unchanged identification. The weighted case then prepared an average-effect route that never reads observation weights, which is now refused with sampling_weights.route_unsupported, so the test asserts that refusal where it previously compared the prepared program identity."
+
+[[case]]
+previous = "crates/antecedent/tests/continuous_treatment_routing.rs::integer_dosage_and_multilevel_encoding_are_not_binary"
+replacement = "crates/antecedent/tests/continuous_treatment_routing.rs::integer_dosage_and_multilevel_encoding_are_refused_or_restricted_to_the_binary_contrast"
+disposition = "assertion_premise_corrected"
+reason = "A discrete treatment with levels beyond the contrasted 0 and 1 is no longer read as a dose: the default refuses it with treatment_level_undeclared, so the premise that its overlap check takes the continuous-support route no longer holds under the default. The test asserts the refusal and keeps the continuous-support routing under the declared restriction to the two contrasted levels."
+
+[[case]]
+previous = "python/tests/test_continuous_treatment_routing.py::test_python_facade_classifies_treatment_encoding"
+replacement = "python/tests/test_continuous_treatment_routing.py::test_extra_discrete_levels_are_refused_or_restricted_to_the_binary_contrast"
+disposition = "assertion_premise_corrected"
+reason = "The four-level and three-level treatment cases were classified as non-binary encodings, which a binary contrast now refuses with treatment_level_undeclared; they move to a test asserting the refusal and the binary overlap route under the declared restriction. The binary, fractional and off-contrast two-level cases are unchanged."
+
+[[case]]
+previous = "crates/antecedent/tests/distribution_route_evidence.rs::retained_distribution_factor_reuse_checks_contents_masks_weights_validity_and_schema"
+replacement = "crates/antecedent/tests/distribution_route_evidence.rs::retained_distribution_factor_reuse_checks_contents_masks_weights_validity_and_schema"
+disposition = "assertion_premise_corrected"
+reason = "A distribution route never reads observation weights, so rebinding it to a weighted table is now refused with sampling_weights.route_unsupported instead of refreshing the factor; the weighted case asserts that refusal and the mask, validity and value cases are unchanged."
+
+[[case]]
+previous = "crates/antecedent/tests/recalc_design.rs::iv"
+replacement = "crates/antecedent/tests/recalc_design.rs::iv"
+disposition = "inputs_made_valid_assertions_unchanged"
+reason = "The instrument fixture's treatment took the four integer levels -1, 0, 1, 2, which an instrumental fit now refuses when the contrasted pair is 0 and 1. The dose is shifted by one half so it holds neither contrasted level; the slope, every truth and every count are unchanged. The Python fixture in python/tests/test_recalc_design.py shifts the same way."
+
+[[case]]
+previous = "crates/antecedent/tests/manufacturing_temporal.rs::assert_full_suite_data_subset_refuter_ran"
+replacement = "crates/antecedent/tests/manufacturing_temporal.rs::assert_full_suite_data_subset_refuter_ran"
+disposition = "assertion_premise_corrected"
+reason = "The dose fixture takes the integer levels -1, 0 and 1, which the linear and partial-linear sensitivity refits no longer read as one numeric dose; they now report a typed validator failure with treatment_level_undeclared, so they leave the completed-refuter list and the test asserts those two diagnostics. The remaining refuter order and the data-subset result are unchanged."
+
+[[case]]
+previous = "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_projection_resamples_blocks_of_the_series"
+replacement = "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_projection_resamples_blocks_of_the_series"
+disposition = "assertion_premise_corrected"
+reason = "A clustered-panel declaration with no replicates and no analytic error that reads it is refused rather than answered with the independent-rows error, so the point without replicates under that design asserts the option_not_applicable refusal; the trajectory design and every resampling assertion are unchanged."
+
+[[case]]
+previous = "python/tests/test_sampling_design.py::test_the_declaration_is_part_of_the_study_identity"
+replacement = "python/tests/test_sampling_design.py::test_the_declaration_is_part_of_the_study_identity"
+disposition = "inputs_made_valid_assertions_unchanged"
+reason = "A clustered-panel declaration with the bootstrap off now requires the cluster standard error that reads it; the study carries that estimator and the identity assertions are unchanged."

@@ -13,6 +13,7 @@ use antecedent_core::{
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
+use antecedent_estimate::{LinearAdjustmentAte, OtherLevels};
 use antecedent_graph::{Dag, DenseNodeId};
 
 fn table(t: Vec<f64>, y_valid: Option<&[bool]>) -> TabularData {
@@ -76,12 +77,19 @@ fn query() -> AverageEffectQuery {
 }
 
 fn run(data: TabularData, suite: RefuteSuite) -> antecedent::StudyResult {
+    run_with(data, suite, LinearAdjustmentAte::new().with_bootstrap_replicates(0).into())
+}
+
+fn run_with(
+    data: TabularData,
+    suite: RefuteSuite,
+    estimator: antecedent::EstimatorSpec,
+) -> antecedent::StudyResult {
     Study::tabular(data)
         .graph(confounded_dag())
         .query(query())
-        .estimator(EstimatorId::LinearAdjustmentAte)
+        .estimator(estimator)
         .refute(suite)
-        .bootstrap_replicates(0)
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(9))
@@ -115,14 +123,42 @@ fn continuous_float_uses_residual_support_and_skips_riesz() {
     );
 }
 
+// Levels beyond the declared 0 and 1 are refused unless the estimator declares the
+// restriction to the two contrasted levels.
+fn restricted() -> antecedent::EstimatorSpec {
+    LinearAdjustmentAte::new()
+        .with_bootstrap_replicates(0)
+        .with_other_levels(OtherLevels::ExcludeUndeclared)
+        .into()
+}
+
 #[test]
-fn integer_dosage_and_multilevel_encoding_are_not_binary() {
-    let dose: Vec<f64> = (0..80).map(|i| f64::from(i % 4)).collect();
-    let names = overlap_names(&run(table(dose, None), RefuteSuite::Cheap));
-    assert!(names.iter().any(|n| n == "overlap.continuous_support"), "dosage {names:?}");
-    let cat: Vec<f64> = (0..80).map(|i| f64::from(i % 3)).collect();
-    let names = overlap_names(&run(table(cat, None), RefuteSuite::Cheap));
-    assert!(names.iter().any(|n| n == "overlap.continuous_support"), "categorical {names:?}");
+fn integer_dosage_and_multilevel_encoding_are_refused_or_restricted_to_the_binary_contrast() {
+    for levels in [4, 3] {
+        let values = || -> Vec<f64> { (0..80).map(|i| f64::from(i % levels)).collect() };
+        let refused = Study::tabular(table(values(), None))
+            .graph(confounded_dag())
+            .query(query())
+            .estimator(EstimatorId::LinearAdjustmentAte)
+            .refute(RefuteSuite::Cheap)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(9))
+            .err()
+            .expect("extra discrete levels must not be read as a dose");
+        assert_eq!(
+            refused.reason_code(),
+            Some("treatment_level_undeclared"),
+            "{levels}: {refused}"
+        );
+        let names =
+            overlap_names(&run_with(table(values(), None), RefuteSuite::Cheap, restricted()));
+        // The overlap check classifies the encoding of the whole treatment column, which is
+        // not the binary 0/1 one, so it stays on the continuous-support route.
+        assert!(names.iter().any(|n| n == "overlap.continuous_support"), "{levels}: {names:?}");
+        assert!(names.iter().all(|n| n != "overlap.assessment"), "{levels}: {names:?}");
+    }
 }
 
 #[test]

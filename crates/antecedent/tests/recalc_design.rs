@@ -41,7 +41,10 @@ fn iv(strength: f64) -> DesignRequest {
         for instrument in [0., 1.] {
             for confounder in [-1., 1.] {
                 for error in [-1., 1.] {
-                    let treatment = strength * instrument + confounder;
+                    // A dose whose levels do not include the contrasted 0 and 1: a discrete
+                    // treatment with levels beyond the contrasted pair is refused, and the slope
+                    // per unit is unchanged by the shift.
+                    let treatment = strength * instrument + confounder + 0.5;
                     z.push(instrument);
                     t.push(treatment);
                     y.push(2. * treatment + 0.3 * confounder + 0.4 * error);

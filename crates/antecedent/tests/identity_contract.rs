@@ -386,14 +386,24 @@ fn same_shape_inspection_distinguishes_masks_and_weights() {
         let contract = study(changed.clone(), dag.clone(), query.clone()).inspect().unwrap();
         assert_eq!(baseline.identities.identification, contract.identities.identification);
         assert_ne!(baseline.identities.data_snapshot, contract.identities.data_snapshot);
-        let changed_program = program(changed).program;
         if label == "mask" {
             // The checked physical design is bound to the complete-case row
             // count, so masking changes this executable program identity while
             // leaving the causal target and identification stable.
+            let changed_program = program(changed).program;
             assert_ne!(baseline_program, changed_program, "changed={label}");
         } else {
-            assert_eq!(baseline_program, changed_program, "changed={label}");
+            // Observation weights are visible to inspection, but a static average-effect
+            // route never reads them, so preparing it refuses rather than publishing the
+            // unweighted number for the weighted population.
+            let refused = study(changed, dag.clone(), query.clone())
+                .prepare(&ctx)
+                .err()
+                .expect("table weights must be refused on a route that never reads them");
+            assert!(
+                format!("{refused:?}").contains("sampling_weights.route_unsupported"),
+                "{refused:?}"
+            );
         }
     }
 }

@@ -2136,8 +2136,6 @@ fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::result::StudyR
         vec![
             "unobserved.common_cause",
             "sensitivity.evalue",
-            "sensitivity.linear",
-            "sensitivity.partial_linear",
             "sensitivity.nonparametric",
             "placebo.treatment",
             "random.common_cause",
@@ -2147,6 +2145,17 @@ fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::result::StudyR
         ],
         "RefuteSuite::Full on TemporalDag Frequentist runs this fixed refuter set"
     );
+    // The dose fixture takes three integer levels (-1, 0, 1) beyond the contrasted pair, which
+    // the linear regressions refuse to read as one numeric dose, so the two regression-based
+    // sensitivity checks report a typed failure rather than a mis-scaled verdict.
+    for validator in ["linear_sensitivity", "partial_linear_sensitivity"] {
+        assert!(
+            result.diagnostics.iter().any(|d| d.code.as_ref() == "refute.validator.failed"
+                && d.message.contains(validator)
+                && d.message.contains("treatment_level_undeclared")),
+            "{validator} must report the undeclared treatment levels"
+        );
+    }
     let subset = names
         .iter()
         .zip(result.refutations.iter())

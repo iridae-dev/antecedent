@@ -26,7 +26,7 @@ def request(kind="iv", strength=1.0):
     if kind == "iv":
         rows = np.array(
             [
-                (z, strength * z + u, 2 * (strength * z + u) + 0.3 * u + 0.4 * e)
+                (z, strength * z + u + 0.5, 2 * (strength * z + u + 0.5) + 0.3 * u + 0.4 * e)
                 for _ in range(20)
                 for z, u, e in itertools.product([0.0, 1.0], [-1.0, 1.0], [-1.0, 1.0])
             ]

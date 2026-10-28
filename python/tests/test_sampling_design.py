@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent.estimators import LinearAdjustment
 from antecedent.errors import CausalError, CausalValueError
 from antecedent.outcomes import require_success
 
@@ -63,6 +64,10 @@ def test_the_declaration_is_part_of_the_study_identity():
             graph=EDGES,
             query=QUERY,
             inference=ant.Frequentist(bootstrap=0),
+            # A clustered-panel declaration needs the cluster standard error that reads it.
+            estimator=LinearAdjustment(
+                se="cluster", cluster_ids=[i % 12 for i in range(120)]
+            ),
             refute=False,
             execution=ant.Execution(seed=1),
             **options,

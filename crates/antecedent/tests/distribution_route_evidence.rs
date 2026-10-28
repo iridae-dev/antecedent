@@ -569,9 +569,14 @@ fn retained_distribution_factor_reuse_checks_contents_masks_weights_validity_and
         .unwrap(),
     );
     let changed = make(changed_columns, None, None);
-    for (label, rows) in
-        [("mask", masked), ("weights", weighted), ("validity", incomplete), ("values", changed)]
-    {
+    // Observation weights are not read by a distribution route, so rebinding to a weighted
+    // table is refused rather than answering for the unweighted rows.
+    let refused = rebind_estimate(&mut original.clone(), weighted.clone(), &ctx)
+        .err()
+        .expect("weights on a distribution route must be refused");
+    assert!(format!("{refused:?}").contains("sampling_weights.route_unsupported"), "{refused:?}");
+    assert!(study(weighted).prepare(&ctx).is_err());
+    for (label, rows) in [("mask", masked), ("validity", incomplete), ("values", changed)] {
         let mut prepared = original.clone();
         let refreshed = rebind_estimate(&mut prepared, rows.clone(), &ctx).unwrap();
         let cold = study(rows.clone()).prepare(&ctx).unwrap();

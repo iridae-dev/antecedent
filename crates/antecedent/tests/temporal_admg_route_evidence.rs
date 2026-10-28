@@ -1028,7 +1028,7 @@ fn temporal_admg_projection_resamples_blocks_of_the_series() {
     // A declared independent-subject or clustered-panel design refuses: a row-level draw
     // is not allowed under either, and the table carries no subject or cluster labels to
     // draw whole units from. The refusal is typed and names the next attempt; without
-    // replicates the frequentist point still stands.
+    // replicates the frequentist point stands under the trajectory design only.
     for design in [
         antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories,
         antecedent_core::DeclaredSamplingDesign::ClusteredPanel,
@@ -1042,8 +1042,17 @@ fn temporal_admg_projection_resamples_blocks_of_the_series() {
         let bayesian_refused =
             projected_ate(&data, &temporal, (true, 0), Some(design), &ctx).unwrap_err();
         assert!(bayesian_refused.to_string().contains("Next attempt"), "{bayesian_refused}");
-        let point = projected_ate(&data, &temporal, (false, 0), Some(design), &ctx).unwrap();
-        assert!((point.effect() - expected).abs() < 1e-9);
+        let point = projected_ate(&data, &temporal, (false, 0), Some(design), &ctx);
+        if design == antecedent_core::DeclaredSamplingDesign::ClusteredPanel {
+            // No analytic error on this route reads the cluster declaration, so a point
+            // without replicates would publish the independent-rows error as the clustered
+            // one; it is refused instead.
+            let message =
+                point.expect_err("an unread clustered-panel declaration is refused").to_string();
+            assert!(message.contains("option_not_applicable"), "{message}");
+        } else {
+            assert!((point.unwrap().effect() - expected).abs() < 1e-9);
+        }
     }
 }
 

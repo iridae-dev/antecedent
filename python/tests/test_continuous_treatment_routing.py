@@ -46,8 +46,6 @@ def _names(result) -> list[str]:
     [
         (np.tile([0.0, 1.0], 40), True),
         (np.linspace(0.0, 1.0, 80, endpoint=False), False),
-        (np.arange(80) % 4, False),
-        (np.arange(80) % 3, False),
         (np.tile([2.0, 5.0], 40), False),
     ],
 )
@@ -59,6 +57,20 @@ def test_python_facade_classifies_treatment_encoding(treatment, binary):
     else:
         assert "overlap.continuous_support" in names
         assert "overlap.assessment" not in names
+
+
+@pytest.mark.parametrize("levels", [4, 3])
+def test_extra_discrete_levels_are_refused_or_restricted_to_the_binary_contrast(levels):
+    # A discrete treatment with levels beyond the contrasted 0 and 1 is not read as a dose:
+    # it is refused, or restricted by declaration to the two contrasted levels, whose
+    # overlap is then the binary one.
+    data = _frame((np.arange(80) % levels).astype(np.float64))
+    with pytest.raises(ac.errors.CausalError, match="treatment_level_undeclared"):
+        _cheap(data)
+    restricted = PropensityWeighting(other_levels="exclude_undeclared")
+    names = _names(_cheap(data, estimator=restricted))
+    assert "overlap.assessment" in names
+    assert "overlap.continuous_support" not in names
 
 
 def test_degenerate_one_level_stays_off_continuous_overlap():
