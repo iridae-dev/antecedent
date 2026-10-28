@@ -4,11 +4,62 @@
   "oracle": {
     "kind": "closed_form",
     "method": "Closed form of the structural equation, by plain arithmetic over the sample rows. Law (n = 48, phase_i = 0.37 i): z_i = sin(phase_i); t_i = 1 if cos(phase_i) > 0 else 0; y_i = 1.4 t_{i-1} + 0.6 z_{i-1} + w_i with w_i = 0.1 sin(1.7 phase_i) for i >= 1. Horizon 1, pulse at origin -1, outcome rows s = 1..47 with treatment t_{s-1}: E[y | do(t@-1 = x)] = 1.4 x + 0.6 mean_z + mean_w with mean_z the mean of z_{s-1} and mean_w the mean of w_s over those rows. The mixture truth is the posterior-weight-weighted mixture of the per-atom truths; every atom of the fixture's graph posterior is a class of completions that all identify this same interventional level, so the weighted mixture equals it for any weights summing to 1 (the test uses a single atom of weight 1).",
-    "generator": "hand-derived formula evaluated with python math over the same rows; cross-checked against fits: the empty-adjustment identification formula (group means of y over t_{s-1} = 0 / 1: -0.00676, 1.48844) and the z@-1-adjusted least-squares g-computation (0.03377, 1.44615) both lie within 0.05 of this truth, which sets the tolerance"
+    "generator": "conformance/estimate/temporal_class_posterior_response_truth/reference.py",
+    "origin_note": "hand-derived formula evaluated with python math over the same rows; cross-checked against fits: the empty-adjustment identification formula (group means of y over t_{s-1} = 0 / 1: -0.00676, 1.48844) and the z@-1-adjusted least-squares g-computation (0.03377, 1.44615) both lie within 0.05 of this truth, which sets the tolerance",
+    "formula": "E[y | do(t@-1 = x)] = 1.4 x + 0.6 mean_z + mean_w over outcome rows s = 1..47.",
+    "command": "uv run --frozen --script conformance/estimate/temporal_class_posterior_response_truth/reference.py --check",
+    "environment_lock": "conformance/estimate/temporal_class_posterior_response_truth/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "moments.mean_z",
+      "moments.mean_w",
+      "horizon_1.level.curve",
+      "horizon_1.level.set"
+    ],
+    "context_only_outputs": [
+      "tolerance.frequentist and tolerance.bayesian_floor",
+      "the single posterior atom of weight 1",
+      "the origin note's cross-check values"
+    ],
+    "independence_basis": "The generator rebuilds the stated sin/cos law, forms the lag-aligned rows and evaluates the structural level exactly over rationals; it imports no Antecedent code and no statistics package. The shared object is the stated law.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Sample moments and the two interventional levels of the 48-row law at horizon 1.",
+      "independence_basis": "The generator rebuilds the stated sin/cos law, forms the lag-aligned rows and evaluates the structural level exactly over rationals; it imports no Antecedent code and no statistics package. The shared object is the stated law.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Structural levels, not an estimator output: the empirical-identification and adjusted-fit values lie within the 0.1 tolerance but are not asserted by this generator. The single-atom weight 1 makes the mixture trivial. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/temporal_class_posterior_response_truth/reference.py",
+          "sha256": "08f90bcf3bce22c00e83240670496fdd34921ddd59cce35206f82b5ad7bbd249"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/temporal_class_posterior_response_truth/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_class_posterior.rs",
+          "sha256": "70ab3d5d56d254d7575b6ea59fe9b5f709cc54ec39fa7fe87548f5555961e637"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs",
+          "sha256": "89e95a6b9f6dff0266f4e32c56c7a81fe439f54d87f51d3c99215c3a653a459c"
+        }
+      ],
+      "fixture_payload_sha256": "19a839c1604c4b1ec90aac0ab56f18fcd1d198c70be1c71810b6f2c576755b8b"
+    }
   },
   "n": 48,
   "horizon": 1,
-  "posterior_weights": [1.0],
+  "posterior_weights": [
+    1.0
+  ],
   "moments": {
     "mean_z": 0.06110870174571612,
     "mean_w": 0.0031590385244408847
@@ -19,8 +70,13 @@
       "set": "dose 1"
     },
     "level": {
-      "curve": [0.03982425957187055, 1.4398242595718704],
-      "set": [1.4398242595718704]
+      "curve": [
+        0.03982425957187055,
+        1.4398242595718704
+      ],
+      "set": [
+        1.4398242595718704
+      ]
     }
   },
   "tolerance": {

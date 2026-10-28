@@ -1,33 +1,107 @@
 {
   "schema_version": 1,
   "case": "binary_frontdoor_interventional_distribution",
-  "columns": ["t", "m", "y"],
+  "columns": [
+    "t",
+    "m",
+    "y"
+  ],
   "graph": {
     "class": "Admg",
-    "directed_edges": [["t", "m"], ["m", "y"]],
-    "bidirected_edges": [["t", "y"]]
+    "directed_edges": [
+      [
+        "t",
+        "m"
+      ],
+      [
+        "m",
+        "y"
+      ]
+    ],
+    "bidirected_edges": [
+      [
+        "t",
+        "y"
+      ]
+    ]
   },
   "scm": {
     "latent": "u",
     "p_u1": 0.5,
-    "p_t1_given_u": {"0": 0.2, "1": 0.8},
-    "p_m1_given_t": {"0": 0.25, "1": 0.75},
-    "p_y1_given_m_u": {"intercept": 0.1, "m": 0.5, "u": 0.3}
+    "p_t1_given_u": {
+      "0": 0.2,
+      "1": 0.8
+    },
+    "p_m1_given_t": {
+      "0": 0.25,
+      "1": 0.75
+    },
+    "p_y1_given_m_u": {
+      "intercept": 0.1,
+      "m": 0.5,
+      "u": 0.3
+    }
   },
   "rows": 800,
   "contingency_table": [
-    {"t": 0.0, "m": 0.0, "y": 0.0, "count": 252},
-    {"t": 0.0, "m": 0.0, "y": 1.0, "count": 48},
-    {"t": 0.0, "m": 1.0, "y": 0.0, "count": 34},
-    {"t": 0.0, "m": 1.0, "y": 1.0, "count": 66},
-    {"t": 1.0, "m": 0.0, "y": 0.0, "count": 66},
-    {"t": 1.0, "m": 0.0, "y": 1.0, "count": 34},
-    {"t": 1.0, "m": 1.0, "y": 0.0, "count": 48},
-    {"t": 1.0, "m": 1.0, "y": 1.0, "count": 252}
+    {
+      "t": 0.0,
+      "m": 0.0,
+      "y": 0.0,
+      "count": 252
+    },
+    {
+      "t": 0.0,
+      "m": 0.0,
+      "y": 1.0,
+      "count": 48
+    },
+    {
+      "t": 0.0,
+      "m": 1.0,
+      "y": 0.0,
+      "count": 34
+    },
+    {
+      "t": 0.0,
+      "m": 1.0,
+      "y": 1.0,
+      "count": 66
+    },
+    {
+      "t": 1.0,
+      "m": 0.0,
+      "y": 0.0,
+      "count": 66
+    },
+    {
+      "t": 1.0,
+      "m": 0.0,
+      "y": 1.0,
+      "count": 34
+    },
+    {
+      "t": 1.0,
+      "m": 1.0,
+      "y": 0.0,
+      "count": 48
+    },
+    {
+      "t": 1.0,
+      "m": 1.0,
+      "y": 1.0,
+      "count": 252
+    }
   ],
   "truth": [
-    {"t": 0.0, "p_y1": 0.375},
-    {"t": 1.0, "p_y1": 0.625}
+    {
+      "t": 0.0,
+      "p_y1": 0.375
+    },
+    {
+      "t": 1.0,
+      "p_y1": 0.625
+    }
   ],
   "identification": {
     "identifier": "general.id",
@@ -45,6 +119,48 @@
   },
   "oracle": {
     "kind": "closed_form",
-    "method": "binary SCM with latent U: P(Y=1 | do(T=t)) = 0.25 + 0.5 P(M=1 | t) computed from the SCM directly, not from the formula under test (README)"
+    "method": "binary SCM with latent U: P(Y=1 | do(T=t)) = 0.25 + 0.5 P(M=1 | t) computed from the SCM directly, not from the formula under test (README)",
+    "formula": "P(Y=1 | do(T=t)) = sum_m P(M=m | t) sum_u P(u) P(Y=1 | m, u) = 0.25 + 0.5 P(M=1 | t); the table is 800 times the SCM joint.",
+    "generator": "conformance/estimate/admg_frontdoor_distribution/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/admg_frontdoor_distribution/reference.py --check",
+    "environment_lock": "conformance/estimate/admg_frontdoor_distribution/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "truth[].p_y1 for t = 0 and t = 1",
+      "contingency_table counts (the identification input)"
+    ],
+    "context_only_outputs": [
+      "identification status and identifier id (not derivable here)",
+      "frequentist/bayesian estimator ids, tolerances and bootstrap replicate counts",
+      "graph edge lists"
+    ],
+    "independence_basis": "The generator rebuilds the exact joint of the stated latent-variable SCM with rational arithmetic, compares it with the declared counts, derives the interventional probabilities by cutting the treatment mechanism, and separately applies the front-door adjustment to the table only; it imports no Antecedent code and no statistics package. The shared object is the stated SCM, so a wrong coefficient in the fixture would be inherited.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Binary front-door SCM with a latent confounder: the eight contingency cells (800 rows) and the two interventional probabilities.",
+      "independence_basis": "The generator rebuilds the exact joint of the stated latent-variable SCM with rational arithmetic, compares it with the declared counts, derives the interventional probabilities by cutting the treatment mechanism, and separately applies the front-door adjustment to the table only; it imports no Antecedent code and no statistics package. The shared object is the stated SCM, so a wrong coefficient in the fixture would be inherited.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Exact arithmetic on a fixed table; no sampling variability, no uncertainty or coverage claim. Graph class, identification status and estimator tolerances are context the generator cannot derive. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/admg_frontdoor_distribution/reference.py",
+          "sha256": "d95594aa70e41b933c40f0b16824180273ba28ab7d13e88d1bd2fa13abb521ab"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/admg_frontdoor_distribution/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_admg_route_evidence.rs",
+          "sha256": "c398e0f26bfd289266bba2653c2f7214c7de5159309c70650f5b4cf588a3e171"
+        }
+      ],
+      "fixture_payload_sha256": "8c97ed07a071aec5f78e9b9445031e77b34e1879902bc82248e6ad6efc7b3dbb"
+    }
   }
 }

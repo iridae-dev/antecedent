@@ -8,17 +8,74 @@
   "lag1_coefficient": 1.5,
   "lag2_coefficient": 0.75,
   "innovation_sd": 0.5,
-  "horizons": [1, 2],
-  "doses": [0.0, 1.0],
+  "horizons": [
+    1,
+    2
+  ],
+  "doses": [
+    0.0,
+    1.0
+  ],
   "mean_atol": 0.16,
-  "sequence_levels": [1.0, 2.0],
+  "sequence_levels": [
+    1.0,
+    2.0
+  ],
   "sequence_mean": 5.75,
   "sequence_atol": 0.2,
-  "observation_pairs": ["selected", "right_independent", "left_independent", "right_given_x", "left_given_x"],
+  "observation_pairs": [
+    "selected",
+    "right_independent",
+    "left_independent",
+    "right_given_x",
+    "left_given_x"
+  ],
   "model": "time-homogeneous Gaussian mechanisms; selection-indicator or censoring-bound trajectory independent of latent outcome trajectory conditional on fully observed conditioning trajectory, with distinct nuisance parameters and independent priors",
   "uncertainty": "observed-data Gibbs posterior; pointwise equal-tail bands, not pseudo-outcome complete-data bands",
   "oracle": {
     "kind": "closed_form",
-    "method": "stated lag-2 Gaussian mechanism: horizon means and the 5.75 sequence mean follow from its coefficients (README); the consuming Rust test generates the rows"
+    "method": "stated lag-2 Gaussian mechanism: horizon means and the 5.75 sequence mean follow from its coefficients (README); the consuming Rust test generates the rows",
+    "formula": "horizon 1: 2 + 1.5 d + 0.75 mean(X); horizon 2: 2 + 0.75 d + 1.5 mean(X) (the README form, whose lag-1 and lag-2 roles follow the unfolded design); sequence: 2 + 1.5*2 + 0.75*1.",
+    "generator": "conformance/bayesian/temporal_observed_response/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/temporal_observed_response/reference.py --check",
+    "environment_lock": "conformance/bayesian/temporal_observed_response/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "sequence_mean",
+      "the coefficients that give the horizon means (intercept, lag1_coefficient, lag2_coefficient)"
+    ],
+    "context_only_outputs": [
+      "seeds, row counts, draws and tolerances",
+      "the selection and censoring observation models, which only enter through ignorability",
+      "mean(X), standardized empirically in the test and zero in population"
+    ],
+    "independence_basis": "The generator evaluates the stated lag-2 Gaussian mean function at the stated doses and sequence with rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the stated mechanism.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Population-standardized horizon means for doses 0 and 1 and the 5.75 sequence mean of one lag-2 Gaussian mechanism.",
+      "independence_basis": "The generator evaluates the stated lag-2 Gaussian mean function at the stated doses and sequence with rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the stated mechanism.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The horizon means are derived with mean(X) = 0; the test's empirical mean(X) is added by the test itself. The observed-data sampler, ignorability and diagnostics are not examined. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/temporal_observed_response/reference.py",
+          "sha256": "c52409b59ab85fadf6d36228fb84ef495a311088d40c802042f99245e52d0027"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/temporal_observed_response/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_observed_bayesian.rs",
+          "sha256": "5a2b0046e6edd2de394e0b7d5f26cf49135f4164426466e7aa510c312d4be0fc"
+        }
+      ],
+      "fixture_payload_sha256": "17cffae63add29a4b9879fa28efdd706df490dee00190961604fcdcd6d9ac66f"
+    }
   }
 }

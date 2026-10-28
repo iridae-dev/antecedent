@@ -6,4 +6,4 @@ Bounded-window linear-Gaussian diagnostics under `CausalState` / `SuffStatStore:
 
 ## Expected summary
 
-Top-level keys: `beta0, beta1, expected_version_after_two_appends, n_rows, notes, oracle, stable_float_tol, window` (8 fields).
+Top-level keys: `beta0, beta1, evidence_kind, evidence_proposition, evidence_roles, evidence_source, expected_version_after_two_appends, limitations, n_rows, notes, oracle, stable_float_tol, window` (13 fields).

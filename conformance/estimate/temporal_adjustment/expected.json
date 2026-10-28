@@ -4,7 +4,48 @@
     "kind": "closed_form",
     "project": "closed-form lag-aligned OLS",
     "pin": "fixture-algorithm-v1",
-    "generation_location": "analytical artifact; no generator retained"
+    "formula": "slope of the exact least-squares fit of y_i on [1, t_{i-1}], rows 1..n-1; the coefficient is not 0.8 because the cosine term is not orthogonal to the lagged sine on the finite sample.",
+    "generator": "conformance/estimate/temporal_adjustment/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/temporal_adjustment/reference.py --check",
+    "environment_lock": "conformance/estimate/temporal_adjustment/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "reference.coefficient",
+      "acceptance.translation_invariance_atol (translation invariance of the slope)"
+    ],
+    "context_only_outputs": [
+      "intervention_delta",
+      "the data description strings (the series are rebuilt from them)",
+      "pin label"
+    ],
+    "independence_basis": "The generator rebuilds the stated sine/cosine series, aligns the lag and solves the least-squares problem exactly over rationals; it imports no Antecedent code and no statistics package. The shared object is the lag-alignment convention (outcome offset 0, treatment offset -1, first row dropped).",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "One lag-aligned simple regression on 239 rows.",
+      "independence_basis": "The generator rebuilds the stated sine/cosine series, aligns the lag and solves the least-squares problem exactly over rationals; it imports no Antecedent code and no statistics package. The shared object is the lag-alignment convention (outcome offset 0, treatment offset -1, first row dropped).",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "A least-squares coefficient on a fixed deterministic series, not a causal identification claim; the agreement is bounded by double-precision evaluation of sin and cos in the interpreter's math library (1e-15 here against the 2e-10 tolerance). No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/temporal_adjustment/reference.py",
+          "sha256": "252d3deaeaf0c797ec868df1cc97af19c12cd1f8e764efebfc3f91ac3d8afb9c"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/temporal_adjustment/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-estimate/src/temporal_adjustment.rs",
+          "sha256": "336e5bcf06ff409c56e2483ff8c69c7eb042d993668c803b2f0868ee0a0fb146"
+        }
+      ],
+      "fixture_payload_sha256": "ba7061746c7913883504a70e2181399aed45211b79b6aa8c524e8813a2c35b6d"
+    }
   },
   "data": {
     "n": 240,
@@ -18,5 +59,8 @@
     "coefficient": 0.7931593999012879,
     "intervention_delta": 1.0
   },
-  "acceptance": {"atol": 2e-10, "translation_invariance_atol": 2e-10}
+  "acceptance": {
+    "atol": 2e-10,
+    "translation_invariance_atol": 2e-10
+  }
 }

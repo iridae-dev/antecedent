@@ -90,6 +90,47 @@
   "oracle": {
     "kind": "closed_form",
     "method": "noise-free stated law: each completion's adjustment regression is exact on the sample, so the per-completion effects and their equal-weight envelope follow by arithmetic",
-    "note": "identified_pag.json is rebuilt independently by identified_pag_reference.py (NumPy, retained)"
+    "note": "identified_pag.json is rebuilt independently by identified_pag_reference.py (NumPy, retained)",
+    "formula": "ate = (2 + (2 + 0.5 Cov(z@-1,t@-1)/Var(t@-1))) / 2 over rows s = 1..799.",
+    "generator": "conformance/estimate/temporal_class_envelope/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/temporal_class_envelope/reference.py --check",
+    "environment_lock": "conformance/estimate/temporal_class_envelope/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "cpdag.pulse.ate"
+    ],
+    "context_only_outputs": [
+      "identified_pag.json and latent.json (checked by identified_pag_reference.py, not by this generator)",
+      "identification statuses and completion counts",
+      "pag.withdrawn_numeric_outputs (the same number, retained as withdrawn context)"
+    ],
+    "independence_basis": "The generator rebuilds the stated closed-form series and solves both least-squares problems exactly over rationals; it imports no Antecedent code and no statistics package. The shared object is the stated law and the equal-weight envelope convention.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "The CPDAG pulse average of the two completions on the 800-row series.",
+      "independence_basis": "The generator rebuilds the stated closed-form series and solves both least-squares problems exactly over rationals; it imports no Antecedent code and no statistics package. The shared object is the stated law and the equal-weight envelope convention.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Covers only the cpdag.pulse value; the identified multi-completion PAG series is covered separately by identified_pag_reference.py (NumPy). The equal-weight mixing is a declared convention. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/temporal_class_envelope/reference.py",
+          "sha256": "f868dbc6b7ba7d5001ad6d6c7d8f0b89e61aa3b89c2290bb1d931333a1be2fae"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/temporal_class_envelope/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs",
+          "sha256": "5bbd6c7b40fdfd89680900fc4f5232d45f3a10299fda53cdca1c05f2f8991422"
+        }
+      ],
+      "fixture_payload_sha256": "cd75777e19c93a0cf9a35ee88badbd6006e39a94db68136f9f5a35d4d9126522"
+    }
   }
 }

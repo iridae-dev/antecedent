@@ -1,7 +1,11 @@
 {
   "schema_version": 1,
   "case": "binary_frontdoor_functional",
-  "columns": ["t", "m", "y"],
+  "columns": [
+    "t",
+    "m",
+    "y"
+  ],
   "query": {
     "treatment": "t",
     "outcome": "y",
@@ -10,18 +14,72 @@
   },
   "graph": {
     "class": "Admg",
-    "directed_edges": [["t", "m"], ["m", "y"]],
-    "bidirected_edges": [["t", "y"]]
+    "directed_edges": [
+      [
+        "t",
+        "m"
+      ],
+      [
+        "m",
+        "y"
+      ]
+    ],
+    "bidirected_edges": [
+      [
+        "t",
+        "y"
+      ]
+    ]
   },
   "contingency_table": [
-    {"t": 0.0, "m": 0.0, "y": 0.0, "count": 504},
-    {"t": 0.0, "m": 0.0, "y": 1.0, "count": 56},
-    {"t": 0.0, "m": 1.0, "y": 0.0, "count": 56},
-    {"t": 0.0, "m": 1.0, "y": 1.0, "count": 84},
-    {"t": 1.0, "m": 0.0, "y": 0.0, "count": 30},
-    {"t": 1.0, "m": 0.0, "y": 1.0, "count": 30},
-    {"t": 1.0, "m": 1.0, "y": 0.0, "count": 24},
-    {"t": 1.0, "m": 1.0, "y": 1.0, "count": 216}
+    {
+      "t": 0.0,
+      "m": 0.0,
+      "y": 0.0,
+      "count": 504
+    },
+    {
+      "t": 0.0,
+      "m": 0.0,
+      "y": 1.0,
+      "count": 56
+    },
+    {
+      "t": 0.0,
+      "m": 1.0,
+      "y": 0.0,
+      "count": 56
+    },
+    {
+      "t": 0.0,
+      "m": 1.0,
+      "y": 1.0,
+      "count": 84
+    },
+    {
+      "t": 1.0,
+      "m": 0.0,
+      "y": 0.0,
+      "count": 30
+    },
+    {
+      "t": 1.0,
+      "m": 0.0,
+      "y": 1.0,
+      "count": 30
+    },
+    {
+      "t": 1.0,
+      "m": 1.0,
+      "y": 0.0,
+      "count": 24
+    },
+    {
+      "t": 1.0,
+      "m": 1.0,
+      "y": 1.0,
+      "count": 216
+    }
   ],
   "identification": {
     "identifier": "general.id",
@@ -35,6 +93,52 @@
   },
   "oracle": {
     "kind": "closed_form",
-    "method": "front-door formula evaluated by hand on the fully enumerated binary table (README); no random data"
+    "method": "front-door formula evaluated by hand on the fully enumerated binary table (README); no random data",
+    "formula": "ATE = sum_m [P(m | t=1) - P(m | t=0)] sum_t' P(t') P(Y=1 | t', m), on the enumerated table.",
+    "generator": "conformance/estimate/admg_frontdoor_functional/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/admg_frontdoor_functional/reference.py --check",
+    "environment_lock": "conformance/estimate/admg_frontdoor_functional/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "frequentist.expected_ate"
+    ],
+    "context_only_outputs": [
+      "identification status",
+      "estimator id and tolerance class",
+      "graph edge lists"
+    ],
+    "independence_basis": "The generator reads the eight declared cell counts and evaluates the front-door adjustment with rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the front-door formula itself, which the product also implements; a misreading common to both would not be detected.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "One enumerated binary front-door table (1000 rows) and the exact front-door average effect.",
+      "independence_basis": "The generator reads the eight declared cell counts and evaluates the front-door adjustment with rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the front-door formula itself, which the product also implements; a misreading common to both would not be detected.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The population front-door effect of the empirical table, not an SCM truth: the table need not come from a law for which front-door holds, so the value is the formula applied to the counts. No sampling variability or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/admg_frontdoor_functional/reference.py",
+          "sha256": "85242dcb01022363d884d3a8a9c3a266c78fbf18d89435b9dd92d1929c9c309f"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/admg_frontdoor_functional/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/admg_posterior_response.rs",
+          "sha256": "06750e165c3e17d61577155d6777ee8dc8ab008a45db050e273e84e42985218d"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/pag_admg_numeric_pins.rs",
+          "sha256": "34962a5e6794637e091ca5721d2432d4af8058caac7190bcd72d6e85f61603bc"
+        }
+      ],
+      "fixture_payload_sha256": "e14574359dfdba5a1f95e35a62a00caaa6775397f443bbdb440a5b20394b3a33"
+    }
   }
 }

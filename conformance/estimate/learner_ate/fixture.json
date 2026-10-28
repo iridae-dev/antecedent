@@ -12,7 +12,49 @@
   "absolute_bias_limit": 0.03,
   "oracle": {
     "kind": "closed_form",
-    "method": "stated DGP Y = 2T + Z + 0.5 epsilon: the population ATE is the coefficient 2"
+    "method": "stated DGP Y = 2T + Z + 0.5 epsilon: the population ATE is the coefficient 2",
+    "formula": "ATE = 2 (coefficient of T; do(T) cuts Z -> T and E[Z] enters both arms); observed contrast = 2 + E[Z|T=1] - E[Z|T=0] with Z ~ N(0,1), P(T=1|Z) = expit(-0.5 + Z).",
+    "generator": "conformance/estimate/learner_ate/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/learner_ate/reference.py --check",
+    "environment_lock": "conformance/estimate/learner_ate/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "ate",
+      "the point tolerance excludes the confounded observed contrast (the test asserts this on its sample)"
+    ],
+    "context_only_outputs": [
+      "replicates, seeds and coverage_acceptance (a calibration measurement, ignored in ordinary runs)",
+      "absolute_bias_limit",
+      "description text"
+    ],
+    "independence_basis": "The generator reads the stated DGP, takes the ATE as the structural coefficient and computes the confounded contrast by Simpson quadrature over the standard normal; it imports no Antecedent code and no statistics package. The shared object is the stated DGP.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "The population ATE and the population size of the confounded contrast for the stated DGP.",
+      "independence_basis": "The generator reads the stated DGP, takes the ATE as the structural coefficient and computes the confounded contrast by Simpson quadrature over the standard normal; it imports no Antecedent code and no statistics package. The shared object is the stated DGP.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The population contrast is not the sample contrast the test computes on 600 rows, so the exclusion is checked in population and on the sample by the test itself. Coverage and bias limits are calibration targets, not derived. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/learner_ate/reference.py",
+          "sha256": "cc23188a2421b306626554a306d9b32ad9d06feadfc985db152d47718ead96d0"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/learner_ate/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-estimate/src/dml.rs",
+          "sha256": "1010b2b3dd2c3fc3ec317bd1e823afdc74f5d1f2a7b34106beac752c85b26d62"
+        }
+      ],
+      "fixture_payload_sha256": "fbb555c43ac37e88957d3c68cd0fec40d40e23285929253aae59d2557b2eeb43"
+    }
   },
   "point_conformance_absolute_tolerance": 0.2,
   "point_conformance_note": "Single fixed n=600 scenario, population ATE=2. Absolute tolerance 0.2 must also exclude the confounded unadjusted arm contrast. This is a point conformance check, not the 200-replicate bias/coverage measurement."

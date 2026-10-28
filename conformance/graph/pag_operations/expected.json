@@ -1,10 +1,47 @@
 {
   "schema_version": 1,
-  "oracle": {"kind": "closed_form", "method": "endpoint algebra and ancestral-graph constraints", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "oracle": {
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
   "cases": [
-    {"id": "circle_arrow", "edge": "0o->1", "marks": ["circle", "arrow"]},
-    {"id": "circle_circle", "edge": "0o-o1", "marks": ["circle", "circle"]},
-    {"id": "directed_cycle_rejected", "input": ["0->1", "1->2"], "operation": "insert 2->0", "error": "cycle"},
-    {"id": "self_loop_rejected", "operation": "insert 0o-o0", "error": "invalid_endpoints"}
-  ]
+    {
+      "id": "circle_arrow",
+      "edge": "0o->1",
+      "marks": [
+        "circle",
+        "arrow"
+      ]
+    },
+    {
+      "id": "circle_circle",
+      "edge": "0o-o1",
+      "marks": [
+        "circle",
+        "circle"
+      ]
+    },
+    {
+      "id": "directed_cycle_rejected",
+      "input": [
+        "0->1",
+        "1->2"
+      ],
+      "operation": "insert 2->0",
+      "error": "cycle"
+    },
+    {
+      "id": "self_loop_rejected",
+      "operation": "insert 0o-o0",
+      "error": "invalid_endpoints"
+    }
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_source": "crates/antecedent-graph/tests/oracle_closure.rs::pag_endpoint_and_definite_status_oracles",
+  "evidence_proposition": "Static PAG endpoint marks are stored as declared (circle-arrow, circle-circle), a directed cycle is refused as a cycle and a self-loop is refused as invalid endpoints.",
+  "limitations": "Endpoint bookkeeping and refusal codes of the graph container; the original clean-room harness was not retained and there is no numeric truth. TemporalPag-specific behaviour is not covered by this fixture."
 }

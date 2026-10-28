@@ -30,4 +30,4 @@ puts at least half its mass on.
 
 ## Expected summary
 
-Top-level keys: `chain_fixture, collider_fixture, dbn_lag1_fixture, engines, exact_max_nodes, oracle, reference, score_family, tolerance_class` (9 fields).
+Top-level keys: `chain_fixture, collider_fixture, dbn_lag1_fixture, engines, evidence_kind, evidence_proposition, evidence_roles, evidence_source, exact_max_nodes, limitations, oracle, reference, score_family, tolerance_class` (14 fields).

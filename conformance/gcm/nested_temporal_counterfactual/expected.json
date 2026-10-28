@@ -4,7 +4,51 @@
     "kind": "closed_form",
     "project": "clean-room structural-equation substitution",
     "pin": "fixture-algorithm-v1",
-    "generation_location": "analytical artifact; no generator retained"
+    "formula": "nested = mean(0.5 + 1.5*0.05 i + 0.01 i); do(t=1) = mean(0.5 + 1.5*(0.7 + 0.05 i) + 0.01 i); do(t=0) = mean(0.085 i).",
+    "generator": "conformance/gcm/nested_temporal_counterfactual/reference.py",
+    "command": "uv run --frozen --script conformance/gcm/nested_temporal_counterfactual/reference.py --check",
+    "environment_lock": "conformance/gcm/nested_temporal_counterfactual/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "reference.nested_y_t1_m_t0_mean",
+      "reference.pure_do_t1_mean",
+      "reference.difference",
+      "reference.trajectory_do_t0_mean",
+      "reference.trajectory_do_t1_mean"
+    ],
+    "context_only_outputs": [
+      "treatment alternation (does not enter the do-means)",
+      "acceptance.shared_noise flag",
+      "invalid-schedule structured error"
+    ],
+    "independence_basis": "The generator evaluates the stated deterministic structural equations by substitution with rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the stated model.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "One 40-row deterministic mediation model and four counterfactual means.",
+      "independence_basis": "The generator evaluates the stated deterministic structural equations by substitution with rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the stated model.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Deterministic equations with no noise; the shared-noise abduction path of the engine is not exercised by the arithmetic. The structured-error case is context. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/gcm/nested_temporal_counterfactual/reference.py",
+          "sha256": "54f4edf1218661972e56561ff8ac6064e53525700c9ef3037b2d9c0fa8bd5821"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/gcm/nested_temporal_counterfactual/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-counterfactual/src/engine.rs",
+          "sha256": "920cdab1496c1aedd7a0adb6950e0353b63f2f36dba564b1f7545c5d958e1c62"
+        }
+      ],
+      "fixture_payload_sha256": "12a149e5a317291f4aa24c10c1552f057ee386b66d0b844db7c223a789532bb5"
+    }
   },
   "model": {
     "rows": 40,
@@ -19,5 +63,9 @@
     "trajectory_do_t0_mean": 1.6575,
     "trajectory_do_t1_mean": 3.2075
   },
-  "acceptance": {"atol": 2e-12, "shared_noise": true, "invalid_schedule": "structured error"}
+  "acceptance": {
+    "atol": 2e-12,
+    "shared_noise": true,
+    "invalid_schedule": "structured error"
+  }
 }

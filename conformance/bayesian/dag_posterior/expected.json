@@ -11,18 +11,39 @@
   "tolerance_class": "SkeletonMass",
   "chain_fixture": {
     "n_vars": 3,
-    "expect_skeleton": [["a", "b"], ["b", "c"]],
+    "expect_skeleton": [
+      [
+        "a",
+        "b"
+      ],
+      [
+        "b",
+        "c"
+      ]
+    ],
     "min_undirected_mass": 0.999
   },
   "collider_fixture": {
     "n_vars": 3,
-    "expect_oriented": [["a", "c"], ["b", "c"]],
+    "expect_oriented": [
+      [
+        "a",
+        "c"
+      ],
+      [
+        "b",
+        "c"
+      ]
+    ],
     "min_directed_mass": 0.8
   },
   "dbn_lag1_fixture": {
     "n_vars": 2,
     "max_lag": 1,
-    "expect_lag_edge": ["x", "y"],
+    "expect_lag_edge": [
+      "x",
+      "y"
+    ],
     "min_lag_mass": 0.999
   },
   "reference": {
@@ -31,7 +52,15 @@
     "notes": "Internal known truth: every engine runs on a known SEM defined in the consuming test and must meet these mass thresholds; no external oracle package"
   },
   "oracle": {
-    "kind": "closed_form",
-    "method": "known SEMs (chain, collider, lag-1 series) defined in crates/antecedent-discovery/tests/dag_posterior_conformance.rs: the true structure is known by construction and the fixture states minimum posterior mass on it, set just below the exact BIC posterior mass (chain skeleton and DBN lag edge 1.0 to round-off, collider arrows 0.876, from an independent 25-DAG enumeration in the test); no external package"
-  }
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
+  },
+  "evidence_kind": "implementation_exists",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_source": "crates/antecedent-discovery/tests/dag_posterior_conformance.rs::dag_posterior_engines_put_fixture_mass_on_the_true_structure",
+  "evidence_proposition": "On known chain, collider and lag-1 series, every graph-posterior engine puts at least the declared minimum posterior mass on the generating skeleton, orientation or lag edge.",
+  "limitations": "The minimum masses are set just below the exact Gaussian-BIC posterior mass that the consuming test computes by its own 25-DAG enumeration, so they are thresholds tied to the implementation family rather than an independently derived posterior; only the generating structure is known by construction. No posterior calibration and no upstream-package comparison."
 }

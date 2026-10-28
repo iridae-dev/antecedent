@@ -3,7 +3,54 @@
   "case": "temporal_class_mediation_truth",
   "oracle": {
     "kind": "closed_form",
-    "method": "Path-product rule of the linear temporal structural equation model m_i = a t_{i-1} + 0.6 z_{i-1} + 0.15 e_i, y_i = 1 + c t_{i-1} + b m_i + 5 z_{i-1} with a = 0.8, b = 0.55, c = 0.25 (t_i = z_i + a period-4 +-1 pattern, z_i a period-4 +-1 confounder, e_i = (i mod 5) - 2). At horizon 1 (treatment at origin -1, outcome at 0) the natural indirect effect through the mediator is a*b, the natural direct effect is c, and the total effect is c + a*b: intervening on t@-1 changes m@0 by a per unit and y@0 by c directly plus b per unit of m@0. The confounder z@-1 and the mediator noise shift levels only, never these contrasts, so the values are exact structural quantities of the equations, independent of any estimator."
+    "method": "Path-product rule of the linear temporal structural equation model m_i = a t_{i-1} + 0.6 z_{i-1} + 0.15 e_i, y_i = 1 + c t_{i-1} + b m_i + 5 z_{i-1} with a = 0.8, b = 0.55, c = 0.25 (t_i = z_i + a period-4 +-1 pattern, z_i a period-4 +-1 confounder, e_i = (i mod 5) - 2). At horizon 1 (treatment at origin -1, outcome at 0) the natural indirect effect through the mediator is a*b, the natural direct effect is c, and the total effect is c + a*b: intervening on t@-1 changes m@0 by a per unit and y@0 by c directly plus b per unit of m@0. The confounder z@-1 and the mediator noise shift levels only, never these contrasts, so the values are exact structural quantities of the equations, independent of any estimator.",
+    "formula": "mediated = a*b = 0.44, direct = c = 0.25, total = c + a*b = 0.69, constant over rows.",
+    "generator": "conformance/estimate/temporal_class_mediation_truth/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/temporal_class_mediation_truth/reference.py --check",
+    "environment_lock": "conformance/estimate/temporal_class_mediation_truth/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "horizon_1.mediated",
+      "horizon_1.direct",
+      "horizon_1.total"
+    ],
+    "context_only_outputs": [
+      "structural coefficients (inputs, re-used by the derivation)",
+      "tolerance.frequentist and tolerance.bayesian"
+    ],
+    "independence_basis": "The generator evaluates the stated structural equations by substitution under nested interventions on 40 rows and checks that each contrast is constant across rows; it imports no Antecedent code and no statistics package. The shared object is the stated linear equations; the sign pattern and noise are placeholders because the contrasts do not depend on them.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Horizon-1 natural direct, indirect and total effects of a linear temporal mediation model.",
+      "independence_basis": "The generator evaluates the stated structural equations by substitution under nested interventions on 40 rows and checks that each contrast is constant across rows; it imports no Antecedent code and no statistics package. The shared object is the stated linear equations; the sign pattern and noise are placeholders because the contrasts do not depend on them.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Structural quantities of the stated equations at horizon 1 only; nothing is derived about what an estimator recovers from the finite series, and the Bayesian tolerance is a loose band. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/temporal_class_mediation_truth/reference.py",
+          "sha256": "9854d5eb3787c0ba7bd0aa113b61481a1cb81d1f7fe189f473d1474b03d434c4"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/temporal_class_mediation_truth/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs",
+          "sha256": "c05e3698d8eb9758471140516f50d7789d2a8a65707784e3f31f1064e3bdc010"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_mediation_horizons.rs",
+          "sha256": "f3a9c7cab0ef978b4038db35cfbcab460740f6c09cd3f7907169ddcfe2482bbf"
+        }
+      ],
+      "fixture_payload_sha256": "6d69ee4f7f29fbcc1ce9dc7cf08e860b21d810167b55e79aee059c524c3e4667"
+    }
   },
   "structural": {
     "a": 0.8,
@@ -16,7 +63,7 @@
     "total": 0.69
   },
   "tolerance": {
-    "frequentist": 1e-6,
+    "frequentist": 1e-06,
     "bayesian": 0.08
   }
 }

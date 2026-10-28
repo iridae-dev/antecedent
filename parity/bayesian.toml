@@ -138,7 +138,7 @@ notes = "antecedent-model MechanismRegistry + CompiledCausalModel"
 [[capabilities]]
 id = "bayes.discovery.dag_posterior"
 status = "done"
-evidence_kind = "internal_known_truth"
+evidence_kind = "implementation_exists"
 known_truth_fixture = "conformance/bayesian/dag_posterior"
 evidence_test = "crates/antecedent-discovery/tests/dag_posterior_conformance.rs"
 evidence_assertion = "dag_posterior_engines_put_fixture_mass_on_the_true_structure"

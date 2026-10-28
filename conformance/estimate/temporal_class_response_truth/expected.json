@@ -4,7 +4,55 @@
   "oracle": {
     "kind": "closed_form",
     "method": "Closed form of the structural equations, evaluated by plain arithmetic over the sample rows, not by the estimator's design or lag alignment. Law (n = 300, i = 0..n-1): r_i = sin(0.29 i); z_i = 0.4 r_i + cos(0.13 i) + 0.3 sin(1.7 i); t_i = 0.3 + 0.5 r_i + 0.2 z_i + 0.4 cos(2.3 i); y_i = 1 + 2 t_{i-1} + 0.6 z_{i-1} + w_i with w_i = 0.1 sin(0.77 i). Horizon 1, pulse at origin -1: outcome rows s = 1..n-1 with treatment t_{s-1}. Averages over those rows: mean_t, mean_z, mean_w. The z-adjusting completion identifies E[y | do(t@-1 = x)] = 1 + 2 x + 0.6 mean_z + mean_w (a shift by d evaluates x = mean_t + d). The completion that does not adjust for z (z treated as a mediator) identifies the association E[y | t@-1 = x] = mean_y + slope (x - mean_t) with mean_y = 1 + 2 mean_t + 0.6 mean_z + mean_w and slope = 2 + (0.6 cov_tz + cov_tw) / var_t, the omitted-variable-bias formula from the same equations (covariances over the same rows).",
-    "generator": "hand-derived formulas evaluated with python math (no numpy solver) and cross-checked against a numpy least-squares fit: the z-as-mediator values agree to 1e-15, the z-adjusting completion's fit differs from its structural value by at most 1.1e-3 because the deterministic wiggle w is only asymptotically orthogonal to (t, z)"
+    "generator": "conformance/estimate/temporal_class_response_truth/reference.py",
+    "origin_note": "hand-derived formulas evaluated with python math (no numpy solver) and cross-checked against a numpy least-squares fit: the z-as-mediator values agree to 1e-15, the z-adjusting completion's fit differs from its structural value by at most 1.1e-3 because the deterministic wiggle w is only asymptotically orthogonal to (t, z)",
+    "formula": "adjusting: 1 + 2x + 0.6 mean_z + mean_w; z as mediator: mean_y + slope (x - mean_t), slope = 2 + (0.6 cov_tz + cov_tw)/var_t, over rows s = 1..n-1.",
+    "command": "uv run --frozen --script conformance/estimate/temporal_class_response_truth/reference.py --check",
+    "environment_lock": "conformance/estimate/temporal_class_response_truth/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "moments.*",
+      "horizon_1.adjusting_z.curve, set and shift",
+      "horizon_1.z_as_mediator.curve, set and shift"
+    ],
+    "context_only_outputs": [
+      "tolerance.adjusting_z and tolerance.z_as_mediator",
+      "the cell labels (curve, set, shift)",
+      "the origin note about the earlier NumPy cross-check"
+    ],
+    "independence_basis": "The generator rebuilds the stated trigonometric law, forms the lag-aligned rows and evaluates the structural level and the omitted-variable slope exactly over rationals; it imports no Antecedent code and no statistics package. The shared object is the stated law and the omitted-variable-bias formula.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Structural moments and the two completions' response levels (curve, set, shift) at horizon 1.",
+      "independence_basis": "The generator rebuilds the stated trigonometric law, forms the lag-aligned rows and evaluates the structural level and the omitted-variable slope exactly over rationals; it imports no Antecedent code and no statistics package. The shared object is the stated law and the omitted-variable-bias formula.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The z-adjusting value is a structural level; an estimator's fit differs from it by up to the 0.005 tolerance because the deterministic term is only asymptotically orthogonal to the regressors. Law-level truth, no uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/temporal_class_response_truth/reference.py",
+          "sha256": "38da9091e1e684d60eae3114dec4feee2d687a8f74ccd918aa862d780478999e"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/temporal_class_response_truth/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_class_bayesian_envelope.rs",
+          "sha256": "e7ab18dec2aa74fe4edd80ea92e971f899464990daeb413736ce547da4072e3f"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs",
+          "sha256": "5bbd6c7b40fdfd89680900fc4f5232d45f3a10299fda53cdca1c05f2f8991422"
+        }
+      ],
+      "fixture_payload_sha256": "2dd31961529955a04775c235a79f693a37b3483c518203e03768967da7cee443"
+    }
   },
   "n": 300,
   "horizon": 1,
@@ -25,18 +73,32 @@
       "shift": "additive shift 0.5 of the lag-aligned treatment mean"
     },
     "adjusting_z": {
-      "curve": [1.0178581780989517, 3.017858178098952],
-      "set": [3.017858178098952],
-      "shift": [2.6416773698578955]
+      "curve": [
+        1.0178581780989517,
+        3.017858178098952
+      ],
+      "set": [
+        3.017858178098952
+      ],
+      "shift": [
+        2.6416773698578955
+      ]
     },
     "z_as_mediator": {
-      "curve": [0.8550151905823079, 3.377099120246241],
-      "set": [3.377099120246241],
-      "shift": [2.902719334689862]
+      "curve": [
+        0.8550151905823079,
+        3.377099120246241
+      ],
+      "set": [
+        3.377099120246241
+      ],
+      "shift": [
+        2.902719334689862
+      ]
     }
   },
   "tolerance": {
     "adjusting_z": 0.005,
-    "z_as_mediator": 1e-6
+    "z_as_mediator": 1e-06
   }
 }

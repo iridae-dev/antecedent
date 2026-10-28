@@ -2,7 +2,48 @@
   "schema_version": 1,
   "oracle": {
     "kind": "closed_form",
-    "description": "For two trial rows with equal selection and treatment probabilities, normalized Dirichlet(1,1) row mass U is Uniform(0,1); the transported effect draw is 8U-2."
+    "description": "For two trial rows with equal selection and treatment probabilities, normalized Dirichlet(1,1) row mass U is Uniform(0,1); the transported effect draw is 8U-2.",
+    "formula": "U ~ Beta(1,1); effect draw = 8 U - 2; mean = 8/2 - 2 = 2; variance = 64 (1/3 - 1/4) = 16/3.",
+    "generator": "conformance/estimate/bayesian_trial_transport/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/bayesian_trial_transport/reference.py --check",
+    "environment_lock": "conformance/estimate/bayesian_trial_transport/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "expected_mean",
+      "expected_variance"
+    ],
+    "context_only_outputs": [
+      "mean_tolerance and variance_tolerance (Monte Carlo bands)",
+      "the two-row trial design, which lives in the test"
+    ],
+    "independence_basis": "The generator uses only the Beta(1,1) moments and the linear map 8U - 2 stated in the fixture; it imports no Antecedent code and no statistics package. The shared object is the stated map from row mass to the effect draw.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Mean and variance of a linear function of a uniform variable.",
+      "independence_basis": "The generator uses only the Beta(1,1) moments and the linear map 8U - 2 stated in the fixture; it imports no Antecedent code and no statistics package. The shared object is the stated map from row mass to the effect draw.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Moments of the stated draw law only; the claim that two equal-probability rows give a uniform row mass and the map 8U - 2 are taken from the fixture description and the test design. The Monte Carlo bands are not derived. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/bayesian_trial_transport/reference.py",
+          "sha256": "c40d02ff0e018f590ee7a0b5ab602ec0d0c5704ca587fa4940cedd1e3859460b"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/bayesian_trial_transport/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian_trial_transport.rs",
+          "sha256": "62f52fc3121e403e594c2b69e35924affeff28b25cf762f53cb582c1aaf1d98c"
+        }
+      ],
+      "fixture_payload_sha256": "14e4b67a58414c093d7e5e294415bcc988fde41d7c5c3a0d2bab70fad56b3ff6"
+    }
   },
   "expected_mean": 2.0,
   "expected_variance": 5.333333333333333,

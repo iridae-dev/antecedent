@@ -3,17 +3,77 @@
   "oracle": {
     "kind": "closed_form",
     "project": "numeric identification cases missing from the transport sweeps and mag_visibility_id status pins",
-    "generator": "hand-derived binary SCMs; interventional means are truncated-factorization truths on the named graphs, not package dumps"
+    "generator": "conformance/identify/numeric_identification_cases/reference.py",
+    "origin_note": "hand-derived binary SCMs; interventional means are truncated-factorization truths on the named graphs, not package dumps",
+    "formula": "Interventional means by truncated factorization of each binary SCM; identifying formulas (back-door sum, napkin ratio, adjustment over {Q,C}) evaluated on the observational joint equal them.",
+    "command": "uv run --frozen --script conformance/identify/numeric_identification_cases/reference.py --check",
+    "environment_lock": "conformance/identify/numeric_identification_cases/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "treatment_with_observed_parent.expected_ate and parent_free_expected_ate",
+      "napkin.expected_do_y1 and expected_ate",
+      "discriminating_path_visibility.expected_do_y1 and expected_ate"
+    ],
+    "context_only_outputs": [
+      "identification status labels, line sequences and method names",
+      "witness-free graph and its not_identified status",
+      "graph edge lists"
+    ],
+    "independence_basis": "The generator enumerates each stated binary SCM exactly over rationals, computes the interventional means by cutting the treatment mechanism, and evaluates the identifying formula on the marginal observational joint; it imports no Antecedent code and no statistics package. The shared object is the stated conditional probability tables.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Three binary SCMs: back-door with an observed treatment parent, the napkin graph, and a MAG whose treatment edge is visible through a discriminating path.",
+      "independence_basis": "The generator enumerates each stated binary SCM exactly over rationals, computes the interventional means by cutting the treatment mechanism, and evaluates the identifying formula on the marginal observational joint; it imports no Antecedent code and no statistics package. The shared object is the stated conditional probability tables.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Numeric truths and the agreement of the standard identifying formulas with them; identification status (identified or not), the rule sequence and the graph classes are not derived. Exact finite tables, no uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/identify/numeric_identification_cases/reference.py",
+          "sha256": "68d07607ac00255c0c4bfdfc763906ab2c0062cb282780ce19cc384e5785b752"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/identify/numeric_identification_cases/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-identify/tests/numeric_identification_cases.rs",
+          "sha256": "e4e4df5bbc972a0379cf083d27931142445b51821642600900c60d6b2f701486"
+        }
+      ],
+      "fixture_payload_sha256": "92993992508efc7b0e1069073c13a6482f36cfb915464544a9f583013736989e"
+    }
   },
   "cases": [
     {
       "id": "treatment_with_observed_parent",
-      "nodes": ["Z", "X", "Y"],
-      "edges": ["Z->X", "X->Y", "Z->Y"],
-      "treatments": ["X"],
-      "outcomes": ["Y"],
-      "parent_free_nodes": ["X", "Y"],
-      "parent_free_edges": ["X->Y"],
+      "nodes": [
+        "Z",
+        "X",
+        "Y"
+      ],
+      "edges": [
+        "Z->X",
+        "X->Y",
+        "Z->Y"
+      ],
+      "treatments": [
+        "X"
+      ],
+      "outcomes": [
+        "Y"
+      ],
+      "parent_free_nodes": [
+        "X",
+        "Y"
+      ],
+      "parent_free_edges": [
+        "X->Y"
+      ],
       "status": "identified",
       "scm": {
         "P(Z=1)": 0.35,
@@ -31,36 +91,84 @@
     },
     {
       "id": "napkin",
-      "nodes": ["W", "Z", "X", "Y"],
-      "edges": ["W->Z", "Z->X", "X->Y", "W<->X", "W<->Y"],
-      "treatments": ["X"],
-      "outcomes": ["Y"],
+      "nodes": [
+        "W",
+        "Z",
+        "X",
+        "Y"
+      ],
+      "edges": [
+        "W->Z",
+        "Z->X",
+        "X->Y",
+        "W<->X",
+        "W<->Y"
+      ],
+      "treatments": [
+        "X"
+      ],
+      "outcomes": [
+        "Y"
+      ],
       "status": "identified",
-      "lines": ["line3", "line7", "line2", "line6"],
+      "lines": [
+        "line3",
+        "line7",
+        "line2",
+        "line6"
+      ],
       "closed_form": "sum_w P(x,y|z,w) P(w) / sum_w P(x|z,w) P(w), for any z",
       "scm": {
-        "latent_p": [0.35, 0.7],
+        "latent_p": [
+          0.35,
+          0.7
+        ],
         "P(W=1|u1,u2)": "0.2 + 0.3 u1 + 0.25 u2",
         "P(Z=1|W)": "0.3 + 0.45 W",
         "P(X=1|Z,u1)": "0.15 + 0.5 Z + 0.2 u1",
         "P(Y=1|X,u2)": "0.1 + 0.35 X + 0.4 u2"
       },
-      "expected_do_y1": [0.38, 0.73],
+      "expected_do_y1": [
+        0.38,
+        0.73
+      ],
       "expected_ate": 0.35,
       "reason": "line 7 → 2 → 6 napkin; free in z; ATE equals the structural coefficient of X because U2 is exogenous under do(X)"
     },
     {
       "id": "discriminating_path_visibility",
-      "nodes": ["A", "Q", "C", "T", "Y"],
-      "edges": ["A->Q", "Q<->C", "C<->T", "T->Y", "Q->Y", "C->Y"],
+      "nodes": [
+        "A",
+        "Q",
+        "C",
+        "T",
+        "Y"
+      ],
+      "edges": [
+        "A->Q",
+        "Q<->C",
+        "C<->T",
+        "T->Y",
+        "Q->Y",
+        "C->Y"
+      ],
       "generating_dag": "A -> Q <- L1 -> C <- L2 -> T, Q -> Y, C -> Y, T -> Y",
-      "treatments": ["T"],
-      "outcomes": ["Y"],
+      "treatments": [
+        "T"
+      ],
+      "outcomes": [
+        "Y"
+      ],
       "status": "identified",
       "method": "generalized.adjustment",
       "identified_weight": 1,
       "unidentified_weight": 0,
-      "visibility_path": ["A", "Q", "C", "T"],
+      "visibility_path": [
+        "A",
+        "Q",
+        "C",
+        "T"
+      ],
       "scm": {
         "P(A=1)": 0.4,
         "P(L1=1)": 0.4,
@@ -70,10 +178,24 @@
         "P(T=1|L2)": "0.25 + 0.4 L2",
         "P(Y=1|Q,C,T)": "0.05 + 0.2 Q + 0.25 C + 0.35 T"
       },
-      "expected_do_y1": [0.242375, 0.592375],
+      "expected_do_y1": [
+        0.242375,
+        0.592375
+      ],
       "expected_ate": 0.35,
-      "without_witness_nodes": ["Q", "C", "T", "Y"],
-      "without_witness_edges": ["Q<->C", "C<->T", "T->Y", "Q->Y", "C->Y"],
+      "without_witness_nodes": [
+        "Q",
+        "C",
+        "T",
+        "Y"
+      ],
+      "without_witness_edges": [
+        "Q<->C",
+        "C<->T",
+        "T->Y",
+        "Q->Y",
+        "C->Y"
+      ],
       "without_witness_status": "not_identified",
       "reason": "T->Y is invisible until the discriminating collider path A->Q<->C<->T with Q,C parents of Y; adjustment then identifies over {Q,C}"
     }

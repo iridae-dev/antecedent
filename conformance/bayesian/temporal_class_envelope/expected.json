@@ -1,7 +1,11 @@
 {
   "schema_version": 1,
   "case": "temporal_class_envelope_bayesian",
-  "columns": ["t", "y", "z"],
+  "columns": [
+    "t",
+    "y",
+    "z"
+  ],
   "n": 800,
   "n_draws": 64,
   "seed": 7,
@@ -14,10 +18,33 @@
     "active_level": 1.0,
     "control_level": 0.0
   },
-  "class_prior_ordered": [0.3, 0.7],
+  "class_prior_ordered": [
+    0.3,
+    0.7
+  ],
   "cpdag": {
-    "directed": [["z", 1, "y", 0], ["t", 1, "y", 0]],
-    "undirected": [["z", 1, "t", 1]],
+    "directed": [
+      [
+        "z",
+        1,
+        "y",
+        0
+      ],
+      [
+        "t",
+        1,
+        "y",
+        0
+      ]
+    ],
+    "undirected": [
+      [
+        "z",
+        1,
+        "t",
+        1
+      ]
+    ],
     "identification": {
       "identifier": "generalized.adjustment",
       "status": "PartiallyIdentified",
@@ -49,13 +76,22 @@
   },
   "temporal_pag_mixed_identification": {
     "law": "r_i = sin(0.29 i); z_i = 0.4 r_i + cos(0.13 i); t_i = 0.3 + 0.5 r_i + 0.2 z_i; y_i = 1 + 2 t_{i-1} + 0.6 z_{i-1}",
-    "columns": ["t", "y", "z", "r"],
+    "columns": [
+      "t",
+      "y",
+      "z",
+      "r"
+    ],
     "n": 400,
     "seed": 13,
     "pag": "r@-1 -> {z, t}@-1, z@-1 o-o t@-1, {z, t}@-1 -> y@0",
     "completion_count": 3,
     "unidentified_completions": 1,
-    "class_prior_ordered": [0.4, 0.3, 0.3],
+    "class_prior_ordered": [
+      0.4,
+      0.3,
+      0.3
+    ],
     "pulse_effect": 2.0,
     "sustained_single_step_effect": 2.0,
     "identified_mass": 0.7,
@@ -65,13 +101,62 @@
   },
   "multi_step": {
     "law": "y = 1 + 2 t_{i-1} + 3 t_{i-2}",
-    "window": [-2, -1],
+    "window": [
+      -2,
+      -1
+    ],
     "last_step_effect": 2.0,
     "full_window_effect": 5.0,
     "absolute_tolerance": 0.35
   },
   "oracle": {
     "kind": "closed_form",
-    "method": "noise-free stated law: each completion's adjustment regression is exact on the sample, so the per-completion and mixture effects follow by arithmetic (see `derivation`)"
+    "method": "noise-free stated law: each completion's adjustment regression is exact on the sample, so the per-completion and mixture effects follow by arithmetic (see `derivation`)",
+    "formula": "adjusted = 2; unadjusted = 2 + 0.5 Cov(z@-1, t@-1)/Var(t@-1) (exact least squares on the 800-row series); mixture = 0.7*2 + 0.3*unadjusted; full window = 2 + 3.",
+    "generator": "conformance/bayesian/temporal_class_envelope/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/temporal_class_envelope/reference.py --check",
+    "environment_lock": "conformance/bayesian/temporal_class_envelope/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "assertions.with_class_prior.pulse_effect_by_completion",
+      "assertions.with_class_prior.pulse_effect",
+      "multi_step.last_step_effect",
+      "multi_step.full_window_effect",
+      "temporal_pag_mixed_identification effects and masses"
+    ],
+    "context_only_outputs": [
+      "CPDAG structure and completion count",
+      "weight-basis and diagnostic labels",
+      "which PAG completion is unidentified (the mass 0.3 is taken from the declared prior)",
+      "tolerances"
+    ],
+    "independence_basis": "The generator rebuilds the stated closed-form series, forms the lag-aligned design rows and solves the two least-squares problems exactly over rationals; it imports no Antecedent code and no statistics package. The shared object is the stated law.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Per-completion and class-prior-mixture pulse effects on a noise-free series, the multi-step window sums, and the PAG mixed-identification arithmetic.",
+      "independence_basis": "The generator rebuilds the stated closed-form series, forms the lag-aligned design rows and solves the two least-squares problems exactly over rationals; it imports no Antecedent code and no statistics package. The shared object is the stated law.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The z alternation is assumed to start at 0 (the 4-decimal value matches only that phase). The PAG identified/unidentified split and the identification statuses are not derived. Noise-free law; no uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/temporal_class_envelope/reference.py",
+          "sha256": "d34f6783b9a14d35a6d7fb12425a9801f565a197f311940795e4aa6502f204c8"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/temporal_class_envelope/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_class_bayesian_envelope.rs",
+          "sha256": "e7ab18dec2aa74fe4edd80ea92e971f899464990daeb413736ce547da4072e3f"
+        }
+      ],
+      "fixture_payload_sha256": "fd662338bbefbdc83289407e90c7c7e516d0f030608b245b02dbb625d8d9baf3"
+    }
   }
 }

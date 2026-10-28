@@ -14,7 +14,8 @@
     "available": false,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false,
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "generator_retained": false,
     "note": "iv.regression_discontinuity failed: float() argument must be a string or a real number, not 'NoneType'"
   },
   "se_reference": {
@@ -131,6 +132,51 @@
   "oracle": {
     "kind": "closed_form",
     "method": "true_effect is the constant jump of the clean-room SCM generated inline by crates/antecedent/tests/estimate_conformance.rs",
-    "note": "se_reference comes from the retained dependency-free reference.py beside this file; the recorded DoWhy 0.14 run failed (reference.available = false) and is not compared"
+    "note": "se_reference comes from the retained dependency-free reference.py beside this file; the recorded DoWhy 0.14 run failed (reference.available = false) and is not compared",
+    "formula": "beta = (X'X)^-1 X'y on the window rows; se_hc1 = sqrt(n/(n-p) [(X'X)^-1 X' diag(e^2) X (X'X)^-1]_11); se_homoskedastic = sqrt(e'e/(n-p) [(X'X)^-1]_11); true_effect is the structural jump coefficient 3.",
+    "generator": "conformance/estimate/rd_sharp/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/rd_sharp/reference.py --check",
+    "environment_lock": "conformance/estimate/rd_sharp/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "true_effect as the structural jump of the test SCM",
+      "se_reference.expected.jump",
+      "se_reference.expected.se_hc1",
+      "se_reference.expected.se_homoskedastic",
+      "se_reference.expected.window_rows"
+    ],
+    "context_only_outputs": [
+      "identifier and estimator ids",
+      "the recorded DoWhy 0.14 run and generation harness (failed or deleted, not compared)",
+      "notes text"
+    ],
+    "independence_basis": "The generator rebuilds the frozen deterministic design and solves the local-linear regression and both variance formulas with exact rational linear algebra on the double-precision rows; it imports no Antecedent code, no NumPy and no statistics package. The shared object is the textbook sandwich and homoskedastic formulas, which the product also implements; a misreading common to both would not be detected.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "The structural jump of the clean-room SCM and the local-linear jump with HC1 and homoskedastic standard errors on one frozen 48-row design (36 in the window).",
+      "independence_basis": "The generator rebuilds the frozen deterministic design and solves the local-linear regression and both variance formulas with exact rational linear algebra on the double-precision rows; it imports no Antecedent code, no NumPy and no statistics package. The shared object is the textbook sandwich and homoskedastic formulas, which the product also implements; a misreading common to both would not be detected.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The seeded Rust SCM that supports the 0.5 point band is not re-run: true_effect is the structural coefficient only. One design, no coverage or calibration; the failed DoWhy run in the reference block is not an oracle.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/rd_sharp/reference.py",
+          "sha256": "fcde2033cead506fd68a3da173aa25c87badab08cbd7ec49ec3cdc7bd14f8ac4"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/rd_sharp/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/estimate_conformance.rs",
+          "sha256": "ee32a186b9dda64627ff43827387eb90ffc1ef795220675863b5c54c129aabf4"
+        }
+      ],
+      "fixture_payload_sha256": "7382d37635568da68b0b4851a17f6428230b05318c2237ffdf992b1a2df96287"
+    }
   }
 }

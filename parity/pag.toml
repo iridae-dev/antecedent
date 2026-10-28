@@ -15,11 +15,11 @@ notes = "Admg + districts"
 [[capabilities]]
 id = "pag.graph.pag_temporal"
 status = "done"
-evidence_kind = "internal_known_truth"
+evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-graph/tests/oracle_closure.rs"
 evidence_assertion = "pag_endpoint_and_definite_status_oracles"
 known_truth_fixture = "conformance/graph/pag_operations"
-limitations = "Named fixture test exercises static Pag endpoint marks, definite-status separation and cycle refusal; TemporalPag-specific behaviour is not covered by this test."
+limitations = "Software check of static Pag endpoint marks, definite-status separation and cycle refusal; there is no numeric truth and no external oracle, and TemporalPag-specific behaviour is not covered by this test."
 notes = "Pag + TemporalPag"
 
 [[capabilities]]
@@ -63,10 +63,11 @@ notes = "CpdagCompletionSampler + is_mec_member (acyclic, no new unshielded coll
 [[capabilities]]
 id = "pag.identify.generalized_adjustment"
 status = "done"
-evidence_kind = "internal_known_truth"
+evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-identify/src/generalized.rs"
 evidence_assertion = "invisible_directed_edge_does_not_identify_even_conditionally"
 known_truth_fixture = "conformance/identify/generalized_adjustment"
+limitations = "Hand-derived visibility and proper-backdoor graph cases checked by the implementation's own test; no external executable oracle and no numeric effect is checked, so this is a software check on the listed cases, not independent known truth."
 notes = "GeneralizedAdjustmentIdentifier + IdentificationEnvelope; the mass-weighted PAG ATE / ConditionalEffect, their joint-IF SEs and the Bayesian envelope moments over identified multi-completion MAGs are pinned by conformance/estimate/pag_ate_envelope_identified (1.9); conformance/estimate/pag_ate_envelope is negative evidence (invisible treatment edges, refused)"
 
 [[capabilities]]

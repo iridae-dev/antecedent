@@ -26,13 +26,33 @@
     "z_offset": 0.5,
     "outcome_noise": 0.05,
     "seed": 1,
-    "posterior_weights": [0.5, 0.3, 0.2],
+    "posterior_weights": [
+      0.5,
+      0.3,
+      0.2
+    ],
     "atoms": "same masks as static_average_effect over [t, y, z]: T -> Y; Z -> T, Z -> Y, T -> Y; Y -> T (unidentified)",
-    "treatment_grid": [-0.5, 0.0, 0.5],
+    "treatment_grid": [
+      -0.5,
+      0.0,
+      0.5
+    ],
     "intervention_level": 0.5,
-    "identified_atom_curve_direct": [-0.375, 1.0, 2.375],
-    "identified_atom_curve_adjusted": [0.0, 1.0, 2.0],
-    "expected_conditional_on_identified_curve": [-0.234375, 1.0, 2.234375],
+    "identified_atom_curve_direct": [
+      -0.375,
+      1.0,
+      2.375
+    ],
+    "identified_atom_curve_adjusted": [
+      0.0,
+      1.0,
+      2.0
+    ],
+    "expected_conditional_on_identified_curve": [
+      -0.234375,
+      1.0,
+      2.234375
+    ],
     "expected_unidentified_mass": 0.2,
     "frequentist_abs_tolerance": 0.05,
     "frequentist_tolerance_note": "response.kennedy_dr (curve) and the GAM plug-in behind response.intervention_gcomp (level) smooth the exact linear law; observed atom deviations are at most 0.04 (level) and 0.013 (curve), well inside the 0.375 gap between atoms",
@@ -80,7 +100,10 @@
     "dgp": "defect_t = 0.9 * pressure_{t-1}",
     "n": 400,
     "seed": 42,
-    "posterior_weights": [0.7, 0.3],
+    "posterior_weights": [
+      0.7,
+      0.3
+    ],
     "identified_mass": 0.7,
     "expected_effect_given_identified": 0.9,
     "expected_unidentified_mass": 0.3,
@@ -98,7 +121,10 @@
     "dgp": "M_t = 0.8*T_{t-1}; Y_t = 0.25*T_{t-1} + 0.55*M_t; deterministic sinusoid treatment (temporal_mediation_grid)",
     "n": 320,
     "seed": 7,
-    "posterior_weights": [0.7, 0.3],
+    "posterior_weights": [
+      0.7,
+      0.3
+    ],
     "identified_atom": {
       "weight": 0.7,
       "contemporaneous_mask": 8,
@@ -109,7 +135,9 @@
     "expected_effect_given_identified": 0.44,
     "expected_unidentified_mass": 0.3,
     "effect_abs_tolerance": 0.04,
-    "horizons": [1],
+    "horizons": [
+      1
+    ],
     "contrast": "mediated",
     "unidentified_atom": {
       "weight": 0.3,
@@ -133,6 +161,71 @@
   "tolerance_class": "PosteriorDistribution",
   "oracle": {
     "kind": "closed_form",
-    "method": "analytic data-generating processes with balanced deterministic designs (README): each atom's effect follows from the law and the mixture from the stated posterior weights"
+    "method": "analytic data-generating processes with balanced deterministic designs (README): each atom's effect follows from the law and the mixture from the stated posterior weights",
+    "formula": "Per-atom effects from the stated laws (2, 3 via the confounded contrast, 1 + 2t, 1 + 2.75t, 0.9, 0.8*0.55); mixture = sum_k w_k tau_k / sum_k w_k over identified atoms; edge marginal = total weight of atoms whose mask includes the edge.",
+    "generator": "conformance/bayesian/known_truth_mixtures/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/known_truth_mixtures/reference.py --check",
+    "environment_lock": "conformance/bayesian/known_truth_mixtures/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "identified_weighted_sum",
+      "identified_mass",
+      "expected_effect_given_identified",
+      "expected_unidentified_mass",
+      "identified_atom_curve_direct",
+      "identified_atom_curve_adjusted",
+      "expected_conditional_on_identified_curve",
+      "temporal effect 0.9 and mediation effect 0.44 given identified",
+      "lagged_edge_marginals"
+    ],
+    "context_only_outputs": [
+      "data sizes, seeds and draws",
+      "the unadjusted atom's effect 3.0 (needs the test's cell design, E[Z|T=1]-E[Z|T=0] = 1/2, taken as input)",
+      "NotCertified identification errors and atom structures",
+      "tolerances and tolerance_class"
+    ],
+    "independence_basis": "The generator recomputes every mixture, curve, atom effect and edge marginal from the stated laws, masks and posterior weights with rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the stated data-generating laws and atom masks.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Posterior-mixture arithmetic and per-atom truths for the static, response-curve, temporal and mediation known-truth scenarios.",
+      "independence_basis": "The generator recomputes every mixture, curve, atom effect and edge marginal from the stated laws, masks and posterior weights with rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the stated data-generating laws and atom masks.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Mixture arithmetic and structural coefficients only. The unadjusted atom's effect (3) depends on the test's cell design and is taken as an input; the unidentified atom has no effect value, so identification status is not derived. Tolerances are context. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/known_truth_mixtures/reference.py",
+          "sha256": "df50c5e2332cc6634a5a05f5f5aa48de008d8c37b26228cf00210b308faf930e"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/known_truth_mixtures/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/class_posterior_ate.rs",
+          "sha256": "01051698c1a5e45cba390b77ce797dc718bff1514486b556bf38bc61758fa3f5"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/response_facade.rs",
+          "sha256": "d5aecc8657793cf01b744b7d397dfbc8f5702327f2aa9d3db36bceb5014c820d"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/manufacturing_temporal.rs",
+          "sha256": "032cf149c758a4d11c2bf306f08b626190cb083cb9f05a91d35ae65b70222634"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_class_posterior.rs",
+          "sha256": "70ab3d5d56d254d7575b6ea59fe9b5f709cc54ec39fa7fe87548f5555961e637"
+        }
+      ],
+      "fixture_payload_sha256": "61eac03a090bfcea9f49d379f66b0dbb436ad87155faa2591b9f0001647d7832"
+    }
   }
 }

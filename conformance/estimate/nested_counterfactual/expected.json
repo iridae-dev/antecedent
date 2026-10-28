@@ -4,10 +4,59 @@
     "kind": "closed_form",
     "project": "linear Markovian structural equations",
     "pin": "natural-direct-shared-exogenous-v1",
-    "generation_location": "analytical artifact; no generator retained"
+    "formula": "NDE = Y(x1, M(x0)) - Y(x0, M(x0)) = (x1 - x0) * 1.7, independent of the exogenous values.",
+    "generator": "conformance/estimate/nested_counterfactual/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/nested_counterfactual/reference.py --check",
+    "environment_lock": "conformance/estimate/nested_counterfactual/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "reference.natural_direct_effect"
+    ],
+    "context_only_outputs": [
+      "graph edge list",
+      "pin label",
+      "acceptance.shared_exogenous_draw flag"
+    ],
+    "independence_basis": "The generator substitutes the stated structural equations at three arbitrary exogenous draws and takes the difference of the nested potential outcomes; it imports no Antecedent code and no statistics package. The shared object is the stated linear model.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "One linear Markovian mediation model and its natural direct effect between treatment levels -1 and 2.",
+      "independence_basis": "The generator substitutes the stated structural equations at three arbitrary exogenous draws and takes the difference of the nested potential outcomes; it imports no Antecedent code and no statistics package. The shared object is the stated linear model.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The natural indirect effect and the total effect are not asserted by the fixture. Linear, deterministic substitution; no uncertainty and no calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/nested_counterfactual/reference.py",
+          "sha256": "933635f897f5d23c5322367360ea544259054dcedc47e32245f533a1ae9fed33"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/nested_counterfactual/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/nested_counterfactual_route_evidence.rs",
+          "sha256": "168d56087387375da3c880c20514ab31751ab5184cf03e3b40616be13065f65d"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/staged_static_kinds.rs",
+          "sha256": "15e756663fa25cc093b835ca44d3c2c73d5298497a1a3b0f7dcd8b903ee2f9e5"
+        }
+      ],
+      "fixture_payload_sha256": "a10abe1470f93454a9d4451790c28a5d02082c731b060c23f864c4c1c0d47cf6"
+    }
   },
   "model": {
-    "graph": ["X->M", "X->Y", "M->Y"],
+    "graph": [
+      "X->M",
+      "X->Y",
+      "M->Y"
+    ],
     "mediator": "M = 0.8*X + U_M",
     "outcome": "Y = 1.7*X + 4.0*M + U_Y",
     "treatment_control": -1.0,
@@ -17,5 +66,8 @@
     "natural_direct_effect": 5.1,
     "formula": "(2.0 - (-1.0))*1.7"
   },
-  "acceptance": {"atol": 0.001, "shared_exogenous_draw": true}
+  "acceptance": {
+    "atol": 0.001,
+    "shared_exogenous_draw": true
+  }
 }

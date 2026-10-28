@@ -1,1 +1,78 @@
-{"static_mean":[0.0,2.0],"static_tolerance":0.15,"temporal_mean":[1.0,1.0,3.0,4.0],"temporal_tolerance":0.05,"window_effect":5.0,"window_tolerance":0.1,"oracle":{"kind":"closed_form","method":"known-truth Gaussian linear structural equations reproduced by the consuming staged tests: the response means are their closed-form interventional means"}}
+{
+  "static_mean": [
+    0.0,
+    2.0
+  ],
+  "static_tolerance": 0.15,
+  "temporal_mean": [
+    1.0,
+    1.0,
+    3.0,
+    4.0
+  ],
+  "temporal_tolerance": 0.05,
+  "window_effect": 5.0,
+  "window_tolerance": 0.1,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "known-truth Gaussian linear structural equations reproduced by the consuming staged tests: the response means are their closed-form interventional means",
+    "formula": "static: 1 + 2t + 0.8 E[Z]; temporal (dose d, horizon h): 1 + c_h d + c_other mean(t), c_1 = 2, c_2 = 3; window = 2 + 3.",
+    "generator": "conformance/bayesian/response_surfaces/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/response_surfaces/reference.py --check",
+    "environment_lock": "conformance/bayesian/response_surfaces/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "static_mean",
+      "temporal_mean",
+      "window_effect"
+    ],
+    "context_only_outputs": [
+      "static_tolerance, temporal_tolerance and window_tolerance (checked only for consistency)",
+      "the Gaussian-linear data-generating rows, which live in the consuming tests",
+      "posterior intervals and prior sensitivity, which the tests check but the README says do not establish calibration"
+    ],
+    "independence_basis": "The generator rebuilds the structural means from the stated conditional-mean model and treatment pattern with rational arithmetic, reading the sample sizes from the two companion fixtures; it imports no Antecedent code and no statistics package. The shared object is the stated structural equations.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Point truths for the static two-point curve and the temporal dose-by-horizon surface and sustained window.",
+      "independence_basis": "The generator rebuilds the structural means from the stated conditional-mean model and treatment pattern with rational arithmetic, reading the sample sizes from the two companion fixtures; it imports no Antecedent code and no statistics package. The shared object is the stated structural equations.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Structural levels, not estimator outputs; the static levels ignore a finite-sample confounder mean of about 0.04, which the generator bounds against the tolerance. Intervals and prior sensitivity are not examined. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/response_surfaces/reference.py",
+          "sha256": "7f3e9e708ddff5df8e1e36ea090005fda42bb4f59322220e37e32d4794c793d0"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/response_surfaces/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_response_facade.rs",
+          "sha256": "1d57c9d6413478b6bad9827b72bdc49c17f06561a8137b04bc976a5d636f2299"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/response_facade.rs",
+          "sha256": "d5aecc8657793cf01b744b7d397dfbc8f5702327f2aa9d3db36bceb5014c820d"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/response/two_point_curve_average_effect/expected.json",
+          "sha256": "1ff2d6b8a2b08268ca0cf5ae93463d9a3f68712e77598a4f9572a9d3c1a896df"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/response/temporal_dose_horizon/expected.json",
+          "sha256": "8cf649dc159004f8e638a95bc8521ea62fbdfd0a10a88f3a50a766fba58e37ce"
+        }
+      ],
+      "fixture_payload_sha256": "ae3e0167465bd27441c5cfb3acc76c05fe22d477a2fefe773018b2b10e77b828"
+    }
+  }
+}

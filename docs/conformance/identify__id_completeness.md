@@ -49,4 +49,4 @@ existential over edge subsets because the certificate names node sets only.
 
 ## Expected summary
 
-Top-level keys: `cases, oracle, schema_version, sweep` (4 fields).
+Top-level keys: `cases, evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, oracle, schema_version, sweep` (9 fields).

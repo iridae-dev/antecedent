@@ -12,6 +12,54 @@
   },
   "oracle": {
     "kind": "closed_form",
-    "method": "planted outlier (y = 200 on the last row of y = 2x) and a two-period intercept shift of 5: both answers hold by construction"
+    "method": "planted outlier (y = 200 on the last row of y = 2x) and a two-period intercept shift of 5: both answers hold by construction",
+    "formula": "top_row = argmax |y - 2x| (also argmax of the exact OLS residual); total_change = mean(y, period 2) - mean(y, period 1) = 5.",
+    "generator": "conformance/estimate/staged_attribution/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/staged_attribution/reference.py --check",
+    "environment_lock": "conformance/estimate/staged_attribution/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "anomaly.top_row",
+      "change.total_change",
+      "change.total_change_min (as a lower bound)"
+    ],
+    "context_only_outputs": [
+      "anomaly.score_min (an information-theoretic score the arithmetic does not reproduce)",
+      "the notes text",
+      "tolerance"
+    ],
+    "independence_basis": "The generator rebuilds the two frozen series from the stated rules and evaluates the residual ranking and the period mean difference exactly over rationals; it imports no Antecedent code and no statistics package. The shared object is the stated planted outlier and intercept shift.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "A 20-row planted-outlier chain and an 80-row two-period intercept-shift chain.",
+      "independence_basis": "The generator rebuilds the two frozen series from the stated rules and evaluates the residual ranking and the period mean difference exactly over rationals; it imports no Antecedent code and no statistics package. The shared object is the stated planted outlier and intercept shift.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The score value (score_min 1.0) and the Shapley allocation of the change are not derived; only the row identity and the total mean change are. Deterministic series, no uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/staged_attribution/reference.py",
+          "sha256": "826477e1b1e04d81e5e4d730cbd6c7356e90fefb7cfc114c63594ee87d57a49c"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/staged_attribution/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/staged_attribution_transport_interference.rs",
+          "sha256": "dd04b254711d7306a693c84b83a437a54b8eecb576c646313a5af1fb2c1eab02"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_attribution_route_evidence.rs",
+          "sha256": "19057cbeb734d725e4ff6be24ee10d2491e391d6d66bf4cb485684356ae1b12f"
+        }
+      ],
+      "fixture_payload_sha256": "d762b9058d4e5214260c8d2bdcd4f9c6026f6700e6c2bb476b03bd905416791a"
+    }
   }
 }

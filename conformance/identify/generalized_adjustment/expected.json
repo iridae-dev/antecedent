@@ -1,10 +1,9 @@
 {
   "schema_version": 1,
   "oracle": {
-    "kind": "closed_form",
-    "project": "Perkovic et al. (2018), Definitions 4 and 6, Theorem 7",
-    "source": "https://www.jmlr.org/papers/volume18/16-319/16-319.pdf",
-    "generator": "hand-derived visibility and proper-backdoor cases; not an external executable oracle"
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
   },
   "cases": [
     {
@@ -47,5 +46,12 @@
         "Z"
       ]
     }
-  ]
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_source": "crates/antecedent-identify/src/generalized.rs::invisible_directed_edge_does_not_identify_even_conditionally",
+  "evidence_proposition": "A directed edge that is invisible in every MAG completion is not identified by adjustment, and a visible proper-backdoor confounder is identified with the declared adjustment set.",
+  "limitations": "Hand-derived graph cases from the definitions of visibility and the generalized adjustment criterion (Perkovic et al. 2018): no executable external oracle and no numeric effect value is checked. Sound on the listed cases only; completeness is not claimed."
 }

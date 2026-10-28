@@ -17939,3 +17939,10 @@ crate = "antecedent-state"
 cargo_target = "lib"
 path = "crates/antecedent-state/src/graph_score_laplace_tests.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-scenario-boundaries"
+crate = "antecedent"
+cargo_target = "temporal_scenario_boundaries"
+path = "crates/antecedent/tests/temporal_scenario_boundaries.rs"
+gates = ["inventory", "named"]

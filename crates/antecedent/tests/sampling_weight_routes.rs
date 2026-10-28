@@ -601,6 +601,68 @@ fn a_weighted_temporal_window_is_weighted_least_squares_on_lag_windows() {
     close(again.estimate().as_effect().unwrap().ate, effect.ate, 1e-9, "rescaled coefficient");
 }
 
+/// The licensed sustained effect is the single-step window: with declared weights it is the same
+/// weighted least squares on lag windows as the pulse, whatever the weight pattern. A multi-step
+/// window has no sampling-weighted construction and is refused with the typed
+/// `sampling_weights.route_unsupported` detail naming sustained windows, rather than run unweighted.
+#[test]
+fn a_weighted_single_step_sustained_window_is_the_weighted_fit_and_a_multi_step_one_is_refused() {
+    let n = 400;
+    let (t, y) = series(n, 41);
+    let mut rng = ExecutionContext::for_tests(42).rng.stream_for(StreamDomain::Test, 0x7105);
+    let varied: Vec<f64> = (0..n).map(|_| 0.3 + 3.0 * rng.next_f64()).collect();
+    let mut with_zeros = varied.clone();
+    for i in (12..n).step_by(19) {
+        with_zeros[i] = 0.0;
+    }
+    let weight_patterns: [(&str, Vec<f64>); 3] = [
+        ("varied weights", varied),
+        ("weights with zeros", with_zeros),
+        ("unit weights", vec![1.0; n]),
+    ];
+    for (label, weights) in &weight_patterns {
+        for (from, until) in [(-1, -1), (-2, -1)] {
+            let data =
+                TimeSeriesData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice())], 1)
+                    .unwrap()
+                    .with_weights(Arc::from(weights.clone()))
+                    .unwrap();
+            let query =
+                TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                    .with_policy(TemporalPolicy::sustained(from, until));
+            let run = Study::series(data)
+                .graph(temporal_graph())
+                .query(CausalQuery::TemporalEffect(query))
+                .refute(antecedent::RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ctx());
+            if from == until {
+                let result = run.unwrap();
+                let effect = result.estimate().as_effect().unwrap();
+                close(
+                    effect.ate,
+                    temporal_oracle(&t, &y, weights),
+                    1e-9,
+                    &format!("{label}: window [{from}, {until}]"),
+                );
+                let zeros = weights[1..].iter().filter(|w| **w == 0.0).count() as u64;
+                let record = effect.diagnostics.sampling_weights.as_ref().expect("weight record");
+                assert_eq!(record.zero_weight_rows, zeros, "{label}");
+                assert_eq!(record.rows_used, (n - 1) as u64 - zeros, "{label}");
+            } else {
+                let error = run.unwrap_err().to_string();
+                assert!(
+                    error.contains("sampling_weights.route_unsupported")
+                        && error.contains("sustained windows"),
+                    "{label} window [{from}, {until}]: {error}"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn temporal_windows_of_weight_zero_stay_in_sequence_and_are_counted() {
     let n = 200;

@@ -234,6 +234,10 @@ name = "sampling_weight_routes"
 path = "tests/sampling_weight_routes.rs"
 
 [[test]]
+name = "temporal_scenario_boundaries"
+path = "tests/temporal_scenario_boundaries.rs"
+
+[[test]]
 name = "static_route_table_weights"
 path = "tests/static_route_table_weights.rs"
 

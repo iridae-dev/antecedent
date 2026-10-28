@@ -2383,3 +2383,121 @@ value = "categorical"
 status = "unavailable"
 test = "crates/antecedent/tests/scenario_iv_route_boundaries.rs::a_treatment_with_further_levels_is_refused_by_both_instrumental_estimators"
 reason = "the instrumental fit reads the treatment as one numeric dose, and restricting the rows to two levels would select on the endogenous treatment; a treatment with further levels is refused with treatment_level_undeclared, naming the observed levels and the next attempt"
+
+[[cell]]
+family = "P03.policy"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = "crates/antecedent/tests/missing_policy_support.rs::every_route_cell_matches_the_declared_support"
+reason = "the route cells of PolicyValue and LongitudinalRegime have no row in parity/missing_policy_support.toml, so the route executes no missing-data policy and every missing declaration is refused with missing_policy_not_applicable; the test states the supported policies of every route cell independently of the registry and expects none here"
+
+[[cell]]
+family = "P07.continuous_dose"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = "crates/antecedent/tests/missing_policy_support.rs::every_route_cell_matches_the_declared_support"
+reason = "the route cells of ContinuousDoseResponse and TemporalDesign have no row in parity/missing_policy_support.toml, so the route executes no missing-data policy and every missing declaration is refused with missing_policy_not_applicable; the test states the supported policies of every route cell independently of the registry and expects none here"
+
+[[cell]]
+family = "P09.interference"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = "crates/antecedent/tests/missing_policy_support.rs::every_route_cell_matches_the_declared_support"
+reason = "the route cells of Interference and TemporalDesign have no row in parity/missing_policy_support.toml, so the route executes no missing-data policy and every missing declaration is refused with missing_policy_not_applicable; the test states the supported policies of every route cell independently of the registry and expects none here"
+
+[[cell]]
+family = "P13.attribution"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = "crates/antecedent/tests/missing_policy_support.rs::every_route_cell_matches_the_declared_support"
+reason = "the route cells of AnomalyAttribution have no row in parity/missing_policy_support.toml, so the route executes no missing-data policy and every missing declaration is refused with missing_policy_not_applicable; the test states the supported policies of every route cell independently of the registry and expects none here"
+
+[[cell]]
+family = "P14"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = "crates/antecedent/tests/missing_policy_support.rs::every_route_cell_matches_the_declared_support"
+reason = "the route cells of Transport have no row in parity/missing_policy_support.toml, so the route executes no missing-data policy and every missing declaration is refused with missing_policy_not_applicable; the test states the supported policies of every route cell independently of the registry and expects none here"
+
+[[cell]]
+family = "P19"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+reason = "a route migration reads method records, not data rows, so there is no missing data for a policy to act on"
+
+[[cell]]
+family = "P20"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+reason = "a closure audit reads method records, not data rows, so there is no missing data for a policy to act on"
+
+[[cell]]
+family = "P02.glm"
+axis = "graph_class"
+value = "temporal_graph"
+status = "unavailable"
+test = "crates/antecedent/tests/temporal_scenario_boundaries.rs::static_effect_estimators_refuse_a_temporal_graph"
+reason = "the static estimator reads table rows under a static graph; a temporal graph is refused with the typed `unsupported data/graph/query combination` detail for this estimator and every other static effect estimator, and the temporal families have their own routes"
+
+[[cell]]
+family = "P03.aipw"
+axis = "graph_class"
+value = "temporal_graph"
+status = "unavailable"
+test = "crates/antecedent/tests/temporal_scenario_boundaries.rs::static_effect_estimators_refuse_a_temporal_graph"
+reason = "the static estimator reads table rows under a static graph; a temporal graph is refused with the typed `unsupported data/graph/query combination` detail for this estimator and every other static effect estimator, and the temporal families have their own routes"
+
+[[cell]]
+family = "P04"
+axis = "graph_class"
+value = "temporal_graph"
+status = "unavailable"
+test = "crates/antecedent/tests/temporal_scenario_boundaries.rs::static_effect_estimators_refuse_a_temporal_graph"
+reason = "the static estimator reads table rows under a static graph; a temporal graph is refused with the typed `unsupported data/graph/query combination` detail for this estimator and every other static effect estimator, and the temporal families have their own routes"
+
+[[cell]]
+family = "P15.sustained"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent/tests/sampling_weight_routes.rs::a_weighted_single_step_sustained_window_is_the_weighted_fit_and_a_multi_step_one_is_refused"
+what = "the licensed single-step sustained window is the weighted least squares on lag windows for three weight patterns, and a multi-step window is refused rather than run unweighted"
+
+[[cell]]
+family = "P15.pulse"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/temporal_scenario_boundaries.rs::degenerate_treatment_outcome_and_adjustment_columns_follow_their_known_answers"
+what = "a constant treatment and an exactly collinear adjustment column are refused as rank deficient and a constant outcome has effect exactly zero"
+
+[[cell]]
+family = "P15.sustained"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/temporal_scenario_boundaries.rs::degenerate_treatment_outcome_and_adjustment_columns_follow_their_known_answers"
+what = "a constant treatment and an exactly collinear adjustment column are refused as rank deficient and a constant outcome has effect exactly zero"
+
+[[cell]]
+family = "P15.projection"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = "crates/antecedent/tests/temporal_scenario_boundaries.rs::a_three_level_treatment_is_refused_by_name_on_every_graph_class_with_or_without_refuters"
+reason = "the ADMG average-effect route reads the treatment at two declared levels; a treatment with a further level is refused with treatment_level_undeclared, naming the observed levels and their row counts, on the DAG, ADMG and CPDAG classes with and without refuters, and the categorical treatment contrast is the route that reads every level"
+
+[[cell]]
+family = "P13.refuter"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = "crates/antecedent/tests/temporal_scenario_boundaries.rs::a_three_level_treatment_is_refused_by_name_on_every_graph_class_with_or_without_refuters"
+reason = "the refuters run on the binary average-effect study, which reads the treatment at two declared levels; a treatment with a further level is refused with treatment_level_undeclared, naming the observed levels and their row counts, on the DAG, ADMG and CPDAG classes with and without refuters, and the categorical treatment contrast is the route that reads every level"
