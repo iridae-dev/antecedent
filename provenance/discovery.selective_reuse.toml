@@ -22,3 +22,26 @@ test_sources = [
   "crates/antecedent/tests/selective_discovery_facade.rs",
   "crates/antecedent-io-core/tests/selective_discovery_artifact.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Discovery followed by analysis on disjoint row sets: row assignment, verification against the source and retained adapter state."
+no_independent_algorithm = "Row assignment, bookkeeping and plan/resume of the retained run; discovery itself is run by the existing algorithms and the downstream estimator is another record. The claim-closing counterpart is discovery.selective_reuse_guarantees_closed."
+covered_by = ["discovery.pc", "discovery.fci"]
+record_sha256 = "5c421bb3547b4525e09b37fc5a15de29db9a6df722fac9cf3e5e026ccf1e3fff"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/selective/reuse.rs"
+sha256 = "69bcc96b78d6b253500c2747782639a7ab2aed6ff5e735159e421f20109e2977"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/selective/adapter.rs"
+sha256 = "44c4c4e4450cf683bbe951782754f81536c48763ae2ca0d6706c8e92581b83a5"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/selective_discovery.rs"
+sha256 = "9b322b021ebe142490c435cfd9c45a6d716a01346a45448f8457295465411a65"

@@ -13,3 +13,20 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "closed_variant"
+rationale = "Closed variant: a law that exists only as a callback is refused by name."
+no_independent_algorithm = "law.rs defines the Callback variant as not built, always refused; a provider law is accepted only as materialized finite, sample or evaluated values."
+record_sha256 = "e9bfcfbe2fe7d6f5e105b2032534f5d939f94f842c9ebe2e89fffef3907fda21"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/predictive_assessment/law.rs"
+sha256 = "bb5bc2734a4878204bc73a779dbb6813bf4d7cf3e6d888863be80f63c2f42fa6"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/predictive_assessment.rs"
+sha256 = "0eaff0ee29ad99a72e2bdfbeff62bfef8224074080fc58f7f7e42ad188f85e82"

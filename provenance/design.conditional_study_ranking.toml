@@ -8,3 +8,20 @@ papers = []
 implementation_deviations = ["Reuses original rank_structural over unchanged explicit sufficiency/cost/budget declarations. Actual unique source decision selects the table; no new causal proof or joint uncertainty.", "Independent projection consumption requires actual opaque scientific replay, full original outputs/request/order/conditional rule and validated historical receipt."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/recalc_composite.rs", "python/tests/test_recalc_composite.py", "python/tests/test_recalc_composite.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Conditional point study ranking from an issued combined scientific state; the structural sufficiency and cost ordering is retained and no point means become draws."
+no_independent_algorithm = "Ordering and retention over supplied scores; no numeric routine."
+record_sha256 = "5387bd81a7010c1667baa4ce16de7a35ef89e0d10a8d175fba0730121ba86529"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/conditional_study_ranking.rs"
+sha256 = "229e2c8ce97eadca86d7f211344ca1f54497c6545944dd90c6de693222afbe0d"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/recalc_composite.rs"
+sha256 = "60ed7bcbdff209e845ef1d16c5c52bc18f87714f832b6641fb81a417f061818d"

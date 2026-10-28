@@ -30,3 +30,21 @@ test_sources = [
   "python/tests/test_program_claims.py",
   "python/tests/test_recalc_static.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Typed adapter from a native response to the claim a decision or inverse flow consumes: one scientific quantity per grid point derived from the response's own estimand and checked against the program binding."
+no_independent_algorithm = "The module reads values the response estimator already computed and attaches coordinates, support labels, trust and program identity; it computes no estimate."
+covered_by = ["composition.program_binding", "support.native_response_coordinates"]
+record_sha256 = "52814d6df1c390ae7a6e754e943e79a9b806b274b024ef2dc546abaf2e7385a7"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/native_claims.rs"
+sha256 = "714070e5953655e9b9e90f165cd107b28a1b7bc82339346ef44d4abd1a175fd2"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/native_claims.rs"
+sha256 = "b6f0bca29ac0998e77939b0dec63d9902b9ddcd75845421f45e505ab11d50330"

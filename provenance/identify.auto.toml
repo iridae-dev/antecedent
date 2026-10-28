@@ -17,3 +17,17 @@ test_sources = [
  "clean-room composition of frozen backdoor/ID/IDC/IV/RD/envelope fixtures (conformance/identify/auto_envelopes)",
  "inline unit tests (crates/antecedent-identify/src/auto.rs)",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "AutoIdentifier: dispatch and enumeration over the shipped identifiers with a selection rationale."
+no_independent_algorithm = "Dispatch over identifiers that each have their own record."
+covered_by = ["identify.backdoor", "identify.frontdoor", "identify.id", "identify.idc", "identify.iv"]
+inline_tests = true
+record_sha256 = "37b9a666d6c1c0a4bb958c616ff66e17611f6d0d59dcf568ed193b4d4f96de91"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/auto.rs"
+sha256 = "e321532d4cb7ed3a51dca1ee9245a29fbcb4a02de3e9409fb5831eaf5a391b58"

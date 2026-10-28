@@ -9,6 +9,10 @@ file still matches the records (default).  The classification is a *reading aid*
   read against them; the triage records only the shared-source group, the modules and the
   number of admitted method specifications that link it.  Nothing here says the
   implementation follows the paper.
+* A record with a valid ``[non_algorithm_review]`` is ``justified_non_algorithm``: it was read
+  against its modules and mapped to the records that carry the numerics (or to a stated
+  derivation or refusal), with digests of the mapped implementation.  That is a justification
+  that no independent source is owed, not a review of a primary source.
 * A record with no paper is classified from the judgment written in the record itself (the
   comment and ``implementation_deviations``) plus the explicit tables below; each such
   record states why the classification holds.  An empty ``papers`` list is not by itself
@@ -27,6 +31,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from _repo import REPO_ROOT
+from provenance_links import non_algorithm_review_problems
 
 OUT = REPO_ROOT / "parity" / "provenance_review_triage.toml"
 
@@ -104,7 +109,6 @@ DERIVED = {
     "decision.functionals": "finite weighted expectation, variance, threshold probability, left-inverse quantile; arithmetic on a supplied law",
     "decision.functional_inverse": "finite grid enumeration of the functional",
     "decision_reliability.ranking_statement": "plain Monte Carlo frequencies with ties split equally",
-    "estimate.quadratic_dose": "finite weighted least-squares polynomial reproduction argument",
     "response.joint_panel": "finite-lag Gaussian panel family constructed in the repository",
     "transport.joint_bayesian": "conjugate Gaussian algebra",
     "transport.learned_joint": "conjugate Gaussian algebra",
@@ -118,21 +122,34 @@ DERIVED = {
     "sensitivity.joint_uncertainty": "endpoint percentile bootstrap of a joint sensitivity range",
     "temporal.new_period_refresh": "ordered comparison of declared premises (window-identity bookkeeping)",
 }
+# No-paper records whose modules were read and found to contain numerical routines of their own.
+# They are not mapped as non-algorithms; they need an implementation review (and a source search).
+SUBSTANTIVE_UNREVIEWED = {
+    "design.ranking_artifact": "design_ranking_artifact.rs replays EVPI (expected_max_affine over a square-rooted variance) and builds a binomial likelihood table with ln/exp inside the consumer; the numerical replay is part of the method",
+    "distribution.mapped_posterior_transfer": "bayesian/hydrate.rs forms prior moments and covariances from posterior draws (square roots, covariance of draws); numerical, not a pure contract",
+    "joint_law.aligned_nonlinear_functional": "stats/joint_law.rs (about 1900 lines, twelve square roots) propagates moments, mixtures and aligned functionals; delta-method and law-of-total-variance arithmetic is a substantive routine needing its own review",
+    "joint_law.composed_interval": "stats/joint_law.rs composed interval and total-variance arithmetic; substantive numerical module",
+    "joint_law.known_weight_mixture": "stats/joint_law.rs mixture_moments; substantive numerical module",
+    "joint_law.linear_moment_propagation": "stats/joint_law.rs linear_combination_moments; substantive numerical module",
+    "joint_law.transported_composition": "stats/joint_law.rs transported composition; substantive numerical module",
+    "design.effect_width_reduction": "lives in design/ranker.rs, a batched Monte Carlo ranker with Cholesky, square roots and exponentials; the Gram-matrix width arithmetic is not separable from it",
+}
 # No-paper records for which a primary or textbook source plausibly exists and should be
 # located before the record is accepted as justified.
 SOURCE_CANDIDATES = {
-    "ci.knn_dependence": "permutation test on a nearest-neighbour distance statistic; locate the source of the kNN-distance dependence statistic or declare it original",
-    "state.incremental_ols": "rank-one / sufficient-statistic least-squares updating; textbook (e.g. recursive least squares) source should be named",
-    "state.rolling_mechanism_diag": "declined Page 1954 explicitly; fixed-window max-|partial sum| scan is the record's own judgment",
-    "graph.unfold": "unrolling a stationary lagged template into a finite window; graph-theory/folklore, one upstream observed",
-    "identify.tiered": "tier-closure on the background closure ADMG; related to tiered background knowledge in the literature",
-    "predictive_assessment.distribution_drift": "two-sample Kolmogorov-Smirnov distance and population stability index; textbook/industry statistics",
-    "validate.graph_refute": "leave-one-out adjustment-covariate sensitivity; refuter folklore",
-    "validate.robustness_refuters": "placebo-treatment, dummy-outcome, random-common-cause and data-subset refuters; the observed upstream library is the origin of the names",
-    "validate.target_native_refuters": "target-native refuters; implementation-defined",
-    "validate.temporal_mediation": "perturbation refits of mediation regressions",
-    "validate.functional": "Bernoulli row-subset refit of a frozen path functional",
-    "estimate.bayesian_iv": "joint Gaussian IV model with fixed loading; Bayesian IV literature exists and should be checked",
+    "ci.knn_dependence": "candidate: nearest-neighbour multivariate two-sample statistics (Schilling 1986, J. Amer. Statist. Assoc. 81) share the kNN-distance idea but do not introduce a conditional-dependence permutation test; most likely original engineering; not verified",
+    "estimate.bayesian_iv": "candidate: Bayesian instrumental-variable regression (Kleibergen and Zivot 2003, J. Econometrics 114); the record states the fixed-loading joint Gaussian construction is the repository's own and the posterior is a stacked weighted least squares plus prior precision (conjugate algebra, see prob.conjugate_gaussian); not verified",
+    "identify.tiered": "candidate: tiered background knowledge (Andrews, Spirtes and Cooper 2020, AISTATS, completeness of causal discovery with tiered background knowledge); the module states it is not new identification theory (tier closure, then generalized adjustment); correspondence not verified",
+    "predictive_assessment.distribution_drift": "candidate: two-sample Kolmogorov-Smirnov distance (Smirnov 1948, Ann. Math. Statist. 19) and the population stability index (credit-scoring industry convention, e.g. Siddiqi 2006, Credit Risk Scorecards); neither verified against the code",
+    "state.incremental_ols": "candidate: recursive least squares updating (Plackett 1950, Biometrika 37) for the running Gram accumulation and Welford 1962 (Technometrics 4) for the mean-centred scatter that gives the residual variance; the record states the Gram update itself is textbook; not verified",
+    "validate.functional": "no primary located: Bernoulli row-subset refit of a frozen path functional belongs to the data-subset refutation practice also recorded under validate.robustness_refuters; folklore; implementation still needs review",
+    "validate.graph_refute": "no primary located: leave-one-out adjustment-covariate sensitivity is a descriptive diagnostic the record itself calls ad hoc; implementation still needs review",
+    "validate.robustness_refuters": "no primary located: placebo-treatment, dummy-outcome, random-common-cause and data-subset refuters are applied-practice checks; candidate: the DoWhy software paper (Sharma and Kiciman 2020) names the battery but is a software paper, not a primary source; not verified",
+    "validate.target_native_refuters": "no primary located: target-native refuters are implementation-defined (module target_native/mod.rs) and the record gives a pass threshold with no measured error rate; implementation still needs review",
+    "validate.temporal_mediation": "no primary located for the perturbation refits; candidate: the mediation decomposition they perturb (Imai, Keele and Tingley 2010, Psychological Methods 15) belongs to the mediation estimator records; not verified",
+    "estimate.quadratic_dose": "candidate: local polynomial regression (see stats.response.local_polynomial); the module fits a Gaussian-kernel weighted local quadratic itself; correspondence not verified",
+    "estimate.quadratic_dose.bayesian": "candidate: local polynomial regression (see stats.response.local_polynomial) with a normal prior on the slope coefficients; the Gaussian-kernel local fit is inside posterior_mean.rs; correspondence not verified",
+    "estimate.dose_grid_functional.bayesian": "candidate: local polynomial regression (see stats.response.local_polynomial) with a normal prior on the slope coefficients; correspondence not verified",
 }
 
 
@@ -170,6 +187,17 @@ def classify(stem: str, record: dict, text: str) -> tuple[str, str]:
     review = record.get("method_review")
     if review:
         return "reviewed", "bounded method_review present (digest-bound by the provenance gate)"
+    if record.get("non_algorithm_review") is not None and not non_algorithm_review_problems(
+        REPO_ROOT, record
+    ):
+        mapping = record["non_algorithm_review"]
+        covered = ", ".join(mapping.get("covered_by", [])) or "none"
+        return (
+            "justified_non_algorithm",
+            f"non_algorithm_review ({mapping['kind']}; covered by: {covered}) is digest-bound to the mapped modules",
+        )
+    if stem in SUBSTANTIVE_UNREVIEWED:
+        return "substantive_method", "read the module: " + SUBSTANTIVE_UNREVIEWED[stem]
     comment = comment_text(text)
     low = (comment + " " + " ".join(record.get("implementation_deviations", []))).lower()
     papers = record.get("papers", [])
@@ -198,7 +226,7 @@ def classify(stem: str, record: dict, text: str) -> tuple[str, str]:
 
 
 def priority(cls: str, links: dict[str, int], stem: str) -> int:
-    if cls == "reviewed":
+    if cls in ("reviewed", "justified_non_algorithm"):
         return 0
     numeric = cls in ("substantive_method", "derived_in_repository", "source_candidate")
     prefix = stem.split(".")[0]
@@ -234,7 +262,8 @@ def build() -> str:
         "# record lists primary papers and its implementation has not yet been read against them.",
         "# `priority` 1 = numerical records linked by licensed method specifications in the core",
         "# method families; 2 = linked by an admitted specification; 3 = numerical, unlinked;",
-        "# 4 = contract, closed variant, bookkeeping or unclassified.",
+        "# 4 = contract, closed variant, bookkeeping or unclassified; 0 = reviewed or justified_non_algorithm",
+        "# (a digest-bound mapping to the records and modules that carry the numerics; not a source review).",
         "",
     ]
     counts: dict[str, int] = defaultdict(int)

@@ -16,3 +16,20 @@ test_sources = [
   "crates/antecedent-design/tests/decision_reliability.rs",
   "crates/antecedent/tests/decision_reliability_facade.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "closed_variant"
+rationale = "Closed variant: source spread, Monte Carlo error and selection-induced uncertainty are never summed into one number."
+no_independent_algorithm = "combined_uncertainty() always returns ReliabilityError::CombinedUncertainty. interval.rs also hosts the separate source-spread interval arithmetic (one square root), which belongs to other decision_reliability records and is not mapped here; only combined_uncertainty() was read as this record's method."
+record_sha256 = "768a89c3ba68611de53c9f5f238c21033b67b4b464da9d07131bbf5d6ffdd0b5"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_reliability/interval.rs"
+sha256 = "33b17cd375d0c1329f42cbd9b5fa353d12913f0499106795f57f2737e6d7e2b1"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_reliability.rs"
+sha256 = "76ef7528114960997b35070531ae7072662c28b379a0e72c92f193df7ca3088b"

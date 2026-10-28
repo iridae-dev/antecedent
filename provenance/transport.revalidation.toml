@@ -19,3 +19,20 @@ test_sources = [
   "crates/antecedent-contract/tests/transport_revalidation.rs",
   "crates/antecedent-contract/tests/composition_verification.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Revalidation of transported claims after a change of target population, source evidence, selection diagram or support."
+no_independent_algorithm = "Comparison of identities and declared premises; no statistic."
+record_sha256 = "fdd0b7e0d142bb0e70cec342074db98640dc3aca6aa5485c320046daac70ecc0"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/transport_revalidation.rs"
+sha256 = "4dce88bd648b2771be24275b00cd4a6b7838255a43e80970c259b7ae49ba7526"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/transport_revalidation.rs"
+sha256 = "d96176391449f551a0c0415c9c7e8b511a1bec94e88c537c247de81252d1a9a1"

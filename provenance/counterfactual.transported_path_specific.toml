@@ -23,3 +23,20 @@ test_sources = [
  "crates/antecedent-counterfactual/tests/temporal_cross_world.rs",
  "python/tests/test_temporal_counterfactual.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "closed_variant"
+rationale = "A closed gate: the route evaluates nothing and reports which prerequisite (transport licence, fixed-population cross-world licence, stated assumptions) is missing."
+no_independent_algorithm = "transported_gate.rs refuses with transported_counterfactual.route_frozen (cell_not_licensed); no estimator exists for the composed quantity."
+record_sha256 = "1576514e12fa026b0e40639059e4b61d418637e0fec184b79b0e50b1c56f8447"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-counterfactual/src/transported_gate.rs"
+sha256 = "dfb64cd21412db22c278dd0e242ac99545dd8c8d4e0817f75b27281101c7048e"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-counterfactual/tests/transported_path_specific.rs"
+sha256 = "680cdd9dbb958a3306663845114d1a053dac8e76cdbfb5336cdfb8a4d2bd74b1"

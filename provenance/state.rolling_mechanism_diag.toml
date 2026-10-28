@@ -21,3 +21,21 @@ upstream_implementations_observed = []
 test_sources = [
  "conformance/design_state/rolling_mechanism_diag_match (exercised via crates/antecedent-state/tests/rolling_mechanism_oracle.rs)",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Rolling linear-Gaussian mechanism diagnostics under CausalState: composes the ring-buffered OLS summary update and the max-|CUSUM| statistic under a bounded retention window."
+no_independent_algorithm = "The module composes suff_stats.rs and the divergence statistic; the solve calls reuse the state's Gram solver. No new algorithm beyond bounded retention."
+covered_by = ["state.incremental_ols", "stats.divergence"]
+record_sha256 = "6544286660ccf6c797b4db9b8ab6a15e67b6f90e34b4706b22e169c368e6e7e3"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/mechanism_diag.rs"
+sha256 = "4e8366926e44f90b475642401cb1ef4d46aa7c8f1c076657bbd00319690b05c6"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-state/tests/rolling_mechanism_oracle.rs"
+sha256 = "432afba73b24120adf3448c9282a18d0e6d36653f1da0e6fd160b3283d24a698"

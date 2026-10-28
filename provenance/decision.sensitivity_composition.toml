@@ -32,3 +32,21 @@ test_sources = [
   "crates/antecedent-io/tests/sensitivity_artifact.rs",
   "python/tests/test_sensitivity_decision.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Consumes an assumption-sensitivity surface in a durable decision: the surface's quantities become decision sources over a declared assumption coordinate."
+no_independent_algorithm = "Adapter from a sensitivity artifact to decision inputs and a call to the evaluator; the sensitivity surface itself is produced elsewhere."
+covered_by = ["decision.contract", "decision.functionals"]
+record_sha256 = "e4854e743de5b78a68e20c780112289e2eed439322f1d50443e7a9b561e5f53b"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/sensitivity_decision.rs"
+sha256 = "811957ff6217da5da4f70e14ef47640af983a5a8508865c03cc49d44921d29de"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/sensitivity_decision.rs"
+sha256 = "d9497f7421659494bc221d4d5a678ab661e849a62f3a0dcc04f911b419a6dffe"

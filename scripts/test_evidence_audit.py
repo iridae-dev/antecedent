@@ -225,6 +225,80 @@ class Classification(unittest.TestCase):
             )
             self.assertTrue(provenance_links.method_review_problems(root, record))
 
+    def test_non_algorithm_mapping_rejects_missing_targets_stale_digests_and_overreach(self):
+        import hashlib
+
+        def digest(path):
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "m.rs").write_text("// integrity control only\n", encoding="utf-8")
+            (root / "t.rs").write_text("// assertion control\n", encoding="utf-8")
+            known = {"control", "other"}
+
+            def build(kind="wrapper", **changes):
+                record = {"feature_id": "control", "papers": [], "implementation_deviations": ["d"]}
+                review = {
+                    "status": "justified_non_algorithm",
+                    "kind": kind,
+                    "rationale": "synthetic control",
+                    "no_independent_algorithm": "synthetic control",
+                    "covered_by": ["other"],
+                    "derivation": "synthetic control",
+                    "artifacts": [
+                        {"role": "implementation", "path": "m.rs", "sha256": digest(root / "m.rs")},
+                        {"role": "assertion", "path": "t.rs", "sha256": digest(root / "t.rs")},
+                    ],
+                }
+                review.update(changes)
+                record["non_algorithm_review"] = review
+                review["record_sha256"] = provenance_links.non_algorithm_digest(record)
+                return record
+
+            def problems(record):
+                return provenance_links.non_algorithm_review_problems(root, record, known)
+
+            self.assertEqual(problems(build()), [])
+            self.assertEqual(problems(build("derivation")), [])
+            # A record that carries no mapping is not a finding: absence is reported by the triage.
+            self.assertEqual(problems({"feature_id": "control", "papers": []}), [])
+            # Mapping to a record that does not exist, or to itself.
+            self.assertTrue(problems(build(covered_by=["missing.record"])))
+            self.assertTrue(problems(build(covered_by=["control"])))
+            # A wrapper that names no covering record, an unknown kind, a missing rationale.
+            self.assertTrue(problems(build(covered_by=[])))
+            self.assertTrue(problems(build(kind="folklore")))
+            self.assertTrue(problems(build(rationale="  ")))
+            self.assertTrue(problems(build(no_independent_algorithm="")))
+            # A derivation without its statement, or without an executing assertion.
+            self.assertTrue(problems(build("derivation", derivation="")))
+            record = build("closed_variant")
+            record["non_algorithm_review"]["artifacts"].pop()
+            record["non_algorithm_review"]["record_sha256"] = provenance_links.non_algorithm_digest(record)
+            self.assertTrue(problems(record))
+            # Mapping to a module that does not exist.
+            record = build()
+            record["non_algorithm_review"]["artifacts"][0]["path"] = "gone.rs"
+            self.assertTrue(problems(record))
+            # No mapped implementation at all.
+            self.assertTrue(problems(build(artifacts=[])))
+            # A record that lists a paper is for method_review, not for this mapping.
+            record = build()
+            record["papers"] = [{"title": "t", "sections": ["s"]}]
+            self.assertTrue(problems(record))
+            # Edited record text stales the mapping.
+            record = build()
+            record["implementation_deviations"] = ["edited"]
+            self.assertTrue(problems(record))
+            # Inline tests are checked, not trusted.
+            self.assertTrue(problems(build("derivation", inline_tests=True, artifacts=[
+                {"role": "implementation", "path": "m.rs", "sha256": digest(root / "m.rs")}])))
+            # Changed mapped implementation stales the digest.
+            record = build()
+            (root / "m.rs").write_text("// changed implementation\n", encoding="utf-8")
+            self.assertTrue(problems(record))
+
     def test_software_fixture_cannot_be_promoted_to_known_truth_by_an_origin_tag(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

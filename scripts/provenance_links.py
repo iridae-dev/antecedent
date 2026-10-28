@@ -82,6 +82,122 @@ def method_review_problems(root: Path, record: dict) -> list[str]:
     return problems
 
 
+NON_ALGORITHM_KINDS = {
+    # Delegates every numerical step to the covered_by records; owns routing, binding or lineage.
+    "wrapper": ("covered_by",),
+    # Declarations, trust and refusal checks over supplied identities and numbers; no estimator.
+    "contract": (),
+    # Closed-form or enumerative arithmetic derived in the repository from a textbook identity;
+    # the derivation is stated and an executing assertion is bound.
+    "derivation": ("derivation", "assertion"),
+    # The record states that no method is implemented and the claim is refused or left open;
+    # an executing refusal assertion is bound.
+    "closed_variant": ("assertion",),
+}
+
+
+def non_algorithm_digest(record: dict) -> str:
+    payload = {
+        key: value
+        for key, value in record.items()
+        if key not in ("method_review", "non_algorithm_review")
+    }
+    return hashlib.sha256(
+        json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def non_algorithm_review_problems(
+    root: Path, record: dict, known: set[str] | None = None
+) -> list[str]:
+    """Check a justified non-algorithm mapping; never invent one.
+
+    The mapping states that a record without a primary paper is a wrapper, contract, derivation
+    or closed variant rather than a method needing a source: which records carry the numerics,
+    which module files were read, and why no independent algorithm remains.  Digests bind the
+    mapping to the record text and to the mapped implementation, so a change to either stales it.
+    """
+    review = record.get("non_algorithm_review")
+    if review is None:
+        return []
+    if not isinstance(review, dict):
+        return ["non_algorithm_review must be a table"]
+    problems = []
+    if record.get("method_review") is not None:
+        problems.append("non_algorithm_review and method_review are mutually exclusive")
+    if record.get("papers"):
+        problems.append("non_algorithm_review is for records that list no primary paper")
+    if review.get("status") != "justified_non_algorithm":
+        problems.append("non_algorithm_review has unknown status")
+    kind = review.get("kind")
+    if kind not in NON_ALGORITHM_KINDS:
+        problems.append("non_algorithm_review has unknown kind")
+    for key in ("rationale", "no_independent_algorithm"):
+        if not isinstance(review.get(key), str) or not review[key].strip():
+            problems.append(f"non_algorithm_review lacks {key}")
+    if known is None:
+        known = stems(root)
+    covered = review.get("covered_by", [])
+    if not isinstance(covered, list) or any(
+        not isinstance(c, str) or not c.strip() for c in covered
+    ):
+        problems.append("non_algorithm_review covered_by must be a list of record ids")
+        covered = []
+    for target in covered:
+        if target == record.get("feature_id"):
+            problems.append("non_algorithm_review covered_by names the record itself")
+        elif target not in known:
+            problems.append(f"non_algorithm_review covered_by names missing record {target}")
+    needs = NON_ALGORITHM_KINDS.get(kind, ())
+    if "covered_by" in needs and not covered:
+        problems.append(f"non_algorithm_review kind {kind} requires covered_by")
+    if "derivation" in needs and not (
+        isinstance(review.get("derivation"), str) and review["derivation"].strip()
+    ):
+        problems.append(f"non_algorithm_review kind {kind} requires a derivation")
+    if review.get("record_sha256") != non_algorithm_digest(record):
+        problems.append("non_algorithm_review stale provenance/deviation content")
+    artifacts = review.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        return problems + ["non_algorithm_review requires mapped module artifacts"]
+    roles, seen = set(), set()
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            problems.append("non_algorithm_review artifact must be a table")
+            continue
+        role, rel = artifact.get("role"), artifact.get("path")
+        if role not in ("implementation", "assertion"):
+            problems.append("non_algorithm_review artifact has unknown role")
+        else:
+            roles.add(role)
+        if not isinstance(rel, str) or rel in seen:
+            problems.append("non_algorithm_review requires unique artifact paths")
+            continue
+        seen.add(rel)
+        path = (root / rel).resolve()
+        if not path.is_relative_to(root.resolve()) or not path.is_file():
+            problems.append(f"non_algorithm_review missing artifact: {rel}")
+        elif hashlib.sha256(path.read_bytes()).hexdigest() != artifact.get("sha256"):
+            problems.append(f"non_algorithm_review stale artifact: {rel}")
+    if "implementation" not in roles:
+        problems.append("non_algorithm_review must map at least one implementation module")
+    inline = review.get("inline_tests") is True
+    if inline:
+        # The mapped file carries its own #[cfg(test)] assertions; the flag is checked, not trusted.
+        for artifact in artifacts:
+            path = (root / str(artifact.get("path"))).resolve()
+            if path.is_file() and "#[cfg(test)]" in path.read_text(encoding="utf-8", errors="replace"):
+                roles.add("assertion")
+                break
+        else:
+            problems.append("non_algorithm_review inline_tests names no file with #[cfg(test)]")
+    if "assertion" in needs and "assertion" not in roles:
+        problems.append(f"non_algorithm_review kind {kind} must bind an executing assertion")
+    return problems
+
+
 ALIAS = {
     "identify.general_id": "identify.id",
     "identify.transport.sid": "identify.transport_sid",

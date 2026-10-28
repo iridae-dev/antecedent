@@ -20,3 +20,17 @@ upstream_implementations_observed = [
 test_sources = [
  "inline unit tests (crates/antecedent-graph/src/unfold.rs)",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Lazy bounded finite-window unfolding of a stationary lagged temporal DAG template into a static DAG, plus graph-review proposal artifacts."
+no_independent_algorithm = "Edge replication over a window index; the module has no square root, logarithm, exponential, power or solve, and per-edge queries exist only as the test oracle of the replication."
+derivation = "For a stationary template with lagged edges (u, lag l) -> v, the unfolded window [0, T) contains the edge (u, t-l) -> (v, t) for every t with t-l in the window; materialize replicates these edges and has_edge is the independent oracle."
+inline_tests = true
+record_sha256 = "b2fbe69ad733e0ee9805cfdebd1d4193f60216e84b64bd5da03e60c7ed846999"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/unfold.rs"
+sha256 = "23d26faa61df7efa3dbab96facf30d78d0ce0ba5e56a38064baaec754f98d9dc"

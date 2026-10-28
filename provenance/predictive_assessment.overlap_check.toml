@@ -14,3 +14,21 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs", "crates/antecedent/tests/predictive_assessment_facade.rs"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Decides from row-level identities in the evidence ledger whether assessed observations overlap what a law was fitted on."
+no_independent_algorithm = "Set arithmetic on declared identities; no numeric routine."
+covered_by = ["evidence_ledger.overlap_accounting"]
+record_sha256 = "9a0dc9cb1108d69df6ce81de5931d7b3159a2c885b0d67f6233a68008d6cdf4c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/predictive_assessment/overlap.rs"
+sha256 = "b05f8cb4bb6a2b324205559828d07c8e338a09eba8d3e3f9c3e95a4eaf707a49"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/predictive_assessment.rs"
+sha256 = "0eaff0ee29ad99a72e2bdfbeff62bfef8224074080fc58f7f7e42ad188f85e82"

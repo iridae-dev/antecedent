@@ -21,3 +21,25 @@ upstream_implementations_observed = []
 test_sources = [
   "hand-enumerated compositions: a measured upstream whose record resolves through an inheriting component, and an unmeasured upstream that refuses the inheritance and the consumer relying on it",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Scientific interface contract: what a component produces and consumes, whether two components may be connected, decided from declarations alone. This record's slice: calibration inheritance."
+no_independent_algorithm = "Declaration data and connection decisions; no estimator input and no numeric routine."
+record_sha256 = "68e790bf1435e36c05db0fc6e3e4e6eebc98b3490e282f6e80aab54eb3d2faa8"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/interface_contract/declaration.rs"
+sha256 = "c608f3e68f10c9322de44874bc385638a9919e54b3135b14d0908df72a65dabc"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/interface_adapters.rs"
+sha256 = "f82e5151d0a2f4e93b83454067434742ce8fb86a5404117bf1fcc6ba876081ff"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/interface_contract.rs"
+sha256 = "14bc53e5e9e6416c09822c161afe059ab5e96f36e0c7a777151bbcd2e7b991ea"

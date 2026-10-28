@@ -22,3 +22,20 @@ test_sources = [
   "crates/antecedent-io-core/tests/transport_handoff_artifact.rs",
   "crates/antecedent-contract/tests/interface_adapters.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Admission of external transport providers and consumers through the one interface contract, decided from declarations before any number is computed."
+no_independent_algorithm = "Declaration checks and typed refusals; the transport numerics are other records."
+record_sha256 = "d485b57364e2fac0a8a1f5e51456aaa0086de274166ee7bbe6db25a5a8f8c755"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/provider_transport.rs"
+sha256 = "ac401816f66c5ac4617ec64ecbb8794496b3e2c1e923b16be0440c795e0e36cf"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/provider_transport.rs"
+sha256 = "85900308e2246b9eb912db3d9da6759a91e1948e75dfe5ebeead27652596a1a0"

@@ -32,3 +32,31 @@ test_sources = [
   "crates/antecedent/tests/z_transport_repair.rs",
   "python/tests/test_z_transport_repair.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Identification repair: apply hypothetical evidence from candidate studies and ask the identifier's own theorem whether the contract then identifies."
+no_independent_algorithm = "A finite search over declared candidates that delegates the identification decision to the existing identifiers."
+covered_by = ["identify.backdoor", "identify.frontdoor", "identify.id", "identify.iv"]
+record_sha256 = "51dd26813fa335ff2c48e04f05ff6d4c8a7982738c3058d5e25754cc267399af"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/identification_repair.rs"
+sha256 = "93b8f88341d3b10f038a623e3de9f3124d3ba884bba4a27ae0ec9c53ad1c5332"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/repair.rs"
+sha256 = "45ffb7842974cc71da6499641ccdc0fb9913f55102a9fc12e35c49c712db50d9"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/repair_artifact.rs"
+sha256 = "217a282f9c5501cb26f60a5ef8713c9d4c7e077876a24c1f59a7fc8b7e079fe9"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/repair_facade.rs"
+sha256 = "8150b958a80cfd1dc5b75f7ac1084e2bca1ad394d5cc8224304a90be0fdf4457"

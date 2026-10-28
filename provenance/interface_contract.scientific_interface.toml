@@ -27,3 +27,35 @@ test_sources = [
   "disjoint-evidence and inherited-calibration compositions with hand-counted shared sources and resolved records",
   "semantic mutation of stored declarations, identities, versions and feature markers by an independent artifact consumer",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Scientific interface contract: what a component produces and consumes, whether two components may be connected, decided from declarations alone. This record's slice: scientific interface."
+no_independent_algorithm = "Declaration data and connection decisions; no estimator input and no numeric routine."
+record_sha256 = "b060f45d7b4876e35f324eacfb338b230d317c51ef112d945c22e855b721dcb9"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/interface_contract/declaration.rs"
+sha256 = "c608f3e68f10c9322de44874bc385638a9919e54b3135b14d0908df72a65dabc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/interface_contract/composition.rs"
+sha256 = "c2c17cea08bc54045c754b7f7fa363b78cdf6b7287de98922e481f9f2cbebd07"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/interface_contract/connection.rs"
+sha256 = "bd6b0988aec334a2fad08b2c6578de3425cff5ab647378b864303e1b15bd4f5c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/interface_adapters.rs"
+sha256 = "f82e5151d0a2f4e93b83454067434742ce8fb86a5404117bf1fcc6ba876081ff"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/interface_contract.rs"
+sha256 = "14bc53e5e9e6416c09822c161afe059ab5e96f36e0c7a777151bbcd2e7b991ea"

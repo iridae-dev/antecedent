@@ -18,3 +18,21 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-design/tests/inverse_observational_scenarios.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Observational scenarios compatible with an outcome: P(X in scenario | Y event) on a supplied joint law."
+no_independent_algorithm = "Counting and weighting rows of a supplied law; no estimator."
+derivation = "Bayes' rule on a finite law: P(X in S | Y in E) = P(X in S, Y in E) / P(Y in E), computed as a ratio of weighted row counts."
+record_sha256 = "3f888148cd86e7f3afa2e26d0c6aae6475bc1f33844980ac11cbc3ff63c9379a"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/inverse_observational_scenarios.rs"
+sha256 = "b6e97bbc4823f5eba3c281191cf5fef0d59e1b61ac3dc718ebd79527fdadd568"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/inverse_observational_scenarios.rs"
+sha256 = "6ed7954d4f29a5a51a9765f4751ecc3fd8c525793eb4ba2b017d6f9c04a69534"

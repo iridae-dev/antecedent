@@ -29,3 +29,22 @@ test_sources = [
   "crates/antecedent-design/tests/inverse_query_artifact.rs",
   "python/tests/test_inverse_query.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "A finite inverse decision query: enumerate a declared ordered action grid, evaluate the forward functional at each action and compare to a target."
+no_independent_algorithm = "Enumeration over at most 4096 grid points through the forward evaluator; finite_enumeration_baseline is the in-module cross-check. No search or optimization."
+covered_by = ["decision.functionals"]
+derivation = "For each declared action a, evaluate the forward functional F(a) (mean, left-inverse quantile, threshold probability or utility) with the decision engine and report whether F(a) meets the target; feasibility is relative to the grid."
+record_sha256 = "41d6a52b4e1f5dc5b9b94c8c9cced6e8c0451f328af2bf03ae6441fc98e398df"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/inverse_query.rs"
+sha256 = "00b5ec1be96dd35c603edc1070ac9f982991303f8013ad2154e87d0861d3e4c4"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/inverse_query.rs"
+sha256 = "c4a77f768adc4525c4fb140343f675b06e4d4ebf06a694f97dac1fc4ea628433"

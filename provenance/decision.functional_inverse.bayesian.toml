@@ -17,3 +17,22 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent/tests/posterior_mean_decision.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Dirichlet posterior mean of the finite law that a decision functional already reads; the published number is the functional of that mean. No interval."
+no_independent_algorithm = "dirichlet_posterior_mean returns (w_i + c)/(sum w + k c); the functional is the existing decision functional. posterior_mean.rs also holds the Gaussian-kernel local-quadratic route (exp, powi), a different record, which was not mapped."
+covered_by = ["decision.functionals", "decision.functional_inverse"]
+derivation = "Dirichlet(c,...,c) prior with multinomial weights w gives posterior mean (w_i + c)/(sum_j w_j + k c); verified in dirichlet_posterior_mean."
+record_sha256 = "5407231214b30fd644c4974755475b49756d46f44e574b5dede68153d5af0298"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/posterior_mean_decision.rs"
+sha256 = "ccc6638fd4fc7ddddb561b0e5c48d58f97a8749ef6709182c948d4dfc3e85004"

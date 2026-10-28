@@ -8,3 +8,21 @@ papers = []
 implementation_deviations = ["Original engineering of actual study-arrival execution over existing independently checked repair/ranking consumers, catalog SID and frozen z-transport verifiers/binders, exact finite expression compiler and provider evaluator. Every algorithm and its scientific scope retain the original implementation/provenance; this adapter is not a parallel estimator. The raw cell counts, declared Available physical binding, original planned sample total and complete checked program are reexecuted by fresh consumption.", "Scope is one independent unweighted jointly observed delivered regime with explicitly disjoint count tables per concrete intervention world. Count-law arithmetic is an empirical point estimate; finite structural and arithmetic verification do not validate interval calibration, authenticate raw physical observations or grant live provider authority. Existing descriptor-only arrival remains a structural receipt check."]
 upstream_implementations_observed = []
 test_sources = ["conformance/proposals/arrival/expected.json", "conformance/proposals/arrival/README.md", "crates/antecedent/tests/proposal_arrival.rs", "python/tests/test_proposal_arrival.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Actual finite arrived-study estimation through the original checked transport evaluator, kept separate from the hypothetical proposal receipt; the result is empirical point only."
+no_independent_algorithm = "Orchestration: it binds the arrival to the proposal receipt, re-checks transport identification and evaluates the original exact transport expression. No estimator beyond those records."
+covered_by = ["design.proposal_receipt", "identify.transport_sid"]
+record_sha256 = "387e1a17428a4d15ecaec25548af3ec5e1911b6059c3faf35d5e5d8ef37850c8"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/proposal_arrival.rs"
+sha256 = "80b4cb26a76d76ca10754387fb5ca9130af3670d5b9ac8db9f09adb56844c17b"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/proposal_arrival.rs"
+sha256 = "0d1e50acce25a80925c7ae4accccb60218b333ea7cf604a3516f365494c818cf"

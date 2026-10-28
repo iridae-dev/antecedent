@@ -38,3 +38,21 @@ test_sources = [
 
 # Additive independently consumed receipt and frozen-score nodes bind the actual producing
 # snapshot/fit identity. Historical counts are inspectable records, not executable state.
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Portable composed-result container: a typed directed graph of embedded or referenced nodes whose edges carry the Merkle digest of the upstream node. Each node is decoded by the verifier of its artifact kind."
+no_independent_algorithm = "Graph construction, digest recomputation and cross-edge fact comparison only; no estimator, interval or density appears in the module."
+covered_by = ["composition.verifiers", "composition.provenance"]
+record_sha256 = "19e66dbd8e55d7486dc13bb4fe30e4406c053717314cba11bd047b2e613a0239"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/composition_bundle.rs"
+sha256 = "758d0d89f76057f1d7e78f01ca80992cd2fdc3d1b3dc0abd8116c02c8210f7d7"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/composition_bundle.rs"
+sha256 = "8ac28198a9a66fa7ade327b196b05de55189643907045721fc5a74e088844afa"

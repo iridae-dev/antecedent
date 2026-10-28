@@ -4,8 +4,9 @@
 # record lists primary papers and its implementation has not yet been read against them.
 # `priority` 1 = numerical records linked by licensed method specifications in the core
 # method families; 2 = linked by an admitted specification; 3 = numerical, unlinked;
-# 4 = contract, closed variant, bookkeeping or unclassified.
-# Summary: closed_variant=8, derived_in_repository=51, reviewed=47, source_candidate=12, substantive_method=289, unclassified=1, wrapper_contract=91
+# 4 = contract, closed variant, bookkeeping or unclassified; 0 = reviewed or justified_non_algorithm
+# (a digest-bound mapping to the records and modules that carry the numerics; not a source review).
+# Summary: closed_variant=3, derived_in_repository=34, justified_non_algorithm=75, reviewed=51, source_candidate=13, substantive_method=293, unclassified=1, wrapper_contract=29
 
 [[record]]
 id = "adaptive_inference.adaptive_weighting"
@@ -19,13 +20,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "adaptive_inference.analysis_contract"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: adaptive_inference.procedure_matrix) is digest-bound to the mapped modules"
 
 [[record]]
 id = "adaptive_inference.anytime_valid_sequence"
@@ -129,13 +130,13 @@ basis = "exact finite law of a batched adaptive Bernoulli procedure by enumerati
 
 [[record]]
 id = "adaptive_inference.procedure_matrix"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: adaptive_inference.analysis_contract) is digest-bound to the mapped modules"
 
 [[record]]
 id = "adaptive_inference.procedure_ordered_p_value"
@@ -345,7 +346,7 @@ admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "permutation test on a nearest-neighbour distance statistic; locate the source of the kNN-distance dependence statistic or declare it original"
+basis = "candidate: nearest-neighbour multivariate two-sample statistics (Schilling 1986, J. Amer. Statist. Assoc. 81) share the kNN-distance idea but do not introduce a conditional-dependence permutation test; most likely original engineering; not verified"
 
 [[record]]
 id = "ci.parcorr_variants"
@@ -419,23 +420,23 @@ basis = "weighted mean of conditional contrast predictions of a retained model; 
 
 [[record]]
 id = "composition.boundary"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: decision.functionals, decision.contract) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.bundle"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: composition.verifiers, composition.provenance) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.language_parity"
@@ -459,13 +460,13 @@ basis = "declaration, binding, lineage or orchestration over other methods; no n
 
 [[record]]
 id = "composition.native_response_claims"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: composition.program_binding, support.native_response_coordinates) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.panel_experiment_update"
@@ -479,23 +480,23 @@ basis = "declaration, binding, lineage or orchestration over other methods; no n
 
 [[record]]
 id = "composition.program_binding"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.provenance"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.release_boundary_fixture"
@@ -509,23 +510,23 @@ basis = "declaration, binding, lineage or orchestration over other methods; no n
 
 [[record]]
 id = "composition.rollout_state"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 2
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: decision.contract, design.evsi) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.source_evidence"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: composition.provenance, decision.contract) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.source_lineage"
@@ -539,13 +540,13 @@ basis = "declaration, binding, lineage or orchestration over other methods; no n
 
 [[record]]
 id = "composition.source_projection"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: composition.source_evidence, decision.contract) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition.structured_refusals"
@@ -559,23 +560,23 @@ basis = "declaration, binding, lineage or orchestration over other methods; no n
 
 [[record]]
 id = "composition.verifiers"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: composition.bundle, decision.functional_inverse) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition_verification.claim_revalidation"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "composition_verification.revalidated_interval"
@@ -659,13 +660,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "counterfactual.transported_path_specific"
-class = "closed_variant"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "the record states that no method is implemented and the claim is refused or left open"
+basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "counterfactual.whole_path_uncertainty"
@@ -769,73 +770,73 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "decision.admissibility"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: decision.contract, decision.structural_policy) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision.contract"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: decision.functionals) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision.finite_action_inverse.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: decision.functionals, decision.functional_inverse) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision.functional_inverse"
-class = "derived_in_repository"
-priority = 2
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "finite grid enumeration of the functional"
+basis = "non_algorithm_review (derivation; covered by: decision.functionals) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision.functional_inverse.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: decision.functionals, decision.functional_inverse) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision.functionals"
-class = "derived_in_repository"
-priority = 2
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "finite weighted expectation, variance, threshold probability, left-inverse quantile; arithmetic on a supplied law"
+basis = "non_algorithm_review (derivation; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision.functionals.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: decision.functionals, decision.functional_inverse) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision.scenario_claims"
@@ -849,53 +850,53 @@ basis = "declaration, binding, lineage or orchestration over other methods; no n
 
 [[record]]
 id = "decision.sensitivity_composition"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: decision.contract, decision.functionals) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision.structural_policy"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: decision.functionals, decision.contract) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision.structural_robustness"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: decision.structural_policy, decision.admissibility) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision.transported_source"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: decision.contract, cohort_decision.declared_shift) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision_reliability.combined_uncertainty"
-class = "closed_variant"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "the record states that no method is implemented and the claim is refused or left open"
+basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "decision_reliability.derived_uncertainty"
@@ -969,13 +970,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "design.conditional_study_ranking"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "design.decision"
@@ -989,33 +990,33 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "design.effect_width_reduction"
-class = "derived_in_repository"
-priority = 2
-admitted_specs = 4
-licensed_specs = 0
-papers = 0
-shares_primary_source_with = 0
-basis = "signed posterior-width reduction se_before - se_after from Gram-matrix arithmetic"
-
-[[record]]
-id = "design.eig"
 class = "substantive_method"
 priority = 2
 admitted_specs = 4
 licensed_specs = 0
+papers = 0
+shares_primary_source_with = 0
+basis = "read the module: lives in design/ranker.rs, a batched Monte Carlo ranker with Cholesky, square roots and exponentials; the Gram-matrix width arithmetic is not separable from it"
+
+[[record]]
+id = "design.eig"
+class = "reviewed"
+priority = 0
+admitted_specs = 4
+licensed_specs = 0
 papers = 1
 shares_primary_source_with = 0
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "design.evidence_obligations"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "design.evidence_plan"
@@ -1029,93 +1030,93 @@ basis = "declaration, binding, lineage or orchestration over other methods; no n
 
 [[record]]
 id = "design.evsi"
-class = "substantive_method"
-priority = 2
+class = "reviewed"
+priority = 0
 admitted_specs = 6
 licensed_specs = 0
 papers = 2
 shares_primary_source_with = 0
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "design.external_signal"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: design.evsi, design.eig) is digest-bound to the mapped modules"
 
 [[record]]
 id = "design.identification_repair"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: identify.backdoor, identify.frontdoor, identify.id, identify.iv) is digest-bound to the mapped modules"
 
 [[record]]
 id = "design.model_distinguish"
-class = "substantive_method"
-priority = 2
+class = "reviewed"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 1
 shares_primary_source_with = 0
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "design.prior_signal_planning"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 6
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: design.evsi, design.external_signal) is digest-bound to the mapped modules"
 
 [[record]]
 id = "design.proposal_arrival"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: design.proposal_receipt, identify.transport_sid) is digest-bound to the mapped modules"
 
 [[record]]
 id = "design.proposal_receipt"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: design.identification_repair, design.evsi) is digest-bound to the mapped modules"
 
 [[record]]
 id = "design.ranking_artifact"
-class = "wrapper_contract"
-priority = 4
+class = "substantive_method"
+priority = 2
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "read the module: design_ranking_artifact.rs replays EVPI (expected_max_affine over a square-rooted variance) and builds a binomial likelihood table with ln/exp inside the consumer; the numerical replay is part of the method"
 
 [[record]]
 id = "design.study_candidate"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "discovery.bootstrap_stability"
@@ -1339,13 +1340,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "discovery.per_population"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: discovery.selective_reuse) is digest-bound to the mapped modules"
 
 [[record]]
 id = "discovery.rfci"
@@ -1399,23 +1400,23 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "discovery.selective_reuse"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: discovery.pc, discovery.fci) is digest-bound to the mapped modules"
 
 [[record]]
 id = "discovery.selective_reuse_guarantees_closed"
-class = "closed_variant"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "the record states that no method is implemented and the claim is refused or left open"
+basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "discovery.structure_mcmc"
@@ -1429,43 +1430,43 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "distribution.aligned_joint_draws"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "distribution.joint_alignment"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 2
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "distribution.mapped_posterior_transfer"
-class = "wrapper_contract"
-priority = 4
+class = "substantive_method"
+priority = 2
 admitted_specs = 2
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "read the module: bayesian/hydrate.rs forms prior moments and covariances from posterior draws (square roots, covariance of draws); numerical, not a pure contract"
 
 [[record]]
 id = "distribution.meanings"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "estimate.aipw"
@@ -1555,7 +1556,7 @@ admitted_specs = 2
 licensed_specs = 2
 papers = 0
 shares_primary_source_with = 0
-basis = "joint Gaussian IV model with fixed loading; Bayesian IV literature exists and should be checked"
+basis = "candidate: Bayesian instrumental-variable regression (Kleibergen and Zivot 2003, J. Econometrics 114); the record states the fixed-loading joint Gaussian construction is the repository's own and the posterior is a stacked weighted least squares plus prior precision (conjugate algebra, see prob.conjugate_gaussian); not verified"
 
 [[record]]
 id = "estimate.bayesian_local_ratio"
@@ -1709,13 +1710,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.categorical_treatment.bayesian"
-class = "derived_in_repository"
-priority = 2
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 1
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: prob.conjugate_gaussian, stats.regularized) is digest-bound to the mapped modules"
 
 [[record]]
 id = "estimate.causal.forest"
@@ -1799,13 +1800,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.dose_grid_functional.bayesian"
-class = "derived_in_repository"
+class = "source_candidate"
 priority = 2
 admitted_specs = 1
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "candidate: local polynomial regression (see stats.response.local_polynomial) with a normal prior on the slope coefficients; correspondence not verified"
 
 [[record]]
 id = "estimate.dr.learner"
@@ -2339,23 +2340,23 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.quadratic_dose"
-class = "derived_in_repository"
+class = "source_candidate"
 priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "finite weighted least-squares polynomial reproduction argument"
+basis = "candidate: local polynomial regression (see stats.response.local_polynomial); the module fits a Gaussian-kernel weighted local quadratic itself; correspondence not verified"
 
 [[record]]
 id = "estimate.quadratic_dose.bayesian"
-class = "derived_in_repository"
+class = "source_candidate"
 priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "candidate: local polynomial regression (see stats.response.local_polynomial) with a normal prior on the slope coefficients; the Gaussian-kernel local fit is inside posterior_mean.rs; correspondence not verified"
 
 [[record]]
 id = "estimate.quantile"
@@ -2849,13 +2850,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "estimate.vector_treatment.bayesian"
-class = "derived_in_repository"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the frequentist counterpart already computes; the conjugate algebra and the unchanged plug-in variance need a derivation check"
+basis = "non_algorithm_review (derivation; covered by: prob.conjugate_gaussian, stats.regularized) is digest-bound to the mapped modules"
 
 [[record]]
 id = "evidence_ledger.dependence_range"
@@ -2869,13 +2870,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "evidence_ledger.evidence_reuse"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "evidence_ledger.hierarchical_borrowing"
@@ -2889,13 +2890,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "evidence_ledger.overlap_accounting"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "evidence_ledger.pooled_interval"
@@ -2919,23 +2920,23 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "evidence_ledger.repeated_observation_use"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "evidence_ledger.revision"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "evidence_ledger.statistical_pooling"
@@ -2959,53 +2960,53 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "external.capability_negotiation"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "external.object_verification"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "external.response_binding"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "external.scientific_providers"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "external.trust_receipt"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "gcm.attribution.intrinsic_influence"
@@ -3109,23 +3110,23 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "graph.unfold"
-class = "source_candidate"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "unrolling a stationary lagged template into a finite window; graph-theory/folklore, one upstream observed"
+basis = "non_algorithm_review (derivation; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "identify.auto"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: identify.backdoor, identify.frontdoor, identify.id, identify.idc, identify.iv) is digest-bound to the mapped modules"
 
 [[record]]
 id = "identify.backdoor"
@@ -3189,13 +3190,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "identify.envelope"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: identify.generalized_adjustment) is digest-bound to the mapped modules"
 
 [[record]]
 id = "identify.experiment_moments"
@@ -3299,13 +3300,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "identify.intervention_support"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (wrapper; covered by: identify.backdoor, identify.frontdoor, identify.iv) is digest-bound to the mapped modules"
 
 [[record]]
 id = "identify.iv"
@@ -3415,7 +3416,7 @@ admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "tier-closure on the background closure ADMG; related to tiered background knowledge in the literature"
+basis = "candidate: tiered background knowledge (Andrews, Spirtes and Cooper 2020, AISTATS, completeness of causal discovery with tiered background knowledge); the module states it is not new identification theory (tier closure, then generalized adjustment); correspondence not verified"
 
 [[record]]
 id = "identify.transport_meta_sid"
@@ -3439,33 +3440,33 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "inference.measured_scalar"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "interface_contract.calibration_inheritance"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "interface_contract.component_adapters"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "interface_contract.cyclic_composition"
@@ -3479,13 +3480,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "interface_contract.ledger_overlap"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "interface_contract.portable_specification"
@@ -3499,43 +3500,43 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "interface_contract.scientific_interface"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "inverse.observational_scenarios"
-class = "derived_in_repository"
-priority = 2
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "Bayes' rule P(X in scenario | Y event) on a supplied joint law"
+basis = "non_algorithm_review (derivation; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "joint_law.aligned_nonlinear_functional"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "delta method over an aligned joint law"
+basis = "read the module: stats/joint_law.rs (about 1900 lines, twelve square roots) propagates moments, mixtures and aligned functionals; delta-method and law-of-total-variance arithmetic is a substantive routine needing its own review"
 
 [[record]]
 id = "joint_law.composed_interval"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "delta method and law of total variance over an aligned joint law"
+basis = "read the module: stats/joint_law.rs composed interval and total-variance arithmetic; substantive numerical module"
 
 [[record]]
 id = "joint_law.composed_spread_and_exceedance"
@@ -3559,33 +3560,33 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "joint_law.known_weight_mixture"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "mixture mean and variance with known weights; law of total variance"
+basis = "read the module: stats/joint_law.rs mixture_moments; substantive numerical module"
 
 [[record]]
 id = "joint_law.linear_moment_propagation"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "linear moment propagation; textbook"
+basis = "read the module: stats/joint_law.rs linear_combination_moments; substantive numerical module"
 
 [[record]]
 id = "joint_law.transported_composition"
-class = "derived_in_repository"
+class = "substantive_method"
 priority = 3
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "delta method over a composed transported law"
+basis = "read the module: stats/joint_law.rs transported composition; substantive numerical module"
 
 [[record]]
 id = "kernels.special_functions"
@@ -3629,13 +3630,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "measurement.model_contract"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: measurement.binary_misclassification, measurement.classical_continuous_error) is digest-bound to the mapped modules"
 
 [[record]]
 id = "measurement.probabilistic_categorical"
@@ -3829,13 +3830,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "predictive_assessment.causal_validity"
-class = "closed_variant"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "the record states that no method is implemented and the claim is refused or left open"
+basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "predictive_assessment.distribution_drift"
@@ -3845,27 +3846,27 @@ admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "two-sample Kolmogorov-Smirnov distance and population stability index; textbook/industry statistics"
+basis = "candidate: two-sample Kolmogorov-Smirnov distance (Smirnov 1948, Ann. Math. Statist. 19) and the population stability index (credit-scoring industry convention, e.g. Siddiqi 2006, Credit Risk Scorecards); neither verified against the code"
 
 [[record]]
 id = "predictive_assessment.law_callback"
-class = "closed_variant"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "the record states that no method is implemented and the claim is refused or left open"
+basis = "non_algorithm_review (closed_variant; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "predictive_assessment.overlap_check"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: evidence_ledger.overlap_accounting) is digest-bound to the mapped modules"
 
 [[record]]
 id = "predictive_assessment.proper_scores"
@@ -3949,53 +3950,53 @@ basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "provider_callback.closed_claims"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "provider_callback.consumers"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "provider_callback.law_posterior_protocol"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "provider_callback.portable_result"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "provider_callback.replay_policy"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "recalculation.adjusted"
@@ -4325,7 +4326,7 @@ admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "rank-one / sufficient-statistic least-squares updating; textbook (e.g. recursive least squares) source should be named"
+basis = "candidate: recursive least squares updating (Plackett 1950, Biometrika 37) for the running Gram accumulation and Welford 1962 (Technometrics 4) for the mean-centred scatter that gives the residual variance; the record states the Gram update itself is textbook; not verified"
 
 [[record]]
 id = "state.ols_refresh"
@@ -4349,13 +4350,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "state.rolling_mechanism_diag"
-class = "source_candidate"
-priority = 3
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declined Page 1954 explicitly; fixed-window max-|partial sum| scan is the record's own judgment"
+basis = "non_algorithm_review (wrapper; covered by: state.incremental_ols, stats.divergence) is digest-bound to the mapped modules"
 
 [[record]]
 id = "stats.divergence"
@@ -4489,13 +4490,13 @@ basis = "declaration, binding, lineage or orchestration over other methods; no n
 
 [[record]]
 id = "support.native_response_coordinates"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "temporal.dependent_interval"
@@ -4599,13 +4600,13 @@ basis = "posterior mean (conjugate normal or Dirichlet) of the quantity the freq
 
 [[record]]
 id = "transport.assumption_range"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 4
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (derivation; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "transport.covariate_shift_cohort_effect"
@@ -4649,13 +4650,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "transport.handoff_artifact"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "transport.joint_bayesian"
@@ -4729,23 +4730,23 @@ basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "transport.provider_source_admission"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "transport.revalidation"
-class = "wrapper_contract"
-priority = 4
+class = "justified_non_algorithm"
+priority = 0
 admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "declaration, binding, lineage or orchestration over other methods; no numerical method of its own"
+basis = "non_algorithm_review (contract; covered by: none) is digest-bound to the mapped modules"
 
 [[record]]
 id = "transport.scenario_invariance"
@@ -4839,13 +4840,13 @@ basis = "lists primary papers; implementation correspondence not yet read"
 
 [[record]]
 id = "validate.conflict_policy"
-class = "substantive_method"
-priority = 2
+class = "reviewed"
+priority = 0
 admitted_specs = 2
 licensed_specs = 0
 papers = 1
 shares_primary_source_with = 0
-basis = "lists primary papers; implementation correspondence not yet read"
+basis = "bounded method_review present (digest-bound by the provenance gate)"
 
 [[record]]
 id = "validate.confounding_sensitivity"
@@ -4895,7 +4896,7 @@ admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "Bernoulli row-subset refit of a frozen path functional"
+basis = "no primary located: Bernoulli row-subset refit of a frozen path functional belongs to the data-subset refutation practice also recorded under validate.robustness_refuters; folklore; implementation still needs review"
 
 [[record]]
 id = "validate.graph_refute"
@@ -4905,7 +4906,7 @@ admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "leave-one-out adjustment-covariate sensitivity; refuter folklore"
+basis = "no primary located: leave-one-out adjustment-covariate sensitivity is a descriptive diagnostic the record itself calls ad hoc; implementation still needs review"
 
 [[record]]
 id = "validate.nonparametric_sensitivity_neighborhood"
@@ -4955,7 +4956,7 @@ admitted_specs = 0
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "placebo-treatment, dummy-outcome, random-common-cause and data-subset refuters; the observed upstream library is the origin of the names"
+basis = "no primary located: placebo-treatment, dummy-outcome, random-common-cause and data-subset refuters are applied-practice checks; candidate: the DoWhy software paper (Sharma and Kiciman 2020) names the battery but is a software paper, not a primary source; not verified"
 
 [[record]]
 id = "validate.simulated_unobserved_confounder"
@@ -4985,7 +4986,7 @@ admitted_specs = 1
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "target-native refuters; implementation-defined"
+basis = "no primary located: target-native refuters are implementation-defined (module target_native/mod.rs) and the record gives a pass threshold with no measured error rate; implementation still needs review"
 
 [[record]]
 id = "validate.temporal_mediation"
@@ -4995,5 +4996,5 @@ admitted_specs = 2
 licensed_specs = 0
 papers = 0
 shares_primary_source_with = 0
-basis = "perturbation refits of mediation regressions"
+basis = "no primary located for the perturbation refits; candidate: the mediation decomposition they perturb (Imai, Keele and Tingley 2010, Psychological Methods 15) belongs to the mediation estimator records; not verified"
 

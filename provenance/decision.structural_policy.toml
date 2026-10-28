@@ -18,3 +18,21 @@ test_sources = [
   "crates/antecedent-design/tests/decision_acceptance.rs",
   "crates/antecedent-design/tests/decision_structural_artifact.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Decisions under structural uncertainty: each structure is an atom evaluated on its own draws; the contract's policy then decides what may be combined."
+no_independent_algorithm = "One entry point that evaluates each atom with the decision evaluator and combines declared probabilities without renormalizing; no estimator."
+covered_by = ["decision.functionals", "decision.contract"]
+record_sha256 = "04edb1863fad491e275bb0bf4027e4c4562116382bcf86d994547c0dda51d63d"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_structural.rs"
+sha256 = "4efa152b0c66774f3bd817bbb9d109d1d310edaac381f15eed30fa61a7d2d191"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_structural.rs"
+sha256 = "630d42aecad962ba4518652752601d69b08985ca32f47c7d72d027b9ac1e1834"

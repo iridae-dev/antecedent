@@ -18,3 +18,17 @@ test_sources = [
  "inline unit tests (crates/antecedent-identify/src/intervention_support.rs)",
  "unsupported-intervention rejection case (conformance/identify/auto_envelopes)",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Normalizes Soft(constant), degenerate Stochastic and Sequence interventions to hard do(Set) and refuses shifts and arbitrary soft families."
+no_independent_algorithm = "Syntactic normalization of interventions so identifiers written for the do-operator can consume them."
+covered_by = ["identify.backdoor", "identify.frontdoor", "identify.iv"]
+inline_tests = true
+record_sha256 = "bcc245d4aa9e506ffd8a5770ecf4771783d4f0da4c08976a0464e0497b65616f"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/intervention_support.rs"
+sha256 = "2eee0e5d894f189d5f0a962afc3362159225a53b505ef7944dc18520ee7c173d"

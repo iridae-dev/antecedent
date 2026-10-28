@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from provenance_links import ALIAS, FAMILY, NOT_AN_ALGORITHM  # noqa: E402
-from provenance_links import method_review_problems  # noqa: E402
+from provenance_links import method_review_problems, non_algorithm_review_problems  # noqa: E402
 
 root = Path(".")
 records = sorted((root / "provenance").glob("*.toml"))
@@ -29,6 +29,8 @@ problems: list[str] = []
 checked = 0
 path_refs = 0
 primary_reviewed = 0
+non_algorithm_mapped = 0
+known_stems = {p.stem for p in records if p.name != "_template.toml"}
 
 for path in records:
     if path.name == "_template.toml":
@@ -47,6 +49,11 @@ for path in records:
     problems.extend(f"{rel}: {problem}" for problem in review_findings)
     if isinstance(record.get("method_review"), dict) and not review_findings:
         primary_reviewed += 1
+
+    mapping_findings = non_algorithm_review_problems(root, record, known_stems)
+    problems.extend(f"{rel}: {problem}" for problem in mapping_findings)
+    if isinstance(record.get("non_algorithm_review"), dict) and not mapping_findings:
+        non_algorithm_mapped += 1
 
     crate = record.get("implementation_crate")
     crate_exists = isinstance(crate, str) and (
@@ -240,5 +247,5 @@ if problems:
     sys.exit(1)
 
 print(
-    f"provenance schema/path audit: ok ({checked} records, {path_refs} path references, {review_checked} admitted provenance/API links, {primary_reviewed} bounded primary method reviews)"
+    f"provenance schema/path audit: ok ({checked} records, {path_refs} path references, {review_checked} admitted provenance/API links, {primary_reviewed} bounded primary method reviews, {non_algorithm_mapped} justified non-algorithm mappings)"
 )

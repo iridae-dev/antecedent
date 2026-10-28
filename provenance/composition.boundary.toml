@@ -34,3 +34,21 @@ test_sources = [
   "crates/antecedent-design/tests/composition_boundary.rs",
   "python/tests/test_composition.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Decision-input wrapper: a DecisionInput carries provider kind, trust, calibration, capabilities and a per-coordinate support map, and the module decides from declared evidence relations which inputs may be combined. The evaluation it triggers is the decision evaluator."
+no_independent_algorithm = "The module body contains no square root, logarithm, exponential, power or linear solve. Support, trust and shared-evidence checks read declared identities and supplied numbers; the numerics of a decision are those of the decision functionals."
+covered_by = ["decision.functionals", "decision.contract"]
+record_sha256 = "84a7610489837fb602c9de01906d58ac04db94acaa1b33032017d6982a608ea1"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/composition_boundary.rs"
+sha256 = "4c30cb09146ca94cb5c8c18ab0ce5eeb2941751572f920ac8bd9deefd9112b25"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/composition_boundary.rs"
+sha256 = "e671474e07839c8d0d1cf4fba8bb8380a365a8180fb8be8536ced2dca37e0413"

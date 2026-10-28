@@ -110,6 +110,51 @@ source. See
 declines to cite Page's 1954 CUSUM work because the module computes a
 fixed-window max-|partial sum| scan, not a sequential control-chart procedure.
 
+### Recording the judgment: `[non_algorithm_review]`
+
+A comment is not checked. A record with `papers = []` that was read against its modules and found
+to be a wrapper, contract, derivation or closed variant carries a `[non_algorithm_review]` table
+that the gate reads (`scripts/provenance_links.py::non_algorithm_review_problems`):
+
+```toml
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"                      # wrapper | contract | derivation | closed_variant
+rationale = "what the module does"
+no_independent_algorithm = "why nothing numerical of its own remains"
+covered_by = ["record.stem"]          # records that carry the numerics (required for wrapper)
+derivation = "..."                    # required for derivation: the identity relied on
+inline_tests = true                   # only when the mapped file holds its own #[cfg(test)] assertions
+record_sha256 = "..."
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"               # the module files that were read
+path = "crates/.../module.rs"
+sha256 = "..."
+[[non_algorithm_review.artifacts]]
+role = "assertion"                    # required for derivation and closed_variant
+path = "crates/.../tests/module.rs"
+sha256 = "..."
+```
+
+- `wrapper` delegates every numerical step to the `covered_by` records. `contract` is a declaration,
+  binding, lineage or refusal check over supplied identities and numbers. `derivation` is closed-form
+  or enumerative arithmetic on a textbook identity that the table states. `closed_variant` implements
+  nothing and refuses; its assertion must execute the refusal.
+- The gate fails a mapping with an unknown kind, a missing rationale, a `covered_by` that names a
+  missing record or the record itself, a missing mapped module, a stale module or record digest, a
+  record that lists papers, a record that also carries `method_review`, or a derivation or closed
+  variant with no executing assertion.
+- Before mapping, read the module: a file that contains its own square roots, logarithms,
+  exponentials, solves or sampling is a method and needs `papers` and a `[method_review]`, or a
+  `candidate: ..., not verified` entry in `parity/provenance_review_triage.toml` while the source is
+  unconfirmed. Do not map such a record to quiet it.
+- A mapping states that no independent source is owed. It is not an implementation review of a
+  primary source and the evidence report counts it separately from `method_review`.
+- After editing the record or a mapped file, run
+  `scripts/bind_review_digests.py mapping provenance/<id>.toml`, then
+  `scripts/provenance_review_triage.py --write`.
+
 ## Records that name the modules they cover
 
 A record may carry `modules = [...]`, the implementation files its method is. `scripts/provenance_links.py` links a method to its records by that field, by the module path or file name in the record, by a feature id, or by the explicit table of modules an existing record documents without naming. A module that executes or orchestrates other methods and implements no algorithm of its own is listed with its reason instead.

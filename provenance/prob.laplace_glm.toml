@@ -70,4 +70,4 @@ sha256 = "7887eb3d5124fee4717a055558eb07b800dbcd1fe9970aaec3aa3390db17902d"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/bayesian/laplace_glm/expected.json"
-sha256 = "09a6ca6afaa67976db10e33a50107989932b72cba998b3ae130e19a4bcb968c3"
+sha256 = "d666abd7d0717d29e3e7ee64f72da5674b8008b44b62d6f73153a4d49b83dd98"

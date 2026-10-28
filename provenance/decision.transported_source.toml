@@ -19,3 +19,21 @@ test_sources = [
   "crates/antecedent-design/tests/decision_transported_source.rs",
   "crates/antecedent-design/tests/inverse_forward_source.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "A transported response, policy value or synthesis as a licensed decision source: it validates declared populations, support and identity and forwards the transported point or law."
+no_independent_algorithm = "The single square root takes the standard deviation of a synthesis variance that a transport record already produced; no transport estimator is implemented here."
+covered_by = ["decision.contract", "cohort_decision.declared_shift"]
+record_sha256 = "daa461430e7de34f88435b48007913032f199a4a03a6c9385abd4f775c3d4b7b"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_transported_source.rs"
+sha256 = "f9032962ffec7ae3c1273a51e2723a9ff563cd740b35e11a5d117a2837238c6a"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_transported_source.rs"
+sha256 = "ab54f667f969ed322c08f1d66e036dc1cc11a7084790ef0237d99167149a2963"

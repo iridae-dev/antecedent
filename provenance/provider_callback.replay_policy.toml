@@ -28,3 +28,30 @@ test_sources = [
   "hand-enumerated identity, reuse and effect-policy tables with invocation counters on the supplied provider",
   "resealed single-field edits of stored declarations, requests and outputs by an independent artifact consumer",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Callback adapter protocol: declaration, negotiation, request identity, reuse planning and acceptance of a returned output as a law of the declared quantity. This record's slice: replay policy."
+no_independent_algorithm = "A declaration runs nothing; planning takes no provider; output validation checks shape against the query. No estimator of its own."
+record_sha256 = "0bd0fa0b2f6f14efc36a99b154d77220335cb061584c0a0d032950c3cb1e82f3"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/callback_protocol/declaration.rs"
+sha256 = "61f19c500551a644e7015d73874942e641b96b9f52b6d4e2856a6b0b17300e01"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/callback_protocol/plan.rs"
+sha256 = "b9d8576509a10f657db8812083bc22d286feaecad1ba53b96e45f1ee0ab75989"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/callback_protocol/query.rs"
+sha256 = "f5a5ebe1d86cb244d0e3478e9e14220c5cecac6529d13e274df45aba55f3dae4"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/callback_protocol.rs"
+sha256 = "39b31e9de4fe06240342c13db11c2626b77e80bae3d5d1f4081fc48856a5b3c1"

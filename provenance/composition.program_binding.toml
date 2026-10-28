@@ -29,3 +29,20 @@ test_sources = [
   "crates/antecedent-contract/tests/program_binding.rs",
   "python/tests/test_program_claims.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Binds an external claim to the identified program and request it answers by equality of declared coordinates and one BLAKE3 identity over strings and exact dose bits."
+no_independent_algorithm = "Only equality checks and content hashing over declared fields; no statistical or causal quantity is computed."
+record_sha256 = "8d94fa689d4b3db942f756825813552e1017851f90f3a95f9db1ed04bb6aba78"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/program_binding.rs"
+sha256 = "da580be6043f0428558be257d0a5943b75080839990d4ab7d1da3e4e26082f74"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/program_binding.rs"
+sha256 = "981cf4402a842e9524fc755fd0e73a15d59a5afc00da20e4789dc3407af2c4a7"

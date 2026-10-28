@@ -18,3 +18,26 @@ test_sources = [
   "crates/antecedent-design/tests/decision_contract_eval.rs",
   "crates/antecedent-design/tests/decision_mean_source.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Finite weighted expectation, population variance, threshold probability, left-inverse quantile and a fractional-boundary tail mean on the draws of a supplied law."
+no_independent_algorithm = "Arithmetic on a supplied finite law; no estimator and no sampling theorem. Variance is that of the finite law and the tail mean splits the boundary atom, both stated in the rustdoc."
+derivation = "E[g(X)] = sum_i w_i g(x_i); Var = sum_i w_i (g(x_i)-E)^2; P(g>t) = sum of weights above t; quantile = inf{x: F(x) >= p}."
+record_sha256 = "8f9856feea6034e7cf6ae1b1443aa7b045f7ffb65c670e8b575aed50f5062692"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_eval.rs"
+sha256 = "2cf25b14eef33026d07a7e16b320975a88c51f40bc31f4efc602f498c7eeecd8"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_contract.rs"
+sha256 = "ed245a63118da8eb1886fbb78cc0c64837ad2867dbc820cfe52ef675edbd855c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_contract_eval.rs"
+sha256 = "bfd4761de4680a09219c0b6f398ebee7db7761e42198447a1e9b6dde6aadda9d"

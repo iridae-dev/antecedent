@@ -13,3 +13,20 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs", "crates/antecedent/tests/predictive_assessment_facade.rs"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "closed_variant"
+rationale = "Closed variant: a score is never read as causal validity."
+no_independent_algorithm = "ASSESSMENT_CAUSAL_VALIDITY is the constant not_established and request_causal_validity refuses."
+record_sha256 = "b276e7a30d9829b557353294c17aa0090adc7740b7fb1cf9cad70dd7232e1370"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/predictive_assessment/assess.rs"
+sha256 = "d58a305e8360d235d5f8de81e891597d7c8a681df32cb9124d48e3dbb311e380"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/predictive_assessment.rs"
+sha256 = "0eaff0ee29ad99a72e2bdfbeff62bfef8224074080fc58f7f7e42ad188f85e82"

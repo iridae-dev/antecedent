@@ -38,3 +38,21 @@ test_sources = [
   "crates/antecedent-design/tests/design_ranking.rs",
   "crates/antecedent-design/tests/evsi.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Checked adapter from posterior sources of a prior catalog to a future candidate-signal likelihood; it pairs compatible sources and refuses otherwise."
+no_independent_algorithm = "One adapter whose single square root converts a supplied variance to a standard deviation; the value-of-information computation is design.evsi."
+covered_by = ["design.evsi", "design.external_signal"]
+record_sha256 = "49d70b200e4ec5048b46c427709ddf490417cacd9798b90095e21934799cfee7"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/prior_signal.rs"
+sha256 = "201211ca7f7920aa024222622a0c3c9963cf85d5142ed7bba871c88fe3902d91"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/prior_signal.rs"
+sha256 = "acc361f9fee34abc1535c98f4af98bdd4b5ed4fff3f7f02cf50249738caddfc8"

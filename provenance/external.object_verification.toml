@@ -16,3 +16,30 @@ test_sources = [
   "crates/antecedent-contract/src/external.rs",
   "crates/antecedent-io/tests/external_binding_wire.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Typed declarations, negotiation, verification receipts and binding of externally supplied scientific objects to a checked causal contract. This record's slice: object verification."
+no_independent_algorithm = "The modules state what an object can supply and bind it by identity; they do not verify numerical truth, identify an estimand or compute an estimate."
+record_sha256 = "c1909932985cf40f959fda1924cfcf739b856f91b411a630499c8fd94b412ff0"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/external.rs"
+sha256 = "dae8aac24e3f6f4b216b065627b2ac07a1ac1c32af7f595d479740219706a8de"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/external_binding.rs"
+sha256 = "4f423963e08d429fe75bd53dfe799cbcc05d9f2c1f44410ba31113abdffce65a"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/provider_verification.rs"
+sha256 = "de64baf04674edd74bca90f5e5de0e861d688f332c809f73e5a5854475f2f52f"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io/tests/external_binding_wire.rs"
+sha256 = "8d234f1f70b7ff857d5e377d570ee3aceb5b232b2735ed2fc0a44a2a6240b2cc"

@@ -34,3 +34,20 @@ test_sources = [
   "crates/antecedent/tests/z_transport_repair.rs",
   "python/tests/test_z_transport_repair.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Machine-readable evidence obligations a failed causal contract owes: which quantities, populations and regimes would let it identify."
+no_independent_algorithm = "Typed records with canonical identity; no estimator or numeric routine."
+record_sha256 = "84f5abd2ce190055d99a0125d7a9dd5c063d40adf23dd8433578cf99519b9b74"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/evidence_obligation.rs"
+sha256 = "303162f68aecca8e7d5286854172d2433c43e60bf6d9bed9607765e6fef93fc4"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/evidence_obligation.rs"
+sha256 = "6be648a26dd1f047db8fce78d754cd166620cc581067e68373a8d7869868fb3f"

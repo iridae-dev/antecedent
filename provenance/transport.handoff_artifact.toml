@@ -16,3 +16,20 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-io-core/tests/transport_handoff_artifact.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Bounded checksummed container of a transported claim handed to an external consumer, with its interface-contract port and transport identity."
+no_independent_algorithm = "Sealing, reading and verification of a container; no transport estimator."
+record_sha256 = "be575096a6a12486041d70bb50da1d53ef45f5751f806992c52c13d095465c16"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/transport_handoff_artifact.rs"
+sha256 = "8381056f9f971a26ac3d6f1a2138cab1b351d713bf15769937ac589d65290505"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io-core/tests/transport_handoff_artifact.rs"
+sha256 = "2c04f7021778e1426aba4a0f5799fd75801f493d85abd921efb02908beece7ba"

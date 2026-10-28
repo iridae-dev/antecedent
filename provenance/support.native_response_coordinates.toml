@@ -34,3 +34,25 @@ test_sources = [
   "crates/antecedent/tests/native_coordinate_parity.rs",
   "python/tests/test_native_response_coordinates.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Scientific coordinates and support labels of a native response read from the response itself."
+no_independent_algorithm = "Derivation of coordinate skeletons and consistency of labels; no sample size, range or support statistic is computed."
+record_sha256 = "c67cbff9e605b03deeb70451f49e6b5b3c03e0e59db8e1cd11b60fbf1649a187"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/response_coordinates.rs"
+sha256 = "6c79cbec6ab3d330534ca3be8d0d9869a8c35e1125d6057a5cc3506b1f88bec7"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/support_labels.rs"
+sha256 = "6dbbaad31bb152f49cff61f7cb286d50f1339189a6906e95d7583a2597fd4997"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/native_response_coordinates.rs"
+sha256 = "c0c1618b8b65331094e3e1e773b646fa10659f41fda0ba16cf5d40cf1668116f"

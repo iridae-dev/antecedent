@@ -17,3 +17,30 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-contract/tests/interface_adapters.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Scientific interface contract: what a component produces and consumes, whether two components may be connected, decided from declarations alone. This record's slice: component adapters."
+no_independent_algorithm = "Declaration data and connection decisions; no estimator input and no numeric routine."
+record_sha256 = "1dd407d9af8044d0c4400cf294425213eaf8ebdad6e8bcf89d85f558ff5f9b6e"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/interface_contract/declaration.rs"
+sha256 = "c608f3e68f10c9322de44874bc385638a9919e54b3135b14d0908df72a65dabc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/interface_contract/connection.rs"
+sha256 = "bd6b0988aec334a2fad08b2c6578de3425cff5ab647378b864303e1b15bd4f5c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/interface_adapters.rs"
+sha256 = "f82e5151d0a2f4e93b83454067434742ce8fb86a5404117bf1fcc6ba876081ff"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/interface_contract.rs"
+sha256 = "14bc53e5e9e6416c09822c161afe059ab5e96f36e0c7a777151bbcd2e7b991ea"

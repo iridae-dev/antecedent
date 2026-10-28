@@ -28,3 +28,25 @@ test_sources = [
   "semantic mutation of stored classifications, graphs, effects and declared overlap by an independent artifact consumer",
   "permutation of node declaration order over all orderings of a six-node graph",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Dependency bookkeeping over a declared directed acyclic graph: a sweep in dependency order propagates changed and withdrawn marks along typed edges and compares two snapshots."
+no_independent_algorithm = "Graph traversal and classification; no statistic is computed and nothing numeric is revalidated beyond identity equality."
+record_sha256 = "aaa9001763d5709ca5838fa32fe7a6cd2682afc3f46afd7a735adfde92ae58a4"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/composition_verification/graph.rs"
+sha256 = "4d1456068b7aabe815477f6b8c0bc74184c4365c74cd16a939e6c1889b0e79ce"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/composition_verification/revalidate.rs"
+sha256 = "1c362909789e331233bac463bbb65644412bd7985916273fe482f830bf1dc80f"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/composition_verification.rs"
+sha256 = "aa5ccea15516ae7f6adb5c1d4824d1b05e8ef1c2d466c900b3383b823faecce9"

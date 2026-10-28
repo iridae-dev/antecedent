@@ -21,3 +21,21 @@ executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "composition.source_projection.source_projection.test_source_projection_fresh_process_requires_actual_original_raw_data_execution.artifact"
 provider_trust = "original_native_source_unverified_on_import; external_attestation_retained"
 exact_request_verification = "actual_original_PreparedStudy_execution_full_source_comparison_required_for_native_bundle_resolution"
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Source-backed projections of a portable workflow: replay of an original artifact consumer, binding exact coordinates and an affine decision expression."
+no_independent_algorithm = "Replays an original consumer and an affine expression over supplied numbers; the module has no square root, logarithm, exponential, power or solve."
+covered_by = ["composition.source_evidence", "decision.contract"]
+record_sha256 = "b5e6a88904969b902f59451406b12b850c29de293485f9427393859771557a49"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/source_projection_artifact.rs"
+sha256 = "e9592368eb2956c5822bef965263500ef067986d4bd473789306b0aff3340f8a"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/source_projection.rs"
+sha256 = "be0faaf6096d4089b8170715a6dd6b17981e47f5733bc388eff092ccc36a279c"

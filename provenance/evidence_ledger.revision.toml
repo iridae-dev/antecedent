@@ -17,3 +17,30 @@ test_sources = [
   "crates/antecedent-contract/tests/evidence_ledger.rs",
   "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Runtime evidence ledger: sources, observation overlap by declared identities, operations and results, with lineage-based revalidation. This record's slice: revision."
+no_independent_algorithm = "Set arithmetic over declared observation identities and lineage resolution; no square root, logarithm, exponential, power or solve in the ledger modules."
+record_sha256 = "bd58e298fb8ba36c582bfaacf10a4c82a2751ed81f4631f9f21757305ccc638c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
+sha256 = "fe005ce70708e0fdaed693b442de0fe2749135d573e6f0e9caffeb4ff0238123"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/evidence_ledger/overlap.rs"
+sha256 = "ae372d36e48c7548c37f6791e85ae986692621fca3dec9820bd743bd80bb15f7"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/evidence_ledger/operation.rs"
+sha256 = "46d1412a934028d2cbd2ddc26c52a0335471800fac45966644aa274f4c152bd2"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/evidence_ledger.rs"
+sha256 = "4e3a7547b2542d7d8c1f83166c4a64969993b57087b218c1fed50cea771bd1e5"

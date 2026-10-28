@@ -21,3 +21,26 @@ test_sources = [
 
   "crates/antecedent-design/tests/decision_acceptance.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Durable decision contract: actions by semantic id, the quantities each utility reads, a closed replayable utility expression, constraints and a canonical identity."
+no_independent_algorithm = "Expression syntax and checks. Evaluating a closed sum/product/max/min expression is arithmetic on supplied draws and is the functional arithmetic recorded under decision.functionals."
+covered_by = ["decision.functionals"]
+record_sha256 = "8a9c2591191278a99e7ca9192a0829297a22afdcd79d9979c645f62b659a263c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_contract.rs"
+sha256 = "ed245a63118da8eb1886fbb78cc0c64837ad2867dbc820cfe52ef675edbd855c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_contract_eval.rs"
+sha256 = "bfd4761de4680a09219c0b6f398ebee7db7761e42198447a1e9b6dde6aadda9d"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_acceptance.rs"
+sha256 = "9e1739be832862e2337d67451e5518a6a382e8ec9962b287f5c77992a1ede3a1"

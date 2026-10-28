@@ -17,3 +17,27 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-estimate/tests/posterior_mean_linear.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Posterior mean of the joint treatment coefficients under independent normal priors with the OLS residual variance plugged in; no interval."
+no_independent_algorithm = "full_coefficient_posterior_mean (vector_treatment.rs) forms (X'X + (sigma2/tau^2) D)^-1 X'y with D the identity on non-intercept columns and inverts it; this is the closed-form conjugate normal posterior mean, not a new procedure. Only that function and the refusal wrappers in posterior_mean.rs were mapped: vector_treatment.rs also holds the frequentist joint fit (square roots, Cholesky) and posterior_mean.rs the Gaussian-kernel local-quadratic route, which belong to other records."
+covered_by = ["prob.conjugate_gaussian", "stats.regularized"]
+derivation = "Normal likelihood with variance sigma2 (plug-in rss/(n-p)) and independent N(0, tau^2) priors on non-intercept coefficients (intercept unpenalized) give posterior mean (X'X + (sigma2/tau^2) D)^-1 X'y, the ridge normal equations; verified against full_coefficient_posterior_mean."
+record_sha256 = "37c415783579330e7a2ddf43f7c589787b63c637f86de7c95ae08cffae8eba4d"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/vector_treatment.rs"
+sha256 = "ae588b0ce25904fa20febf84f84dbc34f324d4e591ddde2dffaa102319128b43"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_linear.rs"
+sha256 = "1c6bec3dc0cdc704249278e102250e48f39a0ba2af796036515539c03111498a"

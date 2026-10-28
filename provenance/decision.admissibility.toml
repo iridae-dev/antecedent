@@ -29,3 +29,26 @@ test_sources = [
   "crates/antecedent-design/tests/decision_robust_artifact.rs",
   "python/tests/test_decision_robust.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Declared admissibility rules (action exclusions, per-input support floors, an uncertainty requirement) that remove actions from the admissible set and never add a penalty."
+no_independent_algorithm = "Rules read the results of the structural evaluation and the supplied support; no estimator and no numeric routine of its own."
+covered_by = ["decision.contract", "decision.structural_policy"]
+record_sha256 = "4bfb952fa6488dc835381370c22f6c5ab363532e5dc27975109c0f7820727da6"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_contract.rs"
+sha256 = "ed245a63118da8eb1886fbb78cc0c64837ad2867dbc820cfe52ef675edbd855c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_robustness.rs"
+sha256 = "6b6e67566702c9e05591df53385b6a046ed85bc7be42933d1d5e4db4343157e4"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_robustness.rs"
+sha256 = "996b8079225191dad95354c5efef3b5fc2176f10a2bd665f5cf7f00bcadd4755"

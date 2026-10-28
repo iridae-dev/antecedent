@@ -17,3 +17,20 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-contract/tests/composition_provenance.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Lineage-integrity contract: each link digest is the BLAKE3 hash of its identity, stage and ordered predecessor digests, verified by recomputation."
+no_independent_algorithm = "A hash chain and stage queries; no estimator."
+record_sha256 = "876629f1395332e248b8698d721e8640ea5f64055fda4f4af95181abed9d26a4"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/composition_provenance.rs"
+sha256 = "0a3689cd737b63b2222a6b544107d4ad8734703fdd8d615989eef147720ac5fb"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/composition_provenance.rs"
+sha256 = "f550e88dbdc9d5ae2b81b58a2e095d7c8fa6342b75deb864428492c632020fcf"

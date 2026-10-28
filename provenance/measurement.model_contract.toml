@@ -23,3 +23,16 @@ test_sources = [
  "independently simulated seeded DGPs with known coefficients",
  "hand-computed one-way ANOVA and confusion-matrix inversion",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Semantic contract for measurement models: what a model licenses for which population, regime, arm and representation, and what is refused."
+no_independent_algorithm = "The module states that the numerical correction lives elsewhere and decides only whether a request may use a model."
+covered_by = ["measurement.binary_misclassification", "measurement.classical_continuous_error"]
+record_sha256 = "dc8fdb7aa39b734cad8c2c0963bcbceace1bcf33ea4313115dc1945a8b4a8c82"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/measurement.rs"
+sha256 = "72f8ea710485375c549f29d97cf8670c1ad12f02d66e94305eef62dd12c68efa"

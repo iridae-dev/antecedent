@@ -19,3 +19,20 @@ test_sources = [
   "crates/antecedent-discovery/tests/selective_discovery.rs",
   "crates/antecedent/tests/selective_discovery_facade.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "closed_variant"
+rationale = "Closed variant: recovery and error-control statements about the graph discovered on one dataset are refused."
+no_independent_algorithm = "claims.rs returns cell_not_licensed for the claim kinds; nothing is computed."
+record_sha256 = "3f2043a32caae9483357514609e53c20095bc284da439dfad463d773a865376b"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/selective/claims.rs"
+sha256 = "715136995bb7ce5154e8b501052c2ed1339d35f5c02ed1497e6b2285900223b4"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/selective_discovery.rs"
+sha256 = "9b322b021ebe142490c435cfd9c45a6d716a01346a45448f8457295465411a65"

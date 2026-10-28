@@ -19,3 +19,26 @@ test_sources = [
  "crates/antecedent-contract/tests/adaptive_design.rs",
  "crates/antecedent-io-core/tests/adaptive_monitoring_contract_artifact.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Retained analysis contract of an adaptive experiment: arms, units, looks and monitoring declarations, completeness and consistency checks and a canonical identity."
+no_independent_algorithm = "Declarations and checks. The single square root in the module is a validation of a declared quantity, not an estimator; inference procedures are other records."
+covered_by = ["adaptive_inference.procedure_matrix"]
+record_sha256 = "d85c442309e39e96190665df5772826868c9402d4290c3a3aa1b3c5cf04fcccf"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/adaptive_design/declaration.rs"
+sha256 = "17c299fa7d76d78fb71459ab0136f699230cfc43c0003f7895e8d137f5aa49b0"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/adaptive_design/accounting.rs"
+sha256 = "5136c6971e90884577d52940480500a9ecda4c80e90df103c7ad0f7214ea4fae"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/adaptive_design.rs"
+sha256 = "a37e96752eb9a1e2ead4683518c89b3e9bcde71e1e5df18d40565610c718b2d8"

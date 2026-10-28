@@ -12,3 +12,20 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent-io/src/measured_inference.rs", "crates/antecedent-io/src/measured_inference/transport.rs", "crates/antecedent-io/src/measured_inference/nested.rs", "crates/antecedent-io/src/measured_inference/recovery_temporal.rs", "python/tests/test_measured_inference.py", "python/tests/test_measured_joint_transport.py", "python/tests/test_measured_nested.py", "python/tests/test_measured_recovery.py", "python/tests/test_measured_temporal_public.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Native measured interval authority: only crate-owned producer and consumer adapters that derive each basis from a real execution can construct a measured scalar."
+no_independent_algorithm = "Authority bookkeeping and replay comparison of intervals computed by other records."
+record_sha256 = "798426e2dd6e6af0ba94dd096a608cf09120b962c16faebd944559c867f64df3"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/measured_inference.rs"
+sha256 = "743682c5b99cce54483dccf99b2a73afb3e7e3640f8970f3efa7c459de41adab"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "python/tests/test_measured_inference.py"
+sha256 = "8a07ffd98080d75a946c66e18944bf38f47ba9874d146ebb2a3fe2f0565edf20"

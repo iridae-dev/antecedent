@@ -19,3 +19,21 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-design/tests/transport_sensitivity.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "One-parameter bias model for a violated transport premise carried through the sensitivity artifact."
+no_independent_algorithm = "Interval arithmetic at declared grid points; the module has no square root, logarithm, exponential, power or solve."
+derivation = "The transported quantity may differ from the point value v by a shift s in [0, bound]; the range at s is [v - s, v + s] (additive) or [v - s|v|, v + s|v|] (proportional), evaluated on a declared grid. No distributional model is assumed."
+record_sha256 = "41cf1b5657e26a084c51ce496f6fedc8a5761642552d5c2a8af3d22895dcd990"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/transport_sensitivity.rs"
+sha256 = "041f211fff477a663616a00a780ad9baf39389405e6a570b0a08cc1869026e5e"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/transport_sensitivity.rs"
+sha256 = "61fb0b5d28c7dd2688d0460819ca5dc7a321cb1fda31dc4e6735c4ff8d7c97d1"

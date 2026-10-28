@@ -8,3 +8,21 @@ papers = []
 implementation_deviations = ["Original native diagnostic scope and semantic coordinate/contributor lineage survive original decision/inverse evaluation; actual reexecution resolves only the matching original operation; fresh imports retain original unresolved status without execution authority or calibration upgrade.", "Original support diagnostics, original contracted-result decoder, original checked estimator and original inverse/decision numerical engines are reused. No new statistical method. Original bound external source consumers retain full request/provider/quantities/values/support/attestation; the original external claim format contains no numerical diagnostic arrays, which remain explicitly unavailable."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/source_evidence.rs", "python/tests/test_source_evidence.py", "python/tests/test_composition_source_lineage.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Independently consumed original source diagnostics and semantic contributor maps; it preserves an existing scientific claim and never promotes trust or calibration."
+no_independent_algorithm = "Retention and re-consumption of existing results; no estimator in the module."
+covered_by = ["composition.provenance", "decision.contract"]
+record_sha256 = "4d2397c130d078dcf63f79ad0fccc001e4e010ea9777af6816dd6e4bf7821cb5"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/source_evidence.rs"
+sha256 = "8414dc1985bc0fde087670a4099a0b0bdc90f0e0c6fca9226ebc14665eea63cc"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/source_evidence.rs"
+sha256 = "20176eea72e5166c8c5b9317606ddb38aabbaaaf86e568ac712d3b87c3834178"

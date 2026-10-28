@@ -2,10 +2,12 @@
 """Refresh the digests a completed review binds, after its text or artifacts changed.
 
     bind_review_digests.py record provenance/<id>.toml
+    bind_review_digests.py mapping provenance/<id>.toml
     bind_review_digests.py fixture conformance/<family>/<name>/expected.json
 
 ``record`` rewrites each ``[[method_review.artifacts]]`` ``sha256`` and ``record_sha256``
-in place.  ``fixture`` rewrites each ``oracle.reference_review.artifacts`` ``sha256`` and
+in place.  ``mapping`` does the same for ``[[non_algorithm_review.artifacts]]`` and its ``record_sha256``.
+``fixture`` rewrites each ``oracle.reference_review.artifacts`` ``sha256`` and
 ``fixture_payload_sha256``.  The tool only binds what the author wrote; it does not decide
 that a review is correct, and it never adds a review.  Run it after the last edit to any
 bound artifact, then run the provenance and evidence gates.
@@ -22,7 +24,7 @@ from pathlib import Path
 
 from _repo import REPO_ROOT
 from evidence_kinds import fixture_payload_digest
-from provenance_links import method_review_digest
+from provenance_links import method_review_digest, non_algorithm_digest
 
 
 def sha(path: Path) -> str:
@@ -54,6 +56,30 @@ def bind_record(path: Path) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def bind_mapping(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    record = tomllib.loads(text)
+    review = record.get("non_algorithm_review")
+    if not isinstance(review, dict):
+        raise SystemExit(f"{path}: no non_algorithm_review to bind")
+    for artifact in review["artifacts"]:
+        rel = artifact["path"]
+        digest = sha(REPO_ROOT / rel)
+        pattern = re.compile(
+            r'(path = "' + re.escape(rel) + r'"\nsha256 = ")[0-9a-f]{0,64}(")'
+        )
+        text, n = pattern.subn(r"\g<1>" + digest + r"\2", text)
+        if n != 1:
+            raise SystemExit(f"{path}: cannot locate digest line for {rel}")
+    digest = non_algorithm_digest(tomllib.loads(text))
+    text, n = re.subn(
+        r'(record_sha256 = ")[0-9a-f]{0,64}(")', r"\g<1>" + digest + r"\2", text
+    )
+    if n != 1:
+        raise SystemExit(f"{path}: missing record_sha256 line")
+    path.write_text(text, encoding="utf-8")
+
+
 def bind_fixture(path: Path) -> None:
     document = json.loads(path.read_text(encoding="utf-8"))
     review = document["oracle"]["reference_review"]
@@ -64,11 +90,11 @@ def bind_fixture(path: Path) -> None:
 
 
 def main() -> int:
-    if len(sys.argv) != 3 or sys.argv[1] not in {"record", "fixture"}:
+    if len(sys.argv) != 3 or sys.argv[1] not in {"record", "mapping", "fixture"}:
         print(__doc__)
         return 2
     path = (REPO_ROOT / sys.argv[2]).resolve()
-    (bind_record if sys.argv[1] == "record" else bind_fixture)(path)
+    {"record": bind_record, "mapping": bind_mapping, "fixture": bind_fixture}[sys.argv[1]](path)
     print(f"bound {path.relative_to(REPO_ROOT)}")
     return 0
 

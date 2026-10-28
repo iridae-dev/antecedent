@@ -29,3 +29,21 @@ test_sources = [
   "crates/antecedent-design/tests/proposal_receipt.rs",
   "python/tests/test_proposals.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Per-proposal receipt binding an identification repair and a design ranking by identities and digests, with re-identification on arrived data."
+no_independent_algorithm = "Digest binding and re-invocation of the repair and identifiers; no numerics of its own."
+covered_by = ["design.identification_repair", "design.evsi"]
+record_sha256 = "e67a8dfd4fed99753481896d0696a1cbe6cdb4589dee3a9d567c7ed536e81c3c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/proposal_receipt.rs"
+sha256 = "7b828d2374f029b3f62cd49c4ad2773e826be205febc480edf5b9159b265bf5c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/proposal_receipt.rs"
+sha256 = "c904808c3edfee0e384aa19344a8cb3d24d8206bb7d7d5a09e3d1eeca9d0b521"

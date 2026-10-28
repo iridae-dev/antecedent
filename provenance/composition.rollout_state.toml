@@ -8,3 +8,21 @@ papers = []
 implementation_deviations = ["Semantic binding over the original distribution and study-ranking consumers, not a new inference method. A bounded unweighted aligned source explicitly interpreted as a parameter/causal-functional posterior state, or an interventional predictive scalar explicitly named state, projects to exactly the ordered finite prior used by the original terminal decision. Full terminal actions, utilities, admissibility and units and the original ranking identity are retained. Fresh consumption reads the original source and ranking artifacts and recomputes the scalar projection and full binding; no mean-only, weighted-law, marginal pairing or independent ordering can substitute. The rollout bundle node checks the complete source identity upstream and full terminal decision on its ranking edge. Structural identification, native execution and inferential calibration are never upgraded by binding.", "Original engineering of identity/scientific-state binding; numerical integration and its citations belong to the original study-ranking engine. No posterior/sampling, regret or ranking guarantee is inferred from exact conditional finite arithmetic."]
 upstream_implementations_observed = []
 test_sources = ["conformance/composition/rollout/expected.json", "crates/antecedent/tests/rollout_artifact.rs", "python/tests/test_rollout.py", "python/tests/test_composition_source_lineage.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Finite source-law to terminal-decision and study-ranking binding: consumption replays the original source and ranking consumers and checks the exact decision table."
+no_independent_algorithm = "Binds and replays decisions and rankings computed by other records; the module itself holds no numerical routine."
+covered_by = ["decision.contract", "design.evsi"]
+record_sha256 = "7208cbf955fddf740ecbcdda04aea904befa74973eefffc9340ff6f1ace45bde"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/rollout_artifact.rs"
+sha256 = "18c4c40a90a60753a9d4648cfd800a5493138c09848230bbbfdace56c3de7cc5"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/rollout_artifact.rs"
+sha256 = "1329fc4808b78c3c9b0016ba555d11ee3abb75797fd2cb1f276092107f5cdc91"

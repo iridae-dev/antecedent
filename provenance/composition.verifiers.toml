@@ -29,3 +29,21 @@ test_sources = [
   "crates/antecedent-design/tests/composition_verifiers.rs",
   "crates/antecedent-design/tests/composition_bundle.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "One node verifier per portable artifact kind: it dispatches to that artifact's own consumer, recomputes the identity from the decoded content and publishes the binding facts the bundle cross-checks."
+no_independent_algorithm = "Dispatch and fact extraction over other records' consumers (including inspect_inverse, which re-reads an inverse-query artifact); the module has no square root, logarithm, exponential, power or solve."
+covered_by = ["composition.bundle", "decision.functional_inverse"]
+record_sha256 = "26d7f4e0b28e2224bc8dcc2774c1773a1c0d0f949bfe14c85a17eaedf8561733"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/composition_verifiers.rs"
+sha256 = "0a3186359fabd4e7977b37b29c21f4aa51d5a97e536d51e5229f1ed275b48f8c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/composition_verifiers.rs"
+sha256 = "5043f51b6c6bb643fb08f7f17022e3f4cd5ae3aaf30427d64e862550f5526847"

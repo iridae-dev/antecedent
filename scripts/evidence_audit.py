@@ -31,7 +31,7 @@ from evidence_kinds import (
     kind_problems,
     software_only_roles,
 )
-from provenance_links import method_review_problems
+from provenance_links import method_review_problems, non_algorithm_review_problems
 from scenario_matrix import build as build_scenario_matrix
 from test_evidence import (
     registered_calibration_acceptance,
@@ -476,8 +476,13 @@ def build_report(root: Path) -> dict:
                     "reviewed_with_limits"
                     if isinstance(data.get("method_review"), dict)
                     and not method_review_problems(root, data)
+                    else "justified_non_algorithm_mapping"
+                    if isinstance(data.get("non_algorithm_review"), dict)
+                    and not non_algorithm_review_problems(root, data)
                     else "pending_or_stale_implementation_correspondence_review"
                 ),
+                "non_algorithm_review": data.get("non_algorithm_review"),
+                "non_algorithm_review_findings": non_algorithm_review_problems(root, data),
                 "method_review": data.get("method_review"),
                 "method_review_findings": method_review_problems(root, data),
             }
@@ -741,6 +746,10 @@ def render(report: dict) -> str:
         "",
         f"Bounded primary implementation reviews: {len(primary)} of {len(report['provenance'])} provenance records.",
         "",
+        "Justified non-algorithm mappings (records with no primary paper mapped to the reviewed records and modules that carry their numerics, with digests): "
+        f"{sum(1 for p in report['provenance'] if p['algorithm_section_review'] == 'justified_non_algorithm_mapping')} of {len(report['provenance'])}. "
+        "A mapping is not an implementation review of a primary source.",
+        "",
     ]
     for p in primary:
         lines.append(
@@ -864,7 +873,8 @@ def main() -> int:
                 any(c["gaps"] for c in report["claims"])
                 or any(f["gaps"] for f in report["fixtures"])
                 or any(
-                    p["algorithm_section_review"] != "reviewed_with_limits"
+                    p["algorithm_section_review"]
+                    not in ("reviewed_with_limits", "justified_non_algorithm_mapping")
                     for p in report["provenance"]
                 )
                 or bool(report["route_evidence_ledger_findings"])

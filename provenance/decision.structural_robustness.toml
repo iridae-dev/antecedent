@@ -34,3 +34,21 @@ test_sources = [
   "crates/antecedent-design/tests/decision_robust_artifact.rs",
   "python/tests/test_decision_robust.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Reads the per-structure results together with admissibility rules and support to name which actions are robust across structures."
+no_independent_algorithm = "Comparison and selection logic over results of the decision evaluator."
+covered_by = ["decision.structural_policy", "decision.admissibility"]
+record_sha256 = "534effad9517348807ff2bb8a100861e63d143a28fb2395a3827473b5b80c5c7"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_robustness.rs"
+sha256 = "6b6e67566702c9e05591df53385b6a046ed85bc7be42933d1d5e4db4343157e4"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_robustness.rs"
+sha256 = "996b8079225191dad95354c5efef3b5fc2176f10a2bd665f5cf7f00bcadd4755"

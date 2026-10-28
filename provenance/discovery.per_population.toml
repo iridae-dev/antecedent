@@ -20,3 +20,21 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-discovery/tests/selective_discovery.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "One declared discovery contract run separately on each population's rows, with structures lined up edge by edge."
+no_independent_algorithm = "Orchestration over the selective discovery adapter; nothing is pooled and no statistic is computed in the module."
+covered_by = ["discovery.selective_reuse"]
+record_sha256 = "97caca60cd7b6c1e4a47ba87a4b41c6469330548242ac5f68b47de4d041ca2d0"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/selective/populations.rs"
+sha256 = "a3e846f9348b9976bc59a6801321c71eba02072a430cf521c7aab4eebba358b2"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/selective_discovery.rs"
+sha256 = "9b322b021ebe142490c435cfd9c45a6d716a01346a45448f8457295465411a65"

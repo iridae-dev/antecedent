@@ -22,3 +22,30 @@ test_sources = [
   "conformance/composition/metadata_only_native/legacy.art",
   "conformance/composition/metadata_only_native/README.md",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Semantic coordinates, axis-identity alignment and the portable aligned-draw container of a joint distribution. This record's slice: joint alignment."
+no_independent_algorithm = "Identity, shape and alignment checks and a draw-major container layout; the draws are supplied and nothing is estimated."
+record_sha256 = "e9deeed022e6c07cb0d61cd04d2b181645be3588422a96ab58387599761c53e6"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/quantity.rs"
+sha256 = "be4c0e3fbbf28dfb0ccbacda87831069cf8df105ad7121ea223a22efae8ea6b5"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/joint_alignment.rs"
+sha256 = "ba5b1cbea83828ca7e0e0de89644463e39bfc6a1ae551ae8efdbf419a744bf06"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/distribution_artifact.rs"
+sha256 = "9918dadc1ba0df7aaab50019ba02568ae8782a82cd2f50e8a0b47ca2e600c245"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io/tests/distribution_artifact.rs"
+sha256 = "0a8338aa377410bcc944e319eda27a55d38d8128ece6cbd1a525dfa6ec6d318d"
