@@ -17988,3 +17988,10 @@ crate = "antecedent-estimate"
 cargo_target = "aipw_reference"
 path = "crates/antecedent-estimate/tests/aipw_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "efficient-backdoor-optimality"
+crate = "antecedent-identify"
+cargo_target = "efficient_backdoor_optimality"
+path = "crates/antecedent-identify/tests/efficient_backdoor_optimality.rs"
+gates = ["inventory", "named"]

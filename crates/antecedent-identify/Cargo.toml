@@ -79,3 +79,7 @@ path = "tests/hedge_definition_enumeration.rs"
 [[test]]
 name = "cpdag_class_exhaustive"
 path = "tests/cpdag_class_exhaustive.rs"
+
+[[test]]
+name = "efficient_backdoor_optimality"
+path = "tests/efficient_backdoor_optimality.rs"

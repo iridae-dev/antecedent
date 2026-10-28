@@ -37,3 +37,29 @@ test_sources = [
   "crates/antecedent-validate/tests/mnar_sensitivity.rs",
   "python/tests/test_mnar_sensitivity.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "mnar_sensitivity and arm_mean in crates/antecedent-validate/src/mnar_sensitivity.rs for the difference-in-means estimator (the adjusted estimators in mnar_adjusted.rs are exercised only through the saturated-covariate stratified closed form): the pattern-mixture shift and exponential-tilting selection means of each arm, the combination pi ybar + (1 - pi) g, the delta-method sampling variance with the observed-fraction term, the grid, assumption range and tipping search. Not a review of whether any departure parameter is plausible, of coverage of the sampling interval, or of the bootstrap interval of adjusted estimators."
+assumptions = ["Randomized or ignorable treatment assignment held fixed; only the outcome-missingness mechanism departs from missing at random, by a one-parameter family declared in advance.", "The tilt is evaluated on the empirical observed outcome law of each arm, so the departure is bounded by the observed range.", "The delta-method variance treats the observed fraction as binomial and the observed outcomes as an independent sample given it."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and the retained reference; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference and its frozen output are repository-authored under MIT OR Apache-2.0; the primary sources are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made). The retained reference is a standard-library Python script (not mpmath) whose variance uses a numerical influence function by central finite difference of the arm mean under a perturbed observation weight, and whose selection model is evaluated through Bayes' rule on the logistic selection mechanism rather than the closed tilted mean; it is binary64 and agrees with the implementation to 1e-6 in the standard error, so differences below that are not resolved. The frozen output covers a closed-form shift case, a binary tilt with a closed-form expit anchor and one seeded continuous case with opposite loadings. The sampling variance is a first-order delta-method quantity, so its small-sample accuracy is not established and calibration remains unmeasured. The reference script was being edited by another author at the time of the review (an encoding argument only) and is therefore not digest-bound here; its frozen output is."
+sources = ["https://www.nap.edu/catalog/12955"]
+findings_resolved = ["Re-ran the retained reference check (frozen output reproduces) and the facade-independent crate tests (15 MNAR tests pass): effects agree to 1e-9, sampling standard errors to 1e-6, and tipping points to 1e-7 against the independently computed values, including the logistic selection model evaluated by explicit Bayes and a variance from a finite-difference influence function.", "Derived by hand that the implemented variance (ybar - g)^2 pi (1 - pi) / n + Var(pi y + (1 - pi) psi) / n_obs is the first-order variance of pi ybar + (1 - pi) g, using psi = y - ybar for the shift and w (y - g) / mean(w) for the tilt, and that it matches the reference's numerically differentiated influence; no defect found, no product change."]
+record_sha256 = "f25d58781d45eb89eadb7300984a164374a220d52c84e5bb5b9dbe7ca35753ea"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/mnar_sensitivity.rs"
+sha256 = "2c688fe4d2080c9d40d8caaf466eb8ce17ef582f1a4daeec207ab7b4e2f5408d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/mnar_sensitivity.rs"
+sha256 = "12608ed35cc712d6515cbb6e8cda6f683167e52f84fd25425a8843e7ce2d4beb"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "conformance/validate/mnar_sensitivity/expected.json"
+sha256 = "9aec731c84463b3ed0d868e0a38e4cfa1f7380b0b0548811931ce92ec5e998da"

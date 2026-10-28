@@ -23,3 +23,24 @@ test_sources = [
  "independently generated synthetic DAGs with known parental adjustment",
  "comparison against a clean-room exhaustive valid-set enumeration of the O-set (conformance/identify/efficient_adjustment); no DAGitty output was generated or compared",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "EfficientBackdoorIdentifier::identify in crates/antecedent-identify/src/efficient.rs for a single-treatment, single-outcome AverageEffect query on a known, fully observed DAG: the optimal-set construction O = pa(cn) minus forb with cn the non-treatment descendants of the treatment that are ancestors of the outcome and forb = de(cn) plus the treatment, its validation against the back-door criterion, and the reported status. Not a review of the minimum-cardinality fallback beyond one forbidden-member example, of graphs with unmeasured nodes, of estimators, or of finite-sample variance."
+assumptions = ["Known DAG with complete directed edges, all nodes measured.", "Linear structural equations with independent noise, for the variance statement: the asymptotic variance of the adjusted regression coefficient of the treatment is the residual variance of the outcome given treatment and set divided by the residual variance of the treatment given the set.", "The optimality statement concerns a treatment with a directed path to the outcome; when there is none the effect is zero and any valid set recovers it."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition and from population covariance algebra; no upstream implementation or test source was consulted or copied. dowhy (black-box comparison only)"
+redistribution = "The reference is repository-authored under MIT OR Apache-2.0 and runs inside the crate's own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made); the definition used by the reference is the standard statement of the optimal set and a mistake in how this record states it would not be detected. The exhaustive comparison covers all 543 four-node DAGs and a stride of one in 37 five-node DAGs with one to three seeded linear-Gaussian parameterisations; larger graphs use the same code path. Variance optimality is checked against every valid subset of the other nodes, not against estimators other than the population regression coefficient. The fallback after a forbidden optimal member is valid but carries no optimality guarantee, as the record states. When the outcome is a direct parent of the treatment no back-door set exists and the identifier reports not-identified although the effect of the treatment on the outcome is zero; this follows the back-door criterion and is recorded rather than changed. No claim about calibration."
+sources = ["https://doi.org/10.1111/rssb.12451", "https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["For every labelled four-node DAG and a stride of five-node DAGs, every ordered treatment/outcome pair with a causal path reports exactly the set built from the definition of the optimal set, and that set is a valid back-door set by an independent moral-graph d-separation.", "For seeded linear-Gaussian parameterisations the population regression coefficient equals the total effect for every valid subset, and the reported set's asymptotic variance is never larger than that of any valid subset; the comparison is non-vacuous because many valid subsets have strictly larger variance and the optimal set is often larger than the smallest valid set.", "Without a causal path the reported set is valid (a confounder is still included) but not variance-minimal, since a descendant of the outcome can lower residual variance; the optimality claim is therefore scoped to causal treatments. No defect in the identifier was found; no product code changed."]
+record_sha256 = "92bfe9849f63ec5c2f16f13b13d9f7ce121297a3254a3c2558dd4cd1e4df944b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/efficient.rs"
+sha256 = "b6f60c874abea1fc9bd53f1630d58f1105e92df33750d3d10adf0bff11e6347e"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/efficient_backdoor_optimality.rs"
+sha256 = "3109d550801fc90cedb9c9d48629b9cc61c1ffa76034ddf237dea385ff4baa00"
