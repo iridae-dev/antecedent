@@ -104,16 +104,16 @@
     "curve": {
       "estimator": "response.kennedy_dr",
       "mean": [
-        0.15043397829577287,
-        0.649444965652819
+        0.1504368640937414,
+        0.649441768914599
       ],
       "absolute_tolerance": 1e-10,
       "contrast_tolerance": 0.08
     },
     "intervention": {
       "estimator": "response.intervention_gcomp",
-      "do_0": 0.16993469652991772,
-      "do_1": 0.6300653034700824,
+      "do_0": 0.1699996051348936,
+      "do_1": 0.6300003948651188,
       "absolute_tolerance": 1e-12,
       "contrast_tolerance": 0.0002
     }
