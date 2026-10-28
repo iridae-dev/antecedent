@@ -560,12 +560,13 @@ fn compile_refuses_unlicensed_temporal_observation() {
     assert!(err.to_string().contains(TEMPORAL_OBSERVATION_UNLICENSED), "stable refuse, got {err}");
 }
 
-/// An observation-adjusted Sequence whose unfolded design carries the outcome at a
-/// nonzero lag is refused: the correction replaces the outcome column, so the lagged
-/// outcome regressor would be a pseudo-outcome (errors in variables), both in the
-/// full-sample fit and in every tuple-bootstrap replicate.
+/// A lag-two autoregressive outcome would give the unfolded design a lagged outcome
+/// regressor, but its ancestry (`Y@-2`, `Y@-4`, ...) never closes, so the window-growth
+/// certificate refuses the graph before the observation layer sees it, in the full-sample
+/// fit and in every tuple-bootstrap replicate. The observation layer's own refusal of a
+/// lagged outcome regressor is exercised directly on the estimator and its design helpers.
 #[test]
-fn observation_adjusted_sequence_refuses_a_lagged_outcome_regressor() {
+fn observation_adjusted_sequence_refuses_an_autoregressive_outcome() {
     let pin = fixture();
     let (t, latent, selected, _, _, _) = generate(&pin);
     let observed =
@@ -623,7 +624,7 @@ fn observation_adjusted_sequence_refuses_a_lagged_outcome_regressor() {
             .unwrap_err();
         assert!(
             err.to_string()
-                .contains("outcome to enter the unfolded design only at the outcome time"),
+                .contains("history cap while confounder ancestry still crossed"),
             "replicates={replicates}: {err}"
         );
     }
