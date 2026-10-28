@@ -608,8 +608,21 @@ fn dynamic_inference_shares_its_fit_across_methods_and_replays() {
 
 /// A trajectory-fit request as its wire form: irregular times, one observed component.
 fn trajectory_request(observations: usize) -> CyclicFamilyRequest {
-    let times = [0.4, 0.9, 1.5, 1.8, 2.6, 3.0, 3.7, 4.1, 4.9, 5.2, 6.0, 6.5];
-    let values = [0.62, 0.41, 0.55, 0.38, 0.49, 0.66, 0.52, 0.35, 0.47, 0.58, 0.44, 0.53];
+    // Autocorrelated OU data (rate 1, mean 0.5, sigma 0.3) at irregular times, so the rate,
+    // forcing and diffusion are separately identified; white-noise data would send the rate
+    // to infinity and leave them collinear.
+    let times = [
+        1.025, 2.052, 2.815, 3.373, 3.721, 4.366, 5.034, 5.375, 5.718, 6.918, 7.805, 8.316, 9.007,
+        10.184, 11.292, 12.352, 13.005, 13.749, 14.658, 15.013, 15.813, 16.357, 17.449, 17.806,
+        18.718, 19.801, 20.305, 21.411, 22.496, 22.813, 23.75, 24.051, 24.804, 25.497, 25.98,
+        26.572, 27.598, 28.182, 28.617, 29.545,
+    ];
+    let values = [
+        0.731, 0.187, 0.4051, 0.2541, 0.3313, 0.4194, 0.0965, 0.1783, 0.2335, 0.6143, 0.3187,
+        0.5165, 0.3065, 0.3735, 0.2899, 0.7155, 0.7151, 1.0561, 0.8487, 0.8723, 0.8266, 0.5848,
+        0.5145, 0.7148, 0.5092, 0.5408, 0.5211, 0.6289, 0.4707, 0.4565, 0.5303, 0.5371, 0.3556,
+        0.5924, 0.3402, 0.1993, 0.1383, 0.4685, 0.4213, 0.2797,
+    ];
     let points: Vec<serde_json::Value> = times
         .iter()
         .zip(values)
@@ -652,14 +665,14 @@ fn trajectory_request(observations: usize) -> CyclicFamilyRequest {
 
 #[test]
 fn a_trajectory_fit_keeps_three_evidence_records_and_predicts_held_out_schedules() {
-    let request = trajectory_request(12);
+    let request = trajectory_request(40);
     assert_eq!(request.family_name(), "ou_trajectory_fit");
     let report = request.execute(&ctx()).unwrap();
     let CyclicFamilyAnswer::OuTrajectory(answer) = &report.answer else {
         panic!("trajectory answer");
     };
     let fit = &answer.fit;
-    assert_eq!(fit.observation_count, 12);
+    assert_eq!(fit.observation_count, 40);
     assert_eq!(fit.identification.state_dimension, 1);
     assert_eq!(fit.identification.observability_rank, 1);
     assert!(fit.numerics.expm_reliable);
