@@ -22,7 +22,39 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-stats/tests/measurement_correction_reference.rs (exact-rational binary corrections and 60-digit analytic-Jacobian categorical corrections)",
  "closed-form attenuation and misclassification algebra",
  "independently simulated seeded DGPs with known coefficients",
  "hand-computed one-way ANOVA and confusion-matrix inversion",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "BinaryErrorRates, corrected_prevalence, corrected_risk_difference_nondifferential and corrected_risk_difference_differential in crates/antecedent-stats/src/measurement_error.rs: the Rogan-Gladen inversion pi = (p* + Sp - 1)/(Se + Sp - 1), the delta-method variance split into the sampling part Var(p*)/J^2 and the rate part ((1 - pi)^2 Var(Sp) + pi^2 Var(Se))/J^2, the shared-rate risk difference (p1* - p0*)/J with variance RD^2 (Var(Se) + Var(Sp))/J^2 that keeps the arm covariance, the per-arm independent-rate difference, the binomial rate variances of from_validation_counts, the Youden-index refusal and the outside-the-unit-interval flag. Not the classical continuous-error route (the Carroll et al. attenuation and regression calibration sections of this record belong to measurement.classical_continuous_error), exposure misclassification (closed), or the estimator layer that licenses a correction."
+assumptions = ["Outcome misclassification with known or independently estimated sensitivity and specificity; the observed proportion is binomial and the rate estimates are independent of it.", "Rogan and Gladen give the variance for known rates; the variance with estimated rates is a first-order delta method derived in the repository, with partial derivatives d pi/d p* = 1/J, d pi/d Sp = (1 - pi)/J and d pi/d Se = -pi/J.", "Corrected proportions are reported unclipped and flagged when they leave [0, 1]."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated definitions, derivatives derived by hand, in exact rational arithmetic and at 60 digits (mpmath); no upstream implementation was consulted. The cited sources were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited sources are linked, not redistributed."
+limitations = "The Rogan and Gladen paper was not retrieved (nothing downloaded, no local copy); the check is of the code against the stated inversion and a hand derivation of the delta method. The comparison covers eight prevalence cases (counts of zero and all, a perfect test, a Youden index of 0.15, validation counts from 1 to 5000, rare events), four shared-rate and two per-arm risk differences, at 1e-12 relative in exact rationals. The delta-method variance is first order: it is not shown to approximate the sampling variance of the estimator, which degrades as the Youden index approaches zero, and no interval or coverage is claimed or measured. Differential correction assumes the two arms' validation samples are independent."
+sources = ["https://doi.org/10.1093/oxfordjournals.aje.a112510", "https://doi.org/10.1201/9781420010138", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect found: the corrected values, the sampling and rate variance components, the shared-rate arm covariance (the rate part of the difference is RD^2 (Var(Se) + Var(Sp))/J^2, not a sum over arms), the per-arm sums and the unit-interval flag agree with the exact rational computation on every case.", "A two-category categorical correction reproduces the binary prevalence and its variance (corrected proportion to 1e-13, variance to 1e-12), tying the two routes together."]
+record_sha256 = "f35459c9a283b32952fdeda53e4d078727c76c8c3978ecc98a8931a9e1acb463"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error.rs"
+sha256 = "e141b13fbbf5bc4514c8a0f76aae3cc2bcd82fdfd8db1e0c3baa60f35ff471f3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/measurement_correction_reference.rs"
+sha256 = "20597057ae40a94f19c8b19556ab9aa0f85dd1a2f9f597454cab416115f21705"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/measurement_correction_reference.py"
+sha256 = "7a8fdeeb6208d5d70e6a7a25235024e0301e4bc284895e79009a57368081d2ec"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/measurement_correction_reference.json"
+sha256 = "11dadcf2116c5e439ce7c1e0242ca2c2891011656879ea8bd9f6e4a57cace3f1"

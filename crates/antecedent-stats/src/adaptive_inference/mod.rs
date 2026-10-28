@@ -208,6 +208,51 @@ pub(crate) fn panel_rule() -> (Vec<f64>, Vec<f64>) {
     crate::special::gauss_legendre(PANEL_NODES)
 }
 
+/// Halvings by which a graded rule shrinks its end panel.
+const GRADED_HALVINGS: i32 = 14;
+
+/// Nodes and weights of a composite Gauss-Legendre rule on `[lo, hi]` with `panels` equal panels,
+/// whose end panel is halved fourteen times toward `lo` (`grade_lo`) or `hi` (`grade_hi`).
+///
+/// A Beta density `x^(a-1)` and distribution function `x^a` with a fractional shape are not
+/// analytic at the end of their support, and equal panels integrate them with an error that
+/// falls only as `h^(a+1)`: a few times `1e-8` at `a = 1.5` on the first panel of a flat
+/// posterior. Geometric grading toward the singular end restores the rate of an analytic
+/// integrand.
+pub(crate) fn graded_rule(
+    rule: &(Vec<f64>, Vec<f64>),
+    lo: f64,
+    hi: f64,
+    panels: usize,
+    grade_lo: bool,
+    grade_hi: bool,
+) -> (Vec<f64>, Vec<f64>) {
+    let width = (hi - lo) / panels as f64;
+    let mut edges: Vec<f64> = (0..=panels).map(|p| lo + width * p as f64).collect();
+    edges[panels] = hi;
+    for j in 1..=GRADED_HALVINGS {
+        let shrink = 0.5_f64.powi(j);
+        if grade_lo {
+            edges.push(lo + width * shrink);
+        }
+        if grade_hi {
+            edges.push(hi - width * shrink);
+        }
+    }
+    edges.sort_by(f64::total_cmp);
+    edges.dedup();
+    let mut nodes = Vec::with_capacity((edges.len() - 1) * rule.0.len());
+    let mut weights = Vec::with_capacity(nodes.capacity());
+    for pair in edges.windows(2) {
+        let (centre, half) = (0.5 * (pair[0] + pair[1]), 0.5 * (pair[1] - pair[0]));
+        for (u, w) in rule.0.iter().zip(&rule.1) {
+            nodes.push(centre + half * u);
+            weights.push(half * w);
+        }
+    }
+    (nodes, weights)
+}
+
 /// Nodes and weights of a composite Gauss-Legendre rule on `[lo, hi]` with
 /// `panels` equal panels.
 pub(crate) fn composite_rule(

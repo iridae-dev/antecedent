@@ -15,7 +15,39 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
+ "crates/antecedent-stats/tests/evidence_synthesis_reference.rs (50-digit GLS, random effects, hierarchical borrowing and equicorrelation envelope)",
   "crates/antecedent-contract/tests/evidence_ledger.rs",
   "crates/antecedent-stats/tests/synthesis_oracle.rs",
   "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "equicorrelated_gls and pooled_dependence_envelope in crates/antecedent-stats/src/synthesis.rs: the closed forms mu(rho) = (P + m_P rho)/(B + m rho) and V(rho) = (1 - rho)(1 + (k-1) rho)/(B + m rho) for S = D R(rho) D, the monotone Moebius estimate extremes at the endpoints, the variance's interior stationary points from the quadratic -(k-1) m rho^2 - 2 (k-1) B rho + ((k-2) B - m), and the range refusals. Not arbitrary correlation matrices or per-pair intervals (not implemented), or any interval."
+assumptions = ["One common pairwise correlation is ranged over, strictly inside (-1/(k-1), 1); the result is an assumption range and never an interval.", "The summaries are the estimates and standard errors of independent-measure studies whose only dependence is the common correlation."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the models at 50 digits (mpmath: explicit covariance solves, derivatives of the restricted likelihood, numerical integration over the common mean); no upstream implementation was consulted. The cited papers were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited papers are linked, not redistributed."
+limitations = "The Aitken paper was not retrieved (nothing downloaded, no local copy); the closed forms are derived in the repository and checked here against the explicit covariance S = D R D solved at 50 digits. The comparison covers 36 pooled values (six sets of estimates and standard errors, correlations from 0.95 of the way to the positive-definite limit to 1 - 1e-6) at 1e-9 relative, and envelopes over up to 24 ranges whose reference extremes are found by a 400-point scan with fourteen geometric refinement points toward each end, refined by root finding on the derivative; the reference found an interior variance maximum within 1e-7 of an endpoint that the first coarse scan missed, and the product's exact quadratic attains it. It does not cover envelopes for more than a handful of studies or standard errors that differ by more than eight orders of magnitude."
+sources = ["https://doi.org/10.1017/S0370164600014346", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect found in the dependence range: the pooled value and variance at a correlation, the endpoint extremes of the estimate and the interior extremes of the variance agree with the reference, including the sharp interior maximum for standard errors 0.001, 1 and 1000.", "The record's claim of exact extremes is supported on the enumerated designs; a coarse grid is not."]
+record_sha256 = "53d69d9cfc3b405e9475a28d9eb5c4fda01f0515143d499711b2b9b037de3004"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/synthesis.rs"
+sha256 = "68041846370d0dc9960c5f44675a3c1dca583f8c985e9a983df05d63b94d6852"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/evidence_synthesis_reference.rs"
+sha256 = "939686ab0ea58a3b4609d08bf77510254e03c031e3432acdc1969cef319d71ae"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/evidence_synthesis_reference.py"
+sha256 = "864499ad7575d61dcc94efa5ae3f343e458d404dd5981f2a4a7939bc3849b492"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/evidence_synthesis_reference.json"
+sha256 = "95f9b5d13a1ec0cc6f65a67ce7c02fa24c81a04892b959de61d4095851d791da"

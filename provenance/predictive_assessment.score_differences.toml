@@ -15,4 +15,40 @@ implementation_deviations = [
   "Dependence is declared, never estimated: the serial lag and the cluster labels are inputs and are bound into the identity.",
 ]
 upstream_implementations_observed = []
-test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs"]
+test_sources = ["crates/antecedent-validate/tests/proper_scores_reference.rs (exact-rational and 50-digit scores and mean-difference variances)", "crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs"]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "variance_of_mean in crates/antecedent-validate/src/predictive_assessment/compare.rs, the standard error behind the paired score difference and the Diebold-Mariano style statistic: the iid sample variance of the differences over n, the Bartlett-kernel long-run variance with a declared truncation lag (gamma_0 + 2 sum (1 - k/(L+1)) gamma_k over n, gamma_k with divisor n), and the one-way cluster-robust variance G/(G-1) sum_g S_g^2 / n^2, with the lag and cluster refusals. Not the construction of case scores, the Student-t score interval (a separate record), or the choice of dependence, which is declared."
+assumptions = ["The case differences are in canonical order; the serial lag and cluster labels are declared inputs and are not estimated.", "The Bartlett kernel is positive semidefinite, so the long-run variance is nonnegative; rounding below zero is clipped to zero.", "The cluster estimator carries the G/(G-1) factor and no further small-cluster correction."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the definitions in exact rational arithmetic and at 50 digits (mpmath); no upstream implementation was consulted. The cited papers were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited papers are linked, not redistributed."
+limitations = "The Diebold-Mariano and Newey-West papers were not retrieved (nothing downloaded, no local copy); the estimator is checked against the formulas restated in the module and the record. The comparison is exact-rational (the doubles' exact values) for 15 series: serial with lags 0, 1, 2, 4, 10, 12 and n - 1 at n from 2 to 200 including an autocorrelated series and one offset by 1e8 with a spread of 1e-3, iid at n from 2 to 400, and clusters of sizes 2 to 40 with up to 40 groups, at 1e-9 relative. It does not examine the size of the statistic, small-sample corrections, or whether the declared lag is adequate."
+sources = ["https://doi.org/10.1080/07350015.1995.10524599", "https://doi.org/10.2307/1913610", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Numerical defect fixed: the differences were centred on their floating-point mean, so a series far from zero with a small spread (1e8 plus 1e-3) carried the rounding of its own mean into every deviation and the serial variance was off by 1.3e-7 relative; deviations are now taken from the first difference and then from the mean of those, and the exact-rational comparison passes.", "The Bartlett weights, the divisor n of the autocovariances, the lag n - 1 limit, the iid n - 1 divisor and the G/(G-1) cluster factor agree with the exact computation on every series."]
+record_sha256 = "bbc878765f3409dff5978029dc30e8726bf17044c5935bcfca94c7b69174937b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/predictive_assessment/score.rs"
+sha256 = "7608cd7db235b05c2e23036b6a6ca3f79249865b531bfaccfab70d93fb60dac7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/predictive_assessment/compare.rs"
+sha256 = "22159c6a0d4c236719f30fb36c9a9b3499f41f1bd75faa415c35a398f2a93469"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/proper_scores_reference.rs"
+sha256 = "5c65be42c531415db6e1d54f7b1bab75f5fc6d02460aa374be9cdeb45c094fa8"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/proper_scores_reference.py"
+sha256 = "991e1d82524699248b5c5945746ef7b056c31fe04691d4200da7e9a791cdc86b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/proper_scores_reference.json"
+sha256 = "bebd834bf1a5c61aa37698c55d45cb59d60242d03002ce90145d180fb26294d6"

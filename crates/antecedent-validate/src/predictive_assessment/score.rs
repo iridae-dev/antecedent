@@ -158,9 +158,13 @@ pub fn crps_weighted_atoms(atoms: &[(f64, f64)], y: f64) -> f64 {
 /// Sum over ordered pairs `sum_ij |x_i - x_j|` of an ascending-sorted slice.
 fn pairwise_abs_sum_sorted(sorted: &[f64]) -> f64 {
     let m = sorted.len();
+    // The weights 2k - m + 1 sum to zero, so measuring from the smallest draw changes nothing in
+    // exact arithmetic; it keeps a tight ensemble far from the origin from losing its spread to
+    // the rounding of the products.
+    let origin = sorted.first().copied().unwrap_or(0.0);
     let mut total = 0.0;
     for (k, x) in sorted.iter().enumerate() {
-        total += x * (2.0 * k as f64 - m as f64 + 1.0);
+        total += (x - origin) * (2.0 * k as f64 - m as f64 + 1.0);
     }
     2.0 * total
 }

@@ -17,7 +17,39 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
+ "crates/antecedent-stats/tests/evidence_synthesis_reference.rs (50-digit GLS, random effects, hierarchical borrowing and equicorrelation envelope)",
   "crates/antecedent-contract/tests/evidence_ledger.rs",
   "crates/antecedent-stats/tests/synthesis_oracle.rs",
   "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "random_effects_dersimonian_laird and random_effects_reml in crates/antecedent-stats/src/synthesis.rs: the method-of-moments between-study variance max(0, (Q - (k-1))/(W - sum w^2/W)), the restricted maximum likelihood variance taken as the sign change of the score on a doubling bracket, the random-effects weights 1/(v + tau^2), the pooled mean and conditional variance, Cochran's Q and I^2 = max(0, (Q - df)/Q). Not the Hartung-Knapp interval or any interval (the facade's), prediction intervals, or the uncertainty of tau^2."
+assumptions = ["Independent study summaries with known sampling variances and a common mean of normal random effects.", "The variance of the pooled mean is conditional on the estimated tau^2.", "REML returns one stationary point above zero found by bisection; multiple stationary points are not searched."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the models at 50 digits (mpmath: explicit covariance solves, derivatives of the restricted likelihood, numerical integration over the common mean); no upstream implementation was consulted. The cited papers were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited papers are linked, not redistributed."
+limitations = "The DerSimonian-Laird, Viechtbauer and Higgins-Thompson papers were not retrieved (nothing downloaded, no local copy). The reference obtains the REML stationary point from the numerical derivative of the restricted log-likelihood itself (verified to vanish to 1e-30) and not from the score formula the product bisects, so a mistake in the score would show. The comparison covers eight designs: three to twelve studies, a homogeneous set (tau^2 = 0 for both estimators), tiny variances (1e-6), variances spanning eight orders of magnitude and a two-study set, at 1e-9 relative. It does not examine designs with several restricted-likelihood stationary points, small-sample coverage of intervals, or the bias of the estimators."
+sources = ["https://doi.org/10.1016/0197-2456(86)90046-2", "https://doi.org/10.3102/10769986030003261", "https://doi.org/10.1002/sim.1186", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect found: tau^2 by both estimators, the weights, the pooled mean and variance, Q and I^2 agree with the reference on all eight designs, including the boundary value zero for homogeneous studies.", "The REML score formula is the derivative of the restricted likelihood (checked by differentiating the likelihood numerically at the reference root)."]
+record_sha256 = "013eb1b82f1e4f50e31b78400b3079b180407613f4464e3cabc31fb1c8f506d6"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/synthesis.rs"
+sha256 = "68041846370d0dc9960c5f44675a3c1dca583f8c985e9a983df05d63b94d6852"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/evidence_synthesis_reference.rs"
+sha256 = "939686ab0ea58a3b4609d08bf77510254e03c031e3432acdc1969cef319d71ae"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/evidence_synthesis_reference.py"
+sha256 = "864499ad7575d61dcc94efa5ae3f343e458d404dd5981f2a4a7939bc3849b492"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/evidence_synthesis_reference.json"
+sha256 = "95f9b5d13a1ec0cc6f65a67ce7c02fa24c81a04892b959de61d4095851d791da"

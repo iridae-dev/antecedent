@@ -20,9 +20,41 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-model/tests/evidence_requirement_reference.rs (exact-rational and 60-digit evidence solves and finite Bayes posteriors)",
   "hand-computed screening-test posterior: prior 0.01, likelihood 0.9 / 0.05, one positive gives 2/13 with evidence 0.0585",
   "closed-form Beta-Bernoulli update: Beta(1,1) with 7 successes and 3 failures gives Beta(8,4), mean 2/3",
   "crates/antecedent-model/tests/observation_query.rs",
   "crates/antecedent-io-core/tests/observation_query_artifact.rs",
   "crates/antecedent/tests/observation_query_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "FiniteBayesModel::posterior, posterior_from_counts and BetaBernoulli::{mean, update} in crates/antecedent-model/src/observation_query.rs: the posterior over a declared finite hypothesis space from the tally of exchangeable conditionally independent observations (log-space weights, log-sum-exp evidence), the posterior predictive of the next observation level, order invariance of the stream form, the zero-evidence refusal, and the exact conjugate Beta update and mean (including shapes whose sum overflows). Not the conditioning on a finite structural law, linear-Gaussian conditioning or measured-signal inversion in the same file, and not any claim about a fitted model."
+assumptions = ["Observations are exchangeable and conditionally independent given the hypothesis; the posterior depends on the tally only.", "Priors and likelihood rows are distributions within 1e-9; a hypothesis of prior or likelihood zero has weight zero.", "The conjugate model is Beta-Bernoulli only; the predictive probability of the next success is the posterior mean."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the definitions in exact rational arithmetic (the doubles' exact values) and at 60 digits (mpmath); no upstream implementation was consulted. The cited texts were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited texts are linked, not redistributed."
+limitations = "Gelman et al. and Bernardo and Smith were not retrieved (nothing downloaded, no local copy); the check is of the code against Bayes' rule and the conjugate identity. The comparison covers six finite models (two to five hypotheses, two to four observation levels, dyadic priors and likelihoods so that the reference is exact) at counts up to 6e8 per level (evaluated at 60 digits), the stream form against the tally for up to 200 observations in reversed order, and six Beta updates (shapes from 1e-3 to 1e300, counts to 2^52 and 10^9) at 1e-14 relative. The probability of the observations itself underflows for long streams, so the log evidence is the quantity compared. It does not examine models near the table-size bounds or the sequential (non-exchangeable) case."
+sources = ["https://doi.org/10.1201/b16018", "https://doi.org/10.1002/9780470316870", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect found: posteriors, log evidence and predictive probabilities agree with the 60-digit computation at counts up to 6e8 (the log-space form does not underflow where the direct product would), the stream and tally forms agree in any order, and the Beta updates and means are exact including at shapes near f64::MAX."]
+record_sha256 = "72c840a755002579a4264dabf942ea9729550c4cd716cccafedb8b5fa9471f19"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/observation_query.rs"
+sha256 = "ea233bd1ba747668e5786ff0e485e68dc81082e233f5f0518842bf1ccd0141a6"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/evidence_requirement_reference.rs"
+sha256 = "e00282d731a428646f03873c68feb0be2ab2e2fe35d9f710a4055f2bcf09d426"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/evidence_requirement_reference.py"
+sha256 = "f02ccb3148be3bc619f911d39df896ebffe2f847cd69b5260dcb032c18fcbc8f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/evidence_requirement_reference.json"
+sha256 = "3c50406036ea8e092d044134b5c0791ba87fb8a460e5d7911841248526a78011"

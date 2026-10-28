@@ -302,6 +302,28 @@ pub fn check_covariance(covariance: &[f64], k: usize) -> Result<CovarianceCheck,
     Ok(CovarianceCheck { min_eigenvalue, max_eigenvalue, has_cross_covariance: cross })
 }
 
+/// Smallest and largest eigenvalue of the covariance scaled to a unit diagonal, or `None` when
+/// a study has no variance (then the covariance is singular).
+fn scaled_eigenvalue_extremes(
+    symmetric: &[f64],
+    k: usize,
+) -> Result<Option<(f64, f64)>, SynthesisError> {
+    let scale: Vec<f64> = (0..k).map(|i| symmetric[i * k + i].sqrt()).collect();
+    if scale.iter().any(|s| !(s.is_finite() && *s > 0.0)) {
+        return Ok(None);
+    }
+    let mut correlation = vec![0.0; k * k];
+    for i in 0..k {
+        for j in 0..k {
+            correlation[i * k + j] = symmetric[i * k + j] / scale[i] / scale[j];
+        }
+    }
+    let eigenvalues = symmetric_eigenvalues(&correlation, k)?;
+    let low = eigenvalues.iter().copied().fold(f64::INFINITY, f64::min);
+    let high = eigenvalues.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    Ok(Some((low, high)))
+}
+
 /// Pool estimates with a full covariance matrix by generalized least squares.
 ///
 /// The estimate is `1' S^-1 y / 1' S^-1 1` and its variance `1 / 1' S^-1 1`.
@@ -323,12 +345,6 @@ pub fn fixed_effect_gls(
         return Err(SynthesisError::NonFinite("estimate"));
     }
     let check = check_covariance(covariance, k)?;
-    if check.min_eigenvalue <= PSD_RELATIVE_TOLERANCE * check.max_eigenvalue {
-        return Err(SynthesisError::Singular {
-            min_eigenvalue: check.min_eigenvalue,
-            max_eigenvalue: check.max_eigenvalue,
-        });
-    }
     let mut symmetric = covariance.to_vec();
     for i in 0..k {
         for j in (i + 1)..k {
@@ -336,6 +352,15 @@ pub fn fixed_effect_gls(
             symmetric[i * k + j] = mean;
             symmetric[j * k + i] = mean;
         }
+    }
+    // Singularity is a property of the correlations: studies whose variances differ by more
+    // than ten orders of magnitude are not collinear, so the test runs on the matrix scaled to
+    // a unit diagonal and not on the raw eigenvalues, whose ratio is the variance ratio.
+    let scaled_extremes = scaled_eigenvalue_extremes(&symmetric, k)?;
+    if scaled_extremes.is_none_or(|(low, high)| low <= PSD_RELATIVE_TOLERANCE * high) {
+        let (min_eigenvalue, max_eigenvalue) =
+            scaled_extremes.unwrap_or((check.min_eigenvalue, check.max_eigenvalue));
+        return Err(SynthesisError::Singular { min_eigenvalue, max_eigenvalue });
     }
     let l = crate::gram::cholesky_spd(&symmetric, k).ok_or(SynthesisError::Singular {
         min_eigenvalue: check.min_eigenvalue,

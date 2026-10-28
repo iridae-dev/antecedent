@@ -19,7 +19,39 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
+ "crates/antecedent-stats/tests/confidence_sequence_reference.rs (80-digit streams, radii to fifty million observations, exact Bernoulli-path miss probability)",
  "crates/antecedent-stats/tests/adaptive_inference_oracle.rs",
  "crates/antecedent-estimate/tests/adaptive_inference.rs",
  "crates/antecedent/tests/adaptive_inference_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The mixture-Hoeffding sequence of crates/antecedent-stats/src/adaptive_inference/confidence_sequence.rs: mixture_hoeffding_radius (the closed-form radius sigma sqrt((m + n0) ln((m + n0)/(n0 alpha^2)))/m with sigma = 1/2), SequenceState::push and reading for the mixture kind (running intersection with [0, 1], empty-intersection refusal, out-of-range outcome refusal) and bounded_mean_confidence_sequence. Not the predictable plug-in kind (reviewed under its own record), not the per-arm level split of the procedures that call it, and not the stack-of-rewards premise, which is an assumption about the data and not checkable here."
+assumptions = ["Outcomes of one arm in pull order are independent with a common mean and bounded in [0, 1]; Hoeffding's lemma then makes each centred outcome sub-Gaussian with variance proxy 1/4.", "The tuning size n0 is any positive number; validity does not depend on it and none is optimized.", "The reading is the running intersection of the per-size intervals with [0, 1]; the intersection keeps the time-uniform guarantee."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the construction's stated formulas at 80 digits (mpmath logarithm and square root, with exact rational path probabilities); no upstream implementation was consulted. The cited papers were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited papers are linked, not redistributed."
+limitations = "The Robbins and Howard et al. papers were not retrieved (nothing downloaded, no local copy); the review checks the code against the normal-mixture boundary as restated in the source documentation and the record. The comparison covers ten streams (constant zero, one and half, alternating, a jump from zero to one, participant proportions at two rates, uniform, near-zero variance and rare events) at three levels from 0.5 to 1e-6, read at up to eight sizes each, and radii at six counts up to fifty million, four tunings from 1e-3 to 1e6 and three levels from 1e-9 to 0.99, at 1e-12 relative. The exact miss probability over all 2^13 Bernoulli paths, at three success probabilities and two levels, equals the reference and stays below the level. It does not measure the coverage of any whole adaptive procedure, show that the mixture is tight, or examine delays between enrolment and completion."
+sources = ["https://doi.org/10.1214/aoms/1177696786", "https://doi.org/10.1214/20-AOS1991", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect found: the radius, the running intersection, the empty-intersection error (the jump stream violates the common-mean premise and the sequence refuses) and the out-of-range refusals agree with the reference.", "The stated finite-time guarantee holds exactly on the enumerated paths: over every Bernoulli path of length 13 the probability that the intersection ever excludes the true mean is 0.157 at level 0.5 and mean 0.5, below the level in all twelve enumerated cases.", "Betting confidence sequences are cited as the carried-forward alternative and are not implemented, as the record's first deviation says; the plug-in kind in the same file is the variance-adaptive alternative."]
+record_sha256 = "5d1d16e567fd925f081a997f0a94c8ff636339b78b542c4546b5e9442cfa80c8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/confidence_sequence.rs"
+sha256 = "5d37c2069983401cb310573b6bb4a437d5908504e5461fb2a6640cb5effa0e88"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/confidence_sequence_reference.rs"
+sha256 = "4d1e3cee51edef51f7e53c96c41be66de6c9994291df63a868611ebe091800e4"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/confidence_sequence_reference.py"
+sha256 = "c2f535d8645d8222cfb38a450ea96437b327e7c19a20ff9594a261fb5685131d"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/confidence_sequence_reference.json"
+sha256 = "2e1319928f9d6e88c24e199732034386ff6e8d80082ed2fd9ed820b0c10a77e4"

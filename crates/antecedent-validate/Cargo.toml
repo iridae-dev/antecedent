@@ -77,3 +77,7 @@ path = "tests/conflict_policy_reference.rs"
 [[test]]
 name = "linear_sensitivity_reference"
 path = "tests/linear_sensitivity_reference.rs"
+
+[[test]]
+name = "proper_scores_reference"
+path = "tests/proper_scores_reference.rs"

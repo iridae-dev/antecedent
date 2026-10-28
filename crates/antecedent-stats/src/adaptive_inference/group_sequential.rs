@@ -40,6 +40,13 @@ pub const MAX_LOOKS: usize = 20;
 
 const LOWER_TRUNCATION: f64 = -9.0;
 const PANEL_WIDTH: f64 = 0.5;
+/// Panel width as a multiple of the narrowest transition scale it must resolve.
+const PANELS_PER_TRANSITION_SD: f64 = 1.5;
+/// Most panels one stage's continuation region may be cut into. Looks so close that resolving
+/// their transition needs more are refused: the density would otherwise be summed over nodes
+/// spaced wider than the Gaussian transition between the looks, with an error that grows as
+/// the looks approach each other.
+const MAX_STAGE_PANELS: f64 = 400.0;
 const BISECTIONS: usize = 100;
 const BRACKET_HIGH: f64 = 12.0;
 const BRACKET_LOW_ONE_SIDED: f64 = -8.5;
@@ -198,13 +205,28 @@ impl<'a> Recursion<'a> {
         clippy::cast_sign_loss,
         reason = "the panel count is a positive ceiling of a region at most a few tens wide"
     )]
-    fn advance(&mut self, k: usize, critical: f64) {
+    fn advance(&mut self, k: usize, critical: f64) -> Result<(), Error> {
         let t = self.fractions[k];
         let (lo, hi) = match self.sidedness {
             Sidedness::OneSidedUpper => (LOWER_TRUNCATION - self.drift.abs(), critical),
             Sidedness::TwoSidedSymmetric => (-critical, critical),
         };
-        let panels = (((hi - lo) / PANEL_WIDTH).ceil().max(1.0)) as usize;
+        // The density of this stage has a Gaussian edge of scale `sqrt(dt / t)` from the
+        // transition into it, and it is summed against the transition out of it, whose scale in
+        // this stage's variable is `sqrt(dt_next / t)`: the panels must resolve the narrower.
+        let mut scale = f64::INFINITY;
+        if let Some(previous) = &self.stage {
+            scale = scale.min(((t - previous.fraction) / t).sqrt());
+        }
+        if let Some(&next) = self.fractions.get(k + 1) {
+            scale = scale.min(((next - t) / t).sqrt());
+        }
+        let width = PANEL_WIDTH.min(PANELS_PER_TRANSITION_SD * scale);
+        let wanted = ((hi - lo) / width).ceil().max(1.0);
+        if !wanted.is_finite() || wanted > MAX_STAGE_PANELS {
+            return Err(Error::Limit("information fractions too close for the quadrature"));
+        }
+        let panels = wanted as usize;
         let (nodes, weights) = composite_rule(&self.rule, lo, hi, panels);
         let density: Vec<f64> = match &self.stage {
             None => {
@@ -234,6 +256,7 @@ impl<'a> Recursion<'a> {
         };
         let mass = weights.iter().zip(&density).map(|(w, g)| w * g).sum();
         self.stage = Some(Stage { fraction: t, nodes, weights, density, mass });
+        Ok(())
     }
 
     fn solve(&self, k: usize, target: f64) -> Result<f64, Error> {
@@ -296,7 +319,9 @@ pub fn boundaries(
             return Err(Error::InvalidParameter("a look must spend a positive amount of alpha"));
         }
         let c = recursion.solve(k, increment)?;
-        recursion.advance(k, c);
+        if k + 1 < fractions.len() {
+            recursion.advance(k, c)?;
+        }
         critical.push(c);
         cumulative_spend.push(cumulative);
         spend_increments.push(increment);
@@ -338,7 +363,9 @@ pub fn crossing_probabilities(
             return Err(Error::Cancelled);
         }
         out.push(recursion.crossing(k, c));
-        recursion.advance(k, c);
+        if k + 1 < fractions.len() {
+            recursion.advance(k, c)?;
+        }
     }
     Ok(out)
 }
@@ -394,7 +421,7 @@ pub fn stagewise_upper_p_value(
             p += recursion.side_crossing(k, observed.statistic, true);
         } else {
             p += recursion.side_crossing(k, bound, true);
-            recursion.advance(k, bound);
+            recursion.advance(k, bound)?;
         }
     }
     Ok(p.clamp(0.0, 1.0))

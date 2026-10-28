@@ -16,7 +16,39 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
+ "crates/antecedent-stats/tests/evidence_synthesis_reference.rs (50-digit GLS, random effects, hierarchical borrowing and equicorrelation envelope)",
   "crates/antecedent-contract/tests/evidence_ledger.rs",
   "crates/antecedent-stats/tests/synthesis_oracle.rs",
   "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "hierarchical_normal_borrowing, MeanPrior and TauPrior in crates/antecedent-stats/src/synthesis.rs: the exact finite mixture over a declared support of the between-study standard deviation, with the closed-form conditional posterior of the common mean (flat or normal prior), the marginal likelihoods that weight the support points, the posterior mean and variance of the common mean and the borrowed mean and variance of each study effect, and the prior-declaration refusals. Not the choice of prior, a continuous prior on tau, covariance between studies, or any interval."
+assumptions = ["y_i | theta_i ~ N(theta_i, v_i) with known v_i, theta_i | mu, tau ~ N(mu, tau^2), mu flat or normal, tau from the declared finite support.", "The posterior is exact only for the declared support.", "The result is a posterior mean and variance and no interval is claimed."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the models at 50 digits (mpmath: explicit covariance solves, derivatives of the restricted likelihood, numerical integration over the common mean); no upstream implementation was consulted. The cited papers were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited papers are linked, not redistributed."
+limitations = "The Rubin and Gelman papers were not retrieved (nothing downloaded, no local copy). The reference integrates the product of normal likelihoods and the mean prior over the common mean numerically (tanh-sinh with breakpoints at the estimates) for each support point and mixes by the marginal likelihoods, so it does not use the precision algebra of the product. The comparison covers six designs (flat and normal mean priors, tau supports from 0.001 to 10 with zero included, two to five studies, variances from 0.01 to 100), at 1e-9 relative for means and 1e-7 for variances. It does not examine priors with thousands of support points, a continuous tau prior approximated by its support, or the sensitivity to the support."
+sources = ["https://doi.org/10.3102/10769986006004377", "https://doi.org/10.1214/06-BA117A", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect found: the common-mean posterior, the borrowed study means and variances (b y_i + (1 - b) mu with variance b v_i + (1 - b)^2 Var(mu | y)) and the posterior probabilities of the support points agree with the integration on all six designs.", "The tau = 0 support point gives complete pooling and a large tau gives no borrowing, as the reference mixture shows."]
+record_sha256 = "fc1ce2a50f5950686f4391a00c315d53f8abf9ccccdced1691e7336245231d5b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/synthesis.rs"
+sha256 = "68041846370d0dc9960c5f44675a3c1dca583f8c985e9a983df05d63b94d6852"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/evidence_synthesis_reference.rs"
+sha256 = "939686ab0ea58a3b4609d08bf77510254e03c031e3432acdc1969cef319d71ae"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/evidence_synthesis_reference.py"
+sha256 = "864499ad7575d61dcc94efa5ae3f343e458d404dd5981f2a4a7939bc3849b492"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/evidence_synthesis_reference.json"
+sha256 = "95f9b5d13a1ec0cc6f65a67ce7c02fa24c81a04892b959de61d4095851d791da"

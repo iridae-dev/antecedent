@@ -17,12 +17,44 @@ implementation_deviations = [
  "Only O'Brien-Fleming-type and Pocock-type spending, efficacy boundaries only, equally or unequally spaced pre-specified information fractions.",
  "The independent-increment model is assumed; the route is licensed for fixed randomization only.",
  "The naive estimate at stopping is biased and no adjusted estimate or interval is offered.",
- "Numerical integration on composite Gauss-Legendre panels; accuracy about 1e-8, checked against an independent grid recursion.",
+ "Numerical integration on composite Gauss-Legendre panels sized to the narrowest look-to-look transition; accuracy about 1e-9 against an independent score-scale recursion and a bivariate-normal integral. Looks too close for a 400-panel stage are refused.",
 ]
 upstream_implementations_observed = []
 test_sources = [
+ "crates/antecedent-stats/tests/group_sequential_reference.rs (independent score-scale recursion, bivariate-normal integral, closed-look refusal)",
  "crates/antecedent-stats/tests/adaptive_inference_oracle.rs",
  "crates/antecedent-estimate/tests/adaptive_inference.rs",
  "crates/antecedent/tests/adaptive_inference_facade.rs",
  "crates/antecedent-io-core/tests/adaptive_monitoring_contract_artifact.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "boundaries, crossing_probabilities, stagewise_upper_p_value, stagewise_inference, first_crossing and SpendingFunction in crates/antecedent-stats/src/adaptive_inference/group_sequential.rs: the O'Brien-Fleming-type and Pocock-type Lan-DeMets spending functions, the Armitage-McPherson-Rowe recursive integration on the standardized statistic (composite Gauss-Legendre panels, now sized to the narrowest look-to-look transition), the bisection that makes the first-crossing probability at each look equal the spent increment, crossing probabilities under a drift (power), the stage-wise ordered upper p-value and the median-unbiased estimate and limits from it, for one-sided upper and two-sided symmetric efficacy boundaries. Not the futility or binding-boundary variants (not implemented), the whole-procedure calibration of an adaptive design, or any assignment-adaptive use (the independent-increment model is the premise)."
+assumptions = ["The standardized statistics have independent increments: Z_k ~ N(theta sqrt(t_k), 1) with Cov(Z_j, Z_k) = sqrt(t_j/t_k); a design whose assignment adapts to outcomes does not satisfy this and nothing is claimed for it.", "Spending is by the realized information fractions (Lan-DeMets), cumulative alpha alpha*(t_k) fixing the probability of first crossing at look k under theta = 0.", "For two-sided symmetric rules the stage-wise upper p-value counts upward earlier crossings only; the lower tail is the same function at the negated drift and statistic."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the model at 15 to 20 digits (mpmath) on a different scale or algorithm from the product's; no upstream implementation was consulted. The cited papers were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited papers are linked, not redistributed."
+limitations = "The four cited papers were not retrieved (nothing downloaded, no local copy); the check is of the code against the canonical joint distribution and the recursion as restated in the module documentation. The reference recurses on the score scale B_k = sqrt(t_k) Z_k with its own panels and 20 digits, over seven designs of one to five looks (equal, unequal, a look pair 0.30/0.31, 0.95/0.99/1, 0.05 first look whose one-sided spend is 1e-18), both spending functions, both sidedness conventions, levels 0.05 and 0.001, drifts 0 and 1.5, and 80 stage-wise p-values; boundaries and probabilities agree to 1e-9. Five two-look probabilities (including looks at 0.01/1 and 0.999/1) agree with a one-dimensional integral of the bivariate normal. The median-unbiased estimate and limits are checked to solve their defining p-value equations to 1e-8, not against an independent root finder. It does not examine more than five looks (the product accepts twenty), spending functions other than the two offered, or the coverage of the stage-wise interval."
+sources = ["https://doi.org/10.1093/biomet/70.3.659", "https://doi.org/10.2307/2343787", "https://doi.org/10.2307/2530245", "https://doi.org/10.1093/biomet/64.2.191", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect fixed: the panels of the recursion were a fixed 0.5 wide whatever the gap between looks, so for looks close in information (a transition standard deviation of sqrt(dt/t) below the node spacing) the sum over previous-stage nodes of the sharp Gaussian transition was inaccurate: the second-look crossing probability at looks 0.999 and 1 was off by 1.6e-7 (8.5e-5 relative). The panel width now follows the narrowest transition into and out of each stage, and looks closer than the 400-panel cap resolves are refused with a limit error instead of summed inaccurately; with it all designs agree with the independent recursion to 1e-9.", "Boundaries, crossing probabilities under drift and stage-wise p-values agree with the independent recursion; two-look probabilities agree with the bivariate normal integral; the null crossing probabilities reproduce the spending increments."]
+record_sha256 = "f4ddbc1b17054fe7f82aebf51c2d81c204080d6e6bd83f82ef98ddddb00c9f84"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/group_sequential.rs"
+sha256 = "befc3e7f55ae272f38bd02c3b6c227857bc10e8f4144892e8e86fee66646f5b4"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/group_sequential_reference.rs"
+sha256 = "d2f4299e5a325b28b1915dc690ee0ca4b53fc41eeadce298f5bb2d35db4c8d4e"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/group_sequential_reference.py"
+sha256 = "5e2d7a963af810f7ff1e1f5ee12962e54bb1162555761219778c463e1d881218"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/group_sequential_reference.json"
+sha256 = "c3c433901fcf39bf2e2eb6794592b3a0db3e97d1580cb3a7049bf11d369fe336"

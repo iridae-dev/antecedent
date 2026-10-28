@@ -20,6 +20,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-model/tests/evidence_requirement_reference.rs (exact-rational and 60-digit evidence solves and finite Bayes posteriors)",
   "hand-computed odds ratio: prior 0.2 to level 0.8 needs a Bayes factor of 16",
   "hand-computed readings: prior 0.01, rates 0.9 and 0.05 (Bayes factor 18) reaches 0.5 in exactly two readings",
   "closed-form Beta(1,1): (1+n)/(2+n) >= 0.9 needs n = 8; level 0.99 with a bound of 50 reaches at most 51/52",
@@ -27,3 +28,34 @@ test_sources = [
   "crates/antecedent-io-core/tests/observation_query_artifact.rs",
   "crates/antecedent/tests/observation_query_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "required_bayes_factor, observations_required_binary_signal and observations_required_conjugate in crates/antecedent-model/src/observation_query.rs: the Bayes factor [q/(1-q)]/[p/(1-p)] that moves a probability from p to a level q, the smallest count of identical conditionally independent binary readings (positive readings to raise with factor r_h/r_c, negative readings to lower with (1-r_h)/(1-r_c)) found from the closed form and then verified against the 1e-12 log-odds tolerance, the infinite-factor one-reading case, the typed unreachable refusals (SignalDoesNotMove, ObservationBudget) and their extrema, and the Beta-Bernoulli count (a+n)/(a+b+n) or a/(a+b+n) by binary search. Not the threshold-crossing query over a finite law or the conditioning routes, and not any statement about how often a fitted model reaches a level."
+assumptions = ["Readings are conditionally independent given the hypothesis and identical in kind; a mixed sequence is a different question and is not solved.", "A level matched within 1e-12 in log-odds (probability for the conjugate solve) counts as reached; exact boundary ties therefore resolve toward 'reached'.", "All values are exact given the declared model; no interval or calibration is claimed."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the definitions in exact rational arithmetic (the doubles' exact values) and at 60 digits (mpmath); no upstream implementation was consulted. The cited texts were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited texts are linked, not redistributed."
+limitations = "Kass and Raftery and Gelman et al. were not retrieved (nothing downloaded, no local copy); the check is of the code against the odds-ratio and conjugate identities. The comparison covers 72 Bayes-factor requests (priors from 1e-12 to 1 - 2^-30, levels from 1e-9 to 1 - 2^-20, both directions), 18 binary-signal requests (counts up to 575991 verified against 60-digit logarithms and, below 3000, against exact rational powers; infinite and zero factors; non-moving signals; an exhausted budget), and 9 Beta-Bernoulli requests including shapes 1e-3 and 1e6. The reference applies the declared 1e-12 tolerance to the exact rational ceiling. The tolerance is absolute, so for large shapes it admits a level that is short by up to 1e-12 (Beta(1e6, 1e6) reaches the level 0.5000005 after 2 successes, where exactly 3 are needed, because the shortfall is 2.5e-13); that is the documented behaviour and a limit on the solve, not a defect. It does not examine counts above 2^24 or signals whose likelihoods are themselves estimated."
+sources = ["https://doi.org/10.1080/01621459.1995.10476572", "https://doi.org/10.1201/b16018", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect found: required factors, the smallest reading counts (including the one-reading settled case and the 575991-reading near-uninformative signal), the probabilities reached and the refusal kinds agree with the exact computation; Beta-Bernoulli counts equal the exact rational ceiling.", "The unreachable refusals classify correctly: an infinite factor that points the wrong way (a positive-only signal asked to lower) is SignalDoesNotMove, not a one-reading solution."]
+record_sha256 = "1ba21fac5ba2d4875d53d765400f0c376e19031c2b5e2188a0c128f194bd7208"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/observation_query.rs"
+sha256 = "ea233bd1ba747668e5786ff0e485e68dc81082e233f5f0518842bf1ccd0141a6"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/evidence_requirement_reference.rs"
+sha256 = "e00282d731a428646f03873c68feb0be2ab2e2fe35d9f710a4055f2bcf09d426"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/evidence_requirement_reference.py"
+sha256 = "f02ccb3148be3bc619f911d39df896ebffe2f847cd69b5260dcb032c18fcbc8f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/evidence_requirement_reference.json"
+sha256 = "3c50406036ea8e092d044134b5c0791ba87fb8a460e5d7911841248526a78011"

@@ -18447,3 +18447,73 @@ crate = "antecedent-identify"
 cargo_target = "clamp_experiment_constraints"
 path = "crates/antecedent-identify/tests/clamp_experiment_constraints.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "confidence-sequence-reference"
+crate = "antecedent-stats"
+cargo_target = "confidence_sequence_reference"
+path = "crates/antecedent-stats/tests/confidence_sequence_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "group-sequential-reference"
+crate = "antecedent-stats"
+cargo_target = "group_sequential_reference"
+path = "crates/antecedent-stats/tests/group_sequential_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "beta-bernoulli-reference"
+crate = "antecedent-stats"
+cargo_target = "beta_bernoulli_reference"
+path = "crates/antecedent-stats/tests/beta_bernoulli_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "measurement-correction-reference"
+crate = "antecedent-stats"
+cargo_target = "measurement_correction_reference"
+path = "crates/antecedent-stats/tests/measurement_correction_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "evidence-synthesis-reference"
+crate = "antecedent-stats"
+cargo_target = "evidence_synthesis_reference"
+path = "crates/antecedent-stats/tests/evidence_synthesis_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "adaptive-weighting-reference"
+crate = "antecedent-stats"
+cargo_target = "adaptive_weighting_reference"
+path = "crates/antecedent-stats/tests/adaptive_weighting_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "repeated-measures-posterior-reference"
+crate = "antecedent-stats"
+cargo_target = "repeated_measures_posterior_reference"
+path = "crates/antecedent-stats/tests/repeated_measures_posterior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "proper-scores-reference"
+crate = "antecedent-validate"
+cargo_target = "proper_scores_reference"
+path = "crates/antecedent-validate/tests/proper_scores_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "finite-scm-reference"
+crate = "antecedent-counterfactual"
+cargo_target = "finite_scm_reference"
+path = "crates/antecedent-counterfactual/tests/finite_scm_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "evidence-requirement-reference"
+crate = "antecedent-model"
+cargo_target = "evidence_requirement_reference"
+path = "crates/antecedent-model/tests/evidence_requirement_reference.rs"
+gates = ["inventory", "named"]

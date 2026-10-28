@@ -87,7 +87,13 @@ pub fn variance_of_mean(
         ));
     }
     let nf = n as f64;
-    let center = mean(d);
+    // Deviations are taken from the first case, then from the mean of those: a difference far
+    // from zero but with a small spread would otherwise leave the rounding of its own mean in
+    // every centred value (the mean of doubles near 1e8 is only good to about 1.5e-8).
+    let origin = d[0];
+    let shifted: Vec<f64> = d.iter().map(|x| x - origin).collect();
+    let center = mean(&shifted);
+    let d = &shifted[..];
     match dependence {
         DependenceDeclaration::Iid => {
             let s2 = d.iter().map(|x| (x - center).powi(2)).sum::<f64>() / (nf - 1.0);

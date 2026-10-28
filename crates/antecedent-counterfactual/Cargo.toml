@@ -44,3 +44,7 @@ path = "tests/abduction_action_prediction_reference.rs"
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "finite_scm_reference"
+path = "tests/finite_scm_reference.rs"

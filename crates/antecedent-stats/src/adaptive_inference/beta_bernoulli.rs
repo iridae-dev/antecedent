@@ -25,7 +25,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::{AdaptiveInferenceError as Error, composite_rule, panel_rule};
+use super::{AdaptiveInferenceError as Error, graded_rule, panel_rule};
 use crate::special::ln_gamma;
 
 /// Total prior-plus-observed trials up to which an arm's posterior is evaluated with the exact
@@ -39,6 +39,8 @@ pub const MAX_BANDIT_ARMS: usize = 64;
 
 const MAX_PANELS: usize = 8192;
 const TAIL_STANDARD_DEVIATIONS: f64 = 14.0;
+/// Probability left outside the quadrature window of one posterior, in each tail.
+const TAIL_MASS: f64 = 1e-18;
 const MAX_FRACTION_ITERATIONS: usize = 200_000;
 const FRACTION_EPSILON: f64 = 1e-15;
 const TINY: f64 = 1e-300;
@@ -139,13 +141,32 @@ impl BetaPosterior {
         (self.alpha - 1.0) * x.ln() + (self.beta - 1.0) * (-x).ln_1p() - ln_beta
     }
 
-    /// Mean plus or minus the tail window, clipped to the unit interval.
-    fn window(self) -> (f64, f64) {
+    /// Mean plus or minus the tail window, clipped to the unit interval and widened until each
+    /// tail holds at most [`TAIL_MASS`].
+    ///
+    /// A window of fourteen standard deviations leaves a Gaussian tail of `1e-44` but a Beta
+    /// with a shape of one has an exponential tail, which still holds `e^-14 ~ 1e-6` of its mass
+    /// at that distance; the window is extended by doubling steps until the exact tail mass (the
+    /// incomplete beta function, or its reflection for the upper tail) is negligible.
+    fn window(self) -> Result<(f64, f64), Error> {
         let sd = self.standard_deviation();
-        (
-            (self.mean() - TAIL_STANDARD_DEVIATIONS * sd).max(0.0),
-            (self.mean() + TAIL_STANDARD_DEVIATIONS * sd).min(1.0),
-        )
+        let mut lo = (self.mean() - TAIL_STANDARD_DEVIATIONS * sd).max(0.0);
+        let mut hi = (self.mean() + TAIL_STANDARD_DEVIATIONS * sd).min(1.0);
+        if self.is_normal_approximated() {
+            return Ok((lo, hi));
+        }
+        let mut step = TAIL_STANDARD_DEVIATIONS * sd;
+        while lo > 0.0 && regularized_incomplete_beta(lo, self.alpha, self.beta)? > TAIL_MASS {
+            lo = (lo - step).max(0.0);
+            step *= 2.0;
+        }
+        let mut step = TAIL_STANDARD_DEVIATIONS * sd;
+        while hi < 1.0 && regularized_incomplete_beta(1.0 - hi, self.beta, self.alpha)? > TAIL_MASS
+        {
+            hi = (hi + step).min(1.0);
+            step *= 2.0;
+        }
+        Ok((lo, hi))
     }
 }
 
@@ -265,10 +286,11 @@ pub fn best_arm_probabilities(
     cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<f64>, Error> {
     check_arms(arms)?;
-    let lo = arms.iter().map(|arm| arm.window().0).fold(f64::INFINITY, f64::min);
-    let hi = arms.iter().map(|arm| arm.window().1).fold(f64::NEG_INFINITY, f64::max);
+    let windows = arms.iter().map(|arm| arm.window()).collect::<Result<Vec<_>, _>>()?;
+    let lo = windows.iter().map(|w| w.0).fold(f64::INFINITY, f64::min);
+    let hi = windows.iter().map(|w| w.1).fold(f64::NEG_INFINITY, f64::max);
     let panels = panel_count(lo, hi, narrowest(arms))?;
-    let (nodes, weights) = composite_rule(&panel_rule(), lo, hi, panels);
+    let (nodes, weights) = graded_rule(&panel_rule(), lo, hi, panels, lo <= 0.0, hi >= 1.0);
     let count = arms.len();
     let mut result = vec![0.0; count];
     let mut cdf = vec![0.0; count];
@@ -324,13 +346,14 @@ pub fn probability_exceeds(
     }
     // Below the margin the integrand is zero and its first kink is at the margin, so the
     // quadrature starts there and the integrand is smooth over every panel.
-    let (window_lo, hi) = a.window();
+    let (window_lo, hi) = a.window()?;
     let lo = window_lo.max(margin);
     if lo >= hi {
         return Ok(0.0);
     }
     let panels = panel_count(lo, hi, a.standard_deviation().min(b.standard_deviation()))?;
-    let (nodes, weights) = composite_rule(&panel_rule(), lo, hi, panels);
+    // The integrand starts at the margin with the non-analytic distribution function of `b`.
+    let (nodes, weights) = graded_rule(&panel_rule(), lo, hi, panels, true, hi >= 1.0);
     let mut total = 0.0;
     for (index, (&x, &weight)) in nodes.iter().zip(&weights).enumerate() {
         if index % CANCEL_STRIDE == 0 && cancelled() {
@@ -354,12 +377,14 @@ pub fn expected_losses(
     check_arms(arms)?;
     // Below the largest lower window edge some cdf is zero, so the integrand
     // is one; above the largest upper edge every cdf is one, so it is zero.
-    let lower = arms.iter().map(|arm| arm.window().0).fold(f64::NEG_INFINITY, f64::max);
-    let upper = arms.iter().map(|arm| arm.window().1).fold(f64::NEG_INFINITY, f64::max);
+    let windows = arms.iter().map(|arm| arm.window()).collect::<Result<Vec<_>, _>>()?;
+    let lower = windows.iter().map(|w| w.0).fold(f64::NEG_INFINITY, f64::max);
+    let upper = windows.iter().map(|w| w.1).fold(f64::NEG_INFINITY, f64::max);
     let mut expected_max = lower;
     if upper > lower {
         let panels = panel_count(lower, upper, narrowest(arms))?;
-        let (nodes, weights) = composite_rule(&panel_rule(), lower, upper, panels);
+        let (nodes, weights) =
+            graded_rule(&panel_rule(), lower, upper, panels, lower <= 0.0, upper >= 1.0);
         for (index, (&t, &weight)) in nodes.iter().zip(&weights).enumerate() {
             if index % CANCEL_STRIDE == 0 && cancelled() {
                 return Err(Error::Cancelled);

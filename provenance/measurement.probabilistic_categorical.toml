@@ -20,7 +20,39 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-stats/tests/measurement_correction_reference.rs (exact-rational binary corrections and 60-digit analytic-Jacobian categorical corrections)",
  "closed-form attenuation and misclassification algebra",
  "independently simulated seeded DGPs with known coefficients",
  "hand-computed one-way ANOVA and confusion-matrix inversion",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ConfusionMatrix, ObservedClassSummary and corrected_categories in crates/antecedent-stats/src/measurement_error.rs: the inversion pi = C^{-1} p* for a column-stochastic confusion matrix C[observed, true], the outcome means by true category mu = Q^{-1} ybar with Q[j][t] = C[j][t] pi_t / p*_j, the delta-method covariances of the corrected proportions and of the outcome means over the observed proportions (multinomial), the class means (independent) and the confusion columns (independent multinomials from the validation counts), the central-difference Jacobian of the outcome-mean map, the 1-norm condition number and the condition refusal. Not the binary routes (reviewed under measurement.binary_misclassification), the estimator layer that licenses a correction, or the externally supplied latent posterior."
+assumptions = ["Misclassification depends on the true category only (non-differential given the true category); the observed class summaries and the validation columns are independent samples.", "The confusion matrix is known or estimated from validation counts with one multinomial per true category.", "Corrected proportions are not projected onto the simplex."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated definitions, derivatives derived by hand, in exact rational arithmetic and at 60 digits (mpmath); no upstream implementation was consulted. The cited sources were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited sources are linked, not redistributed."
+limitations = "The Rogan and Gladen paper was not retrieved (nothing downloaded, no local copy); the K-category inversion and delta method are checked against a hand derivation, with the Jacobian of (pi, mu) taken by central differences at 60 digits with a step of 1e-20 (truncation about 1e-40), against the product's step of 1e-6 relative. The comparison covers five designs with two to four categories, a rare class (20 of 400), a nearly flat outcome contrast (class means 100 and 100.5, condition number 49) and an unbalanced four-category matrix, at 1e-11 for proportions and means and 1e-8 for covariances. It does not examine near-singular confusion matrices beyond condition 49, empty latent categories, or coverage; the covariance is a first-order approximation."
+sources = ["https://doi.org/10.1093/oxfordjournals.aje.a112510", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect found: the corrected proportions, outcome means, both covariance matrices and the condition number agree with the 60-digit analytic Jacobian; the finite-difference step of the product costs at most the stated tolerance on these designs.", "The two-category case reproduces the binary Rogan-Gladen correction and its variance exactly, so the multinomial confusion-column covariance reduces to the binomial sensitivity and specificity variances."]
+record_sha256 = "f69110eddaa54a38af2920d74c850870fa1433a760b75fcaa4a663b427a98e1d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error.rs"
+sha256 = "e141b13fbbf5bc4514c8a0f76aae3cc2bcd82fdfd8db1e0c3baa60f35ff471f3"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/measurement_correction_reference.rs"
+sha256 = "20597057ae40a94f19c8b19556ab9aa0f85dd1a2f9f597454cab416115f21705"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/measurement_correction_reference.py"
+sha256 = "7a8fdeeb6208d5d70e6a7a25235024e0301e4bc284895e79009a57368081d2ec"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/measurement_correction_reference.json"
+sha256 = "11dadcf2116c5e439ce7c1e0242ca2c2891011656879ea8bd9f6e4a57cace3f1"

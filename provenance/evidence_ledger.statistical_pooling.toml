@@ -16,7 +16,39 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
+ "crates/antecedent-stats/tests/evidence_synthesis_reference.rs (50-digit GLS, random effects, hierarchical borrowing and equicorrelation envelope)",
   "crates/antecedent-contract/tests/evidence_ledger.rs",
   "crates/antecedent-stats/tests/synthesis_oracle.rs",
   "crates/antecedent-io-core/tests/evidence_ledger_artifact.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fixed_effect_gls, fixed_effect_inverse_variance and check_covariance in crates/antecedent-stats/src/synthesis.rs: the generalized least squares pooled value 1'S^-1 y / 1'S^-1 1 with variance 1/(1'S^-1 1), the weights, the generalized Cochran Q r'S^-1 r, the diagonal inverse-variance case and the covariance validation and singularity refusal. Not the random-effects, hierarchical or dependence-range routes (separate records), the equal-study Student construction, or the contract and ledger layers that supply the covariance."
+assumptions = ["Study estimates are jointly normal-moment summaries with a known covariance supplied by the caller; dependence is never estimated.", "The covariance is symmetric positive definite; a singular or indefinite covariance is refused, not repaired.", "Q is reported for any covariance and no reference distribution is claimed under dependence."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the models at 50 digits (mpmath: explicit covariance solves, derivatives of the restricted likelihood, numerical integration over the common mean); no upstream implementation was consulted. The cited papers were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited papers are linked, not redistributed."
+limitations = "The Aitken paper and the Borenstein et al. book were not retrieved (nothing downloaded, no local copy); the check is of the code against the generalized least squares definition. The comparison covers seven covariances: two and three studies with cross-covariance, equicorrelated k = 3 to 6 at correlations 0.95, 0.999, -0.2 and 0.5, and a diagonal covariance spanning sixteen orders of magnitude with estimates offset by 1e6, at 1e-9 relative (1e-7 for the widest). It does not examine covariances with more than a few dozen studies, ill-conditioned dense matrices beyond correlation 0.999, or how the covariance was obtained."
+sources = ["https://doi.org/10.1017/S0370164600014346", "https://doi.org/10.1002/9780470743386", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect fixed: fixed_effect_gls refused a covariance as singular when the ratio of its largest to smallest eigenvalue was below 1e-10, which for independent studies is the ratio of their variances, so studies with variances 1e-8 and 1e8 were refused as 'perfectly correlated'. Singularity is now judged on the covariance scaled to a unit diagonal (collinear studies are still refused at every scale).", "The pooled estimate, variance, weights (negative under strong positive correlation, as expected) and generalized Q agree with the explicit solve on every covariance."]
+record_sha256 = "21272d18f528298a252d6a1ca70cbacf34b538f8171f5708ef1360ce66b5d203"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/synthesis.rs"
+sha256 = "68041846370d0dc9960c5f44675a3c1dca583f8c985e9a983df05d63b94d6852"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/evidence_synthesis_reference.rs"
+sha256 = "939686ab0ea58a3b4609d08bf77510254e03c031e3432acdc1969cef319d71ae"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/evidence_synthesis_reference.py"
+sha256 = "864499ad7575d61dcc94efa5ae3f343e458d404dd5981f2a4a7939bc3849b492"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/evidence_synthesis_reference.json"
+sha256 = "95f9b5d13a1ec0cc6f65a67ce7c02fa24c81a04892b959de61d4095851d791da"

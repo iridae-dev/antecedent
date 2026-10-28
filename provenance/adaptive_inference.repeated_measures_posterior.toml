@@ -21,5 +21,42 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-stats/tests/repeated_measures_posterior_reference.rs (50-digit multivariate-normal conditioning with an explicit covariance solve)",
   "crates/antecedent/tests/repeated_measures_posterior_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "repeated_measures_posterior in crates/antecedent-stats/src/adaptive_inference/repeated_measures_posterior.rs and the generalized-least-squares unit summary it takes from procedure_repeated_measures.rs (gls_unit_summary, the covariance build for compound-symmetric, first-order autoregressive and random-effect structures): the conjugate normal posterior of each arm mean from the per-unit summaries ybar_i = w'y_i with w = R^-1 1/(1'R^-1 1) and variance v = sigma^2/(1'R^-1 1), the exact normal posterior of the contrast, its equal-tailed credible interval and P(contrast > 0), the selection-mechanism refusal and the retained assignment evidence. Not the frequentist final analyses and monitoring of procedure_repeated_measures, a posterior that marginalizes over the variance or correlation (declared, not estimated), or any coverage of the credible interval."
+assumptions = ["A unit's measurements are y ~ N(mu_arm 1, sigma^2 R) with the variance and the correlation structure declared and known; units are independent given the arm means; arm means have independent normal priors.", "The assignment of a unit depends on the observed earlier data and independent randomization only, so the assignment probabilities factor out of the likelihood and the posterior needs no correction; an assignment depending on an unobserved quantity is refused.", "The recorded assignment probabilities are retained as evidence and do not enter the posterior."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the multivariate normal model at 50 digits (mpmath, an explicit covariance and a general linear solve, so that the closed-form generalized-least-squares weights of the product are not reused); no upstream implementation was consulted. The cited sources were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited sources are not redistributed."
+limitations = "The Laird and Ware paper and Gelman et al. were not retrieved (nothing downloaded, no local copy), and the record lists no DOI for them, so none is asserted. The comparison covers twelve within-unit structures (compound symmetry at correlations 0.5, 0.3, 0.999999, -0.05 and one within 1e-6 of the lower positive-definite limit; autoregressive at 0.7, -0.9 and 0.99; random effects with a between-unit variance of 0, 2, 1e6 and 1e-8 against the within variance; two to twenty measurements per unit), two or three arms, six to forty units, priors from variance 0.1 to 1e6, and three contrasts and credible levels each (0.5 to 0.999999), at 1e-9 relative to the posterior scale. It does not examine thirty-two-measurement units, correlation matrices beyond the three declared forms, or the frequentist calibration of the interval, which the module states is not inherited from the posterior."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect found: the arm posteriors, the summary variance, the contrast mean and standard deviation, the credible interval and the probability of a positive contrast agree with the explicit multivariate conditioning on all 36 requests, including the near-singular compound-symmetric matrix and the random effect whose between variance is 1e6 times the within variance.", "The sufficiency claim behind the summary (the generalized-least-squares weighted mean carries all the information about the arm mean) is confirmed numerically by the agreement with conditioning on the full measurement vectors."]
+record_sha256 = "5e3d6811acc46fdc0c13c16f20e36ab55afdf75c96566ec4afb745956f7db727"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/repeated_measures_posterior.rs"
+sha256 = "41ad4877bf14be8d330c1c9f1476a9644416b696d0d51b35b9dda40833d6d78a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/procedure_repeated_measures.rs"
+sha256 = "b571fc6f2683f0b15009b274accb5172b6bd9ff7f83ae8fd4ad52aded6a1900c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/repeated_measures_posterior_reference.rs"
+sha256 = "81af4e3ead66c01cb41dd27d02a4b750adae08c546feebb4a85e4e599922eca9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/repeated_measures_posterior_reference.py"
+sha256 = "fb24ae307d56a7926b269d2c2ea8f7d70248566375576fde543d4fea6456f642"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/repeated_measures_posterior_reference.json"
+sha256 = "bef3db7db4284b7b9eddf5254be4588a6bb28d22e74b93b480f953cf57037349"

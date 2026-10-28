@@ -12,12 +12,49 @@ papers = [
 ]
 implementation_deviations = [
  "Only the Beta-Bernoulli likelihood with prior shapes at least one; other priors and likelihoods are closed.",
- "Quadrature, not a closed form, for non-integer shapes; accuracy about 1e-10 for counts below 1e5.",
+ "Quadrature, not a closed form, for non-integer shapes: composite Gauss-Legendre panels over a window widened until each tail holds 1e-18 of the posterior, with the end panels graded toward the support boundary; accuracy about 1e-10 against an independent reference for shapes up to a few thousand. Larger shapes were not reproduced by the reference.",
  "The posterior is exact under the declared prior; it is not a frequentist statement and its credible intervals have no measured coverage under adaptive sampling and stopping.",
 ]
 upstream_implementations_observed = []
 test_sources = [
+ "crates/antecedent-stats/tests/beta_bernoulli_reference.rs (15-digit tanh-sinh quadrature and exact rational binomial-tail sums)",
  "crates/antecedent-stats/tests/adaptive_inference_oracle.rs",
  "crates/antecedent-estimate/tests/adaptive_inference.rs",
  "crates/antecedent-io/tests/adaptive_inference_result_artifact.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "BetaPosterior, regularized_incomplete_beta, best_arm_probabilities, probability_superior, probability_exceeds and expected_losses in crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs: the conjugate Beta(alpha + s, beta + f) posterior of each arm, the posterior probability that each arm is best (the integral of f_k times the product of the other distribution functions), the probability that one arm exceeds another by a margin, the posterior expected loss E[max theta] - E[theta_k], the continued-fraction incomplete beta function, the quadrature window and panels, and the normal-law switch above 16 million trials. Not the participant-level and repeated-measures posteriors (separate records), the likelihood-principle premise on the assignment rule, which the caller states, or any frequentist coverage of intervals built from the posterior."
+assumptions = ["Arms are independent a posteriori; each arm's posterior is Beta(prior + successes, prior + failures) whatever history-dependent rule assigned the units, provided the rule depended on the observed history and independent randomization only.", "Prior shapes are at least one so that the density is bounded; the quadrature relies on it.", "The posterior is exact under the declared prior and is not a frequentist statement; no coverage under adaptive sampling and stopping is claimed."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the definitions: tanh-sinh quadrature of the densities and mpmath's regularized incomplete beta at 15 digits (a different algorithm from the product's continued fraction and Gauss-Legendre panels), and exact rational sums for integer shapes; no upstream implementation was consulted. The cited paper was not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited paper is linked, not redistributed."
+limitations = "Thompson's 1933 paper was not retrieved (nothing downloaded, no local copy); the check is of the code against the definitions. The comparison covers ten best-arm sets (two to five arms; flat, skewed (1, 40), (1, 100)/(1, 150)/(1, 200) and (100, 1)/(150, 1), non-integer shapes such as 1.5, 29.5 and 70.5, shapes to 1000), the same sets' expected losses, 25 margin exceedances at margins 0 to 0.999, 30 incomplete beta values (shapes 0.5 to 3000, arguments 1e-9 to 1 - 1e-6) and 13 integer-shape superiorities against exact rational sums (shapes to 10000, including (1, 3000) against (1, 3001)), at 1e-10 absolute. It does not examine posteriors with more than ten thousand trials against an independent reference (the incomplete beta at larger shapes was not reproducible in the reference's arithmetic), the normal-law regime above 16 million trials, or the 64-arm bound."
+sources = ["https://doi.org/10.1093/biomet/25.3-4.285", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Defect fixed (tails): the quadrature window was the mean plus or minus fourteen standard deviations, which holds 1e-44 of a Gaussian tail but only e^-14 (about 1e-6) of the exponential tail of a Beta with a shape of one; the superiority of Beta(1, 3000) over Beta(1, 3001) was 0.50008302 against the exact 0.50008332 (error 3e-6), and Beta(1, 100) against Beta(1, 150) was off by 1.2e-7, far outside the 1e-10 the record states. The window is now widened by doubling steps until the exact tail mass (the incomplete beta function, reflected for the upper tail) is below 1e-18.", "Defect fixed (end points): a Beta with a fractional shape (such as Beta(1.5, 2.5) from a Jeffreys-style prior) has a density x^(a-1) and distribution x^a that are not analytic at the end of the support, and equal Gauss-Legendre panels integrated them with an error of 4e-8 in the probability of being best. The end panels are now halved geometrically toward the singular end (fourteen halvings), which restores 1e-10.", "After both repairs best-arm probabilities, expected losses, margin exceedances and incomplete beta values agree with the reference to 1e-10 and the integer-shape superiorities with the exact rational sums."]
+record_sha256 = "b4d0f9cb4f538245382909c2d8ffc73fe0bed82e581a5ae5c92f242ecfa90d36"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs"
+sha256 = "12d881b9b03ea045116f977db6408fd24e65e6c43d071d2063f4ffb5f9f782ab"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/mod.rs"
+sha256 = "4f48ace36c8c36cbffaa49bd66c8aa97b350cea390ed2d0416aaf6b93ac74de9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/beta_bernoulli_reference.rs"
+sha256 = "8e633cd2f321dfee3399b268266c3bd562eb00b987a9833162535e930f67fd46"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/beta_bernoulli_reference.py"
+sha256 = "6f9a844ffe6f8bda35ebdb6ac716b120017d523fe83a6425ddb522a06c71f145"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/beta_bernoulli_reference.json"
+sha256 = "0c085a1614d2dcfd0f02f2c18410a54da0de1a82410cf51f81849ef5e21f4fdb"

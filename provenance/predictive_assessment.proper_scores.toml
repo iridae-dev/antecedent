@@ -18,4 +18,40 @@ implementation_deviations = [
   "Provider-evaluated laws supply only a log density and cumulative values at the outcome; the log score is as trustworthy as the supplier, and no CRPS or Brier score is formed from them.",
 ]
 upstream_implementations_observed = []
-test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs"]
+test_sources = ["crates/antecedent-validate/tests/proper_scores_reference.rs (exact-rational and 50-digit scores and mean-difference variances)", "crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs"]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "score_case and its helpers in crates/antecedent-validate/src/predictive_assessment/score.rs: the Gaussian log score and CRPS closed forms, the Bernoulli and categorical Brier scores and log scores (and the CRPS of a Bernoulli law as its Brier score), the finite-law and empirical-sample CRPS (the integral of the squared distribution-function difference over breakpoints), the fair ensemble form (pair sum over m(m-1)), and the energy score of finite and sampled joint laws. Not the law validation, the PIT, coverage or reliability diagnostics, the assessment bookkeeping, or provider-evaluated laws, whose log score is a supplied number."
+assumptions = ["A score is a loss, smaller is better; a Gaussian, Bernoulli, categorical, finite or empirical law is scored as the law it is, so the empirical-sample CRPS is the energy form with divisor 2 m^2.", "The fair form divides the pair sum by 2 m (m - 1) and is offered as an estimator of the generating law's CRPS, not as a proper score of the empirical law.", "A log score of an outcome with probability zero is refused, not reported as infinity."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the definitions in exact rational arithmetic and at 50 digits (mpmath); no upstream implementation was consulted. The cited papers were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited papers are linked, not redistributed."
+limitations = "The Gneiting-Raftery, Brier, Matheson-Winkler and Ferro papers were not retrieved (nothing downloaded, no local copy); the definitions are those restated in the product documentation and the record. The comparison covers eleven Gaussian cases from -37 to +40 standard deviations with scales from 1e-8 to 4e4 (log score and CRPS, 1e-12 relative), four Gaussian CRPS values checked against tanh-sinh quadrature of the defining integral, six Brier and log-score cases including a probability of 1e-12 and a zero-probability outcome, six finite laws, fifteen samples of 2, 5 and 40 draws offset by up to 1e12 in empirical and fair forms against exact rational energy forms, and four energy scores. It does not examine properness (the expected score of the true law is the minimum), scores of very large ensembles, or the provider-evaluated route."
+sources = ["https://doi.org/10.1198/016214506000001437", "https://doi.org/10.1175/1520-0493(1950)078<0001:VOFEIT>2.0.CO;2", "https://doi.org/10.1287/mnsc.22.10.1087", "https://doi.org/10.1002/qj.2270", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Numerical defect fixed: the pair sum of the fair ensemble CRPS weighted the raw draws, so for an ensemble with a small spread far from the origin the products x (2k - m + 1) lost the spread to rounding; the draws are now measured from the smallest one (the weights sum to zero, so the identity is exact).", "The Gaussian closed form equals the integral of the squared distribution-function difference to 1e-15 on the quadrature cases, the Bernoulli Brier score and CRPS are half the two-category sum, and every finite, sample and energy value agrees with the exact reference."]
+record_sha256 = "cbdd1e1d7fa33a8914456ea9da4baaed2a9537036b3899cb986d994b812d146a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/predictive_assessment/score.rs"
+sha256 = "7608cd7db235b05c2e23036b6a6ca3f79249865b531bfaccfab70d93fb60dac7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/predictive_assessment/compare.rs"
+sha256 = "22159c6a0d4c236719f30fb36c9a9b3499f41f1bd75faa415c35a398f2a93469"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/proper_scores_reference.rs"
+sha256 = "5c65be42c531415db6e1d54f7b1bab75f5fc6d02460aa374be9cdeb45c094fa8"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/proper_scores_reference.py"
+sha256 = "991e1d82524699248b5c5945746ef7b056c31fe04691d4200da7e9a791cdc86b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/proper_scores_reference.json"
+sha256 = "bebd834bf1a5c61aa37698c55d45cb59d60242d03002ce90145d180fb26294d6"
