@@ -38,6 +38,40 @@ pub(super) struct TransportTrialInputs<'a> {
     pub(super) identify_cached: bool,
 }
 
+/// Refuse a missing value in the trial indicator or in the treatment of a trial row.
+///
+/// Both are read as booleans (`!= 0.0`), under which a missing value would silently become a
+/// trial row or a treated row and move the estimate. The treatment of a target row is never
+/// read, so a missing value there is allowed.
+///
+/// # Errors
+///
+/// `missing_policy_required` naming the first missing cell.
+pub(super) fn refuse_missing_trial_design(
+    treatment: &[f64],
+    trial: &[f64],
+) -> Result<(), CausalError> {
+    let missing = |what: &str, row: usize| {
+        crate::compile_reason!(
+            "missing_policy_required",
+            "the transport route reads {what} as a yes/no value and found a missing value at \
+             row {row}; it would be read as a trial row or a treated row. Next attempt: drop \
+             or impute the row before the study, or recode the column"
+        )
+    };
+    if let Some(row) = trial.iter().position(|value| !value.is_finite()) {
+        return Err(missing("the trial indicator", row));
+    }
+    if let Some(row) = treatment
+        .iter()
+        .zip(trial)
+        .position(|(value, member)| *member != 0.0 && !value.is_finite())
+    {
+        return Err(missing("the treatment of a trial row", row));
+    }
+    Ok(())
+}
+
 /// Owned probability and outcome columns detached from the transport design declaration.
 struct TrialSample {
     outcomes: Vec<f64>,
@@ -61,6 +95,7 @@ impl TrialSample {
             data.float64_values(trial_spec.selection_probability).map_err(CausalError::rejected)?;
         let propensity =
             data.float64_values(trial_spec.treatment_probability).map_err(CausalError::rejected)?;
+        refuse_missing_trial_design(&treatment_col, &trial_col)?;
         let treatment_bool: Vec<bool> = treatment_col.iter().map(|v| *v != 0.0).collect();
         let trial_bool: Vec<bool> = trial_col.iter().map(|v| *v != 0.0).collect();
         Ok(Self { outcomes, treatment_bool, trial_bool, selection, propensity })

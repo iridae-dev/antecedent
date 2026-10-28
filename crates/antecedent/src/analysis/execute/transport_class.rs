@@ -224,6 +224,7 @@ impl super::Study {
             data.float64_values(trial_spec.selection_probability).map_err(CausalError::rejected)?;
         let propensity =
             data.float64_values(trial_spec.treatment_probability).map_err(CausalError::rejected)?;
+        super::transport_interference_path::refuse_missing_trial_design(&treatment_col, &trial_col)?;
         let treatment_bool: Vec<bool> = treatment_col.iter().map(|v| *v != 0.0).collect();
         let trial_bool: Vec<bool> = trial_col.iter().map(|v| *v != 0.0).collect();
 

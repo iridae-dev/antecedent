@@ -198,6 +198,36 @@ impl Study {
         if !static_effect {
             return Ok(());
         }
+        if matches!(self.query, CausalQuery::Transport(_)) {
+            // A temporal graph reads the rows as one series and reports the dependence-aware
+            // interval; every other graph reports the independent-row interval.
+            let temporal = matches!(
+                self.graph.class(),
+                GraphClass::TemporalDag
+                    | GraphClass::TemporalAdmg
+                    | GraphClass::TemporalCpdag
+                    | GraphClass::TemporalPag
+            );
+            if let Some(design) = self.declared.sampling_design.filter(|design| {
+                matches!(design, antecedent_core::DeclaredSamplingDesign::ClusteredPanel)
+                    || (!temporal
+                        && matches!(
+                            design,
+                            antecedent_core::DeclaredSamplingDesign::DependentTimeSeries
+                        ))
+            }) {
+                return Err(crate::compile_reason!(
+                    "option_not_applicable",
+                    "the declared `{}` design makes the rows dependent, which the \
+                     independent-row interval and Dirichlet row bootstrap of this transport \
+                     route do not cover and the route has no cluster-robust error for. Next \
+                     attempt: declare independent subject trajectories if the rows are \
+                     independent, or state the transport on a temporal graph for the \
+                     dependence-aware interval of one series",
+                    design.as_str()
+                ));
+            }
+        }
         if table.storage().weights().is_some() {
             return Err(CausalError::Estimate(
                 antecedent_estimate::sampling_weights::unsupported_route(

@@ -69,6 +69,7 @@ impl TransportRows {
             data.float64_values(trial_spec.selection_probability).map_err(CausalError::rejected)?;
         let propensity =
             data.float64_values(trial_spec.treatment_probability).map_err(CausalError::rejected)?;
+        super::transport_interference_path::refuse_missing_trial_design(&treatment_col, &trial_col)?;
         let treatment = treatment_col.iter().map(|v| *v != 0.0).collect();
         let trial = trial_col.iter().map(|v| *v != 0.0).collect();
         Ok(Self { outcomes, treatment, trial, selection, propensity })
