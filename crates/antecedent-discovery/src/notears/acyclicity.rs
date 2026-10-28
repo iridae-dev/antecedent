@@ -282,3 +282,7 @@ mod tests {
         assert_eq!(out, expect);
     }
 }
+
+#[cfg(test)]
+#[path = "acyclicity_oracle_tests.rs"]
+mod oracle_tests;

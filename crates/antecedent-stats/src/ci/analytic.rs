@@ -7,7 +7,9 @@ use crate::special::{normal_ppf, student_t_sf};
 /// Two-sided analytic p-value for a partial correlation with residual `df`.
 pub(crate) fn analytic_parcorr_pvalue(r: f64, df: f64) -> f64 {
     let r = r.clamp(-1.0 + 1e-15, 1.0 - 1e-15);
-    let t = r * (df / (1.0 - r * r)).sqrt();
+    // (1 - r)(1 + r), not 1 - r*r: the product form keeps full relative precision as |r| -> 1,
+    // where 1 - r*r cancels and would perturb the tail probability by df/2 times that error.
+    let t = r * (df / ((1.0 - r) * (1.0 + r))).sqrt();
     2.0 * student_t_sf(t.abs(), df)
 }
 
@@ -31,9 +33,12 @@ pub(crate) fn analytic_parcorr_ci(r: f64, df: f64, level: f64) -> (f64, f64) {
     }
     let z = r.atanh();
     let se = 1.0 / (df - 1.0).sqrt();
-    // Approximate normal critical value via inverse erf for common levels.
+    // Two-sided normal critical value z_{1 - alpha/2}. Evaluated from the lower tail,
+    // `-ppf(alpha / 2)`: the upper-tail form `ppf(1 - alpha / 2)` rounds `1 - alpha / 2` to
+    // 1.1e-16 absolute, which at level 0.999999 is a relative 2e-10 error in the tail
+    // probability and moves the interval endpoint by about 1e-12.
     let alpha = 1.0 - level;
-    let zcrit = normal_ppf(1.0 - alpha * 0.5);
+    let zcrit = -normal_ppf(alpha * 0.5);
     let lo_z = z - zcrit * se;
     let hi_z = z + zcrit * se;
     (z_to_r(lo_z), z_to_r(hi_z))
@@ -84,3 +89,7 @@ mod tests {
         assert!(lo.is_nan() && hi.is_nan());
     }
 }
+
+#[cfg(test)]
+#[path = "analytic_oracle_tests.rs"]
+mod oracle_tests;

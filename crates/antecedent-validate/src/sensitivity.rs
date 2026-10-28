@@ -119,6 +119,25 @@ fn with_temporal_diagnostic_rows<R>(
     run(&aligned)
 }
 
+/// Relative size below which a refit effect counts as vanished: the grid asks about a
+/// dimensionless partial R², so the threshold is a fraction of the original effect and the
+/// verdict does not depend on the units of the outcome or treatment.
+const VANISHED_EFFECT_FRACTION: f64 = 1e-9;
+
+/// Whether `ate` is zero to within [`VANISHED_EFFECT_FRACTION`] of the effect it perturbs.
+fn estimate_vanished(ate: f64, original_ate: f64) -> bool {
+    ate.abs() <= VANISHED_EFFECT_FRACTION * original_ate.abs()
+}
+
+/// Whether a perturbed refit has lost the sign of, or annihilated, the original effect.
+#[allow(
+    clippy::float_cmp,
+    reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
+)]
+fn estimate_explained_away(ate: f64, original_ate: f64) -> bool {
+    estimate_vanished(ate, original_ate) || ate.signum() != original_ate.signum()
+}
+
 /// Default partial-R² grid, ascending.
 fn default_grid() -> Vec<f64> {
     vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5]
@@ -370,11 +389,7 @@ fn run_grid_data_pass(
     for &r in &setup.sorted_grid {
         let r = r.clamp(0.0, 0.999);
         last_ate = data_pass_ate(problem, workspace, ctx, estimator, setup, r)?;
-        #[allow(
-            clippy::float_cmp,
-            reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
-        )]
-        let explained_away = last_ate.abs() < 1e-9 || last_ate.signum() != setup.original_sign;
+        let explained_away = estimate_explained_away(last_ate, setup.original_ate);
         if explained_away {
             return Ok((grid_robustness_value(Some(r)), last_ate, true));
         }
@@ -430,11 +445,7 @@ fn try_run_grid_gram(
             return Ok(None);
         };
         last_ate = ate;
-        #[allow(
-            clippy::float_cmp,
-            reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
-        )]
-        let explained_away = last_ate.abs() < 1e-9 || last_ate.signum() != setup.original_sign;
+        let explained_away = estimate_explained_away(last_ate, setup.original_ate);
         if explained_away {
             return Ok(Some((grid_robustness_value(Some(r)), last_ate, true)));
         }
@@ -1290,7 +1301,7 @@ fn residual_grid_report(
             reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
         )]
         let sign_flipped = last_ate.signum() != original_sign;
-        if last_ate.abs() < 1e-9 || sign_flipped {
+        if estimate_vanished(last_ate, residual_ate) || sign_flipped {
             explained_away_at = Some(r);
             break;
         }
@@ -2473,7 +2484,9 @@ mod scalable_cases {
         for &r in &grid {
             let scale = (r / (1.0 - r)).sqrt();
             last_ate = moments.slope(scale * sd_t, dir * scale * sd_y);
-            if last_ate.abs() < 1e-9 || last_ate.signum() != original_sign {
+            if super::estimate_vanished(last_ate, residual_ate)
+                || last_ate.signum() != original_sign
+            {
                 explained_away_at = Some(r);
                 break;
             }

@@ -16,6 +16,7 @@ implementation_deviations = [
  "Reports the HC1 residual-sandwich SE of the jump coefficient by default (HC0/HC2/HC3 and an explicit homoskedastic opt-in are available), with an optional ordinary row bootstrap; there is no robust bias correction.",
  "Builds the design from the indicator that the running variable is at or above the cutoff, and verifies that the query's treatment column equals that indicator on every complete row; a non-0/1 column or any mismatch is refused with rd_assignment_not_sharp. Noncompliance is therefore detected and refused; fuzzy RD is not estimated.",
  "Supports neither covariate-adjusted RD nor manipulation, density, or continuity diagnostics.",
+ "A window that holds no more rows than the four local-linear coefficients reports no analytic standard error (NaN) for any variance kind, since it interpolates the data and leaves no residual degrees of freedom.",
 ]
 
 upstream_implementations_observed = [
@@ -26,4 +27,41 @@ test_sources = [
  "independently generated synthetic sharp-RD SCM with known jump size at the cutoff",
  "closed-form heterogeneous-effect design (tau(r) = 2 + 6r, cubic baseline, non-uniform running variable) whose cutoff effect, window-average effect and population average effect are 2, 2.32 and 8",
  "conformance/estimate/rd_sharp (known-truth recovery fixture; its recorded DoWhy 0.14 attempt was unavailable and is not treated as parity evidence)",
+ "crates/antecedent-estimate/tests/rd_reference.rs (exact rational one-sided line fits and HC0-HC3 / classical variances, window edges, saturated window)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "SharpRegressionDiscontinuity prepare and fit: the rectangular window |R - c| <= h (inclusive at both edges), the jump coefficient of the pooled regression on [1, T, R - c, T (R - c)] taken as the difference of the two one-sided straight-line fits at the cutoff, and the HC0, HC1, HC2, HC3 and classical analytic variances of that coefficient. Not the bootstrap, the sharpness check, the query and population refusals, the checked-lowering plumbing, or the Bayesian RD estimator."
+assumptions = ["Continuity of the conditional means at the cutoff and the sharp assignment rule are identification assumptions taken as given; the sharpness check is the existing unit tests' subject.", "Independent rows; the variances ignore smoothing bias (no robust bias correction), as the record states.", "The bandwidth is chosen by the caller and the window contains at least two rows on each side."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (fractions)."
+limitations = "Six finite tables of 4 to 34 windowed rows with a cutoff at 0, 0.25, -3 and 2^20 on dyadic grids, rows exactly on the cutoff and on both window edges, extreme outcomes outside the window, unequal sides, heteroskedastic noise and a saturated four-row window. Jump asserted to 1e-9 and each standard error to 1e-8 relative. The references are exact rational and the product is checked against them; nothing here bears on the choice of bandwidth, kernel, bias or the coverage of the intervals. The reference script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1111/1468-0262.00183", "https://doi.org/10.1016/j.jeconom.2007.05.001", "https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["Defect repaired: a window with as many rows as coefficients (two per side) interpolates the data, and the HC0 and classical formulas reported a finite standard error that was rounding noise (about 1e-15) rather than an estimate; HC1 to HC3 were undefined there. The fit now withholds the analytic standard error (NaN) whenever the window has no residual degrees of freedom.", "The pooled interaction fit equals the difference of the two one-sided exact least-squares lines at the cutoff on every table, rows outside the window and rows exactly at plus or minus the bandwidth are treated as stated, and rows beyond the window leave the result bit-identical.", "HC0, HC1 (n/(n-4) HC0), HC2, HC3 and the classical variance equal their definitions in exact arithmetic, and HC0 equals the sum of the two one-sided sandwiches, including at a cutoff of 2^20 where an uncentred design would lose digits."]
+record_sha256 = "4b8fa18a2ad48fa267564109bf27e4cc45663add40535fd6bd64d1caaa7b52c7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/rd.rs"
+sha256 = "a6610b375e35ac3bbe07cf90aa6f622118f677aef47e68c2b4835edb2b1a4b68"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/rd_reference.rs"
+sha256 = "57ee23cd3bb072966798c19a6653fddb0730ce9fd6c3b9f7a885c9cbe7cecb62"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/rd_reference.py"
+sha256 = "bc8aa8a47c9def445cb5b7776ba39766516c1a78198d91799e19924ae750cabb"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/rd_reference.json"
+sha256 = "5396584f1d89de1a47dbc338ab0ba902cb56dd9d6a48eb7f208f3f9371e069c3"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

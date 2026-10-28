@@ -12,6 +12,7 @@ papers = [
 implementation_deviations = [
  "Uses a native unconstrained L-BFGS optimizer with a selected subgradient at the L1 kink, rather than the paper/reference split-variable nonnegative formulation solved by L-BFGS-B.",
  "Columns are standardized to unit variance by default; the cited squared-loss NOTEARS reference implementation centers columns without variance scaling.",
+ "Acyclicity is enforced to |h(W)| <= h_tol (1e-8), which is quartic in the weights of a two-cycle and so admits reverse-direction weights up to about 0.01; the soft weights are acyclic only to that size, and a cycle that survives the hard threshold is refused. The solver is a local method for a non-convex problem and can stop at a feasible stationary point above the global constrained optimum.",
 ]
 
 upstream_implementations_observed = []
@@ -20,4 +21,51 @@ test_sources = [
  "crates/antecedent-discovery/src/notears/ unit tests",
  "crates/antecedent-discovery/tests/discovery_notears_chain.rs (synthetic required-edge recovery with a false-positive allowance; not solver parity)",
  "conformance/discovery/notears_chain (synthetic recovery fixture; not an upstream NOTEARS oracle)",
+ "crates/antecedent-discovery/tests/notears_reference.rs and src/notears/acyclicity_oracle_tests.rs (40-digit matrix exponential, exhaustive constrained optimum by ordering enumeration)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The acyclicity function h(W) = tr(exp(W o W)) - d and its gradient (scaling-and-squaring Taylor exponential), and the end-to-end constrained least-squares objective: the weights the augmented-Lagrangian L-BFGS solver returns for an unstandardised, centred design, compared with the exhaustive constrained optimum, and the hard graph obtained by thresholding them. Not the standardisation convention, the pairwise-covariance repair, the missing-data policies, the knowledge constraints, the cancellation signal, or the order of edge insertion."
+assumptions = ["The model is the linear structural equation model with the least-squares loss and an L1 penalty on all off-diagonal weights, as the record states.", "The data have exactly zero column means so that the product's uncentred objective equals the centred one; standardisation is switched off to remove its convention from the comparison.", "Because tr(exp(W o W)) = d exactly when the support of W is acyclic, the constrained global optimum is the minimum over node orderings of the sum of per-node lasso problems."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses the Python standard library and mpmath (BSD-3-Clause, not redistributed)."
+limitations = "Seven constraint matrices (an acyclic one, tiny and unit cycles, a dense six-variable matrix, entries of size 5 and twelve variables) and six data sets of 60 to 100 rows with three to five variables (chains, a collider, a diamond, a mixed graph and a weak-signal chain; lambda 0 to 0.2). h is asserted to 64 eps of (d + h), the gradient to 1e-12 of its largest entry. The solver is checked to reach the constrained optimum within 1e-5 on five of six data sets; on the diamond it settles in a different acyclic ordering 2.6e-3 above the optimum, recorded as the non-convexity limit and bounded at 1e-2. The graph comparison is made at a threshold of 0.2 and skipped when a reference weight is within 0.04 of it. Dimensions above five, larger samples and the paper's L-BFGS-B split-variable formulation are not compared. The reference script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.48550/arXiv.1803.01422", "https://mpmath.org/doc/current/matrices.html"]
+findings_resolved = ["No defect found in the exponential, constraint or gradient: h and the gradient agree with the 40-digit matrix exponential on all seven matrices, including an exactly zero h for an acyclic matrix and a relative 1e-12 gradient at 1-norm in the hundreds.", "The solver reaches the exhaustive optimum on five of six data sets, with weights within 3e-2 of the optimal weights (the tolerance covers the reverse-direction cycle weights described below) and the same thresholded graph.", "Limit recorded, not a defect: h is quartic in the weights of a two-cycle, so the declared tolerance |h| <= 1e-8 admits reverse-direction weights of about 0.01; the returned soft weights are acyclic only to that size and may undercut the exactly acyclic optimum by a few such weights times the gradient (1.4e-4 observed). The solver is a local method for a non-convex problem and stopped 2.6e-3 above the global constrained optimum on one data set.", "Record addition: the deviation list now states the h tolerance and local-optimum limits."]
+record_sha256 = "8541124f0aa62bfe4ecbb022d5deba78d38e6ddb435316b0e7cb9a1ef7e87a1a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/notears/acyclicity.rs"
+sha256 = "201f82c363590cdc4d7c648b282855c98b14c12425ffbaf691f8a7e0d55a3a99"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/notears/solver.rs"
+sha256 = "cd10c61e9a2ba8879e4f23a5d9e67b50a2665af2fdff8288fdec8cb4c5820cbd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/notears/mod.rs"
+sha256 = "6284b27ffc467e673bbf38f844679924e4a84fa8955044d470c01881b00ef1a0"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/notears_reference.rs"
+sha256 = "9a39f9c2504e4cd1847d6b4a09868997313a38195e7ec47c1bc4d1a64ac6430b"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/src/notears/acyclicity_oracle_tests.rs"
+sha256 = "bb8adebfbd6e581ecdee07db72974e5c174888944e0e0ebaef6ae60ad8e34c20"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-discovery/tests/oracle_data/notears_reference.py"
+sha256 = "c98908e8eb5d74111398192dff27b7d1fdc56d8efa63cfb0c8f7cde7760e1e35"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-discovery/tests/oracle_data/notears_reference.json"
+sha256 = "f30f872303278ccd139d4ee13071a8ac30cbd8a73b421a2a6489a80854be5531"

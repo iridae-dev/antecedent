@@ -17834,3 +17834,45 @@ crate = "antecedent-identify"
 cargo_target = "cpdag_class_exhaustive"
 path = "crates/antecedent-identify/tests/cpdag_class_exhaustive.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-iv-reference"
+crate = "antecedent-estimate"
+cargo_target = "iv_reference"
+path = "crates/antecedent-estimate/tests/iv_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-rd-reference"
+crate = "antecedent-estimate"
+cargo_target = "rd_reference"
+path = "crates/antecedent-estimate/tests/rd_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "validate-linear-sensitivity-reference"
+crate = "antecedent-validate"
+cargo_target = "linear_sensitivity_reference"
+path = "crates/antecedent-validate/tests/linear_sensitivity_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "discovery-notears-reference"
+crate = "antecedent-discovery"
+cargo_target = "notears_reference"
+path = "crates/antecedent-discovery/tests/notears_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-discovery-src-notears-acyclicity-oracle-tests-rs"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/notears/acyclicity_oracle_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-src-ci-analytic-oracle-tests-rs"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/ci/analytic_oracle_tests.rs"
+gates = ["inventory", "named"]

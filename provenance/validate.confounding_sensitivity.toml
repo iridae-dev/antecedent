@@ -26,4 +26,36 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-validate/src/sensitivity.rs unit tests",
  "conformance/validate/confounding_sensitivity",
+ "crates/antecedent-validate/tests/linear_sensitivity_reference.rs (explicit 50-digit perturbation refits, realized partial R2, closed-form tipping value, unit rescaling)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "LinearSensitivity and PartialLinearSensitivity with the ordinary-least-squares estimator on a static backdoor design: the residual standard deviations that calibrate the injected confounder to a partial R2, the orthogonalized unit-variance confounder, the perturbed refit slope at each grid strength, the sign-flip or vanishing rule that sets the tipping strength (the report's robustness value), the sorted and clamped grid, the infinite value for an untipped grid, and the pass rule built on the largest cleared strength. Not the nonparametric Nadaraya-Watson path, the neighborhood path, ridge, lasso, Huber and temporal refits, or the closed-form Cinelli-Hazlett robustness value the record says is not computed."
+assumptions = ["The adjustment set is the one the estimand names; the review does not assess whether it is sufficient.", "The simulated confounder is orthogonal to the intercept, treatment, outcome and adjustment columns and has unit sample standard deviation; for least squares the refit then depends on it only through its norm.", "The pass threshold and the grid are repository policy and are not evaluated."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses the Python standard library and mpmath (BSD-3-Clause, not redistributed)."
+limitations = "Seven finite tables of 50 to 80 rows with zero to two covariates, one negative effect, and one design supplied with the outcome, the treatment and both rescaled by factors from 1e-12 to 1e8. The reference builds its own explicit confounder in 50-digit arithmetic and refits by the normal equations; the product draws its own confounder, so agreement relies on the orthogonality fact above rather than on shared draws. The refit effect at the tipping strength is asserted to 1e-8 of the original effect. The nonparametric residual grid loop carried the same absolute threshold and received the identical repair, but its numerics are outside this review's assertions. Nothing here bears on whether a tipping strength of a given size is practically meaningful. The reference script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1111/rssb.12348", "https://docs.python.org/3/library/fractions.html", "https://mpmath.org/doc/current/"]
+findings_resolved = ["Defect repaired: three grid loops declared an effect explained away when the refit slope was below an absolute 1e-9. The verdict therefore depended on the units of the outcome: with the outcome in units of 1e-12 the unperturbed effect (about 9e-13) was reported as tipping at the smallest grid strength, 0.01, while the same data in ordinary units tip at 0.2. The test is now relative (1e-9 of the original effect's magnitude), and the verdict is identical under rescaling of treatment and outcome.", "The realized partial R2 of the injected confounder equals the nominal grid value to 1e-9 on every table, including tables whose adjustment covariates explain most of the treatment variance.", "The tipping strength equals the first grid value at or above the closed form |rho| / (1 + |rho|), with rho the partial correlation of treatment and outcome given the adjustment set, on every table and for both signs of the effect; the refit slope at that strength equals the explicit perturbation refit.", "A grid that stops below the tipping strength reports infinity, not its last point, and the pass rule follows the largest cleared strength."]
+record_sha256 = "4d0178d049bba156cbfdb3b02cd4bf703cda69c3879acb6a017cc9cc79c4db92"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/sensitivity.rs"
+sha256 = "68de36aaf44550a853bfbcfe619d11853de581bbcb67d9c1338ec97ea89ab71f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/linear_sensitivity_reference.rs"
+sha256 = "ce5e6f97eabd6940f7ebd0e183a6b6933a98aca9ba0811a41e67f459166c93e2"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-validate/tests/oracle_data/linear_sensitivity_reference.py"
+sha256 = "48660ec41ea3c62b21138368bc4260a24b74e5d0861feb42b1f3518a65d82d0e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-validate/tests/oracle_data/linear_sensitivity_reference.json"
+sha256 = "23e103dc645bc9fe9bb2e2b005cae768f73e7d320d2157a768a8c88eea7f5d27"

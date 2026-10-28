@@ -492,37 +492,12 @@ impl SharpRegressionDiscontinuity {
             )
             .map_err(crate::error::EstimationError::from)?;
         let ate = fit.coefficients[RD_TREATMENT_COL];
-        let se_analytic = match self.inference.se_kind {
-            AnalyticSeKind::Homoskedastic => {
-                let n = problem.nrows as f64;
-                let p = RD_NCOLS as f64;
-                let sigma2 = fit.rss / (n - p).max(1.0);
-                analytic_se_treatment(&problem.matrix, problem.nrows, sigma2)
-            }
-            AnalyticSeKind::Hc0
-            | AnalyticSeKind::Hc1
-            | AnalyticSeKind::Hc2
-            | AnalyticSeKind::Hc3 => crate::se::residual_sandwich_coef_se(
-                crate::se::SeSpec {
-                    kind: self.inference.se_kind,
-                    cluster_ids: None,
-                    multiway_ids: None,
-                    panel_times: None,
-                },
-                &problem.matrix,
-                problem.nrows,
-                RD_NCOLS,
-                &fit.residuals,
-                RD_TREATMENT_COL,
-            )?
-            .unwrap_or(f64::NAN),
-            _ => {
-                return Err(EstimationError::unsupported_coded(
-                    antecedent_core::reason_code!("estimator_inference_mismatch"),
-                    "sharp RD supports Homoskedastic or HC0-HC3 analytic SEs; cluster, multiway, and HAC kinds need labels the RD problem does not carry",
-                ));
-            }
-        };
+        // A window with as many rows as coefficients interpolates the data: every residual is
+        // zero up to rounding, so each variance formula would report a spuriously precise
+        // standard error (rounding noise, not an estimate). No residual degrees of freedom
+        // means no analytic uncertainty.
+        let kind_se = self.analytic_se(problem, &fit)?;
+        let se_analytic = if problem.nrows <= RD_NCOLS { f64::NAN } else { kind_se };
 
         let (id, description) = if matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic) {
             (
@@ -574,6 +549,46 @@ impl SharpRegressionDiscontinuity {
             .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
             .with_se_kind(self.inference.se_kind)
             .with_bootstrap(boot))
+    }
+
+    /// The analytic standard error of the jump for the declared kind, from a fit with residual
+    /// degrees of freedom.
+    fn analytic_se(
+        &self,
+        problem: &PreparedRdProblem,
+        fit: &antecedent_stats::LeastSquaresFit,
+    ) -> Result<f64, EstimationError> {
+        Ok(match self.inference.se_kind {
+            AnalyticSeKind::Homoskedastic => {
+                let n = problem.nrows as f64;
+                let p = RD_NCOLS as f64;
+                let sigma2 = fit.rss / (n - p).max(1.0);
+                analytic_se_treatment(&problem.matrix, problem.nrows, sigma2)
+            }
+            AnalyticSeKind::Hc0
+            | AnalyticSeKind::Hc1
+            | AnalyticSeKind::Hc2
+            | AnalyticSeKind::Hc3 => crate::se::residual_sandwich_coef_se(
+                crate::se::SeSpec {
+                    kind: self.inference.se_kind,
+                    cluster_ids: None,
+                    multiway_ids: None,
+                    panel_times: None,
+                },
+                &problem.matrix,
+                problem.nrows,
+                RD_NCOLS,
+                &fit.residuals,
+                RD_TREATMENT_COL,
+            )?
+            .unwrap_or(f64::NAN),
+            _ => {
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("estimator_inference_mismatch"),
+                    "sharp RD supports Homoskedastic or HC0-HC3 analytic SEs; cluster, multiway, and HAC kinds need labels the RD problem does not carry",
+                ));
+            }
+        })
     }
 
     /// Fit a sealed sharp-RD preparation with its retained identification assumptions.

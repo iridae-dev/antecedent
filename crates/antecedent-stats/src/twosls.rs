@@ -513,14 +513,41 @@ fn residualize_on_exogenous(
     Ok(fit.residuals)
 }
 
+/// The magnitudes of the terms that make up each coefficient of the Anderson–Rubin quadratic
+/// `A β² + B β + C`, used as the scale of every degeneracy test.
+///
+/// `A`, `B` and `C` carry the units of `t²`, `t·y` and `y²`, so no single absolute threshold can
+/// separate "zero" from "small" for all data: a treatment measured in units of `1e-9` has an `A`
+/// far below any fixed constant yet is not degenerate. Each coefficient is therefore compared with
+/// the sum of the absolute values of the two terms it is the difference of.
+#[derive(Clone, Copy, Debug)]
+struct QuadraticScales {
+    a: f64,
+    b: f64,
+    c: f64,
+}
+
+/// Relative size below which a difference of like terms is treated as rounding noise.
+const QUADRATIC_REL_EPS: f64 = 1e-12;
+/// Relative size of the discriminant below which the roots are treated as a double root: the
+/// rounding of the two products it is the difference of, not a statistical tolerance, so a
+/// genuinely narrow acceptance interval (relative width down to about `1e-7`) keeps its width.
+const DISCRIMINANT_REL_EPS: f64 = 4.0 * f64::EPSILON;
+
 /// Invert `A β² + B β + C ≤ 0` into an Anderson–Rubin acceptance set.
-fn classify_quadratic_le_zero(a: f64, b: f64, c: f64) -> QuadraticAcceptance {
-    let scale = a.abs().max(b.abs()).max(c.abs()).max(1.0);
-    let eps = 1e-12 * scale;
-    if a.abs() <= eps {
+///
+/// The roots use the cancellation-free pairing `q = -(B + sign(B) √Δ) / 2`, `β = q / A` and
+/// `β = C / q`, which keeps both roots accurate when `A` is small against `B`.
+fn classify_quadratic_le_zero(
+    a: f64,
+    b: f64,
+    c: f64,
+    scales: QuadraticScales,
+) -> QuadraticAcceptance {
+    if a.abs() <= QUADRATIC_REL_EPS * scales.a {
         // Linear (or constant): B β + C ≤ 0.
-        if b.abs() <= eps {
-            return if c <= eps {
+        if b.abs() <= QUADRATIC_REL_EPS * scales.b {
+            return if c <= QUADRATIC_REL_EPS * scales.c {
                 QuadraticAcceptance::WholeLine
             } else {
                 QuadraticAcceptance::Empty
@@ -534,22 +561,24 @@ fn classify_quadratic_le_zero(a: f64, b: f64, c: f64) -> QuadraticAcceptance {
         };
     }
     let disc = b * b - 4.0 * a * c;
-    if disc < -eps * eps {
+    let tolerance = DISCRIMINANT_REL_EPS * (b * b + 4.0 * (a * c).abs());
+    if disc < -tolerance {
         // No real roots: sign follows A.
         return if a < 0.0 { QuadraticAcceptance::WholeLine } else { QuadraticAcceptance::Empty };
     }
-    let sqrt_disc = disc.max(0.0).sqrt();
-    let r1 = (-b - sqrt_disc) / (2.0 * a);
-    let r2 = (-b + sqrt_disc) / (2.0 * a);
-    let (lo, hi) = if r1 <= r2 { (r1, r2) } else { (r2, r1) };
-    if disc <= eps * eps {
-        // Tangent: a single point when A > 0; whole line when A < 0.
+    if disc <= tolerance {
+        // Double root: a single point when A > 0; whole line when A < 0.
+        let root = -b / (2.0 * a);
         return if a > 0.0 {
-            QuadraticAcceptance::Interval { lo, hi: lo }
+            QuadraticAcceptance::Interval { lo: root, hi: root }
         } else {
             QuadraticAcceptance::WholeLine
         };
     }
+    let sqrt_disc = disc.sqrt();
+    let q = -0.5 * (b + if b < 0.0 { -sqrt_disc } else { sqrt_disc });
+    let (r1, r2) = (q / a, c / q);
+    let (lo, hi) = if r1 <= r2 { (r1, r2) } else { (r2, r1) };
     if a > 0.0 { QuadraticAcceptance::Interval { lo, hi } } else { QuadraticAcceptance::Union }
 }
 
@@ -654,7 +683,16 @@ pub fn anderson_rubin_confidence_set(
     let b = -2.0 * df_f * n_yt + 2.0 * c * m_yt;
     let c0 = df_f * n_yy - c * m_yy;
 
-    match classify_quadratic_le_zero(a, b, c0) {
+    match classify_quadratic_le_zero(
+        a,
+        b,
+        c0,
+        QuadraticScales {
+            a: df_f * n_tt.abs() + c * m_tt.abs(),
+            b: 2.0 * df_f * n_yt.abs() + 2.0 * c * m_yt.abs(),
+            c: df_f * n_yy.abs() + c * m_yy.abs(),
+        },
+    ) {
         QuadraticAcceptance::Empty => Ok((None, Some("anderson_rubin_set_empty"))),
         QuadraticAcceptance::WholeLine => {
             Ok((Some((f64::NEG_INFINITY, f64::INFINITY, level)), None))
@@ -952,14 +990,27 @@ pub fn anderson_rubin_confidence_set_from_moments(
     let a = df_f * n_tt - c * m_tt;
     let b = -2.0 * df_f * n_yt + 2.0 * c * m_yt;
     let c0 = df_f * n_yy - c * m_yy;
-    Ok(match classify_quadratic_le_zero(a, b, c0) {
-        QuadraticAcceptance::Empty => (None, Some("anderson_rubin_set_empty")),
-        QuadraticAcceptance::WholeLine => (Some((f64::NEG_INFINITY, f64::INFINITY, level)), None),
-        QuadraticAcceptance::Interval { lo, hi } | QuadraticAcceptance::Ray { lo, hi } => {
-            (Some((lo, hi, level)), None)
-        }
-        QuadraticAcceptance::Union => (None, Some("anderson_rubin_set_is_union")),
-    })
+    Ok(
+        match classify_quadratic_le_zero(
+            a,
+            b,
+            c0,
+            QuadraticScales {
+                a: df_f * n_tt.abs() + c * m_tt.abs(),
+                b: 2.0 * df_f * n_yt.abs() + 2.0 * c * m_yt.abs(),
+                c: df_f * n_yy.abs() + c * m_yy.abs(),
+            },
+        ) {
+            QuadraticAcceptance::Empty => (None, Some("anderson_rubin_set_empty")),
+            QuadraticAcceptance::WholeLine => {
+                (Some((f64::NEG_INFINITY, f64::INFINITY, level)), None)
+            }
+            QuadraticAcceptance::Interval { lo, hi } | QuadraticAcceptance::Ray { lo, hi } => {
+                (Some((lo, hi, level)), None)
+            }
+            QuadraticAcceptance::Union => (None, Some("anderson_rubin_set_is_union")),
+        },
+    )
 }
 
 #[cfg(test)]

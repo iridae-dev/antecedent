@@ -18,4 +18,36 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-stats/src/ci/analytic.rs unit tests (fisher_z_ci_covers_r_and_uses_correct_zcrit and others)",
  "exercised end-to-end via PCMCI conformance (conformance/discovery/pcmci_lag1)",
+ "crates/antecedent-stats/src/ci/analytic_oracle_tests.rs (50-digit Fisher-z interval and Student-t p-value on a correlation, df and level grid)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "analytic_parcorr_pvalue (two-sided Student-t p-value of a partial correlation with residual df, including the clamp of |r| to 1 - 1e-15) and analytic_parcorr_ci (Fisher-z interval with standard error 1 / sqrt(df - 1), the exact normal critical value, the df <= 1 and df <= 0 branches). Not the residualisation that produces r and df, the t and normal special functions beyond their use here (separately covered by the special-function reference), or the other partial-correlation variants."
+assumptions = ["r is the sample partial correlation and df = n - |Z| - 2 is the residual degrees of freedom of the regression it comes from.", "atanh(r) is approximately normal with variance 1 / (df - 1) (n - |Z| - 3), the Fisher approximation; the review verifies the arithmetic, not the approximation's accuracy at small samples.", "The caller passes the binary64 values the reference reads back exactly."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause, not redistributed) and the Python standard library."
+limitations = "A grid of nine correlations (1e-8 to 1 - 1e-11, both signs), eight degrees of freedom (1 to 1e6) and five levels (0.5 to 0.999999); the interval is asserted to 1e-12 absolute and the p-value to 1e-10 relative down to values near 1e-300. Whether the Fisher interval attains its nominal coverage is not tested. The Fisher (1921) paper listed in the record has no registered identifier and was not retrieved. The reference script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://mpmath.org/doc/current/functions/expintegrals.html", "https://mpmath.org/doc/current/functions/orthogonal.html", "https://docs.python.org/3/library/math.html"]
+findings_resolved = ["Defect repaired: the t statistic used 1 - r*r, which cancels as |r| approaches 1; at r = 0.999999 and df = 100 the p-value had a relative error of 5.5e-10, and the error grows with df. It now uses (1 - r)(1 + r).", "Defect repaired: the normal critical value was taken as ppf(1 - alpha/2), which rounds 1 - alpha/2 to 1.1e-16 absolute; at level 0.999999 that moved the interval endpoint by about 1e-12. It is now -ppf(alpha/2), exact in the tail.", "After both repairs the interval and p-value match the multiprecision definitions on the whole grid, and the df <= 1 and df <= 0 branches are as the unit tests state."]
+record_sha256 = "e1d1a32df9a59463b46191ce2ed37c26de3c465f2f4ba3c0a64e2ed783ab82a7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/analytic.rs"
+sha256 = "cf981d8c4b0fd0d18c6548c3a3ec39adeb8524a8c37bd7fcb5900b1dd4eb57ce"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/src/ci/analytic_oracle_tests.rs"
+sha256 = "4f4684e699d23c29693a0cc77a8a8afdc80e0faf3f22c68e9729245d09eeeeb7"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/fisher_z_reference.py"
+sha256 = "ce6f8e17219f6e6ff2138e8c2f5423f7d6a11f8fab82ae3b516b7ae5f8aada67"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/fisher_z_reference.json"
+sha256 = "6b238f0821f577195e45cf4dd71b951a7cff09bc2d1ac18b235e990a26d69bae"

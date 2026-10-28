@@ -65,3 +65,7 @@ path = "tests/sensitivity_bounds.rs"
 [[test]]
 name = "conflict_policy_reference"
 path = "tests/conflict_policy_reference.rs"
+
+[[test]]
+name = "linear_sensitivity_reference"
+path = "tests/linear_sensitivity_reference.rs"

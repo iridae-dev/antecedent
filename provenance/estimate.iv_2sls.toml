@@ -14,7 +14,7 @@ implementation_deviations = [
  "Supports one endogenous treatment only; systems with multiple endogenous regressors, GMM weighting, overidentification tests, and weak-instrument-robust confidence sets are unsupported.",
  "The Wald ratio is exposed through the common ATE result type even though, under heterogeneous treatment effects, the cited theorem identifies a local average treatment effect under monotonicity rather than a population ATE.",
  "Two-stage least squares is likewise reported as a single treatment effect without representing the instrument-dependent weighting of heterogeneous local effects.",
- "Analytic standard errors are suppressed as NaN whenever the first-stage F statistic is below the uncited fixed threshold of 10; no Anderson-Rubin, conditional likelihood-ratio, or other weak-IV inference is substituted.",
+ "No analytic or bootstrap standard error is published at any first-stage strength (se_analytic is NaN); the uncertainty product is the homoskedastic 95 percent Anderson-Rubin set for the structural coefficient, attached only for the homoskedastic analytic kind and withheld with a reason code when the set is a union of two rays or empty; no conditional likelihood-ratio or heteroskedasticity-robust weak-instrument inference is implemented.",
 ]
 
 upstream_implementations_observed = [
@@ -24,4 +24,46 @@ upstream_implementations_observed = [
 test_sources = [
  "independently generated synthetic SCMs with unmeasured T-Y confounding and a valid instrument (binary for Wald, continuous for 2SLS) with known structural effect",
  "conformance/estimate/iv_2sls (known-truth recovery fixture carrying an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
+ "crates/antecedent-estimate/tests/iv_reference.rs (exact rational two-stage fits, first-stage F and partial R2, and Anderson-Rubin sets by direct refits, including unit rescaling)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The point estimates of WaldIv (one binary instrument, no covariates; any other instrument design delegates to the two-stage fit) and TwoStageLeastSquares (one endogenous treatment, excluded instruments, an intercept and exogenous covariates); the excluded-instrument first-stage F statistic, its degrees of freedom and partial R2; and the homoskedastic 95 percent Anderson-Rubin acceptance set for the structural coefficient, obtained by inverting the quadratic F(beta) <= F-critical, including its classification (bounded interval, whole line, ray, union of two rays, empty), its scaling to the treatment contrast and its sign when the contrast is negative. Not the moment-accumulating streamed variant beyond the shared classifier, the bootstrap (not published), the local-average-effect interpretation, checked-lowering plumbing, or Bayesian IV."
+assumptions = ["Instrument relevance, exclusion and independence (and monotonicity for the local-effect reading) are identification assumptions that this review takes as given; it verifies the arithmetic of the estimators and the set, not these assumptions.", "Homoskedastic errors for the Anderson-Rubin set: the statistic is the classical F with k and n - k - p degrees of freedom; no heteroskedasticity-robust Anderson-Rubin test is implemented.", "The excluded instrument block and the exogenous block have full column rank on the complete-case rows."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses exact rational arithmetic from the Python standard library and mpmath (BSD-3-Clause, not redistributed)."
+limitations = "Eleven finite tables of 15 to 60 rows with one or two excluded instruments and zero to two covariates: three well-identified designs, a weak design for each of a bounded set, a whole-line set and a two-piece set, a nearly exact fit whose set is a few parts in 1e7 wide, and one design rescaled in treatment and outcome by factors from 1e-9 to 1e9. Coefficients are asserted to 1e-9 relative, first-stage F and partial R2 to 1e-8, set endpoints to 1e-7. No random draw produced an exactly one-sided ray or an empty set, so those two branches of the classifier are exercised only by the existing unit tests, not by this reference. The Anderson-Rubin construction is the classical one; its original paper is not among the primary works listed in this record and was not retrieved here, so the set is verified as the inversion of the stated F test, not read against that paper. The F quantile is bisected on the regularized incomplete beta function in mpmath at 50 digits; nothing here bears on the first-stage F threshold of 10 or on weak-instrument power. The reference script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.2307/2951620", "https://doi.org/10.1515/9781400829828", "https://docs.python.org/3/library/fractions.html", "https://mpmath.org/doc/current/functions/expintegrals.html"]
+findings_resolved = ["Defect repaired: the acceptance-set classifier tested the quadratic's coefficients against absolute thresholds (1e-12 times the larger of one and the largest coefficient), which carry the units of t^2, t y and y^2. A treatment measured in units of 1e-9 (30 rows) had its leading coefficient treated as zero and the set came back with a wrong lower endpoint (1.03e9 instead of 1.78e9); the same data in ordinary units was right. Each degeneracy test now compares a coefficient with the sum of the absolute values of the two terms it is the difference of, the roots use the cancellation-free pairing, and the double-root test is rounding-level (4 eps), so a genuinely narrow interval keeps its width. After the repair the set rescales exactly under 1e-9 and 1e9 changes of treatment and outcome units.", "Two-stage coefficient, first-stage F, df and partial R2 equal the exact rational values on every table, for a binary single instrument through the Wald path and for continuous, multiple and covariate-adjusted designs through the two-stage path.", "Set endpoints equal the roots of the exactly interpolated polynomial df (RSS_X - RSS_ZX) - k F-crit RSS_ZX; a whole-line set, a two-piece set (withheld with anderson_rubin_set_is_union) and a bounded set are each classified as the reference classifies them; the set is scaled by the contrast, swapped for a negative contrast, and always contains the point estimate when bounded.", "Record correction: the stated deviation that analytic standard errors are suppressed below a first-stage F of 10 did not describe the code, which publishes no analytic or bootstrap standard error at any first-stage strength; the deviation now says so."]
+record_sha256 = "c5bed8c1d2f025ad87baa08812313862edc0c924338a25755be81f7c158b4fef"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/iv.rs"
+sha256 = "7e73f7fcd2cb185187ef351f72dc78b5195fa477e4607d3b587a5c5375848c39"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/twosls.rs"
+sha256 = "7a986abc2c07bc1d7fef658508109619c4adccb39133170cf407f946564fc728"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/iv_reference.rs"
+sha256 = "67445af97284393612f2d11cefb451baf6fc97fc6def1c26e9016490ea4112b7"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/iv_reference.py"
+sha256 = "c6f07b240dc1e64e18442174ea111640fed77c64b3fa85054423d3270a63aac7"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/iv_reference.json"
+sha256 = "431afde9dd1cf63c4ae296dc65a8957fab062d16b5f218afdcc9f66dfa4e240e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"

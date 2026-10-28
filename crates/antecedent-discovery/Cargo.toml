@@ -60,3 +60,7 @@ harness = false
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "notears_reference"
+path = "tests/notears_reference.rs"
