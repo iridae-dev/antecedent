@@ -9,7 +9,12 @@ papers = [
  { title = "Detecting and quantifying causal associations in large nonlinear time series datasets", doi = "10.1126/sciadv.aau4996", sections = ["Methods: conditional independence tests (linear ParCorr test based on regression residuals)"] },
 ]
 
-implementation_deviations = []
+implementation_deviations = [
+ "Residual degrees of freedom are n - 2 - |Z|. The analytic p-value is the two-sided Student-t tail at t = r sqrt(df / (1 - r^2)) with r clamped to [-1 + 1e-15, 1 - 1e-15], so |r| = 1 yields a tiny positive p-value rather than zero.",
+ "The analytic interval is a Fisher-z interval with standard error 1/sqrt(df - 1) and a normal critical value; at df <= 1 it returns the whole interval [-1, 1], and at df <= 0 the test is refused.",
+ "A constant variable or a collinear conditioning set is refused (Unsupported) rather than reported as independence.",
+ "The block-shuffle null residualizes X and Y on Z and block-permutes the X residual; it is not part of the cited method and was not reviewed beyond its existing exact-enumeration unit test.",
+]
 
 upstream_implementations_observed = [
  { project = "tigramite", exposure = "black-box comparison only" },
@@ -17,5 +22,47 @@ upstream_implementations_observed = [
 
 test_sources = [
  "crates/antecedent-stats/src/ci/parcorr.rs (unit tests with independently generated residualized Gaussian samples)",
+ "crates/antecedent-stats/tests/ci_exact_reference.rs (statistic, p-value and Fisher-z interval against multiprecision residualization, including near-collinear conditioners, a 1e8 offset and |r| within 5.3e-5 of one)",
  "exercised end-to-end via PCMCI conformance (conformance/discovery/pcmci_lag1)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The analytic path of the partial-correlation test: ci/parcorr.rs, ci/analytic.rs, the kernels solve that residualizes X and Y on the centered, scaled conditioning columns with one corrected-semi-normal refinement step, and the Student-t tail it calls (reviewed in stats.special_functions). Not a review of the block-shuffle null, the covariance-session fast path, the SIMD/portable variants, or the other ParCorr variants."
+assumptions = ["Observations are independent and jointly Gaussian for the t reference distribution (and the Fisher-z interval) to be exact; the code does not test this.", "df = n - 2 - |Z| counts an intercept and the conditioning columns; no missing-data or weighting adjustment is made.", "A conditioning set judged collinear by the kernel pivot policy is refused; that policy is repository-defined."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers. The tigramite comparison in the existing record is black-box only and was not re-run."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "Seven designs: two conditioners, none, nearly collinear conditioners (correlation 1 - 5e-11), a 1e8 offset with 1e6 and 5e4 scale columns, near-perfect dependence after conditioning, n = 3000 with weak dependence, and three residual degrees of freedom. The reference script declares mpmath==1.3.0 in inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test. Worst agreement: partial correlation 2.7e-14 absolute (nearly collinear), p-value 8e-12 relative (|r| = 0.99995, a conditioning-limited tail), interval endpoints 4.2e-13. Of the kernel source, lines 1-260 (workspace, the solve with refinement, Pearson, floors, design scaling) were read; the batch driver and its portable/scalar paths were exercised by the cases but not read line by line. n above 3000 and conditioning sets above two columns were not tested."
+sources = ["https://doi.org/10.1126/sciadv.aau4996", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The statistic, degrees of freedom, two-sided p-value and Fisher-z interval agree with 60-digit residualization and the Student-t and normal definitions on all seven designs; no defect was found in the partial-correlation code itself.", "The statistic stays within 2.7e-14 when two conditioners differ by 1e-6 (Gram condition number about 1e11). The kernel's refinement step was read but not disabled in a control run, so its contribution to that accuracy was not isolated.", "The p-values in the nearly-perfect-dependence case depend on the Student-t tail, whose evaluation was corrected in the special-function review; the p-value agreement is now 8e-12 relative at p = 4.7e-95, limited by the conditioning of t at |r| = 1 - 5.3e-5 rather than by the tail routine."]
+record_sha256 = "2a6dbf796166aa37127ed9a4cf31a5022d11b3d820af96a33f6a4ad4bd128e2e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/parcorr.rs"
+sha256 = "82075082e51a16cb7dd3b8436d5fcad4fcaffad7ad84b19be962e768e081692e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/analytic.rs"
+sha256 = "229fa891b32ca1fdd49273688e63b0870e0e32e10e5b62f7e2b0c71e769728d9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-kernels/src/parcorr.rs"
+sha256 = "f8770beb3fc804e2d4363febb70539619893fe01e02f4b74f75f55914e6918df"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/ci_exact_reference.rs"
+sha256 = "31a298b03d6737def78a2423ef7f0ad24263e4495b2a53e50c8315b4dbb1b84a"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/ci_reference.py"
+sha256 = "092be6bc13eff545efef39d86e49042a17dad06997d1be175e89ef092b18a16a"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/ci_reference.json"
+sha256 = "1653a15e83a61b4946ba27bab108151856ad3c331a1ac990ae8ef34daa40cd64"

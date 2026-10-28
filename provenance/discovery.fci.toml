@@ -15,6 +15,8 @@ implementation_deviations = [
  "Possible-D-Sep expansion is limited to 10000 nodes and fails closed when exhausted.",
  "The static orientation stack omits Zhang R5-R7 and substitutes stricter LPCMCI-primed R9/R10 bodies for the corresponding unprimed static rules.",
  "Discriminating and uncovered-path searches have fixed path-count and length budgets and fail closed when exceeded.",
+ "Possible-D-Sep conditioning sets are drawn from the union of Possible-D-Sep(x, y) and Possible-D-Sep(y, x) rather than from each set separately; edges are processed in sorted order with the PAG updated between edges; the search runs over (node, predecessor) states and may revisit nodes. A CI query that cannot be evaluated never separates.",
+ "A configured FDR adjustment is refused because the multi-phase CI family cannot be adjusted coherently.",
 ]
 
 upstream_implementations_observed = [
@@ -24,6 +26,33 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-discovery/src/fci.rs unit tests",
  "crates/antecedent-discovery/src/possible_d_sep.rs unit tests",
+ "crates/antecedent-discovery/src/fci_latent_oracle_tests.rs (FCI under an exact d-separation oracle on 260 random DAGs with hidden variables: adjacency, unshielded colliders and soundness of every mark)",
  "crates/antecedent-discovery/tests/static_discovery_oracle.rs",
  "conformance/discovery/static_oracle_matrix",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Static FCI phases 1-5 as orchestrated in fci.rs (skeleton call, collider orientation, Possible-D-Sep adjacency removal, reset to circles, orientation to a fixed point) and possible_d_sep.rs, under a population CI oracle. The skeleton search (static_skeleton.rs), the orientation rules (rule_scheduling.rs, orientation.rs, discriminating-path search) and the sample CI tests were not read line by line; their behaviour enters only through the oracle comparison."
+assumptions = ["Independence queries are answered exactly (population limit); finite-sample error control, multiplicity and the choice of alpha are outside this review.", "No selection variables: the graph is a DAG with hidden variables, and a pair is adjacent in the MAG exactly when no subset of the other observed variables d-separates it.", "The depth limit max_cond_size was set to the number of observed variables, so the declared bound did not bind."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers. causal-learn is used by the existing black-box comparison only."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "260 random DAGs on five to seven nodes with one or two hidden nodes (2,166 observed pairs, 679 unshielded colliders, 2,090 marks checked). Adjacency and unshielded-collider status are compared exactly; every circle-free mark is checked for soundness against true ancestry. Completeness of the orientation rules (that no mark Zhang's rules determine is left a circle) is not asserted, nor is correctness with selection variables, with a binding max_cond_size, or with the budgets exhausted. Graphs above seven nodes and more than two hidden nodes were not sampled. The oracle comparison is population-level; it does not test the CI tests or alpha."
+sources = ["https://doi.org/10.48550/arXiv.1302.4983", "https://doi.org/10.1016/j.artint.2008.08.001"]
+findings_resolved = ["Under the exact oracle the FCI adjacency equals the maximal-ancestral-graph skeleton, unshielded colliders are oriented exactly when the middle node is in no separating set, and no arrowhead or tail contradicts the true ancestry, on all 260 models. A control with max_cond_size = 0 fails the adjacency check at once, so the comparison is sensitive.", "The earlier unit tests used an oracle that ignored conditioning sets, so they could not exercise Possible-D-Sep; this is the first test in which Possible-D-Sep decisions depend on the conditioning set. How many of the 260 models needed a Possible-D-Sep removal was not counted.", "No defect was found in the phase orchestration or the Possible-D-Sep search. The deviations recorded above (union pool, sequential PAG updates, walk-based search) did not change the oracle result on the sampled models."]
+record_sha256 = "195f576d6a14245a1c408e98ac2007ff703fc3d6f57d90e45ed288395f5456be"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/fci.rs"
+sha256 = "34137a55ccdafbda89cab458c51184b8ad3a926fd09e0e282c1021514d435a85"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/possible_d_sep.rs"
+sha256 = "f81fd648526f76344682e8379031dcc1390a991e56d89c57573c776f0083dc1f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/src/fci_latent_oracle_tests.rs"
+sha256 = "4cbbbef2b7fae81d9f2bbcd234c49d98cb50345ef1e40e228c59394264eac545"

@@ -397,8 +397,67 @@ fn gaussian_bic_from_gram(
         }
         cols.push(p as usize);
     }
+    let parent_cols = cols.clone();
     cols.push(node as usize);
-    bic_from_rss(rss_from_joint_gram(gram, m, &cols)?, n, parents.len() + 1)
+    let (mut rss, min_pivot_sq) = rss_from_joint_gram(gram, m, &cols)?;
+    // The Schur complement `S_yy - S_yx S_xx^-1 S_xy` cancels: its relative error is about
+    // `eps * cond(S_xx) / (RSS / S_yy)`, so a child fitted to 1e-5 noise (RSS/S_yy ~ 1e-11) or
+    // two parents differing by 1e-6 each cost the score several digits (6e-3 and 6e-5 absolute
+    // at n = 100). When either is the case the residual sum is recomputed from the data by one
+    // corrected-semi-normal-equations step, whose error is second order in the coefficient
+    // error because the residual is orthogonal to the design.
+    let s_yy = gram[node as usize * m + node as usize];
+    if !parent_cols.is_empty()
+        && (rss < REFINE_RSS_FRACTION * s_yy || min_pivot_sq < REFINE_PIVOT_SQ)
+    {
+        if let Some(refined) = refined_rss(data, gram, &parent_cols, node as usize) {
+            rss = refined;
+        }
+    }
+    bic_from_rss(rss, n, parents.len() + 1)
+}
+
+/// Residual fraction of the outcome's centered sum of squares below which the Gram Schur
+/// complement is recomputed from the residuals.
+const REFINE_RSS_FRACTION: f64 = 1e-4;
+
+/// Squared equilibrated Cholesky pivot of the parent block below which (a parent explained to
+/// 99.99% by the others) the Gram Schur complement is recomputed from the residuals.
+const REFINE_PIVOT_SQ: f64 = 1e-4;
+
+/// Residual sum of squares of `node` on an intercept and `parents`, from the residuals
+/// themselves: coefficients from the Gram, one corrected-semi-normal-equations update
+/// `S d = X' r`, then `sum r^2` with compensated sums. `None` if a solve is singular.
+fn refined_rss(data: &GraphScoreData, gram: &[f64], parents: &[usize], node: usize) -> Option<f64> {
+    let m = data.n_vars;
+    let p = parents.len();
+    let mut sub = vec![0.0; p * p];
+    let mut rhs = vec![0.0; p];
+    for (i, &pi) in parents.iter().enumerate() {
+        for (j, &pj) in parents.iter().enumerate() {
+            sub[i * p + j] = gram[pi * m + pj];
+        }
+        rhs[i] = gram[pi * m + node];
+    }
+    let design: Vec<Vec<f64>> = parents.iter().map(|&j| centered_column(data.col(j))).collect();
+    let outcome = centered_column(data.col(node));
+    let mut beta = solve_spd(&sub, &rhs, p)?;
+    let residuals = |beta: &[f64]| -> Vec<f64> {
+        (0..data.n_rows)
+            .map(|i| {
+                outcome[i] - compensated_sum(beta.iter().zip(&design).map(|(b, col)| b * col[i]))
+            })
+            .collect()
+    };
+    let r = residuals(&beta);
+    let score: Vec<f64> =
+        design.iter().map(|col| compensated_sum(col.iter().zip(&r).map(|(a, b)| a * b))).collect();
+    let delta = solve_spd(&sub, &score, p)?;
+    for (b, d) in beta.iter_mut().zip(&delta) {
+        *b += d;
+    }
+    let r = residuals(&beta);
+    Some(compensated_sum(r.iter().map(|v| v * v)))
 }
 
 /// Upper bound on iteratively reweighted least squares sweeps of the least-absolute-deviations
@@ -515,7 +574,10 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
     Ok(-nf * ((2.0 * scale).ln() + 1.0) - 0.5 * (k as f64 + 1.0) * nf.ln())
 }
 
-fn rss_from_joint_gram(gram: &[f64], m: usize, cols: &[usize]) -> Result<f64, StateError> {
+/// Residual sum of squares of the last column on the others, from the Gram, and the smallest
+/// squared pivot of the equilibrated Cholesky over the parent block (1 for orthogonal parents,
+/// near 0 for nearly collinear ones).
+fn rss_from_joint_gram(gram: &[f64], m: usize, cols: &[usize]) -> Result<(f64, f64), StateError> {
     let q = cols.len();
     if q < 1 || gram.len() < m.saturating_mul(m) {
         return Err(StateError::Shape("Gaussian BIC Gram is shorter than the design".into()));
@@ -544,7 +606,8 @@ fn rss_from_joint_gram(gram: &[f64], m: usize, cols: &[usize]) -> Result<f64, St
     }
     let pivot = factor[(q - 1) * q + (q - 1)];
     let d_y = scales[q - 1];
-    Ok(pivot * pivot * d_y * d_y)
+    let min_pivot_sq = (0..p).map(|i| factor[i * q + i].powi(2)).fold(f64::INFINITY, f64::min);
+    Ok((pivot * pivot * d_y * d_y, min_pivot_sq))
 }
 
 fn equilibrated_spd(joint: &[f64], q: usize, p: usize) -> bool {
@@ -967,5 +1030,53 @@ mod tests {
         }
         let entries: usize = cache.entries.values().map(HashMap::len).sum();
         assert!(entries <= 1, "budget kept {entries} entries");
+    }
+
+    /// Local Gaussian BIC against 80-digit residual sums of squares on designs that stress the
+    /// Gram-and-Cholesky route: a child fitted to 1e-5 noise (R-squared within 1e-11 of one),
+    /// two parents that differ by 1e-6, and 1e7 column offsets. The reference
+    /// (`tests/oracle_data/gaussian_bic_reference.py`) solves the normal equations exactly for
+    /// the stored columns. Before the residual-based refinement the Gram Schur complement
+    /// erred by 6e-3 (child) and 6e-5 (parents) in the score.
+    #[test]
+    fn gaussian_bic_matches_multiprecision_on_ill_conditioned_designs() {
+        let doc: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/oracle_data/gaussian_bic_reference.json"))
+                .unwrap();
+        let mut failures = Vec::new();
+        for case in doc.as_array().unwrap() {
+            let name = case["name"].as_str().unwrap();
+            let cols: Vec<Vec<f64>> = case["columns"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| c.as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect())
+                .collect();
+            let n = cols[0].len();
+            let flat: Vec<f64> = cols.iter().flatten().copied().collect();
+            let data = GraphScoreData::new(n, cols.len(), Arc::from(flat)).unwrap();
+            for q in case["queries"].as_array().unwrap() {
+                let node = u32::try_from(q["node"].as_u64().unwrap()).unwrap();
+                let parents: Vec<u32> = q["parents"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| u32::try_from(v.as_u64().unwrap()).unwrap())
+                    .collect();
+                let want = q["score"].as_f64().unwrap();
+                match gaussian_bic_local(&data, node, &parents) {
+                    Ok(got) => {
+                        let tol = 1e-8 + 1e-11 * want.abs();
+                        if (got - want).abs() > tol {
+                            failures.push(format!(
+                                "{name} node {node} pa {parents:?}: got {got} want {want}"
+                            ));
+                        }
+                    }
+                    Err(e) => failures.push(format!("{name} node {node} pa {parents:?}: {e}")),
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 }

@@ -3157,7 +3157,7 @@ id = "oracle-closure"
 crate = "antecedent-graph"
 cargo_target = "suite_01"
 path = "crates/antecedent-graph/tests/oracle_closure.rs"
-suite_map_line = "suite_01: oracle_closure"
+suite_map_line = "suite_01: dsep_exhaustive, oracle_closure"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -17441,3 +17441,25 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_assertion_scan.py"
 gates = ["inventory"]
+
+[[test]]
+id = "ci-exact-reference"
+crate = "antecedent-stats"
+cargo_target = "ci_exact_reference"
+path = "crates/antecedent-stats/tests/ci_exact_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "dsep-exhaustive"
+crate = "antecedent-graph"
+cargo_target = "suite_01"
+path = "crates/antecedent-graph/tests/dsep_exhaustive.rs"
+suite_map_line = "suite_01: dsep_exhaustive, oracle_closure"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "special-function-reference"
+crate = "antecedent-stats"
+cargo_target = "special_function_reference"
+path = "crates/antecedent-stats/tests/special_function_reference.rs"
+gates = ["inventory", "named"]

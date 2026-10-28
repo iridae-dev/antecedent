@@ -8,6 +8,10 @@ copied_tests = false
 implementation_deviations = [
  "The cited Cody paper supports the erf and erfc rational approximations, but norm_inv is a separate Acklam rational approximation not covered by the papers list.",
  "The implementation exposes normal CDF, survival, density, and quantile helpers beyond the cited paper's erf and erfc scope.",
+ "norm_cdf and norm_sf pass erfc a two-part representation of x/sqrt(2) and carry the rounding residual into the tail exponent; this is a repository correction, not part of the cited approximation.",
+ "norm_inv refines Acklam's seed with one Halley step whose residual is formed from erf within 0.2 of the median and from the CDF or survival function elsewhere.",
+ "erfc returns zero from |x| = 27.3; results below about 1e-300 keep absolute (subnormal-spacing) accuracy only.",
+ "log_norm_cdf (continued fraction for x <= -8), mills_left_tail, log_norm_pdf and gaussian_log_density are repository-defined helpers outside the cited paper.",
 ]
 
 # The CODY_A/B/C/D and CODY_P/Q rational-approximation coefficients in
@@ -28,4 +32,36 @@ upstream_implementations_observed = [
 
 test_sources = [
  "crates/antecedent-kernels/src/special.rs unit tests",
+ "crates/antecedent-stats/tests/special_function_reference.rs (erf, erfc, norm_cdf, norm_sf, log_norm_cdf, norm_inv against 50-digit mpmath values on a grid that includes the approximation-region boundaries, deep tails and the subnormal band)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "erf, erfc, norm_cdf, norm_sf, log_norm_cdf, mills_left_tail, norm_inv (Acklam seed and Halley refinement) in antecedent-kernels special.rs, including exp_neg_square_split and the continued-fraction left tail. Not a review of the Cody coefficient tables against the paper's printed table, of norm_pdf/log_norm_pdf beyond their closed form, or of gaussian_log_density beyond its existing closed-form test."
+assumptions = ["Arguments are exact binary64 values; accuracy is stated against the exact function of that binary64 argument, relative to the result for normal-range outputs.", "The Cody rational forms and Acklam coefficients are correct as transcribed if and only if the executing grid below reproduces the true functions; no independent reading of either coefficient table was done.", "Subnormal erfc/survival values carry only the absolute accuracy of the format."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers. The record's existing statement that the SPECFUN routine was not the source is unchanged and was not independently checkable."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "Fifty-six erf and fifty-six erfc arguments (both signs, both sides of 0.46875 and 4, to 27.2), forty normal CDF/survival arguments to |x| = 38.4, fourteen log-CDF points, and twenty-eight quantile probabilities from 1e-300 to 1 - 2^-53. The reference script declares mpmath==1.3.0 in inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test. Verified worst relative errors: erf 2.3e-16, erfc 2.9e-16, normal CDF/survival 4.5e-16, log CDF 2.1e-16, quantile 2.2e-16. Acklam's coefficients are exercised only through the refined result, so a seed error that one Halley step still repairs would not be visible. NaN and infinite arguments are covered only by the existing unit tests."
+sources = ["https://doi.org/10.1090/S0025-5718-1969-0247736-4", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["norm_cdf and norm_sf had a relative error that grew with x squared because x/sqrt(2) is rounded before entering exp(-y^2): 3e-15 at |x| = 8, 1.3e-14 at 12, 1.2e-13 at 30 and 1.4e-13 at 37.5. Carrying the rounding residual of x/sqrt(2) into the tail exponent reduced the worst error over the grid to 4.5e-16.", "norm_inv lost digits near the median because its Halley residual Phi(x0) - p subtracts two numbers near one half: relative error 2.4e-13 at p = 0.4999. Forming that residual from erf within 0.2 of the median brought it to 2.2e-16.", "The existing assertion that norm_inv(0.975) is within 2.3e-16 of the 97.5 percent constant was met only because of that residual error: the nearest binary64 to 0.975 lies 2.2e-17 below it, so its exact quantile is 3.8e-16 from the constant. The bound was corrected to 5e-16 with the reason stated.", "A first reference for log_norm_cdf on the upper side was wrong (it took the logarithm of a number within 4e-51 of one at 50 digits); the reference was recomputed at 400 digits before it was used to judge the code, which agrees to 2.1e-16 there.", "No defect was found in the Cody erf/erfc evaluation: all boundary arguments agree to 3e-16, so the transcribed coefficients reproduce erf and erfc over their three ranges."]
+record_sha256 = "86d09ded561963d3b03d5f3ad6827bff1f68578ac2c40526bdcd9e74d2a64e0a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-kernels/src/special.rs"
+sha256 = "36efdcafee671dbaeaf55961be51d4b38ec87e17aaded9756644b5129b55a685"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/special_function_reference.rs"
+sha256 = "0d5eed91a915cfde3547241d4d411c2575d2a1dcd31ddaaba35a5c1561173bfb"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/special_functions_reference.py"
+sha256 = "a8e3ee33a29d2bfec2b81c91fafe14b4dbd2b432678ee01eea3a8dca989c8893"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/special_functions_reference.json"
+sha256 = "fce3d7812638f7bc24451c3fffe9f7860f99826183d1811eb995de5f052ba4b4"

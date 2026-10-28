@@ -607,3 +607,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "fci_latent_oracle_tests.rs"]
+mod latent_oracle_tests;

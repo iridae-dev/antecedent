@@ -12,8 +12,8 @@ papers = [
 
 implementation_deviations = [
  "The public API evaluates one node against one node rather than arbitrary sets X and Y from the paper's definition.",
- "Queries with x equal to y or with an endpoint in the conditioning set are treated as connected instead of enforcing the paper's disjoint-set precondition.",
- "The boolean result uses the exact ancestral-moral-graph criterion for DAGs, but the returned active_path is a path in the moralized ancestral graph and need not be an active trail in the original DAG.",
+ "Queries with x equal to y or with an endpoint in the conditioning set are treated as connected (not separated) by the boolean query; the witness query refuses an endpoint in the conditioning set.",
+ "The boolean result is computed by Bayes-ball reachability (Shachter 1998, not among the listed papers and not retrieved in this review), extended across bidirected edges as latent forks. The moralized-ancestral-graph criterion listed above is used only for witnesses, where the returned active_path is a path in the moralized ancestral graph and need not be an active trail in the original DAG.",
  "The separated certificate merely records the conditioning set; it is not a constructive graphical proof or minimal separator.",
 ]
 
@@ -21,5 +21,32 @@ upstream_implementations_observed = []
 
 test_sources = [
  "d-separation unit tests (crates/antecedent-graph/src/dsep_tests.rs)",
+ "crates/antecedent-graph/tests/dsep_exhaustive.rs (every DAG on up to five nodes, all pairs in both orders and all conditioning sets, against an independent path-definition oracle; sampled six- and seven-node DAGs)",
  "clean-room independent path-status enumeration oracle (conformance/graph/definite_status_separation)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Dag::is_d_separated and Dag::d_separation (boolean Bayes-ball path, the moral-ancestral-graph witness path, ill-posed query policy) for DAGs without overlays. The bidirected-edge (latent fork) branch of the Bayes-ball routine was read but is exercised here only through the DAG case; ADMG m-separation and overlay behaviour are not covered by this review."
+assumptions = ["The graph is a DAG; separation is graphical (a statement about the declared graph, not about data).", "Conditioning sets are disjoint from the endpoints for the boolean answer to mean d-separation; otherwise the documented not-separated policy applies.", "The path oracle uses the textbook definition: a path is active when every non-collider is outside Z and every collider is in Z or has a descendant in Z."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers. "
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "Complete for DAGs of two to five nodes under the fixed topological order (all 1,024 five-node edge subsets, 10 pairs in both orders, 8 conditioning sets each, plus smaller sizes), plus 700 six-node and 120 seven-node subsets scattered through the edge-subset space. Larger graphs, overlays and the bidirected branch are untested here. The oracle shares no code with the product, but both implement the same definition, so a misreading of the definition would be shared."
+sources = ["https://doi.org/10.1002/net.3230200503"]
+findings_resolved = ["The Bayes-ball boolean answer and the moral-graph witness answer agree with the path-definition oracle on every query of the exhaustive sweep (more than 80,000 queries across sizes two to five, in both argument orders, for both entry points).", "The record described the boolean result as the moral-graph criterion; the boolean path is Bayes-ball and only the witness uses the moral graph. The deviation text was corrected, together with the differing endpoint-in-Z behaviour of the two entry points.", "No defect was found; the existing property test sampled 40 four-node and 24 five-node DAGs, and this sweep supersedes that coverage for DAGs up to five nodes."]
+record_sha256 = "feaab601a802187f6409faff4a74576f4710ab0d635675ccac2af893c56c7937"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/dsep.rs"
+sha256 = "354cadc168387afa5e95cebc2b842af31cac5b1ccae069363d523e115ea970a0"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-graph/tests/dsep_exhaustive.rs"
+sha256 = "eeeb20f487a231432329463d5490e59411cd2ba6c7932c6060b813217e09dd9f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-graph/src/dsep_tests.rs"
+sha256 = "c66b84bc451b76782d258f0f3e96e63de76a055d6955155ae1881f86c3d5005e"

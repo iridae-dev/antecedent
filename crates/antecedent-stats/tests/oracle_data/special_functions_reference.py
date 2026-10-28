@@ -48,7 +48,8 @@ for z in zs:
         out["norm_cdf"].append([v, f(mp.ncdf(mp.mpf(v)))])
         out["norm_sf"].append([v, f(1 - mp.ncdf(mp.mpf(v)) if v < 0 else mp.ncdf(-mp.mpf(v)))])
 for v in [-40.0, -37.0, -20.0, -8.0, nxt(-8.0, True), nxt(-8.0, False), -7.9, -2.0, -0.5, 0.0, 0.5, 4.0, 9.0, 15.0]:
-    out["log_norm_cdf"].append([v, f(mp.log(mp.ncdf(mp.mpf(v))))])
+    with mp.workdps(400):  # ln(1 - 4e-51) needs far more digits than the working precision
+        out["log_norm_cdf"].append([v, f(mp.log(mp.ncdf(mp.mpf(v))))])
 
 
 def ncdf_lower(x):

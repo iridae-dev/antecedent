@@ -185,8 +185,14 @@ pub(super) fn ensure_finite_categories(
 
 const SPARSE_EXPECTED_MIN: f64 = 5.0;
 
-/// Rows grouped by exact integer-coded Z symbol key, in sorted-key order so seeded permutation
-/// nulls are reproducible. Shared by every test that stratifies on discrete Z.
+/// Rows grouped by their exact integer-coded Z symbol, in a reproducible order.
+///
+/// Groups are keyed by the code vector itself, so two distinct symbols can never share a
+/// stratum. They are ordered by the FNV-1a hash of the code vector (ties by the vector), which
+/// is the order the seeded permutation nulls and the last bits of G² were established with.
+/// An earlier version keyed the map by that 64-bit hash alone, so a hash collision between two
+/// symbols would have silently merged their strata. Shared by every test that stratifies on
+/// discrete Z.
 pub(super) fn discrete_strata(
     columns: &[&[f64]],
     z: &[usize],
@@ -194,23 +200,34 @@ pub(super) fn discrete_strata(
 ) -> Result<Vec<Vec<usize>>, StatsError> {
     let codes =
         z.iter().map(|&zc| encode_categories(columns[zc])).collect::<Result<Vec<_>, _>>()?;
-    let mut strata: HashMap<u64, Vec<usize>> = HashMap::new();
+    let mut strata: HashMap<Vec<i32>, Vec<usize>> = HashMap::new();
+    let mut key: Vec<i32> = Vec::with_capacity(codes.len());
     for r in 0..n {
-        let key = if z.is_empty() {
-            0u64
+        key.clear();
+        key.extend(codes.iter().map(|zc| zc[r]));
+        if let Some(rows) = strata.get_mut(key.as_slice()) {
+            rows.push(r);
         } else {
-            let mut h = antecedent_core::Fnv1a64::new();
-            for zc in &codes {
-                let v = zc[r];
-                h.fold(u64::from(u32::from_ne_bytes(v.to_ne_bytes())));
-            }
-            h.finish()
-        };
-        strata.entry(key).or_default().push(r);
+            strata.insert(key.clone(), vec![r]);
+        }
     }
-    let mut keys: Vec<u64> = strata.keys().copied().collect();
-    keys.sort_unstable();
-    Ok(keys.into_iter().filter_map(|k| strata.remove(&k)).collect())
+    let mut groups: Vec<(u64, Vec<i32>, Vec<usize>)> = strata
+        .into_iter()
+        .map(|(symbol, rows)| {
+            let hash = if symbol.is_empty() {
+                0u64
+            } else {
+                let mut h = antecedent_core::Fnv1a64::new();
+                for v in &symbol {
+                    h.fold(u64::from(u32::from_ne_bytes(v.to_ne_bytes())));
+                }
+                h.finish()
+            };
+            (hash, symbol, rows)
+        })
+        .collect();
+    groups.sort_unstable_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+    Ok(groups.into_iter().map(|(_, _, rows)| rows).collect())
 }
 
 #[allow(

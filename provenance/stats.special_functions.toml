@@ -25,6 +25,8 @@ implementation_deviations = [
  "normal_ppf transcribes Acklam's published rational-approximation coefficients and applies one Halley refinement; Acklam's non-DOI note, rather than the listed Cody erf paper, is the direct source of that algorithm.",
  "Student-t tails and quantiles plus incomplete-beta and incomplete-gamma routines use independently written classical continued-fraction and inversion procedures that are not specified by the listed paper.",
  "The listed paper supports the delegated erf/erfc implementation in antecedent-kernels, not most algorithms implemented by this feature.",
+ "The incomplete-beta continued fraction takes its starting and odd-step terms from the exact complement of x, the Student-t quantile is solved by bisection on the central probability within 0.25 of the median (on the survival function elsewhere, Cornish-Fisher above 1e7 degrees of freedom), ln B uses a Stirling-error difference above 15, and the incomplete-gamma prefactor uses a saddle-point (Loader-style) form for a >= 1. These are repository engineering choices whose literature sources were not retrieved.",
+ "digamma, trigamma, Gauss-Hermite and Gauss-Legendre rules are outside the scope of the completed review.",
 ]
 
 upstream_implementations_observed = [
@@ -33,4 +35,41 @@ upstream_implementations_observed = [
 
 test_sources = [
  "crates/antecedent-stats/src/special.rs unit tests",
+ "crates/antecedent-stats/tests/special_function_reference.rs (Student-t survival and quantile, incomplete gamma, chi-square and log-gamma against 50-digit mpmath values)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "student_t_sf, student_t_ppf, gamma_q, chi_square_sf, ln_gamma and their helpers (regularized incomplete beta with complement, ln_beta, the gamma prefactor, Stirling error, binomial deviance) in antecedent-stats special.rs; normal_ppf is an alias of the kernels quantile reviewed in kernels.special_functions. Not a review of digamma, trigamma or the Gauss quadrature rules."
+assumptions = ["Student-t degrees of freedom are real and positive; a quantile request needs a probability strictly inside (0, 1).", "Accuracy is stated against the exact function of the binary64 arguments.", "The Cornish-Fisher quantile above 1e7 degrees of freedom is judged only by the executing grid (df 2e7 and 1e9), not by a bound on the series remainder."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers. "
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "Two hundred and twenty-four survival cases (df 0.05 to 1e12, |t| from 1e-9 to 1e5), one hundred and ten quantile cases (df 0.3 to 1e9, probabilities from 1e-10 to 1 - 1e-9 and 0.5000001), one hundred and sixty-five incomplete-gamma cases (a from 0.5 to 1e6, including x = a + k sqrt(2a)), and twenty-one log-gamma arguments. The reference script declares mpmath==1.3.0 in inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test. Verified worst errors: survival 2.6e-14 relative, quantile 1.1e-14, incomplete gamma 1.4e-13, log-gamma 2.2e-15 relative to max(|value|, 1). Not exercised: incomplete-gamma a below 0.5 or above 1e6, Student-t df below 0.05, quantiles beyond 1e300, and the gamma continued fraction's fixed 500-iteration cap at extreme a (it was sufficient on every case tried)."
+sources = ["https://doi.org/10.1090/S0025-5718-1969-0247736-4", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["student_t_sf was exactly 1/2 for |t| below about 1e-8 sqrt(df): the incomplete beta returned 1 whenever x = df/(df + t^2) rounded to 1, although the caller supplied a positive complement. Near the median the quantile solved on that flat function was therefore wrong by up to a factor of ten (df = 1e5, p = 0.5000001 gave 2.7e-6 against 2.5e-7; df = 9e6 gave 3.1e-5). The test now uses the complement, and the quantile is solved on the central probability, giving 1e-14 relative accuracy as p approaches one half.", "The incomplete-beta continued fraction cancelled catastrophically for large a with x near one (start and every odd step form 1 - x(1 - small)). With the early return already repaired, Student-t survival errors were 1.2e-12 at df = 1e3, 2e-11 at 1e6, 4e-10 at 1e7, 4e-9 at 1e8 and 4e-5 at 1e12; the terms are now formed from the exact complement and the survival function agrees to 2.6e-14 everywhere tested. ln B also lost 1e-12 for 15 <= a < 1e3 (Lanczos error scales with ln Gamma); the Stirling-error difference now applies from 15.", "The incomplete-gamma prefactor x^a e^-x / Gamma(a) summed three terms of size a ln a: relative errors 1.4e-10 at a = 1e5 and 2.1e-9 at a = 1e6 (chi-square survival at large degrees of freedom). The saddle-point form reduced the worst case to 1.4e-13.", "student_t_ppf returned its bracket cap 1.1e15 for heavy tails (df = 0.3, p = 1e-10 has quantile 6.5e31); the bracket now grows to the root, and returns a signed infinity beyond 1e300. Squaring |t| above 1e154 overflowed and gave NaN; the beta arguments are now formed without squaring.", "No defect was found in ln_gamma (Lanczos) at the tested arguments, including negative non-integer arguments and the poles handled by the existing guard."]
+record_sha256 = "f5722191d4159658d5759c8d3613100fc44a7d4790a6589f62e95f98073d9f00"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/special.rs"
+sha256 = "b663d754fa1eb1fc6c23100572fe66d32554597596d739324253f7ce1ef18c39"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-kernels/src/special.rs"
+sha256 = "36efdcafee671dbaeaf55961be51d4b38ec87e17aaded9756644b5129b55a685"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/special_function_reference.rs"
+sha256 = "0d5eed91a915cfde3547241d4d411c2575d2a1dcd31ddaaba35a5c1561173bfb"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/special_functions_reference.py"
+sha256 = "a8e3ee33a29d2bfec2b81c91fafe14b4dbd2b432678ee01eea3a8dca989c8893"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/special_functions_reference.json"
+sha256 = "fce3d7812638f7bc24451c3fffe9f7860f99826183d1811eb995de5f052ba4b4"

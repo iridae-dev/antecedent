@@ -219,16 +219,21 @@ pub fn ln_gamma(z: f64) -> f64 {
 /// from it, such as the Student-t quantile at large df — by more than double precision should
 /// allow). Above the threshold, expand `ln Γ(big + small) − ln Γ(big)` with Stirling's series,
 /// combining the leading `(z − ½) ln z − z` terms algebraically (via `ln1p(small / big)`)
-/// instead of forming their numerically cancelling difference; the next Stirling correction
-/// (`1/(12z)`) is included in the same cancellation-free form, and the one after that
-/// (`O(1/z³)`) is below `1e-12` at the threshold and omitted.
+/// instead of forming their numerically cancelling difference; the Stirling error series
+/// (to `z⁻⁹`, below `3e-16` for `z ≥ 15`) supplies the remaining terms.
 fn ln_beta(a: f64, b: f64) -> f64 {
     let (big, small) = if a >= b { (a, b) } else { (b, a) };
-    if big >= 1.0e3 {
+    if big >= 15.0 {
         let sum = big + small;
-        let diff = (big - 0.5) * (small / big).ln_1p() + small * sum.ln()
-            - small
-            - small / (12.0 * big * sum);
+        // `ln G(w) = (w - 1/2) ln w - w + (1/2) ln 2 pi + S(w)` with the Stirling error `S`
+        // (series to the `w^-9` term, below 3e-16 for `w >= 15`); the polynomial parts of the
+        // difference combine through `ln1p`, and `S(sum) - S(big)` is a small difference of small
+        // terms. The previous threshold of 1e3 with a single `1/(12 w)` correction left the
+        // direct `ln G(a) + ln G(b) - ln G(a + b)` for `15 <= a < 1e3`, whose Lanczos error scales
+        // with `ln G(a)` (2.6e-12 at a = 500, a relative 1.2e-12 in the Student-t tail).
+        let diff = (big - 0.5) * (small / big).ln_1p() + small * sum.ln() - small
+            + stirling_error(sum)
+            - stirling_error(big);
         ln_gamma(small) - diff
     } else {
         ln_gamma(a) + ln_gamma(b) - ln_gamma(a + b)
@@ -250,7 +255,11 @@ fn regularized_incomplete_beta_with_complement(x: f64, y: f64, a: f64, b: f64) -
     if x <= 0.0 {
         return 0.0;
     }
-    if x >= 1.0 || y <= 0.0 {
+    // Test the complement, not `x >= 1.0`: a caller-supplied `y` such as the Student-t
+    // `t^2 / (df + t^2)` can be a positive number far below `x`'s ulp, so `x` rounds to exactly
+    // 1 while `I_x(a, b)` still differs from 1 by order `sqrt(y)`. Returning 1 there flattened
+    // the Student-t survival function to exactly 1/2 for `|t| < 1e-8 sqrt(df)`.
+    if y <= 0.0 {
         return 1.0;
     }
     // Use the symmetry I_x(a,b) = 1 - I_{1-x}(b,a) where the continued fraction
@@ -266,9 +275,24 @@ fn regularized_incomplete_beta_with_complement(x: f64, y: f64, a: f64, b: f64) -
     // operand, as after the symmetry swap above), ln1p(-y) would instead force the cancellation
     // 1 - y and must be avoided; x.ln() is exact there.
     let lnx = if y < 0.5 { (-y).ln_1p() } else { x.ln() };
-    let front = (lnx * a + y.ln() * b - lnb).exp() / a;
+    // The same argument applies to `ln(y)`: when x is the small operand, `ln1p(-x)` keeps what
+    // the stored `y = 1 - x` has already rounded away (an absolute 1e-16, which `b` amplifies).
+    let lny = if x < 0.5 { (-x).ln_1p() } else { y.ln() };
+    let front = (lnx * a + lny * b - lnb).exp() / a;
+    // Modified Lentz evaluation of the continued fraction. Both the starting `d` and every
+    // odd-step `1 + num * d` have the form `1 - x (1 - small)`, which cancels catastrophically
+    // when `x` is within ~1/a of 1 (relative error 1e-16 / ((a + b) y / a): 2.5e-5 at
+    // df = 1e12 for the Student-t tail). With the exact complement `y` they are computed as
+    // `((1 - b) + (a + b) y) / (a + 1)` and `((D - N) + N y) / D`, where
+    // `N = (a + m)(a + b + m)`, `D = (a + 2m)(a + 2m + 1)` and
+    // `D - N = a (2m + 1 - b) + 3 m^2 + 2 m - m b` is expanded so that it is not itself a
+    // difference of two numbers near `a^2`. `c` and `d` return to `1 + e_c` and `1 + e_d` after
+    // each even step; the deviations are carried explicitly so the odd step never forms
+    // `1 + (-1 + small)` from rounded operands.
+    let stable = y < 0.5;
     let mut c = 1.0;
-    let mut d = 1.0 - (a + b) * x / (a + 1.0);
+    let mut d =
+        if stable { ((1.0 - b) + (a + b) * y) / (a + 1.0) } else { 1.0 - (a + b) * x / (a + 1.0) };
     if d.abs() < 1e-30 {
         d = 1e-30;
     }
@@ -290,27 +314,42 @@ fn regularized_incomplete_beta_with_complement(x: f64, y: f64, a: f64, b: f64) -
     let max_iter = 500 + 10 * (a.max(b).max(1.0).sqrt().min(1.0e9) as usize);
     for m in 1..max_iter {
         let m_f = m as f64;
+        // Even step.
         let num = m_f * (b - m_f) * x / ((a + 2.0 * m_f - 1.0) * (a + 2.0 * m_f));
-        d = 1.0 + num * d;
-        if d.abs() < 1e-30 {
-            d = 1e-30;
+        let td = num * d;
+        let mut d_raw = 1.0 + td;
+        if d_raw.abs() < 1e-30 {
+            d_raw = 1e-30;
         }
-        c = 1.0 + num / c;
+        let e_d = -td / d_raw;
+        d = 1.0 / d_raw;
+        let tc = num / c;
+        c = 1.0 + tc;
+        let mut e_c = tc;
         if c.abs() < 1e-30 {
             c = 1e-30;
+            e_c = c - 1.0;
         }
-        d = 1.0 / d;
         f *= d * c;
+        // Odd step.
         let num = -(a + m_f) * (a + b + m_f) * x / ((a + 2.0 * m_f) * (a + 2.0 * m_f + 1.0));
-        d = 1.0 + num * d;
-        if d.abs() < 1e-30 {
-            d = 1e-30;
+        let (mut d_raw, mut c_raw) = if stable {
+            let nn = (a + m_f) * (a + b + m_f);
+            let dd = (a + 2.0 * m_f) * (a + 2.0 * m_f + 1.0);
+            let dn = a * (2.0 * m_f + 1.0 - b) + 3.0 * m_f * m_f + 2.0 * m_f - m_f * b;
+            let one_plus = (dn + nn * y) / dd;
+            (one_plus + num * e_d, one_plus - num * e_c / c)
+        } else {
+            (1.0 + num * d, 1.0 + num / c)
+        };
+        if d_raw.abs() < 1e-30 {
+            d_raw = 1e-30;
         }
-        c = 1.0 + num / c;
-        if c.abs() < 1e-30 {
-            c = 1e-30;
+        if c_raw.abs() < 1e-30 {
+            c_raw = 1e-30;
         }
-        d = 1.0 / d;
+        d = 1.0 / d_raw;
+        c = c_raw;
         let delta = d * c;
         f *= delta;
         if (delta - 1.0).abs() < 1e-15 {
@@ -318,6 +357,29 @@ fn regularized_incomplete_beta_with_complement(x: f64, y: f64, a: f64, b: f64) -
         }
     }
     (front * f).clamp(0.0, 1.0)
+}
+
+/// `x = df / (df + t^2)` and `y = t^2 / (df + t^2)`, each accurate to relative 1e-16 on its own
+/// (not as `1 - the other`), formed without squaring a huge `t`, which would overflow at
+/// `|t| > 1e154` and turn a valid tail into NaN.
+fn student_t_beta_arguments(t: f64, df: f64) -> (f64, f64) {
+    if t.abs() > 1.0 {
+        let u = df / t.abs() / t.abs();
+        (u / (1.0 + u), 1.0 / (1.0 + u))
+    } else {
+        let denom = df + t * t;
+        (df / denom, t * t / denom)
+    }
+}
+
+/// `P(0 < T <= t) = 1/2 - P(T > t)` for `t >= 0`, as `I_y(1/2, df/2) / 2`.
+///
+/// Near the median this is the quantity that carries information: `P(T > t)` is within
+/// `t * pdf(0)` of 1/2, so a quantile solved on the survival function inherits an absolute
+/// error of 1e-16 in that probability (a relative 2.8e-10 in `t` at `p - 1/2 = 1e-7`).
+fn student_t_central_mass(t: f64, df: f64) -> f64 {
+    let (x, y) = student_t_beta_arguments(t, df);
+    0.5 * regularized_incomplete_beta_with_complement(y, x, 0.5, 0.5 * df)
 }
 
 /// Survival function P(T > t) for Student-t with `df` degrees of freedom.
@@ -332,9 +394,8 @@ pub fn student_t_sf(t: f64, df: f64) -> f64 {
     if t == f64::NEG_INFINITY {
         return 1.0;
     }
-    let denom = df + t * t;
-    let half_tail =
-        0.5 * regularized_incomplete_beta_with_complement(df / denom, t * t / denom, 0.5 * df, 0.5);
+    let (x, y) = student_t_beta_arguments(t, df);
+    let half_tail = 0.5 * regularized_incomplete_beta_with_complement(x, y, 0.5 * df, 0.5);
     if t >= 0.0 { half_tail } else { 1.0 - half_tail }
 }
 
@@ -360,7 +421,8 @@ pub fn student_t_ppf(p: f64, df: f64) -> f64 {
     if !(df.is_finite() && df > 0.0) {
         return f64::INFINITY;
     }
-    if (p - 0.5).abs() < 1e-15 {
+    #[allow(clippy::float_cmp, reason = "the median is exactly representable")]
+    if p == 0.5 {
         return 0.0;
     }
     // For very large df the quantile is the normal one plus a Cornish–Fisher series in 1/df
@@ -378,14 +440,32 @@ pub fn student_t_ppf(p: f64, df: f64) -> f64 {
     // student_t_sf(t, df) is strictly decreasing in t, from 1 (t -> -inf) to 0 (t -> +inf).
     // Solve for the non-negative root and mirror by symmetry for p < 0.5.
     let target_sf = if p > 0.5 { 1.0 - p } else { p };
+    // `p - 1/2` is exact. Within 0.25 of the median the root is found on the central mass
+    // `1/2 - target_sf`, which keeps full relative accuracy in `t` as `p -> 1/2`.
+    let central = (p - 0.5).abs();
+    let use_central = central < 0.25;
+    let root_is_above = |t: f64| {
+        if use_central {
+            student_t_central_mass(t, df) < central
+        } else {
+            student_t_sf(t, df) > target_sf
+        }
+    };
     let mut lo = 0.0_f64;
     let mut hi = 1.0_f64;
-    while student_t_sf(hi, df) > target_sf && hi < 1e15 {
+    // Heavy tails (df < 1) put a small-probability quantile at astronomically large t
+    // (df = 0.3, p = 1e-10 gives 6.5e31), so the bracket must grow until the tail is below the
+    // target rather than stop at a fixed cap and return the cap as if it were the root.
+    while root_is_above(hi) {
+        if hi >= 1e300 {
+            return if p > 0.5 { f64::INFINITY } else { f64::NEG_INFINITY };
+        }
+        lo = hi;
         hi *= 2.0;
     }
     for _ in 0..200 {
         let mid = 0.5 * (lo + hi);
-        if student_t_sf(mid, df) > target_sf {
+        if root_is_above(mid) {
             lo = mid;
         } else {
             hi = mid;
@@ -444,7 +524,7 @@ fn gamma_p_series(a: f64, x: f64) -> f64 {
             break;
         }
     }
-    sum * (-x + a * x.ln() - ln_gamma(a)).exp()
+    sum * gamma_density_factor(a, x)
 }
 
 /// Upper regularized incomplete gamma `Q(a, x)` by Lentz continued fraction.
@@ -472,7 +552,57 @@ fn gamma_q_cf(a: f64, x: f64) -> f64 {
             break;
         }
     }
-    (-x + a * x.ln() - ln_gamma(a)).exp() * h
+    gamma_density_factor(a, x) * h
+}
+
+/// `x^a e^{-x} / Gamma(a)`, the common prefactor of the incomplete-gamma series and fraction.
+///
+/// Evaluated as `-x + a ln x - ln Gamma(a)` the three terms are each `O(a ln a)` while their
+/// sum is `O(ln a)`, so the rounding of the sum is `1e-16 * a ln a` absolute in the exponent
+/// (2e-9 relative at `a = 1e6`). For `a >= 1` this uses Loader's saddle-point form
+/// `sqrt(a / 2 pi) exp(-stirlerr(a) - bd0(a, x))`, where `bd0` is the deviance
+/// `a ln(a / x) + x - a` evaluated without cancelling the three large terms.
+fn gamma_density_factor(a: f64, x: f64) -> f64 {
+    if a < 1.0 {
+        return (-x + a * x.ln() - ln_gamma(a)).exp();
+    }
+    ((a / (2.0 * std::f64::consts::PI)).sqrt()) * (-stirling_error(a) - deviance_bd0(a, x)).exp()
+}
+
+/// `ln Gamma(n + 1) - [(n + 1/2) ln n - n + (1/2) ln 2 pi]`, the error of Stirling's formula.
+fn stirling_error(n: f64) -> f64 {
+    if n >= 15.0 {
+        // Stirling series 1/(12n) - 1/(360 n^3) + 1/(1260 n^5) - 1/(1680 n^7) + 1/(1188 n^9);
+        // the next term is below 3e-16 at n = 15.
+        let n2 = n * n;
+        return (1.0 / 12.0
+            - (1.0 / 360.0 - (1.0 / 1260.0 - (1.0 / 1680.0 - 1.0 / (1188.0 * n2)) / n2) / n2)
+                / n2)
+            / n;
+    }
+    ln_gamma(n + 1.0) - (n + 0.5) * n.ln() + n - 0.5 * (2.0 * std::f64::consts::PI).ln()
+}
+
+/// Binomial deviance `bd0(a, x) = a ln(a / x) + x - a` (Loader 2000), by a series in
+/// `v = (a - x) / (a + x)` when the arguments are close so the three terms do not cancel.
+#[allow(clippy::float_cmp, reason = "the series ends when a term no longer changes the sum")]
+fn deviance_bd0(a: f64, x: f64) -> f64 {
+    if (a - x).abs() < 0.1 * (a + x) {
+        let v = (a - x) / (a + x);
+        let mut s = (a - x) * v;
+        let mut ej = 2.0 * a * v;
+        let v2 = v * v;
+        for j in 1..1000_u32 {
+            ej *= v2;
+            let next = s + ej / f64::from(2 * j + 1);
+            if next == s {
+                return next;
+            }
+            s = next;
+        }
+        return s;
+    }
+    a * (a / x).ln() + x - a
 }
 
 #[cfg(test)]

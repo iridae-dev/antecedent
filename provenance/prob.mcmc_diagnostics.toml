@@ -61,7 +61,7 @@ sha256 = "c17444482d21c072e7c4b92e3be0379cc2089f5c9c616652964ef2b18da42afa"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-kernels/src/special.rs"
-sha256 = "d989a2f87b869c69b97392066b783745bc734b0a080d9c6684551efad807c547"
+sha256 = "36efdcafee671dbaeaf55961be51d4b38ec87e17aaded9756644b5129b55a685"
 
 [[method_review.artifacts]]
 role = "implementation"
