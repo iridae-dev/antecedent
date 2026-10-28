@@ -60,6 +60,9 @@ pub const TEMPORAL_INTERVAL_TOO_FEW_UNITS: &str = "temporal_interval.too_few_uni
 pub const TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY: &str = "temporal_interval.unsupported_history";
 /// Detail: more replicates than the execution budget funds.
 pub const TEMPORAL_INTERVAL_TOO_MANY_REPLICATES: &str = "temporal_interval.too_many_replicates";
+/// Refusal detail: more units than the bootstrap-t is certified for.
+pub(crate) const TEMPORAL_INTERVAL_STUDENTIZED_BOUNDS_EXCEEDED: &str =
+    "temporal_interval.studentized_bounds_exceeded";
 
 /// The refusal of the public interval route while its calibration is unmeasured.
 #[must_use]
@@ -992,6 +995,7 @@ fn studentize_replicates(
 /// `too_few_clusters` / `temporal_interval.too_few_units` below the minimum unit
 /// count; `route_not_supported` with `temporal_interval.unsupported_history` when the original panel (or
 /// too large a fraction of replicates) leaves a needed history unsupported;
+/// `route_not_supported` with `temporal_interval.studentized_bounds_exceeded` above 4096 units;
 /// `transport_budget_cancel` on cancellation.
 pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
     panel: &TemporalUnitPanel,
@@ -1008,10 +1012,17 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
         ));
     }
     if panel.units.len() > STUDENTIZED_MAX_UNITS {
-        // The studentization needs a score per original unit and a per-draw SE; beyond the
-        // budget the interval is the percentile route over the same unit resamples.
-        let percentile = DependentIntervalConfig { method: IntervalMethod::Percentile, ..*config };
-        return checked_paired_effect_interval(panel, estimator, &percentile, ctx);
+        // The studentization needs a score per original unit and a per-draw SE. Beyond the
+        // certified range the request is refused: answering it with the retired percentile
+        // construction would return another interval than the one declared.
+        return Err(EstimationError::refused_detail(
+            reason_code!("route_not_supported"),
+            TEMPORAL_INTERVAL_STUDENTIZED_BOUNDS_EXCEEDED,
+            format!(
+                "{} units exceed the {STUDENTIZED_MAX_UNITS} the bootstrap-t is certified for",
+                panel.units.len()
+            ),
+        ));
     }
     if panel.units.len() < config.min_units.max(2) {
         return Err(EstimationError::refused_detail(
