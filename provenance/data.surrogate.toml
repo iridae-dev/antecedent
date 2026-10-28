@@ -16,3 +16,24 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-data/src/surrogate.rs unit tests",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "surrogate_phase_randomize and surrogate_permute_columns in crates/antecedent-data/src/surrogate.rs on complete float64 series: the phase-randomized surrogate keeps every Fourier magnitude and the mean and draws independent uniform phases per bin and per column (the Nyquist bin of an even length stays real), and the column permutation is uniform over the observed values with missing positions fixed. Not a review of amplitude-adjusted or iterative surrogates, of the discovery-side use of the surrogates, or of series with missing values (refused)."
+assumptions = ["The Theiler et al. phase-randomization null: the discrete Fourier magnitudes are kept, the phases of bins 1.. are independent uniform on the circle, the mean (DC bin) is unchanged, and for an even length the Nyquist coefficient stays real.", "Each column is randomized independently, so cross-column dependence is destroyed by design (the cross-spectrum-preserving variant is a different surrogate and is not claimed)."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are cited and not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard statements, so a mistake in how a record or this reference states a method would not be detected here. The magnitude check is exact to 1e-10 of the series' L1 norm at ten lengths (even and odd, 4 to 101) against a direct discrete Fourier transform; phase uniformity is a chi-square over eight arcs for four bins and a joint half-circle table, so a phase bias smaller than the resolution of 8000 draws would not be detected. No claim about the false-positive rate of any discovery procedure that uses the surrogates, or about non-Gaussian marginals (a phase-randomized series is Gaussian-like by construction). Calibration remains deferred."
+sources = ["https://doi.org/10.1016/0167-2789(92)90102-S"]
+findings_resolved = ["Compared the surrogate's Fourier magnitudes at every non-redundant bin with the original's for even and odd lengths using an independent O(n^2) DFT; they agree, the sum (mean) is preserved, the Nyquist coefficient keeps its value, and the circular autocovariance equals the original's at every lag.", "Verified a constant series is a fixed point, identical columns receive different phases, the phase of each tested bin is uniform on the circle and the phases of different bins are independent, and the column permutation hits all 24 orderings of four observed values with equal frequency while a missing cell stays at its position.", "No defect requiring a change to the surrogate code was found. Code edits: a new integration test file (crates/antecedent-data/tests/surrogate_reference.rs) and its [[test]] entry only."]
+record_sha256 = "ceb0538a366c7072d59c87d99003633773d1afce51e3cd13cbf35b800b6964d2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-data/src/surrogate.rs"
+sha256 = "f634c33f7c148629bf891e144736bbebad5ee488d9d77cb0ab7c523c7aba4d46"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-data/tests/surrogate_reference.rs"
+sha256 = "0f052eef8ca5ab1d920e8752c45126aebd5a70e49a4f8fa4eec9fb92885886cd"

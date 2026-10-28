@@ -32,3 +32,24 @@ test_sources = [
   "crates/antecedent-io/tests/cpdag_completion_artifact.rs",
   "python/tests/test_cpdag_scenarios.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "enumerate_cpdag_completions and its CPDAG admission test in crates/antecedent-identify/src/sid/cpdag_completion.rs, for every partially directed graph (each node pair absent, undirected or directed either way) on three and four nodes: a graph that is the essential graph of a Markov equivalence class yields exactly the class members, and every other graph is refused with the not-a-CPDAG detail. Not a review of the evidence binding and transport decision per completion, of the search budget and its receipts, of graphs above four nodes beyond the existing fixed cases, or of selection or latent edges (refused by this module)."
+assumptions = ["Two DAGs are Markov equivalent exactly when they have the same skeleton and the same unshielded colliders; the essential graph of a class directs an edge exactly when every member orients it the same way (Chickering 1995; Verma and Pearl; Andersson, Madigan and Perlman).", "A supplied graph is a CPDAG exactly when it equals the essential graph of some class."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are cited and not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard statements, so a mistake in how a record or this reference states a method would not be detected here. All 64 three-node and all 4096 four-node partially directed graphs are submitted (the 11 and 185 classes are each accepted), but five- and six-node inputs rely on the existing fixed cases in cpdag_completion.rs and on a different record's strided five-node comparison (graph.cpdag_completion). Directed cycles are refused at graph construction and so are not reached by the admission test. The per-completion transport decision, evidence binding and budget behavior are not reviewed here. Calibration remains deferred."
+sources = ["https://maxchickering.com/publications/uai95.pdf"]
+findings_resolved = ["Grouped every labelled DAG on three and four nodes by skeleton and unshielded colliders, built each class's essential graph from the definition, and required the enumerator to return exactly the class for each of the 11 and 185 essential graphs and to refuse every other of the remaining mixed graphs (64 and 4096 in total) as not a CPDAG; the enumeration was exportable with no unenumerated remainder every time.", "No defect requiring a change to the completion enumeration or admission test was found. Code edits: a new integration test file (crates/antecedent-identify/tests/cpdag_class_exhaustive.rs) and its [[test]] entry only."]
+record_sha256 = "bc4033eafc02c332f80ff9d86c3d51b3932943b98eb00f9250548b749249d9d4"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/sid/cpdag_completion.rs"
+sha256 = "35300f9aba548c593b1e217058eed419eb75577a10a3a132dc8dce0feef675a0"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/cpdag_class_exhaustive.rs"
+sha256 = "0b332a6bde1823669af5b06e10a70826ffe47e64fbc92a7953ed2aad22d2572c"

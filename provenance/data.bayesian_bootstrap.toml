@@ -18,3 +18,29 @@ upstream_implementations_observed = []
 test_sources = [
  "unit tests in crates/antecedent-data/src/resample.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The weight draw of ResamplingPlan::BayesianBootstrap through fill_resample_weight_replicate (crates/antecedent-data/src/resample/replicates.rs over fill_bayesian_bootstrap_weights in crates/antecedent-kernels/src/rng.rs): n exponential draws rescaled to sum n, as the scaled Dirichlet(1,...,1) observation weights of Rubin's Bayesian bootstrap. Not a review of the weighted estimators that consume the weights, of the application to time series (refused without opt-in), or of the multiplication into existing storage weights."
+assumptions = ["Normalised unit-rate exponentials are Dirichlet(1,...,1) (the standard gamma-exponential representation); scaled by n the weights have mean 1, variance (n-1)/(n+1), pairwise covariance -1/(n+1) and each marginal w_i/n is Beta(1, n-1).", "An exact zero uniform is floored at the smallest positive normal float so the exponential stays finite; every other draw is unaltered."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are cited and not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard statements, so a mistake in how a record or this reference states a method would not be detected here. Marginal laws are compared with Kolmogorov-Smirnov and moment checks over 20000 seeded replicate streams for n in {2, 3, 5, 40}; the joint law beyond the first two moments is not tested, and neither is n very large (weights of order 1/n underflowing is not reachable at supported sizes). Weighted estimators and their intervals are not reviewed. Calibration remains deferred."
+sources = ["https://doi.org/10.1214/aos/1176345338"]
+findings_resolved = ["Compared the first weight against its exact Beta(1, n-1) marginal by a Kolmogorov-Smirnov statistic for four sample sizes, and the mean, variance and covariance of the first two weights against 1, (n-1)/(n+1) and -1/(n+1); all agree. Every replicate sums to n and has strictly positive weights; n = 1 returns the weight 1 exactly.", "No defect requiring a change to the weight draw was found. Code edits: the shared integration test file (crates/antecedent-data/tests/resample_law_reference.rs) only."]
+record_sha256 = "9de7a1a91ce67dfcc2c76063dae7a7db0e1d517a2cd15af10ff52e40e26a15b6"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-data/src/resample/replicates.rs"
+sha256 = "bacb6121bd531b577363771d8bbf05b3cfba64553adb8ef0a7761166539f16c7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-kernels/src/rng.rs"
+sha256 = "ddf9f81f578d407dbc7c9b0ad96472771adb2ef17a60697be008403c8794f0cd"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-data/tests/resample_law_reference.rs"
+sha256 = "024bf4bcf8d2203fc0eb87bdab179fb36aecbe9eadb7b79bd746a0faaf95b5bc"

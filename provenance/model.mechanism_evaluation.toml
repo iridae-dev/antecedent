@@ -21,3 +21,24 @@ test_sources = [
  "crates/antecedent-model/src/evaluate.rs unit tests",
  "crates/antecedent-model/src/mechanism.rs unit tests",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ModelEvaluator::evaluate in crates/antecedent-model/src/evaluate.rs for a compiled linear Gaussian model on complete data: the in-sample mean log-likelihood, the mean absolute residual over non-root nodes, the residual-independence p-values (residual of a node against non-parent non-descendants), the local Markov partial-correlation p-values (node against earlier non-parent nodes given parents), the Bonferroni falsification flag, and the refusal when the conditioning set leaves no residual degrees of freedom. Not a review of non-Gaussian or nonparametric mechanisms, of the permutation baseline as a method (only its exact expectation is checked), or of the cited local Markov result beyond the pairs tested."
+assumptions = ["The model is linear Gaussian and the reference uses its stated parameters; the data are not a sample from the model, so some of the implied independencies fail.", "The partial-correlation test is the two-sided Student-t test with df = n - 2 - |Z| on the correlation of the least-squares residuals with an intercept, as stated in the reference."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are cited and not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard statements, so a mistake in how a record or this reference states a method would not be detected here. One five-node model with a non-identity topological order is compared on 14 rows, so the pair selection is checked on one graph; the p-values are compared to 1e-9 against 40-digit values but only at that sample size and degrees of freedom. The permutation baseline is checked against the exact expectation of the shuffled-outcome log-likelihood with a Monte Carlo tolerance of 0.05 (400 shuffles), not against a seeded stream. The shuffle draws its index as a float scaling of a uniform rather than the unbiased integer draw used elsewhere, a bias of order 2^-53 that is not detectable here. No multiplicity control beyond the Bonferroni flag and no power claim. Calibration remains deferred."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["Compared the report with 40-digit mpmath values for the mean log-likelihood, the mean absolute residual (non-root nodes), the sorted local Markov p-values for the pairs the compiled order obliges, and the sorted residual-independence p-values for non-parent non-descendants; all agree to 1e-9, and the Bonferroni flag equals the exact rule for four significance levels.", "Verified that a conditioning set leaving df = 0 is an error rather than a p-value and that empty data are refused.", "Checked the permutation baseline against its exact expectation (the mean over all pairings of the last node's values with its parents' means) within Monte Carlo tolerance.", "No defect requiring a change to evaluate.rs was found. Code edits: a new integration test file (crates/antecedent-model/tests/linear_gaussian_evaluation_reference.rs), with its generator script kept as a trailing comment, only."]
+record_sha256 = "2858d34510c9ec1bd52e79ea64a6778afdd8956fe3253dba9465fce81f6f47d3"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/evaluate.rs"
+sha256 = "c562f4943a57442bcb65eef2f8d43398238e7f4b3f71447aff1a1ec3cc2b5466"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/linear_gaussian_evaluation_reference.rs"
+sha256 = "6c716e4beaf80962691c8272e229df7b3d6e3a250740e9aa4eadc77f514a67a1"

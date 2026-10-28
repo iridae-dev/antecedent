@@ -21,3 +21,34 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-data/src/resample.rs unit tests",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The row-index laws of the resampling plans in crates/antecedent-data/src/resample.rs and resample/indexes.rs, drawn through fill_resample_index_replicate and fill_resample_indexes: the iid bootstrap, the moving and circular block bootstraps, the stationary bootstrap with geometric block lengths, the cluster bootstrap, the within-cluster permutation and the full Fisher-Yates permutation, plus the refusals of invalid block and expected lengths. Not a review of the declared-design routing, of the batch scheduling and scratch admission, of weight plans (data.bayesian_bootstrap), or of any estimator that consumes the replicates."
+assumptions = ["The block schemes are as in the literature: one uniform start per block, blocks concatenated and truncated at n rows; the moving block draws starts on 0..n-length, the circular block on 0..n with wrap-around.", "The stationary bootstrap starts a new block with probability p = 1/expected_length at each position, so the sequence of indices is a Markov chain whose next index is the successor (with wrap-around) with probability 1-p+p/n and any other index with probability p/n.", "The cluster bootstrap draws as many clusters as were observed, with replacement, each cluster drawn with probability 1/G."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are cited and not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard statements, so a mistake in how a record or this reference states a method would not be detected here. The comparison is statistical: the complete output law is enumerated for small series (up to 4^4 = 256 outputs for the stationary chain, 4^4 for ... block starts, 27 cluster draws, 24 permutations) and compared with a chi-square at a level near 1e-9 over seeded replicate streams, so a bias smaller than the sampling resolution of those runs (about one percent of a cell) would not be detected, and large series are not enumerated. No claim about the coverage or consistency of any bootstrap-based interval, about dependence structures longer than the block, or about the block-length rule (circular_block_length is a rule of thumb). Calibration remains deferred."
+sources = ["https://doi.org/10.1080/01621459.1994.10476870", "https://doi.org/10.1145/364520.364540"]
+findings_resolved = ["Added an exact-law comparison: for series of 3 to 6 rows, every sequence of block starts is enumerated for the moving and circular block bootstraps (nine length and series-length combinations including length 1 and length equal to the series), and the output frequencies over thousands of replicate streams match the enumerated law; every output lies in the enumerated support.", "Verified the stationary bootstrap against the exact Markov chain of the scheme for five (n, expected length) pairs including expected length 1 (iid), 100 (longer than the series) and 1.25; the geometric block lengths drawn by inverting the survival function and the cap at n reproduce the chain. Non-finite, zero, negative and below-one expected lengths are refused.", "Verified the cluster bootstrap (unsorted, non-contiguous labels; unequal cluster sizes) draws each of 27 ordered cluster triples with probability 1/27 in label order, the within-cluster permutation yields each of the 12 equally likely arrangements with every cluster kept in its own slots, and the full permutation and iid draws are uniform over 24 and 27 outcomes.", "No defect requiring a change to the resampling code was found. Code edits: a new integration test file (crates/antecedent-data/tests/resample_law_reference.rs) and its [[test]] entry only."]
+record_sha256 = "e9a7eeb604edf4d6a82169850ac9ece004a21973b613b4917467708ac1d8c0b3"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-data/src/resample.rs"
+sha256 = "aeb9f7ed94d0a0b573306b12d7a34dbcfa7aad9ea5336cd4ccd6257509571977"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-data/src/resample/indexes.rs"
+sha256 = "53507eed32b7990128a47dfa239796faf8942c83ad80f461ce99e1266dd9c34f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-data/src/resample/replicates.rs"
+sha256 = "bacb6121bd531b577363771d8bbf05b3cfba64553adb8ef0a7761166539f16c7"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-data/tests/resample_law_reference.rs"
+sha256 = "024bf4bcf8d2203fc0eb87bdab179fb36aecbe9eadb7b79bd746a0faaf95b5bc"

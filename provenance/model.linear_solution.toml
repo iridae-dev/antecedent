@@ -24,3 +24,24 @@ upstream_implementations_observed = []
 test_sources = [
  "inline unit tests (crates/antecedent-model/src/linear_solution.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The free-block decision and mean solve in crates/antecedent-model/src/linear_solution.rs for specified linear structural maps: assess and revalidate_free_block verdicts (unique, singular, numerically singular, ill-conditioned) for orders 2 and 3 against the determinant, the family certificate on models drawn under the absolute-row-sum bound, and hard_clamp_mean_batch means against a fixed-point reference. Not a review of the paper's simple-SCM solvability theory, of physical stability, or of estimators of K."
+assumptions = ["The linear equilibrium is X = KX + c + e with a zero diagonal; a hard clamp deletes the clamped equations and leaves the free block (I - K_FF) X_F = K_FH a + c_F + e_F, whose solution is the Neumann series sum of K_FF^k whenever the spectral radius of K_FF is below one.", "The reference models are drawn with every row's absolute sum at most 0.9, so the Neumann series converges geometrically and the family certificate rho(|K|) < 1 is admitted."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are cited and not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard statements, so a mistake in how a record or this reference states a method would not be detected here. The mean comparison uses 600 seeded random models of 1 to 6 variables, with random clamps and positive-definite disturbance covariances, all under the absolute-row-sum bound 0.9; models outside that bound (signed spectral radius below one but absolute radius above) are exercised only through the two-node and three-ring determinant cases. The singular decision is checked at exact determinant zero and at determinants of order one, not at near-zero determinants between 1e-12 and 1e-6, where the pivot floor of the equilibrated test decides. No claim about estimators, identification, or dynamic stability. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1611.06221"]
+findings_resolved = ["Compared the means of 600 random cyclic and acyclic models under random hard clamps from the shipped Gauss-Jordan path, from the routed compiler and from hard_clamp_mean_batch with a Neumann-series fixed point (summed by repeated squaring, no factorization); all agree to 1e-9 relative.", "Compared the two-node closed form near criticality (product of loop gains 0.5 to 0.999999) with the exact inverse; mean and infinity-norm condition number agree to the conditioning of the block.", "Decided singular versus nonsingular two-cycles and three-rings against the determinant 1 - K01 K10 and 1 - K01 K12 K20, including products 1 (singular), -1, 8 and 0.125, with the signed matrix outside the absolute-radius certificate still decided correctly, and checked that clamping one ring node leaves a unique chain.", "No defect requiring a change to linear_solution.rs was found. Code edits: a new integration test file (crates/antecedent-model/tests/linear_equilibrium_reference.rs) only."]
+record_sha256 = "104927a1915ef2f0d78deaddb7f21b68e04098f9173d0dce403702c6708b6a1e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/linear_solution.rs"
+sha256 = "74d3103c487537e682694447d8a280d5b468346b38f94c1659355ccdbb301538"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/linear_equilibrium_reference.rs"
+sha256 = "864b2703a88c241cebdf1c942e8f545f8562a39058529a463d441fe5f6a226d3"

@@ -74,3 +74,11 @@ required-features = ["parquet", "ipc"]
 name = "ipc_admission"
 path = "tests/ipc_admission.rs"
 required-features = ["ipc"]
+
+[[test]]
+name = "resample_law_reference"
+path = "tests/resample_law_reference.rs"
+
+[[test]]
+name = "surrogate_reference"
+path = "tests/surrogate_reference.rs"

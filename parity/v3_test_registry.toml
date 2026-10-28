@@ -17799,3 +17799,38 @@ crate = "antecedent-estimate"
 cargo_target = "quantile_posterior_reference"
 path = "crates/antecedent-estimate/tests/quantile_posterior_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "resample-law-reference"
+crate = "antecedent-data"
+cargo_target = "resample_law_reference"
+path = "crates/antecedent-data/tests/resample_law_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "surrogate-reference"
+crate = "antecedent-data"
+cargo_target = "surrogate_reference"
+path = "crates/antecedent-data/tests/surrogate_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "linear-equilibrium-reference"
+crate = "antecedent-model"
+cargo_target = "linear_equilibrium_reference"
+path = "crates/antecedent-model/tests/linear_equilibrium_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "linear-gaussian-evaluation-reference"
+crate = "antecedent-model"
+cargo_target = "linear_gaussian_evaluation_reference"
+path = "crates/antecedent-model/tests/linear_gaussian_evaluation_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cpdag-class-exhaustive"
+crate = "antecedent-identify"
+cargo_target = "cpdag_class_exhaustive"
+path = "crates/antecedent-identify/tests/cpdag_class_exhaustive.rs"
+gates = ["inventory", "named"]

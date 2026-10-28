@@ -24,3 +24,29 @@ test_sources = [
  "inline unit tests (crates/antecedent-model/src/scc_compile.rs)",
  "inline unit tests (crates/antecedent-model/src/intervention_request.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "compile_gaussian_equilibrium, compile_routed_gaussian_equilibrium and route_linear_support in crates/antecedent-model/src/scc_compile.rs for an admitted cyclic component of a specified linear map with a Gaussian disturbance and a hard clamp: equilibrium mean and covariance, the strongly connected block schedule, the acyclic-versus-cyclic route, and the block condition numbers. Not a review of the paper's solvability theory for every intervention subset, of non-hard interventions, or of models whose component cannot be admitted."
+assumptions = ["The linear equilibrium is X = KX + c + e with a zero diagonal; a hard clamp deletes the clamped equations and leaves the free block (I - K_FF) X_F = K_FH a + c_F + e_F, whose solution is the Neumann series sum of K_FF^k whenever the spectral radius of K_FF is below one.", "The reference models are drawn with every row's absolute sum at most 0.9, so the Neumann series converges geometrically and the family certificate rho(|K|) < 1 is admitted.", "The covariance of the free block is (I - K_FF)^-1 S_FF (I - K_FF)^-T with the marginal disturbance covariance S_FF; a clamped variable has zero row and column; the strongly connected components of the free support are the diagonal blocks."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are cited and not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard statements, so a mistake in how a record or this reference states a method would not be detected here. Models are drawn under the absolute-row-sum bound 0.9 (a component cannot be admitted otherwise) so the singular and numerically singular refusals of the compiler are exercised only through assess and revalidate_free_block (model.linear_solution), not through compile. Condition numbers of blocks larger than two are the Hager-Higham estimate and are checked only to lie between the true value divided by the block order and the true value. Blocks beyond order 6 and sparse large-scale paths are not tested here. No claim about estimators or physical stability. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1611.06221"]
+findings_resolved = ["Compared the compiled mean and covariance of 600 random cyclic and acyclic specified models under random clamps with the Neumann-series reference (no factorization), through both the direct and routed compilers; they agree to 1e-9 relative, the blocks equal the strongly connected components of the free support computed by transitive closure, and the route is acyclic exactly when no free block has more than one member, with a topological order in the acyclic case.", "Checked every block's reported infinity-norm condition number: the closed form (orders 1 and 2) equals the product of norms of A and its Neumann inverse, and the estimate for larger blocks never exceeds that value and is within a factor of the block order of it.", "No defect requiring a change to scc_compile.rs was found. Code edits: the shared integration test file (crates/antecedent-model/tests/linear_equilibrium_reference.rs) only."]
+record_sha256 = "d87163f6c867461cd9669bf1b15eb8bc1b2f4b16d89d8a8981016b3b47286670"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/scc_compile.rs"
+sha256 = "13c7345d1dbf136bfc633c87467a6435201efcc0d0731fbf24a5cd255c5fd9d8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/linear_solution.rs"
+sha256 = "74d3103c487537e682694447d8a280d5b468346b38f94c1659355ccdbb301538"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/linear_equilibrium_reference.rs"
+sha256 = "864b2703a88c241cebdf1c942e8f545f8562a39058529a463d441fe5f6a226d3"
