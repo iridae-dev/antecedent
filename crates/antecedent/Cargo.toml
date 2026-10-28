@@ -957,3 +957,27 @@ path = "tests/family_contract_conformance.rs"
 [[test]]
 name = "calibration_decision_contract"
 path = "tests/calibration_decision_contract.rs"
+
+[[test]]
+name = "scenario_equivalence_class_estimators"
+path = "tests/scenario_equivalence_class_estimators.rs"
+
+[[test]]
+name = "scenario_iv_route_boundaries"
+path = "tests/scenario_iv_route_boundaries.rs"
+
+[[test]]
+name = "randomized_design_missing_policies"
+path = "tests/randomized_design_missing_policies.rs"
+
+[[test]]
+name = "scenario_class_route_boundaries"
+path = "tests/scenario_class_route_boundaries.rs"
+
+[[test]]
+name = "scenario_invalid_input_refusals"
+path = "tests/scenario_invalid_input_refusals.rs"
+
+[[test]]
+name = "scenario_dependence_declarations"
+path = "tests/scenario_dependence_declarations.rs"

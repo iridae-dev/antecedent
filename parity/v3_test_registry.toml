@@ -17575,3 +17575,52 @@ crate = "antecedent-stats"
 cargo_target = "twosls_reference"
 path = "crates/antecedent-stats/tests/twosls_reference.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "scenario-equivalence-class-estimators"
+crate = "antecedent"
+cargo_target = "scenario_equivalence_class_estimators"
+path = "crates/antecedent/tests/scenario_equivalence_class_estimators.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "scenario-iv-route-boundaries"
+crate = "antecedent"
+cargo_target = "scenario_iv_route_boundaries"
+path = "crates/antecedent/tests/scenario_iv_route_boundaries.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "randomized-design-missing-policies"
+crate = "antecedent"
+cargo_target = "randomized_design_missing_policies"
+path = "crates/antecedent/tests/randomized_design_missing_policies.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "scenario-class-route-boundaries"
+crate = "antecedent"
+cargo_target = "scenario_class_route_boundaries"
+path = "crates/antecedent/tests/scenario_class_route_boundaries.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "scenario-invalid-input-refusals"
+crate = "antecedent"
+cargo_target = "scenario_invalid_input_refusals"
+path = "crates/antecedent/tests/scenario_invalid_input_refusals.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "scenario-dependence-declarations"
+crate = "antecedent"
+cargo_target = "scenario_dependence_declarations"
+path = "crates/antecedent/tests/scenario_dependence_declarations.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "dependence-aipw-hac"
+crate = "antecedent-estimate"
+cargo_target = "dependence_aipw_hac"
+path = "crates/antecedent-estimate/tests/dependence_aipw_hac.rs"
+gates = ["inventory", "named"]

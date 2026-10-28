@@ -1727,3 +1727,619 @@ value = "sampling_weights"
 status = "delivered"
 test = "crates/antecedent/tests/static_route_table_weights.rs::estimator_declared_weights_on_the_average_effect_equal_row_replication"
 what = "the ADMG average effect with weights declared on its estimator equals the same fit on rows repeated by the integer weights, and table weights are refused"
+
+[[cell]]
+family = "P01.linear"
+axis = "graph_class"
+value = "latent_or_equivalence_class"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_equivalence_class_estimators.rs::adjustment_estimators_recover_the_closed_form_on_the_latent_variable_and_equivalence_class_graphs"
+what = "the adjustment estimator recovers the closed-form contrast of the saturated table on the ADMG (0.40) and the equal-weight CPDAG completion mixture (0.46)"
+
+[[cell]]
+family = "P02.glm"
+axis = "graph_class"
+value = "latent_or_equivalence_class"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_equivalence_class_estimators.rs::adjustment_estimators_recover_the_closed_form_on_the_latent_variable_and_equivalence_class_graphs"
+what = "the adjustment estimator recovers the closed-form contrast of the saturated table on the ADMG (0.40) and the equal-weight CPDAG completion mixture (0.46)"
+
+[[cell]]
+family = "P03.aipw"
+axis = "graph_class"
+value = "latent_or_equivalence_class"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_equivalence_class_estimators.rs::adjustment_estimators_recover_the_closed_form_on_the_latent_variable_and_equivalence_class_graphs"
+what = "the adjustment estimator recovers the closed-form contrast of the saturated table on the ADMG (0.40) and the equal-weight CPDAG completion mixture (0.46)"
+
+[[cell]]
+family = "P04"
+axis = "graph_class"
+value = "latent_or_equivalence_class"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_equivalence_class_estimators.rs::adjustment_estimators_recover_the_closed_form_on_the_latent_variable_and_equivalence_class_graphs"
+what = "the adjustment estimator recovers the closed-form contrast of the saturated table on the ADMG (0.40) and the equal-weight CPDAG completion mixture (0.46)"
+
+[[cell]]
+family = "P01.iv"
+axis = "graph_class"
+value = "latent_or_equivalence_class"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_iv_route_boundaries.rs::the_latent_variable_graph_runs_only_its_own_estimator_and_refuses_both_instrumental_ones"
+reason = "the ADMG average-effect route executes only the functional estimator; the instrumental estimators are refused there, naming the estimator, and run on the instrument DAG"
+
+[[cell]]
+family = "P07.curve"
+axis = "graph_class"
+value = "latent_or_equivalence_class"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::the_effect_and_response_routes_recover_their_closed_forms_on_both_graph_classes"
+what = "the route recovers its closed form on an ADMG and a CPDAG of the structural model"
+
+[[cell]]
+family = "P07.derivative"
+axis = "graph_class"
+value = "latent_or_equivalence_class"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::the_effect_and_response_routes_recover_their_closed_forms_on_both_graph_classes"
+what = "the route recovers its closed form on an ADMG and a CPDAG of the structural model"
+
+[[cell]]
+family = "P12.intervention"
+axis = "graph_class"
+value = "latent_or_equivalence_class"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::the_effect_and_response_routes_recover_their_closed_forms_on_both_graph_classes"
+what = "the route recovers its closed form on an ADMG and a CPDAG of the structural model"
+
+[[cell]]
+family = "P12.counterfactual"
+axis = "graph_class"
+value = "latent_or_equivalence_class"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::the_effect_and_response_routes_recover_their_closed_forms_on_both_graph_classes"
+what = "the route recovers its closed form on an ADMG and a CPDAG of the structural model"
+
+[[cell]]
+family = "P08"
+axis = "graph_class"
+value = "latent_or_equivalence_class"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::the_routes_with_no_latent_variable_or_class_construction_are_refused_with_their_own_detail"
+reason = "natural-direct mediation over an ADMG or a CPDAG is a discrete functional; a continuous mediator exceeds its level cap and is refused rather than discretized"
+
+[[cell]]
+family = "P08"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/missing_imputation_routes.rs::a_static_mediation_pools_the_contrast_and_its_unvaried_components"
+what = "a static mediation pools its contrast and unvaried components under multiple imputation"
+
+[[cell]]
+family = "P09.two_arm"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/missing_imputation_routes.rs::a_randomized_trial_imputes_with_its_arm_and_pools_the_design_variance"
+what = "a randomized trial imputes with its arm and pools the design variance"
+
+[[cell]]
+family = "P09.multiarm"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_design_missing_policies.rs::complete_case_is_the_responder_contrast_and_names_the_rows_it_dropped"
+what = "complete case is the responder contrast of the design and names the rows it dropped; inverse probability gives the same contrast and imputation a finite pooled effect"
+
+[[cell]]
+family = "P09.factorial"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_design_missing_policies.rs::complete_case_is_the_responder_contrast_and_names_the_rows_it_dropped"
+what = "complete case is the responder contrast of the design and names the rows it dropped; inverse probability gives the same contrast and imputation a finite pooled effect"
+
+[[cell]]
+family = "P09.switchback"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_design_missing_policies.rs::complete_case_is_the_responder_contrast_and_names_the_rows_it_dropped"
+what = "complete case is the responder contrast of the design and names the rows it dropped; inverse probability gives the same contrast and imputation a finite pooled effect"
+
+[[cell]]
+family = "P11.did"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::balanced_panel_drops_whole_units_and_recovers_the_effect"
+what = "the balanced-panel policy drops whole units and recovers the effect"
+
+[[cell]]
+family = "P11.staggered"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::staggered_available_case_uses_each_contrasts_observed_units_without_relabelling"
+what = "available case uses each contrast's observed units without relabelling"
+
+[[cell]]
+family = "P11.augmented_panel_did"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/augmented_panel_did_route.rs::augmented_panel_did_drops_incomplete_subjects_under_a_declared_policy_only"
+what = "incomplete subjects are dropped under a declared policy only"
+
+[[cell]]
+family = "P15.pulse"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::gaps_drop_only_the_windows_that_read_them_and_never_compress_time"
+what = "gaps drop only the windows that read them and never compress time"
+
+[[cell]]
+family = "P15.sustained"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/missing_data_routes.rs::sustained_windows_on_a_series_with_gaps_match_the_intact_window_regression"
+what = "sustained windows on a series with gaps match the intact-window regression"
+
+[[cell]]
+family = "P07.curve"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/missing_imputation_routes.rs::a_response_curve_pools_its_points_jointly"
+what = "a response curve pools its points jointly under multiple imputation"
+
+[[cell]]
+family = "P05"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent-discovery/tests/notears_missing.rs::complete_case_equals_the_run_on_the_complete_rows_and_reports_the_rest"
+what = "complete case equals the run on the complete rows and reports the rest"
+
+[[cell]]
+family = "P10"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/observational_survival_effects.rs::missing_cells_are_dropped_and_counted"
+what = "missing cells are dropped and counted"
+
+[[cell]]
+family = "P12.counterfactual"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = "crates/antecedent/tests/missing_policy_unmodelled_routes.rs::the_counterfactual_runs_undeclared_and_refuses_every_missing_data_policy"
+reason = "the route reads its rows in its own way and has no row in the missing-data support table; every declaration is refused with missing_policy_not_applicable"
+
+[[cell]]
+family = "P11.synthetic_control"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = "crates/antecedent/tests/missing_policy_unmodelled_routes.rs::synthetic_control_runs_undeclared_and_refuses_every_missing_data_policy"
+reason = "the route reads its rows in its own way and has no row in the missing-data support table; every declaration is refused with missing_policy_not_applicable"
+
+[[cell]]
+family = "P11.local_ratio"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "unavailable"
+test = "crates/antecedent/tests/missing_policy_unmodelled_routes.rs::the_local_polynomial_ratio_runs_undeclared_and_refuses_every_missing_data_policy"
+reason = "the route reads its rows in its own way and has no row in the missing-data support table; every declaration is refused with missing_policy_not_applicable"
+
+[[cell]]
+family = "P06"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::table_weights_are_refused_and_declared_weights_equal_row_replication_on_both_graph_classes"
+what = "estimator-declared weights equal row replication on the CPDAG route and table weights are refused"
+
+[[cell]]
+family = "P06"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::a_missing_confounder_defaults_to_complete_case_and_equals_the_fit_on_the_remaining_rows"
+what = "complete case equals the fit on the remaining rows and reports the dropped rows"
+
+[[cell]]
+family = "P15.projection"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::a_missing_confounder_defaults_to_complete_case_and_equals_the_fit_on_the_remaining_rows"
+what = "complete case equals the fit on the remaining rows and reports the dropped rows"
+
+[[cell]]
+family = "P01.iv"
+axis = "weights_missingness"
+value = "sampling_weights"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_iv_route_boundaries.rs::table_weights_are_refused_by_the_instrumental_route"
+reason = "the instrumental fit reads no observation weights; a weighted table is refused with sampling_weights.route_unsupported and a next attempt"
+
+[[cell]]
+family = "P01.iv"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_iv_route_boundaries.rs::an_incomplete_outcome_defaults_to_complete_case_and_equals_the_fit_on_the_remaining_rows"
+what = "the default complete-case policy equals the fit on the remaining rows and reports the dropped rows"
+
+[[cell]]
+family = "P09.multiarm"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_design_missing_policies.rs::complete_case_is_the_responder_contrast_and_names_the_rows_it_dropped"
+what = "complete case is the responder contrast of the design and names the rows it dropped"
+
+[[cell]]
+family = "P09.factorial"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_design_missing_policies.rs::complete_case_is_the_responder_contrast_and_names_the_rows_it_dropped"
+what = "complete case is the responder contrast of the design and names the rows it dropped"
+
+[[cell]]
+family = "P09.switchback"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/randomized_design_missing_policies.rs::complete_case_is_the_responder_contrast_and_names_the_rows_it_dropped"
+what = "complete case is the responder contrast of the design and names the rows it dropped"
+
+[[cell]]
+family = "P07.derivative"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::the_response_routes_default_to_complete_case_and_equal_the_fit_on_the_remaining_rows"
+what = "the default complete-case policy equals the fit on the remaining rows; imputation pools a finite answer"
+
+[[cell]]
+family = "P07.derivative"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::the_response_routes_default_to_complete_case_and_equal_the_fit_on_the_remaining_rows"
+what = "complete case equals the fit on the remaining rows, an explicit error policy refuses, and imputation pools a finite answer"
+
+[[cell]]
+family = "P12.intervention"
+axis = "weights_missingness"
+value = "missing_data"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::the_response_routes_default_to_complete_case_and_equal_the_fit_on_the_remaining_rows"
+what = "the default complete-case policy equals the fit on the remaining rows; imputation pools a finite answer"
+
+[[cell]]
+family = "P12.intervention"
+axis = "missing_data_policy"
+value = "missing_data_policy"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::the_response_routes_default_to_complete_case_and_equal_the_fit_on_the_remaining_rows"
+what = "complete case equals the fit on the remaining rows, an explicit error policy refuses, and imputation pools a finite answer"
+
+[[cell]]
+family = "X02"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent-estimate/src/joint_panel/tests.rs::gaussian_random_intercept_integration_matches_dense_covariance"
+what = "the group-intercept integration equals the dense covariance with the intercept variance on every within-group pair"
+
+[[cell]]
+family = "X02"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent-estimate/src/joint_panel/tests.rs::gaussian_random_intercept_integration_matches_dense_covariance"
+what = "the AR(1) within-group dependence equals the dense covariance"
+
+[[cell]]
+family = "X02.broader"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent-estimate/src/joint_panel/family_tests.rs::spatial_marginal_matches_the_dense_joint_covariance_and_its_conditional_moments"
+what = "the spatial group dependence equals the dense joint covariance and its conditional moments"
+
+[[cell]]
+family = "X02.broader"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent-estimate/src/joint_panel/family_tests.rs::spatial_marginal_matches_the_dense_joint_covariance_and_its_conditional_moments"
+what = "the within-group AR(1) block of the dense covariance is matched"
+
+[[cell]]
+family = "P03.aipw"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/dependence_aipw_hac.rs::aipw_newey_west_se_is_the_bartlett_long_run_variance_of_its_influence_values"
+what = "the Newey-West standard error is the Bartlett long-run variance of the influence values"
+
+[[cell]]
+family = "P02.penalized_propensity"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/dependence_aipw_hac.rs::aipw_cluster_se_is_the_cluster_summed_sandwich_of_its_influence_values"
+what = "the ridge-propensity AIPW cluster standard error is the cluster-summed sandwich of its influence values"
+
+[[cell]]
+family = "P14"
+axis = "categorical_treatment"
+value = "categorical"
+status = "delivered"
+test = "crates/antecedent-estimate/tests/temporal_transport_execution.rs::a_three_level_action_alphabet_executes_through_the_whole_route"
+what = "a three-level action alphabet executes through the transport route and equals the target truth"
+
+[[cell]]
+family = "P12.intervention"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs::cell_aipw_route_refuses_nonbinary_intervention_levels"
+reason = "the cell AIPW route contrasts binary intervention levels; a non-binary level is refused"
+
+[[cell]]
+family = "X01"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs::cell_aipw_route_refuses_nonbinary_intervention_levels"
+reason = "the joint intervention contrast is the cell AIPW route over binary levels; a non-binary level is refused"
+
+[[cell]]
+family = "P02.penalized_propensity"
+axis = "categorical_treatment"
+value = "categorical"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/dependence_aipw_hac.rs::a_three_level_treatment_is_refused_naming_its_levels_by_both_propensity_routes"
+reason = "the penalized-propensity AIPW estimates a binary contrast; a three-level treatment is refused naming the observed levels instead of reduced to a pair"
+
+[[cell]]
+family = "P12.intervention"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::the_conditional_effect_and_the_intervention_response_refuse_degenerate_designs_on_every_graph"
+what = "a constant treatment and an exactly duplicated confounder are refused by the route on a DAG, an ADMG and a CPDAG"
+
+[[cell]]
+family = "P15.conditional"
+axis = "degeneracy"
+value = "collinear_or_constant"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::the_conditional_effect_and_the_intervention_response_refuse_degenerate_designs_on_every_graph"
+what = "a constant treatment and an exactly duplicated confounder are refused by the route on a DAG, an ADMG and a CPDAG"
+
+[[cell]]
+family = "P11.local_ratio"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_invalid_input_refusals.rs::the_local_ratio_recovers_its_effect_and_refuses_an_invalid_bandwidth_cutoff_or_support"
+what = "a non-positive or non-finite bandwidth, a non-finite cutoff and a cutoff with no support on one side are refused with the registered detail"
+
+[[cell]]
+family = "P07.curve"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_invalid_input_refusals.rs::the_mean_curve_rises_by_its_slope_and_refuses_an_invalid_grid"
+what = "an empty, non-finite or repeated response grid is refused with the registered detail"
+
+[[cell]]
+family = "P15.projection"
+axis = "unsupported_input"
+value = "typed_refusal"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_invalid_input_refusals.rs::an_admg_with_an_unmeasured_treatment_outcome_confounder_is_refused_as_not_identified"
+what = "a bow-arc average effect is refused with effect_not_identified"
+
+[[cell]]
+family = "P15.projection"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_the_latent_variable_graph"
+what = "the declared cluster error is the CR1 sandwich of the regression scores on the ADMG route"
+
+[[cell]]
+family = "P15.projection"
+axis = "dependence"
+value = "serial"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_the_latent_variable_graph"
+what = "the declared Newey-West error is the Bartlett sandwich of the regression scores on the ADMG route"
+
+[[cell]]
+family = "P12.counterfactual"
+axis = "dependence"
+value = "clustered"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_dependence_declarations.rs::the_counterfactual_runs_under_independent_subjects_and_refuses_clustered_and_serial_designs"
+reason = "the mechanism-refit bootstrap resamples independent subjects; a clustered design needs a whole-cluster resample, so it is refused with option_not_applicable instead of resampled by row"
+
+[[cell]]
+family = "P12.counterfactual"
+axis = "dependence"
+value = "serial"
+status = "unavailable"
+test = "crates/antecedent/tests/scenario_dependence_declarations.rs::the_counterfactual_runs_under_independent_subjects_and_refuses_clustered_and_serial_designs"
+reason = "the mechanism-refit bootstrap resamples independent subjects; a dependent time series needs a block resample, so it is refused with option_not_applicable instead of resampled by row"
+
+[[cell]]
+family = "P15.conditional"
+axis = "graph_class"
+value = "dag"
+status = "delivered"
+test = "crates/antecedent/tests/scenario_class_route_boundaries.rs::the_effect_and_response_routes_recover_their_closed_forms_on_both_graph_classes"
+what = "the conditional effect recovers 11 on the DAG and equals the ADMG"
+
+[[cell]]
+family = "P15.pulse"
+axis = "graph_class"
+value = "temporal_graph"
+status = "delivered"
+test = "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure"
+what = "the pulse contrast recovers the known lag coefficient 2 on a temporal DAG"
+
+[[cell]]
+family = "P15.sustained"
+axis = "graph_class"
+value = "temporal_graph"
+status = "delivered"
+test = "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure"
+what = "the sustained contrast recovers the known sum of lag coefficients 5 on a temporal DAG"
+
+[[cell]]
+family = "P07.derivative"
+axis = "graph_class"
+value = "temporal_graph"
+status = "delivered"
+test = "crates/antecedent/tests/temporal_derivative_effect.rs::temporal_dag_derivatives_publish_the_linear_slope"
+what = "the temporal derivative publishes the known linear slope on a temporal DAG"
+
+[[cell]]
+family = "P13.attribution"
+axis = "graph_class"
+value = "temporal_graph"
+status = "delivered"
+test = "crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"
+what = "lag-aligned attribution recovers its known truth on a temporal DAG"
+
+[[cell]]
+family = "P14"
+axis = "graph_class"
+value = "temporal_graph"
+status = "delivered"
+test = "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_transport_reports_a_serial_dependence_aware_interval"
+what = "temporal ADMG transport reports a serial-dependence-aware interval"
+
+[[cell]]
+family = "P01.iv"
+axis = "graph_class"
+value = "temporal_graph"
+status = "delivered"
+test = "crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_frequentist_route_matches_the_wald_ratio_and_certifies_the_instrument_from_the_graph"
+what = "the lagged instrument is certified from the temporal graph and matches the Wald ratio"
+
+[[cell]]
+family = "X02"
+axis = "graph_class"
+value = "graphless"
+status = "delivered"
+test = "crates/antecedent/tests/joint_panel_workflow.rs::static_full_procedure_bootstrap_decomposition_executes_and_replays_publicly"
+what = "the joint panel executes from groups, with no graph argument"
+
+[[cell]]
+family = "X02.broader"
+axis = "graph_class"
+value = "graphless"
+status = "delivered"
+test = "crates/antecedent-estimate/src/joint_panel/family_tests.rs::static_hill_and_group_classes_recover_curves_and_beat_shared_saturation"
+what = "the broader panel family recovers its curves from groups, with no graph argument"
+
+[[cell]]
+family = "X03"
+axis = "graph_class"
+value = "graphless"
+status = "delivered"
+test = "crates/antecedent-estimate/src/joint_panel/time_varying.rs::changed_mechanism_likelihood_and_response_share_lags_histories_and_reference_worlds"
+what = "the time-varying panel executes from groups, with no graph argument"
+
+[[cell]]
+family = "X04.1"
+axis = "graph_class"
+value = "graphless"
+status = "delivered"
+test = "crates/antecedent-design/src/program_search.rs::finite_program_search_uses_joint_law_for_risk_and_variance_and_preserves_exclusions"
+what = "the finite program search runs on a fitted joint law, with no graph argument"
+
+[[cell]]
+family = "X04.2"
+axis = "graph_class"
+value = "graphless"
+status = "delivered"
+test = "crates/antecedent/src/analysis/joint_panel/tests.rs::continuous_three_channel_search_reuses_fit_and_improves_a_budget_feasible_nonbinary_program"
+what = "the continuous program search runs on a fitted panel, with no graph argument"
+
+[[cell]]
+family = "X05"
+axis = "graph_class"
+value = "graphless"
+status = "delivered"
+test = "crates/antecedent/tests/joint_panel_experiment_chain.rs::fresh_process_experiment_artifact_consumer"
+what = "the experiment-to-decision chain executes from a panel, with no graph argument"
+
+[[cell]]
+family = "X06"
+axis = "graph_class"
+value = "graphless"
+status = "delivered"
+test = "conformance/response/joint_panel"
+what = "the independent joint-response reference runs from a panel fixture, with no graph argument"
+
+[[cell]]
+family = "P16"
+axis = "graph_class"
+value = "graphless"
+status = "delivered"
+test = "crates/antecedent/tests/composition_facade.rs::facade_a_built_bundle_is_consumed_independently_and_reports_the_decision"
+what = "a composed bundle is built and consumed from declared evidence, with no graph argument"
+
+[[cell]]
+family = "P18"
+axis = "weights_missingness"
+value = "missing_data"
+status = "unavailable"
+test = "crates/antecedent-state/tests/ols_refresh_contract.rs::a_malformed_row_is_refused_before_anything_is_touched"
+reason = "the refresh reads complete rows only; a row with a non-finite value is refused before anything is touched"
+
+[[cell]]
+family = "P13.refuter"
+axis = "dependence"
+value = "clustered"
+status = "delivered"
+test = "crates/antecedent/tests/class_and_design_validation_suites.rs::a_cluster_randomized_design_is_re_randomized_under_full_validation_on_every_class"
+what = "a cluster-randomized design is re-randomized by whole clusters under full validation on every class"
+
+[[cell]]
+family = "P02.penalized_propensity"
+axis = "held_out_regime"
+value = "held_out_intervention"
+status = "unavailable"
+test = "crates/antecedent-estimate/tests/dependence_aipw_hac.rs::an_active_level_the_data_never_took_is_refused_naming_the_observed_levels"
+reason = "an active level the data never took is refused as treatment_level_undeclared, naming the observed levels"
+
+[[cell]]
+family = "P13.refuter"
+axis = "graph_class"
+value = "graphless"
+status = "delivered"
+test = "crates/antecedent-validate/tests/target_native.rs::a_sound_procedure_passes_the_full_world_valued_suite_and_records_missing_controls"
+what = "the target-native suite validates a procedure with no graph argument"
+
+[[cell]]
+family = "P19"
+axis = "graph_class"
+value = "graphless"
+status = "delivered"
+test = "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path"
+what = "the migration audit runs over route records, with no graph argument"

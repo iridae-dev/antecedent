@@ -41,6 +41,9 @@ DERIVED_AXES = {
         ("missing_data_policy",),
     ),
 }
+# Derived axes whose registry gaps a curated cell may settle; the quadrant axes (design x inference,
+# uncertainty) stay tied to their counterpart rows and their measured closure.
+OVERRIDABLE_AXES = ("graph_class", "missing_data_policy")
 NOT_EVIDENCE = re.compile(r"smoke|limit", re.IGNORECASE)
 
 
@@ -162,6 +165,28 @@ def _graph_cells(root: Path, family: str, rows: list[dict], checked: dict) -> li
     return cells
 
 
+def _curated(root: Path, family, axis_id, value, src, checked, findings) -> dict:
+    key = (family, axis_id, value)
+    token = src.get("test") or src.get("fixture") or ""
+    status = src["status"]
+    if status not in (DELIVERED, UNAVAILABLE, GAP):
+        findings.append(f"{key}: unknown status {status!r}")
+        status = GAP
+    if status == DELIVERED:
+        ok, why = checked.setdefault(token, _check_token(root, token)) if token \
+            else (False, "no test or fixture")
+        if not ok:
+            findings.append(f"{key}: delivered but {why}: {token}")
+            status = GAP
+    elif status == UNAVAILABLE:
+        if not str(src.get("reason", "")).strip():
+            findings.append(f"{key}: unavailable without a reason")
+        if token and not checked.setdefault(token, _check_token(root, token))[0]:
+            findings.append(f"{key}: refusal evidence does not resolve: {token}")
+    return _cell(family, axis_id, value, status, token if status != GAP else "",
+                 src.get("what") or src.get("reason", ""))
+
+
 def build(root: Path = REPO_ROOT) -> dict:
     root = root.resolve()
     counterparts = tomllib.loads((root / "parity/counterparts.toml").read_text(encoding="utf-8"))
@@ -177,10 +202,20 @@ def build(root: Path = REPO_ROOT) -> dict:
     }
     findings: list[str] = []
     recorded: dict[tuple, dict] = {}
+    derived_overrides: dict[tuple, dict] = {}
     for cell in curated.get("cell", []):
         key = (cell.get("family"), cell.get("axis"), cell.get("value"))
         if cell.get("family") not in by_family:
             findings.append(f"curated cell names unknown family: {key}")
+        elif cell.get("axis") in OVERRIDABLE_AXES:
+            if cell.get("value") not in DERIVED_AXES[cell["axis"]][1]:
+                findings.append(f"curated cell names unknown axis value: {key}")
+            elif cell.get("status") == GAP:
+                findings.append(f"curated cell on a derived axis must be delivered or unavailable: {key}")
+            elif key in recorded:
+                findings.append(f"curated cell is duplicated: {key}")
+            else:
+                derived_overrides[key] = cell
         elif cell.get("axis") not in axes or cell.get("value") not in axes[cell["axis"]]["values"]:
             findings.append(f"curated cell names unknown axis value: {key}")
         elif key in recorded:
@@ -214,26 +249,13 @@ def build(root: Path = REPO_ROOT) -> dict:
                         cells.append(_cell(family, axis_id, value, GAP,
                                            note="no test recorded for this scenario"))
                     continue
-                token = src.get("test") or src.get("fixture") or ""
-                status = src["status"]
-                if status not in (DELIVERED, UNAVAILABLE, GAP):
-                    findings.append(f"{key}: unknown status {status!r}")
-                    status = GAP
-                if status == DELIVERED:
-                    ok, why = checked.setdefault(token, _check_token(root, token)) if token \
-                        else (False, "no test or fixture")
-                    if not ok:
-                        findings.append(f"{key}: delivered but {why}: {token}")
-                        status = GAP
-                elif status == UNAVAILABLE:
-                    if not str(src.get("reason", "")).strip():
-                        findings.append(f"{key}: unavailable without a reason")
-                    if token and not checked.setdefault(token, _check_token(root, token))[0]:
-                        findings.append(f"{key}: refusal evidence does not resolve: {token}")
-                cells.append(
-                    _cell(family, axis_id, value, status, token if status != GAP else "",
-                          src.get("what") or src.get("reason", ""))
-                )
+                cells.append(_curated(root, family, axis_id, value, src, checked, findings))
+    # A derived cell that the registries leave a gap may be settled by a curated cell that names
+    # an exact test: delivered, or unavailable with the reason and the refusal that shows it.
+    for index, c in enumerate(cells):
+        key = (c["family"], c["axis"], c["value"])
+        if c["axis"] in OVERRIDABLE_AXES and c["status"] == GAP and key in derived_overrides:
+            cells[index] = _curated(root, *key, derived_overrides[key], checked, findings)
     for c in cells:
         if c["status"] != GAP:
             continue
