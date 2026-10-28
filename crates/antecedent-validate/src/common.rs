@@ -214,11 +214,21 @@ impl RefutationReport {
     pub fn mixture_weighted(items: &[(f64, &Self)]) -> Option<Self> {
         let first = items.iter().find(|(w, _)| *w > 0.0)?.1;
         let id = Arc::clone(&first.refuter);
+        // Weights are rescaled by the largest contributing one, so masses of any magnitude
+        // (1e300 or 1e-300) neither overflow the weighted sums nor underflow the total.
+        let max_weight = items
+            .iter()
+            .filter(|(w, report)| *w > 0.0 && report.refuter == id)
+            .map(|(w, _)| *w)
+            .fold(0.0_f64, f64::max);
+        if !max_weight.is_finite() {
+            return None;
+        }
         let mut w_sum = 0.0;
         let mut original = 0.0;
         let mut mixed_ate = 0.0;
         let mut comparison = 0.0;
-        let mut passed_mass = 0.0;
+        let mut any_failed = false;
         let mut informative = false;
         let mut replicates = 0_u32;
         let mut failure = None;
@@ -226,14 +236,17 @@ impl RefutationReport {
             if *w <= 0.0 || report.refuter != id {
                 continue;
             }
-            w_sum += *w;
-            original += *w * report.original_ate;
-            mixed_ate += *w * report.refuted_ate;
-            comparison += *w * report.comparison;
-            if report.passed {
-                passed_mass += *w;
-            } else if failure.is_none() {
-                failure.clone_from(&report.failure_condition);
+            let w = *w / max_weight;
+            w_sum += w;
+            original += w * report.original_ate;
+            mixed_ate += w * report.refuted_ate;
+            comparison += w * report.comparison;
+            if !report.passed {
+                // One failing contributing atom fails the mixture, whatever its mass.
+                any_failed = true;
+                if failure.is_none() {
+                    failure.clone_from(&report.failure_condition);
+                }
             }
             informative |= report.informative;
             replicates = replicates.max(report.replicates);
@@ -241,7 +254,7 @@ impl RefutationReport {
         if w_sum <= 0.0 {
             return None;
         }
-        let passed = passed_mass / w_sum >= 1.0 - 1e-12;
+        let passed = !any_failed;
         Some(
             Self::builder(id)
                 .original_ate(original / w_sum)
