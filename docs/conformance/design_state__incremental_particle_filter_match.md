@@ -7,4 +7,4 @@ Bootstrap/SIR particle filter for a 1-D LGSSM: stepwise `step` matches
 
 ## Expected summary
 
-Top-level keys: `a, n_obs, n_particles, notes, obs_seed, obs_std, process_std, seed, stable_float_tol` (9 fields).
+Top-level keys: `a, evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, n_obs, n_particles, notes, obs_seed, obs_std, oracle, process_std, seed, stable_float_tol` (15 fields).

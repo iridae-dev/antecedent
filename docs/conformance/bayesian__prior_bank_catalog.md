@@ -8,4 +8,4 @@ mark unnamed-coefficient sources as partial (mappable effect retained).
 
 ## Expected summary
 
-Top-level keys: `accepted_ids, notes, partial_ids, partial_mappable_contains, partial_missing_contains, rejected` (6 fields).
+Top-level keys: `accepted_ids, evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, notes, partial_ids, partial_mappable_contains, partial_missing_contains, rejected` (11 fields).

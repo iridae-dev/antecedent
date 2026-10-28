@@ -20,4 +20,4 @@ The frozen counterexample and consuming regression distinguish these estimands.
 
 ## Expected summary
 
-Top-level keys: `atol, cases, feature, generation, nondegenerate_counterexample, python_reduced_graph, semantics` (7 fields).
+Top-level keys: `atol, cases, evidence_kind, evidence_proposition, evidence_roles, evidence_source, feature, generation, limitations, nondegenerate_counterexample, oracle, python_reduced_graph, semantics` (13 fields).

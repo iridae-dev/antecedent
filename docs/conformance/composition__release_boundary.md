@@ -54,4 +54,4 @@ unmeasured. The variance of a pooled estimate is a labelled point quantity.
 
 ## Expected summary
 
-Top-level keys: `calibration, conversions, label, mutations, revised_values, scenario, tolerance, values, variants` (9 fields).
+Top-level keys: `calibration, conversions, label, mutations, oracle, revised_values, scenario, tolerance, values, variants` (10 fields).

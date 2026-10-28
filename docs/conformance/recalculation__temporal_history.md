@@ -12,4 +12,4 @@ Executing consumers: `crates/antecedent/tests/recalc_temporal.rs` and the `tempo
 
 ## Expected summary
 
-Top-level keys: `case, control_first_unit_y_to_zero, coordinate_order, identical_histories_per_unit, paired_additive_candidate, rule, scope, source_units, structural_model, target_p1_0_25, target_p1_0_8` (11 fields).
+Top-level keys: `case, control_first_unit_y_to_zero, coordinate_order, identical_histories_per_unit, oracle, paired_additive_candidate, rule, scope, source_units, structural_model, target_p1_0_25, target_p1_0_8` (12 fields).

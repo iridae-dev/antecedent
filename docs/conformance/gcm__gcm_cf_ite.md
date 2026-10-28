@@ -7,4 +7,4 @@ mean ITE ≈ 2 and noise inference kind = Invertible.
 
 ## Expected summary
 
-Top-level keys: `generation, noise_inference, reference, streaming_equiv_retained, tolerance, tolerance_class, true_mean_ite` (7 fields).
+Top-level keys: `evidence_kind, evidence_proposition, evidence_roles, evidence_source, generation, historical_reference, limitations, noise_inference, oracle, streaming_equiv_retained, tolerance, tolerance_class, true_mean_ite` (13 fields).

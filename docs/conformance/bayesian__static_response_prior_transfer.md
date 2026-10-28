@@ -17,4 +17,4 @@ not fall back to isotropic priors.
 
 ## Expected summary
 
-Top-level keys: `atol, compatibility_filter, grid, n, n_draws, schema_version, seed, source_cell, target_cells, true_level` (10 fields).
+Top-level keys: `atol, compatibility_filter, evidence_kind, evidence_proposition, evidence_roles, evidence_source, grid, limitations, n, n_draws, oracle, schema_version, seed, source_cell, target_cells, true_level` (16 fields).

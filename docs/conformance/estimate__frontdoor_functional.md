@@ -25,4 +25,4 @@ The arms are unbalanced (`P(T=1) = 0.35`) and the within-arm slopes differ
 
 ## Expected summary
 
-Top-level keys: `estimator, identifier, linear_path_product_limit, notes, reference, tolerance, true_effect` (7 fields).
+Top-level keys: `estimator, identifier, linear_path_product_limit, notes, oracle, reference, tolerance, true_effect` (8 fields).

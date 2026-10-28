@@ -10,4 +10,4 @@ The harness reads these pins, generates actual iid frames, executes original che
 
 ## Expected summary
 
-Top-level keys: `effect, finite_f_oracles, strengths` (3 fields).
+Top-level keys: `effect, finite_f_oracles, oracle, strengths` (4 fields).

@@ -13,4 +13,4 @@ same payload stamped `0.4` without the interval migrates with it absent. See
 
 ## Expected summary
 
-Top-level keys: `fixture, kinds, migration, stable_format` (4 fields).
+Top-level keys: `evidence_kind, evidence_proposition, evidence_roles, evidence_source, fixture, kinds, limitations, migration, oracle, stable_format` (10 fields).

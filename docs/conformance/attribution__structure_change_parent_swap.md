@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `allocation, dominant_component, notes, outcome, total_change_min` (5 fields).
+Top-level keys: `allocation, dominant_component, evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, notes, oracle, outcome, total_change_min` (11 fields).

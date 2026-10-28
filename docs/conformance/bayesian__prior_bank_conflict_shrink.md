@@ -10,4 +10,4 @@ No-conflict case: `p = 0.4`, `kl = 0` ⇒ α' = α.
 
 ## Expected summary
 
-Top-level keys: `alpha, conflict, kl_scale, no_conflict, notes, oracle, p_min` (7 fields).
+Top-level keys: `alpha, conflict, evidence_kind, evidence_proposition, evidence_roles, evidence_source, kl_scale, limitations, no_conflict, notes, p_min` (11 fields).

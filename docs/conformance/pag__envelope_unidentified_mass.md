@@ -6,4 +6,4 @@ PAG generalized-adjustment envelope preserves unidentified completion mass.
 
 ## Expected summary
 
-Top-level keys: `require_mass_accounted, tolerance_class` (2 fields).
+Top-level keys: `evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, oracle, require_mass_accounted, tolerance_class` (8 fields).

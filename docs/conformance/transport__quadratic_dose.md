@@ -8,4 +8,4 @@ Run `cargo test -p antecedent-estimate --test dose_grid_functional --offline`, `
 
 ## Expected summary
 
-Top-level keys: `conditional_mean_coefficients, contrast, from, oracle_kind, to` (5 fields).
+Top-level keys: `conditional_mean_coefficients, contrast, from, oracle, oracle_kind, to` (6 fields).

@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `cases, discovery_routing, oracle, schema_version, tolerance` (5 fields).
+Top-level keys: `cases, discovery_routing, historical_oracle, oracle, schema_version, tolerance` (6 fields).

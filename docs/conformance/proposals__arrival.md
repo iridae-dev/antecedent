@@ -20,4 +20,4 @@ are acceptance examples, not calibration or interval validation.
 
 ## Expected summary
 
-Top-level keys: `active_mean, active_probabilities, arm0_counts, arm1_counts, calibration, contrast, control_mean, inference, python_sample_size, rust_sample_size, schema_version, scm` (12 fields).
+Top-level keys: `active_mean, active_probabilities, arm0_counts, arm1_counts, calibration, contrast, control_mean, evidence_kind, evidence_proposition, evidence_roles, evidence_source, inference, limitations, oracle, python_sample_size, rust_sample_size, schema_version, scm` (18 fields).

@@ -7,4 +7,4 @@ discrete confounding table (E[Y|do(T=1)] ≈ 0.7).
 
 ## Expected summary
 
-Top-level keys: `estimator, mean, method, tolerance` (4 fields).
+Top-level keys: `estimator, evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, mean, method, oracle, tolerance` (10 fields).

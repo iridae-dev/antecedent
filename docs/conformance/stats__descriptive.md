@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `atol, cases, domain, reference, rtol, tolerance_class` (6 fields).
+Top-level keys: `atol, cases, domain, historical_reference, oracle, reference, rtol, tolerance_class` (8 fields).

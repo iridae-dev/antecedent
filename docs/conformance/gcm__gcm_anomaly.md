@@ -7,4 +7,4 @@ the score at a typical unit.
 
 ## Expected summary
 
-Top-level keys: `generation, planted_outlier_index, reference, require_outlier_gt_baseline, tolerance_class` (5 fields).
+Top-level keys: `evidence_kind, evidence_proposition, evidence_roles, evidence_source, generation, historical_reference, limitations, oracle, planted_outlier_index, require_outlier_gt_baseline, tolerance_class` (11 fields).

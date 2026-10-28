@@ -17,4 +17,4 @@ source replay does not issue native execution authority or new calibration.
 
 ## Expected summary
 
-Top-level keys: `calibration, evpi, evsi, prior_expected_utility, rank, sample_size, state_draws, terminal_actions, utilities` (9 fields).
+Top-level keys: `calibration, evpi, evsi, oracle, prior_expected_utility, rank, sample_size, state_draws, terminal_actions, utilities` (10 fields).

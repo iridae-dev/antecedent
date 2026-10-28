@@ -30,4 +30,4 @@ in `crates/antecedent/tests/temporal_class_bayesian_envelope.rs`, plus
 
 ## Expected summary
 
-Top-level keys: `compatibility_filter, conflict_does_not_flip_identification, fixture_id, n, n_draws, notes, outcome, seed, sequence_refuses, source_cells, target_cells, treatment` (12 fields).
+Top-level keys: `compatibility_filter, conflict_does_not_flip_identification, evidence_kind, evidence_proposition, evidence_roles, evidence_source, fixture_id, limitations, n, n_draws, notes, oracle, outcome, seed, sequence_refuses, source_cells, target_cells, treatment` (18 fields).

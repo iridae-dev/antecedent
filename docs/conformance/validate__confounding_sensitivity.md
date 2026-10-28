@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `expected, oracle, partial_r2_grid, schema_version` (4 fields).
+Top-level keys: `evidence_kind, evidence_proposition, evidence_roles, evidence_source, expected, historical_oracle, limitations, oracle, partial_r2_grid, schema_version` (10 fields).

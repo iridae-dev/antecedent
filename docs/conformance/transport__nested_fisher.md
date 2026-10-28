@@ -12,4 +12,4 @@ Run `cargo test -p antecedent-estimate --features calibration-internal --test ne
 
 ## Expected summary
 
-Top-level keys: `contrast, covariance_times_n, oracle_kind, sample_size` (4 fields).
+Top-level keys: `contrast, covariance_times_n, oracle, oracle_kind, sample_size` (5 fields).

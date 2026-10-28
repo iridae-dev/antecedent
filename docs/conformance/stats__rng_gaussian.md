@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `acceptance, generation, normal, reference, tolerance_class, uniform` (6 fields).
+Top-level keys: `acceptance, evidence_kind, evidence_proposition, evidence_roles, evidence_source, generation, limitations, normal, oracle, reference, tolerance_class, uniform` (12 fields).

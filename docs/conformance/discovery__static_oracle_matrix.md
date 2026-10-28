@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `canonicalization, lingam_cases, oracle, schema_version, static_cases, tolerances` (6 fields).
+Top-level keys: `canonicalization, historical_oracle, lingam_cases, oracle, schema_version, static_cases, tolerances` (7 fields).

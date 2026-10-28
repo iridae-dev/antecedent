@@ -8,4 +8,4 @@ mean shift primarily to the Y mechanism.
 
 ## Expected summary
 
-Top-level keys: `allocation, dominant_component, notes, outcome, total_change_min` (5 fields).
+Top-level keys: `allocation, dominant_component, notes, oracle, outcome, total_change_min` (6 fields).

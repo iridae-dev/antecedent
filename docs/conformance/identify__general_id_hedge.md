@@ -12,4 +12,4 @@ diagnostic for the same graph.
 
 ## Expected summary
 
-Top-level keys: `case, expected_status_family, generation, graph_dot, notes, outcome, reference, tolerance_class, treatment` (9 fields).
+Top-level keys: `case, expected_status_family, generation, graph_dot, historical_generation, historical_reference, notes, oracle, outcome, reference, tolerance_class, treatment` (12 fields).

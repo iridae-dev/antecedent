@@ -15,4 +15,4 @@ DGP, not an external package parity claim and not a known-truth SD.
 
 ## Expected summary
 
-Top-level keys: `dgp, min_posterior_sd_ratio_hierarchical_over_stacked, tolerance` (3 fields).
+Top-level keys: `dgp, evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, min_posterior_sd_ratio_hierarchical_over_stacked, oracle, tolerance` (9 fields).

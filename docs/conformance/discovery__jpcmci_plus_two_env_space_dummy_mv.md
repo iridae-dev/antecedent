@@ -9,4 +9,4 @@ Library-only expected (no external multivariate space-dummy oracle required).
 
 ## Expected summary
 
-Top-level keys: `algorithm_id, include_space_dummy, max_logical_space_dummy_ids, min_envs, min_links, min_nodes, notes, require_multivariate_diagnostic, space_dummy_ci, tolerance_class` (10 fields).
+Top-level keys: `algorithm_id, evidence_kind, evidence_proposition, evidence_roles, evidence_source, include_space_dummy, limitations, max_logical_space_dummy_ids, min_envs, min_links, min_nodes, notes, oracle, require_multivariate_diagnostic, space_dummy_ci, tolerance_class` (16 fields).

@@ -18,4 +18,4 @@ coefficient priors are not a class prior and must not upgrade identification.
 
 ## Expected summary
 
-Top-level keys: `atol, compatibility_filter, n, n_draws, schema_version, seed, source_cell, target_cells, true_effect` (9 fields).
+Top-level keys: `atol, compatibility_filter, evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, n, n_draws, oracle, schema_version, seed, source_cell, target_cells, true_effect` (15 fields).

@@ -29,4 +29,4 @@ Consumed by `crates/antecedent/tests/temporal_class_observation.rs` and
 
 ## Expected summary
 
-Top-level keys: `case, graph_classes, incomplete_class, licensed_pairs, notes, refused, schema_version` (7 fields).
+Top-level keys: `case, evidence_kind, evidence_proposition, evidence_roles, evidence_source, graph_classes, incomplete_class, licensed_pairs, limitations, notes, oracle, refused, schema_version` (13 fields).

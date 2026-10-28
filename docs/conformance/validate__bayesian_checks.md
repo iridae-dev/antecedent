@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `contracts, limits, oracle, schema_version` (4 fields).
+Top-level keys: `contracts, evidence_kind, evidence_proposition, evidence_roles, evidence_source, historical_oracle, limitations, limits, schema_version` (9 fields).

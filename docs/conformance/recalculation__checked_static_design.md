@@ -12,4 +12,4 @@ Run `cargo test -p antecedent --test recalc_static --test recalc_design --offlin
 
 ## Expected summary
 
-Top-level keys: `frontdoor_discrete_contrast, frontdoor_hc0_variance, frontdoor_linear_effect, iv_effect, oracle_kind, rd_hc1_variance, rd_jump, verma_contrast, verma_do_means` (9 fields).
+Top-level keys: `frontdoor_discrete_contrast, frontdoor_hc0_variance, frontdoor_linear_effect, iv_effect, oracle, oracle_kind, rd_hc1_variance, rd_jump, verma_contrast, verma_do_means` (10 fields).

@@ -25,4 +25,4 @@ claimed; these deterministic acceptance fixtures are not calibration runs.
 
 ## Expected summary
 
-Top-level keys: `calibration, external_means, native_means, native_tolerance, standard_error, utilities, utility_rule, utility_units` (8 fields).
+Top-level keys: `calibration, external_means, native_means, native_tolerance, oracle, standard_error, utilities, utility_rule, utility_units` (9 fields).

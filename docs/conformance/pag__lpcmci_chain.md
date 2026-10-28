@@ -12,4 +12,4 @@ and the orientation-rule vocabulary on an in-test series (shape only).
 
 ## Expected summary
 
-Top-level keys: `algorithm_id, generation, max_pending_circles, min_links_retained, min_nodes, n, notes, orientation_rule_ids, reference, require_true_edge_subset, scm, tolerance_class, true_links` (13 fields).
+Top-level keys: `algorithm_id, evidence_kind, evidence_proposition, evidence_roles, evidence_source, generation, limitations, max_pending_circles, min_links_retained, min_nodes, n, notes, oracle, orientation_rule_ids, reference, require_true_edge_subset, scm, tolerance_class, true_links` (19 fields).
