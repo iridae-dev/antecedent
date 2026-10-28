@@ -275,11 +275,33 @@ def _brute_force(caliper: float | None) -> tuple[float, float, list[int], list[i
     diff = np.array([HISTORY[i][2] - HISTORY[j][2] for i, j in zip(queries, donors, strict=True)])
     share = weight / weight.sum()
     tau = float((share * diff).sum())
-    conc = float((share**2).sum())
-    sigma2 = 0.5 * float((share * (diff - tau) ** 2).sum()) / (1.0 - conc)
     donated = {d: float(share[[k for k, x in enumerate(donors) if x == d]].sum()) for d in donors}
-    se = float(np.sqrt(sigma2 * (conc + sum(v * v for v in donated.values()))))
-    return tau, se, queries, donors
+
+    def noise(i: int) -> float | None:
+        # Abadie-Imbens: half the squared difference to the nearest other unit of the same arm
+        # and period (lowest input index on a tie); None when the unit has no such neighbour.
+        peers = [
+            j
+            for j, other in enumerate(HISTORY)
+            if j != i and other[3] == HISTORY[i][3] and other[0] == HISTORY[i][0]
+        ]
+        if not peers:
+            return None
+        j = min(peers, key=lambda k: (abs(score[k] - score[i]), k))
+        return 0.5 * (HISTORY[i][2] - HISTORY[j][2]) ** 2
+
+    variance = 0.0
+    for k, i in enumerate(queries):
+        v = noise(i)
+        if v is None:
+            return tau, float("nan"), queries, donors
+        variance += float(share[k]) ** 2 * v
+    for d, c in donated.items():
+        v = noise(d)
+        if v is None:
+            return tau, float("nan"), queries, donors
+        variance += c * c * v
+    return tau, float(np.sqrt(variance)), queries, donors
 
 
 @pytest.mark.parametrize("caliper", [2.0, None])

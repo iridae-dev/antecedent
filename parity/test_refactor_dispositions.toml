@@ -1385,3 +1385,9 @@ previous = "crates/antecedent-design/tests/fixtures/decision_reliability_v1.bin"
 replacement = "crates/antecedent-design/tests/fixtures/decision_reliability_v1.bin"
 disposition = "golden_regenerated_for_rounding_level_change"
 reason = "The Gaussian expected maximum of the winner's-curse bound changed by about 2.4e-17 (0.04870361026711675 to 0.048703610267116726) after the normal-cdf tail precision change. A 40-digit evaluation of the same 4000-panel Simpson integral gives 0.048703610267117055, so both values carry about 3e-16 of accumulated summation rounding and neither is more accurate. The stored report must recompute bit for bit, so the golden was rewritten with the documented writer; the draws, request, version and every other report field are unchanged and all gating assertions are untouched."
+
+[[case]]
+previous = "python/tests/test_unlicensed_design_routes.py::test_period_history_match_matches_the_brute_force_reference"
+replacement = "python/tests/test_unlicensed_design_routes.py::test_period_history_match_matches_the_brute_force_reference"
+disposition = "assertion_strengthened_without_case_removal"
+reason = "The brute-force reference took the noise from the dispersion of the matched pair differences, the same defect the product had: queries sharing a donor share its noise, so the differences understate the spread. The reference now uses the Abadie-Imbens within-arm nearest-neighbour estimate (half the squared difference to the nearest other unit of the same arm and period), independently of the Rust code, and reproduces the corrected standard errors 2.0964 and 2.0651 to 1e-12."
