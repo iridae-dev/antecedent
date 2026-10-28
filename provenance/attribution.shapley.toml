@@ -41,7 +41,7 @@ record_sha256 = "0fd2c30359904dce8bd5cc7996c658598ab2f5f0b5629a20766b1836ec48fda
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/shapley.rs"
-sha256 = "32d41c1df2991d21eb04ca969ac88dc8750ffde466c1b0e91d77b90b9c76433a"
+sha256 = "948d679b34865e7189e10b06968c21be12613e69aaa5bb86effd2c1118750287"
 
 [[method_review.artifacts]]
 role = "assertion"

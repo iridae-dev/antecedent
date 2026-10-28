@@ -39,7 +39,7 @@ record_sha256 = "7393100b912aaa8f218202f2de869d546d6893cd36f2417f38963ab767ee600
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/cpdag_completion.rs"
-sha256 = "73ccbd6ec1007e2965230252ba912c1fe4136633983c909b2da2d2741c4839d9"
+sha256 = "1f4c0132f8a5f2d85bfa5eb59a42c1db0b0569e8e6fc3af90990b7a836a4a48d"
 
 [[method_review.artifacts]]
 role = "implementation"

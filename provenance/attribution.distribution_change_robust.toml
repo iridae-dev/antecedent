@@ -38,7 +38,7 @@ record_sha256 = "9dad7a1b0952b33987a12b0ccfbc72e2ffaa20dbc35712fc6536c9538af8d80
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/robust.rs"
-sha256 = "44725f091271c61e78c34917a898277b35cc5f0153fc4dac1099234b486c189c"
+sha256 = "095f9d120595ffb71e277abf0813b58f605317e08ebad7d8319ee27213c1f6c7"
 
 [[method_review.artifacts]]
 role = "assertion"

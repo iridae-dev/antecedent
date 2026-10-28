@@ -45,7 +45,7 @@ record_sha256 = "68a4f72c116cdb5be37288aee6060129a605d51306b681f3315dea656b45d04
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/suff_stats.rs"
-sha256 = "5d1f7a39394675730e519671bf63125bf89804c8fc6742a026ae5e406afc479a"
+sha256 = "731e62d2ec6fba76cdffe78cc5f16bd9e378cb38167c42f64aea60a27b5d7cc0"
 
 [[method_review.artifacts]]
 role = "assertion"
