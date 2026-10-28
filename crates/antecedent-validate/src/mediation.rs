@@ -233,6 +233,10 @@ pub fn refute_temporal_mediation_with_gaps(
     if levels.len() == 2 {
         // The shared fraction of each mediator's range; a set reports its least-shared mediator.
         let mut fraction = f64::INFINITY;
+        // Closed ranges that touch at one value still intersect (the static suite's rule), so the
+        // verdict is the intersection of every mediator's per-arm ranges, not a positive shared
+        // fraction.
+        let mut intersect = true;
         for j in 0..mediators.len() {
             let mut ranges = [(f64::INFINITY, f64::NEG_INFINITY); 2];
             for (&t, &m) in t.iter().zip(sample.column(1 + j)) {
@@ -240,7 +244,9 @@ pub fn refute_temporal_mediation_with_gaps(
                 ranges[group].0 = ranges[group].0.min(m);
                 ranges[group].1 = ranges[group].1.max(m);
             }
-            let shared = (ranges[0].1.min(ranges[1].1) - ranges[0].0.max(ranges[1].0)).max(0.0);
+            let overlap = ranges[0].1.min(ranges[1].1) - ranges[0].0.max(ranges[1].0);
+            intersect &= overlap >= 0.0;
+            let shared = overlap.max(0.0);
             let width = ranges[0].1.max(ranges[1].1) - ranges[0].0.min(ranges[1].0);
             fraction = fraction.min(if width > 0.0 { shared / width } else { 0.0 });
         }
@@ -252,8 +258,8 @@ pub fn refute_temporal_mediation_with_gaps(
                 .refuted_ate(original.effect.ate)
                 .comparison(fraction)
                 .informative(true)
-                .passed(fraction > 0.0)
-                .failure_condition((fraction <= 0.0).then(|| {
+                .passed(intersect)
+                .failure_condition((!intersect).then(|| {
                     Arc::from("binary treatment groups have disjoint empirical mediator ranges")
                 }))
                 .replicates(1)

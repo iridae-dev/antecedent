@@ -346,7 +346,13 @@ fn split_half(
         halves[slot] = (estimate.ate, estimate.se_bootstrap().unwrap_or(f64::NAN));
     }
     let [(first, first_se), (second, second_se)] = halves;
-    let usable = [first_se, second_se].iter().all(|se| se.is_finite() && *se >= 0.0);
+    // A half that one circular block covers has a single possible resample: its bootstrap
+    // spread is exactly zero because nothing can vary, not because the contrast is precise, and
+    // a z test on it would reject (or accept) stationarity on no evidence.
+    let resamplable = [half, rows - half].iter().all(|&part| {
+        RowResampling::WindowBlocks { span }.block_length(part).is_some_and(|block| block < part)
+    });
+    let usable = resamplable && [first_se, second_se].iter().all(|se| se.is_finite() && *se >= 0.0);
     if !usable {
         return Ok(RefutationReport::builder("window.split_half")
             .original_ate(first)
@@ -355,7 +361,7 @@ fn split_half(
             .informative(false)
             .passed(false)
             .failure_condition(Some(Arc::from(
-                "a half of the windows gave no block-bootstrap standard error",
+                "a half of the windows gave no block-bootstrap standard error (none, or only one resampling block)",
             )))
             .replicates(SPLIT_HALF_REPLICATES)
             .build());
