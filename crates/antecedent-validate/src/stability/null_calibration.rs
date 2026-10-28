@@ -43,7 +43,7 @@ pub struct NullCalibrationReport {
 /// Monte Carlo FPR calibration for PCMCI under independent Gaussian noise.
 #[derive(Clone, Debug)]
 pub struct SyntheticNullCalibration {
-    /// PCMCI configuration (α should match the intended type-I level).
+    /// PCMCI configuration; discovery runs at [`Self::alpha`] whatever level it carries.
     pub pcmci: Pcmci,
     /// Significance level expected under the null.
     pub alpha: f64,
@@ -93,6 +93,11 @@ impl SyntheticNullCalibration {
         // Candidate lagged links PCMCI scores under its own lag constraints.
         let lags = &self.pcmci.engine().constraints.temporal;
         let family = lagged_link_family(self.n_vars, lags.min_lag.raw(), lags.max_lag.raw())?;
+        // The declared level is the one under test: discovery runs at it, whatever level the
+        // supplied configuration carries.
+        let mut at_alpha = self.pcmci.engine().constraints.clone();
+        at_alpha.alpha = self.alpha;
+        let pcmci = self.pcmci.clone().with_constraints(at_alpha);
         let mut rng = ctx.rng.stream(crate::streams::STABILITY_NULL);
         // The noise series share one stream, drawn in order here; the discovery runs go to the
         // pool.
@@ -102,8 +107,7 @@ impl SyntheticNullCalibration {
             |_| independent_noise_series(self.n_obs, self.n_vars, &mut rng),
             DiscoveryWorkspace::default,
             |workspace, ctx, _r, data| {
-                let result = self
-                    .pcmci
+                let result = pcmci
                     .run(data, &variables, workspace, ctx)
                     .map_err(ValidationError::from)?;
                 Ok(result.evidence.links.len() as u64)

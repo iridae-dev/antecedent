@@ -159,6 +159,8 @@ impl PcmciPlus {
 
         let threads = ctx.parallelism.max_threads.get().max(1);
         let compiled = self.engine.constraints.compile(variables)?;
+        // Keep masks cached for another frame of this shape must not be replayed on this one.
+        workspace.keep_cache.clear();
         {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
             workspace.prepared_ci = Some(crate::ci::prepare_ci(

@@ -641,6 +641,9 @@ impl PcmciEngine {
         let threads = ctx.parallelism.max_threads.get().max(1);
         let compiled = engine.constraints.compile(&search_vars)?;
 
+        // A cached keep mask belongs to the frame it was built from: a reused workspace meets
+        // frames of the same shape whose validity differs, so none outlives its frame.
+        workspace.keep_cache.clear();
         // : prepare CI once for the lagged frame (unmasked fast path).
         if frame.is_fully_valid() {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
@@ -652,7 +655,6 @@ impl PcmciEngine {
             )?);
         } else {
             workspace.prepared_ci = None;
-            workspace.keep_cache.clear();
         }
 
         let (all_parents, iterations, mut ci_tests) =

@@ -56,7 +56,8 @@ impl EnvironmentHoldout {
     ///
     /// # Errors
     ///
-    /// Split indexes out of range, empty subsets, or discovery failures.
+    /// Split indexes out of range, empty subsets, a discovery environment also listed as held out
+    /// (it would not be held out), or discovery failures.
     pub fn run(
         &self,
         data: &MultiEnvironmentData,
@@ -64,6 +65,11 @@ impl EnvironmentHoldout {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<EnvironmentHoldoutReport, ValidationError> {
+        if self.split.discovery_envs.iter().any(|e| self.split.estimation_envs.contains(e)) {
+            return Err(ValidationError::NotApplicable {
+                message: "environment holdout requires disjoint discovery and holdout environments",
+            });
+        }
         let train = subset_envs(data, &self.split.discovery_envs)?;
         let holdout = subset_envs(data, &self.split.estimation_envs)?;
         let train_res =

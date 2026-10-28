@@ -944,6 +944,7 @@ fn run_lpcmci_on_frame(
         ));
     }
     workspace.prepared_ci = None;
+    workspace.keep_cache.clear();
 
     let mut sepsets = PcSepsets::default();
     let mut scored = Vec::new();

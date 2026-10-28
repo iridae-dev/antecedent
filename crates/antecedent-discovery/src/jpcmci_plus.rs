@@ -211,6 +211,7 @@ impl JpcmciPlus {
         )?;
         crate::ci::ensure_ci_fits_frame(&*ci, frame)?;
         let threads = ctx.parallelism.max_threads.get().max(1);
+        workspace.keep_cache.clear();
         {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
             workspace.prepared_ci =
