@@ -17470,3 +17470,24 @@ crate = "antecedent-estimate"
 cargo_target = "estimator_degeneracy"
 path = "crates/antecedent-estimate/tests/estimator_degeneracy.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-discovery-src-lpcmci-oracle-tests-rs"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/lpcmci_oracle_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-src-static-mediation-oracle-tests-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/static_mediation_oracle_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-src-cell-aipw-oracle-tests-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/cell_aipw_oracle_tests.rs"
+gates = ["inventory", "named"]

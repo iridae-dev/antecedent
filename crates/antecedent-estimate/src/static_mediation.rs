@@ -1093,3 +1093,7 @@ mod tests {
         assert!(out.effect.se_bootstrap().is_some_and(f64::is_finite));
     }
 }
+
+#[cfg(test)]
+#[path = "static_mediation_oracle_tests.rs"]
+mod oracle_tests;

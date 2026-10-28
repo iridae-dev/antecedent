@@ -219,3 +219,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "lpcmci_oracle_tests.rs"]
+mod oracle_tests;

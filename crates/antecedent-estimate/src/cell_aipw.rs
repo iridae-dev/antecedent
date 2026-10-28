@@ -1301,3 +1301,7 @@ mod tests {
         assert!(err.to_string().contains("sparse cell"), "{err}");
     }
 }
+
+#[cfg(test)]
+#[path = "cell_aipw_oracle_tests.rs"]
+mod oracle_tests;

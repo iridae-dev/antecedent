@@ -12,7 +12,7 @@ papers = [
 
 implementation_deviations = [
  "Restricted to at most three jointly intervened binary treatments (eight cells). A continuous coordinate is refused; coarsening a continuous factor onto a grid is not treated as do(D=d0).",
- "Nuisances are a multinomial-logit propensity over the occupied cells and a per-cell GLM outcome, not the arbitrary ML learners the DML analysis admits.",
+ "Nuisances are a multinomial-logit propensity over the occupied cells and a per-cell least-squares outcome regression (a linear probability model for exceedance indicators, not a GLM), not the arbitrary ML learners the DML analysis admits. A fitted linear-probability value can leave [0, 1].",
  "Cross-fitting uses a fixed five folds from a seeded, cell-stratified, unit-level fold plan. Empty cells required by a requested contrast, a fold that misses a cell present in the data, or a training cell with no more rows than design columns (no residual degrees of freedom for its outcome model) refuse rather than impute. With no propensity clip, a cell propensity of exactly zero refuses instead of being floored.",
  "Licensed contrasts are cell means and cell-minus-control; a named interaction contrast is identified only for the mean functional, not for exceedance grids.",
 ]
@@ -21,7 +21,34 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-estimate/src/cell_aipw.rs",
+ "crates/antecedent-estimate/src/cell_aipw_oracle_tests.rs",
  "crates/antecedent/tests/numeric_pins.rs (additive interaction recovery, k=3 refuse, cheap/full contrast routing)",
  "conformance/estimate/cell_aipw_interaction",
  "crates/antecedent/tests/static_calibration.rs::intervention_response_cell_aipw_nominal_95_coverage",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "CellSaturatedAipw::fit_scores_with_assignment in crates/antecedent-estimate/src/cell_aipw.rs for at most three binary treatments with complete cases: the cross-fitted score psi_ic = mu_c(x) + 1{cell = c} (y - mu_c(x)) / e_c(x) for the mean and for a single exceedance threshold, the fold alignment of the propensity and score tables, the clip as the only floor, and the cell-minus-control and highest-order interaction contrasts with the joint influence covariance. The scores are compared with the closed form obtainable when the design is saturated: no covariate, or one binary covariate. Not the continuous-cell route (refused), exceedance grids and quantile functionals beyond the shared score formula, simultaneous bands, the multinomial-logit solver under continuous covariates or the calibration of the intervals."
+assumptions = ["Unconfoundedness of the joint treatment combination given the adjustment set, positivity of every requested cell, independent rows, consistency, and fold plans that hold out units (rows are the unit).", "Double robustness and the central limit theorem for the cross-fitted score require the cited rate conditions on the nuisances; with a linear-probability or linear outcome model and a logit propensity they hold only if one of the two models is correctly specified for the covariates supplied.", "The reported standard error is the empirical influence-function variance of the mean score divided by n(n-1) around the column mean; it does not account for fold-plan randomness."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote its own reference: the scores are recomputed from the table's own fold ids, cells and outcomes with closed-form nuisances (training-fold cell proportions and cell means, optionally within a binary covariate stratum), and the contrast value and standard error from those scores. No upstream implementation was consulted."
+redistribution = "The reference is repository-authored under MIT OR Apache-2.0 and runs inside the crate unit tests. The cited papers are linked, not redistributed."
+limitations = "Neither cited paper was read for this review: no local copy was available and nothing was downloaded, so the correspondence of the score to the papers' efficient influence function and of the cross-fitting to the double machine learning algorithm is established only by the standard formulas stated above. The closed-form comparison covers a two-treatment table with unequal cell sizes (roughly 40, 30, 20 and 10 percent), five caller-assigned folds, no clip (propensities above 0.05), the mean and one exceedance threshold, and an empty or one-binary-covariate design; the propensity solver stops at a score norm of 1e-8, so agreement is to about 2e-6 absolute and relative. It does not show correctness with continuous covariates (only the older recovery tests at tolerance 0.35 cover that), three treatments, the clipped regime, derived fold plans or the 19-point quantile grid, and it does not examine finite-sample interval coverage (the static calibration test is separate and not re-run)."
+sources = ["https://doi.org/10.1016/j.jeconom.2009.09.023", "https://doi.org/10.1111/ectj.12097"]
+findings_resolved = ["Existing tests checked cell-score behavior only through a recovered interaction at tolerance 0.35. Added three closed-form comparisons: every score column (mean and exceedance) equals mu_c + 1{cell = c}(y - mu_c)/e_c with training-fold nuisances, within a binary-covariate stratum when one is supplied, so a wrong fold alignment, a propensity from the wrong rows, a swapped cell code or a mis-assembled covariate design would fail.", "The cell-minus-control and interaction contrasts equal the mean of the combined reference scores, their standard errors equal the root of the empirical variance of the combined scores over n(n-1), and the exported per-row difference scores equal the reference differences.", "Corrected the record's description of the outcome nuisance: it is a per-cell least-squares regression (a linear probability model for exceedance indicators), not a GLM; the stored nuisance provenance already said ols. No estimator code was changed; no numerical defect was found."]
+record_sha256 = "f06ebeb1da022b93adcda17be8b7e91007f5bf8b62d22352a3225bf9a35c5667"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/cell_aipw.rs"
+sha256 = "3e1fd910ea7be21bb9d2b997a4aa077097d0d43548f971e5c1cb003344047b0e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/scores.rs"
+sha256 = "434c6d6866036c565a4805cfca5cb85665987e9700f7c4c20328f96bbce14808"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/src/cell_aipw_oracle_tests.rs"
+sha256 = "86c321eb691efbd395d2f249dc4afdbebd525f2714b2531e11310eb59aba3da6"

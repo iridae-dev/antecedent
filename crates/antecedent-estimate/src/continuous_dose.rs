@@ -520,6 +520,117 @@ mod policy_tests {
         }
     }
 
+    /// Known truth with a dose density that is not constant and a nonlinear response, so that
+    /// the inverse-density weighting (not its reciprocal), the kernel normalisation and the
+    /// group fractions are all exercised; the uniform-density tests above cannot distinguish
+    /// `1 / f` from `f`. Groups: `a` has density `2d` and `b` has `2(1 - d)` on `[0, 1]`,
+    /// `E[Y | d, g] = offset_g + sin(4d)`. The truths come from
+    /// `tests/oracle_data/continuous_dose_policy_truth.py` (40-digit quadrature).
+    const TRUTH: [f64; 3] = [2.093_884_582_331_400_7, 2.352_416_912_832_5, -0.258_532_330_501_099_4];
+
+    fn policy_rules() -> ([(String, f64); 2], [(String, f64); 2]) {
+        (
+            [("a".to_string(), 0.7), ("b".to_string(), 0.3)],
+            [("a".to_string(), 0.5), ("b".to_string(), 0.5)],
+        )
+    }
+
+    fn group_response(group_a: bool, dose: f64) -> f64 {
+        (if group_a { 1.0 } else { 2.0 }) + (4.0 * dose).sin()
+    }
+
+    #[test]
+    fn nonuniform_density_policy_value_matches_quadrature_on_a_quantile_design() {
+        // Doses at the midpoint quantiles of each known density: the estimator is then a
+        // deterministic Riemann sum of the target integrals, with no sampling noise.
+        const PER_GROUP: usize = 20_000;
+        let (policy, reference) = policy_rules();
+        let mut dose = Vec::new();
+        let mut density = Vec::new();
+        let mut outcome = Vec::new();
+        let mut groups = Vec::new();
+        for group_a in [true, false] {
+            for i in 0..PER_GROUP {
+                let u = (i as f64 + 0.5) / PER_GROUP as f64;
+                let d = if group_a { u.sqrt() } else { 1.0 - u.sqrt() };
+                dose.push(d);
+                density.push(if group_a { 2.0 * d } else { 2.0 * (1.0 - d) });
+                outcome.push(group_response(group_a, d));
+                groups.push(if group_a { "a" } else { "b" }.to_string());
+            }
+        }
+        let fit = fixed_dose_policy_value(
+            &DoseRows { outcome: &outcome, dose: &dose, groups: &groups, density: &density },
+            &DoseRules { policy: &policy, reference: &reference },
+            &DoseWindow { bandwidth: 0.2, min_local_support: 80, density_known: true },
+        )
+        .unwrap();
+        for (got, truth) in
+            [fit.policy_value, fit.reference_value, fit.incremental_value].into_iter().zip(TRUTH)
+        {
+            assert!((got - truth).abs() < 2e-5, "{got} vs {truth}");
+        }
+        // The density enters as a divisor: using the density itself instead moves the value.
+        let inverted = density.iter().map(|f| 1.0 / f).collect::<Vec<_>>();
+        let wrong = fixed_dose_policy_value(
+            &DoseRows { outcome: &outcome, dose: &dose, groups: &groups, density: &inverted },
+            &DoseRules { policy: &policy, reference: &reference },
+            &DoseWindow { bandwidth: 0.2, min_local_support: 80, density_known: true },
+        )
+        .unwrap();
+        assert!((wrong.policy_value - TRUTH[0]).abs() > 0.01);
+    }
+
+    #[test]
+    fn nonuniform_density_heteroscedastic_intervals_cover_quadrature_truth() {
+        const N: usize = 800;
+        const REPLICATES: usize = 1_500;
+        let (policy, reference) = policy_rules();
+        let groups =
+            (0..N).map(|i| if i < N / 2 { "a" } else { "b" }.to_string()).collect::<Vec<_>>();
+        let mut covered = [0_usize; 3];
+        let mut intervals_seen = 0;
+        for replicate in 0..REPLICATES {
+            let mut dose = Vec::with_capacity(N);
+            let mut density = Vec::with_capacity(N);
+            let mut outcome = Vec::with_capacity(N);
+            for i in 0..N {
+                let group_a = i < N / 2;
+                let u = crate::splitmix::keyed_unit(replicate as u64, i as u64);
+                let d = if group_a { u.sqrt() } else { 1.0 - u.sqrt() };
+                let (u1, u2) = (
+                    crate::splitmix::keyed_unit_stream(replicate as u64, i as u64, 1),
+                    crate::splitmix::keyed_unit_stream(replicate as u64, i as u64, 2),
+                );
+                let normal = (-2.0 * u1.ln()).sqrt() * (std::f64::consts::TAU * u2).cos();
+                dose.push(d);
+                density.push(if group_a { 2.0 * d } else { 2.0 * (1.0 - d) });
+                outcome.push(group_response(group_a, d) + (0.3 + 0.6 * d) * normal);
+            }
+            let fit = fixed_dose_policy_value(
+                &DoseRows { outcome: &outcome, dose: &dose, groups: &groups, density: &density },
+                &DoseRules { policy: &policy, reference: &reference },
+                &DoseWindow { bandwidth: 0.2, min_local_support: 80, density_known: true },
+            )
+            .unwrap();
+            let intervals =
+                [fit.policy_interval_95, fit.reference_interval_95, fit.incremental_interval_95];
+            if intervals.iter().all(Option::is_some) {
+                intervals_seen += 1;
+                for (j, interval) in intervals.into_iter().enumerate() {
+                    let [lower, upper] = interval.unwrap();
+                    covered[j] += usize::from(lower <= TRUTH[j] && TRUTH[j] <= upper);
+                }
+            }
+        }
+        assert!(intervals_seen > REPLICATES * 9 / 10, "supported intervals: {intervals_seen}");
+        for (name, count) in ["policy", "reference", "incremental"].into_iter().zip(covered) {
+            let rate = count as f64 / intervals_seen as f64;
+            eprintln!("nonuniform dose {name} coverage: {count}/{intervals_seen} = {rate:.4}");
+            assert!((0.93..=0.985).contains(&rate), "{name} coverage {rate}");
+        }
+    }
+
     #[test]
     fn dose_policy_refuses_unmapped_and_unsupported_local_targets() {
         let outcome = (0..40).map(|i| f64::from(i) / 40.0).collect::<Vec<_>>();

@@ -15,6 +15,7 @@ implementation_deviations = [
  "The recorded functional is a baseline-group average of an inverse-density kernel-smoothed intervention, not the potential outcome at an exact dose and not a generalized-propensity-score regression.",
  "Exchangeability, a correct supplied dose density, local positivity, and consistency with no interference are caller-declared. None is tested from the table.",
  "A fixed group-to-dose policy is identified only as that kernel-window contrast against its reference. The policy doses must have been fixed before these outcomes.",
+ "The variance is the sum of squared linearization scores of the weighted-mean ratio, with group fractions held fixed, multiplied by m/(m-1) where m is the smallest group size. The factor is a finite-sample convention, not a derived correction; pointwise intervals are published only above fixed support floors.",
 ]
 
 upstream_implementations_observed = []
@@ -22,4 +23,31 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent/src/analysis/execute/checked_continuous_dose.rs",
  "crates/antecedent-estimate/src/continuous_dose.rs",
+ "crates/antecedent-estimate/tests/oracle_data/continuous_dose_policy_truth.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "antecedent_estimate::continuous_dose::fixed_dose_policy_value as called by the checked continuous-dose operation (checked_continuous_dose.rs): the inverse-density Epanechnikov kernel ratio within each baseline group, the group-fraction average, the paired policy-minus-reference linearization variance, the support floors that gate the pointwise intervals, and the dependence of all three on the supplied density. The kernel-smoothed target is evaluated independently for a known density and response. conditional_dose_response uses the same weights and is read for the weight definition only. Not a review of the Bayesian dose policy, of the exchangeability or density assumptions (declared, untestable here), or of the bandwidth choice."
+assumptions = ["Conditional exchangeability of potential outcomes given the supplied baseline groups, independent rows, consistency without interference, and a correct known density of the dose within group; under these the inverse-density kernel ratio estimates the group's kernel-window average of E[Y | D = d, group] over the window of half-width bandwidth around the policy dose, which is the recorded estimand and not the potential outcome at that dose.", "The window lies inside the support of the density and the group fractions and the policy rules are fixed before these outcomes.", "Pointwise normal intervals rely on the stated large-sample floors and a known density; with an estimated density the intervals are withheld."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote its own reference: the target is computed by 40-digit quadrature of the stated kernel-window average for a known density and response, and the estimator is run against it without any upstream code."
+redistribution = "The quadrature script and the added Rust tests are repository-authored under MIT OR Apache-2.0. The cited paper is linked, not redistributed."
+limitations = "The cited generalized-propensity-score paper was not read for this review: no local copy was available and nothing was downloaded. Its exchangeability statement is treated only as the declared assumption; the estimand used here is the kernel-window average defined above, derived from the code and checked by quadrature, not a theorem of that paper. The executing evidence is one data-generating process (two groups, densities 2d and 2(1-d), response offset plus sin(4d), heteroscedastic noise, n = 800, bandwidth 0.2), a deterministic quantile design and 1500 simulated datasets; it does not cover an estimated density, a window crossing the support boundary, many groups, a very small smallest group, or dependence among rows. The m/(m-1) factor is not derived; the observed coverage (0.949 to 0.952 for the three intervals) shows it is not anti-conservative on this process only."
+sources = ["Hirano and Imbens, The Propensity Score with Continuous Treatments (title as listed in papers; no verified identifier is recorded and the text was not read)"]
+findings_resolved = ["The existing coverage tests use a constant density and a linear response, so a reciprocal-density mistake and the kernel normalisation could not fail them. Added a deterministic quantile-design check with non-constant densities and a nonlinear response: the policy, reference and incremental values equal the quadrature truth to 2e-5, and passing the reciprocal density moves the value by more than 0.01.", "Added a simulation with non-constant densities, nonlinear response and dose-dependent noise: the paired intervals cover the quadrature truth in 94.9 percent (policy), 95.2 percent (reference) and 95.2 percent (incremental) of 1500 datasets, inside the existing 0.93 to 0.985 band, so the linearization variance, its pairing across shared rows and the fixed-fraction treatment are consistent with the sampling spread on this design.", "Read the checked operation: the density column, groups and bandwidth reach the estimator unchanged, the known-density flag is set only for provenance 'known', and an estimated density withholds all intervals (also asserted by the existing tests). No defect was found; no estimator code was changed."]
+record_sha256 = "89cd634ac51b35589fd340f6a6f812c3a705edcaa7979ae20f20a14ec4aa82cd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/checked_continuous_dose.rs"
+sha256 = "ef16a46b265b55b715409759c4739f66a4561b661f07b85a1be9c19f740b7347"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/src/continuous_dose.rs"
+sha256 = "e122da77a18c96963b613fe4a861d648ee0b9aaf1cdc573bd025e50e4d8554bc"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/continuous_dose_policy_truth.py"
+sha256 = "4c7b5bc2b949d5dd5ef9876becd2089e0c1b93417e8fcd6f3d449d2616349927"

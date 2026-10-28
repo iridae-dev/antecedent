@@ -10,7 +10,7 @@
     reason = "independent small polynomial quadrature oracle"
 )]
 use antecedent_core::ExecutionContext;
-use antecedent_learn::nested_markov_bayesian::{OUTPUTS, Options, Prior, fit};
+use antecedent_learn::nested_markov_bayesian::{OUTPUTS, Options, Prior, fit, probabilities};
 
 fn gauss(n: usize) -> Vec<(f64, f64)> {
     let mut out = Vec::new();
@@ -288,4 +288,108 @@ fn low_count_full_joint_posterior_matches_independent_integration_and_prior_sens
             );
         }
     }
+}
+
+/// Posterior means for an asymmetric count table, so that a swapped index (`X1`/`X3`,
+/// `X2`/`X4`, or the cell order of `counts`) cannot cancel by symmetry as it does for the
+/// all-ones table above. The reference values are from
+/// `tests/oracle_data/nested_markov_asymmetric_means.py`: the singleton coordinates are
+/// written down as Beta posteriors and the eight coupled coordinates are integrated by
+/// quadrature (agreement between 32 and 48 margin nodes is about 1e-5). The `do(X2)` means
+/// follow from independence of the `c` and `q4` blocks.
+#[test]
+fn asymmetric_counts_posterior_means_match_independent_quadrature() {
+    let counts: [u64; 16] = [3, 1, 2, 5, 1, 4, 2, 1, 6, 2, 1, 3, 2, 1, 4, 2];
+    let reference: [f64; OUTPUTS] = [
+        0.476_190_476_190_476_16, // a
+        0.52,                     // c0
+        0.473_684_210_526_315_76, // c1
+        0.579_274_240_452_427_9,  // q20
+        0.552_023_413_415_480_8,  // q21
+        0.585_038_393_290_0,      // q40
+        0.450_696_311_434_962_5,  // q41
+        0.439_015_118_629_108_4,  // g00
+        0.193_930_740_050_160_05, // g01
+        0.357_158_283_200_337_4,  // g10
+        0.173_311_247_994_847_2,  // g11
+        0.479_445_806_000_372_7,  // mean_do_x2_0
+        0.485_667_965_581_031_2,  // mean_do_x2_1
+        0.006_222_159_580_658_5,  // contrast
+    ];
+    let posterior = fit(
+        &counts,
+        &Prior::default(),
+        &Options { seed: 4242, draws: 4096, warmup: 2048, ..Options::default() },
+        &ExecutionContext::for_tests(0),
+    )
+    .unwrap();
+    for k in 0..OUTPUTS {
+        let tolerance = if k < 3 { 0.012 } else { 0.015 };
+        assert!(
+            (posterior.mean[k] - reference[k]).abs() < tolerance,
+            "param {k}: sample {} oracle {}",
+            posterior.mean[k],
+            reference[k]
+        );
+    }
+}
+
+/// Every law the eleven coordinates can produce lies in the binary Verma nested model, with
+/// cell index `i*8 + t*4 + j*2 + y` for `X1=i, X2=t, X3=j, X4=y`. The constraints are computed
+/// here from the joint cells alone, by definition: `X3` is independent of `X1` given `X2`
+/// (the ordinary conditional independence of the graph `1 -> 2 -> 3 -> 4`, `2 <-> 4`), and the
+/// Verma equality says `sum_t p(t | i) p(y | i, t, j)` does not depend on `i`. The coordinates
+/// also determine fifteen cell probabilities from eleven numbers, so the model is a strict
+/// submodel: a generic table violates the Verma equality, which the last assertion confirms.
+#[test]
+fn coordinate_law_satisfies_the_verma_nested_markov_constraints() {
+    let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+    let mut next = || {
+        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        ((state >> 11) as f64 + 0.5) / (1u64 << 53) as f64
+    };
+    let cell = |c: &[f64; 16], i: usize, t: usize, j: usize, y: usize| c[i * 8 + t * 4 + j * 2 + y];
+    let mut accepted = 0;
+    while accepted < 2000 {
+        let mut p = [0.0; 11];
+        for v in &mut p {
+            *v = next();
+        }
+        let Some(c) = probabilities(&p) else { continue };
+        accepted += 1;
+        let p123 = |i: usize, t: usize, j: usize| (0..2).map(|y| cell(&c, i, t, j, y)).sum::<f64>();
+        let p12 = |i: usize, t: usize| (0..2).map(|j| p123(i, t, j)).sum::<f64>();
+        let p1 = |i: usize| (0..2).map(|t| p12(i, t)).sum::<f64>();
+        for t in 0..2 {
+            for j in 0..2 {
+                let a = p123(0, t, j) / p12(0, t);
+                let b = p123(1, t, j) / p12(1, t);
+                assert!((a - b).abs() < 1e-12, "X3 depends on X1 given X2: {a} {b}");
+            }
+        }
+        for j in 0..2 {
+            for y in 0..2 {
+                let verma = |i: usize| {
+                    (0..2)
+                        .map(|t| p12(i, t) / p1(i) * cell(&c, i, t, j, y) / p123(i, t, j))
+                        .sum::<f64>()
+                };
+                assert!((verma(0) - verma(1)).abs() < 1e-12, "Verma equality fails at ({j},{y})");
+            }
+        }
+    }
+    // A generic positive table is not in the model.
+    let mut generic = [0.0; 16];
+    for (k, v) in generic.iter_mut().enumerate() {
+        *v = 1.0 + ((k * 7) % 5) as f64;
+    }
+    let total: f64 = generic.iter().sum();
+    for v in &mut generic {
+        *v /= total;
+    }
+    let p123 = |i: usize, t: usize, j: usize| (0..2).map(|y| cell(&generic, i, t, j, y)).sum::<f64>();
+    let p12 = |i: usize, t: usize| (0..2).map(|j| p123(i, t, j)).sum::<f64>();
+    let a = p123(0, 0, 0) / p12(0, 0);
+    let b = p123(1, 0, 0) / p12(1, 0);
+    assert!((a - b).abs() > 1e-3, "the constraint check must be able to fail");
 }

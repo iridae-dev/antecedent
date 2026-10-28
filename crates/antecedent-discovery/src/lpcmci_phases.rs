@@ -701,6 +701,12 @@ fn non_ancestral_removal_phase(
                             cond.push(*p);
                         }
                     }
+                    // A known parent of one endpoint can be the other endpoint (an oriented
+                    // `x -> y` makes `x` a known parent of `y`, and auto-links are re-tested
+                    // although their middle mark is definite). Conditioning a pair on one of
+                    // its own endpoints makes every test trivially independent and removes a
+                    // true edge, so neither endpoint may enter the conditioning set.
+                    cond.retain(|p| *p != (x, x_lag) && *p != (y, Lag::CONTEMPORANEOUS));
                     search.retain(|p| !cond.contains(p) && *p != (x, x_lag));
                     if search.len() < p_pc {
                         continue;

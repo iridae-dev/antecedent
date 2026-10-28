@@ -22,6 +22,7 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-learn/src/nested_markov_bayesian.rs",
   "crates/antecedent-learn/tests/nested_markov_bayesian_reference.rs",
+  "crates/antecedent-learn/tests/oracle_data/nested_markov_asymmetric_means.py",
   "crates/antecedent-learn/tests/nested_markov_bayesian_refusals.rs",
   "crates/antecedent-io/tests/nested_markov_bayesian_artifact.rs",
   "crates/antecedent-io/tests/nested_markov_bayesian_calibration.rs",
@@ -32,3 +33,29 @@ test_sources = [
   "crates/antecedent-io/src/measured_inference.rs",
   "python/tests/test_measured_inference.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "crates/antecedent-learn/src/nested_markov_bayesian.rs: the map from the eleven coordinates (a, c0, c1, q20, q21, q40, q41, g00, g01, g10, g11) to the sixteen cell probabilities and its membership in the binary Verma nested model, the likelihood and Beta-kernel log density (log_block), the conjugate singleton updates and the exact feasible brackets used by the slice step, and the three derived effect outputs (do(X2=0), do(X2=1) means and their contrast). The posterior means are checked on an asymmetric count table against deterministic quadrature. Not a review of the sampler's repeated-sampling calibration, of the diagnostics implementation, of the retained artifact or of the Python activation route."
+assumptions = ["Four binary variables X1 -> X2 -> X3 -> X4 with X2 <-> X4 (the Verma graph); one observational table of independent identically distributed units; all sixteen cells positive.", "The law is p(x1) p(x3 | x2) q(x2, x4 | x1, x3) where the district kernel q has X2 margin depending on x1 only and X4 margin depending on x3 only; this is eleven free coordinates, equal to the 15 cell degrees of freedom less four independent constraints (X3 independent of X1 given X2, two; the Verma equality, two).", "The prior is a product of Beta kernels on the Mobius coordinates restricted to the positive polytope, not a prior induced by any generative model; the effect posteriors depend on it, as the sensitivity test shows. do(X2) means follow from identification under the graph and are not checked against any intervention data."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote its own reference: the Verma constraints are computed from the joint cells by definition, and the posterior means are integrated by quadrature in a separate Python script that does not call the product code. The Evans and Richardson paper was not available locally and was not read; the parameterization is checked from the graph's own conditional independence and the Verma equality, not against the paper's text."
+redistribution = "The quadrature script and the Rust constraint check are repository-authored under MIT OR Apache-2.0. The script needs only numpy and is run with uv; its output is copied into the test as constants."
+limitations = "The cited papers (Evans and Richardson, Neal, Vehtari et al.) were not read for this review: the correspondence of the coordinates to the paper's Mobius parameterization, of the slice step to Neal's shrinkage procedure and of the diagnostics to the published definitions is not established here. What is established is that the coordinates generate only laws that satisfy the graph's constraints, that the likelihood and singleton conjugacy are consistent with the factorization, and that the sampler's posterior means on one asymmetric table agree with quadrature within Monte Carlo error (tolerance 0.012 to 0.015 against a standard error near 0.005). It is not shown that every Verma-model law with positive cells is reachable by the coordinates (surjectivity onto the positive model), nor repeated-sampling coverage, nor behavior at large counts or informative priors. Posterior covariances and quantiles are checked only on the all-ones table by the older quadrature test. The estimates carry the earlier-recorded limits: no calibrated public interval, interval endpoints are Monte Carlo quantiles, and diagnostics do not prove convergence."
+sources = ["https://arxiv.org/abs/1511.06813", "https://arxiv.org/abs/physics/0009028", "https://arxiv.org/abs/1903.08008"]
+findings_resolved = ["The existing quadrature reference used the all-ones count table, whose symmetry hides a swapped index (X1 against X3, X2 against X4, or the order of the sixteen counts). Added a quadrature reference for an asymmetric table (singleton coordinates as exact Beta posteriors, eight coupled coordinates integrated by 32 and 48 node rules that agree to about 1e-5) and compare all fourteen sampler means; the q4, g and singleton means differ by up to 0.13 between coordinates, so a swap would fail.", "Added a constraint check computed from the joint cells by definition: over 2000 random feasible coordinate vectors the conditional independence of X3 and X1 given X2 and the Verma equality hold to 1e-12, and the same check fails on a generic table. This establishes that the coordinate map lands in the model, which no earlier test asserted.", "Verified by derivation that the free-coordinate count (eleven) equals fifteen less the four constraints, that the feasible bracket for each coordinate in the slice step is the exact interval on which the four cells of every affected context stay positive (q2: max of g over the two j contexts to min of 1 - q4 + g; q4 likewise over i; g: max(0, q2 + q4 - 1) to min(q2, q4)), and that the singleton shape updates add the counts for i = 0 or 1 and for j = 0 or 1 within each t. No defect was found; no code was changed."]
+record_sha256 = "2e64c2a9c6342dab59f53c503690fb200d723ec77c4c9cf78b4911c7e9fef935"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-learn/src/nested_markov_bayesian.rs"
+sha256 = "a50a5a18fc19971bb1b1b158301d61da22fb79bb99539488f01d773688dbc6ef"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-learn/tests/nested_markov_bayesian_reference.rs"
+sha256 = "0225a985a09390b0bb74f8d090659464c0c10ed600f62f0007b56e46891cb6cb"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-learn/tests/oracle_data/nested_markov_asymmetric_means.py"
+sha256 = "67238ec8775126f8b1cc162d227cbf98c924ccf4911d08a2fbc9a8f2db4a6eff"

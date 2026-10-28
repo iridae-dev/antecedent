@@ -12,7 +12,7 @@ papers = [
 implementation_deviations = [
  "Ancestral and non-ancestral removal searches are bounded by max_cond_size, which defaults to 3.",
  "Discriminating and uncovered-path orientation searches use fixed 64-path or 8-path budgets and maximum path length 8, failing closed when exceeded.",
- "The public FDR option defaults to BH but is ignored by the LPCMCI phase implementation; removals use unadjusted alpha decisions.",
+ "Removals use unadjusted alpha decisions. FDR is off by default and a request for it is refused, because the preliminary, ancestral and non-ancestral CI families are not one multiple-testing family.",
 ]
 
 upstream_implementations_observed = [
@@ -22,7 +22,39 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-discovery/src/lpcmci.rs unit tests",
  "crates/antecedent-discovery/src/lpcmci_phases.rs unit tests",
+ "crates/antecedent-discovery/src/lpcmci_oracle_tests.rs (population d-separation oracle on random stationary SVAR graphs with a hidden process)",
  "crates/antecedent-discovery/tests/lpcmci_oracle_matrix.rs (Tigramite canonical temporal skeleton equality only)",
  "crates/antecedent-discovery/tests/lpcmci_evidence_reconciliation.rs",
  "conformance/discovery/lpcmci_matrix (frozen Tigramite skeleton evidence; PAG endpoint and middle-mark parity are untested)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Lpcmci::run for a single regularly sampled series under an exact conditional-independence oracle: the candidate conditioning sets of the ancestral removal phase (Algorithm S2 shape) and of the non-ancestral removal phase (Algorithm S3 shape) in lpcmci_phases.rs, separating-set recording and weakly-minimal reduction (weakly_minimal.rs), and the soundness of the final endpoint marks. The comparison is the adjacency of the window graph, the d-separation of every recorded separating set and the ancestral meaning of every arrowhead and tail. Not a review of any concrete CI test, of the panel route, of the orientation rules beyond mark soundness (recorded separately under the orientation-rules record), of finite-sample error rates or of FDR (refused)."
+assumptions = ["The data-generating process is a stationary structural vector autoregression whose graph over observed and hidden processes is acyclic in the unrolled time order; with an exact CI oracle the output is compared to d-separation in that unrolled graph. Faithfulness is built into the oracle (dependence is exactly non-d-separation).", "The conditioning universe is the window of observed nodes at lags 0..max_lag, and a link is a pair with the later node at lag 0. An edge whose only separating sets use older nodes stays in the graph; the window adjacency reference is defined accordingly and the cap max_cond_size is set large enough that it does not bind.", "The recorded edge marks claim ancestral relations of the generating graph including hidden processes, as for any PAG; the review checks the sign of every set mark, not that all determinable marks are set."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote its own oracle (active-trail reachability on a graph unrolled over ten steps and ancestry by search); it did not consult any LPCMCI or Tigramite source and used no upstream output. The Tigramite comparison retained elsewhere (canonical temporal skeletons only) is a separate artifact and was not re-run."
+redistribution = "The unrolled-graph generator, the Bayes-ball d-separation check and the exhaustive window reference are repository-authored under MIT OR Apache-2.0 and run inside the crate unit tests. The cited paper is linked, not redistributed."
+limitations = "The primary paper (arXiv 2007.01884) was not read for this review: no local copy was available and nothing was downloaded, so the correspondence of Algorithms 1, S2 and S3, of the middle-mark semantics and of the paper's soundness and completeness theorems to the code is NOT established here; what is established is behavior under an exact oracle against definitions. The executing comparison covers 60 random graphs with four processes (one hidden), three observed variables and max_lag 2, with at most lag-2 edges and contemporaneous edges: it shows window-adjacency equality, sound marks and valid separating sets on that population, not behavior with other sizes, with finite-sample tests, with selection variables or with the panel route. Mark completeness is not asserted. The 64-path/8-path discriminating and uncovered path budgets are not exercised. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.2007.01884", "https://arxiv.org/abs/2007.01884"]
+findings_resolved = ["Defect fixed: the non-ancestral removal phase built its mandatory conditioning set from the known parents of both endpoints without removing the endpoints themselves. Auto-links are re-tested although their middle mark is definite, and an oriented X(t-1) -> X(t) makes the source a known parent of the target, so the test conditioned the pair on its own endpoint, was trivially independent, and removed a true edge (16 of 60 oracle cases lost an auto-link; the recorded separating set contained the source node). The set now excludes both endpoints, as the ancestral phase already did.", "Added an executing comparison under an exact oracle: for every window pair the output has an edge exactly when no subset of the other window nodes d-separates the pair in the unrolled graph (exhausted over 2^7 subsets for k=3, max_lag=2), every recorded separating set d-separates its pair, and every arrowhead and tail is consistent with ancestry in the generating graph with hidden nodes. The oracle rejects any query whose conditioning set contains a tested endpoint, so the defect above cannot hide behind a vacuous independence.", "Added textbook checks of the d-separation reference (chain, fork, collider with a descendant, M-structure) so the comparison cannot pass on a degenerate oracle.", "Corrected the record's deviation text: it said the FDR option defaults to BH and is ignored; the default is off and a request is refused."]
+record_sha256 = "10e37454db869f7847695bb4f676d69f83158f9ad9ce20f57e1689435fba1953"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/lpcmci_phases.rs"
+sha256 = "ed6012fd9597c5018c523eaeb4779bf06f7fe8b3338a2ff15e65305483534e53"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/lpcmci.rs"
+sha256 = "c3a05c1e2e7976893adfcdf20b27a903360fb1fba55b0e334c798446550fc28e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/weakly_minimal.rs"
+sha256 = "ca24e2625fb5a00744b19000bd2a1e76f69f71e6dd68bdab2b10aa9a535126ff"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/src/lpcmci_oracle_tests.rs"
+sha256 = "146a1c6ef528a28973d60649067b61635c95798aae2882f48e4662240917cb7a"
