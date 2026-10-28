@@ -104,7 +104,8 @@ impl ContinuousResponseEstimator {
         scale: DerivativeScale,
     ) -> Result<ResponseInfluence, EstimationError> {
         let sample = CompleteSample::read(data, outcome, &[treatment], &self.adjustment_set)?;
-        let PseudoOutcome { values: pseudo, .. } = self.cross_fitted_pseudo_outcome(&sample)?;
+        let PseudoOutcome { values: pseudo, covariate_centered, .. } =
+            self.cross_fitted_pseudo_outcome(&sample)?;
         let bandwidth = self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
         let (corrected, rows) = gaussian_local_quadratic_bias_corrected_influence(
             &sample.treatments,
@@ -123,9 +124,18 @@ impl ContinuousResponseEstimator {
             scale,
         );
         let n = rows.len() as f64;
+        // The level's influence carries the covariate marginalization of the pseudo-outcome, as
+        // the interval's covariance does.
+        let marginalization = {
+            let centre = covariate_centered.iter().sum::<f64>() / n;
+            covariate_centered.iter().map(|c| (c - centre) / n).collect::<Vec<f64>>()
+        };
         let mut column: Vec<f64> = rows
             .iter()
-            .map(|psi| n * (gradient[0] * psi[0] + gradient[1] * psi[1] + gradient[2] * psi[2]))
+            .zip(&marginalization)
+            .map(|(psi, term)| {
+                n * (gradient[0] * (psi[0] + term) + gradient[1] * psi[1] + gradient[2] * psi[2])
+            })
             .collect();
         let center = column.iter().sum::<f64>() / n;
         for value in &mut column {

@@ -1206,7 +1206,7 @@ fn admit_executable_route(estimand: RetargetedEstimand) -> Result<ExecutableRout
              has no scalar refutation problem for them to run on"
         ));
     }
-    require_declared_dependence_read(&carry, &query)?;
+    require_declared_dependence_read(&carry, &query, graph.class())?;
     Ok(ExecutableRoute(Spine { carry, graph, graph_posterior, query }))
 }
 
@@ -1222,6 +1222,7 @@ fn admit_executable_route(estimand: RetargetedEstimand) -> Result<ExecutableRout
 fn require_declared_dependence_read(
     carry: &Carry,
     query: &CausalQuery,
+    graph_class: GraphClass,
 ) -> Result<(), CausalError> {
     use antecedent_core::DeclaredSamplingDesign as Design;
     use antecedent_estimate::AnalyticSeKind as Kind;
@@ -1297,6 +1298,32 @@ fn require_declared_dependence_read(
     }
     let inference = carry.declared.estimator_spec.as_ref().and_then(EstimatorSpec::inference_spec);
     let replicates = inference.map_or(carry.settings.bootstrap_replicates, |i| i.bootstrap_replicates);
+    // The default kernel-smoothed curve and plug-in intervention response of a DAG publish an
+    // influence-function interval over independent rows and do not bootstrap: the replicates
+    // setting changes nothing in them, so it is not a way to read a declared clustered panel or
+    // dependent series.
+    if let CausalQuery::Response(response) = query {
+        if replicates > 0
+            && response.temporal.is_none()
+            && graph_class == GraphClass::Dag
+            && carry.declared.estimator_spec.is_none()
+            && matches!(
+                response.functional,
+                antecedent_core::ResponseFunctional::MeanCurve { .. }
+                    | antecedent_core::ResponseFunctional::InterventionResponse { .. }
+            )
+        {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "the default response curve and intervention response publish an \
+                 influence-function interval over independent rows and do not bootstrap, so a \
+                 declared clustered-panel or dependent-time-series design would be silently \
+                 ignored whatever the bootstrap setting. Next attempt: declare independent \
+                 subject trajectories if the rows are independent, or estimate an average \
+                 effect with a cluster or Newey-West standard error"
+            ));
+        }
+    }
     if replicates > 0 {
         return Ok(());
     }

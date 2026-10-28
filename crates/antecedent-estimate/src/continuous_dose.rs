@@ -180,15 +180,20 @@ pub fn fixed_dose_policy_value(
             {
                 return Err("dose policy weights overflowed finite precision".into());
             }
-            let mean =
-                weights.iter().map(|(i, weight)| weight * outcome[*i]).sum::<f64>() / sum_weight;
+            // Summed about the first local outcome, so an outcome offset far above the spread
+            // does not cost the mean (and the paired difference of two means) its digits.
+            let pivot = outcome[weights[0].0];
+            let shifted_mean =
+                weights.iter().map(|(i, weight)| weight * (outcome[*i] - pivot)).sum::<f64>()
+                    / sum_weight;
+            let mean = pivot + shifted_mean;
             if !mean.is_finite() {
                 return Err("dose policy value overflowed finite precision".into());
             }
             *value += group_fraction * mean;
             for (i, weight) in weights.iter().copied() {
                 let normalized = weight / sum_weight;
-                score[i] = group_fraction * normalized * (outcome[i] - mean);
+                score[i] = group_fraction * normalized * ((outcome[i] - pivot) - shifted_mean);
                 maximum_normalized_weight = maximum_normalized_weight.max(normalized);
             }
             minimum_local_rows = minimum_local_rows.min(weights.len());
@@ -344,12 +349,15 @@ pub fn conditional_dose_response(
             }
             let sum_weight = weights.iter().sum::<f64>();
             let sum_weight_squared = weights.iter().map(|weight| weight.powi(2)).sum::<f64>();
-            let response = weights
-                .iter()
-                .zip(&weighted_outcomes)
-                .map(|(weight, outcome)| weight * outcome)
-                .sum::<f64>()
-                / sum_weight;
+            // Summed about the first local outcome (see `fixed_dose_policy_value`).
+            let pivot = weighted_outcomes[0];
+            let response = pivot
+                + weights
+                    .iter()
+                    .zip(&weighted_outcomes)
+                    .map(|(weight, outcome)| weight * (outcome - pivot))
+                    .sum::<f64>()
+                    / sum_weight;
             let effective_n = sum_weight.powi(2) / sum_weight_squared;
             let local_sd = (weights
                 .iter()

@@ -1,17 +1,17 @@
 //! Cross-fitted nuisance and outcome-target fits.
 
 use antecedent_stats::{
-    AdditiveDesign, FaerBackend, GamOptions, GamWorkspace, GaussianMixtureDensity, PredictorMatrix,
-    SmoothSpec, fit_gam, fit_gam_weighted_design, gaussian_density,
+    AdditiveDesign, FaerBackend, GamWorkspace, GaussianMixtureDensity, PredictorMatrix, SmoothSpec,
+    fit_gam, fit_gam_weighted_design, gaussian_density,
 };
 
 use crate::EstimationError;
 
 use super::{
     CONDITIONAL_DENSITY_FLOOR, ContinuousResponseEstimator, CrossFitFold, GAM_TARGET_NOT_CONVERGED,
-    PLUGIN_TARGET_LAMBDA, PseudoOutcome, ensure_crossfit_size, fit_additive, fit_additive_design,
-    plugin::predict_one, require_converged_gam, sample::CompleteSample, treatment_sigma,
-    treatment_sigma_train_weighted,
+    NUISANCE_BACKFIT, PLUGIN_TARGET_LAMBDA, PseudoOutcome, ensure_crossfit_size, fit_additive,
+    fit_additive_design, plugin::predict_one, require_converged_gam, sample::CompleteSample,
+    treatment_sigma, treatment_sigma_train_weighted,
 };
 
 impl ContinuousResponseEstimator {
@@ -290,7 +290,7 @@ impl ContinuousResponseEstimator {
             &PredictorMatrix::new(&x, sample.len(), sample.raw_cols),
             &sample.outcome,
             &specs,
-            &GamOptions { max_iter: 500, tol: 1e-6 },
+            &NUISANCE_BACKFIT,
             &FaerBackend,
             &mut gam_ws,
         );
@@ -332,7 +332,7 @@ impl ContinuousResponseEstimator {
         let fit = fit_gam_weighted_design(
             design,
             &sample.outcome,
-            &GamOptions { max_iter: 500, tol: 1e-6 },
+            &NUISANCE_BACKFIT,
             weights,
             &mut gam_ws,
         )?;

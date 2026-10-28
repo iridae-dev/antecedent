@@ -22,6 +22,27 @@ use super::{
     transform_point_derivative, transform_point_derivative_gradient, treatment_sigma,
 };
 
+/// Covariance of the corrected `(level, slope, curvature)` from their row influences, with the
+/// covariate-marginalization term `(c_i - mean c) / n` of the Kennedy pseudo-outcome added to the
+/// level's influence (see `mean_curve`): the sum of the outer products of the rows.
+pub(super) fn coordinate_covariance(
+    rows: &[[f64; 3]],
+    covariate_centered: &[f64],
+) -> [[f64; 3]; 3] {
+    let n = rows.len() as f64;
+    let centre = covariate_centered.iter().sum::<f64>() / n;
+    let mut covariance = [[0.0; 3]; 3];
+    for (row, covariate) in rows.iter().zip(covariate_centered) {
+        let psi = [row[0] + (covariate - centre) / n, row[1], row[2]];
+        for a in 0..3 {
+            for b in 0..3 {
+                covariance[a][b] += psi[a] * psi[b];
+            }
+        }
+    }
+    covariance
+}
+
 impl ContinuousResponseEstimator {
     #[allow(
         clippy::too_many_lines,
@@ -37,7 +58,7 @@ impl ContinuousResponseEstimator {
         scale: DerivativeScale,
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
         let sample = CompleteSample::read(data, outcome, &[treatment], &self.adjustment_set)?;
-        let PseudoOutcome { values: pseudo, density_floor_rows, .. } =
+        let PseudoOutcome { values: pseudo, density_floor_rows, covariate_centered } =
             self.cross_fitted_pseudo_outcome(&sample)?;
         let bandwidth = self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
         let local = antecedent_stats::gaussian_local_quadratic_influence(
@@ -63,14 +84,19 @@ impl ContinuousResponseEstimator {
         // O(h²·m''') smoothing bias of m̂' (and the O(h²·m'''') bias of m̂'')
         // and under-covers the true derivative at an MSE-sized bandwidth
         // (tests/derivative_calibration.rs).
-        let corrected = antecedent_stats::gaussian_local_quadratic_bias_corrected(
-            &sample.treatments,
-            &pseudo,
-            at,
-            bandwidth,
-            None,
-        )
-        .map_err(|err| local_design_refusal(err, &sample.treatments, at, bandwidth))?;
+        let (corrected, corrected_rows) =
+            antecedent_stats::gaussian_local_quadratic_bias_corrected_influence(
+                &sample.treatments,
+                &pseudo,
+                at,
+                bandwidth,
+                None,
+            )
+            .map_err(|err| local_design_refusal(err, &sample.treatments, at, bandwidth))?;
+        // The slope and curvature do not move with the covariate marginalization of the
+        // pseudo-outcome (its offset is constant in the treatment), but the level does, and every
+        // transform that divides by the level reads it: the joint covariance carries the term.
+        let coordinate_covariance = coordinate_covariance(&corrected_rows, &covariate_centered);
         let corrected_estimate = transform_point_derivative(
             corrected.value,
             corrected.first_derivative,
@@ -109,7 +135,7 @@ impl ContinuousResponseEstimator {
                     order,
                     scale,
                 );
-                delta_method_standard_error(&corrected.coefficient_covariance, &gradient)
+                delta_method_standard_error(&coordinate_covariance, &gradient)
             }
         };
         // A ratio of estimated coordinates needs denominator uncertainty in
@@ -122,7 +148,7 @@ impl ContinuousResponseEstimator {
                 corrected.value,
                 corrected.first_derivative,
                 at,
-                &corrected.coefficient_covariance,
+                &coordinate_covariance,
                 normal_ppf(0.5 + self.options.confidence_level / 2.0),
             )
         });

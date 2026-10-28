@@ -7,15 +7,17 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{Intervention, StochasticPolicy, VariableId};
-use antecedent_stats::gauss_hermite_standard_normal;
+use antecedent_stats::gauss_legendre;
 
 use super::{MAX_EXACT_MIXTURE_COMBINATIONS, plugin::predict_one, sample::CompleteSample};
 use crate::EstimationError;
 
-/// Nodes of the Gauss–Hermite rule applied to a Gaussian intervention policy. The
-/// dose-response smooths are cubic B-splines, so the integrand is piecewise cubic;
-/// 48 nodes resolve every knot interval a policy spans to well below the SE.
-const POLICY_QUADRATURE_NODES: usize = 48;
+/// Legendre nodes per piece of the composite rule applied to a Gaussian intervention policy.
+const POLICY_PIECE_NODES: usize = 8;
+
+/// Standard deviations either side of the mean beyond which the Gaussian law is dropped
+/// (the omitted mass is below 1e-23).
+const POLICY_TAIL_SD: f64 = 10.0;
 
 pub(super) fn intervention_needs_quadrature(intervention: &Intervention) -> bool {
     matches!(
@@ -24,10 +26,19 @@ pub(super) fn intervention_needs_quadrature(intervention: &Intervention) -> bool
     )
 }
 
-/// Atoms of an intervention's law: the exact support for discrete policies and a
-/// Gauss–Hermite rule for a Gaussian policy.
+/// Atoms of an intervention's law: the exact support for discrete policies and, for a Gaussian
+/// policy, a composite rule for the expectation of a clamped cubic spline with the given `knots`.
+///
+/// The integrand `f(clamp(a)) φ(a)` is a cubic times a Gaussian density between two knots and a
+/// constant outside the knot interval, so a fixed Gauss–Hermite rule resolves it only while the
+/// policy is narrow against the knot spacing (it was off by 15 percent of the standard error for a
+/// policy with a standard deviation of two against knots over about four). Each part is
+/// integrated separately: the two clamped tails carry their exact normal mass at the boundary
+/// knot, and each knot interval inside ±10 standard deviations is cut into pieces no wider than one
+/// standard deviation, with an eight-point Gauss–Legendre rule on each piece.
 pub(super) fn policy_support(
     intervention: &Intervention,
+    knots: &[f64],
 ) -> Result<Vec<DiscreteAtom>, EstimationError> {
     if let Intervention::Stochastic {
         policy: StochasticPolicy::Gaussian { mean, variance }, ..
@@ -38,15 +49,63 @@ pub(super) fn policy_support(
                 "Gaussian intervention needs a finite mean and a finite non-negative variance",
             ));
         }
-        let (nodes, weights) = gauss_hermite_standard_normal(POLICY_QUADRATURE_NODES);
-        let sd = variance.sqrt();
-        return Ok(nodes
-            .into_iter()
-            .zip(weights)
-            .map(|(node, weight)| DiscreteAtom::Level { value: mean + sd * node, weight })
-            .collect());
+        return Ok(gaussian_atoms(*mean, variance.sqrt(), knots));
     }
     discrete_intervention_support(intervention)
+}
+
+/// Standard normal distribution function.
+fn normal_cdf(z: f64) -> f64 {
+    0.5 * antecedent_kernels::erfc(-z / std::f64::consts::SQRT_2)
+}
+
+fn gaussian_atoms(mean: f64, sd: f64, knots: &[f64]) -> Vec<DiscreteAtom> {
+    let (left, right) = match (knots.get(3), knots.len().checked_sub(4).and_then(|i| knots.get(i)))
+    {
+        (Some(&left), Some(&right)) if left < right => (left, right),
+        _ => return vec![DiscreteAtom::Level { value: mean, weight: 1.0 }],
+    };
+    if sd <= 0.0 {
+        return vec![DiscreteAtom::Level { value: mean, weight: 1.0 }];
+    }
+    let mut atoms = Vec::new();
+    let below = normal_cdf((left - mean) / sd);
+    if below > 0.0 {
+        atoms.push(DiscreteAtom::Level { value: left, weight: below });
+    }
+    let above = 1.0 - normal_cdf((right - mean) / sd);
+    if above > 0.0 {
+        atoms.push(DiscreteAtom::Level { value: right, weight: above });
+    }
+    let mut cuts: Vec<f64> = knots.iter().copied().filter(|k| *k > left && *k < right).collect();
+    cuts.push(left);
+    cuts.push(right);
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup();
+    let (nodes, weights) = gauss_legendre(POLICY_PIECE_NODES);
+    let norm = 1.0 / (sd * (2.0 * std::f64::consts::PI).sqrt());
+    for pair in cuts.windows(2) {
+        let lo = pair[0].max(mean - POLICY_TAIL_SD * sd);
+        let hi = pair[1].min(mean + POLICY_TAIL_SD * sd);
+        if hi <= lo {
+            continue;
+        }
+        let pieces = ((hi - lo) / sd).ceil().max(1.0);
+        let width = (hi - lo) / pieces;
+        for piece in 0..pieces as usize {
+            let start = lo + width * piece as f64;
+            let (mid, half) = (start + 0.5 * width, 0.5 * width);
+            for (node, weight) in nodes.iter().zip(&weights) {
+                let value = mid + half * node;
+                let z = (value - mean) / sd;
+                atoms.push(DiscreteAtom::Level {
+                    value,
+                    weight: half * weight * norm * (-0.5 * z * z).exp(),
+                });
+            }
+        }
+    }
+    atoms
 }
 
 /// Policy expectation of the additive outcome model for every row.
@@ -59,8 +118,17 @@ pub(super) fn additive_policy_rows(
     sample: &CompleteSample,
     interventions: &[Intervention],
 ) -> Result<Vec<f64>, EstimationError> {
-    let supports: Vec<Vec<DiscreteAtom>> =
-        interventions.iter().map(policy_support).collect::<Result<_, _>>()?;
+    let supports: Vec<Vec<DiscreteAtom>> = interventions
+        .iter()
+        .enumerate()
+        .map(|(column, intervention)| {
+            let knots = fit
+                .smooth_for_raw_col(column)
+                .and_then(|index| fit.smooths.get(index))
+                .map_or(&[][..], |smooth| &smooth.knots[..]);
+            policy_support(intervention, knots)
+        })
+        .collect::<Result<_, _>>()?;
     let extra_terms = supports.len().saturating_sub(1) as f64;
     let mut factual = vec![0.0; sample.raw_cols];
     let mut row = vec![0.0; sample.raw_cols];

@@ -383,7 +383,7 @@ pub(super) fn intervention_plugin_influence(
                 })?;
                 (observed.iter().map(|&v| v + delta).collect(), vec![1.0 / nf; n])
             } else {
-                policy_support(iv)?
+                policy_support(iv, &smooth.knots)?
                     .into_iter()
                     .map(|atom| match atom {
                         DiscreteAtom::Level { value, weight } => (value, weight),

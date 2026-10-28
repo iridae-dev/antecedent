@@ -14,6 +14,15 @@ use antecedent_stats::{
 use super::sample::CompleteSample;
 use crate::EstimationError;
 
+/// Backfitting budget of every additive-GAM nuisance and plug-in target in the response
+/// estimators. The loop stops on either a small change of the smooths or a small change of the
+/// residual sum of squares, and the second is second order in the coefficient error: at the
+/// generic 1e-6 it stopped with the treatment smooth, which the Kennedy marginalization and the
+/// derivative read as a function in its own right, off by 0.2 percent when the adjusters are
+/// correlated with the treatment (the fitted values were right). 1e-10 brings that error to the
+/// order of 1e-7.
+pub(super) const NUISANCE_BACKFIT: GamOptions = GamOptions { max_iter: 2000, tol: 1e-10 };
+
 pub(super) fn fit_additive(
     x: &[f64],
     nrows: usize,
@@ -32,7 +41,7 @@ pub(super) fn fit_additive(
         &PredictorMatrix::new(x, nrows, ncols),
         y,
         &specs,
-        &GamOptions { max_iter: 500, tol: 1e-6 },
+        &NUISANCE_BACKFIT,
         &FaerBackend,
         workspace,
     )?;
@@ -80,13 +89,7 @@ pub(super) fn fit_additive_design(
     weights: Option<&[f64]>,
     workspace: &mut GamWorkspace,
 ) -> Result<antecedent_stats::GamFit, EstimationError> {
-    let fit = fit_gam_weighted_design(
-        design,
-        y,
-        &GamOptions { max_iter: 500, tol: 1e-6 },
-        weights,
-        workspace,
-    )?;
+    let fit = fit_gam_weighted_design(design, y, &NUISANCE_BACKFIT, weights, workspace)?;
     require_converged_gam(
         fit,
         if weights.is_some() {
